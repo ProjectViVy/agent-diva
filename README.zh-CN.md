@@ -3,7 +3,6 @@
 一个轻量、可扩展的个人 AI 助手框架，使用 Rust 构建。
 本仓库包含多 crate 工作区，覆盖核心能力、提供商集成、渠道适配、内置工具与 CLI。
 
-[![CI](https://github.com/HKUDS/agent-diva/actions/workflows/ci.yml/badge.svg)](https://github.com/HKUDS/agent-diva/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 为什么是 Agent Diva
@@ -38,7 +37,7 @@ agent-diva/
 克隆并构建：
 
 ```bash
-git clone https://github.com/HKUDS/agent-diva.git
+git clone https://github.com/ProjectViVy/agent-diva.git
 cd agent-diva
 cargo build --all
 ```
