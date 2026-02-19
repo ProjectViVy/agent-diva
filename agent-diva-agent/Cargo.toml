@@ -1,0 +1,41 @@
+[package]
+name = "agent-diva-agent"
+version = "0.2.0"
+edition = "2021"
+authors = ["agent-diva contributors"]
+license = "MIT"
+repository = "https://github.com/HKUDS/agent-diva"
+description = "Agent logic for agent-diva"
+
+[dependencies]
+agent-diva-core = { path = "../agent-diva-core" }
+agent-diva-providers = { path = "../agent-diva-providers" }
+agent-diva-tools = { path = "../agent-diva-tools" }
+
+# Async runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Utilities
+regex = { workspace = true }
+uuid = { workspace = true }
+which = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }

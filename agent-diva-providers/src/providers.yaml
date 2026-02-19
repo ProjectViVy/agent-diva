@@ -1,0 +1,243 @@
+- name: openrouter
+  api_type: openai
+  keywords:
+    - openrouter
+  env_key: OPENROUTER_API_KEY
+  display_name: OpenRouter
+  litellm_prefix: openrouter
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: sk-or-
+  detect_by_base_keyword: openrouter
+  default_api_base: https://openrouter.ai/api/v1
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: aihubmix
+  api_type: openai
+  keywords:
+    - aihubmix
+  env_key: OPENAI_API_KEY
+  display_name: AiHubMix
+  litellm_prefix: openai
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: aihubmix
+  default_api_base: https://aihubmix.com/v1
+  strip_model_prefix: true
+  model_overrides: []
+
+- name: custom
+  api_type: openai
+  keywords:
+    - custom
+    - local
+  env_key: CUSTOM_API_KEY
+  display_name: Custom / Local
+  litellm_prefix: ""
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: true
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: localhost
+  default_api_base: http://localhost:8000/v1
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: anthropic
+  api_type: anthropic
+  keywords:
+    - anthropic
+    - claude
+  env_key: ANTHROPIC_API_KEY
+  display_name: Anthropic
+  litellm_prefix: ""
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: openai
+  api_type: openai
+  keywords:
+    - openai
+    - gpt
+  env_key: OPENAI_API_KEY
+  display_name: OpenAI
+  litellm_prefix: ""
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.openai.com/v1
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: deepseek
+  api_type: openai
+  keywords:
+    - deepseek
+  env_key: DEEPSEEK_API_KEY
+  display_name: DeepSeek
+  litellm_prefix: ""
+  skip_prefixes:
+    - deepseek/
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.deepseek.com/v1
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: gemini
+  api_type: openai
+  keywords:
+    - gemini
+  env_key: GEMINI_API_KEY
+  display_name: Gemini
+  litellm_prefix: gemini
+  skip_prefixes:
+    - gemini/
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: zhipu
+  api_type: openai
+  keywords:
+    - zhipu
+    - glm
+    - zai
+  env_key: ZAI_API_KEY
+  display_name: Zhipu AI
+  litellm_prefix: zai
+  skip_prefixes:
+    - zhipu/
+    - zai/
+    - openrouter/
+    - hosted_vllm/
+  env_extras:
+    - ["ZHIPUAI_API_KEY", "{api_key}"]
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: dashscope
+  api_type: openai
+  keywords:
+    - qwen
+    - dashscope
+  env_key: DASHSCOPE_API_KEY
+  display_name: DashScope
+  litellm_prefix: dashscope
+  skip_prefixes:
+    - dashscope/
+    - openrouter/
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: moonshot
+  api_type: openai
+  keywords:
+    - moonshot
+    - kimi
+  env_key: MOONSHOT_API_KEY
+  display_name: Moonshot
+  litellm_prefix: moonshot
+  skip_prefixes:
+    - moonshot/
+    - openrouter/
+  env_extras:
+    - ["MOONSHOT_API_BASE", "{api_base}"]
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.moonshot.ai/v1
+  strip_model_prefix: false
+  model_overrides:
+    - ["kimi-k2.5", { "temperature": 1.0 }]
+
+- name: minimax
+  api_type: openai
+  keywords:
+    - minimax
+  env_key: MINIMAX_API_KEY
+  display_name: MiniMax
+  litellm_prefix: minimax
+  skip_prefixes:
+    - minimax/
+    - openrouter/
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.minimax.io/v1
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: vllm
+  api_type: openai
+  keywords:
+    - vllm
+  env_key: HOSTED_VLLM_API_KEY
+  display_name: vLLM/Local
+  litellm_prefix: hosted_vllm
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: true
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  model_overrides: []
+
+- name: groq
+  api_type: openai
+  keywords:
+    - groq
+  env_key: GROQ_API_KEY
+  display_name: Groq
+  litellm_prefix: groq
+  skip_prefixes:
+    - groq/
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  model_overrides: []

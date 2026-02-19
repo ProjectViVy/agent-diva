@@ -1,0 +1,43 @@
+[package]
+name = "agent-diva-core"
+version = "0.2.0"
+edition = "2021"
+authors = ["agent-diva contributors"]
+license = "MIT"
+repository = "https://github.com/HKUDS/agent-diva"
+description = "Core types and traits for agent-diva"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+
+# Configuration
+config = { workspace = true }
+dirs = { workspace = true }
+
+# Time and date
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+cron = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }

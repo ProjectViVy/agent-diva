@@ -1,0 +1,47 @@
+[package]
+name = "agent-diva-cli"
+version = "0.2.0"
+edition = "2021"
+authors = ["agent-diva contributors"]
+license = "MIT"
+repository = "https://github.com/HKUDS/agent-diva"
+description = "CLI application for agent-diva"
+
+[[bin]]
+name = "agent-diva"
+path = "src/main.rs"
+
+[dependencies]
+agent-diva-core = { path = "../agent-diva-core" }
+agent-diva-agent = { path = "../agent-diva-agent" }
+agent-diva-providers = { path = "../agent-diva-providers" }
+agent-diva-channels = { path = "../agent-diva-channels" }
+agent-diva-tools = { path = "../agent-diva-tools" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+console = { workspace = true }
+dialoguer = { workspace = true }
+indicatif = { workspace = true }
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Configuration
+dirs = { workspace = true }
+
+# Time utilities
+chrono = { workspace = true }

@@ -1,0 +1,47 @@
+# Rust
+/target
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.claude/
+.qoder/
+.workspace/
+
+# JS/GUI
+**/node_modules/
+**/.pnpm-store/
+**/.npm/
+**/.npm-cache/
+**/dist/
+**/.turbo/
+**/.next/
+**/.nuxt/
+**/.svelte-kit/
+**/.vite/
+**/.cache/
+**/.parcel-cache/
+**/coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Test artifacts
+*.profraw
+coverage/
+
+# Documentation build
+target/doc/
+
+# Temporary files
+*.tmp
+*.temp

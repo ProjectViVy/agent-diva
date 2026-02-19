@@ -1,0 +1,38 @@
+[package]
+name = "agent-diva-migration"
+version = "0.2.0"
+edition = "2021"
+authors = ["agent-diva contributors"]
+license = "MIT"
+repository = "https://github.com/HKUDS/agent-diva"
+description = "Migration tool for agent-diva"
+
+[[bin]]
+name = "agent-diva-migrate"
+path = "src/main.rs"
+
+[dependencies]
+agent-diva-core = { path = "../agent-diva-core" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+console = { workspace = true }
+dialoguer = { workspace = true }
+dirs = { workspace = true }
+
+# Testing
+tempfile = { workspace = true }

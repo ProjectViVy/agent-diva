@@ -1,0 +1,38 @@
+[package]
+name = "agent-diva-tools"
+version = "0.2.0"
+edition = "2021"
+authors = ["agent-diva contributors"]
+license = "MIT"
+repository = "https://github.com/HKUDS/agent-diva"
+description = "Built-in tools for agent-diva"
+
+[dependencies]
+agent-diva-core = { path = "../agent-diva-core" }
+
+# Async runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Regex
+regex = { workspace = true }
+
+# Time and date
+chrono = { workspace = true }
+
+# HTTP
+reqwest = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
