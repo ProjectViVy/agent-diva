@@ -1,10 +1,9 @@
-# Agent Diva (Rust)
+# Agent Diva
 
 A lightweight, extensible personal AI assistant framework written in Rust.
 This repository contains a multi-crate workspace that powers the agent core,
 provider integrations, channel adapters, built-in tools, and the CLI.
 
-[![CI](https://github.com/HKUDS/agent-diva/actions/workflows/ci.yml/badge.svg)](https://github.com/HKUDS/agent-diva/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Read this in other languages: [简体中文](README.zh-CN.md)
@@ -41,7 +40,7 @@ agent-diva/
 Clone and build:
 
 ```bash
-git clone https://github.com/HKUDS/agent-diva.git
+git clone https://github.com/mastwet/agent-diva.git
 cd agent-diva
 cargo build --all
 ```
