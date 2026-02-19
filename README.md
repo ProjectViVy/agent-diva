@@ -7,6 +7,8 @@ provider integrations, channel adapters, built-in tools, and the CLI.
 [![CI](https://github.com/HKUDS/agent-diva/actions/workflows/ci.yml/badge.svg)](https://github.com/HKUDS/agent-diva/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+Read this in other languages: [简体中文](README.zh-CN.md)
+
 ## Why Agent Diva
 
 - Fast startup and low resource usage.
