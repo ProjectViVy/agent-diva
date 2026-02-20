@@ -1,4 +1,4 @@
-﻿//! DingTalk channel integration using Stream Mode
+//! DingTalk channel integration using Stream Mode
 //!
 //! This implementation uses DingTalk Stream WebSocket API for real-time
 //! message reception and HTTP API for sending messages.
@@ -642,6 +642,10 @@ impl ChannelHandler for DingTalkHandler {
 
         debug!("DingTalk message sent to {}", msg.chat_id);
         Ok(())
+    }
+
+    fn set_inbound_sender(&mut self, tx: mpsc::Sender<agent_diva_core::bus::InboundMessage>) {
+        self.inbound_tx = Some(tx);
     }
 
     fn is_allowed(&self, sender_id: &str) -> bool {

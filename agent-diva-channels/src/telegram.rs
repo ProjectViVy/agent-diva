@@ -1,4 +1,4 @@
-﻿//! Telegram channel integration
+//! Telegram channel integration
 
 use crate::base::{ChannelError, ChannelHandler, Result};
 use async_trait::async_trait;
@@ -658,6 +658,10 @@ impl ChannelHandler for TelegramHandler {
                 Ok(())
             }
         }
+    }
+
+    fn set_inbound_sender(&mut self, tx: mpsc::Sender<InboundMessage>) {
+        self.inbound_tx = Some(tx);
     }
 
     fn is_allowed(&self, sender_id: &str) -> bool {

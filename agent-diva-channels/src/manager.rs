@@ -1,4 +1,4 @@
-﻿//! Channel manager
+//! Channel manager
 
 use crate::base::{ChannelError, ChannelHandler, ChannelHandlerPtr, Result};
 use crate::dingtalk::DingTalkHandler;
@@ -241,6 +241,110 @@ impl ChannelManager {
 
         let handler = handler.read().await;
         handler.send(message).await
+    }
+
+    /// Update a specific channel configuration
+    pub async fn update_channel(&self, name: &str, new_config: Config) -> Result<()> {
+        let mut handlers = self.handlers.write().await;
+
+        // 1. Stop and remove existing handler
+        if let Some(handler) = handlers.get(name) {
+            tracing::info!("Stopping {} channel for update...", name);
+            let mut handler = handler.write().await;
+            if let Err(e) = handler.stop().await {
+                tracing::error!("Failed to stop {} channel: {}", name, e);
+            }
+        }
+        handlers.remove(name);
+
+        // 2. Initialize new handler if enabled
+        let handler: Option<Arc<RwLock<dyn ChannelHandler>>> = match name {
+            "telegram" => {
+                if new_config.channels.telegram.enabled && !new_config.channels.telegram.token.is_empty() {
+                    Some(Arc::new(RwLock::new(TelegramHandler::new(&new_config.channels.telegram))))
+                } else {
+                    None
+                }
+            }
+            "discord" => {
+                if new_config.channels.discord.enabled && !new_config.channels.discord.token.is_empty() {
+                    Some(Arc::new(RwLock::new(DiscordHandler::new(&new_config.channels.discord))))
+                } else {
+                    None
+                }
+            }
+            "feishu" => {
+                if new_config.channels.feishu.enabled && !new_config.channels.feishu.app_id.is_empty() {
+                    Some(Arc::new(RwLock::new(FeishuHandler::new(new_config.channels.feishu.clone(), new_config.clone()))))
+                } else {
+                    None
+                }
+            }
+            "whatsapp" => {
+                if new_config.channels.whatsapp.enabled {
+                    Some(Arc::new(RwLock::new(WhatsAppHandler::new(new_config.channels.whatsapp.clone()))))
+                } else {
+                    None
+                }
+            }
+            "dingtalk" => {
+                if new_config.channels.dingtalk.enabled && !new_config.channels.dingtalk.client_id.is_empty() {
+                    Some(Arc::new(RwLock::new(DingTalkHandler::new(new_config.channels.dingtalk.clone(), new_config.clone()))))
+                } else {
+                    None
+                }
+            }
+            "email" => {
+                if new_config.channels.email.enabled && !new_config.channels.email.imap_username.is_empty() {
+                    Some(Arc::new(RwLock::new(EmailHandler::new(new_config.channels.email.clone(), new_config.clone()))))
+                } else {
+                    None
+                }
+            }
+            "slack" => {
+                if new_config.channels.slack.enabled && !new_config.channels.slack.bot_token.is_empty() {
+                    Some(Arc::new(RwLock::new(SlackHandler::new(new_config.channels.slack.clone()))))
+                } else {
+                    None
+                }
+            }
+            "qq" => {
+                if new_config.channels.qq.enabled && !new_config.channels.qq.app_id.is_empty() {
+                    Some(Arc::new(RwLock::new(QQHandler::new(new_config.channels.qq.clone(), new_config.clone()))))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+
+        // 3. Register and start new handler
+        if let Some(handler) = handler {
+            // Set inbound sender
+            if let Some(ref tx) = self.inbound_tx {
+                let mut h = handler.write().await;
+                h.set_inbound_sender(tx.clone());
+            }
+
+            // Start handler
+            tracing::info!("Starting {} channel after update...", name);
+            {
+                let mut h = handler.write().await;
+                if let Err(e) = h.start().await {
+                    tracing::error!("Failed to start {} channel: {}", name, e);
+                    // Don't insert if failed to start? Or insert anyway?
+                    // If we don't insert, it's effectively disabled.
+                    return Err(e);
+                }
+            }
+
+            handlers.insert(name.to_string(), handler);
+            tracing::info!("{} channel updated and started", name);
+        } else {
+            tracing::info!("{} channel disabled or invalid config", name);
+        }
+
+        Ok(())
     }
 
     /// Check if a channel is running

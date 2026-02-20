@@ -1,0 +1,25 @@
+[package]
+name = "agent-diva-manager"
+version = "0.1.0"
+edition = "2021"
+description = "Manager server for Agent Diva"
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+axum = { version = "0.7", features = ["macros"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+dirs = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+futures = { workspace = true }
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+# Internal dependencies
+agent-diva-core = { path = "../agent-diva-core" }
+agent-diva-agent = { path = "../agent-diva-agent" }
+agent-diva-providers = { path = "../agent-diva-providers" }
+agent-diva-channels = { path = "../agent-diva-channels" }

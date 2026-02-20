@@ -1,4 +1,4 @@
-﻿//! Discord channel integration using Gateway WebSocket
+//! Discord channel integration using Gateway WebSocket
 //!
 //! Implements Discord bot functionality using the Discord Gateway API
 //! for real-time message receiving and REST API for sending messages.
@@ -664,6 +664,10 @@ impl ChannelHandler for DiscordHandler {
         }
 
         Ok(())
+    }
+
+    fn set_inbound_sender(&mut self, tx: mpsc::Sender<InboundMessage>) {
+        self.inbound_tx = Some(tx);
     }
 
     fn is_allowed(&self, sender_id: &str) -> bool {

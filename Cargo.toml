@@ -8,7 +8,7 @@ members = [
     "agent-diva-tools",
     "agent-diva-cli",
     "agent-diva-migration",
-    "agent-diva-gui/src-tauri",
+    "agent-diva-gui/src-tauri", "agent-diva-manager",
 ]
 
 [workspace.dependencies]

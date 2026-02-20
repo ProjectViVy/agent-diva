@@ -1,4 +1,4 @@
-﻿﻿//! WhatsApp channel integration
+//! WhatsApp channel integration
 //!
 //! Connects to a Node.js bridge via WebSocket to communicate with WhatsApp Web.
 //! The bridge uses @whiskeysockets/baileys library.
@@ -532,6 +532,10 @@ impl ChannelHandler for WhatsAppHandler {
                 "WebSocket not initialized".to_string(),
             ))
         }
+    }
+
+    fn set_inbound_sender(&mut self, tx: mpsc::Sender<InboundMessage>) {
+        self.inbound_tx = Some(tx);
     }
 
     fn is_allowed(&self, sender_id: &str) -> bool {

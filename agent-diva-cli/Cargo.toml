@@ -17,6 +17,7 @@ agent-diva-agent = { path = "../agent-diva-agent" }
 agent-diva-providers = { path = "../agent-diva-providers" }
 agent-diva-channels = { path = "../agent-diva-channels" }
 agent-diva-tools = { path = "../agent-diva-tools" }
+agent-diva-manager = { path = "../agent-diva-manager" }
 
 # Async runtime
 tokio = { workspace = true }
@@ -45,3 +46,8 @@ dirs = { workspace = true }
 
 # Time utilities
 chrono = { workspace = true }
+
+# HTTP Client
+reqwest = { workspace = true }
+futures = { workspace = true }
+eventsource-stream = "0.2"

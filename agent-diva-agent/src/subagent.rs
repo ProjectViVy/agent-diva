@@ -255,6 +255,7 @@ impl SubagentManager {
                     name: None,
                     tool_call_id: None,
                     tool_calls: Some(response.tool_calls.clone()),
+                    reasoning_content: response.reasoning_content.clone(),
                 });
 
                 // Execute tools

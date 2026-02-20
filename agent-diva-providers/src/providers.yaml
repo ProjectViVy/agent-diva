@@ -13,6 +13,10 @@
   detect_by_base_keyword: openrouter
   default_api_base: https://openrouter.ai/api/v1
   strip_model_prefix: false
+  models:
+    - google/gemini-2.0-flash-exp:free
+    - deepseek/deepseek-r1:free
+    - qwen/qwen-2.5-vl-72b-instruct:free
   model_overrides: []
 
 - name: aihubmix
@@ -30,6 +34,10 @@
   detect_by_base_keyword: aihubmix
   default_api_base: https://aihubmix.com/v1
   strip_model_prefix: true
+  models:
+    - gpt-4o
+    - claude-3-5-sonnet-20240620
+    - deepseek-chat
   model_overrides: []
 
 - name: custom
@@ -66,6 +74,11 @@
   detect_by_base_keyword: ""
   default_api_base: ""
   strip_model_prefix: false
+  models:
+    - llama3-8b-8192
+    - llama3-70b-8192
+    - mixtral-8x7b-32768
+    - gemma-7b-it
   model_overrides: []
 
 - name: openai
@@ -102,6 +115,10 @@
   detect_by_base_keyword: ""
   default_api_base: https://api.deepseek.com/v1
   strip_model_prefix: false
+  models:
+    - deepseek-chat
+    - deepseek-coder
+    - deepseek-reasoner
   model_overrides: []
 
 - name: gemini
@@ -144,6 +161,11 @@
   detect_by_base_keyword: ""
   default_api_base: ""
   strip_model_prefix: false
+  models:
+    - glm-4
+    - glm-4-air
+    - glm-4-flash
+    - glm-3-turbo
   model_overrides: []
 
 - name: dashscope
@@ -205,6 +227,10 @@
   detect_by_base_keyword: ""
   default_api_base: https://api.minimax.io/v1
   strip_model_prefix: false
+  models:
+    - abab6.5-chat
+    - abab6.5s-chat
+    - abab5.5-chat
   model_overrides: []
 
 - name: vllm
@@ -222,6 +248,7 @@
   detect_by_base_keyword: ""
   default_api_base: ""
   strip_model_prefix: false
+  models: []
   model_overrides: []
 
 - name: groq

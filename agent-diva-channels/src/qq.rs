@@ -1,4 +1,4 @@
-﻿//! QQ channel implementation using WebSocket
+//! QQ channel implementation using WebSocket
 //!
 //! This implementation is based on the QQ Bot OpenAPI (botpy SDK).
 //! It uses WebSocket for real-time message reception and HTTP API for sending messages.
@@ -48,6 +48,7 @@ struct Token {
     secret: String,
     access_token: Option<String>,
     token_type: String,
+    expires_at: u64,
 }
 
 impl Token {
@@ -56,32 +57,38 @@ impl Token {
             app_id,
             secret,
             access_token: None,
-            token_type: "Bot".to_string(),
+            token_type: "QQBot".to_string(),
+            expires_at: 0,
         }
     }
 
     fn get_string(&self) -> String {
         if let Some(token) = &self.access_token {
-            format!("{}.{}", self.token_type, token)
+            format!("{} {}", self.token_type, token)
         } else {
-            format!("{}.{}.{}", self.token_type, self.app_id, self.secret)
+            format!("{} {}.{}", self.token_type, self.app_id, self.secret)
         }
     }
 
     async fn check_token(&mut self, http: &HttpClient) -> Result<()> {
-        if self.access_token.is_some() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        if self.access_token.is_some() && now < self.expires_at {
             return Ok(());
         }
 
         // Get access token from QQ OpenAPI
-        let url = format!("{}/app/getAppAccessToken", API_BASE);
+        let url = "https://bots.qq.com/app/getAppAccessToken";
         let body = json!({
             "appId": self.app_id,
             "clientSecret": self.secret
         });
 
         let response =
-            http.post(&url).json(&body).send().await.map_err(|e| {
+            http.post(url).json(&body).send().await.map_err(|e| {
                 ChannelError::ConnectionFailed(format!("Token request failed: {}", e))
             })?;
 
@@ -92,11 +99,18 @@ impl Token {
 
         if let Some(token) = data["access_token"].as_str() {
             self.access_token = Some(token.to_string());
-            info!("QQ Bot token obtained successfully");
+            
+            let expires_in = data["expires_in"].as_u64().or_else(|| {
+                data["expires_in"].as_str().and_then(|s| s.parse().ok())
+            }).unwrap_or(7200);
+
+            self.expires_at = now + expires_in - 60; // Refresh 1 minute early
+
+            info!("QQ Bot token obtained successfully, expires in {}s", expires_in);
             Ok(())
         } else {
             Err(ChannelError::AuthError(
-                "Failed to get access token".to_string(),
+                format!("Failed to get access token: {:?}", data)
             ))
         }
     }
@@ -178,11 +192,6 @@ impl QQHandler {
         }
     }
 
-    /// Set the inbound message sender
-    pub fn set_inbound_sender(&mut self, tx: mpsc::Sender<agent_diva_core::bus::InboundMessage>) {
-        self.inbound_tx = Some(tx);
-    }
-
     /// Check if message ID has been processed (deduplication)
     async fn is_processed_qq(&self, message_id: &str) -> bool {
         let ids = self.processed_ids.read().await;
@@ -222,6 +231,7 @@ impl QQHandler {
             .http_client
             .get(&url)
             .header("Authorization", token.get_string())
+            .header("X-Union-Appid", &token.app_id)
             .send()
             .await
             .map_err(|e| {
@@ -285,7 +295,7 @@ impl QQHandler {
                     op: WS_IDENTITY,
                     d: Some(json!({
                         "token": token.get_string(),
-                        "intents": 1 << 30 | 1 << 25, // public_messages + direct_message
+                        "intents": 1 << 25 | 1 << 12, // public_messages + direct_message
                         "shard": [0, 1],
                     })),
                     s: None,
@@ -492,6 +502,10 @@ impl QQHandler {
 
 #[async_trait]
 impl ChannelHandler for QQHandler {
+    fn set_inbound_sender(&mut self, tx: mpsc::Sender<agent_diva_core::bus::InboundMessage>) {
+        self.inbound_tx = Some(tx);
+    }
+
     fn name(&self) -> &str {
         &self.base.name
     }
@@ -564,15 +578,22 @@ impl ChannelHandler for QQHandler {
         let url = format!("{}/v2/users/{}/messages", API_BASE, msg.chat_id);
         let token = self.token.read().await;
 
-        let body = json!({
+        let mut body = json!({
             "msg_type": 0,  // Text message
             "content": msg.content,
         });
+
+        if let Some(msg_id) = msg.reply_to {
+            if let Some(obj) = body.as_object_mut() {
+                obj.insert("msg_id".to_string(), json!(msg_id));
+            }
+        }
 
         let response = self
             .http_client
             .post(&url)
             .header("Authorization", token.get_string())
+            .header("X-Union-Appid", &token.app_id)
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -718,7 +739,7 @@ mod tests {
     fn test_token_get_string_without_access_token() {
         let token = Token::new("app123".to_string(), "secret456".to_string());
         let token_string = token.get_string();
-        assert_eq!(token_string, "Bot.app123.secret456");
+        assert_eq!(token_string, "QQBot app123.secret456");
     }
 
     #[test]
@@ -726,6 +747,6 @@ mod tests {
         let mut token = Token::new("app123".to_string(), "secret456".to_string());
         token.access_token = Some("access_token_xyz".to_string());
         let token_string = token.get_string();
-        assert_eq!(token_string, "Bot.access_token_xyz");
+        assert_eq!(token_string, "QQBot access_token_xyz");
     }
 }

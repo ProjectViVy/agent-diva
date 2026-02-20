@@ -1,4 +1,4 @@
-﻿//! Email channel implementation using blocking IMAP polling + SMTP replies
+//! Email channel implementation using blocking IMAP polling + SMTP replies
 //!
 //! Note: This implementation uses blocking IMAP operations wrapped in tokio::task::spawn_blocking
 //! for better compatibility. Since email is not a high-frequency channel, the performance
@@ -54,11 +54,6 @@ impl EmailHandler {
             last_message_ids: Arc::new(RwLock::new(HashMap::new())),
             inbound_tx: None,
         }
-    }
-
-    /// Set the inbound message sender
-    pub fn set_inbound_sender(&mut self, tx: mpsc::Sender<InboundMessage>) {
-        self.inbound_tx = Some(tx);
     }
 
     /// Validate configuration
@@ -384,6 +379,11 @@ impl EmailHandler {
 
 #[async_trait]
 impl ChannelHandler for EmailHandler {
+    /// Set the inbound message sender
+    fn set_inbound_sender(&mut self, tx: mpsc::Sender<InboundMessage>) {
+        self.inbound_tx = Some(tx);
+    }
+
     fn name(&self) -> &str {
         &self.base.name
     }

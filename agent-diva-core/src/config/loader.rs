@@ -1,4 +1,4 @@
-﻿//! Configuration loading and management
+//! Configuration loading and management
 
 use super::schema::Config;
 use super::validate::validate_config;
@@ -6,6 +6,7 @@ use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
 /// Configuration loader
+#[derive(Clone)]
 pub struct ConfigLoader {
     config_dir: PathBuf,
 }

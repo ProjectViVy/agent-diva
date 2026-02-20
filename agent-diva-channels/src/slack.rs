@@ -1,4 +1,4 @@
-﻿//! Slack channel integration using Socket Mode.
+//! Slack channel integration using Socket Mode.
 //!
 //! P0 scope:
 //! - Connect via Socket Mode
@@ -291,10 +291,7 @@ impl SlackHandler {
         }
     }
 
-    /// Set the inbound message sender.
-    pub fn set_inbound_sender(&mut self, tx: mpsc::Sender<InboundMessage>) {
-        self.inbound_tx = Some(tx);
-    }
+    
 
     fn validate_config(&self) -> Result<()> {
         if !self.config.enabled {
@@ -327,6 +324,10 @@ impl SlackHandler {
 
 #[async_trait]
 impl ChannelHandler for SlackHandler {
+    fn set_inbound_sender(&mut self, tx: mpsc::Sender<InboundMessage>) {
+        self.inbound_tx = Some(tx);
+    }
+
     fn name(&self) -> &str {
         "slack"
     }

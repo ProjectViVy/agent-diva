@@ -1,9 +1,9 @@
 //! Async message queue implementation
 
-use super::events::{InboundMessage, OutboundMessage};
+use super::events::{InboundMessage, OutboundMessage, AgentEvent, AgentBusEvent};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, RwLock, broadcast};
 use tracing::debug;
 
 /// Type alias for message channel senders
@@ -30,6 +30,8 @@ pub struct MessageBus {
     outbound_rx: Arc<RwLock<Option<mpsc::UnboundedReceiver<OutboundMessage>>>>,
     /// Outbound subscribers by channel
     subscribers: Arc<RwLock<HashMap<String, Vec<OutboundCallback>>>>,
+    /// Event broadcast channel
+    event_tx: broadcast::Sender<AgentBusEvent>,
     /// Running state
     running: Arc<RwLock<bool>>,
 }
@@ -39,6 +41,7 @@ impl MessageBus {
     pub fn new() -> Self {
         let (inbound_tx, inbound_rx) = mpsc::unbounded_channel();
         let (outbound_tx, outbound_rx) = mpsc::unbounded_channel();
+        let (event_tx, _) = broadcast::channel(1024);
 
         Self {
             inbound_tx,
@@ -46,8 +49,26 @@ impl MessageBus {
             outbound_tx,
             outbound_rx: Arc::new(RwLock::new(Some(outbound_rx))),
             subscribers: Arc::new(RwLock::new(HashMap::new())),
+            event_tx,
             running: Arc::new(RwLock::new(false)),
         }
+    }
+
+    /// Publish an event to the broadcast channel
+    pub fn publish_event(&self, channel: impl Into<String>, chat_id: impl Into<String>, event: AgentEvent) -> crate::Result<()> {
+        let bus_event = AgentBusEvent {
+            channel: channel.into(),
+            chat_id: chat_id.into(),
+            event,
+        };
+        // We ignore the error if there are no receivers
+        let _ = self.event_tx.send(bus_event);
+        Ok(())
+    }
+
+    /// Subscribe to the event broadcast channel
+    pub fn subscribe_events(&self) -> broadcast::Receiver<AgentBusEvent> {
+        self.event_tx.subscribe()
     }
 
     /// Take the inbound receiver (can only be called once)

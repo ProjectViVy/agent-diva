@@ -151,6 +151,7 @@ impl LiteLLMClient {
         extra_headers: Option<HashMap<String, String>>,
         provider_name: Option<String>,
     ) -> Self {
+        tracing::info!("Creating LiteLLMClient. Provider: {:?}, Base: {:?}", provider_name, api_base);
         let registry = ProviderRegistry::new();
         let gateway = registry
             .find_gateway(
@@ -164,7 +165,7 @@ impl LiteLLMClient {
             if base.trim().is_empty() {
                 None
             } else {
-                Some(base)
+                Some(base.trim().to_string())
             }
         });
         let api_base = api_base
@@ -588,6 +589,7 @@ impl LLMProvider for LiteLLMClient {
                         }
                         if let Some(reasoning) = &delta.reasoning_content {
                             reasoning_content.push_str(reasoning);
+                            let _ = tx.send(Ok(LLMStreamEvent::ReasoningDelta(reasoning.clone())));
                         }
 
                         for tool_call in &delta.tool_calls {

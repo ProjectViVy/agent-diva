@@ -1,4 +1,4 @@
-﻿//! Base trait for channel handlers
+//! Base trait for channel handlers
 
 use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
@@ -23,6 +23,9 @@ pub trait ChannelHandler: Send + Sync {
 
     /// Send a message
     async fn send(&self, message: OutboundMessage) -> Result<()>;
+
+    /// Set the inbound message sender
+    fn set_inbound_sender(&mut self, tx: mpsc::Sender<InboundMessage>);
 
     /// Check if a sender is allowed
     fn is_allowed(&self, sender_id: &str) -> bool;

@@ -20,12 +20,8 @@ serde_json = "1"
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-axum = "0.7" # Using axum for the hook server
-tower-http = { version = "0.5", features = ["cors"] }
+reqwest = { version = "0.11", features = ["json", "stream"] }
+futures = "0.3"
+eventsource-stream = "0.2"
 
-# Internal dependencies
-agent-diva-core = { path = "../../agent-diva-core" }
-agent-diva-agent = { path = "../../agent-diva-agent" }
-agent-diva-providers = { path = "../../agent-diva-providers" }
 dirs.workspace = true
-# Add other crates as needed

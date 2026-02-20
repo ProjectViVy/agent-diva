@@ -1,7 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod app_state;
 mod commands;
-mod server;
 
 use tauri::Manager;
 use app_state::AgentState;
@@ -12,25 +11,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(AgentState::new())
         .setup(|app| {
-            // Start the HTTP Hook server
-            let app_handle = app.handle().clone();
-            let port = 3000;
-            
-            // Spawn the server in a separate async task
-            tauri::async_runtime::spawn(async move {
-                // Wait for the runtime to be fully ready if needed, 
-                // but usually spawn is enough.
-                if let Err(e) = server::start_server(app_handle, port).await {
-                    eprintln!("Failed to start HTTP Hook server: {}", e);
-                }
-            });
-
+            // Setup complete
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::send_message,
-            commands::update_config
+            commands::update_config,
+            commands::get_providers,
+            commands::get_channels,
+            commands::update_channel
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

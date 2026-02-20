@@ -26,7 +26,7 @@ anyhow = { workspace = true }
 
 # HTTP and WebSocket
 reqwest = { workspace = true }
-tokio-tungstenite = { workspace = true }
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 slack-morphism = { version = "2.17", default-features = false, features = ["hyper"] }
 
 # Telegram Bot API

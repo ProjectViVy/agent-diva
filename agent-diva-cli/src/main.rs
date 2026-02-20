@@ -25,8 +25,11 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, broadcast};
 use tracing::{error, info, warn};
+
+mod client;
+use client::ApiClient;
 
 #[derive(Parser)]
 #[command(name = "agent-diva")]
@@ -39,9 +42,18 @@ struct Cli {
     /// Configuration directory
     #[arg(short, long, global = true)]
     config_dir: Option<PathBuf>,
+
+    /// Connect to remote agent-diva-manager
+    #[arg(long, global = true)]
+    remote: bool,
+
+    /// Remote API URL (default: http://localhost:3000/api)
+    #[arg(long, global = true)]
+    api_url: Option<String>,
 }
 
 #[derive(Subcommand)]
+#[command(rename_all = "kebab-case")]
 enum Commands {
     /// Initialize agent-diva configuration
     Onboard,
@@ -83,6 +95,7 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
+#[command(rename_all = "kebab-case")]
 enum ChannelCommands {
     /// Login to a channel
     Login { channel: String },
@@ -91,6 +104,7 @@ enum ChannelCommands {
 }
 
 #[derive(Subcommand)]
+#[command(rename_all = "kebab-case")]
 enum CronCommands {
     /// Add a cron job
     Add {
@@ -173,7 +187,11 @@ async fn main() -> Result<()> {
         } => {
             if let Some(msg) = message {
                 info!("Processing message: {}", msg);
-                run_agent(&config_loader, &msg, model, session).await?;
+                if cli.remote {
+                    run_agent_remote(&msg, cli.api_url).await?;
+                } else {
+                    run_agent(&config_loader, &msg, model, session).await?;
+                }
             } else {
                 warn!("No message provided");
                 println!("Use --message to provide a message");
@@ -182,7 +200,11 @@ async fn main() -> Result<()> {
         }
         Commands::Tui { model, session } => {
             info!("Starting TUI");
-            run_tui(&config_loader, model, session).await?;
+            if cli.remote {
+                run_tui_remote(cli.api_url, session).await?;
+            } else {
+                run_tui(&config_loader, model, session).await?;
+            }
         }
         Commands::Status => {
             info!("Showing status");
@@ -301,6 +323,9 @@ fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
                 Some(base)
             }
         });
+    
+    tracing::info!("build_provider: model={}, provider={}, api_base={:?}", model, spec.name, api_base);
+
     let extra_headers = provider_config
         .and_then(|cfg| cfg.extra_headers.clone())
         .filter(|headers| !headers.is_empty());
@@ -426,162 +451,255 @@ async fn run_onboard(loader: &ConfigLoader) -> Result<()> {
     Ok(())
 }
 
+use agent_diva_providers::{DynamicProvider, LLMProvider};
+use agent_diva_manager::{Manager, AppState, run_server};
+
 /// Run the agent gateway
 async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
-    let config = loader.load()?;
+    loop {
+        let config = loader.load()?;
 
-    // Check if API key is configured
-    let registry = ProviderRegistry::new();
-    let provider_config = registry.find_by_model(&config.agents.defaults.model);
+        // Check if API key is configured
+        let registry = ProviderRegistry::new();
+        let provider_config = registry.find_by_model(&config.agents.defaults.model);
 
-    if provider_config.is_none() {
-        anyhow::bail!(
-            "No provider found for model: {}",
-            config.agents.defaults.model
+        if provider_config.is_none() {
+            anyhow::bail!(
+                "No provider found for model: {}",
+                config.agents.defaults.model
+            );
+        }
+
+        let workspace = expand_tilde(&config.agents.defaults.workspace);
+        std::fs::create_dir_all(&workspace)?;
+
+        println!("{}", style("Starting Agent Diva Gateway...").bold().cyan());
+        println!("Model: {}", config.agents.defaults.model);
+        println!("Workspace: {}", workspace.display());
+
+        // Create message bus
+        let bus = MessageBus::new();
+
+        // Create provider with Dynamic wrapper for hot-swapping
+        let initial_provider = Arc::new(build_provider(&config, &config.agents.defaults.model)?);
+        let dynamic_provider = Arc::new(DynamicProvider::new(initial_provider));
+        let agent_provider: Arc<dyn LLMProvider> = dynamic_provider.clone();
+
+        // Extract config values before moving
+        let model = config.agents.defaults.model.clone();
+        let max_iterations = config.agents.defaults.max_tool_iterations as usize;
+        let api_key = config.tools.web.search.api_key.clone();
+        let exec_timeout = config.tools.exec.timeout;
+        let restrict_to_workspace = config.tools.restrict_to_workspace;
+
+        // Create agent loop with tools
+        let tool_config = ToolConfig {
+            brave_api_key: if api_key.is_empty() {
+                None
+            } else {
+                Some(api_key)
+            },
+            exec_timeout,
+            restrict_to_workspace,
+            mcp_servers: config.tools.mcp_servers.clone(),
+        };
+
+        let agent = AgentLoop::with_tools(
+            bus.clone(),
+            agent_provider,
+            workspace.clone(),
+            Some(model),
+            Some(max_iterations),
+            tool_config,
         );
-    }
 
-    let workspace = expand_tilde(&config.agents.defaults.workspace);
-    std::fs::create_dir_all(&workspace)?;
+        // Extract provider keys for Manager
+        let (provider_api_key, provider_api_base) = {
+             let name_from_prefix = config.agents.defaults.model
+                .split('/')
+                .next()
+                .and_then(|prefix| registry.find_by_name(prefix))
+                .map(|spec| spec.name.clone());
+            let spec = name_from_prefix
+                .as_deref()
+                .and_then(|name| registry.find_by_name(name))
+                .or_else(|| registry.find_by_model(&config.agents.defaults.model))
+                .ok_or_else(|| anyhow::anyhow!("No provider found for model"))?;
+            let provider_config = provider_config_by_name(&config.providers, &spec.name);
+            
+            let pk = provider_config.map(|cfg| cfg.api_key.clone()).filter(|k| !k.is_empty());
+            let pb = provider_config.and_then(|cfg| cfg.api_base.clone()).filter(|b| !b.trim().is_empty());
+            (pk, pb)
+        };
 
-    println!("{}", style("Starting Agent Diva Gateway...").bold().cyan());
-    println!("Model: {}", config.agents.defaults.model);
-    println!("Workspace: {}", workspace.display());
+        // Create and initialize channel manager
+        let mut channel_manager = ChannelManager::new(config.clone());
 
-    // Create message bus
-    let bus = MessageBus::new();
-
-    // Create provider
-    let provider = Arc::new(build_provider(&config, &config.agents.defaults.model)?);
-
-    // Extract config values before moving
-    let model = config.agents.defaults.model.clone();
-    let max_iterations = config.agents.defaults.max_tool_iterations as usize;
-    let api_key = config.tools.web.search.api_key.clone();
-    let exec_timeout = config.tools.exec.timeout;
-    let restrict_to_workspace = config.tools.restrict_to_workspace;
-
-    // Create agent loop with tools
-    let tool_config = ToolConfig {
-        brave_api_key: if api_key.is_empty() {
-            None
-        } else {
-            Some(api_key)
-        },
-        exec_timeout,
-        restrict_to_workspace,
-        mcp_servers: config.tools.mcp_servers.clone(),
-    };
-
-    let agent = AgentLoop::with_tools(
-        bus.clone(),
-        provider,
-        workspace,
-        Some(model),
-        Some(max_iterations),
-        tool_config,
-    );
-
-    // Create and initialize channel manager
-    let mut channel_manager = ChannelManager::new(config.clone());
-
-    // Bridge channel inbound queue -> message bus inbound queue
-    let (inbound_tx, mut inbound_rx) = mpsc::channel::<InboundMessage>(1024);
-    channel_manager.set_inbound_sender(inbound_tx);
-    let bus_for_inbound_bridge = bus.clone();
-    let inbound_bridge_handle = tokio::spawn(async move {
-        while let Some(msg) = inbound_rx.recv().await {
-            if let Err(e) = bus_for_inbound_bridge.publish_inbound(msg) {
-                error!("Failed to publish inbound message to bus: {}", e);
-            }
-        }
-    });
-
-    println!(
-        "\n{}",
-        style("Gateway is running. Press Ctrl+C to stop.").green()
-    );
-
-    // Initialize channels
-    if let Err(e) = channel_manager.initialize().await {
-        error!("Failed to initialize channels: {}", e);
-    }
-
-    // Subscribe outbound messages to each enabled channel.
-    // Note: only channels initialized in manager will actually send.
-    let configured_channels = [
-        ("telegram", config.channels.telegram.enabled),
-        ("discord", config.channels.discord.enabled),
-        ("whatsapp", config.channels.whatsapp.enabled),
-        ("feishu", config.channels.feishu.enabled),
-        ("dingtalk", config.channels.dingtalk.enabled),
-        ("email", config.channels.email.enabled),
-        ("slack", config.channels.slack.enabled),
-        ("qq", config.channels.qq.enabled),
-    ];
-
-    let channel_manager = Arc::new(channel_manager);
-    for (channel_name, enabled) in configured_channels {
-        if !enabled {
-            continue;
-        }
-        let manager = channel_manager.clone();
-        let channel_name = channel_name.to_string();
-        let channel_key = channel_name.clone();
-        bus.subscribe_outbound(channel_name, move |msg| {
-            let manager = manager.clone();
-            let channel_key = channel_key.clone();
-            async move {
-                if let Err(e) = manager.send(&channel_key, msg).await {
-                    error!("Failed to send outbound message to {}: {}", channel_key, e);
+        // Bridge channel inbound queue -> message bus inbound queue
+        let (inbound_tx, mut inbound_rx) = mpsc::channel::<InboundMessage>(1024);
+        channel_manager.set_inbound_sender(inbound_tx);
+        let bus_for_inbound_bridge = bus.clone();
+        let inbound_bridge_handle = tokio::spawn(async move {
+            while let Some(msg) = inbound_rx.recv().await {
+                if let Err(e) = bus_for_inbound_bridge.publish_inbound(msg) {
+                    error!("Failed to publish inbound message to bus: {}", e);
                 }
             }
-        })
-        .await;
-    }
+        });
 
-    // Start outbound dispatcher loop
-    let bus_for_outbound_dispatch = bus.clone();
-    let outbound_dispatch_handle = tokio::spawn(async move {
-        bus_for_outbound_dispatch.dispatch_outbound_loop().await;
-    });
+        println!(
+            "\n{}",
+            style("Gateway is running. Press Ctrl+C to stop.").green()
+        );
 
-    // Start channel manager
-    let channel_manager_for_task = channel_manager.clone();
-    let _channel_handle = tokio::spawn(async move {
-        if let Err(e) = channel_manager_for_task.start_all().await {
-            error!("Channel manager error: {}", e);
+        // Initialize channels
+        if let Err(e) = channel_manager.initialize().await {
+            error!("Failed to initialize channels: {}", e);
         }
-    });
 
-    // Run agent loop
-    // Note: we need to use Option to take ownership and avoid moving agent twice
-    let agent = Some(agent);
-    let _agent_handle = tokio::spawn(async move {
-        if let Some(mut agent) = agent {
-            if let Err(e) = agent.run().await {
-                error!("Agent loop error: {}", e);
+        // Subscribe outbound messages to each enabled channel.
+        // Note: only channels initialized in manager will actually send.
+        let configured_channels = [
+            ("telegram", config.channels.telegram.enabled),
+            ("discord", config.channels.discord.enabled),
+            ("whatsapp", config.channels.whatsapp.enabled),
+            ("feishu", config.channels.feishu.enabled),
+            ("dingtalk", config.channels.dingtalk.enabled),
+            ("email", config.channels.email.enabled),
+            ("slack", config.channels.slack.enabled),
+            ("qq", config.channels.qq.enabled),
+        ];
+
+        let channel_manager = Arc::new(channel_manager);
+
+        // Create Manager
+        let (api_tx, api_rx) = mpsc::channel(100);
+        let manager = Manager::new(
+            api_rx, 
+            bus.clone(), 
+            dynamic_provider, 
+            loader.clone(),
+            config.agents.defaults.model.clone(),
+            provider_api_key,
+            provider_api_base,
+            Some(channel_manager.clone()),
+        );
+
+        for (channel_name, enabled) in configured_channels {
+            if !enabled {
+                continue;
+            }
+            let manager = channel_manager.clone();
+            let channel_name = channel_name.to_string();
+            let channel_key = channel_name.clone();
+            bus.subscribe_outbound(channel_name, move |msg| {
+                let manager = manager.clone();
+                let channel_key = channel_key.clone();
+                async move {
+                    if let Err(e) = manager.send(&channel_key, msg).await {
+                        error!("Failed to send outbound message to {}: {}", channel_key, e);
+                    }
+                }
+            })
+            .await;
+        }
+
+        // Start outbound dispatcher loop
+        let bus_for_outbound_dispatch = bus.clone();
+        let outbound_dispatch_handle = tokio::spawn(async move {
+            bus_for_outbound_dispatch.dispatch_outbound_loop().await;
+        });
+
+        // Start channel manager
+        let channel_manager_for_task = channel_manager.clone();
+        let _channel_handle = tokio::spawn(async move {
+            if let Err(e) = channel_manager_for_task.start_all().await {
+                error!("Channel manager error: {}", e);
+            }
+        });
+
+        // Run agent loop
+        let agent = Some(agent);
+        let agent_handle = tokio::spawn(async move {
+            if let Some(mut agent) = agent {
+                if let Err(e) = agent.run().await {
+                    error!("Agent loop error: {}", e);
+                }
+            }
+        });
+
+        // Run Manager (which controls provider)
+        let mut manager_handle = tokio::spawn(async move {
+            if let Err(e) = manager.run().await {
+                if e.to_string().contains("RESTART_REQUIRED") {
+                    return Err(e);
+                }
+                error!("Manager loop error: {}", e);
+                Ok(())
+            } else {
+                Ok(())
+            }
+        });
+
+        // Run API Server
+        let state = AppState { api_tx };
+        let (server_shutdown_tx, server_shutdown_rx) = broadcast::channel(1);
+        let server_handle = tokio::spawn(async move {
+            if let Err(e) = run_server(state, 3000, server_shutdown_rx).await {
+                 error!("API Server error: {}", e);
+            }
+        });
+        
+        println!("{}", style("API Server running on http://localhost:3000").green());
+
+        // Wait for shutdown signal
+        
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                println!("\n{}", style("Shutting down...").yellow());
+            }
+            res = &mut manager_handle => {
+                match res {
+                    Ok(Err(e)) => {
+                        error!("Manager loop error: {}", e);
+                    }
+                    Err(e) => {
+                        error!("Manager loop panicked or cancelled: {}", e);
+                    }
+                    _ => {}
+                }
             }
         }
-    });
 
-    // Wait for shutdown signal
-    // Note: we only wait for ctrl_c here, the spawned tasks run independently
-    tokio::signal::ctrl_c().await?;
-    println!("\n{}", style("Shutting down...").yellow());
+        // Stop the bus to signal all components to shut down
+        // Move bus stop before stopping channel manager to ensure no new messages are processed
+        bus.stop().await;
+        
+        // Wait for components to shut down gracefully
+        // Send shutdown signal to server and wait for it
+        let _ = server_shutdown_tx.send(());
+        let _ = server_handle.await;
 
-    // Stop the bus to signal all components to shut down
-    bus.stop().await;
-    if let Err(e) = channel_manager.stop_all().await {
-        error!("Failed to stop channels: {}", e);
+        manager_handle.abort();
+        let _ = manager_handle.await;
+
+        inbound_bridge_handle.abort();
+        let _ = inbound_bridge_handle.await;
+        
+        outbound_dispatch_handle.abort();
+        let _ = outbound_dispatch_handle.await;
+        
+        agent_handle.abort();
+        let _ = agent_handle.await;
+
+        if let Err(e) = channel_manager.stop_all().await {
+            error!("Failed to stop channels: {}", e);
+        }
+        
+        println!("{}", style("Gateway stopped.").green());
+        break;
     }
 
-    inbound_bridge_handle.abort();
-    let _ = inbound_bridge_handle.await;
-    outbound_dispatch_handle.abort();
-    let _ = outbound_dispatch_handle.await;
-
-    println!("{}", style("Gateway stopped.").green());
     Ok(())
 }
 
@@ -648,6 +766,7 @@ enum TimelineKind {
     Tool,
     System,
     Error,
+    Thinking,
 }
 
 #[derive(Clone)]
@@ -720,6 +839,19 @@ impl TuiApp {
                     self.assistant_line = Some(self.timeline.len() - 1);
                 }
             }
+            AgentEvent::ReasoningDelta { text } => {
+                if text.is_empty() {
+                    return;
+                }
+                self.assistant_line = None;
+                if let Some(item) = self.timeline.last_mut() {
+                    if matches!(item.kind, TimelineKind::Thinking) {
+                        item.text.push_str(&text);
+                        return;
+                    }
+                }
+                self.add_line(TimelineKind::Thinking, text);
+            }
             AgentEvent::ToolCallStarted {
                 name,
                 args_preview,
@@ -761,6 +893,7 @@ impl TuiApp {
                 self.assistant_line = None;
                 self.add_line(TimelineKind::Error, format!("error: {}", message));
             }
+            _ => {}
         }
     }
 }
@@ -848,6 +981,7 @@ async fn run_tui(
                     TimelineKind::Tool => ("tool", Color::Yellow),
                     TimelineKind::System => ("system", Color::Blue),
                     TimelineKind::Error => ("error", Color::Red),
+                    TimelineKind::Thinking => ("thinking", Color::DarkGray),
                 };
                 lines.push(Line::from(vec![
                     Span::styled(format!("[{}] ", label), Style::default().fg(color)),
@@ -1376,5 +1510,199 @@ async fn run_cron_enable(loader: &ConfigLoader, job_id: String, enabled: bool) -
         println!("{} Job {} not found", style("✗").red(), job_id);
     }
 
+    Ok(())
+}
+
+async fn run_agent_remote(message: &str, api_url: Option<String>) -> Result<()> {
+    let client = ApiClient::new(api_url);
+    let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+    
+    let msg = message.to_string();
+    tokio::spawn(async move {
+        if let Err(e) = client.chat(msg, event_tx).await {
+            eprintln!("Remote error: {}", e);
+        }
+    });
+
+    println!("{}", style("Processing (remote)...").cyan());
+    
+    while let Some(event) = event_rx.recv().await {
+        match event {
+            AgentEvent::AssistantDelta { text } => {
+                print!("{}", text);
+                use std::io::Write;
+                let _ = std::io::stdout().flush();
+            }
+            AgentEvent::ReasoningDelta { text } => {
+                print!("{}", style(text).dim());
+                use std::io::Write;
+                let _ = std::io::stdout().flush();
+            }
+            AgentEvent::FinalResponse { .. } => {
+                println!();
+            }
+            AgentEvent::Error { message } => {
+                error!("Error: {}", message);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Result<()> {
+    let current_session = session.unwrap_or_else(|| "cli:tui:remote".to_string());
+    let (request_tx, mut request_rx) = mpsc::unbounded_channel::<(String, String)>();
+    let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AgentEvent>();
+    
+    let client = ApiClient::new(api_url);
+    let client = Arc::new(client);
+
+    tokio::spawn(async move {
+        while let Some((prompt, _session_key)) = request_rx.recv().await {
+            let client = client.clone();
+            let event_tx = event_tx.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.chat(prompt, event_tx).await {
+                     error!("Remote chat error: {}", e);
+                }
+            });
+        }
+    });
+
+    let mut stdout = io::stdout();
+    enable_raw_mode()?;
+    stdout.execute(EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let mut app = TuiApp::new(current_session, "remote".to_string());
+    
+    // TUI Loop (duplicated from run_tui for now)
+    loop {
+        while let Ok(evt) = event_rx.try_recv() {
+            app.apply_agent_event(evt);
+        }
+
+        terminal.draw(|frame| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Min(1),
+                    Constraint::Length(5),
+                ])
+                .split(frame.area());
+
+            let status = if app.pending { "processing" } else { "idle" };
+            let status_line = format!(
+                "model: {} | session: {} | status: {}",
+                app.model, app.session_key, status
+            );
+            frame.render_widget(
+                Paragraph::new(status_line)
+                    .block(Block::default().borders(Borders::ALL).title("agent-diva tui (remote)")),
+                chunks[0],
+            );
+
+            let mut lines = Vec::new();
+            for item in &app.timeline {
+                let (label, color) = match item.kind {
+                    TimelineKind::User => ("user", Color::Cyan),
+                    TimelineKind::Assistant => ("assistant", Color::Green),
+                    TimelineKind::Tool => ("tool", Color::Yellow),
+                    TimelineKind::System => ("system", Color::Blue),
+                    TimelineKind::Error => ("error", Color::Red),
+                    TimelineKind::Thinking => ("thinking", Color::Magenta),
+                };
+                lines.push(Line::from(vec![
+                    Span::styled(format!("[{}] ", label), Style::default().fg(color)),
+                    Span::raw(item.text.clone()),
+                ]));
+            }
+
+            let timeline = Paragraph::new(lines)
+                .block(Block::default().borders(Borders::ALL).title("timeline"))
+                .wrap(Wrap { trim: false })
+                .scroll((app.scroll, 0));
+            frame.render_widget(timeline, chunks[1]);
+
+            frame.render_widget(
+                Paragraph::new(app.input.clone())
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title("input (Enter send, Shift+Enter newline)"),
+                    )
+                    .wrap(Wrap { trim: false }),
+                chunks[2],
+            );
+            frame.set_cursor_position((chunks[2].x + 1 + app.input.len() as u16, chunks[2].y + 1));
+        })?;
+
+        if event::poll(std::time::Duration::from_millis(60))? {
+            if let CEvent::Key(key) = event::read()? {
+                if key.kind != KeyEventKind::Press {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        app.should_quit = true;
+                    }
+                    KeyCode::Esc => app.should_quit = true,
+                    KeyCode::PageUp | KeyCode::Up => {
+                        app.scroll = app.scroll.saturating_sub(1);
+                    }
+                    KeyCode::PageDown | KeyCode::Down => {
+                        app.scroll = app.scroll.saturating_add(1);
+                    }
+                    KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                        app.input.push('\n');
+                    }
+                    KeyCode::Enter => {
+                        let content = app.input.trim().to_string();
+                        app.input.clear();
+                        if content.is_empty() {
+                            continue;
+                        }
+                        if content == "/quit" {
+                            app.should_quit = true;
+                        } else if content == "/clear" {
+                            app.timeline.clear();
+                            app.assistant_line = None;
+                        } else if content == "/new" {
+                            app.session_key =
+                                format!("cli:tui:{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+                            app.assistant_line = None;
+                            app.add_line(
+                                TimelineKind::System,
+                                format!("new session: {}", app.session_key),
+                            );
+                        } else {
+                            app.add_line(TimelineKind::User, content.clone());
+                            app.pending = true;
+                            app.assistant_line = None;
+                            let _ = request_tx.send((content, app.session_key.clone()));
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        app.input.pop();
+                    }
+                    KeyCode::Char(ch) => {
+                        app.input.push(ch);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if app.should_quit {
+            break;
+        }
+    }
+
+    disable_raw_mode()?;
+    terminal.backend_mut().execute(LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
     Ok(())
 }

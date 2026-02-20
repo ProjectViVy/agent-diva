@@ -4,6 +4,50 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Streaming events emitted by the agent
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AgentEvent {
+    IterationStarted {
+        index: usize,
+        max_iterations: usize,
+    },
+    AssistantDelta {
+        text: String,
+    },
+    ReasoningDelta {
+        text: String,
+    },
+    ToolCallDelta {
+        name: Option<String>,
+        args_delta: String,
+    },
+    ToolCallStarted {
+        name: String,
+        args_preview: String,
+        call_id: String,
+    },
+    ToolCallFinished {
+        name: String,
+        result: String,
+        is_error: bool,
+        call_id: String,
+    },
+    FinalResponse {
+        content: String,
+    },
+    Error {
+        message: String,
+    },
+}
+
+/// Event with context for the bus
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentBusEvent {
+    pub channel: String,
+    pub chat_id: String,
+    pub event: AgentEvent,
+}
+
 /// Message received from a chat channel
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InboundMessage {
@@ -77,6 +121,8 @@ pub struct OutboundMessage {
     pub reply_to: Option<String>,
     /// Media URLs to attach
     pub media: Vec<String>,
+    /// Reasoning content (if any)
+    pub reasoning_content: Option<String>,
     /// Channel-specific metadata
     pub metadata: HashMap<String, serde_json::Value>,
 }
@@ -94,6 +140,7 @@ impl OutboundMessage {
             content: content.into(),
             reply_to: None,
             media: Vec::new(),
+            reasoning_content: None,
             metadata: HashMap::new(),
         }
     }

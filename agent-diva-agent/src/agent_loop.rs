@@ -1,7 +1,7 @@
 //! Agent loop: the core processing engine
 
 use futures::StreamExt;
-use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage};
+use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage, AgentEvent};
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::session::SessionManager;
 use agent_diva_providers::{LLMProvider, LLMResponse, LLMStreamEvent};
@@ -19,6 +19,7 @@ use crate::context::ContextBuilder;
 use crate::subagent::SubagentManager;
 
 /// Configuration for tool setup
+#[derive(Clone)]
 pub struct ToolConfig {
     /// Brave API key for web search
     pub brave_api_key: Option<String>,
@@ -28,39 +29,6 @@ pub struct ToolConfig {
     pub restrict_to_workspace: bool,
     /// Configured MCP servers
     pub mcp_servers: HashMap<String, MCPServerConfig>,
-}
-
-/// Streaming events emitted while processing a direct message.
-#[derive(Debug, Clone)]
-pub enum AgentEvent {
-    IterationStarted {
-        index: usize,
-        max_iterations: usize,
-    },
-    AssistantDelta {
-        text: String,
-    },
-    ToolCallDelta {
-        name: Option<String>,
-        args_delta: String,
-    },
-    ToolCallStarted {
-        name: String,
-        args_preview: String,
-        call_id: String,
-    },
-    ToolCallFinished {
-        name: String,
-        result: String,
-        is_error: bool,
-        call_id: String,
-    },
-    FinalResponse {
-        content: String,
-    },
-    Error {
-        message: String,
-    },
 }
 
 impl Default for ToolConfig {
@@ -261,7 +229,7 @@ impl AgentLoop {
             match tokio::time::timeout(std::time::Duration::from_secs(1), inbound_rx.recv()).await {
                 Ok(Some(msg)) => {
                     debug!("Received message from {}:{}", msg.channel, msg.chat_id);
-                    match self.process_message_internal(msg, None).await {
+                    match self.process_inbound_message(msg, None).await {
                         Ok(Some(response)) => {
                             if let Err(e) = self.bus.publish_outbound(response) {
                                 error!("Failed to publish response: {}", e);
@@ -292,19 +260,22 @@ impl AgentLoop {
     }
 
     /// Process a single inbound message
-    async fn process_message_internal(
+    pub async fn process_inbound_message(
         &mut self,
         msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
+        // Use the default model from the current provider
+        let model_to_use = self.provider.get_default_model();
+        
         let preview = if msg.content.chars().count() > 80 {
             format!("{}...", msg.content.chars().take(80).collect::<String>())
         } else {
             msg.content.clone()
         };
-        info!(
-            "Processing message from {}:{}: {}",
-            msg.channel, msg.sender_id, preview
+        println!(
+            "Processing message from {}:{}: {} (model: {})",
+            msg.channel, msg.sender_id, preview, model_to_use
         );
 
         // Get or create session
@@ -323,16 +294,19 @@ impl AgentLoop {
         // Agent loop
         let mut iteration = 0;
         let mut final_content: Option<String> = None;
+        let mut final_reasoning: Option<String> = None;
 
         while iteration < self.max_iterations {
             iteration += 1;
             debug!("Agent iteration {}/{}", iteration, self.max_iterations);
+            let event = AgentEvent::IterationStarted {
+                index: iteration,
+                max_iterations: self.max_iterations,
+            };
             if let Some(tx) = event_tx {
-                let _ = tx.send(AgentEvent::IterationStarted {
-                    index: iteration,
-                    max_iterations: self.max_iterations,
-                });
+                let _ = tx.send(event.clone());
             }
+            let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
             // Call LLM (streaming when provider supports it)
             let tool_defs = self.tools.get_definitions();
@@ -345,29 +319,42 @@ impl AgentLoop {
                     } else {
                         None
                     },
-                    Some(self.model.clone()),
+                    Some(model_to_use.clone()),
                     4096,
                     0.7,
                 )
                 .await?;
             let mut streamed_content = String::new();
+            let mut streamed_reasoning = String::new();
             let mut response: Option<LLMResponse> = None;
             while let Some(stream_event) = stream.next().await {
                 match stream_event? {
                     LLMStreamEvent::TextDelta(delta) => {
                         streamed_content.push_str(&delta);
+                        let event = AgentEvent::AssistantDelta { text: delta };
                         if let Some(tx) = event_tx {
-                            let _ = tx.send(AgentEvent::AssistantDelta { text: delta });
+                            let _ = tx.send(event.clone());
                         }
+                        let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    }
+                    LLMStreamEvent::ReasoningDelta(delta) => {
+                        streamed_reasoning.push_str(&delta);
+                        let event = AgentEvent::ReasoningDelta { text: delta };
+                        if let Some(tx) = event_tx {
+                            let _ = tx.send(event.clone());
+                        }
+                        let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                     }
                     LLMStreamEvent::ToolCallDelta { name, arguments_delta, .. } => {
-                        if let Some(tx) = event_tx {
-                            if let Some(delta) = arguments_delta {
-                                let _ = tx.send(AgentEvent::ToolCallDelta {
-                                    name,
-                                    args_delta: delta,
-                                });
+                        if let Some(delta) = arguments_delta {
+                            let event = AgentEvent::ToolCallDelta {
+                                name,
+                                args_delta: delta,
+                            };
+                            if let Some(tx) = event_tx {
+                                let _ = tx.send(event.clone());
                             }
+                            let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                         }
                     }
                     LLMStreamEvent::Completed(done) => {
@@ -385,7 +372,11 @@ impl AgentLoop {
                 tool_calls: Vec::new(),
                 finish_reason: "stop".to_string(),
                 usage: std::collections::HashMap::new(),
-                reasoning_content: None,
+                reasoning_content: if streamed_reasoning.is_empty() {
+                    None
+                } else {
+                    Some(streamed_reasoning)
+                },
             });
 
             // Handle tool calls
@@ -397,6 +388,7 @@ impl AgentLoop {
                     &mut messages,
                     response.content.clone(),
                     Some(response.tool_calls.clone()),
+                    response.reasoning_content.clone(),
                 );
 
                 // Execute tools
@@ -408,26 +400,30 @@ impl AgentLoop {
                         args_str.clone()
                     };
                     info!("Tool call: {}({})", tool_call.name, preview);
+                    let event = AgentEvent::ToolCallStarted {
+                        name: tool_call.name.clone(),
+                        args_preview: preview.clone(),
+                        call_id: tool_call.id.clone(),
+                    };
                     if let Some(tx) = event_tx {
-                        let _ = tx.send(AgentEvent::ToolCallStarted {
-                            name: tool_call.name.clone(),
-                            args_preview: preview.clone(),
-                            call_id: tool_call.id.clone(),
-                        });
+                        let _ = tx.send(event.clone());
                     }
+                    let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
                     // Convert HashMap to Value for execute
                     let params_value = serde_json::to_value(&tool_call.arguments)
                         .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
                     let result = self.tools.execute(&tool_call.name, params_value).await;
+                    let event = AgentEvent::ToolCallFinished {
+                        name: tool_call.name.clone(),
+                        is_error: result.starts_with("Error"),
+                        result: result.clone(),
+                        call_id: tool_call.id.clone(),
+                    };
                     if let Some(tx) = event_tx {
-                        let _ = tx.send(AgentEvent::ToolCallFinished {
-                            name: tool_call.name.clone(),
-                            is_error: result.starts_with("Error"),
-                            result: result.clone(),
-                            call_id: tool_call.id.clone(),
-                        });
+                        let _ = tx.send(event.clone());
                     }
+                    let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                     self.context.add_tool_result(
                         &mut messages,
                         tool_call.id.clone(),
@@ -438,6 +434,7 @@ impl AgentLoop {
             } else {
                 // No tool calls, we're done
                 final_content = response.content;
+                final_reasoning = response.reasoning_content;
                 break;
             }
         }
@@ -453,23 +450,33 @@ impl AgentLoop {
             final_content.clone()
         };
         info!("Response to {}:{}: {}", msg.channel, msg.sender_id, preview);
+        let event = AgentEvent::FinalResponse {
+            content: final_content.clone(),
+        };
         if let Some(tx) = event_tx {
-            let _ = tx.send(AgentEvent::FinalResponse {
-                content: final_content.clone(),
-            });
+            let _ = tx.send(event.clone());
         }
+        let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
         // Save to session (ignore errors for now - session is auto-saved on drop)
         let session = self.sessions.get_or_create(&session_key);
         session.add_message("user", &msg.content);
         session.add_message("assistant", &final_content);
 
+        // Extract reply_to from metadata if available (critical for platforms like QQ)
+        let reply_to = msg
+            .metadata
+            .get("message_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         Ok(Some(OutboundMessage {
             channel: msg.channel,
             chat_id: msg.chat_id,
             content: final_content,
-            reply_to: None,
+            reply_to,
             media: vec![],
+            reasoning_content: final_reasoning,
             metadata: msg.metadata,
         }))
     }
@@ -488,8 +495,18 @@ impl AgentLoop {
 
         let msg = InboundMessage::new(channel, "user", chat_id, content);
 
-        let response = self.process_message_internal(msg, None).await?;
-        Ok(response.map(|r| r.content).unwrap_or_default())
+        let response = self.process_inbound_message(msg, None).await?;
+        Ok(response
+            .map(|r| {
+                let content = r.content;
+                if let Some(reasoning) = r.reasoning_content {
+                    if !reasoning.is_empty() {
+                        return format!("<think>\n{}\n</think>\n\n{}", reasoning, content);
+                    }
+                }
+                content
+            })
+            .unwrap_or_default())
     }
 
     /// Process a message directly and emit streaming events for UI consumers.
@@ -507,7 +524,7 @@ impl AgentLoop {
 
         let msg = InboundMessage::new(channel, "user", chat_id, content);
 
-        match self.process_message_internal(msg, Some(&event_tx)).await {
+        match self.process_inbound_message(msg, Some(&event_tx)).await {
             Ok(response) => Ok(response.map(|r| r.content).unwrap_or_default()),
             Err(err) => {
                 let _ = event_tx.send(AgentEvent::Error {

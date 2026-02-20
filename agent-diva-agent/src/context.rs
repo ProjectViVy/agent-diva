@@ -1,4 +1,4 @@
-﻿//! Context builder for assembling prompts
+//! Context builder for assembling prompts
 
 use crate::skills::SkillsLoader;
 use agent_diva_providers::Message;
@@ -134,10 +134,14 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         messages: &mut Vec<Message>,
         content: Option<String>,
         tool_calls: Option<Vec<agent_diva_providers::ToolCallRequest>>,
+        reasoning_content: Option<String>,
     ) {
         let mut msg = Message::assistant(content.unwrap_or_default());
         if let Some(calls) = tool_calls {
             msg.tool_calls = Some(calls);
+        }
+        if let Some(reasoning) = reasoning_content {
+            msg.reasoning_content = Some(reasoning);
         }
         messages.push(msg);
     }
@@ -184,5 +188,24 @@ mod tests {
         );
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[1].role, "tool");
+    }
+
+    #[test]
+    fn test_add_assistant_message() {
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let mut messages = vec![Message::user("test")];
+        
+        // Test with reasoning content
+        builder.add_assistant_message(
+            &mut messages,
+            Some("response".to_string()),
+            None,
+            Some("reasoning".to_string()),
+        );
+        
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[1].role, "assistant");
+        assert_eq!(messages[1].content, "response");
+        assert_eq!(messages[1].reasoning_content, Some("reasoning".to_string()));
     }
 }

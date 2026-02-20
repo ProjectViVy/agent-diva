@@ -47,6 +47,10 @@ pub struct ProviderSpec {
     // Gateway behavior
     pub strip_model_prefix: bool,
 
+    // Models list
+    #[serde(default)]
+    pub models: Vec<String>,
+
     // Per-model param overrides
     pub model_overrides: Vec<(String, HashMap<String, serde_json::Value>)>,
 }

@@ -1,4 +1,4 @@
-﻿//! Agent logic for agent-diva
+//! Agent logic for agent-diva
 //!
 //! This crate provides the agent loop, context building, and skill loading.
 
@@ -7,4 +7,5 @@ pub mod context;
 pub mod skills;
 pub mod subagent;
 
-pub use agent_loop::{AgentEvent, AgentLoop, ToolConfig};
+pub use agent_diva_core::bus::AgentEvent;
+pub use agent_loop::{AgentLoop, ToolConfig};

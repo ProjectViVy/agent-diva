@@ -164,6 +164,8 @@ impl LLMResponse {
 pub enum LLMStreamEvent {
     /// Incremental assistant text output
     TextDelta(String),
+    /// Incremental reasoning content
+    ReasoningDelta(String),
     /// Incremental tool-call metadata (reserved for advanced UIs)
     ToolCallDelta {
         index: usize,
@@ -186,6 +188,8 @@ pub struct Message {
     pub tool_call_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallRequest>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_content: Option<String>,
 }
 
 impl Message {
@@ -197,6 +201,7 @@ impl Message {
             name: None,
             tool_call_id: None,
             tool_calls: None,
+            reasoning_content: None,
         }
     }
 
@@ -208,6 +213,7 @@ impl Message {
             name: None,
             tool_call_id: None,
             tool_calls: None,
+            reasoning_content: None,
         }
     }
 
@@ -219,6 +225,7 @@ impl Message {
             name: None,
             tool_call_id: None,
             tool_calls: None,
+            reasoning_content: None,
         }
     }
 
@@ -230,6 +237,7 @@ impl Message {
             name: None,
             tool_call_id: Some(tool_call_id.into()),
             tool_calls: None,
+            reasoning_content: None,
         }
     }
 }
