@@ -40,7 +40,7 @@ agent-diva/
 Clone and build:
 
 ```bash
-git clone https://github.com/mastwet/agent-diva.git
+git clone https://github.com/ProjectViVy/agent-diva.git
 cd agent-diva
 cargo build --all
 ```
