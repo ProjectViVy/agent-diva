@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{State, Path},
     response::sse::{Event, Sse},
     Json,
 };
@@ -156,6 +156,36 @@ pub async fn update_channel_handler(
     }
     
     Json(serde_json::json!({ "status": "ok" }))
+}
+
+pub async fn test_channel_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(config): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    tracing::info!("Received test channel request: {}", name);
+    
+    let payload = ChannelUpdate {
+        name: name.clone(),
+        enabled: Some(true),
+        config,
+    };
+
+    let (tx, rx) = oneshot::channel();
+
+    if let Err(e) = state.api_tx.send(ManagerCommand::TestChannel(payload, tx)).await {
+        tracing::error!("Failed to send TestChannel request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+
+    match rx.await {
+        Ok(Ok(())) => Json(serde_json::json!({ "status": "ok" })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => {
+            tracing::error!("Failed to receive TestChannel response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
 }
 
 pub async fn get_providers_handler() -> Json<Vec<agent_diva_providers::registry::ProviderSpec>> {

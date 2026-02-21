@@ -7,14 +7,16 @@
 //! - Stream Mode WebSocket connection (no public IP required)
 //! - Client ID + Client Secret authentication
 //! - Message deduplication
-//! - Allowlist-based access control
-//! - Private chat support (group messages received but replied as private)
+//! - Allowlist-based access control (dm_policy, group_policy)
+//! - Private chat and Group chat support
+//! - Markdown message support
 //!
 //! References:
 //! - Python implementation: agent-diva/channels/dingtalk.py
 //! - DingTalk Stream Protocol: https://open-dingtalk.github.io/developerpedia/docs/learn/stream/protocol/
 
 use crate::base::{BaseChannel, ChannelError, ChannelHandler, Result};
+use crate::common::create_http_client;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use agent_diva_core::bus::OutboundMessage;
@@ -171,10 +173,7 @@ impl DingTalkHandler {
             base,
             running: Arc::new(RwLock::new(false)),
             processed_ids: Arc::new(RwLock::new(VecDeque::with_capacity(1000))),
-            http_client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(30))
-                .build()
-                .expect("Failed to build HTTP client"),
+            http_client: create_http_client().expect("Failed to build HTTP client"),
             token: Arc::new(RwLock::new(None)),
             token_expiry: Arc::new(RwLock::new(None)),
             shutdown_tx: None,
@@ -428,7 +427,11 @@ impl DingTalkHandler {
         match msg.msg_type.as_str() {
             "CALLBACK" => {
                 if msg.headers.topic == "/v1.0/im/bot/messages/get" {
-                    self.handle_bot_message(&msg).await?;
+                    // Always try to handle, but if it fails, we still want to ACK "OK"
+                    // to prevent DingTalk from retrying indefinitely.
+                    if let Err(e) = self.handle_bot_message(&msg).await {
+                        error!("Failed to handle bot message: {}", e);
+                    }
                 }
             }
             "SYSTEM" => {
@@ -514,24 +517,56 @@ impl DingTalkHandler {
             .clone()
             .unwrap_or_else(|| "Unknown".to_string());
 
+        let conversation_id = bot_msg.conversation_id.clone();
+        let conversation_type = bot_msg.conversation_type.clone().unwrap_or_default();
+        let is_group = conversation_type == "2";
+        
+        // Determine chat_id (conversation_id for groups, sender_id for direct)
+        let chat_id = if is_group {
+            conversation_id.clone()
+        } else {
+            sender_id.clone()
+        };
+
+        // Check permissions based on policy
+        let allowed = if is_group {
+            match self.config.group_policy.as_str() {
+                "allowlist" => {
+                    // Check if group ID or sender is allowed
+                    self.base.is_allowed(&conversation_id) || self.base.is_allowed(&sender_id)
+                }
+                _ => true, // "open"
+            }
+        } else {
+             match self.config.dm_policy.as_str() {
+                "allowlist" => self.base.is_allowed(&sender_id),
+                _ => true, // "open" or "pairing"
+            }
+        };
+
+        if !allowed {
+            warn!(
+                "Access denied for {} in {} (policy: dm={}, group={})",
+                sender_id, conversation_id, self.config.dm_policy, self.config.group_policy
+            );
+            return Ok(());
+        }
+
         info!(
-            "Received DingTalk message from {} ({}): {}",
-            sender_name, sender_id, content
+            "Received DingTalk message from {} ({}) in {}: {}",
+            sender_name, sender_id, chat_id, content
         );
 
         // Forward to message bus
         let inbound_msg = agent_diva_core::bus::InboundMessage::new(
             "dingtalk",
             sender_id.clone(),
-            sender_id.clone(), // For private chat, chat_id == sender_id
+            chat_id,
             content,
         )
         .with_metadata("sender_name", json!(sender_name))
-        .with_metadata("conversation_id", json!(bot_msg.conversation_id))
-        .with_metadata(
-            "conversation_type",
-            json!(bot_msg.conversation_type.unwrap_or_default()),
-        )
+        .with_metadata("conversation_id", json!(conversation_id))
+        .with_metadata("conversation_type", json!(conversation_type))
         .with_metadata("message_id", json!(bot_msg.msg_id));
 
         if let Some(tx) = &self.inbound_tx {
@@ -603,20 +638,40 @@ impl ChannelHandler for DingTalkHandler {
         }
 
         let token = self.get_access_token().await?;
+        let robot_code = if !self.config.robot_code.is_empty() {
+            &self.config.robot_code
+        } else {
+            &self.config.client_id
+        };
 
-        // Use robot oToMessages/batchSend API for private chat
-        // https://open.dingtalk.com/document/orgapp/robot-batch-send-messages
-        let url = format!("{}/v1.0/robot/oToMessages/batchSend", DINGTALK_API_BASE);
+        let is_group = msg.chat_id.starts_with("cid");
+        let url = if is_group {
+            format!("{}/v1.0/robot/groupMessages/send", DINGTALK_API_BASE)
+        } else {
+            format!("{}/v1.0/robot/oToMessages/batchSend", DINGTALK_API_BASE)
+        };
 
-        let body = json!({
-            "robotCode": self.config.client_id,
-            "userIds": [msg.chat_id], // chat_id is the user's staffId
-            "msgKey": "sampleMarkdown",
-            "msgParam": json!({
-                "text": msg.content,
-                "title": "agent-diva reply",
-            }).to_string(),
-        });
+        let body = if is_group {
+            json!({
+                "robotCode": robot_code,
+                "openConversationId": msg.chat_id,
+                "msgKey": "sampleMarkdown",
+                "msgParam": json!({
+                    "text": msg.content,
+                    "title": "agent-diva reply",
+                }).to_string(),
+            })
+        } else {
+            json!({
+                "robotCode": robot_code,
+                "userIds": [msg.chat_id],
+                "msgKey": "sampleMarkdown",
+                "msgParam": json!({
+                    "text": msg.content,
+                    "title": "agent-diva reply",
+                }).to_string(),
+            })
+        };
 
         let response = self
             .http_client

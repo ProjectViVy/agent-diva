@@ -185,6 +185,7 @@ impl LiteLLMClient {
         Self {
             client: Client::builder()
                 .http1_only() // Force HTTP/1.1 to avoid issues with some local servers
+                .timeout(std::time::Duration::from_secs(300)) // 5 minutes timeout for reasoning models
                 .build()
                 .unwrap_or_else(|_| Client::new()),
             api_base,
@@ -541,9 +542,16 @@ impl LLMProvider for LiteLLMClient {
 
             loop {
                 let chunk = match response.chunk().await {
-                    Ok(Some(bytes)) => bytes,
-                    Ok(None) => break,
+                    Ok(Some(bytes)) => {
+                        tracing::debug!("Received chunk: {} bytes", bytes.len());
+                        bytes
+                    },
+                    Ok(None) => {
+                        tracing::debug!("Stream ended (Ok(None))");
+                        break;
+                    },
                     Err(err) => {
+                        tracing::error!("Stream error: {}", err);
                         let _ = tx.send(Err(ProviderError::HttpError(err)));
                         return;
                     }
@@ -554,6 +562,7 @@ impl LLMProvider for LiteLLMClient {
 
                 for payload in Self::parse_sse_events(&mut buffer) {
                     if payload == "[DONE]" {
+                        tracing::debug!("Stream received [DONE]");
                         let final_response = Self::finalize_partial_response(
                             content.clone(),
                             reasoning_content.clone(),

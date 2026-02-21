@@ -164,7 +164,7 @@ pub struct FeishuConfig {
 }
 
 /// DingTalk channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DingTalkConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -173,7 +173,31 @@ pub struct DingTalkConfig {
     #[serde(default)]
     pub client_secret: String,
     #[serde(default)]
+    pub robot_code: String,
+    #[serde(default = "default_dingtalk_policy")]
+    pub dm_policy: String,
+    #[serde(default = "default_dingtalk_policy")]
+    pub group_policy: String,
+    #[serde(default)]
     pub allow_from: Vec<String>,
+}
+
+fn default_dingtalk_policy() -> String {
+    "open".to_string()
+}
+
+impl Default for DingTalkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            client_id: String::new(),
+            client_secret: String::new(),
+            robot_code: String::new(),
+            dm_policy: default_dingtalk_policy(),
+            group_policy: default_dingtalk_policy(),
+            allow_from: Vec::new(),
+        }
+    }
 }
 
 /// Email channel configuration

@@ -74,6 +74,16 @@ OPENAI_API_KEY=...
 ANTHROPIC_API_KEY=...
 ```
 
+### Channel Configuration
+
+**DingTalk**:
+Configure `client_id` and `client_secret` in `config.json` or via environment variables.
+Ensure Stream Mode is enabled in DingTalk Developer Console.
+
+**Discord**:
+Configure `token`, `gateway_url` (optional), and `intents`.
+Ensure the bot is invited to the server and has appropriate permissions.
+
 ## Usage
 
 ```bash

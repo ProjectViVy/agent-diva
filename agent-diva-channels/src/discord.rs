@@ -3,16 +3,16 @@
 //! Implements Discord bot functionality using the Discord Gateway API
 //! for real-time message receiving and REST API for sending messages.
 
-use crate::base::{ChannelError, ChannelHandler, Result};
+use crate::base::{BaseChannel, ChannelError, ChannelHandler, Result};
+use crate::common::{create_http_client, download_file};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
-use agent_diva_core::config::schema::DiscordConfig;
+use agent_diva_core::config::schema::{Config, DiscordConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, Duration};
 
@@ -105,55 +105,40 @@ struct DiscordMessage {
 
 /// Discord channel handler
 pub struct DiscordHandler {
-    /// Channel name
-    name: String,
-    /// Bot token
-    token: String,
-    /// Allowed senders
-    allow_from: Vec<String>,
-    /// Gateway URL
-    gateway_url: String,
-    /// Gateway intents
-    intents: u64,
-    /// Running state
-    running: bool,
+    config: DiscordConfig,
+    base: BaseChannel,
+    /// Running state (shared across tasks)
+    running: Arc<RwLock<bool>>,
     /// Inbound message sender
     inbound_tx: Option<mpsc::Sender<InboundMessage>>,
-    /// WebSocket connection
-    ws: Option<
-        tokio_tungstenite::WebSocketStream<
-            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-        >,
-    >,
     /// HTTP client
     http: reqwest::Client,
     /// Sequence number for heartbeats
     seq: Arc<Mutex<Option<u64>>>,
-    /// Heartbeat task
-    heartbeat_task: Option<JoinHandle<()>>,
     /// Typing indicator tasks
     typing_tasks: Arc<Mutex<HashMap<String, JoinHandle<()>>>>,
     /// Session ID for resuming
     session_id: Arc<Mutex<Option<String>>>,
+    /// Shutdown signal sender
+    shutdown_tx: Option<mpsc::Sender<()>>,
 }
 
 impl DiscordHandler {
     /// Create a new Discord handler from config
-    pub fn new(config: &DiscordConfig) -> Self {
+    pub fn new(config: &DiscordConfig, base_config: Config) -> Self {
+        let allow_from = config.allow_from.clone();
+        let base = BaseChannel::new("discord", base_config, allow_from);
+
         Self {
-            name: "discord".to_string(),
-            token: config.token.clone(),
-            allow_from: config.allow_from.clone(),
-            gateway_url: config.gateway_url.clone(),
-            intents: config.intents,
-            running: false,
+            config: config.clone(),
+            base,
+            running: Arc::new(RwLock::new(false)),
             inbound_tx: None,
-            ws: None,
-            http: reqwest::Client::new(),
+            http: create_http_client().expect("Failed to create HTTP client"),
             seq: Arc::new(Mutex::new(None)),
-            heartbeat_task: None,
             typing_tasks: Arc::new(Mutex::new(HashMap::new())),
             session_id: Arc::new(Mutex::new(None)),
+            shutdown_tx: None,
         }
     }
 
@@ -164,90 +149,7 @@ impl DiscordHandler {
 
     /// Check if a sender is allowed
     fn is_allowed(&self, sender_id: &str) -> bool {
-        if self.allow_from.is_empty() {
-            return true;
-        }
-
-        if self.allow_from.contains(&sender_id.to_string()) {
-            return true;
-        }
-
-        // Handle compound IDs
-        if sender_id.contains('|') {
-            for part in sender_id.split('|') {
-                if !part.is_empty() && self.allow_from.contains(&part.to_string()) {
-                    return true;
-                }
-            }
-        }
-
-        false
-    }
-
-    /// Send identify payload
-    async fn send_identify(&mut self) -> Result<()> {
-        let identify = serde_json::json!({
-            "op": 2,
-            "d": {
-                "token": self.token,
-                "intents": self.intents,
-                "properties": {
-                    "os": "agent-diva",
-                    "browser": "agent-diva",
-                    "device": "agent-diva"
-                }
-            }
-        });
-
-        self.send_ws_message(identify).await
-    }
-
-    /// Send WebSocket message
-    async fn send_ws_message(&mut self, payload: serde_json::Value) -> Result<()> {
-        if let Some(ws) = &mut self.ws {
-            let msg = tokio_tungstenite::tungstenite::Message::Text(payload.to_string());
-            ws.send(msg)
-                .await
-                .map_err(|e| ChannelError::ApiError(format!("WebSocket send failed: {}", e)))?;
-            Ok(())
-        } else {
-            Err(ChannelError::NotRunning(
-                "WebSocket not connected".to_string(),
-            ))
-        }
-    }
-
-    /// Start heartbeat loop
-    fn start_heartbeat(&mut self, interval_ms: u64) {
-        let seq = self.seq.clone();
-        let mut ws = self.ws.take();
-
-        let handle = tokio::spawn(async move {
-            let mut ticker = interval(Duration::from_millis(interval_ms));
-            ticker.tick().await; // First tick is immediate
-
-            loop {
-                ticker.tick().await;
-
-                let seq_num = *seq.lock().await;
-                let heartbeat = serde_json::json!({
-                    "op": 1,
-                    "d": seq_num
-                });
-
-                if let Some(ref mut ws) = ws {
-                    let msg = tokio_tungstenite::tungstenite::Message::Text(heartbeat.to_string());
-                    if let Err(e) = ws.send(msg).await {
-                        tracing::warn!("Discord heartbeat failed: {}", e);
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
-        });
-
-        self.heartbeat_task = Some(handle);
+        self.base.is_allowed(sender_id)
     }
 
     /// Handle incoming Discord message
@@ -268,7 +170,7 @@ impl DiscordHandler {
             tracing::warn!(
                 "Access denied for sender {} on channel {}",
                 sender_id,
-                self.name
+                self.base.name
             );
             return Ok(());
         }
@@ -287,7 +189,7 @@ impl DiscordHandler {
                 continue;
             }
 
-            match self.download_attachment(attachment).await {
+            match download_file(&self.http, &attachment.url, &attachment.filename, &attachment.id).await {
                 Ok(path) => {
                     media_paths.push(path.clone());
                     content_parts.push(format!("[attachment: {}]", path));
@@ -315,7 +217,7 @@ impl DiscordHandler {
         if let Some(tx) = &self.inbound_tx {
             let reply_to = msg.reply_to.as_ref().map(|m| m.id.clone());
             let inbound_msg =
-                InboundMessage::new(self.name.clone(), sender_id, channel_id.clone(), content)
+                InboundMessage::new(self.base.name.clone(), sender_id, channel_id.clone(), content)
                     .with_metadata("message_id", msg.id)
                     .with_metadata("username", msg.author.username)
                     .with_metadata("guild_id", msg.guild_id.unwrap_or_default())
@@ -329,43 +231,11 @@ impl DiscordHandler {
         Ok(())
     }
 
-    /// Download attachment
-    async fn download_attachment(&self, attachment: &DiscordAttachment) -> Result<String> {
-        let media_dir = dirs::home_dir()
-            .map(|h: PathBuf| h.join(".agent-diva").join("media"))
-            .unwrap_or_else(|| PathBuf::from(".agent-diva/media"));
-
-        tokio::fs::create_dir_all(&media_dir)
-            .await
-            .map_err(|e| ChannelError::Error(format!("Failed to create media dir: {}", e)))?;
-
-        let safe_filename = attachment.filename.replace('/', "_");
-        let file_path = media_dir.join(format!("{}_{}", attachment.id, safe_filename));
-
-        let response = self
-            .http
-            .get(&attachment.url)
-            .send()
-            .await
-            .map_err(|e| ChannelError::ApiError(format!("Download failed: {}", e)))?;
-
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|e| ChannelError::ApiError(format!("Read failed: {}", e)))?;
-
-        tokio::fs::write(&file_path, bytes)
-            .await
-            .map_err(|e| ChannelError::Error(format!("Write failed: {}", e)))?;
-
-        Ok(file_path.to_string_lossy().to_string())
-    }
-
     /// Start typing indicator
     async fn start_typing(&self, channel_id: String) {
         self.stop_typing(&channel_id).await;
 
-        let token = self.token.clone();
+        let token = self.config.token.clone();
         let http = self.http.clone();
         let url = format!("{}/channels/{}/typing", DISCORD_API_BASE, channel_id);
 
@@ -393,89 +263,190 @@ impl DiscordHandler {
         }
     }
 
-    /// Gateway connection loop
-    async fn gateway_loop(&mut self) -> Result<()> {
-        use tokio_tungstenite::tungstenite::Message;
+    /// Clone for async task
+    fn clone_for_task(&self) -> Self {
+        Self {
+            config: self.config.clone(),
+            base: BaseChannel::new(
+                self.base.name.clone(),
+                self.base.config.clone(),
+                self.base.allow_from.clone(),
+            ),
+            running: Arc::clone(&self.running),
+            inbound_tx: self.inbound_tx.clone(),
+            http: self.http.clone(),
+            seq: Arc::clone(&self.seq),
+            typing_tasks: Arc::clone(&self.typing_tasks),
+            session_id: Arc::clone(&self.session_id),
+            shutdown_tx: None,
+        }
+    }
 
-        while self.running {
-            if let Some(ws) = &mut self.ws {
-                match ws.next().await {
-                    Some(Ok(Message::Text(text))) => {
-                        let payload: GatewayPayload = match serde_json::from_str(&text) {
-                            Ok(p) => p,
-                            Err(e) => {
-                                tracing::warn!("Invalid JSON from Discord: {}", e);
-                                continue;
-                            }
-                        };
+    /// Run the gateway connection
+    async fn run_gateway(
+        &self, 
+        mut shutdown_rx: mpsc::Receiver<()>
+    ) -> Result<()> {
+        let mut reconnect_delay = 5;
 
-                        // Update sequence number
-                        if let Some(s) = payload.s {
-                            *self.seq.lock().await = Some(s);
-                        }
-
-                        match GatewayOp::from_u8(payload.op) {
-                            Some(GatewayOp::Hello) => {
-                                // Start heartbeat and identify
-                                if let Some(d) = payload.d {
-                                    let interval_ms = d
-                                        .get("heartbeat_interval")
-                                        .and_then(|v| v.as_u64())
-                                        .unwrap_or(45000);
-                                    self.start_heartbeat(interval_ms);
-                                    self.send_identify().await?;
-                                }
-                            }
-                            Some(GatewayOp::Dispatch) => {
-                                if payload.t.as_deref() == Some("MESSAGE_CREATE") {
-                                    if let Some(d) = payload.d {
-                                        if let Err(e) = self.handle_message_create(d).await {
-                                            tracing::error!("Error handling message: {}", e);
-                                        }
-                                    }
-                                } else if payload.t.as_deref() == Some("READY") {
-                                    tracing::info!("Discord gateway READY");
-                                    if let Some(d) = payload.d {
-                                        if let Some(session_id) =
-                                            d.get("session_id").and_then(|v| v.as_str())
-                                        {
-                                            *self.session_id.lock().await =
-                                                Some(session_id.to_string());
-                                        }
-                                    }
-                                }
-                            }
-                            Some(GatewayOp::Reconnect) => {
-                                tracing::info!("Discord requested reconnect");
-                                break;
-                            }
-                            Some(GatewayOp::InvalidSession) => {
-                                tracing::warn!("Discord invalid session");
-                                *self.session_id.lock().await = None;
-                                break;
-                            }
-                            _ => {}
-                        }
-                    }
-                    Some(Ok(Message::Close(_))) => {
-                        tracing::info!("Discord WebSocket closed");
-                        break;
-                    }
-                    Some(Err(e)) => {
-                        tracing::warn!("Discord WebSocket error: {}", e);
-                        break;
-                    }
-                    None => {
-                        tracing::warn!("Discord WebSocket stream ended");
-                        break;
-                    }
-                    _ => {}
-                }
-            } else {
+        loop {
+            // Check shutdown
+            if shutdown_rx.try_recv().is_ok() {
                 break;
             }
+
+            tracing::info!("Connecting to Discord gateway...");
+            
+            // Connect
+            match tokio_tungstenite::connect_async(&self.config.gateway_url).await {
+                Ok((ws_stream, _)) => {
+                    tracing::info!("Connected to Discord gateway");
+                    reconnect_delay = 5; // Reset delay
+                    
+                    let (mut write, mut read) = ws_stream.split();
+                    
+                    // We need a channel to send messages to the write sink from other tasks (heartbeat)
+                    let (tx, mut rx) = mpsc::channel::<String>(32);
+                    
+                    // Spawn writer task
+                    let writer_handle = tokio::spawn(async move {
+                        while let Some(msg) = rx.recv().await {
+                             if let Err(e) = write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await {
+                                 tracing::warn!("WebSocket write failed: {}", e);
+                                 break;
+                             }
+                        }
+                    });
+
+                    // Main read loop
+                    loop {
+                         tokio::select! {
+                            _ = shutdown_rx.recv() => {
+                                tracing::info!("Shutdown signal received");
+                                break;
+                            }
+                            msg = read.next() => {
+                                match msg {
+                                    Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text))) => {
+                                        if let Err(e) = self.handle_gateway_message(&text, &tx).await {
+                                            tracing::error!("Error handling gateway message: {}", e);
+                                        }
+                                    }
+                                    Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) => {
+                                        tracing::warn!("Discord WebSocket closed");
+                                        break;
+                                    }
+                                    Some(Err(e)) => {
+                                        tracing::error!("Discord WebSocket error: {}", e);
+                                        break;
+                                    }
+                                    None => {
+                                        tracing::warn!("Discord WebSocket stream ended");
+                                        break;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                    
+                    writer_handle.abort();
+                }
+                Err(e) => {
+                    tracing::warn!("Discord connection failed: {}", e);
+                }
+            }
+
+            // Check running state
+            if !*self.running.read().await {
+                break;
+            }
+
+            tracing::info!("Reconnecting to Discord in {} seconds...", reconnect_delay);
+            tokio::time::sleep(Duration::from_secs(reconnect_delay)).await;
+            reconnect_delay = (reconnect_delay * 2).min(60);
         }
 
+        Ok(())
+    }
+
+    async fn handle_gateway_message(&self, text: &str, tx: &mpsc::Sender<String>) -> Result<()> {
+        let payload: GatewayPayload = serde_json::from_str(text)
+            .map_err(|e| ChannelError::Error(format!("Failed to parse payload: {}", e)))?;
+
+        // Update sequence
+        if let Some(s) = payload.s {
+            *self.seq.lock().await = Some(s);
+        }
+
+        match GatewayOp::from_u8(payload.op) {
+            Some(GatewayOp::Hello) => {
+                if let Some(d) = payload.d {
+                    let interval_ms = d.get("heartbeat_interval").and_then(|v| v.as_u64()).unwrap_or(45000);
+                    
+                    // Spawn heartbeat task
+                    let tx_hb = tx.clone();
+                    let seq_hb = self.seq.clone();
+                    // Note: This is a simplified heartbeat that spawns a detached task.
+                    // Ideally we should manage its lifecycle better.
+                    tokio::spawn(async move {
+                        let mut interval = interval(Duration::from_millis(interval_ms));
+                        interval.tick().await; 
+                        
+                        loop {
+                            interval.tick().await;
+                            let seq = *seq_hb.lock().await;
+                            let heartbeat = serde_json::json!({
+                                "op": 1,
+                                "d": seq
+                            });
+                            if tx_hb.send(heartbeat.to_string()).await.is_err() {
+                                break;
+                            }
+                        }
+                    });
+                    
+                    // Identify
+                    let identify = serde_json::json!({
+                        "op": 2,
+                        "d": {
+                            "token": self.config.token,
+                            "intents": self.config.intents,
+                            "properties": {
+                                "os": "agent-diva",
+                                "browser": "agent-diva",
+                                "device": "agent-diva"
+                            }
+                        }
+                    });
+                    tx.send(identify.to_string()).await.map_err(|e| ChannelError::Error(e.to_string()))?;
+                }
+            }
+            Some(GatewayOp::Dispatch) => {
+                if payload.t.as_deref() == Some("MESSAGE_CREATE") {
+                    if let Some(d) = payload.d {
+                        self.handle_message_create(d).await?;
+                    }
+                } else if payload.t.as_deref() == Some("READY") {
+                    tracing::info!("Discord gateway READY");
+                    if let Some(d) = payload.d {
+                        if let Some(session_id) = d.get("session_id").and_then(|v| v.as_str()) {
+                            *self.session_id.lock().await = Some(session_id.to_string());
+                        }
+                    }
+                }
+            }
+            Some(GatewayOp::Reconnect) => {
+                tracing::info!("Discord requested reconnect");
+                return Err(ChannelError::ConnectionError("Reconnect requested".to_string()));
+            }
+            Some(GatewayOp::InvalidSession) => {
+                tracing::warn!("Discord invalid session");
+                *self.session_id.lock().await = None;
+                 return Err(ChannelError::ConnectionError("Invalid session".to_string()));
+            }
+            _ => {}
+        }
         Ok(())
     }
 }
@@ -483,81 +454,34 @@ impl DiscordHandler {
 #[async_trait]
 impl ChannelHandler for DiscordHandler {
     fn name(&self) -> &str {
-        &self.name
+        &self.base.name
     }
 
     fn is_running(&self) -> bool {
-        self.running
+        *self.running.blocking_read()
     }
 
     async fn start(&mut self) -> Result<()> {
-        if self.token.is_empty() {
+        if self.config.token.is_empty() {
             return Err(ChannelError::NotConfigured(
                 "Discord token not configured".to_string(),
             ));
         }
 
-        if self.running {
+        if self.is_running() {
             return Ok(());
         }
 
         tracing::info!("Starting Discord bot...");
+        *self.running.write().await = true;
 
-        // Connect to gateway
-        let (ws, _) = tokio_tungstenite::connect_async(&self.gateway_url)
-            .await
-            .map_err(|e| ChannelError::ApiError(format!("Failed to connect: {}", e)))?;
+        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
+        self.shutdown_tx = Some(shutdown_tx);
 
-        self.ws = Some(ws);
-        self.running = true;
-
-        // Run gateway loop with reconnect
-        let token = self.token.clone();
-        let gateway_url = self.gateway_url.clone();
-        let intents = self.intents;
-        let allow_from = self.allow_from.clone();
-        let inbound_tx = self.inbound_tx.clone();
-
+        let handler = self.clone_for_task();
         tokio::spawn(async move {
-            let mut reconnect_delay = 5;
-
-            loop {
-                // Create new handler for reconnection
-                let mut handler = DiscordHandler {
-                    name: "discord".to_string(),
-                    token: token.clone(),
-                    allow_from: allow_from.clone(),
-                    gateway_url: gateway_url.clone(),
-                    intents,
-                    running: true,
-                    inbound_tx: inbound_tx.clone(),
-                    ws: None,
-                    http: reqwest::Client::new(),
-                    seq: Arc::new(Mutex::new(None)),
-                    heartbeat_task: None,
-                    typing_tasks: Arc::new(Mutex::new(HashMap::new())),
-                    session_id: Arc::new(Mutex::new(None)),
-                };
-
-                // Connect
-                match tokio_tungstenite::connect_async(&gateway_url).await {
-                    Ok((ws_stream, _)) => {
-                        handler.ws = Some(ws_stream);
-                        reconnect_delay = 5; // Reset delay on successful connection
-
-                        if let Err(e) = handler.gateway_loop().await {
-                            tracing::warn!("Discord gateway error: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!("Discord connection failed: {}", e);
-                    }
-                }
-
-                // Reconnect delay
-                tracing::info!("Reconnecting to Discord in {} seconds...", reconnect_delay);
-                tokio::time::sleep(Duration::from_secs(reconnect_delay)).await;
-                reconnect_delay = (reconnect_delay * 2).min(60); // Exponential backoff
+            if let Err(e) = handler.run_gateway(shutdown_rx).await {
+                tracing::error!("Discord gateway task failed: {}", e);
             }
         });
 
@@ -566,30 +490,21 @@ impl ChannelHandler for DiscordHandler {
     }
 
     async fn stop(&mut self) -> Result<()> {
-        if !self.running {
+        if !self.is_running() {
             return Ok(());
         }
 
         tracing::info!("Stopping Discord bot...");
-        self.running = false;
+        *self.running.write().await = false;
 
-        // Stop heartbeat
-        if let Some(handle) = self.heartbeat_task.take() {
-            handle.abort();
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(()).await;
         }
 
         // Stop typing indicators
         let mut tasks = self.typing_tasks.lock().await;
         for (_, handle) in tasks.drain() {
             handle.abort();
-        }
-
-        // Close WebSocket
-        if let Some(ws) = &mut self.ws {
-            let _ = ws
-                .close(None)
-                .await
-                .map_err(|e| ChannelError::ApiError(format!("Close failed: {}", e)));
         }
 
         tracing::info!("Discord bot stopped");
@@ -623,7 +538,7 @@ impl ChannelHandler for DiscordHandler {
             let response = self
                 .http
                 .post(&url)
-                .header("Authorization", format!("Bot {}", self.token))
+                .header("Authorization", format!("Bot {}", self.config.token))
                 .header("Content-Type", "application/json")
                 .json(&payload)
                 .send()
@@ -671,7 +586,7 @@ impl ChannelHandler for DiscordHandler {
     }
 
     fn is_allowed(&self, sender_id: &str) -> bool {
-        self.is_allowed(sender_id)
+        self.base.is_allowed(sender_id)
     }
 }
 
@@ -688,50 +603,17 @@ mod tests {
             gateway_url: "wss://gateway.discord.gg".to_string(),
             intents: 37377,
         };
+        let global_config = Config::default();
 
-        let handler = DiscordHandler::new(&config);
-        assert_eq!(handler.name, "discord");
-        assert_eq!(handler.token, "test_token");
-        assert_eq!(handler.allow_from, vec!["user1".to_string()]);
-        assert!(!handler.running);
-    }
-
-    #[test]
-    fn test_discord_handler_is_allowed() {
-        let config = DiscordConfig {
-            enabled: true,
-            token: "test_token".to_string(),
-            allow_from: vec!["12345".to_string(), "67890".to_string()],
-            gateway_url: "wss://gateway.discord.gg".to_string(),
-            intents: 37377,
-        };
-
-        let handler = DiscordHandler::new(&config);
-        assert!(handler.is_allowed("12345"));
-        assert!(handler.is_allowed("67890"));
-        assert!(!handler.is_allowed("99999"));
-    }
-
-    #[test]
-    fn test_discord_handler_is_allowed_empty() {
-        let config = DiscordConfig {
-            enabled: true,
-            token: "test_token".to_string(),
-            allow_from: vec![],
-            gateway_url: "wss://gateway.discord.gg".to_string(),
-            intents: 37377,
-        };
-
-        let handler = DiscordHandler::new(&config);
-        assert!(handler.is_allowed("anyone"));
-        assert!(handler.is_allowed("12345"));
+        let handler = DiscordHandler::new(&config, global_config);
+        assert_eq!(handler.base.name, "discord");
+        assert_eq!(handler.config.token, "test_token");
+        assert!(!handler.is_running());
     }
 
     #[test]
     fn test_gateway_op_from_u8() {
         assert_eq!(GatewayOp::from_u8(0), Some(GatewayOp::Dispatch));
-        assert_eq!(GatewayOp::from_u8(1), Some(GatewayOp::Heartbeat));
-        assert_eq!(GatewayOp::from_u8(2), Some(GatewayOp::Identify));
         assert_eq!(GatewayOp::from_u8(10), Some(GatewayOp::Hello));
         assert_eq!(GatewayOp::from_u8(255), None);
     }

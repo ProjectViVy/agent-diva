@@ -72,7 +72,7 @@ impl ChannelManager {
         // Initialize Discord channel
         if self.config.channels.discord.enabled {
             if !self.config.channels.discord.token.is_empty() {
-                let mut handler = DiscordHandler::new(&self.config.channels.discord);
+                let mut handler = DiscordHandler::new(&self.config.channels.discord, self.config.clone());
                 if let Some(ref tx) = self.inbound_tx {
                     handler.set_inbound_sender(tx.clone());
                 }
@@ -268,7 +268,7 @@ impl ChannelManager {
             }
             "discord" => {
                 if new_config.channels.discord.enabled && !new_config.channels.discord.token.is_empty() {
-                    Some(Arc::new(RwLock::new(DiscordHandler::new(&new_config.channels.discord))))
+                    Some(Arc::new(RwLock::new(DiscordHandler::new(&new_config.channels.discord, new_config.clone()))))
                 } else {
                     None
                 }
@@ -364,6 +364,44 @@ impl ChannelManager {
     pub async fn list_channels(&self) -> Vec<String> {
         let handlers = self.handlers.read().await;
         handlers.keys().cloned().collect()
+    }
+
+    /// Test a specific channel configuration
+    pub async fn test_channel(&self, name: &str, new_config: Config) -> Result<()> {
+        let handler: Option<Box<dyn ChannelHandler>> = match name {
+            "telegram" => {
+                Some(Box::new(TelegramHandler::new(&new_config.channels.telegram)))
+            }
+            "discord" => {
+                Some(Box::new(DiscordHandler::new(&new_config.channels.discord, new_config.clone())))
+            }
+            "feishu" => {
+                Some(Box::new(FeishuHandler::new(new_config.channels.feishu.clone(), new_config.clone())))
+            }
+            "whatsapp" => {
+                Some(Box::new(WhatsAppHandler::new(new_config.channels.whatsapp.clone())))
+            }
+            "dingtalk" => {
+                Some(Box::new(DingTalkHandler::new(new_config.channels.dingtalk.clone(), new_config.clone())))
+            }
+            "email" => {
+                Some(Box::new(EmailHandler::new(new_config.channels.email.clone(), new_config.clone())))
+            }
+            "slack" => {
+                Some(Box::new(SlackHandler::new(new_config.channels.slack.clone())))
+            }
+            "qq" => {
+                Some(Box::new(QQHandler::new(new_config.channels.qq.clone(), new_config.clone())))
+            }
+            _ => None,
+        };
+
+        if let Some(handler) = handler {
+            tracing::info!("Testing {} channel connection...", name);
+            handler.test_connection().await
+        } else {
+            Err(ChannelError::NotConfigured(format!("Channel {} not found or not supported for testing", name)))
+        }
     }
 }
 

@@ -565,6 +565,9 @@ impl ConfigMigrator {
                     client_id: py.channels.dingtalk.client_id,
                     client_secret: py.channels.dingtalk.client_secret,
                     allow_from: py.channels.dingtalk.allow_from,
+                    robot_code: String::new(),
+                    dm_policy: "open".to_string(),
+                    group_policy: "open".to_string(),
                 },
                 email: EmailConfig {
                     enabled: py.channels.email.enabled,

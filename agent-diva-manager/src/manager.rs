@@ -286,6 +286,93 @@ impl Manager {
                                 let _ = reply.send(agent_diva_core::config::schema::ChannelsConfig::default());
                             }
                         }
+                        ManagerCommand::TestChannel(update, reply) => {
+                            println!("DEBUG: Processing TestChannel command: {}", update.name);
+                            info!("Processing TestChannel request: {}", update.name);
+                            
+                            // 1. Load config
+                            let mut config = match self.loader.load() {
+                                Ok(c) => c,
+                                Err(e) => {
+                                    error!("Failed to load config: {}", e);
+                                    let _ = reply.send(Err(e.to_string()));
+                                    continue;
+                                }
+                            };
+
+                            // 2. Update specific channel in config COPY
+                            let name = update.name.as_str();
+                            let result: anyhow::Result<()> = (|| {
+                                match name {
+                                    "telegram" => {
+                                        let mut cfg: agent_diva_core::config::schema::TelegramConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.telegram = cfg;
+                                    },
+                                    "discord" => {
+                                        let mut cfg: agent_diva_core::config::schema::DiscordConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.discord = cfg;
+                                    },
+                                    "feishu" => {
+                                        let mut cfg: agent_diva_core::config::schema::FeishuConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.feishu = cfg;
+                                    },
+                                    "whatsapp" => {
+                                        let mut cfg: agent_diva_core::config::schema::WhatsAppConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.whatsapp = cfg;
+                                    },
+                                    "dingtalk" => {
+                                        let mut cfg: agent_diva_core::config::schema::DingTalkConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.dingtalk = cfg;
+                                    },
+                                    "email" => {
+                                        let mut cfg: agent_diva_core::config::schema::EmailConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.email = cfg;
+                                    },
+                                    "slack" => {
+                                        let mut cfg: agent_diva_core::config::schema::SlackConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.slack = cfg;
+                                    },
+                                    "qq" => {
+                                        let mut cfg: agent_diva_core::config::schema::QQConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.qq = cfg;
+                                    },
+                                    _ => {
+                                        warn!("Unknown channel: {}", name);
+                                    }
+                                }
+                                Ok(())
+                            })();
+
+                            if let Err(e) = result {
+                                error!("Failed to update channel config for test: {}", e);
+                                let _ = reply.send(Err(e.to_string()));
+                                continue;
+                            }
+
+                            // 3. Test connection (Do NOT save config)
+                            if let Some(cm) = &self.channel_manager {
+                                match cm.test_channel(name, config).await {
+                                    Ok(_) => {
+                                        info!("Channel {} test connection successful", name);
+                                        let _ = reply.send(Ok(()));
+                                    }
+                                    Err(e) => {
+                                        error!("Channel {} test connection failed: {}", name, e);
+                                        let _ = reply.send(Err(e.to_string()));
+                                    }
+                                }
+                            } else {
+                                let _ = reply.send(Err("Channel manager not initialized".to_string()));
+                            }
+                        }
                         ManagerCommand::UpdateChannel(update) => {
                             println!("DEBUG: Processing UpdateChannel command: {}", update.name);
                             info!("Processing UpdateChannel request: {}", update.name);

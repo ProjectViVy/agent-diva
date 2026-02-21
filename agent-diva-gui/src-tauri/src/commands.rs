@@ -225,3 +225,31 @@ pub async fn update_channel(
     
     Ok(())
 }
+
+#[tauri::command]
+pub async fn test_channel(
+    name: String,
+    config: serde_json::Value,
+    state: State<'_, AgentState>
+) -> Result<(), String> {
+    let url = format!("{}/channels/test", state.api_base_url);
+    
+    let payload = serde_json::json!({
+        "name": name,
+        "enabled": true, // Test usually implies temporarily enabling or just checking config
+        "config": config
+    });
+    
+    let response = state.client.post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to test channel: {}", e))?;
+        
+    if !response.status().is_success() {
+         let error_text = response.text().await.unwrap_or_default();
+         return Err(format!("Test failed: {}", error_text));
+    }
+    
+    Ok(())
+}

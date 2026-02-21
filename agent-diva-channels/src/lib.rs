@@ -1,8 +1,9 @@
-﻿//! Chat platform integrations for agent-diva
+//! Chat platform integrations for agent-diva
 //!
 //! This crate provides integrations for various chat platforms.
 
 pub mod base;
+pub mod common;
 pub mod dingtalk;
 pub mod discord;
 pub mod email;

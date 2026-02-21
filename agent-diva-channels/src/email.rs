@@ -310,8 +310,11 @@ impl EmailHandler {
         subject: &str,
         content: &str,
         in_reply_to: Option<&str>,
+        attachments: Vec<(String, Vec<u8>, String)>,
+        is_html: bool,
     ) -> Result<()> {
         use lettre::message::header::ContentType;
+        use lettre::message::{Attachment, MultiPart, SinglePart};
         use lettre::transport::smtp::authentication::Credentials;
         use lettre::{Message, SmtpTransport, Transport};
 
@@ -332,8 +335,7 @@ impl EmailHandler {
                 .to(to_addr.parse().map_err(|e| {
                     ChannelError::InvalidConfig(format!("Invalid to address: {}", e))
                 })?)
-                .subject(subject)
-                .header(ContentType::TEXT_PLAIN);
+                .subject(subject);
 
         // Add In-Reply-To and References headers if available
         if let Some(reply_to_id) = in_reply_to {
@@ -341,9 +343,36 @@ impl EmailHandler {
             email_builder = email_builder.references(reply_to_id.to_string());
         }
 
-        let email = email_builder
-            .body(content.to_string())
-            .map_err(|e| ChannelError::SendError(format!("Build email: {}", e)))?;
+        let email = if !attachments.is_empty() || is_html {
+            let builder = MultiPart::mixed();
+
+            // Content part
+            let mixed = if is_html {
+                let alt = MultiPart::alternative()
+                    .singlepart(SinglePart::plain(Self::html_to_text_static(content)))
+                    .singlepart(SinglePart::html(content.to_string()));
+                builder.multipart(alt)
+            } else {
+                builder.singlepart(SinglePart::plain(content.to_string()))
+            };
+
+            // Attachments
+            let mixed = attachments.into_iter().fold(mixed, |acc, (filename, data, content_type)| {
+                let mime = content_type
+                    .parse()
+                    .unwrap_or_else(|_| ContentType::parse("application/octet-stream").unwrap());
+                acc.singlepart(Attachment::new(filename).body(data, mime))
+            });
+
+            email_builder
+                .multipart(mixed)
+                .map_err(|e| ChannelError::SendError(format!("Build multipart email: {}", e)))?
+        } else {
+            email_builder
+                .header(ContentType::TEXT_PLAIN)
+                .body(content.to_string())
+                .map_err(|e| ChannelError::SendError(format!("Build email: {}", e)))?
+        };
 
         // Build SMTP transport
         let credentials =
@@ -579,6 +608,48 @@ impl ChannelHandler for EmailHandler {
             }
         }
 
+        // Detect HTML
+        let is_html = msg
+            .metadata
+            .get("format")
+            .and_then(|v| v.as_str())
+            .map(|s| s.eq_ignore_ascii_case("html"))
+            .unwrap_or_else(|| {
+                msg.content.trim_start().starts_with("<!DOCTYPE html")
+                    || msg.content.trim_start().starts_with("<html")
+            });
+
+        // Fetch attachments
+        let mut attachments = Vec::new();
+        for url in &msg.media {
+            match reqwest::get(url).await {
+                Ok(resp) => {
+                    let filename = url
+                        .split('/')
+                        .last()
+                        .unwrap_or("attachment")
+                        .to_string();
+                    let content_type = resp
+                        .headers()
+                        .get(reqwest::header::CONTENT_TYPE)
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("application/octet-stream")
+                        .to_string();
+                    match resp.bytes().await {
+                        Ok(bytes) => {
+                            attachments.push((filename, bytes.to_vec(), content_type));
+                        }
+                        Err(e) => {
+                            error!("Failed to read attachment content {}: {}", url, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to fetch attachment {}: {}", url, e);
+                }
+            }
+        }
+
         // Get In-Reply-To and References
         let in_reply_to = self.last_message_ids.read().await.get(to_addr).cloned();
 
@@ -594,6 +665,8 @@ impl ChannelHandler for EmailHandler {
                 &subject,
                 &content,
                 in_reply_to.as_deref(),
+                attachments,
+                is_html,
             )
         })
         .await

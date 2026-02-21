@@ -13,6 +13,7 @@ pub enum ManagerCommand {
     Chat(ApiRequest),
     UpdateConfig(ConfigUpdate),
     UpdateChannel(ChannelUpdate),
+    TestChannel(ChannelUpdate, oneshot::Sender<Result<(), String>>),
     GetConfig(oneshot::Sender<ConfigResponse>),
     GetChannels(oneshot::Sender<ChannelsConfig>),
 }

@@ -29,6 +29,11 @@ pub trait ChannelHandler: Send + Sync {
 
     /// Check if a sender is allowed
     fn is_allowed(&self, sender_id: &str) -> bool;
+
+    /// Test connection (optional)
+    async fn test_connection(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Channel errors

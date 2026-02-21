@@ -338,6 +338,7 @@ impl AgentLoop {
                         let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                     }
                     LLMStreamEvent::ReasoningDelta(delta) => {
+                        debug!("Stream ReasoningDelta: {:?}", delta);
                         streamed_reasoning.push_str(&delta);
                         let event = AgentEvent::ReasoningDelta { text: delta };
                         if let Some(tx) = event_tx {
