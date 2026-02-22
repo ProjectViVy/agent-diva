@@ -4,6 +4,9 @@ import { Send, Trash2, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle,
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const md = new MarkdownIt({
   html: false, // 禁用 HTML 标签以防止 XSS
@@ -120,6 +123,7 @@ const getEmotionEmoji = (emotion?: string) => {
     jealous: '😤',
     angry: '😠',
     normal: '🙂',
+    // Fallback if needed
   };
   return emotions[emotion || 'normal'] || '🙂';
 };
@@ -150,7 +154,7 @@ const getEmotionEmoji = (emotion?: string) => {
         <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
           💕
         </div>
-        <p class="text-lg">开始和 Hikari 对话吧～</p>
+        <p class="text-lg">{{ t('chat.start') }}</p>
       </div>
 
       <div
@@ -209,7 +213,7 @@ const getEmotionEmoji = (emotion?: string) => {
                   'text-green-700': msg.toolStatus === 'success',
                   'text-red-700': msg.toolStatus === 'error'
                 }">
-                  {{ msg.toolStatus === 'running' ? '正在调用工具...' : (msg.toolStatus === 'success' ? '调用成功' : '调用失败') }}
+                  {{ msg.toolStatus === 'running' ? t('chat.toolRunning') : (msg.toolStatus === 'success' ? t('chat.toolSuccess') : t('chat.toolFailed')) }}
                 </span>
                 
                 <span v-if="msg.toolName" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
@@ -223,7 +227,7 @@ const getEmotionEmoji = (emotion?: string) => {
                   @click="toggleTool(index)"
                   class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  <span>{{ expandedTools[index] ? '收起详情' : '查看详情' }}</span>
+                  <span>{{ expandedTools[index] ? t('chat.hideDetails') : t('chat.viewDetails') }}</span>
                   <component :is="expandedTools[index] ? ChevronDown : ChevronRight" :size="12" />
                 </button>
               </div>
@@ -231,11 +235,11 @@ const getEmotionEmoji = (emotion?: string) => {
               <!-- Tool Details Content -->
               <div v-if="expandedTools[index]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
                 <div>
-                  <div class="font-semibold text-gray-500 mb-1">输入参数:</div>
+                  <div class="font-semibold text-gray-500 mb-1">{{ t('chat.inputArgs') }}</div>
                   <div class="bg-gray-100 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
                 </div>
                 <div v-if="msg.toolResult">
-                  <div class="font-semibold text-gray-500 mb-1">执行结果:</div>
+                  <div class="font-semibold text-gray-500 mb-1">{{ t('chat.execResult') }}</div>
                   <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
                 </div>
               </div>
@@ -263,7 +267,7 @@ const getEmotionEmoji = (emotion?: string) => {
                     <div class="flex items-center space-x-2 text-xs">
                        <Brain :size="14" :class="msg.isThinking ? 'animate-pulse text-pink-500' : 'text-gray-400'" />
                        <span :class="msg.isThinking ? 'text-pink-600 font-medium' : 'text-gray-500'">
-                          {{ msg.isThinking ? '正在深度思考...' : '深度思考过程' }}
+                          {{ msg.isThinking ? t('chat.thinking') : t('chat.thoughtProcess') }}
                        </span>
                     </div>
                     <component :is="expandedReasoning[index] ? ChevronDown : ChevronRight" :size="14" class="text-gray-400" />
@@ -307,7 +311,7 @@ const getEmotionEmoji = (emotion?: string) => {
         <button
           @click="emit('clear')"
           class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-          title="清除对话"
+          :title="t('chat.clearChat')"
         >
           <Trash2 :size="20" />
         </button>
@@ -317,7 +321,7 @@ const getEmotionEmoji = (emotion?: string) => {
             ref="inputRef"
             v-model="input"
             @keydown="handleKeyDown"
-            placeholder="输入消息... (Enter 发送)"
+            :placeholder="t('chat.placeholder')"
             class="w-full bg-transparent text-sm resize-none focus:outline-none placeholder-gray-400 py-2 max-h-[120px]"
             rows="1"
             style="min-height: 24px;"

@@ -1,28 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Info, Heart } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
 
-const props = defineProps<{
-  lang: 'zh' | 'en';
-}>();
-
-const t = computed(() => {
-  return props.lang === 'zh' ? {
-    about: '关于 Agent Diva',
-    desc: 'Agent Diva 是一个跨平台的 AI 代理框架，旨在提供可爱的、人性化的 AI 伴侣体验。',
-    version: '版本',
-    author: '作者',
-    license: '许可证',
-    website: '项目地址',
-  } : {
-    about: 'About Agent Diva',
-    desc: 'Agent Diva is a cross-platform AI agent framework designed to provide a cute, human-like AI companion experience.',
-    version: 'Version',
-    author: 'Author',
-    license: 'License',
-    website: 'Website',
-  };
-});
+const { t } = useI18n();
 </script>
 
 <template>
@@ -32,20 +13,20 @@ const t = computed(() => {
         <Heart :size="48" fill="currentColor" />
       </div>
       <h2 class="text-3xl font-bold text-gray-800 mb-2">Agent Diva</h2>
-      <p class="text-gray-500 max-w-md mx-auto">{{ t.desc }}</p>
+      <p class="text-gray-500 max-w-md mx-auto">{{ t('about.desc') }}</p>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden text-left">
       <div class="p-4 border-b border-gray-50 flex justify-between items-center hover:bg-gray-50 transition-colors">
-        <span class="text-gray-500">{{ t.version }}</span>
+        <span class="text-gray-500">{{ t('about.version') }}</span>
         <span class="font-mono text-gray-800 font-medium">0.1.0</span>
       </div>
       <div class="p-4 border-b border-gray-50 flex justify-between items-center hover:bg-gray-50 transition-colors">
-        <span class="text-gray-500">{{ t.license }}</span>
+        <span class="text-gray-500">{{ t('about.license') }}</span>
         <span class="font-medium text-gray-800">MIT</span>
       </div>
       <div class="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
-        <span class="text-gray-500">{{ t.author }}</span>
+        <span class="text-gray-500">{{ t('about.author') }}</span>
         <span class="font-medium text-gray-800">VivyCore</span>
       </div>
     </div>

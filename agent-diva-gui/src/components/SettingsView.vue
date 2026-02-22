@@ -6,6 +6,9 @@ import ProvidersSettings from './settings/ProvidersSettings.vue';
 import ChannelsSettings from './settings/ChannelsSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 interface SavedModel {
   id: string;
@@ -31,40 +34,17 @@ const emit = defineEmits<{
 }>();
 
 const currentView = ref<'dashboard' | 'providers' | 'channels' | 'language' | 'about'>('dashboard');
-const lang = ref<'zh' | 'en'>('zh');
-
-const t = computed(() => {
-  return lang.value === 'zh' ? {
-    settings: '设置',
-    back: '返回',
-    providers: '供应商',
-    channels: '频道',
-    language: '语言',
-    about: '关于',
-  } : {
-    settings: 'Settings',
-    back: 'Back',
-    providers: 'Providers',
-    channels: 'Channels',
-    language: 'Language',
-    about: 'About',
-  };
-});
 
 const pageTitle = computed(() => {
-  if (currentView.value === 'dashboard') return t.value.settings;
+  if (currentView.value === 'dashboard') return t('settings.title');
   const titles = {
-    providers: t.value.providers,
-    channels: t.value.channels,
-    language: t.value.language,
-    about: t.value.about
+    providers: t('settings.providers'),
+    channels: t('settings.channels'),
+    language: t('settings.language'),
+    about: t('settings.about')
   };
-  return titles[currentView.value] || t.value.settings;
+  return titles[currentView.value] || t('settings.title');
 });
-
-const toggleLang = () => {
-  lang.value = lang.value === 'zh' ? 'en' : 'zh';
-};
 
 const handleNavigate = (view: 'providers' | 'channels' | 'language' | 'about') => {
   currentView.value = view;
@@ -100,7 +80,6 @@ const goBack = () => {
           <div :key="currentView" class="h-full w-full">
             <SettingsDashboard 
               v-if="currentView === 'dashboard'"
-              :lang="lang"
               @navigate="handleNavigate"
             />
             
@@ -108,25 +87,20 @@ const goBack = () => {
               v-else-if="currentView === 'providers'"
               :config="config"
               :saved-models="savedModels"
-              :lang="lang"
               @save="(c) => emit('save', c)"
               @update-saved-models="(m) => emit('update-saved-models', m)"
             />
             
             <ChannelsSettings 
               v-else-if="currentView === 'channels'"
-              :lang="lang"
             />
             
             <LanguageSettings 
               v-else-if="currentView === 'language'"
-              :lang="lang"
-              @toggle-lang="toggleLang"
             />
             
             <AboutSettings 
               v-else-if="currentView === 'about'"
-              :lang="lang"
             />
           </div>
        </Transition>

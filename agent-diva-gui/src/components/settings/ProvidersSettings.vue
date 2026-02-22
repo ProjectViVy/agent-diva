@@ -2,6 +2,9 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Server, Check, Cpu, Save } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 interface ProviderSpec {
   name: string;
@@ -33,7 +36,6 @@ const props = defineProps<{
     model: string;
   };
   savedModels?: SavedModel[];
-  lang: 'zh' | 'en';
 }>();
 
 const emit = defineEmits<{
@@ -46,47 +48,6 @@ const localConfig = ref({ ...props.config });
 const selectedProvider = ref<ProviderSpec | null>(null);
 const searchTerm = ref('');
 const providerApiKeys = ref<Record<string, string>>({});
-
-// Computed translations
-const t = computed(() => {
-  return props.lang === 'zh' ? {
-    searchProviders: '搜索供应商...',
-    local: '本地',
-    gateway: '网关',
-    cloud: '云端',
-    connectConfig: '连接配置',
-    apiKey: 'API Key',
-    enterApiKey: '请输入 API Key...',
-    apiBaseUrl: 'API Base URL',
-    customApi: '自定义 API 地址',
-    availableModels: '可用模型',
-    checkToAdd: '勾选以添加到快捷切换列表',
-    noModels: '该供应商暂无预设模型',
-    selectProvider: '请从左侧选择一个供应商以配置模型',
-    saveConfig: '保存当前配置',
-    saving: '保存中...',
-    saved: '已保存',
-    saveFailed: '保存失败',
-  } : {
-    searchProviders: 'Search Providers...',
-    local: 'Local',
-    gateway: 'Gateway',
-    cloud: 'Cloud',
-    connectConfig: 'Connection Config',
-    apiKey: 'API Key',
-    enterApiKey: 'Enter API Key...',
-    apiBaseUrl: 'API Base URL',
-    customApi: 'Custom API Address',
-    availableModels: 'Available Models',
-    checkToAdd: 'Check to add to shortcuts',
-    noModels: 'No models available for this provider',
-    selectProvider: 'Select a provider from the left to configure models',
-    saveConfig: 'Save Config',
-    saving: 'Saving...',
-    saved: 'Saved',
-    saveFailed: 'Save Failed',
-  };
-});
 
 onMounted(async () => {
   try {
@@ -197,7 +158,7 @@ watch(() => props.config, (newVal) => {
       <div class="p-4 border-b border-gray-100">
         <input 
           v-model="searchTerm" 
-          :placeholder="t.searchProviders" 
+          :placeholder="t('providers.search')" 
           class="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all"
         />
       </div>
@@ -217,7 +178,7 @@ watch(() => props.config, (newVal) => {
                <div>
                   <div class="font-medium">{{ provider.display_name }}</div>
                   <div class="text-[10px] uppercase tracking-wider opacity-70" :class="provider.is_local ? 'text-green-600' : (provider.is_gateway ? 'text-purple-600' : 'text-blue-600')">
-                      {{ provider.is_local ? t.local : (provider.is_gateway ? t.gateway : t.cloud) }}
+                      {{ provider.is_local ? t('providers.local') : (provider.is_gateway ? t('providers.gateway') : t('providers.cloud')) }}
                   </div>
                </div>
             </div>
@@ -240,30 +201,30 @@ watch(() => props.config, (newVal) => {
                 </div>
                 <div>
                     <h3 class="text-xl font-bold text-gray-800">{{ selectedProvider.display_name }}</h3>
-                    <p class="text-sm text-gray-500">{{ selectedProvider.default_api_base || t.customApi }}</p>
+                    <p class="text-sm text-gray-500">{{ selectedProvider.default_api_base || t('providers.customApi') }}</p>
                 </div>
             </div>
         </div>
 
         <!-- Configuration -->
         <div class="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-           <h4 class="font-semibold text-gray-700 text-sm">{{ t.connectConfig }}</h4>
+           <h4 class="font-semibold text-gray-700 text-sm">{{ t('providers.connectConfig') }}</h4>
            
            <!-- API Key -->
            <div class="space-y-1">
-             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t.apiKey }}</label>
+             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiKey') }}</label>
              <input 
                :value="providerApiKeys[selectedProvider.name]"
                @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
                type="password" 
-               :placeholder="`${t.enterApiKey} (${selectedProvider.display_name})`"
+               :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
                class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" 
              />
            </div>
            
            <!-- API Base -->
            <div class="space-y-1">
-             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t.apiBaseUrl }}</label>
+             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiBaseUrl') }}</label>
              <input 
                disabled
                :value="selectedProvider.default_api_base || 'Local/Custom'"
@@ -275,8 +236,8 @@ watch(() => props.config, (newVal) => {
         <!-- Model Selection -->
         <div class="space-y-4">
           <h4 class="font-semibold text-gray-700 text-sm flex items-center justify-between">
-              <span>{{ t.availableModels }}</span>
-              <span class="text-xs font-normal text-gray-500">{{ t.checkToAdd }}</span>
+              <span>{{ t('providers.availableModels') }}</span>
+              <span class="text-xs font-normal text-gray-500">{{ t('providers.checkToAdd') }}</span>
           </h4>
           
           <div class="grid grid-cols-1 gap-2">
@@ -303,13 +264,13 @@ watch(() => props.config, (newVal) => {
           </div>
           
           <div v-if="selectedProvider.models.length === 0" class="text-center py-8 text-gray-400 text-sm">
-              {{ t.noModels }}
+              {{ t('providers.noModels') }}
           </div>
         </div>
       </div>
       <div v-else class="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
         <Cpu :size="48" class="opacity-20" />
-        <p>{{ t.selectProvider }}</p>
+        <p>{{ t('providers.selectProvider') }}</p>
       </div>
 
       <!-- Floating Save Button -->
@@ -319,7 +280,7 @@ watch(() => props.config, (newVal) => {
           class="px-6 py-3 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white rounded-full font-medium shadow-lg shadow-pink-500/30 transition-all flex items-center space-x-2 hover:scale-105 active:scale-95"
         >
           <Save :size="18" />
-          <span>{{ t.saveConfig }}</span>
+          <span>{{ t('providers.saveConfig') }}</span>
         </button>
       </div>
     </div>

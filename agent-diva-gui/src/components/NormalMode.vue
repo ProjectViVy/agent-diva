@@ -4,6 +4,9 @@ import { Menu, MessageSquare, Settings, Heart, Minus, X, Server, Check } from 'l
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import ChatView from './ChatView.vue';
 import SettingsView from './SettingsView.vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 interface Message {
   role: 'user' | 'agent' | 'system' | 'tool';
@@ -111,16 +114,16 @@ const hearts = [
   { left: '90%', top: '15%', size: 12, opacity: 0.22, delay: 1.1 },
 ];
 
-const emotionConfig: Record<string, { emoji: string; label: string }> = {
-  happy: { emoji: '😊', label: '开心' },
-  sad: { emoji: '😢', label: '难过' },
-  clingy: { emoji: '🥺', label: '粘人' },
-  jealous: { emoji: '😤', label: '吃醋' },
-  angry: { emoji: '😠', label: '生气' },
-  normal: { emoji: '🙂', label: '平静' },
-};
+const emotionConfig = computed(() => ({
+  happy: { emoji: '😊', label: t('emotion.happy') },
+  sad: { emoji: '😢', label: t('emotion.sad') },
+  clingy: { emoji: '🥺', label: t('emotion.clingy') },
+  jealous: { emoji: '😤', label: t('emotion.jealous') },
+  angry: { emoji: '😠', label: t('emotion.angry') },
+  normal: { emoji: '🙂', label: t('emotion.normal') },
+}));
 
-const currentConfig = emotionConfig[props.currentEmotion || 'normal'] || emotionConfig['normal'];
+const currentConfig = computed(() => emotionConfig.value[props.currentEmotion || 'normal'] || emotionConfig.value['normal']);
 </script>
 
 <template>
@@ -181,7 +184,7 @@ const currentConfig = emotionConfig[props.currentEmotion || 'normal'] || emotion
                 }"
               />
               <span>
-                {{ connectionStatus === 'connected' ? '在线' : connectionStatus === 'error' ? '离线' : '连接中' }}
+                {{ connectionStatus === 'connected' ? t('app.online') : connectionStatus === 'error' ? t('app.offline') : t('app.connecting') }}
               </span>
             </span>
           </div>
@@ -193,10 +196,10 @@ const currentConfig = emotionConfig[props.currentEmotion || 'normal'] || emotion
             v-if="config"
             @click="isModelDropdownOpen = !isModelDropdownOpen"
             class="flex items-center space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg transition-all text-xs text-gray-600 hover:text-pink-600 shadow-sm group"
-            title="切换模型"
+            :title="t('app.switchModel')"
           >
             <Server :size="12" class="text-gray-400 group-hover:text-pink-500" />
-            <span class="max-w-[100px] truncate font-medium">{{ config.model || 'Select Model' }}</span>
+            <span class="max-w-[100px] truncate font-medium">{{ config.model || t('app.switchModel') }}</span>
           </button>
           
           <!-- Dropdown -->
@@ -215,7 +218,7 @@ const currentConfig = emotionConfig[props.currentEmotion || 'normal'] || emotion
                     </button>
                 </div>
                 <div v-else class="px-3 py-4 text-center text-gray-400 text-[10px]">
-                    暂无已保存模型<br>请在设置中添加
+                    <div class="whitespace-pre-line">{{ t('chat.emptyModels') }}</div>
                 </div>
                 
                 <div class="border-t border-gray-100 mt-1 pt-1">
@@ -224,7 +227,7 @@ const currentConfig = emotionConfig[props.currentEmotion || 'normal'] || emotion
                         class="w-full text-left px-3 py-2 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-50 flex items-center"
                     >
                         <Settings :size="12" class="mr-2" />
-                        管理模型...
+                        {{ t('chat.manageModels') }}
                     </button>
                 </div>
              </div>
@@ -263,7 +266,7 @@ const currentConfig = emotionConfig[props.currentEmotion || 'normal'] || emotion
             @click="toggleSoulSidebar"
             class="p-1.5 rounded-md transition-colors no-drag mr-2"
             :class="soulSidebarOpen ? 'bg-pink-100 text-pink-600' : 'text-gray-500 hover:bg-pink-50 hover:text-pink-500'"
-            title="情感状态"
+            :title="t('app.emotionStatus')"
           >
             <Heart :size="16" />
           </button>
@@ -271,14 +274,14 @@ const currentConfig = emotionConfig[props.currentEmotion || 'normal'] || emotion
           <button
             @click="minimizeWindow"
             class="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-200/50 rounded-md transition-colors"
-            title="最小化"
+            :title="t('app.minimize')"
           >
             <Minus :size="16" />
           </button>
           <button
             @click="closeWindow"
             class="p-1.5 text-gray-500 hover:text-white hover:bg-red-500 rounded-md transition-colors"
-            title="关闭"
+            :title="t('app.close')"
           >
             <X :size="16" />
           </button>

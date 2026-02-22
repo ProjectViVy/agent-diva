@@ -1,42 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Server, MessageSquare, Globe, Info } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
 
-const props = defineProps<{
-  lang: 'zh' | 'en';
-}>();
+const { t } = useI18n();
 
 const emit = defineEmits<{
   (e: 'navigate', view: 'providers' | 'channels' | 'language' | 'about'): void;
 }>();
 
-const t = computed(() => {
-  return props.lang === 'zh' ? {
-    providers: '供应商',
-    providersDesc: '配置 AI 模型供应商和 API 密钥',
-    channels: '频道',
-    channelsDesc: '配置聊天机器人接入渠道',
-    language: '语言',
-    languageDesc: '切换界面显示语言',
-    about: '关于',
-    aboutDesc: '项目信息与版本说明',
-  } : {
-    providers: 'Providers',
-    providersDesc: 'Configure AI providers and API keys',
-    channels: 'Channels',
-    channelsDesc: 'Configure chatbot channels',
-    language: 'Language',
-    languageDesc: 'Change interface language',
-    about: 'About',
-    aboutDesc: 'Project information and version',
-  };
-});
-
 const cards = computed(() => [
-  { id: 'providers', icon: Server, title: t.value.providers, desc: t.value.providersDesc, color: 'text-purple-600', bg: 'bg-purple-100' },
-  { id: 'channels', icon: MessageSquare, title: t.value.channels, desc: t.value.channelsDesc, color: 'text-pink-600', bg: 'bg-pink-100' },
-  { id: 'language', icon: Globe, title: t.value.language, desc: t.value.languageDesc, color: 'text-blue-600', bg: 'bg-blue-100' },
-  { id: 'about', icon: Info, title: t.value.about, desc: t.value.aboutDesc, color: 'text-green-600', bg: 'bg-green-100' },
+  { id: 'providers', icon: Server, title: t('dashboard.providers'), desc: t('dashboard.providersDesc'), color: 'text-purple-600', bg: 'bg-purple-100' },
+  { id: 'channels', icon: MessageSquare, title: t('dashboard.channels'), desc: t('dashboard.channelsDesc'), color: 'text-pink-600', bg: 'bg-pink-100' },
+  { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc'), color: 'text-blue-600', bg: 'bg-blue-100' },
+  { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc'), color: 'text-green-600', bg: 'bg-green-100' },
 ]);
 </script>
 

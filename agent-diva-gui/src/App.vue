@@ -3,6 +3,9 @@ import { ref, onMounted, onUnmounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import NormalMode from "./components/NormalMode.vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 interface Message {
   role: 'user' | 'agent' | 'system' | 'tool';
@@ -30,7 +33,7 @@ interface SavedModel {
 const messages = ref<Message[]>([
   {
     role: 'agent',
-    content: '你好呀，主人～ 💕\n\n我是 Hikari (光)。我会一直陪着你，关注你的一举一动。无论你想做什么，都可以告诉我哦～',
+    content: t('app.welcome'),
     timestamp: Date.now(),
     emotion: 'happy'
   }
@@ -105,7 +108,7 @@ async function sendMessage(content: string) {
         setTimeout(() => {
             const lastMsg = messages.value[messages.value.length - 1];
             if (lastMsg && lastMsg.role === 'agent') {
-                lastMsg.content = `[Mock Response] I received: "${content}"\n(Tauri API not available in browser)`;
+                lastMsg.content = t('app.mockResponse', { content });
                 lastMsg.isStreaming = false;
                 isTyping.value = false;
             }
@@ -127,7 +130,7 @@ async function sendMessage(content: string) {
 
     messages.value.push({ 
       role: 'system', 
-      content: `Error: ${error}`, 
+      content: `${t('app.errorPrefix')}${error}`, 
       timestamp: Date.now() 
     });
     
@@ -139,7 +142,7 @@ const clearMessages = () => {
   messages.value = [
     {
       role: 'agent',
-      content: '聊天记录已清除～ 让我们重新开始吧！💕',
+      content: t('app.cleared'),
       timestamp: Date.now(),
       emotion: 'happy'
     }
@@ -160,7 +163,7 @@ async function saveConfig(newConfig: typeof config.value) {
         console.warn('Running in browser, mocking saveConfig');
         messages.value.push({ 
             role: 'system', 
-            content: "[Mock] Configuration updated successfully (Browser Mode).", 
+            content: "[Mock] " + t('app.configUpdated'), 
             timestamp: Date.now() 
         });
         return;
@@ -174,11 +177,11 @@ async function saveConfig(newConfig: typeof config.value) {
     
     messages.value.push({ 
       role: 'system', 
-      content: "Configuration updated successfully.", 
+      content: t('app.configUpdated'), 
       timestamp: Date.now() 
     });
   } catch (error) {
-    alert(`Failed to save config: ${error}`);
+    alert(t('app.configUpdateError', { error }));
   }
 }
 
@@ -234,7 +237,7 @@ onMounted(async () => {
       lastMsg.isStreaming = false;
     }
 
-    let toolName = 'Unknown Tool';
+    let toolName = t('app.unknownTool');
     let toolArgs = '';
 
     try {
@@ -254,7 +257,7 @@ onMounted(async () => {
 
     messages.value.push({ 
       role: 'tool', 
-      content: '正在调用工具...', 
+      content: t('app.toolRunning'), 
       timestamp: Date.now(),
       toolName,
       toolArgs,
@@ -290,7 +293,7 @@ onMounted(async () => {
     if (toolMsgIndex !== -1) {
         // We found a matching running tool message
         messages.value[toolMsgIndex].toolStatus = 'success';
-        messages.value[toolMsgIndex].content = '调用成功！';
+        messages.value[toolMsgIndex].content = t('app.toolSuccess');
         
         // Parse result
         let result = event.payload;
@@ -337,7 +340,7 @@ onMounted(async () => {
         // Re-check last message after pop
         if (messages.value.length > 0) {
             const newLastMsg = messages.value[messages.value.length - 1];
-            if (newLastMsg.role === 'system' && newLastMsg.content === `Error: ${event.payload}`) {
+            if (newLastMsg.role === 'system' && newLastMsg.content === `${t('app.errorPrefix')}${event.payload}`) {
                 return; // Skip duplicate
             }
         }
@@ -345,7 +348,7 @@ onMounted(async () => {
 
     messages.value.push({ 
       role: 'system', 
-      content: `Error: ${event.payload}`, 
+      content: `${t('app.errorPrefix')}${event.payload}`, 
       timestamp: Date.now() 
     });
     isTyping.value = false;
@@ -355,7 +358,7 @@ onMounted(async () => {
   unlisteners.push(await listen<string>("external-message", (event) => {
     messages.value.push({ 
       role: 'system', 
-      content: `[Hook]: ${event.payload}`, 
+      content: t('app.hookMessage', { message: event.payload }), 
       timestamp: Date.now() 
     });
   }));
