@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
+use tracing::{debug, info, warn};
 
 /// Shell execution tool
 pub struct ExecTool {
@@ -179,21 +180,30 @@ impl Tool for ExecTool {
 impl ExecTool {
     /// Execute the command and return output
     async fn execute_command(&self, command: &str, cwd: &Path) -> Result<String, String> {
+        info!("Executing command: '{}' in {:?}", command, cwd);
+
         // Determine shell based on OS
-        let (shell, shell_arg) = if cfg!(target_os = "windows") {
-            ("cmd", "/C")
+        let (shell, args) = if cfg!(target_os = "windows") {
+            ("powershell", vec!["-NoProfile", "-NonInteractive", "-Command"])
         } else {
-            ("sh", "-c")
+            ("sh", vec!["-c"])
         };
 
-        let child = Command::new(shell)
-            .arg(shell_arg)
+        let mut cmd = Command::new(shell);
+        for arg in args {
+            cmd.arg(arg);
+        }
+
+        let child = cmd
             .arg(command)
             .current_dir(cwd)
+            .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
             .map_err(|e| format!("Failed to spawn process: {}", e))?;
+
+        debug!("Command spawned with PID: {:?}", child.id());
 
         // Wait for output with timeout
         let output_future = child.wait_with_output();
@@ -286,9 +296,8 @@ mod tests {
         let tool = ExecTool::with_config(1, None, false);
         let params = json!({
             "command": if cfg!(target_os = "windows") {
-                // `timeout /t` may exit immediately under piped I/O (e.g. CI),
-                // so use ping as a portable-ish sleep for cmd.exe.
-                "ping -n 6 127.0.0.1 > NUL"
+                // Use Start-Sleep for PowerShell
+                "Start-Sleep -Seconds 6"
             } else {
                 "sleep 5"
             }

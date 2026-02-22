@@ -16,6 +16,49 @@ pub struct Config {
     pub gateway: GatewayConfig,
     /// Tools configuration
     pub tools: ToolsConfig,
+    /// Logging configuration
+    #[serde(default)]
+    pub logging: LoggingConfig,
+}
+
+/// Logging configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoggingConfig {
+    /// Default log level (trace, debug, info, warn, error)
+    #[serde(default = "default_log_level")]
+    pub level: String,
+    /// Log format (text, json)
+    #[serde(default = "default_log_format")]
+    pub format: String,
+    /// Directory for log files
+    #[serde(default = "default_log_dir")]
+    pub dir: String,
+    /// Module-specific overrides
+    #[serde(default)]
+    pub overrides: HashMap<String, String>,
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
+}
+
+fn default_log_format() -> String {
+    "text".to_string()
+}
+
+fn default_log_dir() -> String {
+    "logs".to_string()
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            level: default_log_level(),
+            format: default_log_format(),
+            dir: default_log_dir(),
+            overrides: HashMap::new(),
+        }
+    }
 }
 
 /// Agent configuration

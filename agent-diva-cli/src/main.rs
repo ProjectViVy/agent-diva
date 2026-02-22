@@ -159,17 +159,20 @@ enum CronCommands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
-
     let cli = Cli::parse();
 
     // Create config loader
-    let config_loader = if let Some(dir) = cli.config_dir {
-        ConfigLoader::with_dir(dir)
+    let config_loader = if let Some(dir) = &cli.config_dir {
+        ConfigLoader::with_dir(dir.clone())
     } else {
         ConfigLoader::new()
     };
+
+    // Load config for logging
+    let config = config_loader.load().unwrap_or_default();
+
+    // Initialize tracing
+    let _guard = agent_diva_core::logging::init_logging(&config.logging);
 
     match cli.command {
         Commands::Onboard => {

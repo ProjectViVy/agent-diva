@@ -45,27 +45,24 @@ impl Manager {
     }
 
     pub async fn run(mut self) -> anyhow::Result<()> {
-        println!("DEBUG: Manager loop started");
         info!("Manager loop started");
         
         loop {
-            println!("DEBUG: Waiting for command...");
+            debug!("Waiting for command...");
             tokio::select! {
                 msg = self.api_rx.recv() => {
                     let cmd = match msg {
                         Some(cmd) => {
-                            println!("DEBUG: Received command");
+                            debug!("Received command");
                             cmd
                         },
                         None => {
-                            println!("DEBUG: Manager channel closed, stopping loop");
                             info!("Manager channel closed, stopping loop");
                             break Ok(());
                         }
                     };
                     match cmd {
                         ManagerCommand::Chat(req) => {
-                            println!("DEBUG: Processing Chat command");
                             debug!("Processing Chat request via Bus");
                             let channel = req.msg.channel.clone();
                             let chat_id = req.msg.chat_id.clone();
@@ -76,7 +73,7 @@ impl Manager {
                             
                             // Publish inbound
                             if let Err(e) = self.bus.publish_inbound(req.msg) {
-                                println!("DEBUG: Failed to publish inbound: {}", e);
+                                error!("Failed to publish inbound: {}", e);
                                 let _ = event_tx.send(AgentEvent::Error { message: e.to_string() });
                             } else {
                                 // Spawn task to forward events
@@ -105,15 +102,14 @@ impl Manager {
                             }
                         }
                         ManagerCommand::UpdateConfig(update) => {
-                            println!("DEBUG: Processing UpdateConfig command");
-                            println!("DEBUG: Update request: {:?}", update);
+                            debug!("Processing UpdateConfig command");
+                            debug!("Update request: {:?}", update);
                             info!("Processing UpdateConfig request: {:?}", update);
                             
                             // 1. Load current config
                             let mut config = match self.loader.load() {
                                 Ok(c) => c,
                                 Err(e) => {
-                                    println!("DEBUG: Failed to load config: {}", e);
                                     error!("Failed to load config: {}", e);
                                     return Err(e.into());
                                 }
@@ -179,14 +175,12 @@ impl Manager {
 
                             // 4. Save config
                             if let Err(e) = self.loader.save(&config) {
-                                println!("DEBUG: Failed to save config: {}", e);
                                 error!("Failed to save config: {}", e);
                                 return Err(e.into());
                             }
                             info!("Configuration saved to disk");
                             
                             // 5. Hot Reload Provider
-                            println!("DEBUG: Hot reloading provider for model: {}", model_to_use);
                             info!("Hot reloading provider for model: {}", model_to_use);
                             
                             // Re-resolve spec to get the latest config
@@ -256,19 +250,15 @@ impl Manager {
                                     );
 
                                     self.provider.update(Arc::new(new_client));
-                                    println!("DEBUG: Provider updated successfully");
                                     info!("Provider updated successfully");
                                 } else {
-                                    println!("DEBUG: Provider config not found for spec: {}", spec.name);
                                     warn!("Provider config not found for spec: {}", spec.name);
                                 }
                             } else {
-                                println!("DEBUG: No provider found for model: {}, skipping provider update", model_to_use);
                                 warn!("No provider found for model: {}, skipping provider update", model_to_use);
                             }
                         }
                         ManagerCommand::GetConfig(reply) => {
-                            println!("DEBUG: Processing GetConfig command");
                             debug!("Processing GetConfig request");
                             let resp = ConfigResponse {
                                 api_base: self.current_api_base.clone(),
@@ -278,7 +268,7 @@ impl Manager {
                             let _ = reply.send(resp);
                         }
                         ManagerCommand::GetChannels(reply) => {
-                            println!("DEBUG: Processing GetChannels command");
+                            debug!("Processing GetChannels command");
                             if let Ok(config) = self.loader.load() {
                                 let _ = reply.send(config.channels);
                             } else {
@@ -287,7 +277,6 @@ impl Manager {
                             }
                         }
                         ManagerCommand::TestChannel(update, reply) => {
-                            println!("DEBUG: Processing TestChannel command: {}", update.name);
                             info!("Processing TestChannel request: {}", update.name);
                             
                             // 1. Load config
@@ -374,7 +363,6 @@ impl Manager {
                             }
                         }
                         ManagerCommand::UpdateChannel(update) => {
-                            println!("DEBUG: Processing UpdateChannel command: {}", update.name);
                             info!("Processing UpdateChannel request: {}", update.name);
                             
                             // 1. Load config

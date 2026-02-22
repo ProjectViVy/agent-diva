@@ -13,7 +13,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace, instrument};
+use uuid::Uuid;
 
 use crate::context::ContextBuilder;
 use crate::subagent::SubagentManager;
@@ -265,6 +266,21 @@ impl AgentLoop {
         msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
+        let trace_id = Uuid::new_v4().to_string();
+        use tracing::Instrument;
+        let span = tracing::info_span!("AgentSpan", trace_id = %trace_id);
+        
+        self.process_inbound_message_inner(msg, event_tx, trace_id).instrument(span).await
+    }
+
+    async fn process_inbound_message_inner(
+        &mut self,
+        msg: InboundMessage,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+        trace_id: String,
+    ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
+        trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
+
         // Use the default model from the current provider
         let model_to_use = self.provider.get_default_model();
         
@@ -273,7 +289,7 @@ impl AgentLoop {
         } else {
             msg.content.clone()
         };
-        println!(
+        info!(
             "Processing message from {}:{}: {} (model: {})",
             msg.channel, msg.sender_id, preview, model_to_use
         );
@@ -299,6 +315,8 @@ impl AgentLoop {
         while iteration < self.max_iterations {
             iteration += 1;
             debug!("Agent iteration {}/{}", iteration, self.max_iterations);
+            trace!(trace_id = %trace_id, loop_index = iteration, step_name = "loop_started", "Agent loop started");
+            
             let event = AgentEvent::IterationStarted {
                 index: iteration,
                 max_iterations: self.max_iterations,
@@ -380,6 +398,10 @@ impl AgentLoop {
                 },
             });
 
+            // Trace intent decision
+            let decision_type = if response.has_tool_calls() { "tool_use" } else { "final_response" };
+            trace!(trace_id = %trace_id, loop_index = iteration, step_name = "intent_decided", decision_type = %decision_type, "Intent decided");
+
             // Handle tool calls
             if response.has_tool_calls() {
                 info!("LLM requested {} tool calls", response.tool_calls.len());
@@ -394,6 +416,8 @@ impl AgentLoop {
 
                 // Execute tools
                 for tool_call in &response.tool_calls {
+                    trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_invoked", tool_name = %tool_call.name, "Tool invoked");
+
                     let args_str = serde_json::to_string(&tool_call.arguments).unwrap_or_default();
                     let preview = if args_str.chars().count() > 200 {
                         format!("{}...", args_str.chars().take(200).collect::<String>())
@@ -415,6 +439,9 @@ impl AgentLoop {
                     let params_value = serde_json::to_value(&tool_call.arguments)
                         .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
                     let result = self.tools.execute(&tool_call.name, params_value).await;
+                    
+                    trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
+
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),
                         is_error: result.starts_with("Error"),
@@ -444,6 +471,8 @@ impl AgentLoop {
             "I've completed processing but have no response to give.".to_string()
         });
 
+        trace!(trace_id = %trace_id, step_name = "response_generated", "Response generated");
+
         // Log response preview - use char indices to handle multi-byte UTF-8 characters safely
         let preview = if final_content.chars().count() > 120 {
             format!("{}...", final_content.chars().take(120).collect::<String>())
@@ -470,6 +499,10 @@ impl AgentLoop {
             .get("message_id")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+
+        trace!(trace_id = %trace_id, step_name = "msg_sent_to_channel", "Returning response to channel/manager");
+        // Also trace sent to manager as requested, which is effectively this return
+        trace!(trace_id = %trace_id, step_name = "msg_sent_to_manager", "Returning response to manager");
 
         Ok(Some(OutboundMessage {
             channel: msg.channel,
