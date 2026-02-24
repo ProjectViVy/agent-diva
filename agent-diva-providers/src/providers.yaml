@@ -14,6 +14,10 @@
   default_api_base: https://openrouter.ai/api/v1
   strip_model_prefix: false
   models:
+    - google/gemini-2.5-flash-preview
+    - qwen/qwen-2.5-7b-instruct:free
+    - deepseek/deepseek-chat
+    - mistralai/mistral-7b-instruct:free
     - google/gemini-2.0-flash-exp:free
     - deepseek/deepseek-r1:free
     - qwen/qwen-2.5-vl-72b-instruct:free
@@ -38,6 +42,14 @@
     - gpt-4o
     - claude-3-5-sonnet-20240620
     - deepseek-chat
+    - gpt-5
+    - gpt-5-mini
+    - o3
+    - DeepSeek-V3
+    - DeepSeek-R1
+    - gemini-2.5-pro
+    - gemini-2.5-flash
+    - kimi-k2-0711-preview
   model_overrides: []
 
 - name: custom
@@ -75,10 +87,14 @@
   default_api_base: ""
   strip_model_prefix: false
   models:
-    - llama3-8b-8192
-    - llama3-70b-8192
-    - mixtral-8x7b-32768
-    - gemma-7b-it
+    - claude-3-5-sonnet-20240620
+    - claude-3-opus-20240229
+    - claude-3-sonnet-20240229
+    - claude-3-haiku-20240307
+    - claude-opus-4-6
+    - claude-sonnet-4-5
+    - claude-haiku-4-5
+    - claude-opus-4-5
   model_overrides: []
 
 - name: openai
@@ -97,6 +113,21 @@
   detect_by_base_keyword: ""
   default_api_base: https://api.openai.com/v1
   strip_model_prefix: false
+  models:
+    - gpt-4o
+    - gpt-4o-mini
+    - gpt-4-turbo
+    - gpt-4
+    - gpt-3.5-turbo
+    - o1-preview
+    - o1-mini
+    - gpt-5.1
+    - gpt-5
+    - gpt-5-mini
+    - gpt-5-nano
+    - gpt-5-pro
+    - gpt-5-chat
+    - gpt-image-1
   model_overrides: []
 
 - name: deepseek
@@ -105,7 +136,7 @@
     - deepseek
   env_key: DEEPSEEK_API_KEY
   display_name: DeepSeek
-  litellm_prefix: ""
+  litellm_prefix: deepseek
   skip_prefixes:
     - deepseek/
   env_extras: []
@@ -137,6 +168,13 @@
   detect_by_base_keyword: ""
   default_api_base: ""
   strip_model_prefix: false
+  models:
+    - gemini-1.5-pro
+    - gemini-1.5-flash
+    - gemini-2.0-flash-exp
+    - gemini-2.5-flash
+    - gemini-2.5-pro
+    - gemini-3-pro-preview
   model_overrides: []
 
 - name: zhipu
@@ -166,6 +204,11 @@
     - glm-4-air
     - glm-4-flash
     - glm-3-turbo
+    - glm-5
+    - glm-4.7
+    - glm-4.6
+    - glm-4.5
+    - embedding-3
   model_overrides: []
 
 - name: dashscope
@@ -186,6 +229,15 @@
   detect_by_base_keyword: ""
   default_api_base: ""
   strip_model_prefix: false
+  models:
+    - qwen-max
+    - qwen-plus
+    - qwen-turbo
+    - qwen-vl-max
+    - qwen-vl-plus
+    - qwen3-max
+    - qwen3.5-plus
+    - text-embedding-v3
   model_overrides: []
 
 - name: moonshot
@@ -207,6 +259,12 @@
   detect_by_base_keyword: ""
   default_api_base: https://api.moonshot.ai/v1
   strip_model_prefix: false
+  models:
+    - moonshot-v1-8k
+    - moonshot-v1-32k
+    - moonshot-v1-128k
+    - kimi-k2.5
+    - kimi-k2-thinking
   model_overrides:
     - ["kimi-k2.5", { "temperature": 1.0 }]
 
@@ -231,6 +289,8 @@
     - abab6.5-chat
     - abab6.5s-chat
     - abab5.5-chat
+    - MiniMax-M2.5
+    - MiniMax-M2
   model_overrides: []
 
 - name: vllm
@@ -265,6 +325,770 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
+  default_api_base: https://api.groq.com/openai/v1
+  strip_model_prefix: false
+  models:
+    - llama3-8b-8192
+    - llama3-70b-8192
+    - mixtral-8x7b-32768
+    - gemma-7b-it
+    - mistral-saba-24b
+    - gemma-9b-it
+  model_overrides: []
+
+- name: xai
+  api_type: openai
+  keywords:
+    - xai
+    - grok
+  env_key: XAI_API_KEY
+  display_name: xAI
+  litellm_prefix: xai
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.x.ai/v1
+  strip_model_prefix: false
+  models:
+    - grok-beta
+    - grok-vision-beta
+    - grok-4
+    - grok-3
+  model_overrides: []
+
+- name: cherryin
+  api_type: openai
+  keywords:
+    - cherryin
+  env_key: CHERRYIN_API_KEY
+  display_name: CherryIN
+  litellm_prefix: cherryin
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.cherryin.ai/v1
+  strip_model_prefix: false
+  models: []
+  model_overrides: []
+
+- name: azure
+  api_type: openai
+  keywords:
+    - azure
+  env_key: AZURE_OPENAI_API_KEY
+  display_name: Azure OpenAI
+  litellm_prefix: azure
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
   default_api_base: ""
   strip_model_prefix: false
+  models:
+    - gpt-4o
+    - gpt-4o-mini
+  model_overrides: []
+
+- name: 302ai
+  api_type: openai
+  keywords:
+    - 302ai
+  env_key: 302AI_API_KEY
+  display_name: 302.AI
+  litellm_prefix: 302ai
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - deepseek-chat
+    - deepseek-reasoner
+    - chatgpt-4o-latest
+    - o3
+    - claude-sonnet-4-20250514
+  model_overrides: []
+
+- name: ph8
+  api_type: openai
+  keywords:
+    - ph8
+  env_key: PH8_API_KEY
+  display_name: PH8
+  litellm_prefix: ph8
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - deepseek-v3-241226
+    - deepseek-r1-250120
+  model_overrides: []
+
+- name: burncloud
+  api_type: openai
+  keywords:
+    - burncloud
+  env_key: BURNCLOUD_API_KEY
+  display_name: BurnCloud
+  litellm_prefix: burncloud
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - claude-opus-4-5-20251101
+    - gpt-5
+    - gemini-2.5-flash
+    - deepseek-reasoner
+  model_overrides: []
+
+- name: silicon
+  api_type: openai
+  keywords:
+    - silicon
+    - siliconflow
+  env_key: SILICON_API_KEY
+  display_name: SiliconFlow
+  litellm_prefix: silicon
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.siliconflow.cn/v1
+  strip_model_prefix: false
+  models:
+    - deepseek-ai/DeepSeek-V3.2
+    - Qwen/Qwen3-8B
+  model_overrides: []
+
+- name: ppio
+  api_type: openai
+  keywords:
+    - ppio
+  env_key: PPIO_API_KEY
+  display_name: PPIO
+  litellm_prefix: ppio
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - deepseek/deepseek-v3.2
+    - minimax/minimax-m2
+    - qwen/qwen3-235b-a22b-instruct-2507
+  model_overrides: []
+
+- name: together
+  api_type: openai
+  keywords:
+    - together
+    - togetherai
+  env_key: TOGETHER_API_KEY
+  display_name: Together AI
+  litellm_prefix: together
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.together.xyz/v1
+  strip_model_prefix: false
+  models:
+    - meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo
+    - google/gemma-2-27b-it
+  model_overrides: []
+
+- name: ocoolai
+  api_type: openai
+  keywords:
+    - ocoolai
+  env_key: OCOOLAI_API_KEY
+  display_name: OcoolAI
+  litellm_prefix: ocoolai
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - deepseek-chat
+    - gpt-4o
+    - claude-3-5-sonnet-20240620
+    - gemini-1.5-pro
+  model_overrides: []
+
+- name: github
+  api_type: openai
+  keywords:
+    - github
+  env_key: GITHUB_API_KEY
+  display_name: GitHub Models
+  litellm_prefix: github
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://models.inference.ai.azure.com
+  strip_model_prefix: false
+  models:
+    - gpt-4o
+  model_overrides: []
+
+- name: copilot
+  api_type: openai
+  keywords:
+    - copilot
+  env_key: COPILOT_API_KEY
+  display_name: Copilot
+  litellm_prefix: copilot
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - gpt-4o-mini
+  model_overrides: []
+
+- name: yi
+  api_type: openai
+  keywords:
+    - yi
+    - 01ai
+  env_key: YI_API_KEY
+  display_name: Yi (01.AI)
+  litellm_prefix: yi
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.lingyiwanwu.com/v1
+  strip_model_prefix: false
+  models:
+    - yi-lightning
+    - yi-vision-v2
+  model_overrides: []
+
+- name: baichuan
+  api_type: openai
+  keywords:
+    - baichuan
+  env_key: BAICHUAN_API_KEY
+  display_name: Baichuan
+  litellm_prefix: baichuan
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.baichuan-ai.com/v1
+  strip_model_prefix: false
+  models:
+    - Baichuan4
+    - Baichuan3-Turbo
+    - Baichuan4-Air
+  model_overrides: []
+
+- name: modelscope
+  api_type: openai
+  keywords:
+    - modelscope
+  env_key: MODELSCOPE_API_KEY
+  display_name: ModelScope
+  litellm_prefix: modelscope
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api-inference.modelscope.cn/v1
+  strip_model_prefix: false
+  models:
+    - Qwen/Qwen2.5-72B-Instruct
+    - deepseek-ai/DeepSeek-V3
+  model_overrides: []
+
+- name: stepfun
+  api_type: openai
+  keywords:
+    - stepfun
+  env_key: STEPFUN_API_KEY
+  display_name: StepFun
+  litellm_prefix: stepfun
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.stepfun.com/v1
+  strip_model_prefix: false
+  models:
+    - step-1-8k
+    - step-1-flash
+  model_overrides: []
+
+- name: doubao
+  api_type: openai
+  keywords:
+    - doubao
+    - ark
+  env_key: DOUBAO_API_KEY
+  display_name: Doubao (Ark)
+  litellm_prefix: doubao
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://ark.cn-beijing.volces.com/api/v3
+  strip_model_prefix: false
+  models:
+    - doubao-pro-32k
+    - doubao-lite-32k
+  model_overrides: []
+
+- name: hyperbolic
+  api_type: openai
+  keywords:
+    - hyperbolic
+  env_key: HYPERBOLIC_API_KEY
+  display_name: Hyperbolic
+  litellm_prefix: hyperbolic
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.hyperbolic.xyz/v1
+  strip_model_prefix: false
+  models:
+    - meta-llama/Meta-Llama-3.1-405B
+    - Qwen/Qwen2-VL-72B-Instruct
+  model_overrides: []
+
+- name: mistral
+  api_type: openai
+  keywords:
+    - mistral
+    - mistralai
+  env_key: MISTRAL_API_KEY
+  display_name: Mistral AI
+  litellm_prefix: mistral
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.mistral.ai/v1
+  strip_model_prefix: false
+  models:
+    - mistral-large-latest
+    - mistral-small-latest
+    - pixtral-12b-2409
+  model_overrides: []
+
+- name: jina
+  api_type: openai
+  keywords:
+    - jina
+  env_key: JINA_API_KEY
+  display_name: Jina AI
+  litellm_prefix: jina
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.jina.ai/v1
+  strip_model_prefix: false
+  models:
+    - jina-embeddings-v3
+    - jina-clip-v2
+  model_overrides: []
+
+- name: fireworks
+  api_type: openai
+  keywords:
+    - fireworks
+  env_key: FIREWORKS_API_KEY
+  display_name: Fireworks AI
+  litellm_prefix: fireworks
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.fireworks.ai/inference/v1
+  strip_model_prefix: false
+  models:
+    - accounts/fireworks/models/llama-v3-70b-instruct
+  model_overrides: []
+
+- name: hunyuan
+  api_type: openai
+  keywords:
+    - hunyuan
+    - tencent
+  env_key: HUNYUAN_API_KEY
+  display_name: Hunyuan
+  litellm_prefix: hunyuan
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.hunyuan.cloud.tencent.com/v1
+  strip_model_prefix: false
+  models:
+    - hunyuan-pro
+    - hunyuan-standard
+    - hunyuan-lite
+  model_overrides: []
+
+- name: nvidia
+  api_type: openai
+  keywords:
+    - nvidia
+    - nim
+  env_key: NVIDIA_API_KEY
+  display_name: NVIDIA NIM
+  litellm_prefix: nvidia
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://integrate.api.nvidia.com/v1
+  strip_model_prefix: false
+  models:
+    - meta/llama-3.1-405b-instruct
+  model_overrides: []
+
+- name: baidu-cloud
+  api_type: openai
+  keywords:
+    - baidu
+    - qianfan
+    - ernie
+  env_key: QIANFAN_API_KEY
+  display_name: Baidu Qianfan
+  litellm_prefix: qianfan
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://qianfan.baidubce.com/v2
+  strip_model_prefix: false
+  models:
+    - ernie-4.0-8k-latest
+    - ernie-speed-8k
+  model_overrides: []
+
+- name: dmxapi
+  api_type: openai
+  keywords:
+    - dmxapi
+  env_key: DMXAPI_API_KEY
+  display_name: DMXAPI
+  litellm_prefix: dmxapi
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - gpt-4o
+    - DMXAPI-DeepSeek-R1
+  model_overrides: []
+
+- name: perplexity
+  api_type: openai
+  keywords:
+    - perplexity
+    - sonar
+  env_key: PERPLEXITY_API_KEY
+  display_name: Perplexity
+  litellm_prefix: perplexity
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.perplexity.ai
+  strip_model_prefix: false
+  models:
+    - sonar-pro
+    - sonar-reasoning
+  model_overrides: []
+
+- name: infini
+  api_type: openai
+  keywords:
+    - infini
+    - maas
+  env_key: INFINI_API_KEY
+  display_name: Infini / Maas
+  litellm_prefix: infini
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.maas.com/v1
+  strip_model_prefix: false
+  models:
+    - deepseek-r1
+    - deepseek-v3
+    - qwen2.5-72b-instruct
+  model_overrides: []
+
+- name: voyageai
+  api_type: openai
+  keywords:
+    - voyage
+    - voyageai
+  env_key: VOYAGE_API_KEY
+  display_name: Voyage AI
+  litellm_prefix: voyage
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.voyageai.com/v1
+  strip_model_prefix: false
+  models:
+    - voyage-3
+    - voyage-code-3
+  model_overrides: []
+
+- name: qiniu
+  api_type: openai
+  keywords:
+    - qiniu
+  env_key: QINIU_API_KEY
+  display_name: Qiniu
+  litellm_prefix: qiniu
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - deepseek-r1
+    - deepseek-v3
+  model_overrides: []
+
+- name: tokenflux
+  api_type: openai
+  keywords:
+    - tokenflux
+  env_key: TOKENFLUX_API_KEY
+  display_name: TokenFlux
+  litellm_prefix: tokenflux
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - gpt-4.1
+    - claude-3-7-sonnet
+  model_overrides: []
+
+- name: cephalon
+  api_type: openai
+  keywords:
+    - cephalon
+  env_key: CEPHALON_API_KEY
+  display_name: Cephalon
+  litellm_prefix: cephalon
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - DeepSeek-R1
+  model_overrides: []
+
+- name: lanyun
+  api_type: openai
+  keywords:
+    - lanyun
+  env_key: LANYUN_API_KEY
+  display_name: Lanyun
+  litellm_prefix: lanyun
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - deepseek-ai/DeepSeek-R1
+    - Qwen/Qwen2.5-72B-Instruct
+  model_overrides: []
+
+- name: poe
+  api_type: openai
+  keywords:
+    - poe
+  env_key: POE_API_KEY
+  display_name: Poe
+  litellm_prefix: poe
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - gpt-4o
+  model_overrides: []
+
+- name: aionly
+  api_type: openai
+  keywords:
+    - aionly
+  env_key: AIONLY_API_KEY
+  display_name: AIOnly
+  litellm_prefix: aionly
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - gpt-5.1
+    - claude-opus-4-5-20251101
+  model_overrides: []
+
+- name: longcat
+  api_type: openai
+  keywords:
+    - longcat
+  env_key: LONGCAT_API_KEY
+  display_name: LongCat
+  litellm_prefix: longcat
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - LongCat-Flash-Chat
+  model_overrides: []
+
+- name: cerebras
+  api_type: openai
+  keywords:
+    - cerebras
+  env_key: CEREBRAS_API_KEY
+  display_name: Cerebras
+  litellm_prefix: cerebras
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://api.cerebras.ai/v1
+  strip_model_prefix: false
+  models:
+    - gpt-oss-120b
+    - zai-glm-4.6
+  model_overrides: []
+
+- name: mimo
+  api_type: openai
+  keywords:
+    - mimo
+  env_key: MIMO_API_KEY
+  display_name: Mimo
+  litellm_prefix: mimo
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: true
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: ""
+  strip_model_prefix: false
+  models:
+    - mimo-v2-flash
   model_overrides: []

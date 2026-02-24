@@ -168,6 +168,20 @@ pub async fn send_message(
 }
 
 #[tauri::command]
+pub async fn check_health(state: State<'_, AgentState>) -> Result<bool, String> {
+    let url = format!("{}/health", state.api_base_url);
+    
+    let client = &state.client;
+    let response = client.get(&url)
+        .timeout(std::time::Duration::from_millis(1000))
+        .send()
+        .await
+        .map_err(|e| format!("Health check failed: {}", e))?;
+        
+    Ok(response.status().is_success())
+}
+
+#[tauri::command]
 pub async fn update_config(
     api_base: Option<String>,
     api_key: Option<String>,

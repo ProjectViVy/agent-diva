@@ -16,9 +16,6 @@ pub use registry::{ProviderRegistry, ProviderSpec};
 
 use async_trait::async_trait;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
-use futures::Stream;
-use std::pin::Pin;
 
 /// A provider that allows hot-swapping the underlying implementation
 pub struct DynamicProvider {

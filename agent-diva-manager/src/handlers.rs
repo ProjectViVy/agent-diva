@@ -192,3 +192,7 @@ pub async fn get_providers_handler() -> Json<Vec<agent_diva_providers::registry:
     let registry = ProviderRegistry::new();
     Json(registry.all().to_vec())
 }
+
+pub async fn heartbeat_handler() -> &'static str {
+    "ok"
+}

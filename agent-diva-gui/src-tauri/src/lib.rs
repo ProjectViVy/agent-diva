@@ -20,7 +20,9 @@ pub fn run() {
             commands::update_config,
             commands::get_providers,
             commands::get_channels,
-            commands::update_channel
+            commands::update_channel,
+            commands::test_channel,
+            commands::check_health
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

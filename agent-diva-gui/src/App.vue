@@ -185,11 +185,32 @@ async function saveConfig(newConfig: typeof config.value) {
   }
 }
 
+async function checkHealth() {
+  if (!isTauri()) return;
+  
+  try {
+    const isHealthy = await invoke<boolean>("check_health");
+    connectionStatus.value = isHealthy ? 'connected' : 'error';
+  } catch (e) {
+    console.error("Health check failed:", e);
+    connectionStatus.value = 'error';
+  }
+}
+
 onMounted(async () => {
   if (!isTauri()) {
       console.log("Running in browser mode - Tauri listeners skipped");
       return;
   }
+
+  // Initial health check and polling
+  await checkHealth();
+  const healthInterval = setInterval(checkHealth, 5000);
+  
+  // Register cleanup
+  onUnmounted(() => {
+    clearInterval(healthInterval);
+  });
 
   // Listen for streaming text delta
   unlisteners.push(await listen<string>("agent-response-delta", (event) => {
