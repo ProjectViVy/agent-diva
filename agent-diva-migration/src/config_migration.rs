@@ -613,6 +613,7 @@ impl ConfigMigrator {
                     secret: py.channels.qq.secret,
                     allow_from: py.channels.qq.allow_from,
                 },
+                generic_pipe: GenericPipeConfig::default(),
             },
             providers: ProvidersConfig {
                 anthropic: self.convert_provider(&py.providers.anthropic),
@@ -661,6 +662,7 @@ impl ConfigMigrator {
                     })
                     .collect(),
             },
+            logging: LoggingConfig::default(),
         }
     }
 

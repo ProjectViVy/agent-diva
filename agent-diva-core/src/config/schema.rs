@@ -114,6 +114,8 @@ pub struct ChannelsConfig {
     pub slack: SlackConfig,
     #[serde(default)]
     pub qq: QQConfig,
+    #[serde(default)]
+    pub generic_pipe: GenericPipeConfig,
 }
 
 /// Telegram channel configuration
@@ -425,6 +427,37 @@ pub struct QQConfig {
     pub secret: String,
     #[serde(default)]
     pub allow_from: Vec<String>,
+}
+
+/// Generic pipe (WebSocket server) channel configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenericPipeConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_pipe_host")]
+    pub host: String,
+    #[serde(default = "default_pipe_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub allow_from: Vec<String>,
+}
+
+fn default_pipe_host() -> String {
+    "0.0.0.0".to_string()
+}
+fn default_pipe_port() -> u16 {
+    9100
+}
+
+impl Default for GenericPipeConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            host: default_pipe_host(),
+            port: default_pipe_port(),
+            allow_from: Vec::new(),
+        }
+    }
 }
 
 /// Provider configuration

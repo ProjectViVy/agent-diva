@@ -324,6 +324,19 @@ const saveChannel = async (channelName: string) => {
                         <input v-model="channels.qq.secret" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
                     </div>
                 </div>
+                <!-- Generic Pipe -->
+                <div v-else-if="selectedChannel === 'generic_pipe'" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.listenHost') }}</label>
+                            <input v-model="channels.generic_pipe.host" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="0.0.0.0" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.listenPort') }}</label>
+                            <input v-model.number="channels.generic_pipe.port" type="number" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="9100" />
+                        </div>
+                    </div>
+                </div>
                 <!-- Generic fallback -->
                 <div v-else class="text-sm text-gray-500">
                     {{ t('providers.unsupportedUI') }}

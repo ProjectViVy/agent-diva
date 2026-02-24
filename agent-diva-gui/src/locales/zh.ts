@@ -1,6 +1,6 @@
 export default {
   app: {
-    welcome: '你好呀，主人～ 💕\n\n我是 Hikari (光)。我会一直陪着你，关注你的一举一动。无论你想做什么，都可以告诉我哦～',
+    welcome: '我是 DIVA。我是你的全能助手。无论你想做什么，都可以告诉我哦～',
     cleared: '聊天记录已清除～ 让我们重新开始吧！💕',
     errorPrefix: '错误: ',
     mockResponse: '[模拟回复] 我收到了: "{content}"\n(浏览器中不可用 Tauri API)',
@@ -29,7 +29,7 @@ export default {
   },
   chat: {
     placeholder: '输入消息... (Enter 发送)',
-    start: '开始和 Hikari 对话吧～',
+    start: '开始和 DIVA 对话吧～',
     toolRunning: '正在调用工具...',
     toolSuccess: '调用成功',
     toolFailed: '调用失败',
@@ -144,6 +144,8 @@ export default {
     saving: '保存中...',
     saved: '已保存',
     saveFailed: '保存失败',
+    listenHost: '监听地址',
+    listenPort: '监听端口',
   },
   about: {
     title: '关于 Agent Diva',

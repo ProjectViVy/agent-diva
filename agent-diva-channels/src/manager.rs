@@ -5,6 +5,7 @@ use crate::dingtalk::DingTalkHandler;
 use crate::discord::DiscordHandler;
 use crate::email::EmailHandler;
 use crate::feishu::FeishuHandler;
+use crate::generic_pipe::GenericPipeHandler;
 use crate::qq::QQHandler;
 use crate::slack::SlackHandler;
 use crate::telegram::TelegramHandler;
@@ -192,6 +193,19 @@ impl ChannelManager {
             }
         }
 
+        // Initialize Generic Pipe channel
+        if self.config.channels.generic_pipe.enabled {
+            let mut handler = GenericPipeHandler::new(self.config.channels.generic_pipe.clone());
+            if let Some(ref tx) = self.inbound_tx {
+                handler.set_inbound_sender(tx.clone());
+            }
+            handlers.insert(
+                "generic_pipe".to_string(),
+                Arc::new(RwLock::new(handler)) as Arc<RwLock<dyn ChannelHandler>>,
+            );
+            tracing::info!("Generic pipe channel initialized");
+        }
+
         Ok(())
     }
 
@@ -315,6 +329,13 @@ impl ChannelManager {
                     None
                 }
             }
+            "generic_pipe" => {
+                if new_config.channels.generic_pipe.enabled {
+                    Some(Arc::new(RwLock::new(GenericPipeHandler::new(new_config.channels.generic_pipe.clone()))))
+                } else {
+                    None
+                }
+            }
             _ => None,
         };
 
@@ -392,6 +413,9 @@ impl ChannelManager {
             }
             "qq" => {
                 Some(Box::new(QQHandler::new(new_config.channels.qq.clone(), new_config.clone())))
+            }
+            "generic_pipe" => {
+                Some(Box::new(GenericPipeHandler::new(new_config.channels.generic_pipe.clone())))
             }
             _ => None,
         };

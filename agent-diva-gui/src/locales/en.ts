@@ -1,6 +1,6 @@
 export default {
   app: {
-    welcome: 'Hello, Master~ 💕\n\nI am Hikari (Light). I will always be with you, watching your every move. Whatever you want to do, you can tell me~',
+    welcome: 'Hello, Master~ 💕\n\nI am DIVA. I will always be with you, watching your every move. Whatever you want to do, you can tell me~',
     cleared: 'Chat history cleared~ Let\'s start over! 💕',
     errorPrefix: 'Error: ',
     mockResponse: '[Mock Response] I received: "{content}"\n(Tauri API not available in browser)',
@@ -29,7 +29,7 @@ export default {
   },
   chat: {
     placeholder: 'Type a message... (Enter to send)',
-    start: 'Start chatting with Hikari~',
+    start: 'Start chatting with DIVA~',
     toolRunning: 'Calling tool...',
     toolSuccess: 'Success',
     toolFailed: 'Failed',
@@ -144,6 +144,8 @@ export default {
     saving: 'Saving...',
     saved: 'Saved',
     saveFailed: 'Save Failed',
+    listenHost: 'Listen Host',
+    listenPort: 'Listen Port',
   },
   about: {
     title: 'About Agent Diva',
