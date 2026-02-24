@@ -86,6 +86,51 @@ agent-diva tui
 agent-diva status
 ```
 
+## GUI 桌面客户端
+
+Agent Diva 提供基于 Tauri + Vue 3 的可选桌面 GUI。
+
+### 前置要求
+
+- Node.js v18+
+- Rust（最新稳定版）
+- pnpm（推荐）或 npm
+
+### 启动 GUI
+
+```bash
+cd agent-diva-gui
+pnpm install
+pnpm tauri dev
+```
+
+### 构建发布版本
+
+```bash
+cd agent-diva-gui
+pnpm tauri build
+```
+
+构建产物位于 `agent-diva-gui/src-tauri/target/release/`。
+
+### 功能
+
+- 实时流式对话
+- 工具调用可视化（输入参数 + 执行结果）
+- 供应商管理（API Key、Base URL、模型选择）
+- 渠道配置（Telegram、Discord、钉钉、飞书、WhatsApp、Email、Slack、QQ、Generic Pipe）
+- 中英文切换
+
+### 外部 Hook
+
+GUI 启动后在 `3000` 端口监听，可通过 HTTP 从外部发送消息：
+
+```bash
+curl -X POST http://localhost:3000/api/hook/message \
+  -H "Content-Type: application/json" \
+  -d '{"content": "来自外部工具的消息"}'
+```
+
 ## 开发
 
 常用命令（优先使用 `just`）：

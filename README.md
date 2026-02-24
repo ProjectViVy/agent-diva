@@ -100,6 +100,51 @@ agent-diva tui
 agent-diva status
 ```
 
+## GUI
+
+Agent Diva includes an optional desktop GUI built with Tauri + Vue 3.
+
+### Prerequisites
+
+- Node.js v18+
+- Rust (latest stable)
+- pnpm (recommended) or npm
+
+### Run the GUI
+
+```bash
+cd agent-diva-gui
+pnpm install
+pnpm tauri dev
+```
+
+### Build for production
+
+```bash
+cd agent-diva-gui
+pnpm tauri build
+```
+
+The built binary will be in `agent-diva-gui/src-tauri/target/release/`.
+
+### Features
+
+- Real-time streaming chat with the agent
+- Tool call visualization (input args + results)
+- Provider management (API keys, base URLs, model selection)
+- Channel configuration (Telegram, Discord, DingTalk, Feishu, WhatsApp, Email, Slack, QQ, Generic Pipe)
+- Language switching (English / Chinese)
+
+### External Hook
+
+The GUI listens on port `3000` after startup. Send messages from external tools:
+
+```bash
+curl -X POST http://localhost:3000/api/hook/message \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Hello from external tool!"}'
+```
+
 ## Development
 
 Common commands (prefer `just` when available):
