@@ -1,5 +1,6 @@
 //! Context builder for assembling prompts
 
+use agent_diva_core::memory::MemoryManager;
 use crate::skills::SkillsLoader;
 use agent_diva_providers::Message;
 use std::path::PathBuf;
@@ -8,23 +9,28 @@ use std::path::PathBuf;
 pub struct ContextBuilder {
     workspace: PathBuf,
     skills_loader: Option<SkillsLoader>,
+    memory_manager: MemoryManager,
 }
 
 impl ContextBuilder {
     /// Create a new context builder
     pub fn new(workspace: PathBuf) -> Self {
+        let memory_manager = MemoryManager::new(&workspace);
         Self {
             workspace,
             skills_loader: None,
+            memory_manager,
         }
     }
 
     /// Create a new context builder with skills
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = Some(SkillsLoader::new(&workspace, builtin_skills_dir));
+        let memory_manager = MemoryManager::new(&workspace);
         Self {
             workspace,
             skills_loader,
+            memory_manager,
         }
     }
 
@@ -61,6 +67,13 @@ Your workspace is at: {workspace_path}
                     "\n\nYou can read the full skill content using the read_file tool with the location path.",
                 );
             }
+        }
+
+        // Inject long-term memory if available
+        let memory_context = self.memory_manager.get_memory_context();
+        if !memory_context.is_empty() {
+            prompt.push_str("\n\n");
+            prompt.push_str(&memory_context);
         }
 
         prompt.push_str(
@@ -105,7 +118,24 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         for msg in history {
             let message = match msg.role.as_str() {
                 "user" => Message::user(&msg.content),
-                "assistant" => Message::assistant(&msg.content),
+                "assistant" => {
+                    let mut m = Message::assistant(&msg.content);
+                    // Restore tool_calls from session history
+                    if let Some(ref tc_values) = msg.tool_calls {
+                        if let Ok(calls) = serde_json::from_value::<Vec<agent_diva_providers::ToolCallRequest>>(
+                            serde_json::Value::Array(tc_values.clone()),
+                        ) {
+                            m.tool_calls = Some(calls);
+                        }
+                    }
+                    m
+                }
+                "tool" => {
+                    let tool_call_id = msg.tool_call_id.unwrap_or_default();
+                    let mut m = Message::tool(msg.content, tool_call_id);
+                    m.name = msg.name;
+                    m
+                }
                 _ => continue,
             };
             messages.push(message);

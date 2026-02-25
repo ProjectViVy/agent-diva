@@ -3,7 +3,7 @@
 use futures::StreamExt;
 use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage, AgentEvent};
 use agent_diva_core::config::MCPServerConfig;
-use agent_diva_core::session::SessionManager;
+use agent_diva_core::session::{ChatMessage, SessionManager};
 use agent_diva_providers::{LLMProvider, LLMResponse, LLMStreamEvent};
 use agent_diva_tools::{
     load_mcp_tools, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool, ToolError,
@@ -16,6 +16,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
+use crate::consolidation;
 use crate::context::ContextBuilder;
 use crate::subagent::SubagentManager;
 
@@ -52,6 +53,7 @@ pub struct AgentLoop {
     #[allow(dead_code)]
     model: String,
     max_iterations: usize,
+    memory_window: usize,
     context: ContextBuilder,
     sessions: SessionManager,
     tools: ToolRegistry,
@@ -88,6 +90,7 @@ impl AgentLoop {
             workspace,
             model,
             max_iterations: max_iterations.unwrap_or(20),
+            memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
             sessions,
             tools,
@@ -163,6 +166,7 @@ impl AgentLoop {
             workspace,
             model,
             max_iterations: max_iterations.unwrap_or(20),
+            memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
             sessions,
             tools,
@@ -301,6 +305,7 @@ impl AgentLoop {
 
         // Build initial messages
         let history = session.get_history(50); // Last 50 messages
+        let history_len = history.len();
         let mut messages = self.context.build_messages(
             history,
             msg.content.clone(),
@@ -489,10 +494,37 @@ impl AgentLoop {
         }
         let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
-        // Save to session (ignore errors for now - session is auto-saved on drop)
-        let session = self.sessions.get_or_create(&session_key);
-        session.add_message("user", &msg.content);
-        session.add_message("assistant", &final_content);
+        // Save complete turn to session
+        {
+            let session = self.sessions.get_or_create(&session_key);
+            save_turn(session, &messages, history_len, &msg.content, &final_content);
+        }
+
+        // Run memory consolidation if threshold reached
+        {
+            let session = self.sessions.get_or_create(&session_key);
+            if consolidation::should_consolidate(session, self.memory_window) {
+                let memory_manager = agent_diva_core::memory::MemoryManager::new(&self.workspace);
+                if let Err(e) = consolidation::consolidate(
+                    session,
+                    &self.provider,
+                    &model_to_use,
+                    &memory_manager,
+                    self.memory_window,
+                )
+                .await
+                {
+                    error!("Memory consolidation failed: {}", e);
+                }
+            }
+        }
+
+        // Persist session to disk
+        if let Some(session) = self.sessions.get(&session_key) {
+            if let Err(e) = self.sessions.save(session) {
+                error!("Failed to save session: {}", e);
+            }
+        }
 
         // Extract reply_to from metadata if available (critical for platforms like QQ)
         let reply_to = msg
@@ -568,6 +600,64 @@ impl AgentLoop {
                 Err(err)
             }
         }
+    }
+}
+
+/// Save all messages from the current turn to the session
+fn save_turn(
+    session: &mut agent_diva_core::session::Session,
+    messages: &[agent_diva_providers::Message],
+    history_len: usize,
+    user_content: &str,
+    final_content: &str,
+) {
+    // Save the user message
+    session.add_message("user", user_content);
+
+    // Skip system prompt (1) + history (history_len) + current user message (1)
+    let turn_start = 1 + history_len + 1;
+    if turn_start < messages.len() {
+        for m in &messages[turn_start..] {
+            match m.role.as_str() {
+                "assistant" => {
+                    let tool_calls_json = m.tool_calls.as_ref().map(|calls| {
+                        calls
+                            .iter()
+                            .filter_map(|tc| serde_json::to_value(tc).ok())
+                            .collect::<Vec<_>>()
+                    });
+                    session.add_full_message(ChatMessage::with_tool_metadata(
+                        "assistant",
+                        &m.content,
+                        None,
+                        tool_calls_json,
+                        None,
+                    ));
+                }
+                "tool" => {
+                    let content = if m.content.chars().count() > 500 {
+                        format!("{}...", m.content.chars().take(500).collect::<String>())
+                    } else {
+                        m.content.clone()
+                    };
+                    session.add_full_message(ChatMessage::with_tool_metadata(
+                        "tool",
+                        content,
+                        m.tool_call_id.clone(),
+                        None,
+                        m.name.clone(),
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Save the final assistant response if not already captured
+    if messages.len() <= turn_start
+        || messages.last().map(|m| m.role.as_str()) != Some("assistant")
+    {
+        session.add_message("assistant", final_content);
     }
 }
 

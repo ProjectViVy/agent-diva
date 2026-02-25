@@ -52,6 +52,7 @@ impl SessionManager {
         let mut messages = Vec::new();
         let mut metadata = serde_json::Value::Object(serde_json::Map::new());
         let mut created_at = None;
+        let mut last_consolidated: usize = 0;
 
         for line in content.lines() {
             let line = line.trim();
@@ -66,6 +67,10 @@ impl SessionManager {
                         .get("created_at")
                         .and_then(|v| v.as_str())
                         .and_then(|s| s.parse().ok());
+                    last_consolidated = value
+                        .get("last_consolidated")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
                 } else if let Ok(msg) = serde_json::from_value::<super::store::ChatMessage>(value) {
                     messages.push(msg);
                 }
@@ -78,6 +83,7 @@ impl SessionManager {
             created_at: created_at.unwrap_or_else(chrono::Utc::now),
             updated_at: chrono::Utc::now(),
             metadata,
+            last_consolidated,
         })
     }
 
@@ -94,6 +100,7 @@ impl SessionManager {
             "created_at": session.created_at.to_rfc3339(),
             "updated_at": session.updated_at.to_rfc3339(),
             "metadata": session.metadata,
+            "last_consolidated": session.last_consolidated,
         });
         lines.push(serde_json::to_string(&metadata)?);
 

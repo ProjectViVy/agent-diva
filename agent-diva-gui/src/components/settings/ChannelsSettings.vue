@@ -337,6 +337,115 @@ const saveChannel = async (channelName: string) => {
                         </div>
                     </div>
                 </div>
+                <!-- IRC -->
+                <div v-else-if="selectedChannel === 'irc'" class="space-y-6">
+                    <!-- Connection Settings -->
+                    <div class="space-y-4">
+                        <h4 class="font-semibold text-gray-700 text-sm border-b pb-2">{{ t('channels.connectionSettings') }}</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.server') }}</label>
+                                <input v-model="channels.irc.server" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="irc.libera.chat" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.port') }}</label>
+                                <input v-model.number="channels.irc.port" type="number" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.nickname') }}</label>
+                                <input v-model="channels.irc.nickname" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="diva-bot" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.username') }}</label>
+                                <input v-model="channels.irc.username" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.ircChannels') }}</label>
+                            <input v-model="channels.irc.channels_str" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="#channel1, #channel2" />
+                        </div>
+                        <div class="flex space-x-6">
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" v-model="channels.irc.use_tls" id="irc_tls" class="rounded text-pink-500 focus:ring-pink-500" />
+                                <label for="irc_tls" class="text-sm text-gray-600">{{ t('channels.useSsl') }}</label>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" v-model="channels.irc.verify_tls" id="irc_verify_tls" class="rounded text-pink-500 focus:ring-pink-500" />
+                                <label for="irc_verify_tls" class="text-sm text-gray-600">{{ t('channels.verifyTls') }}</label>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Authentication -->
+                    <div class="space-y-4">
+                        <h4 class="font-semibold text-gray-700 text-sm border-b pb-2">{{ t('channels.authSettings') }}</h4>
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.serverPassword') }}</label>
+                            <input v-model="channels.irc.server_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.nickservPassword') }}</label>
+                            <input v-model="channels.irc.nickserv_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.saslPassword') }}</label>
+                            <input v-model="channels.irc.sasl_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                        </div>
+                    </div>
+                </div>
+                <!-- Mattermost -->
+                <div v-else-if="selectedChannel === 'mattermost'" class="space-y-4">
+                    <div class="space-y-1">
+                        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.baseUrl') }}</label>
+                        <input v-model="channels.mattermost.base_url" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="https://mattermost.example.com" />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.botToken') }}</label>
+                        <input v-model="channels.mattermost.bot_token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.channelId') }}</label>
+                            <input v-model="channels.mattermost.channel_id" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.pollInterval') }}</label>
+                            <input v-model.number="channels.mattermost.poll_interval_seconds" type="number" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                        </div>
+                    </div>
+                    <div class="flex space-x-6">
+                        <div class="flex items-center space-x-2">
+                            <input type="checkbox" v-model="channels.mattermost.thread_replies" id="mm_thread" class="rounded text-pink-500 focus:ring-pink-500" />
+                            <label for="mm_thread" class="text-sm text-gray-600">{{ t('channels.threadReplies') }}</label>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <input type="checkbox" v-model="channels.mattermost.mention_only" id="mm_mention" class="rounded text-pink-500 focus:ring-pink-500" />
+                            <label for="mm_mention" class="text-sm text-gray-600">{{ t('channels.mentionOnly') }}</label>
+                        </div>
+                    </div>
+                </div>
+                <!-- Nextcloud Talk -->
+                <div v-else-if="selectedChannel === 'nextcloud_talk'" class="space-y-4">
+                    <div class="space-y-1">
+                        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.baseUrl') }}</label>
+                        <input v-model="channels.nextcloud_talk.base_url" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="https://cloud.example.com" />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.appToken') }}</label>
+                        <input v-model="channels.nextcloud_talk.app_token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.roomToken') }}</label>
+                            <input v-model="channels.nextcloud_talk.room_token" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.pollInterval') }}</label>
+                            <input v-model.number="channels.nextcloud_talk.poll_interval_seconds" type="number" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                        </div>
+                    </div>
+                </div>
                 <!-- Generic fallback -->
                 <div v-else class="text-sm text-gray-500">
                     {{ t('providers.unsupportedUI') }}

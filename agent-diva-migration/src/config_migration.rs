@@ -614,6 +614,9 @@ impl ConfigMigrator {
                     allow_from: py.channels.qq.allow_from,
                 },
                 generic_pipe: GenericPipeConfig::default(),
+                irc: IrcConfig::default(),
+                mattermost: MattermostConfig::default(),
+                nextcloud_talk: NextcloudTalkConfig::default(),
             },
             providers: ProvidersConfig {
                 anthropic: self.convert_provider(&py.providers.anthropic),

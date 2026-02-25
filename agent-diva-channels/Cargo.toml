@@ -40,9 +40,13 @@ regex = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
 
+# TLS support
+native-tls = "0.2"
+tokio-native-tls = "0.3"
+base64 = "0.22"
+
 # Email support (using blocking I/O for simplicity)
 imap = "2.4"  # Blocking IMAP client (stable version)
-native-tls = "0.2"  # TLS support
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "native-tls"] }
 mail-parser = "0.9"
 html-escape = "0.2"

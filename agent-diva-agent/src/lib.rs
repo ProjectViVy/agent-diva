@@ -3,6 +3,7 @@
 //! This crate provides the agent loop, context building, and skill loading.
 
 pub mod agent_loop;
+pub mod consolidation;
 pub mod context;
 pub mod skills;
 pub mod subagent;

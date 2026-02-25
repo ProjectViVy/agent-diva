@@ -6,6 +6,9 @@ use crate::discord::DiscordHandler;
 use crate::email::EmailHandler;
 use crate::feishu::FeishuHandler;
 use crate::generic_pipe::GenericPipeHandler;
+use crate::irc::IrcHandler;
+use crate::mattermost::MattermostHandler;
+use crate::nextcloud_talk::NextcloudTalkHandler;
 use crate::qq::QQHandler;
 use crate::slack::SlackHandler;
 use crate::telegram::TelegramHandler;
@@ -206,6 +209,57 @@ impl ChannelManager {
             tracing::info!("Generic pipe channel initialized");
         }
 
+        // Initialize IRC channel
+        if self.config.channels.irc.enabled {
+            if !self.config.channels.irc.server.is_empty() {
+                let mut handler = IrcHandler::new(self.config.channels.irc.clone());
+                if let Some(ref tx) = self.inbound_tx {
+                    handler.set_inbound_sender(tx.clone());
+                }
+                handlers.insert(
+                    "irc".to_string(),
+                    Arc::new(RwLock::new(handler)) as Arc<RwLock<dyn ChannelHandler>>,
+                );
+                tracing::info!("IRC channel initialized");
+            } else {
+                tracing::warn!("IRC channel enabled but server not configured");
+            }
+        }
+
+        // Initialize Mattermost channel
+        if self.config.channels.mattermost.enabled {
+            if !self.config.channels.mattermost.bot_token.is_empty() {
+                let mut handler = MattermostHandler::new(self.config.channels.mattermost.clone());
+                if let Some(ref tx) = self.inbound_tx {
+                    handler.set_inbound_sender(tx.clone());
+                }
+                handlers.insert(
+                    "mattermost".to_string(),
+                    Arc::new(RwLock::new(handler)) as Arc<RwLock<dyn ChannelHandler>>,
+                );
+                tracing::info!("Mattermost channel initialized");
+            } else {
+                tracing::warn!("Mattermost channel enabled but bot_token not configured");
+            }
+        }
+
+        // Initialize Nextcloud Talk channel
+        if self.config.channels.nextcloud_talk.enabled {
+            if !self.config.channels.nextcloud_talk.app_token.is_empty() {
+                let mut handler = NextcloudTalkHandler::new(self.config.channels.nextcloud_talk.clone());
+                if let Some(ref tx) = self.inbound_tx {
+                    handler.set_inbound_sender(tx.clone());
+                }
+                handlers.insert(
+                    "nextcloud_talk".to_string(),
+                    Arc::new(RwLock::new(handler)) as Arc<RwLock<dyn ChannelHandler>>,
+                );
+                tracing::info!("Nextcloud Talk channel initialized");
+            } else {
+                tracing::warn!("Nextcloud Talk channel enabled but app_token not configured");
+            }
+        }
+
         Ok(())
     }
 
@@ -336,6 +390,27 @@ impl ChannelManager {
                     None
                 }
             }
+            "irc" => {
+                if new_config.channels.irc.enabled && !new_config.channels.irc.server.is_empty() {
+                    Some(Arc::new(RwLock::new(IrcHandler::new(new_config.channels.irc.clone()))))
+                } else {
+                    None
+                }
+            }
+            "mattermost" => {
+                if new_config.channels.mattermost.enabled && !new_config.channels.mattermost.bot_token.is_empty() {
+                    Some(Arc::new(RwLock::new(MattermostHandler::new(new_config.channels.mattermost.clone()))))
+                } else {
+                    None
+                }
+            }
+            "nextcloud_talk" => {
+                if new_config.channels.nextcloud_talk.enabled && !new_config.channels.nextcloud_talk.app_token.is_empty() {
+                    Some(Arc::new(RwLock::new(NextcloudTalkHandler::new(new_config.channels.nextcloud_talk.clone()))))
+                } else {
+                    None
+                }
+            }
             _ => None,
         };
 
@@ -416,6 +491,15 @@ impl ChannelManager {
             }
             "generic_pipe" => {
                 Some(Box::new(GenericPipeHandler::new(new_config.channels.generic_pipe.clone())))
+            }
+            "irc" => {
+                Some(Box::new(IrcHandler::new(new_config.channels.irc.clone())))
+            }
+            "mattermost" => {
+                Some(Box::new(MattermostHandler::new(new_config.channels.mattermost.clone())))
+            }
+            "nextcloud_talk" => {
+                Some(Box::new(NextcloudTalkHandler::new(new_config.channels.nextcloud_talk.clone())))
             }
             _ => None,
         };

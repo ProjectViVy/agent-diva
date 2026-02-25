@@ -5,6 +5,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+const ERROR_HINT: &str = "\n\n[Analyze the error above and try a different approach.]";
+
 /// Registry of available tools
 pub struct ToolRegistry {
     tools: HashMap<String, Arc<dyn Tool>>,
@@ -48,23 +50,30 @@ impl ToolRegistry {
     pub async fn execute(&self, name: &str, params: Value) -> String {
         let tool = match self.tools.get(name) {
             Some(tool) => tool,
-            None => return format!("Error: Tool '{}' not found", name),
+            None => return format!("Error: Tool '{}' not found{}", name, ERROR_HINT),
         };
 
         // Validate parameters
         let errors = tool.validate_params(&params);
         if !errors.is_empty() {
             return format!(
-                "Error: Invalid parameters for tool '{}': {}",
+                "Error: Invalid parameters for tool '{}': {}{}",
                 name,
-                errors.join("; ")
+                errors.join("; "),
+                ERROR_HINT,
             );
         }
 
         // Execute tool
         match tool.execute(params).await {
-            Ok(result) => result,
-            Err(e) => format!("Error executing {}: {}", name, e),
+            Ok(result) => {
+                if result.starts_with("Error") {
+                    format!("{}{}", result, ERROR_HINT)
+                } else {
+                    result
+                }
+            }
+            Err(e) => format!("Error executing {}: {}{}", name, e, ERROR_HINT),
         }
     }
 
@@ -143,5 +152,13 @@ mod tests {
         registry.register(Arc::new(MockTool));
         let result = registry.execute("mock", serde_json::json!({})).await;
         assert_eq!(result, "mock result");
+    }
+
+    #[tokio::test]
+    async fn test_execute_unknown_tool() {
+        let registry = ToolRegistry::new();
+        let result = registry.execute("nonexistent", serde_json::json!({})).await;
+        assert!(result.contains("Tool 'nonexistent' not found"));
+        assert!(result.contains("[Analyze the error above"));
     }
 }

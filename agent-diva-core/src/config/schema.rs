@@ -116,6 +116,12 @@ pub struct ChannelsConfig {
     pub qq: QQConfig,
     #[serde(default)]
     pub generic_pipe: GenericPipeConfig,
+    #[serde(default)]
+    pub irc: IrcConfig,
+    #[serde(default)]
+    pub mattermost: MattermostConfig,
+    #[serde(default)]
+    pub nextcloud_talk: NextcloudTalkConfig,
 }
 
 /// Telegram channel configuration
@@ -455,6 +461,132 @@ impl Default for GenericPipeConfig {
             enabled: false,
             host: default_pipe_host(),
             port: default_pipe_port(),
+            allow_from: Vec::new(),
+        }
+    }
+}
+
+/// IRC channel configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IrcConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub server: String,
+    #[serde(default = "default_irc_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub nickname: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub channels: Vec<String>,
+    #[serde(default)]
+    pub server_password: Option<String>,
+    #[serde(default)]
+    pub nickserv_password: Option<String>,
+    #[serde(default)]
+    pub sasl_password: Option<String>,
+    #[serde(default = "default_true")]
+    pub use_tls: bool,
+    #[serde(default = "default_true")]
+    pub verify_tls: bool,
+    #[serde(default)]
+    pub allow_from: Vec<String>,
+}
+
+fn default_irc_port() -> u16 {
+    6697
+}
+
+impl Default for IrcConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            server: String::new(),
+            port: default_irc_port(),
+            nickname: String::new(),
+            username: String::new(),
+            channels: Vec::new(),
+            server_password: None,
+            nickserv_password: None,
+            sasl_password: None,
+            use_tls: true,
+            verify_tls: true,
+            allow_from: Vec::new(),
+        }
+    }
+}
+
+/// Mattermost channel configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MattermostConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub base_url: String,
+    #[serde(default)]
+    pub bot_token: String,
+    #[serde(default)]
+    pub channel_id: String,
+    #[serde(default = "default_true")]
+    pub thread_replies: bool,
+    #[serde(default)]
+    pub mention_only: bool,
+    #[serde(default = "default_mm_poll_interval")]
+    pub poll_interval_seconds: u64,
+    #[serde(default)]
+    pub allow_from: Vec<String>,
+}
+
+fn default_mm_poll_interval() -> u64 {
+    3
+}
+
+impl Default for MattermostConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: String::new(),
+            bot_token: String::new(),
+            channel_id: String::new(),
+            thread_replies: true,
+            mention_only: false,
+            poll_interval_seconds: default_mm_poll_interval(),
+            allow_from: Vec::new(),
+        }
+    }
+}
+
+/// Nextcloud Talk channel configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NextcloudTalkConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub base_url: String,
+    #[serde(default)]
+    pub app_token: String,
+    #[serde(default)]
+    pub room_token: String,
+    #[serde(default = "default_nc_poll_interval")]
+    pub poll_interval_seconds: u64,
+    #[serde(default)]
+    pub allow_from: Vec<String>,
+}
+
+fn default_nc_poll_interval() -> u64 {
+    5
+}
+
+impl Default for NextcloudTalkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: String::new(),
+            app_token: String::new(),
+            room_token: String::new(),
+            poll_interval_seconds: default_nc_poll_interval(),
             allow_from: Vec::new(),
         }
     }
