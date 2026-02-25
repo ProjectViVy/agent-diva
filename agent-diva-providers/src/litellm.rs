@@ -251,6 +251,44 @@ impl LiteLLMClient {
         }
     }
 
+    /// Check if the current model's provider supports prompt caching.
+    fn supports_cache_control(&self, model: &str) -> bool {
+        if let Some(gateway) = &self.gateway {
+            return gateway.supports_prompt_caching;
+        }
+        if let Some(spec) = self.registry.find_by_model(model) {
+            return spec.supports_prompt_caching;
+        }
+        false
+    }
+
+    /// Apply cache_control annotations to a serialized request body.
+    /// - Converts system message `content` string to structured blocks with cache_control.
+    /// - Adds cache_control to the last tool definition.
+    fn apply_cache_control(body: &mut serde_json::Value) {
+        // Transform system message content
+        if let Some(messages) = body.get_mut("messages").and_then(|m| m.as_array_mut()) {
+            for msg in messages.iter_mut() {
+                if msg.get("role").and_then(|r| r.as_str()) == Some("system") {
+                    if let Some(text) = msg.get("content").and_then(|c| c.as_str()).map(|s| s.to_string()) {
+                        msg["content"] = serde_json::json!([{
+                            "type": "text",
+                            "text": text,
+                            "cache_control": {"type": "ephemeral"}
+                        }]);
+                    }
+                }
+            }
+        }
+
+        // Add cache_control to last tool definition
+        if let Some(tools) = body.get_mut("tools").and_then(|t| t.as_array_mut()) {
+            if let Some(last_tool) = tools.last_mut() {
+                last_tool["cache_control"] = serde_json::json!({"type": "ephemeral"});
+            }
+        }
+    }
+
     /// Parse LiteLLM response into our standard format
     fn parse_response(&self, response: ChatCompletionResponse) -> ProviderResult<LLMResponse> {
         let choice = response
@@ -260,19 +298,25 @@ impl LiteLLMClient {
 
         let mut tool_calls = Vec::new();
         for tc in &choice.message.tool_calls {
-            // Parse arguments from JSON string
+            // Parse arguments from JSON string, handling double-encoded strings
             let arguments = match serde_json::from_str::<HashMap<String, serde_json::Value>>(
                 &tc.function.arguments,
             ) {
                 Ok(args) => args,
-                Err(e) => {
-                    warn!("Failed to parse tool call arguments: {}", e);
-                    let mut map = HashMap::new();
-                    map.insert(
-                        "raw".to_string(),
-                        serde_json::Value::String(tc.function.arguments.clone()),
-                    );
-                    map
+                Err(_) => {
+                    // Try unwrapping double-encoded JSON string
+                    if let Ok(inner) = serde_json::from_str::<String>(&tc.function.arguments) {
+                        serde_json::from_str::<HashMap<String, serde_json::Value>>(&inner)
+                            .unwrap_or_else(|_| {
+                                HashMap::from([("raw".into(), serde_json::Value::String(inner))])
+                            })
+                    } else {
+                        warn!("Failed to parse tool call arguments, using raw fallback");
+                        HashMap::from([(
+                            "raw".into(),
+                            serde_json::Value::String(tc.function.arguments.clone()),
+                        )])
+                    }
                 }
             };
 
@@ -365,12 +409,18 @@ impl LiteLLMClient {
             let arguments =
                 serde_json::from_str::<HashMap<String, serde_json::Value>>(&call.arguments)
                     .unwrap_or_else(|_| {
-                        let mut map = HashMap::new();
-                        map.insert(
-                            "raw".to_string(),
-                            serde_json::Value::String(call.arguments.clone()),
-                        );
-                        map
+                        // Try unwrapping double-encoded JSON string
+                        if let Ok(inner) = serde_json::from_str::<String>(&call.arguments) {
+                            serde_json::from_str::<HashMap<String, serde_json::Value>>(&inner)
+                                .unwrap_or_else(|_| {
+                                    HashMap::from([("raw".into(), serde_json::Value::String(inner))])
+                                })
+                        } else {
+                            HashMap::from([(
+                                "raw".into(),
+                                serde_json::Value::String(call.arguments.clone()),
+                            )])
+                        }
                     });
 
             tool_calls.push(ToolCallRequest {
@@ -460,9 +510,16 @@ impl LLMProvider for LiteLLMClient {
             self.api_base, resolved_model
         );
 
+        // Serialize to Value so we can apply cache control transform
+        let mut body = serde_json::to_value(&request)
+            .map_err(|e| ProviderError::InvalidResponse(format!("Serialize error: {}", e)))?;
+        if self.supports_cache_control(&model) {
+            Self::apply_cache_control(&mut body);
+        }
+
         // Build HTTP request
         let url = format!("{}/chat/completions", self.api_base);
-        let req_builder = self.apply_headers(self.client.post(&url).json(&request));
+        let req_builder = self.apply_headers(self.client.post(&url).json(&body));
 
         // Send request
         let response = req_builder.send().await?;
@@ -514,8 +571,15 @@ impl LLMProvider for LiteLLMClient {
             self.api_base, resolved_model
         );
 
+        // Serialize to Value so we can apply cache control transform
+        let mut body = serde_json::to_value(&request)
+            .map_err(|e| ProviderError::InvalidResponse(format!("Serialize error: {}", e)))?;
+        if self.supports_cache_control(&model) {
+            Self::apply_cache_control(&mut body);
+        }
+
         let url = format!("{}/chat/completions", self.api_base);
-        let req_builder = self.apply_headers(self.client.post(&url).json(&request));
+        let req_builder = self.apply_headers(self.client.post(&url).json(&body));
         let response = req_builder.send().await?;
 
         if !response.status().is_success() {
@@ -729,5 +793,161 @@ mod tests {
         assert_eq!(events[1], "{\"b\":2}");
         assert_eq!(events[2], "[DONE]");
         assert_eq!(buffer, "trailing");
+    }
+
+    #[test]
+    fn test_parse_response_normal_tool_args() {
+        let client = LiteLLMClient::default();
+        let response = ChatCompletionResponse {
+            choices: vec![Choice {
+                message: ResponseMessage {
+                    content: None,
+                    tool_calls: vec![ToolCall {
+                        id: "call_1".to_string(),
+                        call_type: "function".to_string(),
+                        function: Function {
+                            name: "test_tool".to_string(),
+                            arguments: r#"{"key": "value"}"#.to_string(),
+                        },
+                    }],
+                    reasoning_content: None,
+                },
+                finish_reason: Some("tool_calls".to_string()),
+            }],
+            usage: Usage::default(),
+        };
+        let result = client.parse_response(response).unwrap();
+        assert_eq!(result.tool_calls.len(), 1);
+        assert_eq!(
+            result.tool_calls[0].arguments.get("key").unwrap().as_str(),
+            Some("value")
+        );
+    }
+
+    #[test]
+    fn test_parse_response_double_encoded_tool_args() {
+        let client = LiteLLMClient::default();
+        // Double-encoded: the arguments string is itself a JSON string containing JSON
+        let inner_json = r#"{"key": "value"}"#;
+        let double_encoded = serde_json::to_string(inner_json).unwrap();
+        let response = ChatCompletionResponse {
+            choices: vec![Choice {
+                message: ResponseMessage {
+                    content: None,
+                    tool_calls: vec![ToolCall {
+                        id: "call_1".to_string(),
+                        call_type: "function".to_string(),
+                        function: Function {
+                            name: "test_tool".to_string(),
+                            arguments: double_encoded,
+                        },
+                    }],
+                    reasoning_content: None,
+                },
+                finish_reason: Some("tool_calls".to_string()),
+            }],
+            usage: Usage::default(),
+        };
+        let result = client.parse_response(response).unwrap();
+        assert_eq!(result.tool_calls.len(), 1);
+        assert_eq!(
+            result.tool_calls[0].arguments.get("key").unwrap().as_str(),
+            Some("value")
+        );
+    }
+
+    #[test]
+    fn test_parse_response_invalid_tool_args_fallback() {
+        let client = LiteLLMClient::default();
+        let response = ChatCompletionResponse {
+            choices: vec![Choice {
+                message: ResponseMessage {
+                    content: None,
+                    tool_calls: vec![ToolCall {
+                        id: "call_1".to_string(),
+                        call_type: "function".to_string(),
+                        function: Function {
+                            name: "test_tool".to_string(),
+                            arguments: "not valid json at all".to_string(),
+                        },
+                    }],
+                    reasoning_content: None,
+                },
+                finish_reason: Some("tool_calls".to_string()),
+            }],
+            usage: Usage::default(),
+        };
+        let result = client.parse_response(response).unwrap();
+        assert_eq!(result.tool_calls.len(), 1);
+        assert!(result.tool_calls[0].arguments.contains_key("raw"));
+    }
+
+    #[test]
+    fn test_finalize_partial_response_double_encoded() {
+        let inner_json = r#"{"query": "rust"}"#;
+        let double_encoded = serde_json::to_string(inner_json).unwrap();
+        let partial = PartialToolCall {
+            id: Some("call_1".to_string()),
+            call_type: "function".to_string(),
+            name: "search".to_string(),
+            arguments: double_encoded,
+        };
+        let response = LiteLLMClient::finalize_partial_response(
+            String::new(), String::new(), &[partial], None, None,
+        );
+        assert_eq!(response.tool_calls.len(), 1);
+        assert_eq!(
+            response.tool_calls[0].arguments.get("query").unwrap().as_str(),
+            Some("rust")
+        );
+    }
+
+    #[test]
+    fn test_supports_cache_control_anthropic() {
+        let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None);
+        assert!(client.supports_cache_control("claude-3-opus"));
+    }
+
+    #[test]
+    fn test_supports_cache_control_deepseek_false() {
+        let client = LiteLLMClient::new(None, None, "deepseek-chat".to_string(), None, None);
+        assert!(!client.supports_cache_control("deepseek-chat"));
+    }
+
+    #[test]
+    fn test_apply_cache_control_system_message() {
+        let mut body = serde_json::json!({
+            "messages": [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": "Hello"}
+            ]
+        });
+        LiteLLMClient::apply_cache_control(&mut body);
+
+        let system_msg = &body["messages"][0];
+        let content = system_msg["content"].as_array().unwrap();
+        assert_eq!(content.len(), 1);
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[0]["text"], "You are helpful.");
+        assert_eq!(content[0]["cache_control"]["type"], "ephemeral");
+
+        // User message should be untouched
+        assert_eq!(body["messages"][1]["content"], "Hello");
+    }
+
+    #[test]
+    fn test_apply_cache_control_last_tool() {
+        let mut body = serde_json::json!({
+            "messages": [],
+            "tools": [
+                {"type": "function", "function": {"name": "tool_a"}},
+                {"type": "function", "function": {"name": "tool_b"}}
+            ]
+        });
+        LiteLLMClient::apply_cache_control(&mut body);
+
+        // Only last tool should have cache_control
+        assert!(body["tools"][0].get("cache_control").is_none());
+        assert_eq!(body["tools"][1]["cache_control"]["type"], "ephemeral");
     }
 }

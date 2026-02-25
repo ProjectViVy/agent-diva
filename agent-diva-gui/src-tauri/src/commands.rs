@@ -132,7 +132,7 @@ pub async fn send_message(
                             let _ = window.emit("agent-tool-start", format!("Using tool {}: {}", data.name, data.args_preview));
                         } else {
                             // Fallback if parsing fails
-                             let _ = window.emit("agent-tool-start", format!("Using tool..."));
+                             let _ = window.emit("agent-tool-start", "Using tool...".to_string());
                         }
                     }
                     "tool_finish" => {

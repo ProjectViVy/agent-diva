@@ -20,8 +20,9 @@ pub fn load_mcp_tools(configs: &HashMap<String, MCPServerConfig>) -> Vec<Arc<dyn
     for (server_name, cfg) in configs {
         match discover_server_tools(server_name, cfg) {
             Ok((transport, discovered)) => {
+                let timeout = cfg.tool_timeout;
                 for tool in discovered {
-                    tools.push(Arc::new(McpTool::new(server_name, transport.clone(), tool)));
+                    tools.push(Arc::new(McpTool::new(server_name, transport.clone(), tool, timeout)));
                 }
             }
             Err(err) => {
@@ -53,10 +54,11 @@ struct McpTool {
     wrapped_name: String,
     description: String,
     parameters: Value,
+    tool_timeout: u64,
 }
 
 impl McpTool {
-    fn new(server_name: &str, transport: McpTransport, tool: DiscoveredTool) -> Self {
+    fn new(server_name: &str, transport: McpTransport, tool: DiscoveredTool, tool_timeout: u64) -> Self {
         let wrapped_name = format!(
             "mcp_{}_{}",
             sanitize_identifier(server_name),
@@ -70,6 +72,7 @@ impl McpTool {
             wrapped_name,
             description: format!("[MCP:{}] {}", server_name, tool.description),
             parameters: tool.input_schema,
+            tool_timeout,
         }
     }
 }
@@ -95,39 +98,58 @@ impl Tool for McpTool {
             ));
         }
 
-        match &self.transport {
+        let timeout_duration = Duration::from_secs(self.tool_timeout);
+
+        let result_future = match &self.transport {
             McpTransport::Stdio(cfg) => {
                 let cfg = cfg.clone();
                 let tool_name = self.original_name.clone();
                 let args_obj = args;
-                let result = tokio::task::spawn_blocking(move || {
-                    invoke_stdio_tool(&cfg, &tool_name, args_obj)
-                })
-                .await
-                .map_err(|e| {
-                    ToolError::ExecutionFailed(format!("MCP execution join error: {}", e))
-                })?;
-                result.map_err(ToolError::ExecutionFailed)
+                let server_name = self.server_name.clone();
+                Box::pin(async move {
+                    let result = tokio::task::spawn_blocking(move || {
+                        invoke_stdio_tool(&cfg, &tool_name, args_obj)
+                    })
+                    .await
+                    .map_err(|e| {
+                        ToolError::ExecutionFailed(format!("MCP execution join error: {}", e))
+                    })?;
+                    result.map_err(|e| {
+                        ToolError::ExecutionFailed(format!("MCP server '{}': {}", server_name, e))
+                    })
+                }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<String>> + Send>>
             }
             McpTransport::Http(client) => {
                 let client = Arc::clone(client);
                 let tool_name = self.original_name.clone();
                 let args_obj = args;
-                let result = tokio::task::spawn_blocking(move || {
-                    let mut guard = client
-                        .lock()
-                        .map_err(|_| "MCP HTTP client lock poisoned".to_string())?;
-                    guard.call_tool(&tool_name, args_obj)
-                })
-                .await
-                .map_err(|e| {
-                    ToolError::ExecutionFailed(format!("MCP execution join error: {}", e))
-                })?;
-                result.map_err(|e| {
-                    ToolError::ExecutionFailed(format!("MCP server '{}': {}", self.server_name, e))
-                })
+                let server_name = self.server_name.clone();
+                Box::pin(async move {
+                    let result = tokio::task::spawn_blocking(move || {
+                        let mut guard = client
+                            .lock()
+                            .map_err(|_| "MCP HTTP client lock poisoned".to_string())?;
+                        guard.call_tool(&tool_name, args_obj)
+                    })
+                    .await
+                    .map_err(|e| {
+                        ToolError::ExecutionFailed(format!("MCP execution join error: {}", e))
+                    })?;
+                    result.map_err(|e| {
+                        ToolError::ExecutionFailed(format!("MCP server '{}': {}", server_name, e))
+                    })
+                }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<String>> + Send>>
             }
-        }
+        };
+
+        tokio::time::timeout(timeout_duration, result_future)
+            .await
+            .map_err(|_| {
+                ToolError::ExecutionFailed(format!(
+                    "MCP tool '{}' timed out after {}s",
+                    self.original_name, self.tool_timeout
+                ))
+            })?
     }
 }
 
@@ -704,6 +726,7 @@ impl SseEvent {
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn consume_sse_stream(
     response: reqwest::blocking::Response,
     request_id: u64,

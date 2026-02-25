@@ -1,17 +1,71 @@
 //! Heartbeat configuration types
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Default heartbeat interval: 30 minutes (in seconds)
 pub const DEFAULT_HEARTBEAT_INTERVAL_S: i64 = 30 * 60;
 
-/// The prompt sent to agent during heartbeat
-pub const HEARTBEAT_PROMPT: &str = r#"Read HEARTBEAT.md in your workspace (if it exists).
-Follow any instructions or tasks listed there.
-If nothing needs attention, reply with just: HEARTBEAT_OK"#;
+/// System prompt for the heartbeat decision LLM call
+pub const HEARTBEAT_SYSTEM_PROMPT: &str =
+    "You are a heartbeat agent. Call the heartbeat tool to report your decision.";
 
-/// Token that indicates "nothing to do"
-pub const HEARTBEAT_OK_TOKEN: &str = "HEARTBEAT_OK";
+/// Structured decision returned by the heartbeat tool call
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeartbeatDecision {
+    /// "skip" or "run"
+    pub action: String,
+    /// Summary of tasks to execute (only when action == "run")
+    #[serde(default)]
+    pub tasks: Option<String>,
+}
+
+impl HeartbeatDecision {
+    /// Parse a HeartbeatDecision from tool-call arguments.
+    /// Returns a "skip" decision on any parse failure.
+    pub fn from_tool_args(args: &HashMap<String, serde_json::Value>) -> Self {
+        let action = args
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("skip")
+            .to_string();
+        let tasks = args
+            .get("tasks")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        Self { action, tasks }
+    }
+
+    pub fn is_run(&self) -> bool {
+        self.action == "run"
+    }
+}
+
+/// Return the tool definition for the heartbeat decision tool.
+pub fn heartbeat_tool_definition() -> serde_json::Value {
+    serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": "heartbeat",
+            "description": "Report your heartbeat decision. Use action='skip' if there are no tasks, or action='run' with a tasks summary if work is needed.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["skip", "run"],
+                        "description": "Whether to skip (nothing to do) or run (tasks found)"
+                    },
+                    "tasks": {
+                        "type": "string",
+                        "description": "Summary of tasks to execute (required when action is 'run')"
+                    }
+                },
+                "required": ["action"]
+            }
+        }
+    })
+}
 
 /// Heartbeat configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,12 +190,44 @@ mod tests {
     }
 
     #[test]
-    fn test_heartbeat_ok_token() {
-        assert_eq!(HEARTBEAT_OK_TOKEN, "HEARTBEAT_OK");
+    fn test_heartbeat_tool_definition_structure() {
+        let tool = heartbeat_tool_definition();
+        assert_eq!(tool["type"], "function");
+        assert_eq!(tool["function"]["name"], "heartbeat");
+        assert!(tool["function"]["parameters"]["properties"]["action"].is_object());
     }
 
     #[test]
-    fn test_heartbeat_prompt_contains_ok_token() {
-        assert!(HEARTBEAT_PROMPT.contains(HEARTBEAT_OK_TOKEN));
+    fn test_heartbeat_decision_from_tool_args_skip() {
+        let mut args = HashMap::new();
+        args.insert("action".to_string(), serde_json::json!("skip"));
+        let decision = HeartbeatDecision::from_tool_args(&args);
+        assert_eq!(decision.action, "skip");
+        assert!(decision.tasks.is_none());
+        assert!(!decision.is_run());
+    }
+
+    #[test]
+    fn test_heartbeat_decision_from_tool_args_run() {
+        let mut args = HashMap::new();
+        args.insert("action".to_string(), serde_json::json!("run"));
+        args.insert("tasks".to_string(), serde_json::json!("Check the logs"));
+        let decision = HeartbeatDecision::from_tool_args(&args);
+        assert_eq!(decision.action, "run");
+        assert_eq!(decision.tasks.as_deref(), Some("Check the logs"));
+        assert!(decision.is_run());
+    }
+
+    #[test]
+    fn test_heartbeat_decision_from_tool_args_malformed() {
+        let args = HashMap::new();
+        let decision = HeartbeatDecision::from_tool_args(&args);
+        assert_eq!(decision.action, "skip");
+        assert!(!decision.is_run());
+    }
+
+    #[test]
+    fn test_heartbeat_system_prompt() {
+        assert!(HEARTBEAT_SYSTEM_PROMPT.contains("heartbeat"));
     }
 }

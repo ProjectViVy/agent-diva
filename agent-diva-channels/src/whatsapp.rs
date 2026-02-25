@@ -30,6 +30,7 @@ type WsSink = futures::stream::SplitSink<
 /// Bridge message types received from the Node.js bridge
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
+#[allow(clippy::large_enum_variant)]
 enum BridgeMessage {
     #[serde(rename = "message")]
     Message {

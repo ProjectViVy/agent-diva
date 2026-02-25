@@ -4,19 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// API specification type
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ApiType {
+    #[default]
     Openai,
     Anthropic,
     Google,
     Other,
-}
-
-impl Default for ApiType {
-    fn default() -> Self {
-        Self::Openai
-    }
 }
 
 /// One LLM provider's metadata
@@ -46,6 +41,10 @@ pub struct ProviderSpec {
 
     // Gateway behavior
     pub strip_model_prefix: bool,
+
+    // Prompt caching support
+    #[serde(default)]
+    pub supports_prompt_caching: bool,
 
     // Models list
     #[serde(default)]

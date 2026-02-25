@@ -1,6 +1,5 @@
-use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tracing::{error, info, debug, warn};
 use agent_diva_core::bus::{MessageBus, AgentEvent};
 use agent_diva_core::config::ConfigLoader;
@@ -22,6 +21,7 @@ pub struct Manager {
 }
 
 impl Manager {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         api_rx: mpsc::Receiver<ManagerCommand>,
         bus: MessageBus,

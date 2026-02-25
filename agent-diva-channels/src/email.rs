@@ -578,7 +578,15 @@ impl ChannelHandler for EmailHandler {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        if !self.config.auto_reply_enabled && !force_send {
+        // Determine if this is a reply (has a prior message_id for this recipient)
+        let is_reply = self
+            .last_message_ids
+            .read()
+            .await
+            .contains_key(msg.chat_id.trim());
+
+        // Only block auto-replies, not fresh outbound sends
+        if is_reply && !self.config.auto_reply_enabled && !force_send {
             info!("Skip automatic email reply: auto_reply_enabled is false");
             return Ok(());
         }
@@ -626,7 +634,7 @@ impl ChannelHandler for EmailHandler {
                 Ok(resp) => {
                     let filename = url
                         .split('/')
-                        .last()
+                        .next_back()
                         .unwrap_or("attachment")
                         .to_string();
                     let content_type = resp

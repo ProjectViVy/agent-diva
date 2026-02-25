@@ -43,7 +43,7 @@ fn compute_next_run(schedule: &CronSchedule, now_ms: i64) -> Option<i64> {
                     let seconds = now_ms / 1000;
                     let nanoseconds = ((now_ms % 1000) * 1_000_000) as u32;
                     let now_utc = chrono::DateTime::from_timestamp(seconds, nanoseconds)
-                        .unwrap_or_else(|| chrono::Utc::now());
+                        .unwrap_or_else(chrono::Utc::now);
 
                     if let Some(tz_str) = tz {
                         if let Ok(tz) = tz_str.parse::<chrono_tz::Tz>() {

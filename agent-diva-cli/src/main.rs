@@ -459,7 +459,7 @@ use agent_diva_manager::{Manager, AppState, run_server};
 
 /// Run the agent gateway
 async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
-    loop {
+    {
         let config = loader.load()?;
 
         // Check if API key is configured
@@ -700,7 +700,6 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
         }
         
         println!("{}", style("Gateway stopped.").green());
-        break;
     }
 
     Ok(())

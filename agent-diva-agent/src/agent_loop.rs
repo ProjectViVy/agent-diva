@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, trace, instrument};
+use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
 use crate::context::ContextBuilder;
@@ -49,6 +49,7 @@ pub struct AgentLoop {
     provider: Arc<dyn LLMProvider>,
     #[allow(dead_code)]
     workspace: PathBuf,
+    #[allow(dead_code)]
     model: String,
     max_iterations: usize,
     context: ContextBuilder,

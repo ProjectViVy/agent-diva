@@ -13,6 +13,7 @@
   detect_by_base_keyword: openrouter
   default_api_base: https://openrouter.ai/api/v1
   strip_model_prefix: false
+  supports_prompt_caching: true
   models:
     - google/gemini-2.5-flash-preview
     - qwen/qwen-2.5-7b-instruct:free
@@ -86,6 +87,7 @@
   detect_by_base_keyword: ""
   default_api_base: ""
   strip_model_prefix: false
+  supports_prompt_caching: true
   models:
     - claude-3-5-sonnet-20240620
     - claude-3-opus-20240229

@@ -8,6 +8,7 @@
 use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::SlackConfig;
+use regex::Regex;
 use serde_json::json;
 use slack_morphism::prelude::*;
 use std::sync::Arc;
@@ -16,6 +17,146 @@ use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use crate::base::{ChannelError, ChannelHandler, Result};
+
+// ---------------------------------------------------------------------------
+// Markdown → Slack mrkdwn conversion
+// ---------------------------------------------------------------------------
+
+/// Convert a markdown table into a key-value list format suitable for Slack.
+fn convert_table(table_text: &str) -> String {
+    let lines: Vec<&str> = table_text.lines().collect();
+    if lines.len() < 2 {
+        return table_text.to_string();
+    }
+
+    let parse_row = |line: &str| -> Vec<String> {
+        line.split('|')
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty())
+            .collect()
+    };
+
+    let headers = parse_row(lines[0]);
+    if headers.is_empty() {
+        return table_text.to_string();
+    }
+
+    let mut out = String::new();
+    for line in &lines[2..] {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let cols = parse_row(trimmed);
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        for (i, col) in cols.iter().enumerate() {
+            let header = headers.get(i).map(|s| s.as_str()).unwrap_or("?");
+            out.push_str(&format!("*{}:* {}\n", header, col));
+        }
+    }
+    out.trim_end().to_string()
+}
+
+/// Basic markdown → Slack mrkdwn substitutions (bold, italic, links, headers).
+fn basic_slackify(text: &str) -> String {
+    // Bold: **text** or __text__ → *text*
+    let text = Regex::new(r"\*\*(.+?)\*\*")
+        .unwrap()
+        .replace_all(text, "*$1*");
+    let text = Regex::new(r"__(.+?)__")
+        .unwrap()
+        .replace_all(&text, "*$1*");
+
+    // Links: [text](url) → <url|text>
+    let text = Regex::new(r"\[([^\]]+)\]\(([^)]+)\)")
+        .unwrap()
+        .replace_all(&text, "<$2|$1>");
+
+    // Headers: # text → *text*
+    let text = Regex::new(r"(?m)^#{1,6}\s+(.+)$")
+        .unwrap()
+        .replace_all(&text, "*$1*");
+
+    text.into_owned()
+}
+
+/// Post-process mrkdwn to fix edge-case artifacts.
+fn fixup_mrkdwn(text: &str) -> String {
+    // Clean leftover ** artifacts
+    let text = text.replace("**", "");
+    // Clean leftover leading # on lines
+    let text = Regex::new(r"(?m)^#+\s*")
+        .unwrap()
+        .replace_all(&text, "")
+        .into_owned();
+    // Fix bare URLs with &amp; entities
+    text.replace("&amp;", "&")
+}
+
+/// Convert standard markdown to Slack mrkdwn format.
+///
+/// Preserves code blocks and inline code during transformation.
+fn to_mrkdwn(md: &str) -> String {
+    // Split on code fences to preserve them
+    let code_block_re = Regex::new(r"(?s)(```.*?```)").unwrap();
+
+    let mut result = String::new();
+    let mut last_end = 0;
+
+    for mat in code_block_re.find_iter(md) {
+        let before = &md[last_end..mat.start()];
+        result.push_str(&process_non_code_segment_with_fixup(before));
+        // Preserve code block as-is
+        result.push_str(mat.as_str());
+        last_end = mat.end();
+    }
+
+    let remaining = &md[last_end..];
+    result.push_str(&process_non_code_segment_with_fixup(remaining));
+
+    result
+}
+
+/// Process a non-code segment: split on inline code, convert+fixup non-code parts.
+fn process_non_code_segment_with_fixup(text: &str) -> String {
+    let inline_code_re = Regex::new(r"(`[^`]+`)").unwrap();
+
+    let mut result = String::new();
+    let mut last_end = 0;
+
+    for mat in inline_code_re.find_iter(text) {
+        let before = &text[last_end..mat.start()];
+        result.push_str(&fixup_mrkdwn(&convert_tables_and_slackify(before)));
+        result.push_str(mat.as_str());
+        last_end = mat.end();
+    }
+
+    let remaining = &text[last_end..];
+    result.push_str(&fixup_mrkdwn(&convert_tables_and_slackify(remaining)));
+    result
+}
+
+/// Process a non-code segment: convert tables, then apply basic slackify.
+fn convert_tables_and_slackify(text: &str) -> String {
+    // Detect markdown tables (lines with | separators and a --- separator row)
+    let table_re = Regex::new(r"(?m)((?:^\|.+\|$\n?){2,})").unwrap();
+
+    let mut result = String::new();
+    let mut last_end = 0;
+
+    for mat in table_re.find_iter(text) {
+        let before = &text[last_end..mat.start()];
+        result.push_str(&basic_slackify(before));
+        result.push_str(&convert_table(mat.as_str()));
+        last_end = mat.end();
+    }
+
+    let remaining = &text[last_end..];
+    result.push_str(&basic_slackify(remaining));
+    result
+}
 
 #[derive(Debug, Clone)]
 struct SlackAgentDivaState {
@@ -439,7 +580,7 @@ impl ChannelHandler for SlackHandler {
 
         let mut req = SlackApiChatPostMessageRequest::new(
             msg.chat_id.clone().into(),
-            SlackMessageContent::new().with_text(msg.content.clone()),
+            SlackMessageContent::new().with_text(to_mrkdwn(&msg.content)),
         );
 
         let thread_ts_from_metadata = msg
@@ -649,5 +790,68 @@ mod tests {
 
         let inbound = convert_message_event_to_inbound(ev, Some("UBOT"));
         assert!(inbound.is_none());
+    }
+
+    // -- Slack mrkdwn conversion tests --
+
+    #[test]
+    fn test_basic_slackify_bold() {
+        assert_eq!(basic_slackify("**hello**"), "*hello*");
+        assert_eq!(basic_slackify("__world__"), "*world*");
+    }
+
+    #[test]
+    fn test_basic_slackify_links() {
+        assert_eq!(
+            basic_slackify("[click](https://example.com)"),
+            "<https://example.com|click>"
+        );
+    }
+
+    #[test]
+    fn test_basic_slackify_headers() {
+        assert_eq!(basic_slackify("# Title"), "*Title*");
+        assert_eq!(basic_slackify("## Subtitle"), "*Subtitle*");
+    }
+
+    #[test]
+    fn test_to_mrkdwn_preserves_code_blocks() {
+        let md = "**bold** ```code **not bold**``` **also bold**";
+        let result = to_mrkdwn(md);
+        assert!(result.contains("*bold*"));
+        assert!(result.contains("```code **not bold**```"));
+        assert!(result.contains("*also bold*"));
+    }
+
+    #[test]
+    fn test_to_mrkdwn_preserves_inline_code() {
+        let md = "Use `**raw**` for bold";
+        let result = to_mrkdwn(md);
+        // The inline code should be preserved exactly
+        assert!(result.contains("`**raw**`"));
+    }
+
+    #[test]
+    fn test_fixup_mrkdwn_cleans_artifacts() {
+        assert_eq!(fixup_mrkdwn("leftover ** here"), "leftover  here");
+        assert_eq!(fixup_mrkdwn("test &amp; value"), "test & value");
+    }
+
+    #[test]
+    fn test_convert_table() {
+        let table = "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |";
+        let result = convert_table(table);
+        assert!(result.contains("*Name:* Alice"));
+        assert!(result.contains("*Age:* 30"));
+        assert!(result.contains("*Name:* Bob"));
+    }
+
+    #[test]
+    fn test_to_mrkdwn_full_example() {
+        let md = "# Report\n\n**Status:** OK\n\n[docs](https://docs.rs)";
+        let result = to_mrkdwn(md);
+        assert!(result.contains("*Report*"));
+        assert!(result.contains("*Status:* OK"));
+        assert!(result.contains("<https://docs.rs|docs>"));
     }
 }

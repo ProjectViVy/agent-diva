@@ -551,6 +551,13 @@ pub struct MCPServerConfig {
     pub env: HashMap<String, String>,
     #[serde(default)]
     pub url: String,
+    /// Per-tool timeout in seconds (default: 30)
+    #[serde(default = "default_tool_timeout")]
+    pub tool_timeout: u64,
+}
+
+fn default_tool_timeout() -> u64 {
+    30
 }
 
 /// Web tools configuration

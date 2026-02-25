@@ -52,7 +52,7 @@ fn validate_url(url: &str) -> Result<(), String> {
 
 /// Web search tool using Brave Search API
 pub struct WebSearchTool {
-    api_key: Option<String>,
+    init_api_key: Option<String>,
     max_results: usize,
     client: Client,
 }
@@ -61,7 +61,7 @@ impl WebSearchTool {
     /// Create a new web search tool
     pub fn new(api_key: Option<String>) -> Self {
         Self {
-            api_key: api_key.or_else(|| std::env::var("BRAVE_API_KEY").ok()),
+            init_api_key: api_key,
             max_results: 5,
             client: Client::builder()
                 .timeout(Duration::from_secs(10))
@@ -73,13 +73,20 @@ impl WebSearchTool {
     /// Create with custom max results
     pub fn with_max_results(api_key: Option<String>, max_results: usize) -> Self {
         Self {
-            api_key: api_key.or_else(|| std::env::var("BRAVE_API_KEY").ok()),
+            init_api_key: api_key,
             max_results,
             client: Client::builder()
                 .timeout(Duration::from_secs(10))
                 .build()
                 .unwrap(),
         }
+    }
+
+    /// Resolve API key at call time: init key → env var fallback
+    fn resolve_api_key(&self) -> Option<String> {
+        self.init_api_key
+            .clone()
+            .or_else(|| std::env::var("BRAVE_API_KEY").ok())
     }
 }
 
@@ -130,8 +137,8 @@ impl Tool for WebSearchTool {
             .unwrap_or(self.max_results as u64)
             .clamp(1, 10) as usize;
 
-        // Check API key
-        let api_key = self.api_key.as_ref().ok_or_else(|| {
+        // Check API key (resolved at call time)
+        let api_key = self.resolve_api_key().ok_or_else(|| {
             ToolError::ExecutionFailed("BRAVE_API_KEY not configured".to_string())
         })?;
 

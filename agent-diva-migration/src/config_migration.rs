@@ -657,6 +657,7 @@ impl ConfigMigrator {
                                 args: server.args,
                                 env: server.env,
                                 url: server.url,
+                                tool_timeout: 30,
                             },
                         )
                     })
