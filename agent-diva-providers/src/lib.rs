@@ -36,7 +36,7 @@ impl DynamicProvider {
             *lock = new_provider;
         }
     }
-    
+
     /// Get the current provider (for read operations)
     pub fn current(&self) -> Arc<dyn LLMProvider> {
         self.inner.read().unwrap().clone()
@@ -54,7 +54,9 @@ impl LLMProvider for DynamicProvider {
         temperature: f64,
     ) -> ProviderResult<LLMResponse> {
         let provider = self.current();
-        provider.chat(messages, tools, model, max_tokens, temperature).await
+        provider
+            .chat(messages, tools, model, max_tokens, temperature)
+            .await
     }
 
     async fn chat_stream(
@@ -66,7 +68,9 @@ impl LLMProvider for DynamicProvider {
         temperature: f64,
     ) -> ProviderResult<ProviderEventStream> {
         let provider = self.current();
-        provider.chat_stream(messages, tools, model, max_tokens, temperature).await
+        provider
+            .chat_stream(messages, tools, model, max_tokens, temperature)
+            .await
     }
 
     fn get_default_model(&self) -> String {

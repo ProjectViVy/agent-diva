@@ -19,6 +19,20 @@ interface Message {
   toolArgs?: string;
   toolResult?: string;
   toolStatus?: 'running' | 'success' | 'error';
+  toolCallId?: string;
+}
+
+interface ToolStartPayload {
+  name: string;
+  args_preview?: string;
+  call_id?: string | null;
+}
+
+interface ToolFinishPayload {
+  name: string;
+  result: string;
+  is_error?: boolean;
+  call_id?: string | null;
 }
 
 interface SavedModel {
@@ -203,6 +217,12 @@ onMounted(async () => {
       return;
   }
 
+  try {
+    await invoke("start_background_stream");
+  } catch (e) {
+    console.warn("Failed to start background stream:", e);
+  }
+
   // Initial health check and polling
   await checkHealth();
   const healthInterval = setInterval(checkHealth, 5000);
@@ -246,11 +266,11 @@ onMounted(async () => {
   }));
 
   // Listen for tool usage
-  unlisteners.push(await listen<string>("agent-tool-delta", (event) => {
+  unlisteners.push(await listen<string>("agent-tool-delta", () => {
     // Optional: show tool usage in UI
   }));
 
-  unlisteners.push(await listen<string>("agent-tool-start", (event) => {
+  unlisteners.push(await listen<ToolStartPayload>("agent-tool-start", (event) => {
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && (lastMsg.content === '') && lastMsg.isStreaming) {
       messages.value.pop();
@@ -258,23 +278,9 @@ onMounted(async () => {
       lastMsg.isStreaming = false;
     }
 
-    let toolName = t('app.unknownTool');
-    let toolArgs = '';
-
-    try {
-        // Try to parse "Using tool <name>: <args>" format
-        const match = event.payload.match(/^Using tool ([^:]+): (.*)$/);
-        if (match) {
-            toolName = match[1];
-            toolArgs = match[2];
-        } else {
-            // Fallback
-            toolName = 'Tool';
-            toolArgs = event.payload;
-        }
-    } catch (e) {
-        toolArgs = event.payload;
-    }
+    const payload = event.payload || ({} as ToolStartPayload);
+    const toolName = payload.name || t('app.unknownTool');
+    const toolArgs = payload.args_preview || '';
 
     messages.value.push({ 
       role: 'tool', 
@@ -282,7 +288,8 @@ onMounted(async () => {
       timestamp: Date.now(),
       toolName,
       toolArgs,
-      toolStatus: 'running'
+      toolStatus: 'running',
+      toolCallId: payload.call_id || undefined
     });
     
     // Add placeholder for next agent response
@@ -295,52 +302,55 @@ onMounted(async () => {
     });
   }));
 
-  unlisteners.push(await listen<string>("agent-tool-end", (event) => {
+  unlisteners.push(await listen<ToolFinishPayload>("agent-tool-end", (event) => {
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && lastMsg.content === '' && lastMsg.isStreaming) {
       messages.value.pop();
     }
-    
-    // Find the last running tool message
-    // Iterate backwards to find the corresponding tool start message
+
+    const payload = event.payload || ({} as ToolFinishPayload);
+
+    // Prefer matching by call_id to avoid cross-updates when multiple tools run.
     let toolMsgIndex = -1;
-    for (let i = messages.value.length - 1; i >= 0; i--) {
-        if (messages.value[i].role === 'tool' && messages.value[i].toolStatus === 'running') {
-            toolMsgIndex = i;
-            break;
-        }
+    if (payload.call_id) {
+      toolMsgIndex = messages.value.findIndex(
+        (msg) => msg.role === 'tool' && msg.toolStatus === 'running' && msg.toolCallId === payload.call_id
+      );
+    }
+    if (toolMsgIndex === -1) {
+      for (let i = messages.value.length - 1; i >= 0; i--) {
+          if (messages.value[i].role === 'tool' && messages.value[i].toolStatus === 'running') {
+              toolMsgIndex = i;
+              break;
+          }
+      }
     }
 
     if (toolMsgIndex !== -1) {
-        // We found a matching running tool message
-        messages.value[toolMsgIndex].toolStatus = 'success';
-        messages.value[toolMsgIndex].content = t('app.toolSuccess');
-        
-        // Parse result
-        let result = event.payload;
-        try {
-             // Try to parse "Tool <name> finished: <result>" format
-            const match = event.payload.match(/^Tool ([^ ]+) finished: (.*)$/);
-            if (match) {
-                result = match[2];
-            }
-        } catch(e) {}
-        
-        messages.value[toolMsgIndex].toolResult = result;
+        const isError = payload.is_error === true || payload.result?.startsWith('Error');
+        messages.value[toolMsgIndex].toolStatus = isError ? 'error' : 'success';
+        messages.value[toolMsgIndex].content = isError ? t('app.toolError') : t('app.toolSuccess');
+        if (payload.name) {
+          messages.value[toolMsgIndex].toolName = payload.name;
+        }
+        messages.value[toolMsgIndex].toolResult = payload.result || '';
     } else {
-        // If no matching start message found (shouldn't happen usually), add a new one
-        messages.value.push({ 
-          role: 'tool', 
-          content: `✅ ${event.payload}`, 
+        // If no matching start message found, add a new entry.
+        messages.value.push({
+          role: 'tool',
+          content: payload.is_error ? t('app.toolError') : t('app.toolSuccess'),
           timestamp: Date.now(),
-          toolStatus: 'success'
+          toolName: payload.name || t('app.unknownTool'),
+          toolResult: payload.result || '',
+          toolStatus: payload.is_error ? 'error' : 'success',
+          toolCallId: payload.call_id || undefined
         });
     }
 
-    messages.value.push({ 
-      role: 'agent', 
-      content: '', 
-      isStreaming: true, 
+    messages.value.push({
+      role: 'agent',
+      content: '',
+      isStreaming: true,
       timestamp: Date.now(),
       emotion: currentEmotion.value
     });
@@ -381,6 +391,16 @@ onMounted(async () => {
       role: 'system', 
       content: t('app.hookMessage', { message: event.payload }), 
       timestamp: Date.now() 
+    });
+  }));
+
+  // Listen for background responses (e.g. scheduled cron executions)
+  unlisteners.push(await listen<string>("agent-background-response", (event) => {
+    messages.value.push({
+      role: 'agent',
+      content: event.payload,
+      timestamp: Date.now(),
+      emotion: currentEmotion.value
     });
   }));
 });

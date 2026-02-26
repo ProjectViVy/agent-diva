@@ -1,8 +1,8 @@
-﻿//! Message forwarding tool
+//! Message forwarding tool
 
 use crate::base::{Tool, ToolError};
-use async_trait::async_trait;
 use agent_diva_core::bus::OutboundMessage;
+use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -150,7 +150,10 @@ impl Tool for MessageTool {
                 } else {
                     String::new()
                 };
-                Ok(format!("Message sent to {}:{}{}", channel, chat_id, media_info))
+                Ok(format!(
+                    "Message sent to {}:{}{}",
+                    channel, chat_id, media_info
+                ))
             }
             Err(e) => Ok(format!("Error sending message: {}", e)),
         }

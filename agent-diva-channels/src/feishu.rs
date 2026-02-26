@@ -15,10 +15,10 @@
 //! - Feishu API: https://open.feishu.cn/document/home/index
 
 use crate::base::{BaseChannel, ChannelError, ChannelHandler, Result};
-use async_trait::async_trait;
-use futures::{SinkExt, StreamExt};
 use agent_diva_core::bus::OutboundMessage;
 use agent_diva_core::config::schema::FeishuConfig;
+use async_trait::async_trait;
+use futures::{SinkExt, StreamExt};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -436,11 +436,15 @@ impl FeishuHandler {
             sender_id.clone()
         };
 
-        let inbound_msg =
-            agent_diva_core::bus::InboundMessage::new("feishu", sender_id.clone(), reply_to, content)
-                .with_metadata("message_id", json!(message.message_id))
-                .with_metadata("chat_type", json!(chat_type))
-                .with_metadata("msg_type", json!(msg_type));
+        let inbound_msg = agent_diva_core::bus::InboundMessage::new(
+            "feishu",
+            sender_id.clone(),
+            reply_to,
+            content,
+        )
+        .with_metadata("message_id", json!(message.message_id))
+        .with_metadata("chat_type", json!(chat_type))
+        .with_metadata("msg_type", json!(msg_type));
 
         if let Some(tx) = &self.inbound_tx {
             if let Err(e) = tx.send(inbound_msg).await {

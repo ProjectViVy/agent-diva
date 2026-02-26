@@ -1,8 +1,8 @@
 //! Cron tool for scheduling reminders and tasks
 
 use crate::base::{Tool, ToolError};
-use async_trait::async_trait;
 use agent_diva_core::cron::{CronSchedule, CronService};
+use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
@@ -175,6 +175,14 @@ impl Tool for CronTool {
     }
 
     async fn execute(&self, args: Value) -> std::result::Result<String, ToolError> {
+        if let (Some(channel), Some(chat_id)) = (
+            args.get("context_channel").and_then(|v| v.as_str()),
+            args.get("context_chat_id").and_then(|v| v.as_str()),
+        ) {
+            self.set_context(channel.to_string(), chat_id.to_string())
+                .await;
+        }
+
         let action = args
             .get("action")
             .and_then(|v| v.as_str())
@@ -192,15 +200,14 @@ impl Tool for CronTool {
                     .get("cron_expr")
                     .and_then(|v| v.as_str())
                     .map(String::from);
-                let at = args
-                    .get("at")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
+                let at = args.get("at").and_then(|v| v.as_str()).map(String::from);
                 let timezone = args
                     .get("timezone")
                     .and_then(|v| v.as_str())
                     .map(String::from);
-                Ok(self.add_job(message, every_seconds, cron_expr, at, timezone).await)
+                Ok(self
+                    .add_job(message, every_seconds, cron_expr, at, timezone)
+                    .await)
             }
             "list" => Ok(self.list_jobs().await),
             "remove" => {

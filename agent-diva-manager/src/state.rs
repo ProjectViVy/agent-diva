@@ -1,12 +1,13 @@
-use tokio::sync::{mpsc, oneshot};
 use agent_diva_agent::AgentEvent;
-use agent_diva_core::bus::InboundMessage;
+use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::ChannelsConfig;
 use serde::{Deserialize, Serialize};
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
 pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
+    pub bus: MessageBus,
 }
 
 pub enum ManagerCommand {

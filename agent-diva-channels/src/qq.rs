@@ -11,10 +11,10 @@
 //! - Message deduplication
 //! - Allowlist-based access control
 
-use async_trait::async_trait;
-use futures::{SinkExt, StreamExt};
 use agent_diva_core::bus::OutboundMessage;
 use agent_diva_core::config::schema::QQConfig;
+use async_trait::async_trait;
+use futures::{SinkExt, StreamExt};
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -99,19 +99,24 @@ impl Token {
 
         if let Some(token) = data["access_token"].as_str() {
             self.access_token = Some(token.to_string());
-            
-            let expires_in = data["expires_in"].as_u64().or_else(|| {
-                data["expires_in"].as_str().and_then(|s| s.parse().ok())
-            }).unwrap_or(7200);
+
+            let expires_in = data["expires_in"]
+                .as_u64()
+                .or_else(|| data["expires_in"].as_str().and_then(|s| s.parse().ok()))
+                .unwrap_or(7200);
 
             self.expires_at = now + expires_in - 60; // Refresh 1 minute early
 
-            info!("QQ Bot token obtained successfully, expires in {}s", expires_in);
+            info!(
+                "QQ Bot token obtained successfully, expires in {}s",
+                expires_in
+            );
             Ok(())
         } else {
-            Err(ChannelError::AuthError(
-                format!("Failed to get access token: {:?}", data)
-            ))
+            Err(ChannelError::AuthError(format!(
+                "Failed to get access token: {:?}",
+                data
+            )))
         }
     }
 }
@@ -487,10 +492,14 @@ impl QQHandler {
         };
 
         // Send to message bus
-        let inbound_msg =
-            agent_diva_core::bus::InboundMessage::new("qq", user_id.clone(), user_id.clone(), content)
-                .with_metadata("message_id", json!(message.id))
-                .with_metadata("timestamp", json!(message.timestamp));
+        let inbound_msg = agent_diva_core::bus::InboundMessage::new(
+            "qq",
+            user_id.clone(),
+            user_id.clone(),
+            content,
+        )
+        .with_metadata("message_id", json!(message.id))
+        .with_metadata("timestamp", json!(message.timestamp));
 
         if let Some(tx) = &self.inbound_tx {
             if let Err(e) = tx.send(inbound_msg).await {

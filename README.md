@@ -100,6 +100,27 @@ agent-diva tui
 agent-diva status
 ```
 
+### Skills
+
+- Workspace skills: `~/.agent-diva/workspace/skills/<skill-name>/SKILL.md`
+- Built-in skills: `agent-diva/skills/<skill-name>/SKILL.md`
+- Priority: workspace skills override built-in skills with the same name.
+
+### Scheduled tasks (cron)
+
+`agent-diva gateway` now runs scheduled jobs automatically. You can manage and run jobs from CLI:
+
+```bash
+# Add a recurring job
+agent-diva cron add --name "daily" --message "standup reminder" --cron-expr "0 9 * * 1-5" --timezone "America/New_York" --deliver --channel telegram --to 123456
+
+# List jobs
+agent-diva cron list
+
+# Manually trigger a job
+agent-diva cron run <job_id> --force
+```
+
 ## GUI
 
 Agent Diva includes an optional desktop GUI built with Tauri + Vue 3.

@@ -78,3 +78,9 @@ Precedence: Environment variables (`AGENT_DIVA__*`) > config file > defaults.
 - Async runtime: Tokio multi-threaded; use `tokio::sync::mpsc` for message passing, `tokio::spawn` for concurrency
 - Logging: `tracing` crate (`info!`, `debug!`, `warn!`, `error!`)
 - Tests: `#[cfg(test)]` in-module, `#[tokio::test]` for async tests, mock external services with mockito/wiremock
+
+## Provider Model-ID Safety Rule (Critical)
+
+- For native provider OpenAI-compatible endpoints (example: DeepSeek `https://api.deepseek.com/v1`), keep raw model IDs unchanged (example: `deepseek-chat`).
+- Do **not** auto-prefix raw IDs into LiteLLM form (example: avoid rewriting to `deepseek/deepseek-chat`) when not using a gateway.
+- Apply `provider/model` prefix rewriting only for real LiteLLM-style gateways/aggregators.

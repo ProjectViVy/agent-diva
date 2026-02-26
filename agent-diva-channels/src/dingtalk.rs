@@ -17,10 +17,10 @@
 
 use crate::base::{BaseChannel, ChannelError, ChannelHandler, Result};
 use crate::common::create_http_client;
-use async_trait::async_trait;
-use futures::{SinkExt, StreamExt};
 use agent_diva_core::bus::OutboundMessage;
 use agent_diva_core::config::schema::DingTalkConfig;
+use async_trait::async_trait;
+use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::VecDeque;
@@ -164,7 +164,10 @@ pub struct DingTalkHandler {
 
 impl DingTalkHandler {
     /// Create a new DingTalk handler
-    pub fn new(config: DingTalkConfig, base_config: agent_diva_core::config::schema::Config) -> Self {
+    pub fn new(
+        config: DingTalkConfig,
+        base_config: agent_diva_core::config::schema::Config,
+    ) -> Self {
         let allow_from = config.allow_from.clone();
         let base = BaseChannel::new("dingtalk", base_config, allow_from);
 
@@ -520,7 +523,7 @@ impl DingTalkHandler {
         let conversation_id = bot_msg.conversation_id.clone();
         let conversation_type = bot_msg.conversation_type.clone().unwrap_or_default();
         let is_group = conversation_type == "2";
-        
+
         // Determine chat_id (conversation_id for groups, sender_id for direct)
         let chat_id = if is_group {
             conversation_id.clone()
@@ -538,7 +541,7 @@ impl DingTalkHandler {
                 _ => true, // "open"
             }
         } else {
-             match self.config.dm_policy.as_str() {
+            match self.config.dm_policy.as_str() {
                 "allowlist" => self.base.is_allowed(&sender_id),
                 _ => true, // "open" or "pairing"
             }

@@ -1,14 +1,15 @@
 //! Agent loop: the core processing engine
 
-use futures::StreamExt;
-use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage, AgentEvent};
+use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
 use agent_diva_core::config::MCPServerConfig;
+use agent_diva_core::cron::CronService;
 use agent_diva_core::session::{ChatMessage, SessionManager};
 use agent_diva_providers::{LLMProvider, LLMResponse, LLMStreamEvent};
 use agent_diva_tools::{
-    load_mcp_tools, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool, ToolError,
-    ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
+    load_mcp_tools, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
+    ToolError, ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
 };
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -31,6 +32,8 @@ pub struct ToolConfig {
     pub restrict_to_workspace: bool,
     /// Configured MCP servers
     pub mcp_servers: HashMap<String, MCPServerConfig>,
+    /// Optional cron service for scheduling tools
+    pub cron_service: Option<Arc<CronService>>,
 }
 
 impl Default for ToolConfig {
@@ -40,6 +43,7 @@ impl Default for ToolConfig {
             exec_timeout: 60,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
+            cron_service: None,
         }
     }
 }
@@ -70,7 +74,7 @@ impl AgentLoop {
         max_iterations: Option<usize>,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
-        let context = ContextBuilder::new(workspace.clone());
+        let context = ContextBuilder::with_skills(workspace.clone(), None);
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::new();
 
@@ -108,7 +112,7 @@ impl AgentLoop {
         tool_config: ToolConfig,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
-        let context = ContextBuilder::new(workspace.clone());
+        let context = ContextBuilder::with_skills(workspace.clone(), None);
         let sessions = SessionManager::new(workspace.clone());
         let mut tools = ToolRegistry::new();
 
@@ -124,14 +128,16 @@ impl AgentLoop {
 
         // Register spawn tool
         let sm = subagent_manager.clone();
-        tools.register(Arc::new(SpawnTool::new(move |task, label, channel, chat_id| {
-            let sm = sm.clone();
-            async move {
-                sm.spawn(task, label, channel, chat_id)
-                    .await
-                    .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
-            }
-        })));
+        tools.register(Arc::new(SpawnTool::new(
+            move |task, label, channel, chat_id| {
+                let sm = sm.clone();
+                async move {
+                    sm.spawn(task, label, channel, chat_id)
+                        .await
+                        .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
+                }
+            },
+        )));
 
         // Register file system tools
         let allowed_dir = if tool_config.restrict_to_workspace {
@@ -160,6 +166,11 @@ impl AgentLoop {
             tools.register(mcp_tool);
         }
 
+        // Register cron tool when scheduling is configured
+        if let Some(cron_service) = tool_config.cron_service.clone() {
+            tools.register(Arc::new(CronTool::new(cron_service)));
+        }
+
         Self {
             bus,
             provider,
@@ -178,15 +189,16 @@ impl AgentLoop {
     pub fn register_default_tools(&mut self, tool_config: ToolConfig) {
         // Register spawn tool
         let sm = self.subagent_manager.clone();
-        self.tools
-            .register(Arc::new(SpawnTool::new(move |task, label, channel, chat_id| {
+        self.tools.register(Arc::new(SpawnTool::new(
+            move |task, label, channel, chat_id| {
                 let sm = sm.clone();
                 async move {
                     sm.spawn(task, label, channel, chat_id)
                         .await
                         .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
                 }
-            })));
+            },
+        )));
 
         // Register file system tools
         let allowed_dir = if tool_config.restrict_to_workspace {
@@ -217,6 +229,11 @@ impl AgentLoop {
         // Register MCP tools discovered from configured servers
         for mcp_tool in load_mcp_tools(&tool_config.mcp_servers) {
             self.tools.register(mcp_tool);
+        }
+
+        // Register cron tool when scheduling is configured
+        if let Some(cron_service) = tool_config.cron_service {
+            self.tools.register(Arc::new(CronTool::new(cron_service)));
         }
     }
 
@@ -274,8 +291,10 @@ impl AgentLoop {
         let trace_id = Uuid::new_v4().to_string();
         use tracing::Instrument;
         let span = tracing::info_span!("AgentSpan", trace_id = %trace_id);
-        
-        self.process_inbound_message_inner(msg, event_tx, trace_id).instrument(span).await
+
+        self.process_inbound_message_inner(msg, event_tx, trace_id)
+            .instrument(span)
+            .await
     }
 
     async fn process_inbound_message_inner(
@@ -288,7 +307,7 @@ impl AgentLoop {
 
         // Use the default model from the current provider
         let model_to_use = self.provider.get_default_model();
-        
+
         let preview = if msg.content.chars().count() > 80 {
             format!("{}...", msg.content.chars().take(80).collect::<String>())
         } else {
@@ -322,7 +341,7 @@ impl AgentLoop {
             iteration += 1;
             debug!("Agent iteration {}/{}", iteration, self.max_iterations);
             trace!(trace_id = %trace_id, loop_index = iteration, step_name = "loop_started", "Agent loop started");
-            
+
             let event = AgentEvent::IterationStarted {
                 index: iteration,
                 max_iterations: self.max_iterations,
@@ -330,10 +349,17 @@ impl AgentLoop {
             if let Some(tx) = event_tx {
                 let _ = tx.send(event.clone());
             }
-            let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+            let _ = self
+                .bus
+                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
             // Call LLM (streaming when provider supports it)
-            let tool_defs = self.tools.get_definitions();
+            // Keep scheduled cron executions deterministic: no tool loop for cron-triggered turns.
+            let tool_defs = if msg.channel == "cron" {
+                Vec::new()
+            } else {
+                self.tools.get_definitions()
+            };
             let mut stream = self
                 .provider
                 .chat_stream(
@@ -359,7 +385,9 @@ impl AgentLoop {
                         if let Some(tx) = event_tx {
                             let _ = tx.send(event.clone());
                         }
-                        let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                        let _ =
+                            self.bus
+                                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                     }
                     LLMStreamEvent::ReasoningDelta(delta) => {
                         debug!("Stream ReasoningDelta: {:?}", delta);
@@ -368,9 +396,15 @@ impl AgentLoop {
                         if let Some(tx) = event_tx {
                             let _ = tx.send(event.clone());
                         }
-                        let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                        let _ =
+                            self.bus
+                                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                     }
-                    LLMStreamEvent::ToolCallDelta { name, arguments_delta, .. } => {
+                    LLMStreamEvent::ToolCallDelta {
+                        name,
+                        arguments_delta,
+                        ..
+                    } => {
                         if let Some(delta) = arguments_delta {
                             let event = AgentEvent::ToolCallDelta {
                                 name,
@@ -379,7 +413,11 @@ impl AgentLoop {
                             if let Some(tx) = event_tx {
                                 let _ = tx.send(event.clone());
                             }
-                            let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                            let _ = self.bus.publish_event(
+                                msg.channel.clone(),
+                                msg.chat_id.clone(),
+                                event,
+                            );
                         }
                     }
                     LLMStreamEvent::Completed(done) => {
@@ -405,7 +443,11 @@ impl AgentLoop {
             });
 
             // Trace intent decision
-            let decision_type = if response.has_tool_calls() { "tool_use" } else { "final_response" };
+            let decision_type = if response.has_tool_calls() {
+                "tool_use"
+            } else {
+                "final_response"
+            };
             trace!(trace_id = %trace_id, loop_index = iteration, step_name = "intent_decided", decision_type = %decision_type, "Intent decided");
 
             // Handle tool calls
@@ -439,13 +481,27 @@ impl AgentLoop {
                     if let Some(tx) = event_tx {
                         let _ = tx.send(event.clone());
                     }
-                    let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    let _ = self
+                        .bus
+                        .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
                     // Convert HashMap to Value for execute
-                    let params_value = serde_json::to_value(&tool_call.arguments)
+                    let mut params_value = serde_json::to_value(&tool_call.arguments)
                         .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+                    if tool_call.name == "cron" {
+                        if let Some(params_obj) = params_value.as_object_mut() {
+                            params_obj.insert(
+                                "context_channel".to_string(),
+                                serde_json::Value::String(msg.channel.clone()),
+                            );
+                            params_obj.insert(
+                                "context_chat_id".to_string(),
+                                serde_json::Value::String(msg.chat_id.clone()),
+                            );
+                        }
+                    }
                     let result = self.tools.execute(&tool_call.name, params_value).await;
-                    
+
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
 
                     let event = AgentEvent::ToolCallFinished {
@@ -457,7 +513,9 @@ impl AgentLoop {
                     if let Some(tx) = event_tx {
                         let _ = tx.send(event.clone());
                     }
-                    let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    let _ = self
+                        .bus
+                        .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                     self.context.add_tool_result(
                         &mut messages,
                         tool_call.id.clone(),
@@ -492,12 +550,20 @@ impl AgentLoop {
         if let Some(tx) = event_tx {
             let _ = tx.send(event.clone());
         }
-        let _ = self.bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+        let _ = self
+            .bus
+            .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
         // Save complete turn to session
         {
             let session = self.sessions.get_or_create(&session_key);
-            save_turn(session, &messages, history_len, &msg.content, &final_content);
+            save_turn(
+                session,
+                &messages,
+                history_len,
+                &msg.content,
+                &final_content,
+            );
         }
 
         // Run memory consolidation if threshold reached
@@ -654,8 +720,7 @@ fn save_turn(
     }
 
     // Save the final assistant response if not already captured
-    if messages.len() <= turn_start
-        || messages.last().map(|m| m.role.as_str()) != Some("assistant")
+    if messages.len() <= turn_start || messages.last().map(|m| m.role.as_str()) != Some("assistant")
     {
         session.add_message("assistant", final_content);
     }

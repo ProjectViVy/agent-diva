@@ -24,6 +24,10 @@ Prefer `just` recipes from the workspace root:
 ## Coding Style & Naming Conventions
 Use Rust 2021 conventions and keep `rustfmt` output authoritative (`rustfmt.toml` is checked in). Use `snake_case` for modules/functions/files, `PascalCase` for structs/enums/traits, and `SCREAMING_SNAKE_CASE` for constants. Keep public APIs documented with `///`; use `//!` for module overviews when helpful. Run `cargo clippy --all -- -D warnings` before opening a PR.
 
+## Provider Model-ID Safety Rule (Critical)
+When calling a provider's native OpenAI-compatible endpoint (for example DeepSeek `https://api.deepseek.com/v1`), always send the provider's raw model id (for example `deepseek-chat`) and do not auto-add LiteLLM prefixes (for example do not rewrite to `deepseek/deepseek-chat`).  
+Only apply `provider/model` prefix rewriting when routing through a true LiteLLM-style gateway or aggregator.
+
 ## Testing Guidelines
 Write focused unit tests near the code with `#[cfg(test)]`. Add integration tests in crate `tests/` folders for cross-module behavior. Run `cargo test --all` locally before pushing. Use workspace test utilities (`tokio-test`, `tempfile`, `wiremock`, `mockito`) where appropriate.
 

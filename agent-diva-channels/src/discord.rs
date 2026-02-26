@@ -5,10 +5,10 @@
 
 use crate::base::{BaseChannel, ChannelError, ChannelHandler, Result};
 use crate::common::{create_http_client, download_file};
-use async_trait::async_trait;
-use futures::{SinkExt, StreamExt};
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::{Config, DiscordConfig};
+use async_trait::async_trait;
+use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -189,7 +189,14 @@ impl DiscordHandler {
                 continue;
             }
 
-            match download_file(&self.http, &attachment.url, &attachment.filename, &attachment.id).await {
+            match download_file(
+                &self.http,
+                &attachment.url,
+                &attachment.filename,
+                &attachment.id,
+            )
+            .await
+            {
                 Ok(path) => {
                     media_paths.push(path.clone());
                     content_parts.push(format!("[attachment: {}]", path));
@@ -216,12 +223,16 @@ impl DiscordHandler {
         // Send to inbound channel
         if let Some(tx) = &self.inbound_tx {
             let reply_to = msg.reply_to.as_ref().map(|m| m.id.clone());
-            let inbound_msg =
-                InboundMessage::new(self.base.name.clone(), sender_id, channel_id.clone(), content)
-                    .with_metadata("message_id", msg.id)
-                    .with_metadata("username", msg.author.username)
-                    .with_metadata("guild_id", msg.guild_id.unwrap_or_default())
-                    .with_metadata("reply_to", reply_to.unwrap_or_default());
+            let inbound_msg = InboundMessage::new(
+                self.base.name.clone(),
+                sender_id,
+                channel_id.clone(),
+                content,
+            )
+            .with_metadata("message_id", msg.id)
+            .with_metadata("username", msg.author.username)
+            .with_metadata("guild_id", msg.guild_id.unwrap_or_default())
+            .with_metadata("reply_to", reply_to.unwrap_or_default());
 
             tx.send(inbound_msg)
                 .await
@@ -283,10 +294,7 @@ impl DiscordHandler {
     }
 
     /// Run the gateway connection
-    async fn run_gateway(
-        &self, 
-        mut shutdown_rx: mpsc::Receiver<()>
-    ) -> Result<()> {
+    async fn run_gateway(&self, mut shutdown_rx: mpsc::Receiver<()>) -> Result<()> {
         let mut reconnect_delay = 5;
 
         loop {
@@ -296,31 +304,34 @@ impl DiscordHandler {
             }
 
             tracing::info!("Connecting to Discord gateway...");
-            
+
             // Connect
             match tokio_tungstenite::connect_async(&self.config.gateway_url).await {
                 Ok((ws_stream, _)) => {
                     tracing::info!("Connected to Discord gateway");
                     reconnect_delay = 5; // Reset delay
-                    
+
                     let (mut write, mut read) = ws_stream.split();
-                    
+
                     // We need a channel to send messages to the write sink from other tasks (heartbeat)
                     let (tx, mut rx) = mpsc::channel::<String>(32);
-                    
+
                     // Spawn writer task
                     let writer_handle = tokio::spawn(async move {
                         while let Some(msg) = rx.recv().await {
-                             if let Err(e) = write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await {
-                                 tracing::warn!("WebSocket write failed: {}", e);
-                                 break;
-                             }
+                            if let Err(e) = write
+                                .send(tokio_tungstenite::tungstenite::Message::Text(msg))
+                                .await
+                            {
+                                tracing::warn!("WebSocket write failed: {}", e);
+                                break;
+                            }
                         }
                     });
 
                     // Main read loop
                     loop {
-                         tokio::select! {
+                        tokio::select! {
                             _ = shutdown_rx.recv() => {
                                 tracing::info!("Shutdown signal received");
                                 break;
@@ -349,7 +360,7 @@ impl DiscordHandler {
                             }
                         }
                     }
-                    
+
                     writer_handle.abort();
                 }
                 Err(e) => {
@@ -382,8 +393,11 @@ impl DiscordHandler {
         match GatewayOp::from_u8(payload.op) {
             Some(GatewayOp::Hello) => {
                 if let Some(d) = payload.d {
-                    let interval_ms = d.get("heartbeat_interval").and_then(|v| v.as_u64()).unwrap_or(45000);
-                    
+                    let interval_ms = d
+                        .get("heartbeat_interval")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(45000);
+
                     // Spawn heartbeat task
                     let tx_hb = tx.clone();
                     let seq_hb = self.seq.clone();
@@ -391,8 +405,8 @@ impl DiscordHandler {
                     // Ideally we should manage its lifecycle better.
                     tokio::spawn(async move {
                         let mut interval = interval(Duration::from_millis(interval_ms));
-                        interval.tick().await; 
-                        
+                        interval.tick().await;
+
                         loop {
                             interval.tick().await;
                             let seq = *seq_hb.lock().await;
@@ -405,7 +419,7 @@ impl DiscordHandler {
                             }
                         }
                     });
-                    
+
                     // Identify
                     let identify = serde_json::json!({
                         "op": 2,
@@ -419,7 +433,9 @@ impl DiscordHandler {
                             }
                         }
                     });
-                    tx.send(identify.to_string()).await.map_err(|e| ChannelError::Error(e.to_string()))?;
+                    tx.send(identify.to_string())
+                        .await
+                        .map_err(|e| ChannelError::Error(e.to_string()))?;
                 }
             }
             Some(GatewayOp::Dispatch) => {
@@ -438,12 +454,14 @@ impl DiscordHandler {
             }
             Some(GatewayOp::Reconnect) => {
                 tracing::info!("Discord requested reconnect");
-                return Err(ChannelError::ConnectionError("Reconnect requested".to_string()));
+                return Err(ChannelError::ConnectionError(
+                    "Reconnect requested".to_string(),
+                ));
             }
             Some(GatewayOp::InvalidSession) => {
                 tracing::warn!("Discord invalid session");
                 *self.session_id.lock().await = None;
-                 return Err(ChannelError::ConnectionError("Invalid session".to_string()));
+                return Err(ChannelError::ConnectionError("Invalid session".to_string()));
             }
             _ => {}
         }

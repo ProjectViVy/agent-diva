@@ -1,12 +1,12 @@
+use agent_diva_channels::ChannelManager;
+use agent_diva_core::bus::{AgentEvent, MessageBus};
+use agent_diva_core::config::ConfigLoader;
+use agent_diva_providers::{DynamicProvider, LiteLLMClient, ProviderRegistry};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{error, info, debug, warn};
-use agent_diva_core::bus::{MessageBus, AgentEvent};
-use agent_diva_core::config::ConfigLoader;
-use agent_diva_providers::{LiteLLMClient, DynamicProvider, ProviderRegistry};
-use agent_diva_channels::ChannelManager;
+use tracing::{debug, error, info, warn};
 
-use crate::state::{ManagerCommand, ConfigResponse};
+use crate::state::{ConfigResponse, ManagerCommand};
 
 pub struct Manager {
     api_rx: mpsc::Receiver<ManagerCommand>,
@@ -46,7 +46,7 @@ impl Manager {
 
     pub async fn run(mut self) -> anyhow::Result<()> {
         info!("Manager loop started");
-        
+
         loop {
             debug!("Waiting for command...");
             tokio::select! {
@@ -67,10 +67,10 @@ impl Manager {
                             let channel = req.msg.channel.clone();
                             let chat_id = req.msg.chat_id.clone();
                             let event_tx = req.event_tx.clone();
-                            
+
                             // Subscribe to bus events
                             let mut event_rx = self.bus.subscribe_events();
-                            
+
                             // Publish inbound
                             if let Err(e) = self.bus.publish_inbound(req.msg) {
                                 error!("Failed to publish inbound: {}", e);
@@ -86,7 +86,7 @@ impl Manager {
                                                     // Forward event
                                                     let event = bus_event.event;
                                                     let _ = event_tx.send(event.clone());
-                                                    
+
                                                     // Check if final
                                                     match event {
                                                         AgentEvent::FinalResponse { .. } | AgentEvent::Error { .. } => break,
@@ -105,7 +105,7 @@ impl Manager {
                             debug!("Processing UpdateConfig command");
                             debug!("Update request: {:?}", update);
                             info!("Processing UpdateConfig request: {:?}", update);
-                            
+
                             // 1. Load current config
                             let mut config = match self.loader.load() {
                                 Ok(c) => c,
@@ -133,7 +133,7 @@ impl Manager {
                                 .next()
                                 .and_then(|prefix| registry.find_by_name(prefix))
                                 .map(|spec| spec.name.clone());
-                            
+
                             let spec = name_from_prefix
                                 .as_deref()
                                 .and_then(|name| registry.find_by_name(name))
@@ -179,10 +179,10 @@ impl Manager {
                                 return Err(e.into());
                             }
                             info!("Configuration saved to disk");
-                            
+
                             // 5. Hot Reload Provider
                             info!("Hot reloading provider for model: {}", model_to_use);
-                            
+
                             // Re-resolve spec to get the latest config
                             let registry = ProviderRegistry::new();
                             let name_from_prefix = model_to_use
@@ -190,7 +190,7 @@ impl Manager {
                                 .next()
                                 .and_then(|prefix| registry.find_by_name(prefix))
                                 .map(|spec| spec.name.clone());
-                            
+
                             let spec = name_from_prefix
                                 .as_deref()
                                 .and_then(|name| registry.find_by_name(name))
@@ -278,7 +278,7 @@ impl Manager {
                         }
                         ManagerCommand::TestChannel(update, reply) => {
                             info!("Processing TestChannel request: {}", update.name);
-                            
+
                             // 1. Load config
                             let mut config = match self.loader.load() {
                                 Ok(c) => c,
@@ -364,7 +364,7 @@ impl Manager {
                         }
                         ManagerCommand::UpdateChannel(update) => {
                             info!("Processing UpdateChannel request: {}", update.name);
-                            
+
                             // 1. Load config
                             let mut config = match self.loader.load() {
                                 Ok(c) => c,

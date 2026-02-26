@@ -140,6 +140,7 @@ pub struct LiteLLMClient {
     extra_headers: HashMap<String, String>,
     registry: ProviderRegistry,
     gateway: Option<ProviderSpec>,
+    selected_provider: Option<ProviderSpec>,
 }
 
 impl LiteLLMClient {
@@ -151,8 +152,17 @@ impl LiteLLMClient {
         extra_headers: Option<HashMap<String, String>>,
         provider_name: Option<String>,
     ) -> Self {
-        tracing::info!("Creating LiteLLMClient. Provider: {:?}, Base: {:?}", provider_name, api_base);
+        tracing::info!(
+            "Creating LiteLLMClient. Provider: {:?}, Base: {:?}",
+            provider_name,
+            api_base
+        );
         let registry = ProviderRegistry::new();
+        let selected_provider = provider_name
+            .as_deref()
+            .and_then(|name| registry.find_by_name(name))
+            .filter(|spec| !spec.is_gateway && !spec.is_local)
+            .cloned();
         let gateway = registry
             .find_gateway(
                 provider_name.as_deref(),
@@ -194,6 +204,7 @@ impl LiteLLMClient {
             extra_headers: extra_headers.unwrap_or_default(),
             registry,
             gateway,
+            selected_provider,
         }
     }
 
@@ -216,6 +227,21 @@ impl LiteLLMClient {
             return resolved;
         }
 
+        // Direct provider mode: when using a provider's native API base,
+        // keep raw model ids (e.g. deepseek-chat) instead of LiteLLM prefixes.
+        if let Some(provider) = &self.selected_provider {
+            if !provider.default_api_base.is_empty()
+                && Self::normalize_api_base(&self.api_base)
+                    == Self::normalize_api_base(&provider.default_api_base)
+            {
+                debug!(
+                    "Model unchanged (native provider base): {} -> {}",
+                    model, model
+                );
+                return model.to_string();
+            }
+        }
+
         // Standard mode: auto-prefix for known providers
         if let Some(spec) = self.registry.find_by_model(model) {
             if !spec.litellm_prefix.is_empty() {
@@ -233,6 +259,10 @@ impl LiteLLMClient {
 
         debug!("Model unchanged: {}", model);
         model.to_string()
+    }
+
+    fn normalize_api_base(base: &str) -> String {
+        base.trim_end_matches('/').to_lowercase()
     }
 
     /// Apply model-specific parameter overrides from the registry
@@ -270,7 +300,11 @@ impl LiteLLMClient {
         if let Some(messages) = body.get_mut("messages").and_then(|m| m.as_array_mut()) {
             for msg in messages.iter_mut() {
                 if msg.get("role").and_then(|r| r.as_str()) == Some("system") {
-                    if let Some(text) = msg.get("content").and_then(|c| c.as_str()).map(|s| s.to_string()) {
+                    if let Some(text) = msg
+                        .get("content")
+                        .and_then(|c| c.as_str())
+                        .map(|s| s.to_string())
+                    {
                         msg["content"] = serde_json::json!([{
                             "type": "text",
                             "text": text,
@@ -413,7 +447,10 @@ impl LiteLLMClient {
                         if let Ok(inner) = serde_json::from_str::<String>(&call.arguments) {
                             serde_json::from_str::<HashMap<String, serde_json::Value>>(&inner)
                                 .unwrap_or_else(|_| {
-                                    HashMap::from([("raw".into(), serde_json::Value::String(inner))])
+                                    HashMap::from([(
+                                        "raw".into(),
+                                        serde_json::Value::String(inner),
+                                    )])
                                 })
                         } else {
                             HashMap::from([(
@@ -609,11 +646,11 @@ impl LLMProvider for LiteLLMClient {
                     Ok(Some(bytes)) => {
                         tracing::debug!("Received chunk: {} bytes", bytes.len());
                         bytes
-                    },
+                    }
                     Ok(None) => {
                         tracing::debug!("Stream ended (Ok(None))");
                         break;
-                    },
+                    }
                     Err(err) => {
                         tracing::error!("Stream error: {}", err);
                         let _ = tx.send(Err(ProviderError::HttpError(err)));
@@ -784,6 +821,18 @@ mod tests {
     }
 
     #[test]
+    fn test_direct_provider_base_keeps_raw_model() {
+        let client = LiteLLMClient::new(
+            Some("sk-test".to_string()),
+            Some("https://api.deepseek.com/v1".to_string()),
+            "deepseek-chat".to_string(),
+            None,
+            Some("deepseek".to_string()),
+        );
+        assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
+    }
+
+    #[test]
     fn test_parse_sse_events() {
         let mut buffer =
             "data: {\"a\":1}\n\ndata: {\"b\":2}\n\ndata: [DONE]\n\ntrailing".to_string();
@@ -893,11 +942,19 @@ mod tests {
             arguments: double_encoded,
         };
         let response = LiteLLMClient::finalize_partial_response(
-            String::new(), String::new(), &[partial], None, None,
+            String::new(),
+            String::new(),
+            &[partial],
+            None,
+            None,
         );
         assert_eq!(response.tool_calls.len(), 1);
         assert_eq!(
-            response.tool_calls[0].arguments.get("query").unwrap().as_str(),
+            response.tool_calls[0]
+                .arguments
+                .get("query")
+                .unwrap()
+                .as_str(),
             Some("rust")
         );
     }

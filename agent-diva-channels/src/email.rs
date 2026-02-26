@@ -4,9 +4,9 @@
 //! for better compatibility. Since email is not a high-frequency channel, the performance
 //! trade-off is acceptable.
 
-use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::EmailConfig;
+use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
@@ -357,12 +357,15 @@ impl EmailHandler {
             };
 
             // Attachments
-            let mixed = attachments.into_iter().fold(mixed, |acc, (filename, data, content_type)| {
-                let mime = content_type
-                    .parse()
-                    .unwrap_or_else(|_| ContentType::parse("application/octet-stream").unwrap());
-                acc.singlepart(Attachment::new(filename).body(data, mime))
-            });
+            let mixed =
+                attachments
+                    .into_iter()
+                    .fold(mixed, |acc, (filename, data, content_type)| {
+                        let mime = content_type.parse().unwrap_or_else(|_| {
+                            ContentType::parse("application/octet-stream").unwrap()
+                        });
+                        acc.singlepart(Attachment::new(filename).body(data, mime))
+                    });
 
             email_builder
                 .multipart(mixed)

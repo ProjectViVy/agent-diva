@@ -86,6 +86,21 @@ agent-diva tui
 agent-diva status
 ```
 
+### 定时任务（cron）
+
+`agent-diva gateway` 会自动执行已到期的定时任务。也可通过 CLI 管理和手动触发：
+
+```bash
+# 添加循环任务
+agent-diva cron add --name "daily" --message "standup reminder" --cron-expr "0 9 * * 1-5" --timezone "Asia/Shanghai" --deliver --channel qq --to 123456
+
+# 查看任务
+agent-diva cron list
+
+# 手动触发任务
+agent-diva cron run <job_id> --force
+```
+
 ## GUI 桌面客户端
 
 Agent Diva 提供基于 Tauri + Vue 3 的可选桌面 GUI。

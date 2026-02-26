@@ -184,7 +184,10 @@ impl ExecTool {
 
         // Determine shell based on OS
         let (shell, args) = if cfg!(target_os = "windows") {
-            ("powershell", vec!["-NoProfile", "-NonInteractive", "-Command"])
+            (
+                "powershell",
+                vec!["-NoProfile", "-NonInteractive", "-Command"],
+            )
         } else {
             ("sh", vec!["-c"])
         };

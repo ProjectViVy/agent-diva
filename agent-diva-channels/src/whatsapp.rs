@@ -6,9 +6,9 @@
 //! Python reference: agent-diva/channels/whatsapp.py
 //! Bridge reference: bridge/src/whatsapp.ts
 
+use agent_diva_providers::transcription::TranscriptionService;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use agent_diva_providers::transcription::TranscriptionService;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};

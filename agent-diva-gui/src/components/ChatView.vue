@@ -37,6 +37,7 @@ interface Message {
   toolArgs?: string;
   toolResult?: string;
   toolStatus?: 'running' | 'success' | 'error';
+  toolCallId?: string;
 }
 
 const expandedTools = ref<Record<number, boolean>>({});
@@ -222,6 +223,12 @@ const getEmotionEmoji = (emotion?: string) => {
               </div>
               
               <!-- Tool Details Toggle -->
+              <div
+                v-if="msg.toolStatus !== 'running' && msg.toolResult"
+                class="px-3 pb-1 text-xs text-gray-600 break-all whitespace-pre-wrap"
+              >
+                {{ msg.toolResult.length > 160 ? `${msg.toolResult.slice(0, 160)}...` : msg.toolResult }}
+              </div>
               <div v-if="msg.toolStatus !== 'running'" class="px-3 pb-2 flex justify-end">
                 <button 
                   @click="toggleTool(index)"

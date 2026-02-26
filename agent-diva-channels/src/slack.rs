@@ -5,9 +5,9 @@
 //! - Handle `app_mention` events as inbound messages
 //! - Send responses via Web API `chat.postMessage` (thread reply by default)
 
-use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::SlackConfig;
+use async_trait::async_trait;
 use regex::Regex;
 use serde_json::json;
 use slack_morphism::prelude::*;
@@ -65,9 +65,7 @@ fn basic_slackify(text: &str) -> String {
     let text = Regex::new(r"\*\*(.+?)\*\*")
         .unwrap()
         .replace_all(text, "*$1*");
-    let text = Regex::new(r"__(.+?)__")
-        .unwrap()
-        .replace_all(&text, "*$1*");
+    let text = Regex::new(r"__(.+?)__").unwrap().replace_all(&text, "*$1*");
 
     // Links: [text](url) → <url|text>
     let text = Regex::new(r"\[([^\]]+)\]\(([^)]+)\)")
@@ -431,8 +429,6 @@ impl SlackHandler {
             bot_user_id: None,
         }
     }
-
-    
 
     fn validate_config(&self) -> Result<()> {
         if !self.config.enabled {

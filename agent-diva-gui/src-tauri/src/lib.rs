@@ -9,12 +9,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AgentState::new())
-        .setup(|_app| {
-            Ok(())
-        })
+        .setup(|_app| Ok(()))
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::send_message,
+            commands::start_background_stream,
             commands::update_config,
             commands::get_providers,
             commands::get_channels,

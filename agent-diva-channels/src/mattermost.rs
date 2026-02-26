@@ -1,8 +1,8 @@
 //! Mattermost channel handler using REST API polling.
 
-use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::MattermostConfig;
+use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::task::JoinHandle;
@@ -48,7 +48,9 @@ impl MattermostHandler {
             .header("Authorization", format!("Bearer {}", token))
             .send()
             .await
-            .map_err(|e| ChannelError::ConnectionFailed(format!("Failed to get bot identity: {}", e)))?;
+            .map_err(|e| {
+                ChannelError::ConnectionFailed(format!("Failed to get bot identity: {}", e))
+            })?;
 
         if !resp.status().is_success() {
             return Err(ChannelError::AuthError(format!(
@@ -68,7 +70,9 @@ impl MattermostHandler {
             .to_string();
         let username = body["username"]
             .as_str()
-            .ok_or_else(|| ChannelError::ApiError("Missing 'username' in /users/me response".into()))?
+            .ok_or_else(|| {
+                ChannelError::ApiError("Missing 'username' in /users/me response".into())
+            })?
             .to_string();
 
         Ok((id, username))
@@ -188,8 +192,12 @@ impl ChannelHandler for MattermostHandler {
                             }
 
                             // Allowlist check
-                            if !allow_from.is_empty() && !allow_from.contains(&user_id.to_string()) {
-                                debug!("Mattermost: ignoring message from non-allowed user {}", user_id);
+                            if !allow_from.is_empty() && !allow_from.contains(&user_id.to_string())
+                            {
+                                debug!(
+                                    "Mattermost: ignoring message from non-allowed user {}",
+                                    user_id
+                                );
                                 continue;
                             }
 
@@ -215,10 +223,17 @@ impl ChannelHandler for MattermostHandler {
                                 format!("{}:{}", ch_id, post_id)
                             };
 
-                            let mut msg = InboundMessage::new("mattermost", user_id, &chat_id, &content);
-                            msg = msg.with_metadata("post_id", serde_json::Value::String(post_id.to_string()));
+                            let mut msg =
+                                InboundMessage::new("mattermost", user_id, &chat_id, &content);
+                            msg = msg.with_metadata(
+                                "post_id",
+                                serde_json::Value::String(post_id.to_string()),
+                            );
                             if !root_id.is_empty() {
-                                msg = msg.with_metadata("root_id", serde_json::Value::String(root_id.to_string()));
+                                msg = msg.with_metadata(
+                                    "root_id",
+                                    serde_json::Value::String(root_id.to_string()),
+                                );
                             }
 
                             if let Err(e) = tx.send(msg).await {
@@ -384,7 +399,10 @@ mod tests {
     #[test]
     fn test_normalize_content() {
         assert_eq!(normalize_content("@divabot hello", "divabot"), "hello");
-        assert_eq!(normalize_content("hello @divabot world", "divabot"), "hello  world");
+        assert_eq!(
+            normalize_content("hello @divabot world", "divabot"),
+            "hello  world"
+        );
         assert_eq!(normalize_content("@divabot", "divabot"), "");
     }
 

@@ -1,8 +1,8 @@
 //! IRC channel handler with TLS support, SASL authentication, and reconnection.
 
-use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::IrcConfig;
+use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, Mutex, RwLock};
@@ -76,9 +76,9 @@ impl IrcMessage {
 
     /// Extract the nickname from the prefix (nick!user@host).
     fn nick(&self) -> Option<&str> {
-        self.prefix.as_ref().and_then(|p| {
-            p.find('!').map(|idx| &p[..idx]).or(Some(p.as_str()))
-        })
+        self.prefix
+            .as_ref()
+            .and_then(|p| p.find('!').map(|idx| &p[..idx]).or(Some(p.as_str())))
     }
 }
 
@@ -212,15 +212,7 @@ impl ChannelHandler for IrcHandler {
 
                 info!("IRC: connecting to {}:{}", config.server, config.port);
 
-                match irc_connect_and_run(
-                    &config,
-                    &allow_from,
-                    &tx,
-                    &running,
-                    &writer_slot,
-                )
-                .await
-                {
+                match irc_connect_and_run(&config, &allow_from, &tx, &running, &writer_slot).await {
                     Ok(()) => {
                         info!("IRC: connection closed cleanly");
                     }
@@ -303,7 +295,9 @@ impl ChannelHandler for IrcHandler {
             let mut tls = connector
                 .connect(&self.config.server, tcp)
                 .await
-                .map_err(|e| ChannelError::ConnectionFailed(format!("TLS handshake failed: {}", e)))?;
+                .map_err(|e| {
+                    ChannelError::ConnectionFailed(format!("TLS handshake failed: {}", e))
+                })?;
             let _ = tls.shutdown().await;
         } else {
             drop(tcp);
@@ -341,13 +335,29 @@ async fn irc_connect_and_run(
         let writer: IrcWriter = Arc::new(Mutex::new(Box::new(writer)));
         *writer_slot.lock().await = Some(writer.clone());
 
-        irc_register_and_loop(config, allow_from, tx, running, BufReader::new(reader), &writer).await
+        irc_register_and_loop(
+            config,
+            allow_from,
+            tx,
+            running,
+            BufReader::new(reader),
+            &writer,
+        )
+        .await
     } else {
         let (reader, writer) = tokio::io::split(tcp);
         let writer: IrcWriter = Arc::new(Mutex::new(Box::new(writer)));
         *writer_slot.lock().await = Some(writer.clone());
 
-        irc_register_and_loop(config, allow_from, tx, running, BufReader::new(reader), &writer).await
+        irc_register_and_loop(
+            config,
+            allow_from,
+            tx,
+            running,
+            BufReader::new(reader),
+            &writer,
+        )
+        .await
     }
 }
 
@@ -510,7 +520,10 @@ async fn handle_privmsg(
 
     // Allowlist check
     if !allow_from.is_empty() && !allow_from.contains(&sender_nick.to_string()) {
-        debug!("IRC: ignoring message from non-allowed user {}", sender_nick);
+        debug!(
+            "IRC: ignoring message from non-allowed user {}",
+            sender_nick
+        );
         return;
     }
 

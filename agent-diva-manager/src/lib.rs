@@ -5,5 +5,4 @@ pub mod state;
 
 pub use manager::Manager;
 pub use server::run_server;
-pub use state::{AppState, ApiRequest, ManagerCommand};
-
+pub use state::{ApiRequest, AppState, ManagerCommand};

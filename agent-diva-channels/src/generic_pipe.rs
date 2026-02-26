@@ -201,12 +201,8 @@ impl GenericPipeHandler {
 
             // Build InboundMessage and forward to bus.
             if let Some(ref tx) = inbound_tx {
-                let mut inbound = InboundMessage::new(
-                    "generic_pipe",
-                    &msg.sender,
-                    &msg.chat,
-                    &msg.content,
-                );
+                let mut inbound =
+                    InboundMessage::new("generic_pipe", &msg.sender, &msg.chat, &msg.content);
                 inbound = inbound.with_metadata("pipe_msg_id", msg.id.clone());
                 for (k, v) in &msg.meta {
                     inbound = inbound.with_metadata(k.clone(), v.clone());
@@ -245,10 +241,7 @@ impl ChannelHandler for GenericPipeHandler {
 
         let addr = format!("{}:{}", self.host, self.port);
         let listener = TcpListener::bind(&addr).await.map_err(|e| {
-            ChannelError::ConnectionFailed(format!(
-                "generic_pipe: failed to bind {}: {}",
-                addr, e
-            ))
+            ChannelError::ConnectionFailed(format!("generic_pipe: failed to bind {}: {}", addr, e))
         })?;
         info!("generic_pipe: listening on {}", addr);
 
@@ -260,10 +253,7 @@ impl ChannelHandler for GenericPipeHandler {
         let allow_from = self.allow_from.clone();
 
         self.task_handle = Some(tokio::spawn(async move {
-            Self::accept_loop(
-                listener, allow_from, clients, inbound_tx, shutdown_rx,
-            )
-            .await;
+            Self::accept_loop(listener, allow_from, clients, inbound_tx, shutdown_rx).await;
         }));
 
         self.running = true;

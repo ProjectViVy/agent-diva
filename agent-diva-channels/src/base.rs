@@ -1,8 +1,8 @@
 //! Base trait for channel handlers
 
-use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::Config;
+use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 

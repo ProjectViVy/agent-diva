@@ -53,7 +53,7 @@ fn compute_next_run(schedule: &CronSchedule, now_ms: i64) -> Option<i64> {
                                 .next()
                                 .map(|next| next.timestamp_millis());
                         } else {
-                             warn!("Invalid timezone '{}', falling back to UTC", tz_str);
+                            warn!("Invalid timezone '{}', falling back to UTC", tz_str);
                         }
                     }
 
@@ -266,39 +266,6 @@ impl CronService {
 
         let mut timer_guard = self.timer_task.lock().await;
         *timer_guard = Some(task);
-    }
-
-    /// Handle timer tick - run due jobs
-    #[allow(dead_code)]
-    async fn on_timer_impl(&self) {
-        let now = now_ms();
-
-        // Find due jobs
-        let due_jobs = {
-            let store_guard = self.store.read().await;
-            if let Some(store) = store_guard.as_ref() {
-                store
-                    .jobs
-                    .iter()
-                    .filter(|j| {
-                        j.enabled
-                            && j.state.next_run_at_ms.is_some()
-                            && now >= j.state.next_run_at_ms.unwrap()
-                    })
-                    .cloned()
-                    .collect::<Vec<_>>()
-            } else {
-                Vec::new()
-            }
-        };
-
-        // Execute each job
-        for job in due_jobs {
-            self.execute_job(job).await;
-        }
-
-        self.save_store().await;
-        self.arm_timer().await;
     }
 
     /// Execute a single job
@@ -527,7 +494,6 @@ impl CronService {
 /// Handle for async timer task (to avoid circular references)
 struct CronServiceHandle {
     store: Arc<RwLock<Option<CronStore>>>,
-    #[allow(dead_code)]
     timer_task: Arc<Mutex<Option<JoinHandle<()>>>>,
     running: Arc<RwLock<bool>>,
     on_job: Option<JobCallback>,
@@ -563,7 +529,7 @@ impl CronServiceHandle {
             info!("Cron: executing job '{}' ({})", job.name, job.id);
 
             if let Some(callback) = &self.on_job {
-                let _result = (callback)(job.clone()).await;
+                let _ = (callback)(job.clone()).await;
             }
 
             job.state.last_run_at_ms = Some(start_ms);
@@ -614,9 +580,67 @@ impl CronServiceHandle {
             }
         }
 
-        // Re-arm timer
-        // Note: This would need the full CronService reference, which we don't have here
-        // In practice, the main CronService::on_timer_impl handles this
+        self.rearm_timer();
+    }
+
+    fn rearm_timer(&self) {
+        let store = Arc::clone(&self.store);
+        let timer_task = Arc::clone(&self.timer_task);
+        let running = Arc::clone(&self.running);
+        let on_job = self.on_job.clone();
+        let store_path = self.store_path.clone();
+
+        tokio::spawn(async move {
+            // Cancel existing timer task before scheduling the next wake.
+            {
+                let mut timer_guard = timer_task.lock().await;
+                if let Some(task) = timer_guard.take() {
+                    task.abort();
+                }
+            }
+
+            let is_running = *running.read().await;
+            if !is_running {
+                return;
+            }
+
+            let next_wake = {
+                let store_guard = store.read().await;
+                store_guard.as_ref().and_then(|cron_store| {
+                    cron_store
+                        .jobs
+                        .iter()
+                        .filter(|j| j.enabled && j.state.next_run_at_ms.is_some())
+                        .filter_map(|j| j.state.next_run_at_ms)
+                        .min()
+                })
+            };
+
+            let Some(next_wake) = next_wake else {
+                return;
+            };
+
+            let delay_ms = (next_wake - now_ms()).max(0);
+            let delay = tokio::time::Duration::from_millis(delay_ms as u64);
+            let service = Arc::new(CronServiceHandle {
+                store: Arc::clone(&store),
+                timer_task: Arc::clone(&timer_task),
+                running: Arc::clone(&running),
+                on_job: on_job.clone(),
+                store_path: store_path.clone(),
+            });
+
+            let task = tokio::spawn(async move {
+                tokio::time::sleep(delay).await;
+                let is_running = *service.running.read().await;
+                if is_running {
+                    service.on_timer().await;
+                }
+            });
+
+            let mut timer_guard = timer_task.lock().await;
+            *timer_guard = Some(task);
+        });
     }
 }
 

@@ -1,5 +1,12 @@
 //! CLI entry point for agent-diva
 
+use agent_diva_agent::{AgentEvent, AgentLoop, ToolConfig};
+use agent_diva_channels::ChannelManager;
+use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage};
+use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersConfig};
+use agent_diva_core::cron::service::JobCallback;
+use agent_diva_core::cron::{CronSchedule, CronService};
+use agent_diva_providers::{LiteLLMClient, ProviderRegistry};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::style;
@@ -9,12 +16,6 @@ use crossterm::terminal::{
 };
 use crossterm::ExecutableCommand;
 use dialoguer::{Confirm, Input, Select};
-use agent_diva_agent::{AgentEvent, AgentLoop, ToolConfig};
-use agent_diva_channels::ChannelManager;
-use agent_diva_core::bus::{InboundMessage, MessageBus};
-use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersConfig};
-use agent_diva_core::cron::{CronSchedule, CronService};
-use agent_diva_providers::{LiteLLMClient, ProviderRegistry};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
@@ -25,7 +26,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
-use tokio::sync::{mpsc, broadcast};
+use tokio::sync::{broadcast, mpsc};
 use tracing::{error, info, warn};
 
 mod client;
@@ -62,7 +63,7 @@ enum Commands {
     /// Send a message to the agent
     Agent {
         /// Message to send
-        #[arg(short, long)]
+        #[arg(long)]
         message: Option<String>,
         /// Model to use
         #[arg(short, long)]
@@ -154,6 +155,14 @@ enum CronCommands {
         /// Enable or disable
         #[arg(short, long)]
         enabled: bool,
+    },
+    /// Manually run a cron job
+    Run {
+        /// Job ID
+        job_id: String,
+        /// Run even if job is disabled
+        #[arg(short, long)]
+        force: bool,
     },
 }
 
@@ -262,6 +271,10 @@ async fn main() -> Result<()> {
                 info!("Enabling/disabling cron job: {}", job_id);
                 run_cron_enable(&config_loader, job_id, enabled).await?;
             }
+            CronCommands::Run { job_id, force } => {
+                info!("Running cron job: {}", job_id);
+                run_cron_run(&config_loader, job_id, force).await?;
+            }
         },
     }
 
@@ -276,6 +289,14 @@ fn expand_tilde(path: &str) -> PathBuf {
         }
     }
     PathBuf::from(path)
+}
+
+fn cron_store_path(loader: &ConfigLoader) -> PathBuf {
+    loader
+        .config_dir()
+        .join("data")
+        .join("cron")
+        .join("jobs.json")
 }
 
 fn provider_config_by_name<'a>(
@@ -326,8 +347,13 @@ fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
                 Some(base)
             }
         });
-    
-    tracing::info!("build_provider: model={}, provider={}, api_base={:?}", model, spec.name, api_base);
+
+    tracing::info!(
+        "build_provider: model={}, provider={}, api_base={:?}",
+        model,
+        spec.name,
+        api_base
+    );
 
     let extra_headers = provider_config
         .and_then(|cfg| cfg.extra_headers.clone())
@@ -438,6 +464,7 @@ async fn run_onboard(loader: &ConfigLoader) -> Result<()> {
     // Create workspace directory
     let workspace_path = expand_tilde(&config.agents.defaults.workspace);
     std::fs::create_dir_all(&workspace_path)?;
+    std::fs::create_dir_all(workspace_path.join("skills"))?;
 
     println!(
         "\n{}",
@@ -445,17 +472,24 @@ async fn run_onboard(loader: &ConfigLoader) -> Result<()> {
     );
     println!("Config location: {}", config_path.display());
     println!("\nYou can now run:");
-    println!("  {} - Start the gateway", style("agent-diva gateway").cyan());
+    println!(
+        "  {} - Start the gateway",
+        style("agent-diva gateway").cyan()
+    );
     println!(
         "  {} - Send a message",
         style("agent-diva agent --message 'Hello!'").cyan()
+    );
+    println!(
+        "  Skills: {}",
+        style("~/.agent-diva/workspace/skills/<skill-name>/SKILL.md").cyan()
     );
 
     Ok(())
 }
 
+use agent_diva_manager::{run_server, AppState, Manager};
 use agent_diva_providers::{DynamicProvider, LLMProvider};
-use agent_diva_manager::{Manager, AppState, run_server};
 
 /// Run the agent gateway
 async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
@@ -483,6 +517,71 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
         // Create message bus
         let bus = MessageBus::new();
 
+        // Create cron service and bind scheduled jobs to inbound queue.
+        let cron_store = cron_store_path(loader);
+        let bus_for_cron = bus.clone();
+        let cron_callback: JobCallback = Arc::new(
+            move |job: agent_diva_core::cron::CronJob| -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Option<String>> + Send>,
+            > {
+                let bus = bus_for_cron.clone();
+                Box::pin(async move {
+                    let deliver = job.payload.deliver;
+                    if !deliver {
+                        return Some("skipped (deliver=false)".to_string());
+                    }
+
+                    let target_channel = job
+                        .payload
+                        .channel
+                        .clone()
+                        .unwrap_or_else(|| "cli".to_string());
+                    let target_chat_id = job
+                        .payload
+                        .to
+                        .clone()
+                        .unwrap_or_else(|| "direct".to_string());
+                    // Keep scheduled reminders lightweight: directly deliver payload message.
+                    if target_channel == "api" {
+                        let api_chat_id = if target_chat_id.starts_with("cron:") {
+                            target_chat_id
+                        } else {
+                            format!("cron:{}", target_chat_id)
+                        };
+                        let _ = bus.publish_event(
+                            "api",
+                            api_chat_id,
+                            AgentEvent::FinalResponse {
+                                content: job.payload.message,
+                            },
+                        );
+                        return Some("delivered to api event stream".to_string());
+                    }
+
+                    let mut outbound = OutboundMessage::new(
+                        target_channel.clone(),
+                        target_chat_id,
+                        job.payload.message,
+                    );
+                    outbound.metadata.insert(
+                        "cron_job_id".to_string(),
+                        serde_json::Value::String(job.id.clone()),
+                    );
+                    if let Err(e) = bus.publish_outbound(outbound) {
+                        error!("Failed to publish cron outbound job {}: {}", job.id, e);
+                        return Some(format!(
+                            "failed to publish cron outbound job {}: {}",
+                            job.id, e
+                        ));
+                    }
+
+                    Some("delivered".to_string())
+                })
+            },
+        );
+        let cron_service = Arc::new(CronService::new(cron_store, Some(cron_callback)));
+        cron_service.start().await;
+
         // Create provider with Dynamic wrapper for hot-swapping
         let initial_provider = Arc::new(build_provider(&config, &config.agents.defaults.model)?);
         let dynamic_provider = Arc::new(DynamicProvider::new(initial_provider));
@@ -505,6 +604,7 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
             exec_timeout,
             restrict_to_workspace,
             mcp_servers: config.tools.mcp_servers.clone(),
+            cron_service: Some(Arc::clone(&cron_service)),
         };
 
         let agent = AgentLoop::with_tools(
@@ -518,7 +618,10 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
 
         // Extract provider keys for Manager
         let (provider_api_key, provider_api_base) = {
-             let name_from_prefix = config.agents.defaults.model
+            let name_from_prefix = config
+                .agents
+                .defaults
+                .model
                 .split('/')
                 .next()
                 .and_then(|prefix| registry.find_by_name(prefix))
@@ -529,9 +632,13 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
                 .or_else(|| registry.find_by_model(&config.agents.defaults.model))
                 .ok_or_else(|| anyhow::anyhow!("No provider found for model"))?;
             let provider_config = provider_config_by_name(&config.providers, &spec.name);
-            
-            let pk = provider_config.map(|cfg| cfg.api_key.clone()).filter(|k| !k.is_empty());
-            let pb = provider_config.and_then(|cfg| cfg.api_base.clone()).filter(|b| !b.trim().is_empty());
+
+            let pk = provider_config
+                .map(|cfg| cfg.api_key.clone())
+                .filter(|k| !k.is_empty());
+            let pb = provider_config
+                .and_then(|cfg| cfg.api_base.clone())
+                .filter(|b| !b.trim().is_empty());
             (pk, pb)
         };
 
@@ -578,9 +685,9 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
         // Create Manager
         let (api_tx, api_rx) = mpsc::channel(100);
         let manager = Manager::new(
-            api_rx, 
-            bus.clone(), 
-            dynamic_provider, 
+            api_rx,
+            bus.clone(),
+            dynamic_provider,
             loader.clone(),
             config.agents.defaults.model.clone(),
             provider_api_key,
@@ -645,18 +752,24 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
         });
 
         // Run API Server
-        let state = AppState { api_tx };
+        let state = AppState {
+            api_tx,
+            bus: bus.clone(),
+        };
         let (server_shutdown_tx, server_shutdown_rx) = broadcast::channel(1);
         let server_handle = tokio::spawn(async move {
             if let Err(e) = run_server(state, 3000, server_shutdown_rx).await {
-                 error!("API Server error: {}", e);
+                error!("API Server error: {}", e);
             }
         });
-        
-        println!("{}", style("API Server running on http://localhost:3000").green());
+
+        println!(
+            "{}",
+            style("API Server running on http://localhost:3000").green()
+        );
 
         // Wait for shutdown signal
-        
+
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 println!("\n{}", style("Shutting down...").yellow());
@@ -677,7 +790,7 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
         // Stop the bus to signal all components to shut down
         // Move bus stop before stopping channel manager to ensure no new messages are processed
         bus.stop().await;
-        
+
         // Wait for components to shut down gracefully
         // Send shutdown signal to server and wait for it
         let _ = server_shutdown_tx.send(());
@@ -688,17 +801,18 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
 
         inbound_bridge_handle.abort();
         let _ = inbound_bridge_handle.await;
-        
+
         outbound_dispatch_handle.abort();
         let _ = outbound_dispatch_handle.await;
-        
+
         agent_handle.abort();
         let _ = agent_handle.await;
 
         if let Err(e) = channel_manager.stop_all().await {
             error!("Failed to stop channels: {}", e);
         }
-        
+        cron_service.stop().await;
+
         println!("{}", style("Gateway stopped.").green());
     }
 
@@ -728,6 +842,7 @@ async fn run_agent(
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.mcp_servers.clone(),
+        cron_service: Some(Arc::new(CronService::new(cron_store_path(loader), None))),
     };
 
     let mut agent = AgentLoop::with_tools(
@@ -918,6 +1033,7 @@ async fn run_tui(
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.mcp_servers.clone(),
+        cron_service: Some(Arc::new(CronService::new(cron_store_path(loader), None))),
     };
 
     let mut agent = AgentLoop::with_tools(
@@ -970,8 +1086,11 @@ async fn run_tui(
                 app.model, app.session_key, status
             );
             frame.render_widget(
-                Paragraph::new(status_line)
-                    .block(Block::default().borders(Borders::ALL).title("agent-diva tui")),
+                Paragraph::new(status_line).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("agent-diva tui"),
+                ),
                 chunks[0],
             );
 
@@ -1359,7 +1478,7 @@ async fn run_cron_add(
     // Get data directory
     let data_dir = loader.config_dir().join("data");
     std::fs::create_dir_all(&data_dir)?;
-    let store_path = data_dir.join("cron").join("jobs.json");
+    let store_path = cron_store_path(loader);
     std::fs::create_dir_all(store_path.parent().unwrap())?;
 
     let service = Arc::new(CronService::new(store_path, None));
@@ -1383,8 +1502,7 @@ async fn run_cron_add(
 
 /// List cron jobs
 async fn run_cron_list(loader: &ConfigLoader, include_all: bool) -> Result<()> {
-    let data_dir = loader.config_dir().join("data");
-    let store_path = data_dir.join("cron").join("jobs.json");
+    let store_path = cron_store_path(loader);
 
     if !store_path.exists() {
         println!("No scheduled jobs.");
@@ -1464,8 +1582,7 @@ async fn run_cron_list(loader: &ConfigLoader, include_all: bool) -> Result<()> {
 
 /// Remove a cron job
 async fn run_cron_remove(loader: &ConfigLoader, job_id: String) -> Result<()> {
-    let data_dir = loader.config_dir().join("data");
-    let store_path = data_dir.join("cron").join("jobs.json");
+    let store_path = cron_store_path(loader);
 
     if !store_path.exists() {
         println!("No scheduled jobs.");
@@ -1490,8 +1607,7 @@ async fn run_cron_remove(loader: &ConfigLoader, job_id: String) -> Result<()> {
 
 /// Enable or disable a cron job
 async fn run_cron_enable(loader: &ConfigLoader, job_id: String, enabled: bool) -> Result<()> {
-    let data_dir = loader.config_dir().join("data");
-    let store_path = data_dir.join("cron").join("jobs.json");
+    let store_path = cron_store_path(loader);
 
     if !store_path.exists() {
         println!("No scheduled jobs.");
@@ -1515,10 +1631,39 @@ async fn run_cron_enable(loader: &ConfigLoader, job_id: String, enabled: bool) -
     Ok(())
 }
 
+/// Manually run a cron job
+async fn run_cron_run(loader: &ConfigLoader, job_id: String, force: bool) -> Result<()> {
+    let store_path = cron_store_path(loader);
+
+    if !store_path.exists() {
+        println!("No scheduled jobs.");
+        return Ok(());
+    }
+
+    let service = Arc::new(CronService::new(store_path, None));
+    service.start().await;
+
+    let result = service.run_job(&job_id, force).await;
+
+    service.stop().await;
+
+    if result {
+        println!("{} Ran job {}", style("[OK]").green().bold(), job_id);
+    } else {
+        println!(
+            "{} Job {} not found or disabled",
+            style("[ERR]").red(),
+            job_id
+        );
+    }
+
+    Ok(())
+}
+
 async fn run_agent_remote(message: &str, api_url: Option<String>) -> Result<()> {
     let client = ApiClient::new(api_url);
     let (event_tx, mut event_rx) = mpsc::unbounded_channel();
-    
+
     let msg = message.to_string();
     tokio::spawn(async move {
         if let Err(e) = client.chat(msg, event_tx).await {
@@ -1527,7 +1672,7 @@ async fn run_agent_remote(message: &str, api_url: Option<String>) -> Result<()> 
     });
 
     println!("{}", style("Processing (remote)...").cyan());
-    
+
     while let Some(event) = event_rx.recv().await {
         match event {
             AgentEvent::AssistantDelta { text } => {
@@ -1556,7 +1701,7 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
     let current_session = session.unwrap_or_else(|| "cli:tui:remote".to_string());
     let (request_tx, mut request_rx) = mpsc::unbounded_channel::<(String, String)>();
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AgentEvent>();
-    
+
     let client = ApiClient::new(api_url);
     let client = Arc::new(client);
 
@@ -1566,7 +1711,7 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
             let event_tx = event_tx.clone();
             tokio::spawn(async move {
                 if let Err(e) = client.chat(prompt, event_tx).await {
-                     error!("Remote chat error: {}", e);
+                    error!("Remote chat error: {}", e);
                 }
             });
         }
@@ -1579,7 +1724,7 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = TuiApp::new(current_session, "remote".to_string());
-    
+
     // TUI Loop (duplicated from run_tui for now)
     loop {
         while let Ok(evt) = event_rx.try_recv() {
@@ -1602,8 +1747,11 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
                 app.model, app.session_key, status
             );
             frame.render_widget(
-                Paragraph::new(status_line)
-                    .block(Block::default().borders(Borders::ALL).title("agent-diva tui (remote)")),
+                Paragraph::new(status_line).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("agent-diva tui (remote)"),
+                ),
                 chunks[0],
             );
 

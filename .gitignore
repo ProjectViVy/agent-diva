@@ -45,3 +45,5 @@ target/doc/
 # Temporary files
 *.tmp
 *.temp
+
+log/

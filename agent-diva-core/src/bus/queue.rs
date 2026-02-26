@@ -1,9 +1,9 @@
 //! Async message queue implementation
 
-use super::events::{InboundMessage, OutboundMessage, AgentEvent, AgentBusEvent};
+use super::events::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock, broadcast};
+use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::debug;
 
 /// Type alias for message channel senders
@@ -55,7 +55,12 @@ impl MessageBus {
     }
 
     /// Publish an event to the broadcast channel
-    pub fn publish_event(&self, channel: impl Into<String>, chat_id: impl Into<String>, event: AgentEvent) -> crate::Result<()> {
+    pub fn publish_event(
+        &self,
+        channel: impl Into<String>,
+        chat_id: impl Into<String>,
+        event: AgentEvent,
+    ) -> crate::Result<()> {
         let bus_event = AgentBusEvent {
             channel: channel.into(),
             chat_id: chat_id.into(),

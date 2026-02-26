@@ -177,6 +177,8 @@ The Python version supported dynamic plugin loading. The Rust version uses a dif
 | spawn | ✅ | ✅ |
 | cron | ✅ | ✅ |
 
+> Note: In Rust, cron jobs are executed automatically while `agent-diva gateway` is running.
+
 ## Post-Migration Checklist
 
 After migrating:
@@ -187,6 +189,12 @@ After migrating:
 - [ ] Test a few conversations
 - [ ] Check that skills load correctly
 - [ ] Verify tools work as expected
+
+### Skills Path and Metadata
+
+- Workspace skills are loaded from `~/.agent-diva/workspace/skills/<skill-name>/SKILL.md`.
+- Built-in skills are loaded from `agent-diva/skills/<skill-name>/SKILL.md`.
+- Skill `metadata` JSON supports `nanobot` and `openclaw` keys.
 
 ## Rollback
 

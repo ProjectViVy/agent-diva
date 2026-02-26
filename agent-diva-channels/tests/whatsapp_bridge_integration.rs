@@ -1,7 +1,7 @@
-﻿use futures::{SinkExt, StreamExt};
 use agent_diva_channels::{ChannelHandler, WhatsAppHandler};
 use agent_diva_core::bus::OutboundMessage;
 use agent_diva_core::config::WhatsAppConfig;
+use futures::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},

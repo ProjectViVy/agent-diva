@@ -1,8 +1,8 @@
 //! Heartbeat service for periodic agent wake-up
 
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::future::Future;
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -13,17 +13,24 @@ use crate::heartbeat::types::{is_heartbeat_empty, HeartbeatConfig, HeartbeatDeci
 
 /// Callback for the LLM decision phase: takes HEARTBEAT.md content and returns a HeartbeatDecision.
 pub type HeartbeatDecideCallback = Arc<
-    dyn Fn(String) -> Pin<Box<dyn Future<Output = Result<HeartbeatDecision, Box<dyn std::error::Error + Send + Sync>>> + Send>>
-        + Send
+    dyn Fn(
+            String,
+        ) -> Pin<
+            Box<
+                dyn Future<
+                        Output = Result<
+                            HeartbeatDecision,
+                            Box<dyn std::error::Error + Send + Sync>,
+                        >,
+                    > + Send,
+            >,
+        > + Send
         + Sync,
 >;
 
 /// Callback for the task execution phase: takes a tasks summary string and runs the agent loop.
-pub type HeartbeatExecuteCallback = Arc<
-    dyn Fn(String) -> Pin<Box<dyn Future<Output = String> + Send>>
-        + Send
-        + Sync,
->;
+pub type HeartbeatExecuteCallback =
+    Arc<dyn Fn(String) -> Pin<Box<dyn Future<Output = String> + Send>> + Send + Sync>;
 
 /// Periodic heartbeat service that wakes the agent to check for tasks.
 ///
@@ -227,7 +234,10 @@ impl HeartbeatServiceHandle {
             Ok(d) => d,
             Err(e) => {
                 warn!("Heartbeat decide failed, defaulting to skip: {}", e);
-                HeartbeatDecision { action: "skip".to_string(), tasks: None }
+                HeartbeatDecision {
+                    action: "skip".to_string(),
+                    tasks: None,
+                }
             }
         };
 
@@ -259,7 +269,10 @@ mod tests {
     fn skip_decide() -> HeartbeatDecideCallback {
         Arc::new(|_content: String| {
             Box::pin(async move {
-                Ok(HeartbeatDecision { action: "skip".to_string(), tasks: None })
+                Ok(HeartbeatDecision {
+                    action: "skip".to_string(),
+                    tasks: None,
+                })
             })
         })
     }
@@ -270,7 +283,10 @@ mod tests {
         Arc::new(move |_content: String| {
             let tasks = tasks.clone();
             Box::pin(async move {
-                Ok(HeartbeatDecision { action: "run".to_string(), tasks: Some(tasks) })
+                Ok(HeartbeatDecision {
+                    action: "run".to_string(),
+                    tasks: Some(tasks),
+                })
             })
         })
     }
@@ -286,7 +302,10 @@ mod tests {
     #[tokio::test]
     async fn test_heartbeat_service_disabled() {
         let temp_dir = TempDir::new().unwrap();
-        let config = HeartbeatConfig { enabled: false, interval_s: 60 };
+        let config = HeartbeatConfig {
+            enabled: false,
+            interval_s: 60,
+        };
         let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
         service.start().await;
         assert!(!service.is_running().await);
@@ -295,7 +314,10 @@ mod tests {
     #[tokio::test]
     async fn test_heartbeat_service_start_stop() {
         let temp_dir = TempDir::new().unwrap();
-        let config = HeartbeatConfig { enabled: true, interval_s: 3600 };
+        let config = HeartbeatConfig {
+            enabled: true,
+            interval_s: 3600,
+        };
         let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
         service.start().await;
         assert!(service.is_running().await);
@@ -311,7 +333,10 @@ mod tests {
         let status = service.status().await;
         assert!(status["enabled"].as_bool().unwrap());
         assert!(!status["running"].as_bool().unwrap());
-        assert_eq!(status["interval_s"].as_i64().unwrap(), DEFAULT_HEARTBEAT_INTERVAL_S);
+        assert_eq!(
+            status["interval_s"].as_i64().unwrap(),
+            DEFAULT_HEARTBEAT_INTERVAL_S
+        );
     }
 
     #[tokio::test]
@@ -328,10 +353,14 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         // Write actionable content so it doesn't short-circuit
         tokio::fs::write(temp_dir.path().join("HEARTBEAT.md"), "Do something")
-            .await.unwrap();
+            .await
+            .unwrap();
         let config = HeartbeatConfig::default();
         let service = HeartbeatService::new(
-            temp_dir.path().to_path_buf(), config, Some(skip_decide()), None,
+            temp_dir.path().to_path_buf(),
+            config,
+            Some(skip_decide()),
+            None,
         );
         let result = service.trigger_now().await.unwrap();
         assert_eq!(result, "skip");
@@ -341,7 +370,8 @@ mod tests {
     async fn test_heartbeat_trigger_now_run_calls_execute() {
         let temp_dir = TempDir::new().unwrap();
         tokio::fs::write(temp_dir.path().join("HEARTBEAT.md"), "Check logs")
-            .await.unwrap();
+            .await
+            .unwrap();
 
         let execute_counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = Arc::clone(&execute_counter);
@@ -355,8 +385,10 @@ mod tests {
 
         let config = HeartbeatConfig::default();
         let service = HeartbeatService::new(
-            temp_dir.path().to_path_buf(), config,
-            Some(run_decide("Check logs")), Some(on_execute),
+            temp_dir.path().to_path_buf(),
+            config,
+            Some(run_decide("Check logs")),
+            Some(on_execute),
         );
         let result = service.trigger_now().await.unwrap();
         assert!(result.contains("executed"));
@@ -366,8 +398,12 @@ mod tests {
     #[tokio::test]
     async fn test_heartbeat_skip_no_execute_called() {
         let temp_dir = TempDir::new().unwrap();
-        tokio::fs::write(temp_dir.path().join("HEARTBEAT.md"), "# Tasks\n\nCheck logs")
-            .await.unwrap();
+        tokio::fs::write(
+            temp_dir.path().join("HEARTBEAT.md"),
+            "# Tasks\n\nCheck logs",
+        )
+        .await
+        .unwrap();
 
         let decide_counter = Arc::new(AtomicUsize::new(0));
         let dc = Arc::clone(&decide_counter);
@@ -375,7 +411,10 @@ mod tests {
             let dc = Arc::clone(&dc);
             Box::pin(async move {
                 dc.fetch_add(1, Ordering::SeqCst);
-                Ok(HeartbeatDecision { action: "skip".to_string(), tasks: None })
+                Ok(HeartbeatDecision {
+                    action: "skip".to_string(),
+                    tasks: None,
+                })
             })
         });
 
@@ -389,10 +428,15 @@ mod tests {
             })
         });
 
-        let config = HeartbeatConfig { enabled: true, interval_s: 1 };
+        let config = HeartbeatConfig {
+            enabled: true,
+            interval_s: 1,
+        };
         let service = HeartbeatService::new(
-            temp_dir.path().to_path_buf(), config,
-            Some(on_decide), Some(on_execute),
+            temp_dir.path().to_path_buf(),
+            config,
+            Some(on_decide),
+            Some(on_execute),
         );
         service.start().await;
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
@@ -408,7 +452,9 @@ mod tests {
         tokio::fs::write(
             temp_dir.path().join("HEARTBEAT.md"),
             "# Title\n\n<!-- comment -->\n- [ ]\n",
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         let decide_counter = Arc::new(AtomicUsize::new(0));
         let dc = Arc::clone(&decide_counter);
@@ -416,14 +462,19 @@ mod tests {
             let dc = Arc::clone(&dc);
             Box::pin(async move {
                 dc.fetch_add(1, Ordering::SeqCst);
-                Ok(HeartbeatDecision { action: "skip".to_string(), tasks: None })
+                Ok(HeartbeatDecision {
+                    action: "skip".to_string(),
+                    tasks: None,
+                })
             })
         });
 
-        let config = HeartbeatConfig { enabled: true, interval_s: 1 };
-        let service = HeartbeatService::new(
-            temp_dir.path().to_path_buf(), config, Some(on_decide), None,
-        );
+        let config = HeartbeatConfig {
+            enabled: true,
+            interval_s: 1,
+        };
+        let service =
+            HeartbeatService::new(temp_dir.path().to_path_buf(), config, Some(on_decide), None);
         service.start().await;
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         service.stop().await;
@@ -436,13 +487,11 @@ mod tests {
     async fn test_heartbeat_malformed_decide_defaults_to_skip() {
         let temp_dir = TempDir::new().unwrap();
         tokio::fs::write(temp_dir.path().join("HEARTBEAT.md"), "Do something")
-            .await.unwrap();
+            .await
+            .unwrap();
 
-        let on_decide: HeartbeatDecideCallback = Arc::new(|_content: String| {
-            Box::pin(async move {
-                Err("LLM error".into())
-            })
-        });
+        let on_decide: HeartbeatDecideCallback =
+            Arc::new(|_content: String| Box::pin(async move { Err("LLM error".into()) }));
 
         let execute_counter = Arc::new(AtomicUsize::new(0));
         let ec = Arc::clone(&execute_counter);
@@ -454,10 +503,15 @@ mod tests {
             })
         });
 
-        let config = HeartbeatConfig { enabled: true, interval_s: 1 };
+        let config = HeartbeatConfig {
+            enabled: true,
+            interval_s: 1,
+        };
         let service = HeartbeatService::new(
-            temp_dir.path().to_path_buf(), config,
-            Some(on_decide), Some(on_execute),
+            temp_dir.path().to_path_buf(),
+            config,
+            Some(on_decide),
+            Some(on_execute),
         );
         service.start().await;
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;

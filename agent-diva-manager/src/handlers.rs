@@ -1,18 +1,21 @@
+use agent_diva_agent::AgentEvent;
+use agent_diva_core::bus::InboundMessage;
+use agent_diva_core::config::schema::ChannelsConfig;
+use agent_diva_providers::ProviderRegistry;
 use axum::{
-    extract::{State, Path},
+    extract::{Path, Query, State},
     response::sse::{Event, Sse},
     Json,
 };
 use futures::stream::{Stream, StreamExt};
 use std::convert::Infallible;
 use tokio::sync::{mpsc, oneshot};
+use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use agent_diva_agent::AgentEvent;
-use agent_diva_core::bus::InboundMessage;
-use agent_diva_core::config::schema::ChannelsConfig;
-use agent_diva_providers::ProviderRegistry;
 
-use crate::state::{AppState, ApiRequest, ManagerCommand, ConfigUpdate, ConfigResponse, ChannelUpdate};
+use crate::state::{
+    ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, ManagerCommand,
+};
 
 #[derive(serde::Deserialize)]
 pub struct ChatRequest {
@@ -21,12 +24,19 @@ pub struct ChatRequest {
     pub chat_id: Option<String>,
 }
 
+#[derive(serde::Deserialize, Default)]
+pub struct EventsQuery {
+    pub channel: Option<String>,
+    pub chat_id: Option<String>,
+    pub chat_prefix: Option<String>,
+}
+
 pub async fn chat_handler(
     State(state): State<AppState>,
     Json(payload): Json<ChatRequest>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let (event_tx, event_rx) = mpsc::unbounded_channel();
-    
+
     let msg = InboundMessage::new(
         payload.channel.unwrap_or("api".to_string()),
         "user",
@@ -34,10 +44,7 @@ pub async fn chat_handler(
         payload.message,
     );
 
-    let req = ApiRequest {
-        msg,
-        event_tx,
-    };
+    let req = ApiRequest { msg, event_tx };
 
     if let Err(e) = state.api_tx.send(ManagerCommand::Chat(req)).await {
         tracing::error!("Failed to send API request to manager: {}", e);
@@ -45,9 +52,7 @@ pub async fn chat_handler(
 
     let stream = UnboundedReceiverStream::new(event_rx).map(|event| {
         let evt = match event {
-            AgentEvent::AssistantDelta { text } => {
-                Event::default().event("delta").data(text)
-            }
+            AgentEvent::AssistantDelta { text } => Event::default().event("delta").data(text),
             AgentEvent::ReasoningDelta { text } => {
                 Event::default().event("reasoning_delta").data(text)
             }
@@ -58,10 +63,12 @@ pub async fn chat_handler(
                 });
                 Event::default().event("tool_delta").data(data.to_string())
             }
-            AgentEvent::FinalResponse { content } => {
-                Event::default().event("final").data(content)
-            }
-            AgentEvent::ToolCallStarted { name, args_preview, call_id } => {
+            AgentEvent::FinalResponse { content } => Event::default().event("final").data(content),
+            AgentEvent::ToolCallStarted {
+                name,
+                args_preview,
+                call_id,
+            } => {
                 let data = serde_json::json!({
                     "name": name,
                     "args": args_preview,
@@ -69,7 +76,12 @@ pub async fn chat_handler(
                 });
                 Event::default().event("tool_start").data(data.to_string())
             }
-            AgentEvent::ToolCallFinished { name, result, is_error, call_id } => {
+            AgentEvent::ToolCallFinished {
+                name,
+                result,
+                is_error,
+                call_id,
+            } => {
                 let data = serde_json::json!({
                     "name": name,
                     "result": result,
@@ -78,9 +90,7 @@ pub async fn chat_handler(
                 });
                 Event::default().event("tool_finish").data(data.to_string())
             }
-            AgentEvent::Error { message } => {
-                Event::default().event("error").data(message)
-            }
+            AgentEvent::Error { message } => Event::default().event("error").data(message),
             _ => Event::default().comment("keep-alive"),
         };
         Ok(evt)
@@ -89,9 +99,66 @@ pub async fn chat_handler(
     Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
 }
 
-pub async fn get_config_handler(
+pub async fn events_handler(
     State(state): State<AppState>,
-) -> Json<ConfigResponse> {
+    Query(query): Query<EventsQuery>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let event_rx = state.bus.subscribe_events();
+    let channel_filter = query.channel;
+    let chat_id_filter = query.chat_id;
+    let chat_prefix_filter = query.chat_prefix;
+
+    let stream = BroadcastStream::new(event_rx).filter_map(move |evt| {
+        let channel_filter = channel_filter.clone();
+        let chat_id_filter = chat_id_filter.clone();
+        let chat_prefix_filter = chat_prefix_filter.clone();
+        async move {
+            let Ok(bus_event) = evt else {
+                return None;
+            };
+
+            if let Some(ch) = &channel_filter {
+                if bus_event.channel != *ch {
+                    return None;
+                }
+            }
+            if let Some(chat_id) = &chat_id_filter {
+                if bus_event.chat_id != *chat_id {
+                    return None;
+                }
+            }
+            if let Some(prefix) = &chat_prefix_filter {
+                if !bus_event.chat_id.starts_with(prefix) {
+                    return None;
+                }
+            }
+
+            match bus_event.event {
+                AgentEvent::FinalResponse { content } => {
+                    let data = serde_json::json!({
+                        "channel": bus_event.channel,
+                        "chat_id": bus_event.chat_id,
+                        "content": content
+                    });
+                    Some(Ok(Event::default().event("final").data(data.to_string())))
+                }
+                AgentEvent::Error { message } => {
+                    let data = serde_json::json!({
+                        "channel": bus_event.channel,
+                        "chat_id": bus_event.chat_id,
+                        "message": message
+                    });
+                    Some(Ok(Event::default().event("error").data(data.to_string())))
+                }
+                _ => None,
+            }
+        }
+    });
+
+    Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
+}
+
+pub async fn get_config_handler(State(state): State<AppState>) -> Json<ConfigResponse> {
     let (tx, rx) = oneshot::channel();
     if let Err(e) = state.api_tx.send(ManagerCommand::GetConfig(tx)).await {
         tracing::error!("Failed to send GetConfig request: {}", e);
@@ -101,7 +168,7 @@ pub async fn get_config_handler(
             has_api_key: false,
         });
     }
-    
+
     match rx.await {
         Ok(resp) => Json(resp),
         Err(e) => {
@@ -120,17 +187,19 @@ pub async fn update_config_handler(
     Json(payload): Json<ConfigUpdate>,
 ) -> Json<serde_json::Value> {
     tracing::info!("Received update config request: {:?}", payload);
-    if let Err(e) = state.api_tx.send(ManagerCommand::UpdateConfig(payload)).await {
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UpdateConfig(payload))
+        .await
+    {
         tracing::error!("Failed to send UpdateConfig request: {}", e);
         return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
     }
-    
+
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-pub async fn get_channels_handler(
-    State(state): State<AppState>,
-) -> Json<ChannelsConfig> {
+pub async fn get_channels_handler(State(state): State<AppState>) -> Json<ChannelsConfig> {
     let (tx, rx) = oneshot::channel();
     if let Err(e) = state.api_tx.send(ManagerCommand::GetChannels(tx)).await {
         tracing::error!("Failed to send GetChannels request: {}", e);
@@ -150,11 +219,15 @@ pub async fn update_channel_handler(
     Json(payload): Json<ChannelUpdate>,
 ) -> Json<serde_json::Value> {
     tracing::info!("Received update channel request: {}", payload.name);
-    if let Err(e) = state.api_tx.send(ManagerCommand::UpdateChannel(payload)).await {
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UpdateChannel(payload))
+        .await
+    {
         tracing::error!("Failed to send UpdateChannel request: {}", e);
         return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
     }
-    
+
     Json(serde_json::json!({ "status": "ok" }))
 }
 
@@ -164,7 +237,7 @@ pub async fn test_channel_handler(
     Json(config): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
     tracing::info!("Received test channel request: {}", name);
-    
+
     let payload = ChannelUpdate {
         name: name.clone(),
         enabled: Some(true),
@@ -173,7 +246,11 @@ pub async fn test_channel_handler(
 
     let (tx, rx) = oneshot::channel();
 
-    if let Err(e) = state.api_tx.send(ManagerCommand::TestChannel(payload, tx)).await {
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::TestChannel(payload, tx))
+        .await
+    {
         tracing::error!("Failed to send TestChannel request: {}", e);
         return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
     }

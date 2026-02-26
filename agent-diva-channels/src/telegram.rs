@@ -1,9 +1,9 @@
 //! Telegram channel integration
 
 use crate::base::{ChannelError, ChannelHandler, Result};
-use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::TelegramConfig;
+use async_trait::async_trait;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;

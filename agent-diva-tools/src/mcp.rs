@@ -1,8 +1,8 @@
-﻿//! MCP tools loaded from configured MCP servers.
+//! MCP tools loaded from configured MCP servers.
 
 use super::base::{Result, Tool, ToolError};
-use async_trait::async_trait;
 use agent_diva_core::config::MCPServerConfig;
+use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Write};
@@ -22,7 +22,12 @@ pub fn load_mcp_tools(configs: &HashMap<String, MCPServerConfig>) -> Vec<Arc<dyn
             Ok((transport, discovered)) => {
                 let timeout = cfg.tool_timeout;
                 for tool in discovered {
-                    tools.push(Arc::new(McpTool::new(server_name, transport.clone(), tool, timeout)));
+                    tools.push(Arc::new(McpTool::new(
+                        server_name,
+                        transport.clone(),
+                        tool,
+                        timeout,
+                    )));
                 }
             }
             Err(err) => {
@@ -58,7 +63,12 @@ struct McpTool {
 }
 
 impl McpTool {
-    fn new(server_name: &str, transport: McpTransport, tool: DiscoveredTool, tool_timeout: u64) -> Self {
+    fn new(
+        server_name: &str,
+        transport: McpTransport,
+        tool: DiscoveredTool,
+        tool_timeout: u64,
+    ) -> Self {
         let wrapped_name = format!(
             "mcp_{}_{}",
             sanitize_identifier(server_name),
@@ -117,7 +127,8 @@ impl Tool for McpTool {
                     result.map_err(|e| {
                         ToolError::ExecutionFailed(format!("MCP server '{}': {}", server_name, e))
                     })
-                }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<String>> + Send>>
+                })
+                    as std::pin::Pin<Box<dyn std::future::Future<Output = Result<String>> + Send>>
             }
             McpTransport::Http(client) => {
                 let client = Arc::clone(client);
@@ -138,7 +149,8 @@ impl Tool for McpTool {
                     result.map_err(|e| {
                         ToolError::ExecutionFailed(format!("MCP server '{}': {}", server_name, e))
                     })
-                }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<String>> + Send>>
+                })
+                    as std::pin::Pin<Box<dyn std::future::Future<Output = Result<String>> + Send>>
             }
         };
 

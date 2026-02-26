@@ -1,4 +1,4 @@
-﻿//! Skill loading and management
+//! Skill loading and management
 //!
 //! Skills are markdown files (SKILL.md) that teach the agent how to use
 //! specific tools or perform certain tasks. They contain YAML frontmatter
@@ -45,7 +45,7 @@ pub struct SkillMetadata {
 
 /// Parsed agent-diva metadata from JSON in frontmatter
 #[derive(Debug, Clone, Default)]
-pub struct AgentDivaMetadata {
+pub struct SkillRuntimeMetadata {
     pub emoji: Option<String>,
     pub always: bool,
     pub requires_bins: Vec<String>,
@@ -55,10 +55,17 @@ pub struct AgentDivaMetadata {
 /// Skills loader for agent capabilities
 pub struct SkillsLoader {
     workspace_skills: PathBuf,
-    builtin_skills: Option<PathBuf>,
+    builtin_skills: PathBuf,
 }
 
 impl SkillsLoader {
+    fn default_builtin_skills_dir() -> PathBuf {
+        // `agent-diva-agent` sits next to `skills/` in the workspace tree.
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("skills")
+    }
+
     /// Create a new skills loader
     ///
     /// # Arguments
@@ -70,7 +77,7 @@ impl SkillsLoader {
         let workspace_skills = workspace.join("skills");
         Self {
             workspace_skills,
-            builtin_skills: builtin_skills_dir,
+            builtin_skills: builtin_skills_dir.unwrap_or_else(Self::default_builtin_skills_dir),
         }
     }
 
@@ -107,22 +114,20 @@ impl SkillsLoader {
         }
 
         // Built-in skills
-        if let Some(ref builtin_dir) = self.builtin_skills {
-            if builtin_dir.exists() {
-                if let Ok(entries) = fs::read_dir(builtin_dir) {
-                    for entry in entries.flatten() {
-                        if entry.path().is_dir() {
-                            let skill_file = entry.path().join("SKILL.md");
-                            if skill_file.exists() {
-                                if let Some(name) = entry.file_name().to_str() {
-                                    // Skip if already in workspace skills
-                                    if !skills.iter().any(|s| s.name == name) {
-                                        skills.push(SkillInfo {
-                                            name: name.to_string(),
-                                            path: skill_file,
-                                            source: SkillSource::Builtin,
-                                        });
-                                    }
+        if self.builtin_skills.exists() {
+            if let Ok(entries) = fs::read_dir(&self.builtin_skills) {
+                for entry in entries.flatten() {
+                    if entry.path().is_dir() {
+                        let skill_file = entry.path().join("SKILL.md");
+                        if skill_file.exists() {
+                            if let Some(name) = entry.file_name().to_str() {
+                                // Skip if already in workspace skills
+                                if !skills.iter().any(|s| s.name == name) {
+                                    skills.push(SkillInfo {
+                                        name: name.to_string(),
+                                        path: skill_file,
+                                        source: SkillSource::Builtin,
+                                    });
                                 }
                             }
                         }
@@ -134,7 +139,7 @@ impl SkillsLoader {
         // Filter by requirements
         if filter_unavailable {
             skills.retain(|s| {
-                let meta = self.get_skill_agent_diva_metadata(&s.name);
+                let meta = self.get_skill_runtime_metadata(&s.name);
                 self.check_requirements(&meta)
             });
         }
@@ -159,11 +164,9 @@ impl SkillsLoader {
         }
 
         // Check built-in
-        if let Some(ref builtin_dir) = self.builtin_skills {
-            let builtin_skill = builtin_dir.join(name).join("SKILL.md");
-            if builtin_skill.exists() {
-                return fs::read_to_string(builtin_skill).ok();
-            }
+        let builtin_skill = self.builtin_skills.join(name).join("SKILL.md");
+        if builtin_skill.exists() {
+            return fs::read_to_string(builtin_skill).ok();
         }
 
         None
@@ -215,7 +218,7 @@ impl SkillsLoader {
             let name = Self::escape_xml(&skill.name);
             let path = skill.path.display().to_string();
             let desc = Self::escape_xml(&self.get_skill_description(&skill.name));
-            let meta = self.get_skill_agent_diva_metadata(&skill.name);
+            let meta = self.get_skill_runtime_metadata(&skill.name);
             let available = self.check_requirements(&meta);
 
             lines.push(format!(
@@ -250,9 +253,9 @@ impl SkillsLoader {
 
         for skill in self.list_skills(true) {
             let metadata = self.get_skill_metadata(&skill.name);
-            let agent_diva_meta = self.get_skill_agent_diva_metadata(&skill.name);
+            let runtime_meta = self.get_skill_runtime_metadata(&skill.name);
 
-            if metadata.always || agent_diva_meta.always {
+            if metadata.always || runtime_meta.always {
                 result.push(skill.name);
             }
         }
@@ -289,13 +292,13 @@ impl SkillsLoader {
         SkillMetadata::default()
     }
 
-    /// Get agent-diva-specific metadata from a skill
-    fn get_skill_agent_diva_metadata(&self, name: &str) -> AgentDivaMetadata {
+    /// Get runtime metadata from a skill frontmatter JSON blob.
+    fn get_skill_runtime_metadata(&self, name: &str) -> SkillRuntimeMetadata {
         let metadata = self.get_skill_metadata(name);
         if let Some(ref meta_str) = metadata.metadata {
-            return Self::parse_agent_diva_metadata(meta_str);
+            return Self::parse_runtime_metadata(meta_str);
         }
-        AgentDivaMetadata::default()
+        SkillRuntimeMetadata::default()
     }
 
     /// Get the description of a skill
@@ -305,7 +308,7 @@ impl SkillsLoader {
     }
 
     /// Check if skill requirements are met (bins, env vars)
-    fn check_requirements(&self, meta: &AgentDivaMetadata) -> bool {
+    fn check_requirements(&self, meta: &SkillRuntimeMetadata) -> bool {
         // Check required binaries
         for bin in &meta.requires_bins {
             if which::which(bin).is_err() {
@@ -324,7 +327,7 @@ impl SkillsLoader {
     }
 
     /// Get a description of missing requirements
-    fn get_missing_requirements(&self, meta: &AgentDivaMetadata) -> String {
+    fn get_missing_requirements(&self, meta: &SkillRuntimeMetadata) -> String {
         let mut missing = Vec::new();
 
         for bin in &meta.requires_bins {
@@ -379,29 +382,30 @@ impl SkillsLoader {
         metadata
     }
 
-    /// Parse agent-diva metadata JSON from frontmatter
-    fn parse_agent_diva_metadata(raw: &str) -> AgentDivaMetadata {
+    /// Parse runtime metadata JSON from frontmatter.
+    /// Supports `nanobot` and `openclaw` keys for compatibility.
+    fn parse_runtime_metadata(raw: &str) -> SkillRuntimeMetadata {
         let value: Value = match serde_json::from_str(raw) {
             Ok(v) => v,
-            Err(_) => return AgentDivaMetadata::default(),
+            Err(_) => return SkillRuntimeMetadata::default(),
         };
 
-        let diva = match value.get("agent-diva") {
+        let runtime = match value.get("nanobot").or_else(|| value.get("openclaw")) {
             Some(n) => n,
-            None => return AgentDivaMetadata::default(),
+            None => return SkillRuntimeMetadata::default(),
         };
 
-        let mut meta = AgentDivaMetadata::default();
+        let mut meta = SkillRuntimeMetadata::default();
 
-        if let Some(emoji) = diva.get("emoji").and_then(|v| v.as_str()) {
+        if let Some(emoji) = runtime.get("emoji").and_then(|v| v.as_str()) {
             meta.emoji = Some(emoji.to_string());
         }
 
-        if let Some(always) = diva.get("always").and_then(|v| v.as_bool()) {
+        if let Some(always) = runtime.get("always").and_then(|v| v.as_bool()) {
             meta.always = always;
         }
 
-        if let Some(requires) = diva.get("requires").and_then(|v| v.as_object()) {
+        if let Some(requires) = runtime.get("requires").and_then(|v| v.as_object()) {
             if let Some(bins) = requires.get("bins").and_then(|v| v.as_array()) {
                 meta.requires_bins = bins
                     .iter()
@@ -443,6 +447,7 @@ mod tests {
     #[test]
     fn test_list_skills() {
         let workspace = TempDir::new().unwrap();
+        let builtin = TempDir::new().unwrap();
         let skills_dir = workspace.path().join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
 
@@ -452,7 +457,7 @@ mod tests {
             "---\nname: test-skill\ndescription: A test skill\n---\n\n# Test\n",
         );
 
-        let loader = SkillsLoader::new(workspace.path(), None);
+        let loader = SkillsLoader::new(workspace.path(), Some(builtin.path().to_path_buf()));
         let skills = loader.list_skills(false);
 
         assert_eq!(skills.len(), 1);
@@ -494,13 +499,33 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_agent_diva_metadata() {
-        let json = r#"{"agent-diva":{"emoji":"🌤️","requires":{"bins":["curl"],"env":["API_KEY"]}}}"#;
-        let meta = SkillsLoader::parse_agent_diva_metadata(json);
+    fn test_parse_runtime_metadata_nanobot() {
+        let json =
+            r#"{"nanobot":{"emoji":"cloud","requires":{"bins":["curl"],"env":["API_KEY"]}}}"#;
+        let meta = SkillsLoader::parse_runtime_metadata(json);
 
-        assert_eq!(meta.emoji.unwrap(), "🌤️");
+        assert_eq!(meta.emoji.unwrap(), "cloud");
         assert_eq!(meta.requires_bins, vec!["curl"]);
         assert_eq!(meta.requires_env, vec!["API_KEY"]);
+    }
+
+    #[test]
+    fn test_parse_runtime_metadata_openclaw() {
+        let json = r#"{"openclaw":{"always":true,"requires":{"bins":["git"]}}}"#;
+        let meta = SkillsLoader::parse_runtime_metadata(json);
+
+        assert!(meta.always);
+        assert_eq!(meta.requires_bins, vec!["git"]);
+    }
+
+    #[test]
+    fn test_parse_runtime_metadata_ignores_agent_diva_key() {
+        let json = r#"{"agent-diva":{"always":true}}"#;
+        let meta = SkillsLoader::parse_runtime_metadata(json);
+
+        assert!(!meta.always);
+        assert!(meta.requires_bins.is_empty());
+        assert!(meta.requires_env.is_empty());
     }
 
     #[test]
@@ -527,5 +552,39 @@ mod tests {
         assert!(summary.contains("<skills>"));
         assert!(summary.contains("<name>weather</name>"));
         assert!(summary.contains("<description>Weather info</description>"));
+    }
+
+    #[test]
+    fn test_workspace_overrides_builtin() {
+        let workspace = TempDir::new().unwrap();
+        let builtin = TempDir::new().unwrap();
+        let workspace_skills = workspace.path().join("skills");
+        fs::create_dir_all(&workspace_skills).unwrap();
+
+        create_test_skill(
+            &workspace_skills,
+            "weather",
+            "---\nname: weather\ndescription: Workspace Weather\n---\n\n# Workspace\n",
+        );
+        create_test_skill(
+            builtin.path(),
+            "weather",
+            "---\nname: weather\ndescription: Builtin Weather\n---\n\n# Builtin\n",
+        );
+
+        let loader = SkillsLoader::new(workspace.path(), Some(builtin.path().to_path_buf()));
+        let summary = loader.build_skills_summary();
+
+        assert!(summary.contains("<description>Workspace Weather</description>"));
+        assert!(!summary.contains("Builtin Weather"));
+    }
+
+    #[test]
+    fn test_default_builtin_dir_loads_skills() {
+        let workspace = TempDir::new().unwrap();
+        let loader = SkillsLoader::new(workspace.path(), None);
+        let skills = loader.list_skills(false);
+
+        assert!(skills.iter().any(|s| s.source == SkillSource::Builtin));
     }
 }

@@ -93,7 +93,11 @@ pub async fn consolidate(
     let system_msg = Message::system(CONSOLIDATION_PROMPT);
     let user_content = format!(
         "## Existing Memory\n{}\n\n## Conversation to Consolidate\n{}",
-        if existing_memory.is_empty() { "(none)".to_string() } else { existing_memory },
+        if existing_memory.is_empty() {
+            "(none)".to_string()
+        } else {
+            existing_memory
+        },
         conversation,
     );
     let user_msg = Message::user(user_content);
@@ -116,11 +120,13 @@ pub async fn consolidate(
         .find(|tc| tc.name == "save_memory");
 
     if let Some(tc) = tool_call {
-        let memory_update = tc.arguments
+        let memory_update = tc
+            .arguments
             .get("memory_update")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let history_entry = tc.arguments
+        let history_entry = tc
+            .arguments
             .get("history_entry")
             .and_then(|v| v.as_str())
             .unwrap_or("");
@@ -140,7 +146,9 @@ pub async fn consolidate(
 
         info!("Consolidation complete with memory update");
     } else {
-        warn!("Consolidation LLM call did not return a save_memory tool call, skipping memory write");
+        warn!(
+            "Consolidation LLM call did not return a save_memory tool call, skipping memory write"
+        );
     }
 
     // Always advance the pointer to avoid infinite retry on the same messages.

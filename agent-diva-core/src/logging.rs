@@ -10,11 +10,11 @@ use crate::config::schema::LoggingConfig;
 pub fn init_logging(config: &LoggingConfig) -> WorkerGuard {
     // 1. Log Level
     let log_level_str = std::env::var("RUST_LOG").unwrap_or_else(|_| config.level.clone());
-    
+
     // Build the EnvFilter
-    let mut filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&log_level_str));
-    
+    let mut filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&log_level_str));
+
     // Apply module overrides from config
     for (module, level) in &config.overrides {
         // Directives must be valid
@@ -30,7 +30,7 @@ pub fn init_logging(config: &LoggingConfig) -> WorkerGuard {
     let is_json = format_str.to_lowercase() == "json";
 
     // 3. File Appender
-    // We use rolling::daily. 
+    // We use rolling::daily.
     // Requirement: gateway-{date}.log
     // tracing_appender::rolling::daily(dir, "gateway.log") produces gateway.log.YYYY-MM-DD
     // tracing_appender::rolling::daily(dir, "gateway") produces gateway.YYYY-MM-DD
@@ -40,7 +40,7 @@ pub fn init_logging(config: &LoggingConfig) -> WorkerGuard {
 
     // 4. Layers
     // We need to use Box<dyn Layer<S>> to unify types for conditional compilation
-    // But since is_json is runtime, we can't easily change the Layer type in the subscriber type chain 
+    // But since is_json is runtime, we can't easily change the Layer type in the subscriber type chain
     // without boxing.
 
     let stdout_layer = if is_json {
@@ -110,7 +110,7 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_file() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 // Match standard patterns
@@ -120,7 +120,10 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
                             if let Ok(age) = now.duration_since(modified) {
                                 if age > threshold {
                                     if let Err(e) = std::fs::remove_file(&path) {
-                                        eprintln!("Failed to remove old log file {:?}: {}", path, e);
+                                        eprintln!(
+                                            "Failed to remove old log file {:?}: {}",
+                                            path, e
+                                        );
                                     } else {
                                         // Use println here as logger might not be fully ready or to avoid recursion loop if we log to file?
                                         // Actually logger is initializing, so we can use eprintln for internal errors.

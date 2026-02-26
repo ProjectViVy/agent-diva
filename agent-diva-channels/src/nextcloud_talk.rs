@@ -1,8 +1,8 @@
 //! Nextcloud Talk channel handler using OCS API long-polling.
 
-use async_trait::async_trait;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::NextcloudTalkConfig;
+use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::task::JoinHandle;
@@ -105,7 +105,9 @@ impl NextcloudTalkHandler {
             .header("Accept", "application/json")
             .send()
             .await
-            .map_err(|e| ChannelError::ConnectionFailed(format!("Failed to fetch last message: {}", e)))?;
+            .map_err(|e| {
+                ChannelError::ConnectionFailed(format!("Failed to fetch last message: {}", e))
+            })?;
 
         if !resp.status().is_success() {
             return Err(ChannelError::ApiError(format!(
@@ -302,8 +304,7 @@ impl ChannelHandler for NextcloudTalkHandler {
                             debug!("Nextcloud Talk: poll timeout (expected)");
                         } else {
                             warn!("Nextcloud Talk poll error: {}", e);
-                            tokio::time::sleep(std::time::Duration::from_secs(poll_interval))
-                                .await;
+                            tokio::time::sleep(std::time::Duration::from_secs(poll_interval)).await;
                         }
                     }
                 }
