@@ -46,4 +46,4 @@ target/doc/
 *.tmp
 *.temp
 
-log/
+logs/
