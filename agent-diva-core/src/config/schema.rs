@@ -761,15 +761,35 @@ fn default_tool_timeout() -> u64 {
 pub struct WebToolsConfig {
     #[serde(default)]
     pub search: WebSearchConfig,
+    #[serde(default)]
+    pub fetch: WebFetchConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebFetchConfig {
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
 }
 
 /// Web search configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSearchConfig {
+    #[serde(default = "default_search_provider")]
+    pub provider: String,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
     #[serde(default)]
     pub api_key: String,
     #[serde(default = "default_max_results")]
     pub max_results: u32,
+}
+
+fn default_search_provider() -> String {
+    "brave".to_string()
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 fn default_max_results() -> u32 {
@@ -779,8 +799,18 @@ fn default_max_results() -> u32 {
 impl Default for WebSearchConfig {
     fn default() -> Self {
         Self {
+            provider: default_search_provider(),
+            enabled: default_enabled(),
             api_key: String::new(),
             max_results: default_max_results(),
+        }
+    }
+}
+
+impl Default for WebFetchConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_enabled(),
         }
     }
 }

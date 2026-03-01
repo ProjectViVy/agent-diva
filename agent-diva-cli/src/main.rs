@@ -1,6 +1,11 @@
 //! CLI entry point for agent-diva
 
-use agent_diva_agent::{AgentEvent, AgentLoop, ToolConfig};
+use agent_diva_agent::{
+    tool_config::network::{
+        NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
+    },
+    AgentEvent, AgentLoop, ToolConfig,
+};
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage};
 use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersConfig};
@@ -370,6 +375,27 @@ fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
     ))
 }
 
+fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
+    let api_key = config.tools.web.search.api_key.trim().to_string();
+    NetworkToolConfig {
+        web: WebRuntimeConfig {
+            search: WebSearchRuntimeConfig {
+                provider: config.tools.web.search.provider.clone(),
+                enabled: config.tools.web.search.enabled,
+                api_key: if api_key.is_empty() {
+                    None
+                } else {
+                    Some(api_key)
+                },
+                max_results: config.tools.web.search.max_results,
+            },
+            fetch: WebFetchRuntimeConfig {
+                enabled: config.tools.web.fetch.enabled,
+            },
+        },
+    }
+}
+
 /// Run the onboard wizard
 async fn run_onboard(loader: &ConfigLoader) -> Result<()> {
     println!("{}", style("Welcome to Agent Diva!").bold().cyan());
@@ -594,17 +620,14 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
         // Extract config values before moving
         let model = config.agents.defaults.model.clone();
         let max_iterations = config.agents.defaults.max_tool_iterations as usize;
-        let api_key = config.tools.web.search.api_key.clone();
         let exec_timeout = config.tools.exec.timeout;
         let restrict_to_workspace = config.tools.restrict_to_workspace;
+        let network = build_network_tool_config(&config);
+        let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
 
         // Create agent loop with tools
         let tool_config = ToolConfig {
-            brave_api_key: if api_key.is_empty() {
-                None
-            } else {
-                Some(api_key)
-            },
+            network,
             exec_timeout,
             restrict_to_workspace,
             mcp_servers: config.tools.mcp_servers.clone(),
@@ -618,6 +641,7 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
             Some(model),
             Some(max_iterations),
             tool_config,
+            Some(runtime_control_rx),
         );
 
         // Extract provider keys for Manager
@@ -698,6 +722,7 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
             provider_api_key,
             provider_api_base,
             Some(channel_manager.clone()),
+            Some(runtime_control_tx),
         );
 
         for (channel_name, enabled) in configured_channels {
@@ -844,7 +869,7 @@ async fn run_agent(
     let provider = Arc::new(build_provider(&config, &selected_model)?);
 
     let tool_config = ToolConfig {
-        brave_api_key: Some(config.tools.web.search.api_key.clone()).filter(|s| !s.is_empty()),
+        network: build_network_tool_config(&config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.mcp_servers.clone(),
@@ -858,6 +883,7 @@ async fn run_agent(
         Some(selected_model),
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
+        None,
     );
 
     let session_key = session.unwrap_or_else(|| "cli:direct".to_string());
@@ -1036,7 +1062,7 @@ async fn run_tui(
     let provider = Arc::new(build_provider(&config, &selected_model)?);
 
     let tool_config = ToolConfig {
-        brave_api_key: Some(config.tools.web.search.api_key.clone()).filter(|s| !s.is_empty()),
+        network: build_network_tool_config(&config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.mcp_servers.clone(),
@@ -1050,6 +1076,7 @@ async fn run_tui(
         Some(selected_model.clone()),
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
+        None,
     );
 
     let current_session = session.unwrap_or_else(|| "cli:tui".to_string());

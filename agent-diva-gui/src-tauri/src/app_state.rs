@@ -39,4 +39,36 @@ impl AgentState {
 
         Ok(())
     }
+
+    pub async fn get_tools_config(&self) -> Result<serde_json::Value, String> {
+        let url = format!("{}/tools", self.api_base_url);
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
+        }
+        response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))
+    }
+
+    pub async fn update_tools_config(&self, tools: serde_json::Value) -> Result<(), String> {
+        let url = format!("{}/tools", self.api_base_url);
+        let response = self
+            .client
+            .post(&url)
+            .json(&tools)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
+        }
+        Ok(())
+    }
 }

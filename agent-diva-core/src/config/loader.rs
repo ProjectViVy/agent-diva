@@ -146,7 +146,6 @@ fn apply_alias_overrides(config: &mut Value) {
         ("AIHUBMIX_API_KEY", "providers.aihubmix.api_key"),
         ("ZAI_API_KEY", "providers.zhipu.api_key"),
         ("ZHIPUAI_API_KEY", "providers.zhipu.api_key"),
-        ("BRAVE_API_KEY", "tools.web.search.api_key"),
     ];
 
     for (env_key, target_path) in aliases {

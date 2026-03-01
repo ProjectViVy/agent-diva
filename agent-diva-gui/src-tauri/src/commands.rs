@@ -296,6 +296,19 @@ pub async fn update_config(
 }
 
 #[tauri::command]
+pub async fn get_tools_config(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+    state.get_tools_config().await
+}
+
+#[tauri::command]
+pub async fn update_tools_config(
+    tools: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    state.update_tools_config(tools).await
+}
+
+#[tauri::command]
 pub async fn get_channels(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
     let url = format!("{}/channels", state.api_base_url);
 

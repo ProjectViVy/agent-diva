@@ -128,6 +128,26 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
         }
     }
 
+    let provider = config.tools.web.search.provider.trim().to_lowercase();
+    if provider != "brave" && provider != "zhipu" {
+        errors.push(
+            "tools.web.search.provider currently only supports 'brave' or 'zhipu'".to_string(),
+        );
+    }
+    let max_allowed = if provider == "zhipu" { 50 } else { 10 };
+    if config.tools.web.search.max_results == 0 || config.tools.web.search.max_results > max_allowed
+    {
+        errors.push(format!(
+            "tools.web.search.max_results must be in [1, {}] when provider='{}'",
+            max_allowed,
+            if provider.is_empty() {
+                "brave"
+            } else {
+                &provider
+            }
+        ));
+    }
+
     if errors.is_empty() {
         Ok(())
     } else {

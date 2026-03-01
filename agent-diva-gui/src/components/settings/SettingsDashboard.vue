@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Server, MessageSquare, Globe, Info } from 'lucide-vue-next';
+import { Server, MessageSquare, Globe, Info, Search } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'providers' | 'channels' | 'language' | 'about'): void;
+  (e: 'navigate', view: 'providers' | 'channels' | 'network' | 'language' | 'about'): void;
 }>();
 
 const cards = computed(() => [
   { id: 'providers', icon: Server, title: t('dashboard.providers'), desc: t('dashboard.providersDesc'), color: 'text-purple-600', bg: 'bg-purple-100' },
   { id: 'channels', icon: MessageSquare, title: t('dashboard.channels'), desc: t('dashboard.channelsDesc'), color: 'text-pink-600', bg: 'bg-pink-100' },
+  { id: 'network', icon: Search, title: t('dashboard.network'), desc: t('dashboard.networkDesc'), color: 'text-blue-600', bg: 'bg-blue-100' },
   { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc'), color: 'text-blue-600', bg: 'bg-blue-100' },
   { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc'), color: 'text-green-600', bg: 'bg-green-100' },
 ]);

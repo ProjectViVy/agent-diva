@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Result;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -18,6 +19,8 @@ use agent_diva_tools::{
     web::{WebFetchTool, WebSearchTool},
 };
 
+use crate::tool_config::network::NetworkToolConfig;
+
 /// Subagent manager for background task execution.
 ///
 /// Subagents are lightweight agent instances that run in the background
@@ -28,7 +31,7 @@ pub struct SubagentManager {
     workspace: PathBuf,
     bus: MessageBus,
     model: String,
-    brave_api_key: Option<String>,
+    network_config: Arc<RwLock<NetworkToolConfig>>,
     exec_timeout: u64,
     restrict_to_workspace: bool,
     running_tasks: Arc<tokio::sync::Mutex<HashMap<String, JoinHandle<()>>>>,
@@ -42,7 +45,7 @@ impl SubagentManager {
         workspace: PathBuf,
         bus: MessageBus,
         model: Option<String>,
-        brave_api_key: Option<String>,
+        network_config: NetworkToolConfig,
         exec_timeout: Option<u64>,
         restrict_to_workspace: bool,
     ) -> Self {
@@ -54,11 +57,16 @@ impl SubagentManager {
             workspace,
             bus,
             model,
-            brave_api_key,
+            network_config: Arc::new(RwLock::new(network_config)),
             exec_timeout,
             restrict_to_workspace,
             running_tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         }
+    }
+
+    pub async fn update_network_config(&self, network_config: NetworkToolConfig) {
+        let mut guard = self.network_config.write().await;
+        *guard = network_config;
     }
 
     /// Spawn a subagent to execute a task in the background.
@@ -95,7 +103,7 @@ impl SubagentManager {
         let workspace = self.workspace.clone();
         let bus = self.bus.clone();
         let model = self.model.clone();
-        let brave_api_key = self.brave_api_key.clone();
+        let network_config = self.network_config.read().await.clone();
         let exec_timeout = self.exec_timeout;
         let restrict_to_workspace = self.restrict_to_workspace;
 
@@ -115,7 +123,7 @@ impl SubagentManager {
                 workspace,
                 bus.clone(),
                 model,
-                brave_api_key,
+                network_config,
                 exec_timeout,
                 restrict_to_workspace,
             )
@@ -150,7 +158,7 @@ impl SubagentManager {
         workspace: PathBuf,
         bus: MessageBus,
         model: String,
-        brave_api_key: Option<String>,
+        network_config: NetworkToolConfig,
         exec_timeout: u64,
         restrict_to_workspace: bool,
     ) {
@@ -162,7 +170,7 @@ impl SubagentManager {
             &provider,
             &workspace,
             &model,
-            brave_api_key.as_deref(),
+            &network_config,
             exec_timeout,
             restrict_to_workspace,
         )
@@ -201,7 +209,7 @@ impl SubagentManager {
         provider: &Arc<dyn LLMProvider>,
         workspace: &Path,
         model: &str,
-        brave_api_key: Option<&str>,
+        network_config: &NetworkToolConfig,
         _exec_timeout: u64,
         restrict_to_workspace: bool,
     ) -> Result<String> {
@@ -217,10 +225,16 @@ impl SubagentManager {
         tools.register(Arc::new(WriteFileTool::new(allowed_dir.clone())));
         tools.register(Arc::new(ListDirTool::new(allowed_dir)));
         tools.register(Arc::new(ExecTool::new()));
-        tools.register(Arc::new(WebSearchTool::new(
-            brave_api_key.map(String::from),
-        )));
-        tools.register(Arc::new(WebFetchTool::new()));
+        if network_config.web.search.enabled {
+            tools.register(Arc::new(WebSearchTool::with_provider_and_max_results(
+                network_config.web.search.provider.clone(),
+                network_config.web.search.api_key.clone(),
+                network_config.web.search.normalized_max_results(),
+            )));
+        }
+        if network_config.web.fetch.enabled {
+            tools.register(Arc::new(WebFetchTool::new()));
+        }
 
         // Build messages with subagent-specific prompt
         let system_prompt = Self::build_subagent_prompt(task, workspace);

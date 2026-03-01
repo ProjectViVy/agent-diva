@@ -50,29 +50,33 @@ fn validate_url(url: &str) -> Result<(), String> {
     }
 }
 
-/// Web search tool using Brave Search API
+/// Web search tool supporting multiple providers.
 pub struct WebSearchTool {
+    provider: String,
     init_api_key: Option<String>,
     max_results: usize,
     client: Client,
 }
 
 impl WebSearchTool {
-    /// Create a new web search tool
+    /// Create a new web search tool with the default provider (brave).
     pub fn new(api_key: Option<String>) -> Self {
-        Self {
-            init_api_key: api_key,
-            max_results: 5,
-            client: Client::builder()
-                .timeout(Duration::from_secs(10))
-                .build()
-                .unwrap(),
-        }
+        Self::with_provider_and_max_results("brave", api_key, 5)
     }
 
-    /// Create with custom max results
+    /// Create with custom max results using brave provider.
     pub fn with_max_results(api_key: Option<String>, max_results: usize) -> Self {
+        Self::with_provider_and_max_results("brave", api_key, max_results)
+    }
+
+    /// Create with explicit provider and max results.
+    pub fn with_provider_and_max_results(
+        provider: impl Into<String>,
+        api_key: Option<String>,
+        max_results: usize,
+    ) -> Self {
         Self {
+            provider: provider.into(),
             init_api_key: api_key,
             max_results,
             client: Client::builder()
@@ -82,11 +86,208 @@ impl WebSearchTool {
         }
     }
 
-    /// Resolve API key at call time: init key → env var fallback
+    fn normalized_provider(&self) -> String {
+        self.provider.trim().to_lowercase()
+    }
+
+    fn max_results_limit(provider: &str) -> usize {
+        if provider == "zhipu" {
+            50
+        } else {
+            10
+        }
+    }
+
+    /// Resolve API key at call time: init key -> env var fallback.
     fn resolve_api_key(&self) -> Option<String> {
+        let provider = self.normalized_provider();
         self.init_api_key
             .clone()
-            .or_else(|| std::env::var("BRAVE_API_KEY").ok())
+            .or_else(|| match provider.as_str() {
+                "brave" => std::env::var("BRAVE_API_KEY").ok(),
+                "zhipu" => std::env::var("ZHIPU_API_KEY")
+                    .ok()
+                    .or_else(|| std::env::var("BIGMODEL_API_KEY").ok()),
+                _ => None,
+            })
+    }
+
+    async fn search_brave(
+        &self,
+        query: &str,
+        count: usize,
+        api_key: &str,
+    ) -> Result<String, ToolError> {
+        let response = self
+            .client
+            .get("https://api.search.brave.com/res/v1/web/search")
+            .query(&[("q", query), ("count", &count.to_string())])
+            .header("Accept", "application/json")
+            .header("X-Subscription-Token", api_key)
+            .send()
+            .await
+            .map_err(|e| ToolError::ExecutionFailed(format!("Request failed: {}", e)))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(ToolError::ExecutionFailed(format!(
+                "Brave request failed ({}): {}",
+                status, text
+            )));
+        }
+
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to parse response: {}", e)))?;
+
+        let results = data
+            .get("web")
+            .and_then(|w| w.get("results"))
+            .and_then(|r| r.as_array())
+            .ok_or_else(|| ToolError::ExecutionFailed("No results found".to_string()))?;
+
+        if results.is_empty() {
+            return Ok(format!("No results for: {}", query));
+        }
+
+        let mut lines = vec![format!("Results for: {}\n", query)];
+        for (i, item) in results.iter().take(count).enumerate() {
+            let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            let url = item.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            lines.push(format!("{}. {}\n   {}", i + 1, title, url));
+
+            if let Some(desc) = item.get("description").and_then(|v| v.as_str()) {
+                lines.push(format!("   {}", desc));
+            }
+        }
+
+        Ok(lines.join("\n"))
+    }
+
+    async fn search_zhipu(
+        &self,
+        params: &Value,
+        query: &str,
+        count: usize,
+        api_key: &str,
+    ) -> Result<String, ToolError> {
+        let search_engine = params
+            .get("search_engine")
+            .and_then(|v| v.as_str())
+            .unwrap_or("search_std");
+        let search_intent = params
+            .get("search_intent")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let search_recency_filter = params
+            .get("search_recency_filter")
+            .and_then(|v| v.as_str())
+            .unwrap_or("noLimit");
+        let content_size = params
+            .get("content_size")
+            .and_then(|v| v.as_str())
+            .unwrap_or("medium");
+
+        let mut body = serde_json::Map::new();
+        body.insert("search_query".to_string(), Value::String(query.to_string()));
+        body.insert(
+            "search_engine".to_string(),
+            Value::String(search_engine.to_string()),
+        );
+        body.insert("search_intent".to_string(), Value::Bool(search_intent));
+        body.insert(
+            "count".to_string(),
+            Value::Number(serde_json::Number::from(count as u64)),
+        );
+        body.insert(
+            "search_recency_filter".to_string(),
+            Value::String(search_recency_filter.to_string()),
+        );
+        body.insert(
+            "content_size".to_string(),
+            Value::String(content_size.to_string()),
+        );
+        if let Some(domain) = params.get("search_domain_filter").and_then(|v| v.as_str()) {
+            if !domain.trim().is_empty() {
+                body.insert(
+                    "search_domain_filter".to_string(),
+                    Value::String(domain.to_string()),
+                );
+            }
+        }
+        if let Some(request_id) = params.get("request_id").and_then(|v| v.as_str()) {
+            if !request_id.trim().is_empty() {
+                body.insert(
+                    "request_id".to_string(),
+                    Value::String(request_id.to_string()),
+                );
+            }
+        }
+        if let Some(user_id) = params.get("user_id").and_then(|v| v.as_str()) {
+            if !user_id.trim().is_empty() {
+                body.insert("user_id".to_string(), Value::String(user_id.to_string()));
+            }
+        }
+
+        let response = self
+            .client
+            .post("https://open.bigmodel.cn/api/paas/v4/web_search")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&Value::Object(body))
+            .send()
+            .await
+            .map_err(|e| ToolError::ExecutionFailed(format!("Request failed: {}", e)))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(ToolError::ExecutionFailed(format!(
+                "Zhipu request failed ({}): {}",
+                status, text
+            )));
+        }
+
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to parse response: {}", e)))?;
+
+        let results = data
+            .get("search_result")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| ToolError::ExecutionFailed("No results found".to_string()))?;
+
+        if results.is_empty() {
+            return Ok(format!("No results for: {}", query));
+        }
+
+        let mut lines = vec![format!("Results for: {}\n", query)];
+        for (i, item) in results.iter().take(count).enumerate() {
+            let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            let url = item.get("link").and_then(|v| v.as_str()).unwrap_or("");
+            lines.push(format!("{}. {}\n   {}", i + 1, title, url));
+
+            if let Some(desc) = item.get("content").and_then(|v| v.as_str()) {
+                if !desc.is_empty() {
+                    lines.push(format!("   {}", desc));
+                }
+            }
+            if let Some(media) = item.get("media").and_then(|v| v.as_str()) {
+                if !media.is_empty() {
+                    lines.push(format!("   Source: {}", media));
+                }
+            }
+            if let Some(publish_date) = item.get("publish_date").and_then(|v| v.as_str()) {
+                if !publish_date.is_empty() {
+                    lines.push(format!("   Published: {}", publish_date));
+                }
+            }
+        }
+
+        Ok(lines.join("\n"))
     }
 }
 
@@ -116,9 +317,40 @@ impl Tool for WebSearchTool {
                 },
                 "count": {
                     "type": "integer",
-                    "description": "Number of results (1-10)",
+                    "description": "Number of results (brave: 1-10, zhipu: 1-50)",
                     "minimum": 1,
-                    "maximum": 10
+                    "maximum": 50
+                },
+                "search_engine": {
+                    "type": "string",
+                    "description": "Zhipu search engine (zhipu only)",
+                    "enum": ["search_std", "search_pro", "search_pro_sogou", "search_pro_quark"]
+                },
+                "search_intent": {
+                    "type": "boolean",
+                    "description": "Enable intent recognition before searching (zhipu only)"
+                },
+                "search_domain_filter": {
+                    "type": "string",
+                    "description": "Domain whitelist filter (zhipu only)"
+                },
+                "search_recency_filter": {
+                    "type": "string",
+                    "description": "Time range filter (zhipu only)",
+                    "enum": ["oneDay", "oneWeek", "oneMonth", "oneYear", "noLimit"]
+                },
+                "content_size": {
+                    "type": "string",
+                    "description": "Returned content length (zhipu only)",
+                    "enum": ["medium", "high"]
+                },
+                "request_id": {
+                    "type": "string",
+                    "description": "Unique request identifier (zhipu only)"
+                },
+                "user_id": {
+                    "type": "string",
+                    "description": "End user identifier (zhipu only)"
                 }
             },
             "required": ["query"]
@@ -131,57 +363,33 @@ impl Tool for WebSearchTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidParams("Missing 'query' parameter".to_string()))?;
 
+        let provider = self.normalized_provider();
+        if provider != "brave" && provider != "zhipu" {
+            return Err(ToolError::ExecutionFailed(format!(
+                "Unsupported web search provider: {}",
+                provider
+            )));
+        }
         let count = params
             .get("count")
             .and_then(|v| v.as_u64())
             .unwrap_or(self.max_results as u64)
-            .clamp(1, 10) as usize;
+            .clamp(1, Self::max_results_limit(&provider) as u64) as usize;
 
-        // Check API key (resolved at call time)
         let api_key = self.resolve_api_key().ok_or_else(|| {
-            ToolError::ExecutionFailed("BRAVE_API_KEY not configured".to_string())
+            let hint = match provider.as_str() {
+                "brave" => "BRAVE_API_KEY",
+                "zhipu" => "ZHIPU_API_KEY or BIGMODEL_API_KEY",
+                _ => "an API key",
+            };
+            ToolError::ExecutionFailed(format!("{} not configured", hint))
         })?;
 
-        // Make request
-        let response = self
-            .client
-            .get("https://api.search.brave.com/res/v1/web/search")
-            .query(&[("q", query), ("count", &count.to_string())])
-            .header("Accept", "application/json")
-            .header("X-Subscription-Token", api_key)
-            .send()
-            .await
-            .map_err(|e| ToolError::ExecutionFailed(format!("Request failed: {}", e)))?;
-
-        let data: Value = response
-            .json()
-            .await
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to parse response: {}", e)))?;
-
-        // Extract results
-        let results = data
-            .get("web")
-            .and_then(|w| w.get("results"))
-            .and_then(|r| r.as_array())
-            .ok_or_else(|| ToolError::ExecutionFailed("No results found".to_string()))?;
-
-        if results.is_empty() {
-            return Ok(format!("No results for: {}", query));
+        match provider.as_str() {
+            "brave" => self.search_brave(query, count, &api_key).await,
+            "zhipu" => self.search_zhipu(&params, query, count, &api_key).await,
+            _ => unreachable!(),
         }
-
-        // Format output
-        let mut lines = vec![format!("Results for: {}\n", query)];
-        for (i, item) in results.iter().take(count).enumerate() {
-            let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("");
-            let url = item.get("url").and_then(|v| v.as_str()).unwrap_or("");
-            lines.push(format!("{}. {}\n   {}", i + 1, title, url));
-
-            if let Some(desc) = item.get("description").and_then(|v| v.as_str()) {
-                lines.push(format!("   {}", desc));
-            }
-        }
-
-        Ok(lines.join("\n"))
     }
 }
 

@@ -1,3 +1,7 @@
+use agent_diva_agent::runtime_control::RuntimeControlCommand;
+use agent_diva_agent::tool_config::network::{
+    NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
+};
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{AgentEvent, MessageBus};
 use agent_diva_core::config::ConfigLoader;
@@ -6,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
-use crate::state::{ConfigResponse, ManagerCommand};
+use crate::state::{ConfigResponse, ManagerCommand, ToolsConfigResponse};
 
 pub struct Manager {
     api_rx: mpsc::Receiver<ManagerCommand>,
@@ -18,6 +22,7 @@ pub struct Manager {
     current_api_base: Option<String>,
     current_api_key: Option<String>,
     channel_manager: Option<Arc<ChannelManager>>,
+    runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
 }
 
 impl Manager {
@@ -31,6 +36,7 @@ impl Manager {
         api_key: Option<String>,
         api_base: Option<String>,
         channel_manager: Option<Arc<ChannelManager>>,
+        runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
     ) -> Self {
         Self {
             api_rx,
@@ -41,6 +47,28 @@ impl Manager {
             current_api_base: api_base,
             current_api_key: api_key,
             channel_manager,
+            runtime_control_tx,
+        }
+    }
+
+    fn map_network_config(config: &agent_diva_core::config::schema::Config) -> NetworkToolConfig {
+        let api_key = config.tools.web.search.api_key.trim().to_string();
+        NetworkToolConfig {
+            web: WebRuntimeConfig {
+                search: WebSearchRuntimeConfig {
+                    provider: config.tools.web.search.provider.clone(),
+                    enabled: config.tools.web.search.enabled,
+                    api_key: if api_key.is_empty() {
+                        None
+                    } else {
+                        Some(api_key)
+                    },
+                    max_results: config.tools.web.search.max_results,
+                },
+                fetch: WebFetchRuntimeConfig {
+                    enabled: config.tools.web.fetch.enabled,
+                },
+            },
         }
     }
 
@@ -275,6 +303,46 @@ impl Manager {
                             } else {
                                 error!("Failed to load config for GetChannels");
                                 let _ = reply.send(agent_diva_core::config::schema::ChannelsConfig::default());
+                            }
+                        }
+                        ManagerCommand::GetTools(reply) => {
+                            debug!("Processing GetTools command");
+                            if let Ok(config) = self.loader.load() {
+                                let _ = reply.send(ToolsConfigResponse {
+                                    web: config.tools.web.into(),
+                                });
+                            } else {
+                                error!("Failed to load config for GetTools");
+                                let _ = reply.send(ToolsConfigResponse {
+                                    web: agent_diva_core::config::schema::WebToolsConfig::default()
+                                        .into(),
+                                });
+                            }
+                        }
+                        ManagerCommand::UpdateTools(update) => {
+                            info!("Processing UpdateTools request");
+
+                            let mut config = match self.loader.load() {
+                                Ok(c) => c,
+                                Err(e) => {
+                                    error!("Failed to load config: {}", e);
+                                    continue;
+                                }
+                            };
+
+                            config.tools.web.search = update.web.search;
+                            config.tools.web.fetch = update.web.fetch;
+
+                            if let Err(e) = self.loader.save(&config) {
+                                error!("Failed to save tools config: {}", e);
+                                continue;
+                            }
+
+                            if let Some(tx) = &self.runtime_control_tx {
+                                let network = Self::map_network_config(&config);
+                                if let Err(e) = tx.send(RuntimeControlCommand::UpdateNetwork(network)) {
+                                    error!("Failed to send runtime tools update: {}", e);
+                                }
                             }
                         }
                         ManagerCommand::TestChannel(update, reply) => {

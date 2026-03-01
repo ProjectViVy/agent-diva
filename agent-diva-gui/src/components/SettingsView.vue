@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-vue-next';
 import SettingsDashboard from './settings/SettingsDashboard.vue';
 import ProvidersSettings from './settings/ProvidersSettings.vue';
 import ChannelsSettings from './settings/ChannelsSettings.vue';
+import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
 import { useI18n } from 'vue-i18n';
@@ -25,28 +26,43 @@ const props = defineProps<{
     apiKey: string;
     model: string;
   };
+  toolsConfig: {
+    web: {
+      search: {
+        provider: string;
+        enabled: boolean;
+        api_key: string;
+        max_results: number;
+      };
+      fetch: {
+        enabled: boolean;
+      };
+    };
+  };
   savedModels?: SavedModel[];
 }>();
 
 const emit = defineEmits<{
   (e: 'save', config: typeof props.config): void;
+  (e: 'save-tools-config', tools: typeof props.toolsConfig): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
 }>();
 
-const currentView = ref<'dashboard' | 'providers' | 'channels' | 'language' | 'about'>('dashboard');
+const currentView = ref<'dashboard' | 'providers' | 'channels' | 'network' | 'language' | 'about'>('dashboard');
 
 const pageTitle = computed(() => {
   if (currentView.value === 'dashboard') return t('settings.title');
   const titles = {
     providers: t('settings.providers'),
     channels: t('settings.channels'),
+    network: t('settings.network'),
     language: t('settings.language'),
     about: t('settings.about')
   };
   return titles[currentView.value] || t('settings.title');
 });
 
-const handleNavigate = (view: 'providers' | 'channels' | 'language' | 'about') => {
+const handleNavigate = (view: 'providers' | 'channels' | 'network' | 'language' | 'about') => {
   currentView.value = view;
 };
 
@@ -93,6 +109,12 @@ const goBack = () => {
             
             <ChannelsSettings 
               v-else-if="currentView === 'channels'"
+            />
+
+            <NetworkSettings
+              v-else-if="currentView === 'network'"
+              :tools-config="toolsConfig"
+              @save-tools-config="(t) => emit('save-tools-config', t)"
             />
             
             <LanguageSettings 

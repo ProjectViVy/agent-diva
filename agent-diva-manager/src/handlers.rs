@@ -15,6 +15,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::state::{
     ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, ManagerCommand,
+    ToolsConfigResponse, ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -212,6 +213,41 @@ pub async fn get_channels_handler(State(state): State<AppState>) -> Json<Channel
             Json(ChannelsConfig::default())
         }
     }
+}
+
+pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfigResponse> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::GetTools(tx)).await {
+        tracing::error!("Failed to send GetTools request: {}", e);
+        return Json(ToolsConfigResponse {
+            web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
+        });
+    }
+    match rx.await {
+        Ok(config) => Json(config),
+        Err(e) => {
+            tracing::error!("Failed to receive GetTools response: {}", e);
+            Json(ToolsConfigResponse {
+                web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
+            })
+        }
+    }
+}
+
+pub async fn update_tools_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<ToolsConfigUpdate>,
+) -> Json<serde_json::Value> {
+    tracing::info!("Received update tools request");
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UpdateTools(payload))
+        .await
+    {
+        tracing::error!("Failed to send UpdateTools request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    Json(serde_json::json!({ "status": "ok" }))
 }
 
 pub async fn update_channel_handler(

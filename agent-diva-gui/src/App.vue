@@ -63,6 +63,20 @@ const config = ref({
   model: "deepseek-chat"
 });
 
+const toolsConfig = ref({
+  web: {
+    search: {
+      provider: 'brave',
+      enabled: true,
+      api_key: '',
+      max_results: 5
+    },
+    fetch: {
+      enabled: true
+    }
+  }
+});
+
 const savedModels = ref<SavedModel[]>([]);
 
 const unlisteners: UnlistenFn[] = [];
@@ -199,6 +213,32 @@ async function saveConfig(newConfig: typeof config.value) {
   }
 }
 
+async function saveToolsConfig(newToolsConfig: typeof toolsConfig.value) {
+  try {
+    toolsConfig.value = JSON.parse(JSON.stringify(newToolsConfig));
+    if (!isTauri()) {
+      messages.value.push({
+        role: 'system',
+        content: "[Mock] " + t('app.configUpdated'),
+        timestamp: Date.now()
+      });
+      return;
+    }
+
+    await invoke("update_tools_config", {
+      tools: newToolsConfig
+    });
+
+    messages.value.push({
+      role: 'system',
+      content: t('app.configUpdated'),
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    alert(t('app.configUpdateError', { error }));
+  }
+}
+
 async function checkHealth() {
   if (!isTauri()) return;
   
@@ -221,6 +261,13 @@ onMounted(async () => {
     await invoke("start_background_stream");
   } catch (e) {
     console.warn("Failed to start background stream:", e);
+  }
+
+  try {
+    const fetchedTools = await invoke<typeof toolsConfig.value>("get_tools_config");
+    toolsConfig.value = fetchedTools;
+  } catch (e) {
+    console.warn("Failed to load tools config:", e);
   }
 
   // Initial health check and polling
@@ -418,10 +465,12 @@ onUnmounted(() => {
       :connection-status="connectionStatus"
       :current-emotion="currentEmotion"
       :config="config"
+      :tools-config="toolsConfig"
       :saved-models="savedModels"
       @send="sendMessage"
       @clear="clearMessages"
       @save-config="saveConfig"
+      @save-tools-config="saveToolsConfig"
       @update-saved-models="updateSavedModels"
     />
   </div>

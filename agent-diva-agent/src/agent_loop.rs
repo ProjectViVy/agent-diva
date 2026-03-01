@@ -19,13 +19,15 @@ use uuid::Uuid;
 
 use crate::consolidation;
 use crate::context::ContextBuilder;
+use crate::runtime_control::RuntimeControlCommand;
 use crate::subagent::SubagentManager;
+use crate::tool_config::network::NetworkToolConfig;
 
 /// Configuration for tool setup
 #[derive(Clone)]
 pub struct ToolConfig {
-    /// Brave API key for web search
-    pub brave_api_key: Option<String>,
+    /// Network tool runtime config
+    pub network: NetworkToolConfig,
     /// Shell execution timeout in seconds
     pub exec_timeout: u64,
     /// Whether to restrict file access to workspace
@@ -39,7 +41,7 @@ pub struct ToolConfig {
 impl Default for ToolConfig {
     fn default() -> Self {
         Self {
-            brave_api_key: None,
+            network: NetworkToolConfig::default(),
             exec_timeout: 60,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
@@ -62,6 +64,7 @@ pub struct AgentLoop {
     sessions: SessionManager,
     tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
+    runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
 }
 
 impl AgentLoop {
@@ -83,7 +86,7 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            None,
+            NetworkToolConfig::default(),
             None,
             false,
         ));
@@ -99,6 +102,7 @@ impl AgentLoop {
             sessions,
             tools,
             subagent_manager,
+            runtime_control_rx: None,
         }
     }
 
@@ -110,6 +114,7 @@ impl AgentLoop {
         model: Option<String>,
         max_iterations: Option<usize>,
         tool_config: ToolConfig,
+        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let context = ContextBuilder::with_skills(workspace.clone(), None);
@@ -121,7 +126,7 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            tool_config.brave_api_key.clone(),
+            tool_config.network.clone(),
             Some(tool_config.exec_timeout),
             tool_config.restrict_to_workspace,
         ));
@@ -158,8 +163,7 @@ impl AgentLoop {
         )));
 
         // Register web tools
-        tools.register(Arc::new(WebSearchTool::new(tool_config.brave_api_key)));
-        tools.register(Arc::new(WebFetchTool::new()));
+        Self::register_web_tools(&mut tools, &tool_config.network);
 
         // Register MCP tools discovered from configured servers
         for mcp_tool in load_mcp_tools(&tool_config.mcp_servers) {
@@ -182,6 +186,7 @@ impl AgentLoop {
             sessions,
             tools,
             subagent_manager,
+            runtime_control_rx,
         }
     }
 
@@ -222,9 +227,7 @@ impl AgentLoop {
         )));
 
         // Register web tools
-        self.tools
-            .register(Arc::new(WebSearchTool::new(tool_config.brave_api_key)));
-        self.tools.register(Arc::new(WebFetchTool::new()));
+        Self::register_web_tools(&mut self.tools, &tool_config.network);
 
         // Register MCP tools discovered from configured servers
         for mcp_tool in load_mcp_tools(&tool_config.mcp_servers) {
@@ -248,38 +251,82 @@ impl AgentLoop {
         };
 
         loop {
-            // Try to receive a message with timeout
-            match tokio::time::timeout(std::time::Duration::from_secs(1), inbound_rx.recv()).await {
-                Ok(Some(msg)) => {
-                    debug!("Received message from {}:{}", msg.channel, msg.chat_id);
-                    match self.process_inbound_message(msg, None).await {
-                        Ok(Some(response)) => {
-                            if let Err(e) = self.bus.publish_outbound(response) {
-                                error!("Failed to publish response: {}", e);
+            if self.runtime_control_rx.is_some() {
+                let control_rx = self.runtime_control_rx.as_mut().expect("checked above");
+                tokio::select! {
+                    control = control_rx.recv() => {
+                        match control {
+                            Some(RuntimeControlCommand::UpdateNetwork(network)) => {
+                                self.apply_network_config(network).await;
+                            }
+                            None => {
+                                info!("Runtime control channel closed");
+                                self.runtime_control_rx = None;
                             }
                         }
-                        Ok(None) => {
-                            debug!("No response needed");
-                        }
-                        Err(e) => {
-                            error!("Error processing message: {}", e);
+                    }
+                    maybe_msg = inbound_rx.recv() => {
+                        match maybe_msg {
+                            Some(msg) => {
+                                self.handle_inbound(msg).await;
+                            }
+                            None => {
+                                info!("Message bus closed, stopping agent loop");
+                                break;
+                            }
                         }
                     }
                 }
-                Ok(None) => {
-                    // Channel closed
-                    info!("Message bus closed, stopping agent loop");
-                    break;
-                }
-                Err(_) => {
-                    // Timeout, continue
-                    continue;
+            } else {
+                match tokio::time::timeout(std::time::Duration::from_secs(1), inbound_rx.recv())
+                    .await
+                {
+                    Ok(Some(msg)) => self.handle_inbound(msg).await,
+                    Ok(None) => {
+                        info!("Message bus closed, stopping agent loop");
+                        break;
+                    }
+                    Err(_) => continue,
                 }
             }
         }
 
         info!("Agent loop stopped");
         Ok(())
+    }
+
+    async fn handle_inbound(&mut self, msg: InboundMessage) {
+        debug!("Received message from {}:{}", msg.channel, msg.chat_id);
+        match self.process_inbound_message(msg, None).await {
+            Ok(Some(response)) => {
+                if let Err(e) = self.bus.publish_outbound(response) {
+                    error!("Failed to publish response: {}", e);
+                }
+            }
+            Ok(None) => debug!("No response needed"),
+            Err(e) => error!("Error processing message: {}", e),
+        }
+    }
+
+    fn register_web_tools(tools: &mut ToolRegistry, network: &NetworkToolConfig) {
+        if network.web.search.enabled {
+            tools.register(Arc::new(WebSearchTool::with_provider_and_max_results(
+                network.web.search.provider.clone(),
+                network.web.search.api_key.clone(),
+                network.web.search.normalized_max_results(),
+            )));
+        }
+        if network.web.fetch.enabled {
+            tools.register(Arc::new(WebFetchTool::new()));
+        }
+    }
+
+    async fn apply_network_config(&mut self, network: NetworkToolConfig) {
+        self.tools.unregister("web_search");
+        self.tools.unregister("web_fetch");
+        Self::register_web_tools(&mut self.tools, &network);
+        self.subagent_manager.update_network_config(network).await;
+        info!("Applied runtime network tool configuration update");
     }
 
     /// Process a single inbound message

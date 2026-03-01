@@ -642,9 +642,12 @@ impl ConfigMigrator {
             tools: ToolsConfig {
                 web: WebToolsConfig {
                     search: WebSearchConfig {
+                        provider: "brave".to_string(),
+                        enabled: true,
                         api_key: py.tools.web.search.api_key,
                         max_results: py.tools.web.search.max_results,
                     },
+                    fetch: WebFetchConfig::default(),
                 },
                 exec: ExecToolConfig {
                     timeout: py.tools.exec.timeout,

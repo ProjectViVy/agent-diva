@@ -1,6 +1,8 @@
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
-use agent_diva_core::config::schema::ChannelsConfig;
+use agent_diva_core::config::schema::{
+    ChannelsConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
+};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 
@@ -17,6 +19,8 @@ pub enum ManagerCommand {
     TestChannel(ChannelUpdate, oneshot::Sender<Result<(), String>>),
     GetConfig(oneshot::Sender<ConfigResponse>),
     GetChannels(oneshot::Sender<ChannelsConfig>),
+    GetTools(oneshot::Sender<ToolsConfigResponse>),
+    UpdateTools(ToolsConfigUpdate),
 }
 
 pub struct ApiRequest {
@@ -44,4 +48,35 @@ pub struct ConfigResponse {
     pub model: String,
     // Don't return API key for security, or maybe masked
     pub has_api_key: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolsConfigResponse {
+    pub web: WebToolsConfigResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebToolsConfigResponse {
+    pub search: WebSearchConfig,
+    pub fetch: WebFetchConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolsConfigUpdate {
+    pub web: WebToolsConfigUpdate,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebToolsConfigUpdate {
+    pub search: WebSearchConfig,
+    pub fetch: WebFetchConfig,
+}
+
+impl From<WebToolsConfig> for WebToolsConfigResponse {
+    fn from(value: WebToolsConfig) -> Self {
+        Self {
+            search: value.search,
+            fetch: value.fetch,
+        }
+    }
 }

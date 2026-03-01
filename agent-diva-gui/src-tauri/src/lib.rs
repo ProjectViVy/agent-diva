@@ -15,6 +15,8 @@ pub fn run() {
             commands::send_message,
             commands::start_background_stream,
             commands::update_config,
+            commands::get_tools_config,
+            commands::update_tools_config,
             commands::get_providers,
             commands::get_channels,
             commands::update_channel,

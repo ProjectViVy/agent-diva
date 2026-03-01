@@ -35,6 +35,19 @@ const props = defineProps<{
     apiKey: string;
     model: string;
   };
+  toolsConfig?: {
+    web: {
+      search: {
+        provider: string;
+        enabled: boolean;
+        api_key: string;
+        max_results: number;
+      };
+      fetch: {
+        enabled: boolean;
+      };
+    };
+  };
   savedModels?: SavedModel[];
 }>();
 
@@ -43,6 +56,7 @@ const emit = defineEmits<{
   (e: 'clear'): void;
   (e: 'toggle-sidebar'): void;
   (e: 'save-config', config: { apiBase: string; apiKey: string; model: string }): void;
+  (e: 'save-tools-config', tools: NonNullable<typeof props.toolsConfig>): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
 }>();
 
@@ -302,10 +316,12 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
       </div>
       <div v-else class="h-full">
         <SettingsView
-          v-if="config"
+          v-if="config && toolsConfig"
           :config="config"
+          :tools-config="toolsConfig"
           :saved-models="savedModels"
           @save="(newConfig) => emit('save-config', newConfig)"
+          @save-tools-config="(tools) => emit('save-tools-config', tools)"
           @update-saved-models="handleUpdateSavedModels"
         />
         <div v-else class="h-full flex items-center justify-center text-gray-500">
