@@ -153,7 +153,7 @@ The built binary will be in `agent-diva-gui/src-tauri/target/release/`.
 - Real-time streaming chat with the agent
 - Tool call visualization (input args + results)
 - Provider management (API keys, base URLs, model selection)
-- Channel configuration (Telegram, Discord, DingTalk, Feishu, WhatsApp, Email, Slack, QQ, Matrix, Generic Pipe)
+- Channel configuration (Telegram, Discord, DingTalk, Feishu, WhatsApp, Email, Slack, QQ, Matrix, Neuro-Link)
 - Language switching (English / Chinese)
 
 ### External Hook

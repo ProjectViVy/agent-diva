@@ -1,9 +1,9 @@
-//! Generic pipe channel — a WebSocket **server** for third-party integrations.
+//! Neuro-Link channel ?a WebSocket **server** for third-party integrations.
 //!
 //! Protocol:
-//!   Client → Diva:  {"pipe":"msg",   "id":"…", "sender":"…", "chat":"…", "content":"…", "meta":{}}
-//!   Diva → Client:  {"pipe":"delta", "id":"…", "reply_to":"…", "chat":"…", "content":"…"}
-//!   Diva → Client:  {"pipe":"reply", "id":"…", "reply_to":"…", "chat":"…", "content":"…"}
+//!   Client ?Diva:  {"pipe":"msg",   "id":"?, "sender":"?, "chat":"?, "content":"?, "meta":{}}
+//!   Diva ?Client:  {"pipe":"delta", "id":"?, "reply_to":"?, "chat":"?, "content":"?}
+//!   Diva ?Client:  {"pipe":"reply", "id":"?, "reply_to":"?, "chat":"?, "content":"?}
 
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
@@ -17,11 +17,11 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tracing::{error, info, warn};
 
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
-use agent_diva_core::config::GenericPipeConfig;
+use agent_diva_core::config::NeuroLinkConfig;
 
 use crate::base::{ChannelError, ChannelHandler, Result};
 
-// ── Wire protocol types ─────────────────────────────────────────────
+//  Wire protocol types
 
 /// Incoming message from a pipe client.
 #[derive(Debug, Clone, Deserialize)]
@@ -52,13 +52,13 @@ type WsSink = futures::stream::SplitSink<
     tokio_tungstenite::tungstenite::Message,
 >;
 
-/// Map from chat-id → WS write-half, so we can route replies back.
+/// Map from chat-id ?WS write-half, so we can route replies back.
 type ClientMap = Arc<RwLock<HashMap<String, WsSink>>>;
 
-// ── Handler ─────────────────────────────────────────────────────────
+//  Handler
 
-/// WebSocket **server** channel for generic pipe integrations.
-pub struct GenericPipeHandler {
+/// WebSocket **server** channel for Neuro-Link integrations.
+pub struct NeuroLinkHandler {
     name: String,
     host: String,
     port: u16,
@@ -70,11 +70,11 @@ pub struct GenericPipeHandler {
     shutdown_tx: Option<mpsc::Sender<()>>,
 }
 
-impl GenericPipeHandler {
-    /// Create a new generic pipe handler from config.
-    pub fn new(config: GenericPipeConfig) -> Self {
+impl NeuroLinkHandler {
+    /// Create a new Neuro-Link handler from config.
+    pub fn new(config: NeuroLinkConfig) -> Self {
         Self {
-            name: "generic_pipe".to_string(),
+            name: "neuro-link".to_string(),
             host: config.host,
             port: config.port,
             allow_from: config.allow_from,
@@ -117,7 +117,7 @@ impl GenericPipeHandler {
                 accept = listener.accept() => {
                     match accept {
                         Ok((stream, addr)) => {
-                            info!("generic_pipe: new connection from {}", addr);
+                            info!("neuro-link: new connection from {}", addr);
                             let clients = clients.clone();
                             let inbound_tx = inbound_tx.clone();
                             let allow_from = allow_from.clone();
@@ -128,12 +128,12 @@ impl GenericPipeHandler {
                             });
                         }
                         Err(e) => {
-                            error!("generic_pipe: accept error: {}", e);
+                            error!("neuro-link: accept error: {}", e);
                         }
                     }
                 }
                 _ = shutdown_rx.recv() => {
-                    info!("generic_pipe: shutdown signal received");
+                    info!("neuro-link: shutdown signal received");
                     break;
                 }
             }
@@ -141,7 +141,7 @@ impl GenericPipeHandler {
     }
 }
 
-impl GenericPipeHandler {
+impl NeuroLinkHandler {
     /// Handle a single WS connection: read pipe:msg frames, forward to bus.
     async fn handle_connection(
         stream: tokio::net::TcpStream,
@@ -152,7 +152,7 @@ impl GenericPipeHandler {
         let ws_stream = match tokio_tungstenite::accept_async(stream).await {
             Ok(ws) => ws,
             Err(e) => {
-                error!("generic_pipe: WS handshake failed: {}", e);
+                error!("neuro-link: WS handshake failed: {}", e);
                 return;
             }
         };
@@ -170,7 +170,7 @@ impl GenericPipeHandler {
                 Ok(WsMessage::Text(t)) => t,
                 Ok(WsMessage::Close(_)) => break,
                 Err(e) => {
-                    warn!("generic_pipe: read error: {}", e);
+                    warn!("neuro-link: read error: {}", e);
                     break;
                 }
                 _ => continue,
@@ -179,14 +179,14 @@ impl GenericPipeHandler {
             let msg: PipeMsg = match serde_json::from_str(&text) {
                 Ok(m) => m,
                 Err(e) => {
-                    warn!("generic_pipe: bad JSON: {}", e);
+                    warn!("neuro-link: bad JSON: {}", e);
                     continue;
                 }
             };
 
             // Allow-list check
             if !allow_from.is_empty() && !allow_from.contains(&msg.sender) {
-                warn!("generic_pipe: sender {} not in allow_from", msg.sender);
+                warn!("neuro-link: sender {} not in allow_from", msg.sender);
                 continue;
             }
 
@@ -202,13 +202,13 @@ impl GenericPipeHandler {
             // Build InboundMessage and forward to bus.
             if let Some(ref tx) = inbound_tx {
                 let mut inbound =
-                    InboundMessage::new("generic_pipe", &msg.sender, &msg.chat, &msg.content);
+                    InboundMessage::new("neuro-link", &msg.sender, &msg.chat, &msg.content);
                 inbound = inbound.with_metadata("pipe_msg_id", msg.id.clone());
                 for (k, v) in &msg.meta {
                     inbound = inbound.with_metadata(k.clone(), v.clone());
                 }
                 if let Err(e) = tx.send(inbound).await {
-                    error!("generic_pipe: failed to forward inbound: {}", e);
+                    error!("neuro-link: failed to forward inbound: {}", e);
                 }
             }
         }
@@ -217,15 +217,15 @@ impl GenericPipeHandler {
         if let Some(chat) = connection_chat {
             let mut map = clients.write().await;
             map.remove(&chat);
-            info!("generic_pipe: client for chat '{}' disconnected", chat);
+            info!("neuro-link: client for chat '{}' disconnected", chat);
         }
     }
 }
 
-// ── ChannelHandler trait ────────────────────────────────────────────
+//  ChannelHandler trait
 
 #[async_trait]
-impl ChannelHandler for GenericPipeHandler {
+impl ChannelHandler for NeuroLinkHandler {
     fn name(&self) -> &str {
         &self.name
     }
@@ -241,9 +241,9 @@ impl ChannelHandler for GenericPipeHandler {
 
         let addr = format!("{}:{}", self.host, self.port);
         let listener = TcpListener::bind(&addr).await.map_err(|e| {
-            ChannelError::ConnectionFailed(format!("generic_pipe: failed to bind {}: {}", addr, e))
+            ChannelError::ConnectionFailed(format!("neuro-link: failed to bind {}: {}", addr, e))
         })?;
-        info!("generic_pipe: listening on {}", addr);
+        info!("neuro-link: listening on {}", addr);
 
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
         self.shutdown_tx = Some(shutdown_tx);
@@ -264,7 +264,7 @@ impl ChannelHandler for GenericPipeHandler {
         if !self.running {
             return Ok(());
         }
-        info!("generic_pipe: stopping...");
+        info!("neuro-link: stopping...");
 
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(()).await;
@@ -282,7 +282,7 @@ impl ChannelHandler for GenericPipeHandler {
         }
 
         self.running = false;
-        info!("generic_pipe: stopped");
+        info!("neuro-link: stopped");
         Ok(())
     }
 
@@ -320,7 +320,7 @@ impl ChannelHandler for GenericPipeHandler {
     }
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────
+//  Helpers
 
 /// Minimal v4-style UUID without pulling in the `uuid` crate.
 fn uuid_v4() -> String {
@@ -359,9 +359,9 @@ pub async fn send_delta(
     Ok(())
 }
 
-impl Default for GenericPipeHandler {
+impl Default for NeuroLinkHandler {
     fn default() -> Self {
-        Self::new(GenericPipeConfig::default())
+        Self::new(NeuroLinkConfig::default())
     }
 }
 
@@ -371,25 +371,25 @@ mod tests {
 
     #[test]
     fn test_handler_new() {
-        let handler = GenericPipeHandler::new(GenericPipeConfig {
+        let handler = NeuroLinkHandler::new(NeuroLinkConfig {
             enabled: true,
             host: "127.0.0.1".to_string(),
             port: 9100,
             allow_from: vec![],
         });
-        assert_eq!(handler.name(), "generic_pipe");
+        assert_eq!(handler.name(), "neuro-link");
         assert!(!handler.is_running());
     }
 
     #[test]
     fn test_is_allowed_empty() {
-        let handler = GenericPipeHandler::default();
+        let handler = NeuroLinkHandler::default();
         assert!(handler.is_allowed("anyone"));
     }
 
     #[test]
     fn test_is_allowed_restricted() {
-        let handler = GenericPipeHandler::new(GenericPipeConfig {
+        let handler = NeuroLinkHandler::new(NeuroLinkConfig {
             enabled: true,
             host: "0.0.0.0".to_string(),
             port: 9100,
@@ -423,10 +423,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stop() {
-        let mut handler = GenericPipeHandler::new(GenericPipeConfig {
+        let mut handler = NeuroLinkHandler::new(NeuroLinkConfig {
             enabled: true,
             host: "127.0.0.1".to_string(),
-            port: 0, // OS picks a free port — but TcpListener::bind("127.0.0.1:0") works
+            port: 0, // OS picks a free port ?but TcpListener::bind("127.0.0.1:0") works
             allow_from: vec![],
         });
         // Port 0 won't work with our addr format, so use a high port

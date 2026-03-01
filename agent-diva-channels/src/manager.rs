@@ -5,10 +5,10 @@ use crate::dingtalk::DingTalkHandler;
 use crate::discord::DiscordHandler;
 use crate::email::EmailHandler;
 use crate::feishu::FeishuHandler;
-use crate::generic_pipe::GenericPipeHandler;
 use crate::irc::IrcHandler;
 use crate::matrix::MatrixHandler;
 use crate::mattermost::MattermostHandler;
+use crate::neuro_link::NeuroLinkHandler;
 use crate::nextcloud_talk::NextcloudTalkHandler;
 use crate::qq::QQHandler;
 use crate::slack::SlackHandler;
@@ -218,17 +218,17 @@ impl ChannelManager {
             }
         }
 
-        // Initialize Generic Pipe channel
-        if self.config.channels.generic_pipe.enabled {
-            let mut handler = GenericPipeHandler::new(self.config.channels.generic_pipe.clone());
+        // Initialize Neuro-link channel
+        if self.config.channels.neuro_link.enabled {
+            let mut handler = NeuroLinkHandler::new(self.config.channels.neuro_link.clone());
             if let Some(ref tx) = self.inbound_tx {
                 handler.set_inbound_sender(tx.clone());
             }
             handlers.insert(
-                "generic_pipe".to_string(),
+                "neuro-link".to_string(),
                 Arc::new(RwLock::new(handler)) as Arc<RwLock<dyn ChannelHandler>>,
             );
-            tracing::info!("Generic pipe channel initialized");
+            tracing::info!("Neuro-link channel initialized");
         }
 
         // Initialize IRC channel
@@ -452,10 +452,10 @@ impl ChannelManager {
                     None
                 }
             }
-            "generic_pipe" => {
-                if new_config.channels.generic_pipe.enabled {
-                    Some(Arc::new(RwLock::new(GenericPipeHandler::new(
-                        new_config.channels.generic_pipe.clone(),
+            "neuro-link" | "generic_pipe" => {
+                if new_config.channels.neuro_link.enabled {
+                    Some(Arc::new(RwLock::new(NeuroLinkHandler::new(
+                        new_config.channels.neuro_link.clone(),
                     ))))
                 } else {
                     None
@@ -579,8 +579,8 @@ impl ChannelManager {
                 new_config.channels.matrix.clone(),
                 new_config.clone(),
             ))),
-            "generic_pipe" => Some(Box::new(GenericPipeHandler::new(
-                new_config.channels.generic_pipe.clone(),
+            "neuro-link" | "generic_pipe" => Some(Box::new(NeuroLinkHandler::new(
+                new_config.channels.neuro_link.clone(),
             ))),
             "irc" => Some(Box::new(IrcHandler::new(new_config.channels.irc.clone()))),
             "mattermost" => Some(Box::new(MattermostHandler::new(

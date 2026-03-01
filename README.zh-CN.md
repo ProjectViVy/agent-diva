@@ -133,7 +133,7 @@ pnpm tauri build
 - 实时流式对话
 - 工具调用可视化（输入参数 + 执行结果）
 - 供应商管理（API Key、Base URL、模型选择）
-- 渠道配置（Telegram、Discord、钉钉、飞书、WhatsApp、Email、Slack、QQ、Matrix、Generic Pipe）
+- 渠道配置（Telegram、Discord、钉钉、飞书、WhatsApp、Email、Slack、QQ、Matrix、Neuro-Link）
 - 中英文切换
 
 ### 外部 Hook

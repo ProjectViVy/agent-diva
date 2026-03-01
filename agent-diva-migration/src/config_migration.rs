@@ -615,7 +615,7 @@ impl ConfigMigrator {
                     allow_from: py.channels.qq.allow_from,
                 },
                 matrix: MatrixConfig::default(),
-                generic_pipe: GenericPipeConfig::default(),
+                neuro_link: NeuroLinkConfig::default(),
                 irc: IrcConfig::default(),
                 mattermost: MattermostConfig::default(),
                 nextcloud_talk: NextcloudTalkConfig::default(),

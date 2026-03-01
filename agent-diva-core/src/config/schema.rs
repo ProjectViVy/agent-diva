@@ -120,8 +120,13 @@ pub struct ChannelsConfig {
     pub qq: QQConfig,
     #[serde(default)]
     pub matrix: MatrixConfig,
-    #[serde(default)]
-    pub generic_pipe: GenericPipeConfig,
+    #[serde(
+        default,
+        rename = "neuro-link",
+        alias = "neuro_link",
+        alias = "generic_pipe"
+    )]
+    pub neuro_link: NeuroLinkConfig,
     #[serde(default)]
     pub irc: IrcConfig,
     #[serde(default)]
@@ -441,9 +446,9 @@ pub struct QQConfig {
     pub allow_from: Vec<String>,
 }
 
-/// Generic pipe (WebSocket server) channel configuration
+/// Neuro-link (WebSocket server) channel configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenericPipeConfig {
+pub struct NeuroLinkConfig {
     #[serde(default)]
     pub enabled: bool,
     #[serde(default = "default_pipe_host")]
@@ -461,7 +466,7 @@ fn default_pipe_port() -> u16 {
     9100
 }
 
-impl Default for GenericPipeConfig {
+impl Default for NeuroLinkConfig {
     fn default() -> Self {
         Self {
             enabled: false,
