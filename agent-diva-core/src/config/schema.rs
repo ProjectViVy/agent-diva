@@ -81,6 +81,9 @@ pub struct AgentDefaults {
     pub temperature: f32,
     /// Maximum tool iterations
     pub max_tool_iterations: u32,
+    /// Optional reasoning effort for thinking-capable models (low/medium/high)
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
 }
 
 impl Default for AgentDefaults {
@@ -91,6 +94,7 @@ impl Default for AgentDefaults {
             max_tokens: 8192,
             temperature: 0.7,
             max_tool_iterations: 20,
+            reasoning_effort: None,
         }
     }
 }
@@ -114,6 +118,8 @@ pub struct ChannelsConfig {
     pub slack: SlackConfig,
     #[serde(default)]
     pub qq: QQConfig,
+    #[serde(default)]
+    pub matrix: MatrixConfig,
     #[serde(default)]
     pub generic_pipe: GenericPipeConfig,
     #[serde(default)]
@@ -462,6 +468,64 @@ impl Default for GenericPipeConfig {
             host: default_pipe_host(),
             port: default_pipe_port(),
             allow_from: Vec::new(),
+        }
+    }
+}
+
+/// Matrix channel configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatrixConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_matrix_homeserver")]
+    pub homeserver: String,
+    #[serde(default)]
+    pub user_id: String,
+    #[serde(default)]
+    pub access_token: String,
+    #[serde(default)]
+    pub device_id: String,
+    #[serde(default = "default_true")]
+    pub e2ee_enabled: bool,
+    #[serde(default = "default_matrix_media_limit")]
+    pub max_media_bytes: usize,
+    #[serde(default)]
+    pub allow_from: Vec<String>,
+    #[serde(default)]
+    pub group_allow_from: Vec<String>,
+    #[serde(default = "default_matrix_sync_timeout")]
+    pub sync_timeout_ms: u64,
+    #[serde(default = "default_matrix_sync_stop_grace")]
+    pub sync_stop_grace_seconds: u64,
+}
+
+fn default_matrix_homeserver() -> String {
+    "https://matrix.org".to_string()
+}
+fn default_matrix_media_limit() -> usize {
+    20 * 1024 * 1024
+}
+fn default_matrix_sync_timeout() -> u64 {
+    30_000
+}
+fn default_matrix_sync_stop_grace() -> u64 {
+    8
+}
+
+impl Default for MatrixConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            homeserver: default_matrix_homeserver(),
+            user_id: String::new(),
+            access_token: String::new(),
+            device_id: String::new(),
+            e2ee_enabled: true,
+            max_media_bytes: default_matrix_media_limit(),
+            allow_from: Vec::new(),
+            group_allow_from: Vec::new(),
+            sync_timeout_ms: default_matrix_sync_timeout(),
+            sync_stop_grace_seconds: default_matrix_sync_stop_grace(),
         }
     }
 }

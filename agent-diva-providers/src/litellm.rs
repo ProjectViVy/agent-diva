@@ -23,6 +23,8 @@ struct ChatCompletionRequest {
     tool_choice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<String>,
     max_tokens: i32,
     temperature: f64,
 }
@@ -123,6 +125,15 @@ struct StreamFunction {
     arguments: Option<String>,
 }
 
+#[derive(Debug)]
+struct RequestBuildOptions {
+    resolved_model: String,
+    max_tokens: i32,
+    temperature: f64,
+    reasoning_effort: Option<String>,
+    stream: bool,
+}
+
 #[derive(Debug, Default, Clone)]
 struct PartialToolCall {
     id: Option<String>,
@@ -141,6 +152,7 @@ pub struct LiteLLMClient {
     registry: ProviderRegistry,
     gateway: Option<ProviderSpec>,
     selected_provider: Option<ProviderSpec>,
+    default_reasoning_effort: Option<String>,
 }
 
 impl LiteLLMClient {
@@ -151,6 +163,7 @@ impl LiteLLMClient {
         default_model: String,
         extra_headers: Option<HashMap<String, String>>,
         provider_name: Option<String>,
+        default_reasoning_effort: Option<String>,
     ) -> Self {
         tracing::info!(
             "Creating LiteLLMClient. Provider: {:?}, Base: {:?}",
@@ -205,6 +218,9 @@ impl LiteLLMClient {
             registry,
             gateway,
             selected_provider,
+            default_reasoning_effort: default_reasoning_effort
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty()),
         }
     }
 
@@ -323,6 +339,29 @@ impl LiteLLMClient {
         }
     }
 
+    /// Some strict provider endpoints (e.g. Mistral native OpenAI-compatible) require
+    /// assistant messages with tool_calls to use `content: null` instead of an empty string.
+    fn normalize_assistant_tool_call_content(body: &mut serde_json::Value) {
+        if let Some(messages) = body.get_mut("messages").and_then(|m| m.as_array_mut()) {
+            for msg in messages {
+                let is_assistant = msg.get("role").and_then(|r| r.as_str()) == Some("assistant");
+                let has_tool_calls = msg
+                    .get("tool_calls")
+                    .and_then(|t| t.as_array())
+                    .map(|arr| !arr.is_empty())
+                    .unwrap_or(false);
+                let empty_content = msg
+                    .get("content")
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.is_empty())
+                    .unwrap_or(false);
+                if is_assistant && has_tool_calls && empty_content {
+                    msg["content"] = serde_json::Value::Null;
+                }
+            }
+        }
+    }
+
     /// Parse LiteLLM response into our standard format
     fn parse_response(&self, response: ChatCompletionResponse) -> ProviderResult<LLMResponse> {
         let choice = response
@@ -386,19 +425,17 @@ impl LiteLLMClient {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
-        resolved_model: String,
-        max_tokens: i32,
-        temperature: f64,
-        stream: bool,
+        options: RequestBuildOptions,
     ) -> ChatCompletionRequest {
         let mut request = ChatCompletionRequest {
-            model: resolved_model,
+            model: options.resolved_model,
             messages,
             tools: None,
             tool_choice: None,
-            stream: if stream { Some(true) } else { None },
-            max_tokens,
-            temperature,
+            stream: if options.stream { Some(true) } else { None },
+            reasoning_effort: options.reasoning_effort,
+            max_tokens: options.max_tokens,
+            temperature: options.temperature,
         };
 
         if let Some(tools_list) = tools {
@@ -533,13 +570,20 @@ impl LLMProvider for LiteLLMClient {
         let request = self.build_request(
             messages,
             tools,
-            resolved_model.clone(),
-            max_tokens,
-            kwargs
-                .get("temperature")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(temperature),
-            false,
+            RequestBuildOptions {
+                resolved_model: resolved_model.clone(),
+                max_tokens,
+                temperature: kwargs
+                    .get("temperature")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(temperature),
+                reasoning_effort: kwargs
+                    .get("reasoning_effort")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| self.default_reasoning_effort.clone()),
+                stream: false,
+            },
         );
 
         debug!(
@@ -553,6 +597,7 @@ impl LLMProvider for LiteLLMClient {
         if self.supports_cache_control(&model) {
             Self::apply_cache_control(&mut body);
         }
+        Self::normalize_assistant_tool_call_content(&mut body);
 
         // Build HTTP request
         let url = format!("{}/chat/completions", self.api_base);
@@ -594,13 +639,20 @@ impl LLMProvider for LiteLLMClient {
         let request = self.build_request(
             messages,
             tools,
-            resolved_model.clone(),
-            max_tokens,
-            kwargs
-                .get("temperature")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(temperature),
-            true,
+            RequestBuildOptions {
+                resolved_model: resolved_model.clone(),
+                max_tokens,
+                temperature: kwargs
+                    .get("temperature")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(temperature),
+                reasoning_effort: kwargs
+                    .get("reasoning_effort")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| self.default_reasoning_effort.clone()),
+                stream: true,
+            },
         );
 
         debug!(
@@ -614,6 +666,7 @@ impl LLMProvider for LiteLLMClient {
         if self.supports_cache_control(&model) {
             Self::apply_cache_control(&mut body);
         }
+        Self::normalize_assistant_tool_call_content(&mut body);
 
         let url = format!("{}/chat/completions", self.api_base);
         let req_builder = self.apply_headers(self.client.post(&url).json(&body));
@@ -765,6 +818,7 @@ impl Default for LiteLLMClient {
             "anthropic/claude-opus-4-5".to_string(),
             None,
             None,
+            None,
         )
     }
 }
@@ -775,7 +829,7 @@ mod tests {
 
     #[test]
     fn test_resolve_model() {
-        let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None);
+        let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None, None);
 
         // DeepSeek should get prefixed
         assert_eq!(
@@ -799,6 +853,7 @@ mod tests {
             "claude-3-opus".to_string(),
             None,
             None,
+            None,
         );
         assert_eq!(
             client.resolve_model("claude-3-opus"),
@@ -810,6 +865,7 @@ mod tests {
             Some("test-key".to_string()),
             Some("https://aihubmix.com/v1".to_string()),
             "claude-3-opus".to_string(),
+            None,
             None,
             None,
         );
@@ -828,6 +884,7 @@ mod tests {
             "deepseek-chat".to_string(),
             None,
             Some("deepseek".to_string()),
+            None,
         );
         assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
     }
@@ -961,13 +1018,13 @@ mod tests {
 
     #[test]
     fn test_supports_cache_control_anthropic() {
-        let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None);
+        let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None, None);
         assert!(client.supports_cache_control("claude-3-opus"));
     }
 
     #[test]
     fn test_supports_cache_control_deepseek_false() {
-        let client = LiteLLMClient::new(None, None, "deepseek-chat".to_string(), None, None);
+        let client = LiteLLMClient::new(None, None, "deepseek-chat".to_string(), None, None, None);
         assert!(!client.supports_cache_control("deepseek-chat"));
     }
 
@@ -1006,5 +1063,35 @@ mod tests {
         // Only last tool should have cache_control
         assert!(body["tools"][0].get("cache_control").is_none());
         assert_eq!(body["tools"][1]["cache_control"]["type"], "ephemeral");
+    }
+
+    #[test]
+    fn test_normalize_assistant_tool_call_content_empty_to_null() {
+        let mut body = serde_json::json!({
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{"id":"call_1","type":"function","function":{"name":"x","arguments":"{}"}}]
+                }
+            ]
+        });
+        LiteLLMClient::normalize_assistant_tool_call_content(&mut body);
+        assert!(body["messages"][0]["content"].is_null());
+    }
+
+    #[test]
+    fn test_normalize_assistant_tool_call_content_keeps_non_empty() {
+        let mut body = serde_json::json!({
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": "ok",
+                    "tool_calls": [{"id":"call_1","type":"function","function":{"name":"x","arguments":"{}"}}]
+                }
+            ]
+        });
+        LiteLLMClient::normalize_assistant_tool_call_content(&mut body);
+        assert_eq!(body["messages"][0]["content"], "ok");
     }
 }

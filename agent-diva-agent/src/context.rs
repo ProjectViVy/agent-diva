@@ -144,6 +144,12 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
                             m.tool_calls = Some(calls);
                         }
                     }
+                    if let Some(reasoning) = msg.reasoning_content {
+                        m.reasoning_content = Some(reasoning);
+                    }
+                    if let Some(thinking_blocks) = msg.thinking_blocks {
+                        m.thinking_blocks = Some(thinking_blocks);
+                    }
                     m
                 }
                 "tool" => {
@@ -181,6 +187,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         content: Option<String>,
         tool_calls: Option<Vec<agent_diva_providers::ToolCallRequest>>,
         reasoning_content: Option<String>,
+        thinking_blocks: Option<Vec<serde_json::Value>>,
     ) {
         let mut msg = Message::assistant(content.unwrap_or_default());
         if let Some(calls) = tool_calls {
@@ -188,6 +195,9 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         }
         if let Some(reasoning) = reasoning_content {
             msg.reasoning_content = Some(reasoning);
+        }
+        if let Some(blocks) = thinking_blocks {
+            msg.thinking_blocks = Some(blocks);
         }
         messages.push(msg);
     }
@@ -245,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_add_tool_result() {
-        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test".into()));
         let mut messages = vec![Message::user("test")];
         builder.add_tool_result(
             &mut messages,
@@ -268,6 +278,7 @@ mod tests {
             Some("response".to_string()),
             None,
             Some("reasoning".to_string()),
+            None,
         );
 
         assert_eq!(messages.len(), 2);

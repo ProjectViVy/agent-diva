@@ -6,6 +6,7 @@ use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage};
 use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersConfig};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::{CronSchedule, CronService};
+use agent_diva_core::utils::sync_workspace_templates;
 use agent_diva_providers::{LiteLLMClient, ProviderRegistry};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -365,6 +366,7 @@ fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
         model.to_string(),
         extra_headers,
         Some(spec.name.clone()),
+        config.agents.defaults.reasoning_effort.clone(),
     ))
 }
 
@@ -465,6 +467,7 @@ async fn run_onboard(loader: &ConfigLoader) -> Result<()> {
     let workspace_path = expand_tilde(&config.agents.defaults.workspace);
     std::fs::create_dir_all(&workspace_path)?;
     std::fs::create_dir_all(workspace_path.join("skills"))?;
+    let _ = sync_workspace_templates(&workspace_path);
 
     println!(
         "\n{}",
@@ -509,6 +512,7 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
 
         let workspace = expand_tilde(&config.agents.defaults.workspace);
         std::fs::create_dir_all(&workspace)?;
+        let _ = sync_workspace_templates(&workspace);
 
         println!("{}", style("Starting Agent Diva Gateway...").bold().cyan());
         println!("Model: {}", config.agents.defaults.model);
@@ -678,6 +682,7 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
             ("email", config.channels.email.enabled),
             ("slack", config.channels.slack.enabled),
             ("qq", config.channels.qq.enabled),
+            ("matrix", config.channels.matrix.enabled),
         ];
 
         let channel_manager = Arc::new(channel_manager);
@@ -833,6 +838,7 @@ async fn run_agent(
 
     let workspace = expand_tilde(&config.agents.defaults.workspace);
     std::fs::create_dir_all(&workspace)?;
+    let _ = sync_workspace_templates(&workspace);
 
     let bus = MessageBus::new();
     let provider = Arc::new(build_provider(&config, &selected_model)?);
@@ -1024,6 +1030,7 @@ async fn run_tui(
     let selected_model = model.unwrap_or_else(|| config.agents.defaults.model.clone());
     let workspace = expand_tilde(&config.agents.defaults.workspace);
     std::fs::create_dir_all(&workspace)?;
+    let _ = sync_workspace_templates(&workspace);
 
     let bus = MessageBus::new();
     let provider = Arc::new(build_provider(&config, &selected_model)?);
@@ -1241,6 +1248,7 @@ async fn run_status(loader: &ConfigLoader) -> Result<()> {
         ("Email", config.channels.email.enabled),
         ("Slack", config.channels.slack.enabled),
         ("QQ", config.channels.qq.enabled),
+        ("Matrix", config.channels.matrix.enabled),
     ];
     for (name, enabled) in channels {
         let status = if enabled {
@@ -1297,6 +1305,12 @@ async fn run_channel_status(loader: &ConfigLoader) -> Result<()> {
             "QQ",
             config.channels.qq.enabled,
             config.channels.qq.app_id.is_empty(),
+        ),
+        (
+            "Matrix",
+            config.channels.matrix.enabled,
+            config.channels.matrix.user_id.is_empty()
+                || config.channels.matrix.access_token.is_empty(),
         ),
     ];
 

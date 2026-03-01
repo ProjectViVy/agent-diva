@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Markdown Support**: Integrated `markdown-it` and `highlight.js` to render Markdown content in chat messages with syntax highlighting (GitHub Dark theme).
 - **Browser Compatibility**: Added mock implementations for Tauri APIs to support development and testing in standard web browsers.
 - **Loading Indicators**: Added a loading animation within the message bubble to indicate when the agent is "thinking" or generating a response.
+- **Matrix Channel**: Added Matrix channel support with long-polling sync, text/media delivery, deduplication, and configurable media limits.
+- **Workspace Bootstrap**: Added automatic workspace template sync (`MEMORY.md`, `HISTORY.md`, `PROFILE.md`, `TASK.md`) on onboard and runtime entry points.
+- **Thinking Config**: Added `agents.defaults.reasoning_effort` (low/medium/high) and provider passthrough for thinking-capable models.
 
 ### Fixed
 - **Dependency**: Resolved duplicate import errors for `LiteLLMClient` and `ProviderRegistry`.
@@ -41,6 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Enabled `native-tls` for WebSocket connections to support `wss://` gateway.
     - Updated event intents to correctly receive public and direct messages.
 - **GUI**: Added missing `App Secret` field for QQ channel configuration.
+- **Session Hardening**: Prevented error-finish and empty assistant messages from polluting persisted session history.
+- **WhatsApp**: Added inbound deduplication for reconnect replay protection.
+- **DingTalk**: Added outbound media support (URL/local file upload and send).
+- **Tools**: Hardened Windows absolute-path detection in shell workspace guard.
+- **Provider Compatibility**: Normalized assistant tool-call messages to use `content: null` for stricter OpenAI-compatible providers (e.g. Mistral-native endpoints).
 
 ### Changed
 - **Gateway**: Major refactor of channel logic, making `gateway` the unified entry point.

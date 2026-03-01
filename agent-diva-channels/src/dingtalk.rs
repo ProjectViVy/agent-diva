@@ -24,6 +24,7 @@ use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::VecDeque;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
@@ -318,6 +319,199 @@ impl DingTalkHandler {
 
         info!("DingTalk Stream connection registered successfully");
         Ok((register_resp.endpoint, register_resp.ticket))
+    }
+
+    fn is_http_url(s: &str) -> bool {
+        let lower = s.to_lowercase();
+        lower.starts_with("http://") || lower.starts_with("https://")
+    }
+
+    fn guess_upload_type(media_ref: &str) -> &'static str {
+        let p = media_ref.to_lowercase();
+        if p.ends_with(".jpg")
+            || p.ends_with(".jpeg")
+            || p.ends_with(".png")
+            || p.ends_with(".gif")
+            || p.ends_with(".webp")
+        {
+            "image"
+        } else if p.ends_with(".mp3") || p.ends_with(".amr") || p.ends_with(".wav") {
+            "voice"
+        } else if p.ends_with(".mp4") || p.ends_with(".mov") || p.ends_with(".mkv") {
+            "video"
+        } else {
+            "file"
+        }
+    }
+
+    async fn upload_media(
+        &self,
+        token: &str,
+        media_type: &str,
+        filename: &str,
+        data: Vec<u8>,
+    ) -> Result<String> {
+        let url = format!(
+            "https://oapi.dingtalk.com/media/upload?access_token={}&type={}",
+            token, media_type
+        );
+        let part = reqwest::multipart::Part::bytes(data).file_name(filename.to_string());
+        let form = reqwest::multipart::Form::new().part("media", part);
+        let resp = self
+            .http_client
+            .post(url)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| {
+                ChannelError::SendFailed(format!("DingTalk media upload request failed: {}", e))
+            })?;
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(ChannelError::SendFailed(format!(
+                "DingTalk media upload failed {}: {}",
+                status, body
+            )));
+        }
+        let value: Value = serde_json::from_str(&body).unwrap_or_default();
+        let media_id = value
+            .get("media_id")
+            .or_else(|| value.get("mediaId"))
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ChannelError::SendFailed(format!("DingTalk upload missing media_id: {}", body))
+            })?;
+        Ok(media_id.to_string())
+    }
+
+    async fn send_raw(
+        &self,
+        token: &str,
+        chat_id: &str,
+        msg_key: &str,
+        msg_param: Value,
+    ) -> Result<()> {
+        let robot_code = if !self.config.robot_code.is_empty() {
+            &self.config.robot_code
+        } else {
+            &self.config.client_id
+        };
+        let is_group = chat_id.starts_with("cid");
+        let url = if is_group {
+            format!("{}/v1.0/robot/groupMessages/send", DINGTALK_API_BASE)
+        } else {
+            format!("{}/v1.0/robot/oToMessages/batchSend", DINGTALK_API_BASE)
+        };
+        let body = if is_group {
+            json!({
+                "robotCode": robot_code,
+                "openConversationId": chat_id,
+                "msgKey": msg_key,
+                "msgParam": msg_param.to_string(),
+            })
+        } else {
+            json!({
+                "robotCode": robot_code,
+                "userIds": [chat_id],
+                "msgKey": msg_key,
+                "msgParam": msg_param.to_string(),
+            })
+        };
+        let response = self
+            .http_client
+            .post(&url)
+            .header("x-acs-dingtalk-access-token", token)
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| ChannelError::SendFailed(format!("Send request failed: {}", e)))?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ChannelError::SendFailed(format!(
+                "Send failed with status {}: {}",
+                status, error_text
+            )));
+        }
+        Ok(())
+    }
+
+    async fn send_media_ref(&self, token: &str, chat_id: &str, media_ref: &str) -> Result<()> {
+        let media_ref = media_ref.trim();
+        if media_ref.is_empty() {
+            return Ok(());
+        }
+        let media_type = Self::guess_upload_type(media_ref);
+        if media_type == "image" && Self::is_http_url(media_ref) {
+            // DingTalk supports direct image URL delivery.
+            return self
+                .send_raw(
+                    token,
+                    chat_id,
+                    "sampleImageMsg",
+                    json!({ "photoURL": media_ref }),
+                )
+                .await;
+        }
+
+        let path = Path::new(media_ref);
+        let (filename, data) = if path.exists() {
+            let filename = path
+                .file_name()
+                .and_then(|v| v.to_str())
+                .unwrap_or("file.bin")
+                .to_string();
+            let data = tokio::fs::read(path)
+                .await
+                .map_err(|e| ChannelError::SendFailed(format!("read media failed: {}", e)))?;
+            (filename, data)
+        } else if Self::is_http_url(media_ref) {
+            let resp =
+                self.http_client.get(media_ref).send().await.map_err(|e| {
+                    ChannelError::SendFailed(format!("download media failed: {}", e))
+                })?;
+            let data = resp.bytes().await.map_err(|e| {
+                ChannelError::SendFailed(format!("download media bytes failed: {}", e))
+            })?;
+            let filename = media_ref
+                .rsplit('/')
+                .next()
+                .filter(|s| !s.is_empty())
+                .unwrap_or("file.bin")
+                .to_string();
+            (filename, data.to_vec())
+        } else {
+            return Err(ChannelError::SendFailed(format!(
+                "media path not found: {}",
+                media_ref
+            )));
+        };
+
+        let media_id = self
+            .upload_media(token, media_type, &filename, data)
+            .await?;
+        if media_type == "image" {
+            self.send_raw(
+                token,
+                chat_id,
+                "sampleImageMsg",
+                json!({ "photoURL": media_id }),
+            )
+            .await
+        } else {
+            self.send_raw(
+                token,
+                chat_id,
+                "sampleFileMsg",
+                json!({ "mediaId": media_id, "fileName": filename, "fileType": media_type }),
+            )
+            .await
+        }
     }
 
     /// Get local IP address
@@ -641,63 +835,23 @@ impl ChannelHandler for DingTalkHandler {
         }
 
         let token = self.get_access_token().await?;
-        let robot_code = if !self.config.robot_code.is_empty() {
-            &self.config.robot_code
-        } else {
-            &self.config.client_id
-        };
-
-        let is_group = msg.chat_id.starts_with("cid");
-        let url = if is_group {
-            format!("{}/v1.0/robot/groupMessages/send", DINGTALK_API_BASE)
-        } else {
-            format!("{}/v1.0/robot/oToMessages/batchSend", DINGTALK_API_BASE)
-        };
-
-        let body = if is_group {
-            json!({
-                "robotCode": robot_code,
-                "openConversationId": msg.chat_id,
-                "msgKey": "sampleMarkdown",
-                "msgParam": json!({
-                    "text": msg.content,
-                    "title": "agent-diva reply",
-                }).to_string(),
-            })
-        } else {
-            json!({
-                "robotCode": robot_code,
-                "userIds": [msg.chat_id],
-                "msgKey": "sampleMarkdown",
-                "msgParam": json!({
-                    "text": msg.content,
-                    "title": "agent-diva reply",
-                }).to_string(),
-            })
-        };
-
-        let response = self
-            .http_client
-            .post(&url)
-            .header("x-acs-dingtalk-access-token", token)
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| ChannelError::SendFailed(format!("Send request failed: {}", e)))?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ChannelError::SendFailed(format!(
-                "Send failed with status {}: {}",
-                status, error_text
-            )));
+        for media in &msg.media {
+            if let Err(e) = self.send_media_ref(&token, &msg.chat_id, media).await {
+                error!("DingTalk media send failed for {}: {}", media, e);
+            }
         }
-
+        if !msg.content.trim().is_empty() {
+            self.send_raw(
+                &token,
+                &msg.chat_id,
+                "sampleMarkdown",
+                json!({
+                    "text": msg.content,
+                    "title": "agent-diva reply",
+                }),
+            )
+            .await?;
+        }
         debug!("DingTalk message sent to {}", msg.chat_id);
         Ok(())
     }

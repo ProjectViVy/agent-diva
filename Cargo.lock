@@ -47,6 +47,7 @@ dependencies = [
  "imap",
  "lettre",
  "mail-parser",
+ "mime_guess",
  "native-tls",
  "regex",
  "reqwest 0.11.27",
@@ -60,6 +61,7 @@ dependencies = [
  "tokio-test",
  "tokio-tungstenite 0.21.0",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -10,6 +10,7 @@ use agent_diva_providers::transcription::TranscriptionService;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinHandle;
@@ -121,6 +122,8 @@ pub struct WhatsAppHandler {
     ws_tx: Arc<RwLock<Option<WsSink>>>,
     /// Connection state
     connected: Arc<RwLock<bool>>,
+    /// Processed inbound IDs/fingerprints to avoid duplicate delivery after reconnect.
+    processed_ids: Arc<RwLock<VecDeque<String>>>,
     /// Background task handle
     task_handle: Option<JoinHandle<()>>,
     /// Shutdown signal
@@ -138,6 +141,7 @@ impl WhatsAppHandler {
             inbound_tx: None,
             ws_tx: Arc::new(RwLock::new(None)),
             connected: Arc::new(RwLock::new(false)),
+            processed_ids: Arc::new(RwLock::new(VecDeque::with_capacity(1000))),
             task_handle: None,
             shutdown_tx: None,
         }
@@ -196,6 +200,16 @@ impl WhatsAppHandler {
                 protocol_version,
                 media,
             } => {
+                let dedup_key = if !id.is_empty() {
+                    id.clone()
+                } else {
+                    format!("{}:{}:{}", sender, timestamp.unwrap_or_default(), content)
+                };
+                if self.is_processed(&dedup_key).await {
+                    return Ok(());
+                }
+                self.mark_processed(dedup_key).await;
+
                 // Extract sender ID from phone number or sender JID
                 let user_id = if !pn.is_empty() {
                     pn.clone()
@@ -308,6 +322,19 @@ impl WhatsAppHandler {
         Ok(())
     }
 
+    async fn is_processed(&self, id: &str) -> bool {
+        let ids = self.processed_ids.read().await;
+        ids.contains(&id.to_string())
+    }
+
+    async fn mark_processed(&self, id: String) {
+        let mut ids = self.processed_ids.write().await;
+        if ids.len() >= 1000 {
+            ids.pop_front();
+        }
+        ids.push_back(id);
+    }
+
     async fn transcribe_voice_message(&self, media: &BridgeMedia) -> Option<String> {
         let local_path = media.local_path.as_deref()?;
         let service = TranscriptionService::new(None);
@@ -332,6 +359,7 @@ impl WhatsAppHandler {
         ws_tx: Arc<RwLock<Option<WsSink>>>,
         connected: Arc<RwLock<bool>>,
         inbound_tx: Option<mpsc::Sender<InboundMessage>>,
+        processed_ids: Arc<RwLock<VecDeque<String>>>,
         mut shutdown_rx: mpsc::Receiver<()>,
     ) {
         let handler = Self {
@@ -342,6 +370,7 @@ impl WhatsAppHandler {
             inbound_tx,
             ws_tx: ws_tx.clone(),
             connected: connected.clone(),
+            processed_ids,
             task_handle: None,
             shutdown_tx: None,
         };
@@ -452,6 +481,7 @@ impl ChannelHandler for WhatsAppHandler {
         let connected = self.connected.clone();
         let inbound_tx = self.inbound_tx.clone();
         let allow_from = self.allow_from.clone();
+        let processed_ids = self.processed_ids.clone();
 
         let handle = tokio::spawn(async move {
             Self::connection_loop(
@@ -460,6 +490,7 @@ impl ChannelHandler for WhatsAppHandler {
                 ws_tx,
                 connected,
                 inbound_tx,
+                processed_ids,
                 shutdown_rx,
             )
             .await;

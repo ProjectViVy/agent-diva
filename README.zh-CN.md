@@ -20,7 +20,7 @@ agent-diva/
 |-- agent-diva-core/       # 共享配置、记忆/会话、定时任务、心跳、事件总线
 |-- agent-diva-agent/      # 代理循环、上下文组装、技能/子代理流程
 |-- agent-diva-providers/  # 大模型/转写提供商抽象与实现
-|-- agent-diva-channels/   # 渠道适配（Slack/Discord/Telegram/Email/QQ 等）
+|-- agent-diva-channels/   # 渠道适配（Slack/Discord/Telegram/Email/QQ/Matrix 等）
 |-- agent-diva-tools/      # 内置工具（文件/命令行/网页/定时/进程）
 |-- agent-diva-cli/        # CLI 入口
 |-- agent-diva-migration/  # 旧版本迁移工具
@@ -133,7 +133,7 @@ pnpm tauri build
 - 实时流式对话
 - 工具调用可视化（输入参数 + 执行结果）
 - 供应商管理（API Key、Base URL、模型选择）
-- 渠道配置（Telegram、Discord、钉钉、飞书、WhatsApp、Email、Slack、QQ、Generic Pipe）
+- 渠道配置（Telegram、Discord、钉钉、飞书、WhatsApp、Email、Slack、QQ、Matrix、Generic Pipe）
 - 中英文切换
 
 ### 外部 Hook

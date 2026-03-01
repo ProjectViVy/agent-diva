@@ -94,11 +94,11 @@ impl ExecTool {
             // Check absolute paths in command
             let cwd_canonical = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
 
-            // Windows paths: C:\...
-            let win_pattern = r"[A-Za-z]:";
+            // Windows absolute paths: C:\... (quoted or unquoted)
+            let win_pattern = r#"(?i)[A-Za-z]:\\[^\s"']+"#;
             let win_re = Regex::new(win_pattern).unwrap();
-            // POSIX paths: /...
-            let posix_pattern = r"/[^\s]+";
+            // POSIX absolute paths: /...
+            let posix_pattern = r#"/[^\s"']+"#;
             let posix_re = Regex::new(posix_pattern).unwrap();
 
             for cap in win_re.find_iter(cmd).chain(posix_re.find_iter(cmd)) {

@@ -247,6 +247,7 @@ impl Manager {
                                         model_to_use.clone(),
                                         extra_headers,
                                         Some(spec.name.clone()),
+                                        config.agents.defaults.reasoning_effort.clone(),
                                     );
 
                                     self.provider.update(Arc::new(new_client));
@@ -333,6 +334,11 @@ impl Manager {
                                         if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
                                         config.channels.qq = cfg;
                                     },
+                                    "matrix" => {
+                                        let mut cfg: agent_diva_core::config::schema::MatrixConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.matrix = cfg;
+                                    },
                                     _ => {
                                         warn!("Unknown channel: {}", name);
                                     }
@@ -417,6 +423,11 @@ impl Manager {
                                         let mut cfg: agent_diva_core::config::schema::QQConfig = serde_json::from_value(update.config)?;
                                         if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
                                         config.channels.qq = cfg;
+                                    },
+                                    "matrix" => {
+                                        let mut cfg: agent_diva_core::config::schema::MatrixConfig = serde_json::from_value(update.config)?;
+                                        if let Some(enabled) = update.enabled { cfg.enabled = enabled; }
+                                        config.channels.matrix = cfg;
                                     },
                                     _ => {
                                         warn!("Unknown channel: {}", name);

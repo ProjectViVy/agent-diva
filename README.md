@@ -23,7 +23,7 @@ agent-diva/
 |-- agent-diva-core/       # Shared config, memory/session, cron, heartbeat, event bus
 |-- agent-diva-agent/      # Agent loop, context assembly, skill/subagent flow
 |-- agent-diva-providers/  # LLM/transcription provider abstractions and implementations
-|-- agent-diva-channels/   # Channel adapters (Slack, Discord, Telegram, Email, QQ, etc.)
+|-- agent-diva-channels/   # Channel adapters (Slack, Discord, Telegram, Email, QQ, Matrix, etc.)
 |-- agent-diva-tools/      # Built-in tools (filesystem, shell, web, cron, spawn)
 |-- agent-diva-cli/        # User-facing CLI entrypoint
 |-- agent-diva-migration/  # Migration utility from earlier versions
@@ -153,7 +153,7 @@ The built binary will be in `agent-diva-gui/src-tauri/target/release/`.
 - Real-time streaming chat with the agent
 - Tool call visualization (input args + results)
 - Provider management (API keys, base URLs, model selection)
-- Channel configuration (Telegram, Discord, DingTalk, Feishu, WhatsApp, Email, Slack, QQ, Generic Pipe)
+- Channel configuration (Telegram, Discord, DingTalk, Feishu, WhatsApp, Email, Slack, QQ, Matrix, Generic Pipe)
 - Language switching (English / Chinese)
 
 ### External Hook

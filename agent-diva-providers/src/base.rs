@@ -190,6 +190,8 @@ pub struct Message {
     pub tool_calls: Option<Vec<ToolCallRequest>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_blocks: Option<Vec<serde_json::Value>>,
 }
 
 impl Message {
@@ -202,6 +204,7 @@ impl Message {
             tool_call_id: None,
             tool_calls: None,
             reasoning_content: None,
+            thinking_blocks: None,
         }
     }
 
@@ -214,6 +217,7 @@ impl Message {
             tool_call_id: None,
             tool_calls: None,
             reasoning_content: None,
+            thinking_blocks: None,
         }
     }
 
@@ -226,6 +230,7 @@ impl Message {
             tool_call_id: None,
             tool_calls: None,
             reasoning_content: None,
+            thinking_blocks: None,
         }
     }
 
@@ -238,6 +243,7 @@ impl Message {
             tool_call_id: Some(tool_call_id.into()),
             tool_calls: None,
             reasoning_content: None,
+            thinking_blocks: None,
         }
     }
 }

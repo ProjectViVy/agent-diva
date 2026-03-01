@@ -44,6 +44,8 @@ impl Session {
             tool_call_id: None,
             tool_calls: None,
             name: None,
+            reasoning_content: None,
+            thinking_blocks: None,
         });
         self.updated_at = Utc::now();
     }
@@ -60,7 +62,11 @@ impl Session {
         let consolidated = self.last_consolidated.min(self.messages.len());
         let unconsolidated = &self.messages[consolidated..];
         let start = unconsolidated.len().saturating_sub(max_messages);
-        let mut sliced = unconsolidated[start..].to_vec();
+        let mut sliced: Vec<ChatMessage> = unconsolidated[start..]
+            .iter()
+            .filter(|m| matches!(m.role.as_str(), "user" | "assistant" | "tool"))
+            .cloned()
+            .collect();
         // Drop leading non-user messages to avoid orphaned tool results
         if let Some(pos) = sliced.iter().position(|m| m.role == "user") {
             sliced = sliced[pos..].to_vec();
@@ -94,6 +100,12 @@ pub struct ChatMessage {
     /// Tool name (for tool-result messages)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub name: Option<String>,
+    /// Optional reasoning content captured from thinking-capable models
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub reasoning_content: Option<String>,
+    /// Optional structured thinking blocks (provider-specific)
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub thinking_blocks: Option<Vec<serde_json::Value>>,
 }
 
 impl ChatMessage {
@@ -106,6 +118,8 @@ impl ChatMessage {
             tool_call_id: None,
             tool_calls: None,
             name: None,
+            reasoning_content: None,
+            thinking_blocks: None,
         }
     }
 
@@ -124,6 +138,8 @@ impl ChatMessage {
             tool_call_id,
             tool_calls,
             name,
+            reasoning_content: None,
+            thinking_blocks: None,
         }
     }
 

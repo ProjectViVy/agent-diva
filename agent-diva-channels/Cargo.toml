@@ -39,6 +39,8 @@ tracing = { workspace = true }
 regex = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
+uuid = { workspace = true }
+mime_guess = "2.0"
 
 # TLS support
 native-tls = "0.2"

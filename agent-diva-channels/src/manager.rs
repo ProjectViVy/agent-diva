@@ -7,6 +7,7 @@ use crate::email::EmailHandler;
 use crate::feishu::FeishuHandler;
 use crate::generic_pipe::GenericPipeHandler;
 use crate::irc::IrcHandler;
+use crate::matrix::MatrixHandler;
 use crate::mattermost::MattermostHandler;
 use crate::nextcloud_talk::NextcloudTalkHandler;
 use crate::qq::QQHandler;
@@ -194,6 +195,26 @@ impl ChannelManager {
                 tracing::info!("QQ channel initialized");
             } else {
                 tracing::warn!("QQ channel enabled but app_id not configured");
+            }
+        }
+
+        // Initialize Matrix channel
+        if self.config.channels.matrix.enabled {
+            if !self.config.channels.matrix.user_id.is_empty()
+                && !self.config.channels.matrix.access_token.is_empty()
+            {
+                let mut handler =
+                    MatrixHandler::new(self.config.channels.matrix.clone(), self.config.clone());
+                if let Some(ref tx) = self.inbound_tx {
+                    handler.set_inbound_sender(tx.clone());
+                }
+                handlers.insert(
+                    "matrix".to_string(),
+                    Arc::new(RwLock::new(handler)) as Arc<RwLock<dyn ChannelHandler>>,
+                );
+                tracing::info!("Matrix channel initialized");
+            } else {
+                tracing::warn!("Matrix channel enabled but user_id/access_token not configured");
             }
         }
 
@@ -418,6 +439,19 @@ impl ChannelManager {
                     None
                 }
             }
+            "matrix" => {
+                if new_config.channels.matrix.enabled
+                    && !new_config.channels.matrix.user_id.is_empty()
+                    && !new_config.channels.matrix.access_token.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(MatrixHandler::new(
+                        new_config.channels.matrix.clone(),
+                        new_config.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
             "generic_pipe" => {
                 if new_config.channels.generic_pipe.enabled {
                     Some(Arc::new(RwLock::new(GenericPipeHandler::new(
@@ -539,6 +573,10 @@ impl ChannelManager {
             ))),
             "qq" => Some(Box::new(QQHandler::new(
                 new_config.channels.qq.clone(),
+                new_config.clone(),
+            ))),
+            "matrix" => Some(Box::new(MatrixHandler::new(
+                new_config.channels.matrix.clone(),
                 new_config.clone(),
             ))),
             "generic_pipe" => Some(Box::new(GenericPipeHandler::new(

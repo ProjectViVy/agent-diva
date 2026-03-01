@@ -18,6 +18,14 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     if config.agents.defaults.max_tool_iterations == 0 {
         errors.push("agents.defaults.max_tool_iterations must be > 0".to_string());
     }
+    if let Some(reasoning_effort) = &config.agents.defaults.reasoning_effort {
+        let effort = reasoning_effort.trim().to_lowercase();
+        if !effort.is_empty() && effort != "low" && effort != "medium" && effort != "high" {
+            errors.push(
+                "agents.defaults.reasoning_effort must be one of: low, medium, high".to_string(),
+            );
+        }
+    }
 
     if config.channels.telegram.enabled && config.channels.telegram.token.trim().is_empty() {
         errors.push("channels.telegram.token is required when telegram is enabled".to_string());
@@ -92,6 +100,20 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
         }
         if config.channels.qq.secret.trim().is_empty() {
             errors.push("channels.qq.secret is required when qq is enabled".to_string());
+        }
+    }
+    if config.channels.matrix.enabled {
+        if config.channels.matrix.homeserver.trim().is_empty() {
+            errors
+                .push("channels.matrix.homeserver is required when matrix is enabled".to_string());
+        }
+        if config.channels.matrix.user_id.trim().is_empty() {
+            errors.push("channels.matrix.user_id is required when matrix is enabled".to_string());
+        }
+        if config.channels.matrix.access_token.trim().is_empty() {
+            errors.push(
+                "channels.matrix.access_token is required when matrix is enabled".to_string(),
+            );
         }
     }
 

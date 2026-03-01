@@ -460,6 +460,7 @@ impl AgentLoop {
                     response.content.clone(),
                     Some(response.tool_calls.clone()),
                     response.reasoning_content.clone(),
+                    None,
                 );
 
                 // Execute tools
@@ -525,6 +526,18 @@ impl AgentLoop {
                 }
             } else {
                 // No tool calls, we're done
+                if response.finish_reason == "error" {
+                    let preview = response
+                        .content
+                        .as_deref()
+                        .map(|s| s.chars().take(200).collect::<String>())
+                        .unwrap_or_default();
+                    error!("LLM returned error finish_reason with content: {}", preview);
+                    final_content =
+                        Some("Sorry, I encountered an error calling the AI model.".to_string());
+                    final_reasoning = None;
+                    break;
+                }
                 final_content = response.content;
                 final_reasoning = response.reasoning_content;
                 break;
@@ -686,19 +699,31 @@ fn save_turn(
         for m in &messages[turn_start..] {
             match m.role.as_str() {
                 "assistant" => {
+                    if m.content.trim().is_empty()
+                        && m.tool_calls
+                            .as_ref()
+                            .map(|calls| calls.is_empty())
+                            .unwrap_or(true)
+                    {
+                        // Skip empty assistant messages to avoid polluting session history.
+                        continue;
+                    }
                     let tool_calls_json = m.tool_calls.as_ref().map(|calls| {
                         calls
                             .iter()
                             .filter_map(|tc| serde_json::to_value(tc).ok())
                             .collect::<Vec<_>>()
                     });
-                    session.add_full_message(ChatMessage::with_tool_metadata(
+                    let mut msg = ChatMessage::with_tool_metadata(
                         "assistant",
                         &m.content,
                         None,
                         tool_calls_json,
                         None,
-                    ));
+                    );
+                    msg.reasoning_content = m.reasoning_content.clone();
+                    msg.thinking_blocks = m.thinking_blocks.clone();
+                    session.add_full_message(msg);
                 }
                 "tool" => {
                     let content = if m.content.chars().count() > 500 {
@@ -722,7 +747,12 @@ fn save_turn(
     // Save the final assistant response if not already captured
     if messages.len() <= turn_start || messages.last().map(|m| m.role.as_str()) != Some("assistant")
     {
-        session.add_message("assistant", final_content);
+        let mut final_msg = ChatMessage::new("assistant", final_content);
+        if let Some(last) = messages.last() {
+            final_msg.reasoning_content = last.reasoning_content.clone();
+            final_msg.thinking_blocks = last.thinking_blocks.clone();
+        }
+        session.add_full_message(final_msg);
     }
 }
 

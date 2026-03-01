@@ -531,6 +531,7 @@ impl ConfigMigrator {
                     max_tokens: py.agents.defaults.max_tokens,
                     temperature: py.agents.defaults.temperature,
                     max_tool_iterations: py.agents.defaults.max_tool_iterations,
+                    reasoning_effort: None,
                 },
             },
             channels: ChannelsConfig {
@@ -613,6 +614,7 @@ impl ConfigMigrator {
                     secret: py.channels.qq.secret,
                     allow_from: py.channels.qq.allow_from,
                 },
+                matrix: MatrixConfig::default(),
                 generic_pipe: GenericPipeConfig::default(),
                 irc: IrcConfig::default(),
                 mattermost: MattermostConfig::default(),
