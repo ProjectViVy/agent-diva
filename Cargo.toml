@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "agent-diva-core",
     "agent-diva-agent",
+    "agent-diva-neuron",
     "agent-diva-providers",
     "agent-diva-channels",
     "agent-diva-tools",

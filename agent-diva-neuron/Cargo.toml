@@ -1,0 +1,32 @@
+﻿[package]
+name = "agent-diva-neuron"
+version = "0.1.0"
+edition = "2021"
+authors = ["agent-diva contributors"]
+license = "MIT"
+repository = "https://github.com/HKUDS/agent-diva"
+description = "Single-turn neuron node abstraction for agent-diva"
+
+[dependencies]
+agent-diva-providers = { path = "../agent-diva-providers" }
+
+# Async runtime
+async-trait = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
