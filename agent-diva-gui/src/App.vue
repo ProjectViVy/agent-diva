@@ -55,6 +55,9 @@ const messages = ref<Message[]>([
 const isTyping = ref(false);
 const connectionStatus = ref<'connected' | 'error' | 'connecting'>('connected');
 const currentEmotion = ref('happy');
+const suppressNextStopError = ref(false);
+const currentChannel = ref('gui');
+const currentChatId = ref(generateChatId());
 
 // Config state
 const config = ref({
@@ -83,6 +86,13 @@ const unlisteners: UnlistenFn[] = [];
 
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+function generateChatId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `chat-${crypto.randomUUID()}`;
+  }
+  return `chat-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+}
+
 // Load saved models from localStorage
 onMounted(() => {
   const storedModels = localStorage.getItem('agent-diva-saved-models');
@@ -106,6 +116,10 @@ function updateSavedModels(models: SavedModel[]) {
 
 async function sendMessage(content: string) {
   if (!content.trim() || isTyping.value) return;
+  if (content.trim() === '/stop') {
+    await stopMessage();
+    return;
+  }
 
   console.log('[App] Sending message with current config:', {
       ...config.value,
@@ -120,6 +134,7 @@ async function sendMessage(content: string) {
   messages.value.push(userMsg);
   
   isTyping.value = true;
+  suppressNextStopError.value = false;
   
   // Create a placeholder for the agent response
   messages.value.push({ 
@@ -144,7 +159,11 @@ async function sendMessage(content: string) {
         return;
     }
 
-    await invoke("send_message", { message: content });
+    await invoke("send_message", {
+      message: content,
+      channel: currentChannel.value,
+      chatId: currentChatId.value,
+    });
   } catch (error) {
     console.error("Failed to send message:", error);
     
@@ -166,7 +185,52 @@ async function sendMessage(content: string) {
   }
 }
 
+async function stopMessage() {
+  if (!isTyping.value) return;
+
+  try {
+    if (!isTauri()) {
+      const lastMsg = messages.value[messages.value.length - 1];
+      if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
+        lastMsg.isStreaming = false;
+        lastMsg.isThinking = false;
+      }
+      isTyping.value = false;
+      messages.value.push({
+        role: 'system',
+        content: `[Mock] ${t('app.stopped')}`,
+        timestamp: Date.now()
+      });
+      return;
+    }
+
+    await invoke("stop_generation", {
+      channel: currentChannel.value,
+      chatId: currentChatId.value,
+    });
+    suppressNextStopError.value = true;
+    const lastMsg = messages.value[messages.value.length - 1];
+    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
+      lastMsg.isStreaming = false;
+      lastMsg.isThinking = false;
+    }
+    isTyping.value = false;
+    messages.value.push({
+      role: 'system',
+      content: t('app.stopRequested'),
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    messages.value.push({
+      role: 'system',
+      content: t('app.stopFailed', { error }),
+      timestamp: Date.now()
+    });
+  }
+}
+
 const clearMessages = () => {
+  currentChatId.value = generateChatId();
   messages.value = [
     {
       role: 'agent',
@@ -301,6 +365,7 @@ onMounted(async () => {
 
   // Listen for completion
   unlisteners.push(await listen<string>("agent-response-complete", (event) => {
+    suppressNextStopError.value = false;
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
       if (!lastMsg.content && event.payload) {
@@ -405,6 +470,10 @@ onMounted(async () => {
 
   // Listen for errors
   unlisteners.push(await listen<string>("agent-error", (event) => {
+    if (suppressNextStopError.value && event.payload === "Generation stopped by user.") {
+      suppressNextStopError.value = false;
+      return;
+    }
     
     // Check if the last message is a duplicate error message to debounce
     if (messages.value.length > 0) {
@@ -469,6 +538,7 @@ onUnmounted(() => {
       :saved-models="savedModels"
       @send="sendMessage"
       @clear="clearMessages"
+      @stop="stopMessage"
       @save-config="saveConfig"
       @save-tools-config="saveToolsConfig"
       @update-saved-models="updateSavedModels"

@@ -54,6 +54,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'send', content: string): void;
   (e: 'clear'): void;
+  (e: 'stop'): void;
   (e: 'toggle-sidebar'): void;
   (e: 'save-config', config: { apiBase: string; apiKey: string; model: string }): void;
   (e: 'save-tools-config', tools: NonNullable<typeof props.toolsConfig>): void;
@@ -392,6 +393,7 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
             :theme-mode="themeMode"
             @send="(content) => emit('send', content)"
             @clear="emit('clear')"
+            @stop="emit('stop')"
           />
         </div>
         <div v-else class="h-full">

@@ -5,6 +5,7 @@ use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::TelegramConfig;
 use async_trait::async_trait;
 use regex::Regex;
+use reqwest::Client as HttpClient;
 use std::collections::HashMap;
 use std::sync::Arc;
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
@@ -27,6 +28,9 @@ enum Command {
     /// Show available commands
     #[command(description = "Show this help message")]
     Help,
+    /// Stop current generation
+    #[command(description = "Stop current generation")]
+    Stop,
 }
 
 /// Telegram channel handler
@@ -55,6 +59,52 @@ pub struct TelegramHandler {
 }
 
 impl TelegramHandler {
+    async fn request_stop_via_api(channel: &str, chat_id: &str) -> std::result::Result<(), String> {
+        let client = HttpClient::new();
+        let response = client
+            .post("http://127.0.0.1:3000/api/chat/stop")
+            .json(&serde_json::json!({
+                "channel": channel,
+                "chat_id": chat_id
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("failed to call stop api: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("stop api returned status {}", response.status()));
+        }
+
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("invalid stop api response: {}", e))?;
+        if body.get("status").and_then(|v| v.as_str()) != Some("ok") {
+            let message = body
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(format!("stop api rejected: {}", message));
+        }
+        Ok(())
+    }
+
+    async fn handle_stop(&self, msg: Message, bot: Bot) -> Result<()> {
+        let chat_id = msg.chat.id.0.to_string();
+        let text = match Self::request_stop_via_api("telegram", &chat_id).await {
+            Ok(_) => "⏹ Stop requested.",
+            Err(e) => {
+                tracing::error!("Telegram /stop failed: {}", e);
+                "⚠️ Failed to request stop."
+            }
+        };
+
+        bot.send_message(msg.chat.id, text)
+            .await
+            .map_err(|e| ChannelError::ApiError(e.to_string()))?;
+        Ok(())
+    }
+
     /// Create a new Telegram handler from config
     pub fn new(config: &TelegramConfig) -> Self {
         Self {
@@ -313,7 +363,7 @@ impl TelegramHandler {
 
     /// Handle /help command
     async fn handle_help(&self, msg: Message, bot: Bot) -> Result<()> {
-        let help_text = "🐈 <b>agent-diva commands</b>\n\n/start — Start the bot\n/reset — Reset conversation history\n/help — Show this help message\n\nJust send me a text message to chat!";
+        let help_text = "🐈 <b>agent-diva commands</b>\n\n/start — Start the bot\n/reset — Reset conversation history\n/stop — Stop current generation\n/help — Show this help message\n\nJust send me a text message to chat!";
 
         bot.send_message(msg.chat.id, help_text)
             .parse_mode(ParseMode::Html)
@@ -382,6 +432,7 @@ impl ChannelHandler for TelegramHandler {
         let commands = vec![
             BotCommand::new("start", "Start the bot"),
             BotCommand::new("reset", "Reset conversation history"),
+            BotCommand::new("stop", "Stop current generation"),
             BotCommand::new("help", "Show available commands"),
         ];
 
@@ -474,6 +525,23 @@ impl ChannelHandler for TelegramHandler {
                                         tracing::error!("Error handling /help: {}", e);
                                     }
                                 }
+                                Command::Stop => {
+                                    let handler = TelegramHandler {
+                                        name: (*name).clone(),
+                                        token: String::new(),
+                                        allow_from: Vec::new(),
+                                        proxy: None,
+                                        bot: Some(bot.clone()),
+                                        running: true,
+                                        inbound_tx: None,
+                                        dispatcher_handle: None,
+                                        chat_ids: Arc::new(RwLock::new(HashMap::new())),
+                                        typing_tasks: Arc::new(Mutex::new(HashMap::new())),
+                                    };
+                                    if let Err(e) = handler.handle_stop(msg, bot).await {
+                                        tracing::error!("Error handling /stop: {}", e);
+                                    }
+                                }
                             }
                             Ok::<(), teloxide::RequestError>(())
                         }
@@ -531,6 +599,26 @@ impl ChannelHandler for TelegramHandler {
                             .map(|t| t.to_string())
                             .or_else(|| msg.caption().map(|c| c.to_string()))
                             .unwrap_or_else(|| "[empty message]".to_string());
+
+                        let normalized = content.trim();
+                        if normalized == "/stop" || normalized.starts_with("/stop@") {
+                            let text = match TelegramHandler::request_stop_via_api(
+                                name.as_ref(),
+                                &chat_id.0.to_string(),
+                            )
+                            .await
+                            {
+                                Ok(_) => "⏹ Stop requested.",
+                                Err(e) => {
+                                    tracing::error!("Telegram text /stop failed: {}", e);
+                                    "⚠️ Failed to request stop."
+                                }
+                            };
+                            if let Err(e) = bot.send_message(chat_id, text).await {
+                                tracing::error!("Failed to send stop feedback: {}", e);
+                            }
+                            return Ok(());
+                        }
 
                         // Start typing
                         {

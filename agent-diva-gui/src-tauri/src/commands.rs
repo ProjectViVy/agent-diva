@@ -123,6 +123,8 @@ struct BackgroundFinalEvent {
 #[tauri::command]
 pub async fn send_message(
     message: String,
+    channel: Option<String>,
+    chat_id: Option<String>,
     window: Window,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
@@ -133,7 +135,11 @@ pub async fn send_message(
 
     let response = client
         .post(&url)
-        .json(&serde_json::json!({ "message": message }))
+        .json(&serde_json::json!({
+            "message": message,
+            "channel": channel,
+            "chat_id": chat_id
+        }))
         .send()
         .await
         .map_err(|e| format!("Failed to connect to agent server: {}", e))?;
@@ -206,6 +212,50 @@ pub async fn send_message(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_generation(
+    channel: Option<String>,
+    chat_id: Option<String>,
+    state: State<'_, AgentState>,
+) -> Result<bool, String> {
+    let url = format!("{}/chat/stop", state.api_base_url);
+    let payload = serde_json::json!({
+        "channel": channel,
+        "chat_id": chat_id
+    });
+
+    let response = state
+        .client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to request stop: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid stop response: {}", e))?;
+
+    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    if !status_ok {
+        let message = value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("Stop request rejected: {}", message));
+    }
+
+    Ok(value
+        .get("stopped")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true))
 }
 
 #[tauri::command]

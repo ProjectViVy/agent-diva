@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from 'vue';
-import { Send, Trash2, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain } from 'lucide-vue-next';
+import { Send, Square, Trash2, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -60,6 +60,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'send', content: string): void;
   (e: 'clear'): void;
+  (e: 'stop'): void;
 }>();
 
 const input = ref('');
@@ -107,6 +108,11 @@ const handleSend = () => {
   if (!input.value.trim() || props.isTyping) return;
   emit('send', input.value);
   input.value = '';
+};
+
+const handleStop = () => {
+  if (!props.isTyping) return;
+  emit('stop');
 };
 
 const handleKeyDown = (e: KeyboardEvent) => {
@@ -335,6 +341,15 @@ const getEmotionEmoji = (emotion?: string) => {
           />
         </div>
         
+        <button
+          @click="handleStop"
+          :disabled="!isTyping"
+          class="p-2 rounded-lg transition-all flex items-center justify-center flex-shrink-0"
+          :class="!isTyping ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-md shadow-red-500/20 hover:bg-red-600 hover:shadow-lg hover:scale-105 active:scale-95'"
+          :title="t('chat.stopGeneration')"
+        >
+          <Square :size="18" />
+        </button>
         <button
           @click="handleSend"
           :disabled="!input.trim() || isTyping"

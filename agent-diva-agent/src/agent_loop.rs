@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
@@ -97,6 +98,7 @@ pub struct AgentLoop {
     tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+    cancelled_sessions: HashSet<String>,
     notify_on_soul_change: bool,
     soul_governance: SoulGovernanceSettings,
     soul_change_turns: VecDeque<Instant>,
@@ -139,6 +141,7 @@ impl AgentLoop {
             tools,
             subagent_manager,
             runtime_control_rx: None,
+            cancelled_sessions: HashSet::new(),
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
             soul_change_turns: VecDeque::new(),
@@ -227,6 +230,7 @@ impl AgentLoop {
             tools,
             subagent_manager,
             runtime_control_rx,
+            cancelled_sessions: HashSet::new(),
             notify_on_soul_change: tool_config.notify_on_soul_change,
             soul_governance: tool_config.soul_governance,
             soul_change_turns: VecDeque::new(),
@@ -302,6 +306,9 @@ impl AgentLoop {
                             Some(RuntimeControlCommand::UpdateNetwork(network)) => {
                                 self.apply_network_config(network).await;
                             }
+                            Some(RuntimeControlCommand::StopSession { session_key }) => {
+                                self.cancelled_sessions.insert(session_key);
+                            }
                             None => {
                                 info!("Runtime control channel closed");
                                 self.runtime_control_rx = None;
@@ -372,6 +379,57 @@ impl AgentLoop {
         info!("Applied runtime network tool configuration update");
     }
 
+    async fn drain_runtime_control_commands(&mut self) {
+        loop {
+            let cmd = match self.runtime_control_rx.as_mut() {
+                Some(rx) => match rx.try_recv() {
+                    Ok(cmd) => cmd,
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => {
+                        info!("Runtime control channel closed");
+                        self.runtime_control_rx = None;
+                        break;
+                    }
+                },
+                None => break,
+            };
+
+            match cmd {
+                RuntimeControlCommand::UpdateNetwork(network) => {
+                    self.apply_network_config(network).await;
+                }
+                RuntimeControlCommand::StopSession { session_key } => {
+                    self.cancelled_sessions.insert(session_key);
+                }
+            }
+        }
+    }
+
+    fn is_session_cancelled(&self, session_key: &str) -> bool {
+        self.cancelled_sessions.contains(session_key)
+    }
+
+    fn clear_session_cancellation(&mut self, session_key: &str) {
+        self.cancelled_sessions.remove(session_key);
+    }
+
+    fn emit_error_event(
+        &self,
+        msg: &InboundMessage,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+        message: impl Into<String>,
+    ) {
+        let event = AgentEvent::Error {
+            message: message.into(),
+        };
+        if let Some(tx) = event_tx {
+            let _ = tx.send(event.clone());
+        }
+        let _ = self
+            .bus
+            .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+    }
+
     /// Process a single inbound message
     pub async fn process_inbound_message(
         &mut self,
@@ -410,6 +468,7 @@ impl AgentLoop {
 
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
+        self.clear_session_cancellation(&session_key);
         let session = self.sessions.get_or_create(&session_key);
 
         // Build initial messages
@@ -429,6 +488,12 @@ impl AgentLoop {
         let mut soul_files_changed: HashSet<String> = HashSet::new();
 
         while iteration < self.max_iterations {
+            self.drain_runtime_control_commands().await;
+            if self.is_session_cancelled(&session_key) {
+                self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
+                return Ok(None);
+            }
+
             iteration += 1;
             debug!("Agent iteration {}/{}", iteration, self.max_iterations);
             trace!(trace_id = %trace_id, loop_index = iteration, step_name = "loop_started", "Agent loop started");
@@ -468,7 +533,19 @@ impl AgentLoop {
             let mut streamed_content = String::new();
             let mut streamed_reasoning = String::new();
             let mut response: Option<LLMResponse> = None;
-            while let Some(stream_event) = stream.next().await {
+            loop {
+                self.drain_runtime_control_commands().await;
+                if self.is_session_cancelled(&session_key) {
+                    self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
+                    return Ok(None);
+                }
+
+                let stream_event = match tokio::time::timeout(Duration::from_millis(250), stream.next()).await {
+                    Ok(Some(event)) => event,
+                    Ok(None) => break,
+                    Err(_) => continue,
+                };
+
                 match stream_event? {
                     LLMStreamEvent::TextDelta(delta) => {
                         streamed_content.push_str(&delta);
@@ -556,6 +633,12 @@ impl AgentLoop {
 
                 // Execute tools
                 for tool_call in &response.tool_calls {
+                    self.drain_runtime_control_commands().await;
+                    if self.is_session_cancelled(&session_key) {
+                        self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
+                        return Ok(None);
+                    }
+
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_invoked", tool_name = %tool_call.name, "Tool invoked");
 
                     let args_str = serde_json::to_string(&tool_call.arguments).unwrap_or_default();

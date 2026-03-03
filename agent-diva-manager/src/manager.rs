@@ -129,6 +129,28 @@ impl Manager {
                                 });
                             }
                         }
+                        ManagerCommand::StopChat(req, reply) => {
+                            let channel = req.channel.unwrap_or_else(|| "api".to_string());
+                            let chat_id = req.chat_id.unwrap_or_else(|| "default".to_string());
+                            let session_key = format!("{}:{}", channel, chat_id);
+                            if let Some(tx) = &self.runtime_control_tx {
+                                match tx.send(RuntimeControlCommand::StopSession { session_key }) {
+                                    Ok(_) => {
+                                        let _ = reply.send(Ok(true));
+                                    }
+                                    Err(e) => {
+                                        let _ = reply.send(Err(format!(
+                                            "failed to send stop command: {}",
+                                            e
+                                        )));
+                                    }
+                                }
+                            } else {
+                                let _ = reply.send(Err(
+                                    "runtime control channel is not initialized".to_string()
+                                ));
+                            }
+                        }
                         ManagerCommand::UpdateConfig(update) => {
                             debug!("Processing UpdateConfig command");
                             debug!("Update request: {:?}", update);

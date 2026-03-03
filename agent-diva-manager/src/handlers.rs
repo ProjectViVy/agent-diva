@@ -15,7 +15,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::state::{
     ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, ManagerCommand,
-    ToolsConfigResponse, ToolsConfigUpdate,
+    StopChatRequest, ToolsConfigResponse, ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -35,13 +35,43 @@ pub struct EventsQuery {
 pub async fn chat_handler(
     State(state): State<AppState>,
     Json(payload): Json<ChatRequest>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+) -> Sse<futures::stream::BoxStream<'static, Result<Event, Infallible>>> {
+    let channel = payload.channel.unwrap_or("api".to_string());
+    let chat_id = payload.chat_id.unwrap_or("default".to_string());
+
+    if payload.message.trim() == "/stop" {
+        let (stop_tx, stop_rx) = oneshot::channel();
+        let stop_req = StopChatRequest {
+            channel: Some(channel),
+            chat_id: Some(chat_id),
+        };
+        let stop_send_result = state
+            .api_tx
+            .send(ManagerCommand::StopChat(stop_req, stop_tx))
+            .await;
+
+        let stop_message = match stop_send_result {
+            Ok(_) => match stop_rx.await {
+                Ok(Ok(_)) => "Generation stopped by user.".to_string(),
+                Ok(Err(e)) => format!("Failed to stop generation: {}", e),
+                Err(e) => format!("Failed to receive stop response: {}", e),
+            },
+            Err(e) => format!("Failed to send stop request: {}", e),
+        };
+
+        let stream = futures::stream::once(async move {
+            Ok(Event::default().event("error").data(stop_message))
+        })
+        .boxed();
+        return Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default());
+    }
+
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
     let msg = InboundMessage::new(
-        payload.channel.unwrap_or("api".to_string()),
+        channel,
         "user",
-        payload.chat_id.unwrap_or("default".to_string()),
+        chat_id,
         payload.message,
     );
 
@@ -51,7 +81,8 @@ pub async fn chat_handler(
         tracing::error!("Failed to send API request to manager: {}", e);
     }
 
-    let stream = UnboundedReceiverStream::new(event_rx).map(|event| {
+    let stream = UnboundedReceiverStream::new(event_rx)
+        .map(|event| {
         let evt = match event {
             AgentEvent::AssistantDelta { text } => Event::default().event("delta").data(text),
             AgentEvent::ReasoningDelta { text } => {
@@ -95,9 +126,34 @@ pub async fn chat_handler(
             _ => Event::default().comment("keep-alive"),
         };
         Ok(evt)
-    });
+    })
+        .boxed();
 
     Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
+}
+
+pub async fn stop_chat_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<StopChatRequest>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::StopChat(payload, tx))
+        .await
+    {
+        tracing::error!("Failed to send StopChat request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+
+    match rx.await {
+        Ok(Ok(stopped)) => Json(serde_json::json!({ "status": "ok", "stopped": stopped })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => {
+            tracing::error!("Failed to receive StopChat response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
 }
 
 pub async fn events_handler(

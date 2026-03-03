@@ -3,6 +3,7 @@
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings,
     context::SoulContextSettings,
+    runtime_control::RuntimeControlCommand,
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
@@ -968,13 +969,21 @@ struct TuiApp {
     model: String,
 }
 
+fn chat_id_from_tui_session(session_key: &str) -> String {
+    session_key
+        .split(':')
+        .nth(2)
+        .unwrap_or("tui")
+        .to_string()
+}
+
 impl TuiApp {
     fn new(session_key: String, model: String) -> Self {
         Self {
             input: String::new(),
             timeline: vec![TimelineItem {
                 kind: TimelineKind::System,
-                text: "Welcome to Agent Diva TUI. Enter to send, Shift+Enter for newline. /new /clear /quit".to_string(),
+                text: "Welcome to Agent Diva TUI. Enter to send, Shift+Enter for newline. /new /clear /stop /quit".to_string(),
             }],
             pending: false,
             should_quit: false,
@@ -1113,6 +1122,7 @@ async fn run_tui(
         },
     };
 
+    let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
     let mut agent = AgentLoop::with_tools(
         bus,
         provider,
@@ -1120,7 +1130,7 @@ async fn run_tui(
         Some(selected_model.clone()),
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
-        None,
+        Some(runtime_control_rx),
     );
 
     let current_session = session.unwrap_or_else(|| "cli:tui".to_string());
@@ -1129,7 +1139,7 @@ async fn run_tui(
 
     tokio::spawn(async move {
         while let Some((prompt, session_key)) = request_rx.recv().await {
-            let chat_id = session_key.split(':').nth(2).unwrap_or("tui").to_string();
+            let chat_id = chat_id_from_tui_session(&session_key);
             let _ = agent
                 .process_direct_stream(prompt, session_key, "cli", chat_id, event_tx.clone())
                 .await;
@@ -1245,6 +1255,12 @@ async fn run_tui(
                                 TimelineKind::System,
                                 format!("new session: {}", app.session_key),
                             );
+                        } else if content == "/stop" {
+                            let chat_id = chat_id_from_tui_session(&app.session_key);
+                            let session_key = format!("cli:{}", chat_id);
+                            let _ = runtime_control_tx
+                                .send(RuntimeControlCommand::StopSession { session_key });
+                            app.add_line(TimelineKind::System, "stop requested");
                         } else {
                             app.add_line(TimelineKind::User, content.clone());
                             app.pending = true;
@@ -1747,6 +1763,11 @@ async fn run_cron_run(loader: &ConfigLoader, job_id: String, force: bool) -> Res
 
 async fn run_agent_remote(message: &str, api_url: Option<String>) -> Result<()> {
     let client = ApiClient::new(api_url);
+    if message.trim() == "/stop" {
+        client.stop(Some("api"), Some("default")).await?;
+        println!("{}", style("Stop requested for api:default").yellow());
+        return Ok(());
+    }
     let (event_tx, mut event_rx) = mpsc::unbounded_channel();
 
     let msg = message.to_string();
@@ -1789,13 +1810,18 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
 
     let client = ApiClient::new(api_url);
     let client = Arc::new(client);
+    let client_for_sender = client.clone();
 
     tokio::spawn(async move {
-        while let Some((prompt, _session_key)) = request_rx.recv().await {
-            let client = client.clone();
+        while let Some((prompt, session_key)) = request_rx.recv().await {
+            let client = client_for_sender.clone();
             let event_tx = event_tx.clone();
             tokio::spawn(async move {
-                if let Err(e) = client.chat(prompt, event_tx).await {
+                let chat_id = chat_id_from_tui_session(&session_key);
+                if let Err(e) = client
+                    .chat_with_target(prompt, Some("cli"), Some(&chat_id), event_tx)
+                    .await
+                {
                     error!("Remote chat error: {}", e);
                 }
             });
@@ -1913,6 +1939,15 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
                                 TimelineKind::System,
                                 format!("new session: {}", app.session_key),
                             );
+                        } else if content == "/stop" {
+                            let chat_id = chat_id_from_tui_session(&app.session_key);
+                            match client.stop(Some("cli"), Some(&chat_id)).await {
+                                Ok(_) => app.add_line(TimelineKind::System, "stop requested"),
+                                Err(e) => app.add_line(
+                                    TimelineKind::Error,
+                                    format!("stop failed: {}", e),
+                                ),
+                            }
                         } else {
                             app.add_line(TimelineKind::User, content.clone());
                             app.pending = true;

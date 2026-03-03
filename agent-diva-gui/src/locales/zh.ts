@@ -18,6 +18,9 @@ export default {
     online: '在线',
     offline: '离线',
     connecting: '连接中',
+    stopped: '已停止当前生成。',
+    stopRequested: '已发送停止请求。',
+    stopFailed: '停止失败: {error}',
   },
   emotion: {
     happy: '开心',
@@ -40,6 +43,7 @@ export default {
     thinking: '正在深度思考...',
     thoughtProcess: '深度思考过程',
     clearChat: '清除对话',
+    stopGeneration: '停止生成',
     emptyModels: '暂无已保存模型\n请在设置中添加',
     manageModels: '管理模型...',
   },

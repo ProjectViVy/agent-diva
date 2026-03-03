@@ -14,6 +14,7 @@ pub struct AppState {
 
 pub enum ManagerCommand {
     Chat(ApiRequest),
+    StopChat(StopChatRequest, oneshot::Sender<Result<bool, String>>),
     UpdateConfig(ConfigUpdate),
     UpdateChannel(ChannelUpdate),
     TestChannel(ChannelUpdate, oneshot::Sender<Result<(), String>>),
@@ -26,6 +27,12 @@ pub enum ManagerCommand {
 pub struct ApiRequest {
     pub msg: InboundMessage,
     pub event_tx: mpsc::UnboundedSender<AgentEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StopChatRequest {
+    pub channel: Option<String>,
+    pub chat_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -18,6 +18,9 @@ export default {
     online: 'Online',
     offline: 'Offline',
     connecting: 'Connecting',
+    stopped: 'Stopped current generation.',
+    stopRequested: 'Stop request sent.',
+    stopFailed: 'Failed to stop: {error}',
   },
   emotion: {
     happy: 'Happy',
@@ -40,6 +43,7 @@ export default {
     thinking: 'Thinking deeply...',
     thoughtProcess: 'Thought Process',
     clearChat: 'Clear Chat',
+    stopGeneration: 'Stop Generation',
     emptyModels: 'No saved models\nPlease add in settings',
     manageModels: 'Manage Models...',
   },
