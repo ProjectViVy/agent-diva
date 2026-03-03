@@ -41,6 +41,7 @@ impl ConfigLoader {
 
         apply_alias_overrides(&mut merged);
         apply_path_overrides(&mut merged);
+        normalize_alias_keys(&mut merged);
 
         let config: Config = serde_json::from_value(merged)?;
         validate_config(&config)?;
@@ -176,6 +177,50 @@ fn apply_path_overrides(config: &mut Value) {
         }
         set_path_value(config, &segments, parse_env_value(&value));
     }
+}
+
+fn object_at_path_mut<'a>(
+    root: &'a mut Value,
+    path: &[&str],
+) -> Option<&'a mut Map<String, Value>> {
+    let mut current = root;
+    for segment in path {
+        current = current.get_mut(*segment)?;
+    }
+    current.as_object_mut()
+}
+
+fn coalesce_alias_keys(
+    root: &mut Value,
+    object_path: &[&str],
+    canonical_key: &str,
+    alias_keys: &[&str],
+) {
+    let Some(map) = object_at_path_mut(root, object_path) else {
+        return;
+    };
+
+    let mut merged_value = map.remove(canonical_key);
+    for alias_key in alias_keys {
+        if let Some(alias_value) = map.remove(*alias_key) {
+            // Alias keys represent explicit user input and should override defaults.
+            merged_value = Some(alias_value);
+        }
+    }
+
+    if let Some(value) = merged_value {
+        map.insert(canonical_key.to_string(), value);
+    }
+}
+
+fn normalize_alias_keys(config: &mut Value) {
+    coalesce_alias_keys(
+        config,
+        &["channels"],
+        "neuro-link",
+        &["neuro_link", "generic_pipe"],
+    );
+    coalesce_alias_keys(config, &["tools"], "mcpServers", &["mcp_servers"]);
 }
 
 #[cfg(test)]
@@ -343,5 +388,60 @@ mod tests {
         let server = config.tools.mcp_servers.get("filesystem").unwrap();
         assert_eq!(server.command, "npx");
         assert_eq!(server.args.len(), 3);
+    }
+
+    #[test]
+    fn test_load_supports_generic_pipe_alias_without_duplicate_field_error() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        let config_path = temp_dir.path().join("config.json");
+        std::fs::write(
+            &config_path,
+            r#"{
+  "channels": {
+    "generic_pipe": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 9200
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let config = loader.load().unwrap();
+        assert!(config.channels.neuro_link.enabled);
+        assert_eq!(config.channels.neuro_link.host, "127.0.0.1");
+        assert_eq!(config.channels.neuro_link.port, 9200);
+    }
+
+    #[test]
+    fn test_load_supports_mcp_servers_snake_case_alias() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        let config_path = temp_dir.path().join("config.json");
+        std::fs::write(
+            &config_path,
+            r#"{
+  "tools": {
+    "mcp_servers": {
+      "filesystem": {
+        "command": "uvx",
+        "args": ["mcp-server-filesystem", "."]
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let config = loader.load().unwrap();
+        let server = config.tools.mcp_servers.get("filesystem").unwrap();
+        assert_eq!(server.command, "uvx");
+        assert_eq!(server.args.len(), 2);
     }
 }

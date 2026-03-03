@@ -1,6 +1,8 @@
 //! CLI entry point for agent-diva
 
 use agent_diva_agent::{
+    agent_loop::SoulGovernanceSettings,
+    context::SoulContextSettings,
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
@@ -513,6 +515,8 @@ async fn run_onboard(loader: &ConfigLoader) -> Result<()> {
         "  Skills: {}",
         style("~/.agent-diva/workspace/skills/<skill-name>/SKILL.md").cyan()
     );
+    println!("  First chats will guide soul identity initialization.");
+    println!("  The agent will ask for its name, style, and collaboration boundaries.");
 
     Ok(())
 }
@@ -632,6 +636,17 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
             restrict_to_workspace,
             mcp_servers: config.tools.mcp_servers.clone(),
             cron_service: Some(Arc::clone(&cron_service)),
+            soul_context: SoulContextSettings {
+                enabled: config.agents.soul.enabled,
+                max_chars: config.agents.soul.max_chars,
+                bootstrap_once: config.agents.soul.bootstrap_once,
+            },
+            notify_on_soul_change: config.agents.soul.notify_on_change,
+            soul_governance: SoulGovernanceSettings {
+                frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
+                frequent_change_threshold: config.agents.soul.frequent_change_threshold,
+                boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
+            },
         };
 
         let agent = AgentLoop::with_tools(
@@ -724,6 +739,9 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
             Some(channel_manager.clone()),
             Some(runtime_control_tx),
         );
+        // Keep a sender clone outside API server state so manager doesn't exit
+        // immediately if API server startup fails (e.g. port already in use).
+        let _api_tx_keepalive = api_tx.clone();
 
         for (channel_name, enabled) in configured_channels {
             if !enabled {
@@ -800,11 +818,13 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
 
         // Wait for shutdown signal
 
+        let mut manager_handle_completed = false;
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 println!("\n{}", style("Shutting down...").yellow());
             }
             res = &mut manager_handle => {
+                manager_handle_completed = true;
                 match res {
                     Ok(Err(e)) => {
                         error!("Manager loop error: {}", e);
@@ -826,8 +846,10 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
         let _ = server_shutdown_tx.send(());
         let _ = server_handle.await;
 
-        manager_handle.abort();
-        let _ = manager_handle.await;
+        if !manager_handle_completed {
+            manager_handle.abort();
+            let _ = manager_handle.await;
+        }
 
         inbound_bridge_handle.abort();
         let _ = inbound_bridge_handle.await;
@@ -874,6 +896,17 @@ async fn run_agent(
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.mcp_servers.clone(),
         cron_service: Some(Arc::new(CronService::new(cron_store_path(loader), None))),
+        soul_context: SoulContextSettings {
+            enabled: config.agents.soul.enabled,
+            max_chars: config.agents.soul.max_chars,
+            bootstrap_once: config.agents.soul.bootstrap_once,
+        },
+        notify_on_soul_change: config.agents.soul.notify_on_change,
+        soul_governance: SoulGovernanceSettings {
+            frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
+            frequent_change_threshold: config.agents.soul.frequent_change_threshold,
+            boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
+        },
     };
 
     let mut agent = AgentLoop::with_tools(
@@ -1067,6 +1100,17 @@ async fn run_tui(
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.mcp_servers.clone(),
         cron_service: Some(Arc::new(CronService::new(cron_store_path(loader), None))),
+        soul_context: SoulContextSettings {
+            enabled: config.agents.soul.enabled,
+            max_chars: config.agents.soul.max_chars,
+            bootstrap_once: config.agents.soul.bootstrap_once,
+        },
+        notify_on_soul_change: config.agents.soul.notify_on_change,
+        soul_governance: SoulGovernanceSettings {
+            frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
+            frequent_change_threshold: config.agents.soul.frequent_change_threshold,
+            boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
+        },
     };
 
     let mut agent = AgentLoop::with_tools(

@@ -66,6 +66,9 @@ impl Default for LoggingConfig {
 pub struct AgentsConfig {
     /// Default agent settings
     pub defaults: AgentDefaults,
+    /// Soul and identity behavior
+    #[serde(default)]
+    pub soul: AgentSoulConfig,
 }
 
 /// Default agent settings
@@ -97,6 +100,58 @@ impl Default for AgentDefaults {
             reasoning_effort: None,
         }
     }
+}
+
+/// Soul/identity settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentSoulConfig {
+    /// Whether soul context injection is enabled.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Max characters loaded from each soul markdown file.
+    #[serde(default = "default_soul_max_chars")]
+    pub max_chars: usize,
+    /// Whether to notify user when soul files are updated.
+    #[serde(default = "default_true")]
+    pub notify_on_change: bool,
+    /// If true, BOOTSTRAP.md is only used until bootstrap is completed.
+    #[serde(default = "default_true")]
+    pub bootstrap_once: bool,
+    /// Rolling window in seconds for frequent soul-change hints.
+    #[serde(default = "default_soul_window_secs")]
+    pub frequent_change_window_secs: u64,
+    /// Minimum soul-changing turns in window to trigger hints.
+    #[serde(default = "default_soul_change_threshold")]
+    pub frequent_change_threshold: usize,
+    /// Add boundary confirmation hint when SOUL.md changes.
+    #[serde(default = "default_true")]
+    pub boundary_confirmation_hint: bool,
+}
+
+impl Default for AgentSoulConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_chars: 4000,
+            notify_on_change: true,
+            bootstrap_once: true,
+            frequent_change_window_secs: 600,
+            frequent_change_threshold: 3,
+            boundary_confirmation_hint: true,
+        }
+    }
+}
+
+fn default_soul_max_chars() -> usize {
+    4000
+}
+
+fn default_soul_window_secs() -> u64 {
+    600
+}
+
+fn default_soul_change_threshold() -> usize {
+    3
 }
 
 /// Channel configuration

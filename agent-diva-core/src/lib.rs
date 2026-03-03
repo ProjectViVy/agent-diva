@@ -11,6 +11,7 @@ pub mod heartbeat;
 pub mod logging;
 pub mod memory;
 pub mod session;
+pub mod soul;
 pub mod utils;
 
 pub use error::{Error, Result};

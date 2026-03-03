@@ -4,21 +4,23 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessa
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::session::{ChatMessage, SessionManager};
+use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::{LLMProvider, LLMResponse, LLMStreamEvent};
 use agent_diva_tools::{
     load_mcp_tools, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
     ToolError, ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use futures::StreamExt;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
 use crate::consolidation;
-use crate::context::ContextBuilder;
+use crate::context::{ContextBuilder, SoulContextSettings};
 use crate::runtime_control::RuntimeControlCommand;
 use crate::subagent::SubagentManager;
 use crate::tool_config::network::NetworkToolConfig;
@@ -36,6 +38,12 @@ pub struct ToolConfig {
     pub mcp_servers: HashMap<String, MCPServerConfig>,
     /// Optional cron service for scheduling tools
     pub cron_service: Option<Arc<CronService>>,
+    /// Soul context settings
+    pub soul_context: SoulContextSettings,
+    /// Whether to append transparent notifications on soul updates
+    pub notify_on_soul_change: bool,
+    /// Governance behavior for soul evolution transparency
+    pub soul_governance: SoulGovernanceSettings,
 }
 
 impl Default for ToolConfig {
@@ -46,6 +54,30 @@ impl Default for ToolConfig {
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
             cron_service: None,
+            soul_context: SoulContextSettings::default(),
+            notify_on_soul_change: true,
+            soul_governance: SoulGovernanceSettings::default(),
+        }
+    }
+}
+
+/// Runtime soft-governance settings for soul evolution.
+#[derive(Clone, Debug)]
+pub struct SoulGovernanceSettings {
+    /// Rolling window in seconds for "frequent changes" hints.
+    pub frequent_change_window_secs: u64,
+    /// Minimum number of soul-changing turns in window to trigger hints.
+    pub frequent_change_threshold: usize,
+    /// Add a confirmation hint when SOUL.md changes.
+    pub boundary_confirmation_hint: bool,
+}
+
+impl Default for SoulGovernanceSettings {
+    fn default() -> Self {
+        Self {
+            frequent_change_window_secs: 600,
+            frequent_change_threshold: 3,
+            boundary_confirmation_hint: true,
         }
     }
 }
@@ -65,6 +97,9 @@ pub struct AgentLoop {
     tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+    notify_on_soul_change: bool,
+    soul_governance: SoulGovernanceSettings,
+    soul_change_turns: VecDeque<Instant>,
 }
 
 impl AgentLoop {
@@ -77,7 +112,8 @@ impl AgentLoop {
         max_iterations: Option<usize>,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
-        let context = ContextBuilder::with_skills(workspace.clone(), None);
+        let mut context = ContextBuilder::with_skills(workspace.clone(), None);
+        context.set_soul_settings(SoulContextSettings::default());
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::new();
 
@@ -103,6 +139,9 @@ impl AgentLoop {
             tools,
             subagent_manager,
             runtime_control_rx: None,
+            notify_on_soul_change: true,
+            soul_governance: SoulGovernanceSettings::default(),
+            soul_change_turns: VecDeque::new(),
         }
     }
 
@@ -117,7 +156,8 @@ impl AgentLoop {
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
-        let context = ContextBuilder::with_skills(workspace.clone(), None);
+        let mut context = ContextBuilder::with_skills(workspace.clone(), None);
+        context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
         let mut tools = ToolRegistry::new();
 
@@ -187,6 +227,9 @@ impl AgentLoop {
             tools,
             subagent_manager,
             runtime_control_rx,
+            notify_on_soul_change: tool_config.notify_on_soul_change,
+            soul_governance: tool_config.soul_governance,
+            soul_change_turns: VecDeque::new(),
         }
     }
 
@@ -383,6 +426,7 @@ impl AgentLoop {
         let mut iteration = 0;
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
+        let mut soul_files_changed: HashSet<String> = HashSet::new();
 
         while iteration < self.max_iterations {
             iteration += 1;
@@ -549,6 +593,17 @@ impl AgentLoop {
                         }
                     }
                     let result = self.tools.execute(&tool_call.name, params_value).await;
+                    if self.notify_on_soul_change {
+                        if let Some(changed_file) =
+                            changed_soul_file(&tool_call.name, &tool_call.arguments, &result)
+                        {
+                            if changed_file == "BOOTSTRAP.md" {
+                                let _ =
+                                    SoulStateStore::new(&self.workspace).mark_bootstrap_completed();
+                            }
+                            soul_files_changed.insert(changed_file.to_string());
+                        }
+                    }
 
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
 
@@ -591,9 +646,18 @@ impl AgentLoop {
             }
         }
 
-        let final_content = final_content.unwrap_or_else(|| {
+        let mut final_content = final_content.unwrap_or_else(|| {
             "I've completed processing but have no response to give.".to_string()
         });
+        if self.notify_on_soul_change && !soul_files_changed.is_empty() {
+            let frequent_hint = self.is_frequent_soul_change_turn();
+            let notice = format_soul_transparency_notice(
+                &soul_files_changed,
+                self.soul_governance.boundary_confirmation_hint,
+                frequent_hint,
+            );
+            final_content.push_str(&notice);
+        }
 
         trace!(trace_id = %trace_id, step_name = "response_generated", "Response generated");
 
@@ -727,6 +791,67 @@ impl AgentLoop {
             }
         }
     }
+
+    fn is_frequent_soul_change_turn(&mut self) -> bool {
+        let window = Duration::from_secs(self.soul_governance.frequent_change_window_secs.max(1));
+        let now = Instant::now();
+        self.soul_change_turns.push_back(now);
+        while let Some(front) = self.soul_change_turns.front().copied() {
+            if now.duration_since(front) > window {
+                self.soul_change_turns.pop_front();
+            } else {
+                break;
+            }
+        }
+        self.soul_change_turns.len() >= self.soul_governance.frequent_change_threshold.max(1)
+    }
+}
+
+fn changed_soul_file(
+    tool_name: &str,
+    arguments: &HashMap<String, serde_json::Value>,
+    result: &str,
+) -> Option<&'static str> {
+    if result.starts_with("Error") || result.starts_with("Warning") {
+        return None;
+    }
+    if tool_name != "write_file" && tool_name != "edit_file" {
+        return None;
+    }
+
+    let path = arguments.get("path").and_then(|v| v.as_str())?;
+    let file_name = Path::new(path).file_name()?.to_string_lossy();
+
+    ["SOUL.md", "IDENTITY.md", "USER.md", "BOOTSTRAP.md"]
+        .into_iter()
+        .find(|name| file_name.eq_ignore_ascii_case(name))
+}
+
+fn format_soul_transparency_notice(
+    changed_files: &HashSet<String>,
+    boundary_confirmation_hint: bool,
+    frequent_hint: bool,
+) -> String {
+    let mut changed_files = changed_files.iter().cloned().collect::<Vec<_>>();
+    changed_files.sort();
+    let mut notice =
+        "\n\nTransparency notice: I updated soul identity files this turn.".to_string();
+    notice.push_str("\n- Updated files: ");
+    notice.push_str(&changed_files.join(", "));
+    notice.push_str(
+        "\n- Reason: to keep identity, boundaries, and behavior guidance aligned with this conversation.",
+    );
+    if boundary_confirmation_hint && changed_files.iter().any(|f| f == "SOUL.md") {
+        notice.push_str(
+            "\n- Suggestion: if boundary-related rules changed in SOUL.md, please confirm they match your expectations.",
+        );
+    }
+    if frequent_hint {
+        notice.push_str(
+            "\n- Governance hint: soul files changed frequently in a short window; consider consolidating updates for stability.",
+        );
+    }
+    notice
 }
 
 /// Save all messages from the current turn to the session
@@ -833,5 +958,83 @@ mod tests {
 
         // We expect an error since we don't have a real LLM connection
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_changed_soul_file_detects_successful_updates() {
+        let args = HashMap::from([(
+            "path".to_string(),
+            serde_json::Value::String("memory/../SOUL.md".to_string()),
+        )]);
+        let result = "Successfully wrote 12 bytes";
+        assert_eq!(
+            changed_soul_file("write_file", &args, result),
+            Some("SOUL.md")
+        );
+
+        let args = HashMap::from([(
+            "path".to_string(),
+            serde_json::Value::String("IDENTITY.md".to_string()),
+        )]);
+        assert_eq!(
+            changed_soul_file("edit_file", &args, "Successfully edited"),
+            Some("IDENTITY.md")
+        );
+    }
+
+    #[test]
+    fn test_changed_soul_file_ignores_errors_and_other_tools() {
+        let args = HashMap::from([(
+            "path".to_string(),
+            serde_json::Value::String("SOUL.md".to_string()),
+        )]);
+        assert_eq!(
+            changed_soul_file("write_file", &args, "Error writing file: denied"),
+            None
+        );
+        assert_eq!(
+            changed_soul_file("list_dir", &args, "Successfully listed"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_changed_soul_file_ignores_non_soul_paths() {
+        let args = HashMap::from([(
+            "path".to_string(),
+            serde_json::Value::String("README.md".to_string()),
+        )]);
+        assert_eq!(
+            changed_soul_file("write_file", &args, "Successfully wrote"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_soul_governance_defaults_are_non_zero() {
+        let cfg = SoulGovernanceSettings::default();
+        assert!(cfg.frequent_change_window_secs > 0);
+        assert!(cfg.frequent_change_threshold > 0);
+    }
+
+    #[test]
+    fn test_format_soul_transparency_notice_lists_sorted_files_and_hints() {
+        let files = HashSet::from([
+            "USER.md".to_string(),
+            "SOUL.md".to_string(),
+            "IDENTITY.md".to_string(),
+        ]);
+        let notice = format_soul_transparency_notice(&files, true, true);
+        assert!(notice.contains("IDENTITY.md, SOUL.md, USER.md"));
+        assert!(notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
+        assert!(notice.contains("Governance hint: soul files changed frequently"));
+    }
+
+    #[test]
+    fn test_format_soul_transparency_notice_without_optional_hints() {
+        let files = HashSet::from(["USER.md".to_string()]);
+        let notice = format_soul_transparency_notice(&files, true, false);
+        assert!(!notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
+        assert!(!notice.contains("Governance hint:"));
     }
 }

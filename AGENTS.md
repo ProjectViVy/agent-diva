@@ -28,6 +28,9 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
 - Copy and configure local environment files if required by a crate or channel.
 - Verify toolchain and project health with `just fmt-check && just check && just test`.
 
+## Development Guide
+If users request references to projects such as openclaw, nanobot, or shannon, prioritize reviewing the contents under the .workspace directory. Analyze the architectures of these sibling projects and propose a development approach suitable for the agent-diva architecture.
+
 ## Build, Test, and Development Commands
 
 Prefer `just` recipes from the workspace root:

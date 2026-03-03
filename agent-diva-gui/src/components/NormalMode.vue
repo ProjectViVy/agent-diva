@@ -61,6 +61,7 @@ const emit = defineEmits<{
 }>();
 
 const activeTab = ref<'chat' | 'settings'>('chat');
+const activeMenu = ref<'home' | 'console' | 'neuro' | null>(null);
 const sidebarOpen = ref(false);
 const soulSidebarOpen = ref(false);
 const themeMode = ref('love'); // Default to love theme
@@ -87,6 +88,16 @@ const selectSavedModel = (model: SavedModel) => {
 const toggleSidebar = () => {
   sidebarOpen.value = !sidebarOpen.value;
   emit('toggle-sidebar');
+};
+
+const handleMenuClick = (key: 'home' | 'console' | 'neuro') => {
+  if (key === 'home') {
+    activeMenu.value = null;
+    activeTab.value = 'chat';
+  } else {
+    activeMenu.value = key;
+  }
+  sidebarOpen.value = false;
 };
 
 const toggleSoulSidebar = () => {
@@ -182,7 +193,7 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
         
         <div class="flex flex-col">
           <h1 class="text-sm font-bold text-gray-800 leading-tight">
-            Hikari
+            DiVA
           </h1>
           <div class="flex items-center space-x-1.5 text-[10px] text-gray-500 leading-tight">
             <span class="app-badge px-1.5 rounded-full">
@@ -303,31 +314,101 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
       </div>
     </header>
 
+    <!-- Sidebar Menu & Overlay -->
+    <div v-if="sidebarOpen" class="fixed inset-0 z-40 no-drag">
+      <!-- Click outside to close -->
+      <div
+        class="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity"
+        @click="sidebarOpen = false"
+      />
+
+      <!-- Side Menu -->
+      <aside
+        class="absolute inset-y-0 left-0 w-60 bg-white/95 border-r border-gray-200 shadow-xl flex flex-col py-4 px-3 space-y-3 z-50"
+      >
+        <!-- Sidebar Header / Logo -->
+        <div class="flex items-center px-2 pb-1">
+          <div class="w-8 h-8 rounded-xl bg-pink-500 text-white flex items-center justify-center text-lg font-bold shadow-md mr-2">
+            H
+          </div>
+          <div class="flex flex-col">
+            <span class="text-sm font-semibold text-gray-800 leading-tight">Hikari</span>
+            <span class="text-[10px] text-gray-400 leading-tight">Agent Diva</span>
+          </div>
+        </div>
+
+        <div class="px-2 pt-1 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          导航
+        </div>
+
+        <button
+          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-gray-100 text-gray-700"
+          @click="handleMenuClick('home')"
+        >
+          <span class="flex items-center space-x-2">
+            <MessageSquare :size="16" class="text-pink-500" />
+            <span>主页</span>
+          </span>
+        </button>
+        <button
+          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-gray-100 text-gray-700"
+          @click="handleMenuClick('console')"
+        >
+          <span class="flex items-center space-x-2">
+            <Server :size="16" class="text-indigo-500" />
+            <span>中控台</span>
+          </span>
+        </button>
+        <button
+          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-gray-100 text-gray-700"
+          @click="handleMenuClick('neuro')"
+        >
+          <span class="flex items-center space-x-2">
+            <Heart :size="16" class="text-rose-500" />
+            <span>神经系统</span>
+          </span>
+        </button>
+      </aside>
+    </div>
+
     <!-- Main Content -->
-    <main class="flex-1 overflow-hidden relative z-10">
-      <div v-if="activeTab === 'chat'" class="h-full">
-        <ChatView
-          :messages="messages"
-          :is-typing="isTyping"
-          :theme-mode="themeMode"
-          @send="(content) => emit('send', content)"
-          @clear="emit('clear')"
-        />
-      </div>
-      <div v-else class="h-full">
-        <SettingsView
-          v-if="config && toolsConfig"
-          :config="config"
-          :tools-config="toolsConfig"
-          :saved-models="savedModels"
-          @save="(newConfig) => emit('save-config', newConfig)"
-          @save-tools-config="(tools) => emit('save-tools-config', tools)"
-          @update-saved-models="handleUpdateSavedModels"
-        />
-        <div v-else class="h-full flex items-center justify-center text-gray-500">
-          Loading configuration...
+    <main
+      class="flex-1 overflow-hidden relative z-10 transition-all duration-200"
+      :class="sidebarOpen ? 'filter blur-sm scale-[0.99]' : ''"
+    >
+      <!-- Placeholder pages for side menu -->
+      <div v-if="activeMenu" class="h-full flex items-center justify-center">
+        <div class="text-gray-500 text-lg font-semibold tracking-wide">
+          敬请期待！
         </div>
       </div>
+
+      <!-- Original content when no side menu page selected -->
+      <template v-else>
+        <div v-if="activeTab === 'chat'" class="h-full">
+          <ChatView
+            :messages="messages"
+            :is-typing="isTyping"
+            :theme-mode="themeMode"
+            @send="(content) => emit('send', content)"
+            @clear="emit('clear')"
+          />
+        </div>
+        <div v-else class="h-full">
+          <SettingsView
+            v-if="config && toolsConfig"
+            :config="config"
+            :tools-config="toolsConfig"
+            :saved-models="savedModels"
+            @save="(newConfig) => emit('save-config', newConfig)"
+            @save-tools-config="(tools) => emit('save-tools-config', tools)"
+            @update-saved-models="handleUpdateSavedModels"
+          />
+          <div v-else class="h-full flex items-center justify-center text-gray-500">
+            Loading configuration...
+          </div>
+        </div>
+      </template>
     </main>
 
   </div>
