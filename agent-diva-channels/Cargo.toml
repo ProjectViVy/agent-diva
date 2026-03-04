@@ -34,9 +34,7 @@ teloxide = { version = "0.13", features = ["macros", "webhooks"] }
 
 # Logging and tracing
 tracing = { workspace = true }
-
-# Utilities
-regex = { workspace = true }
+regex.workspace = true
 chrono = { workspace = true }
 dirs = { workspace = true }
 uuid = { workspace = true }

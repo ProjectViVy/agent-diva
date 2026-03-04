@@ -85,6 +85,8 @@ pub struct BaseChannel {
     pub running: bool,
     /// Allowed senders list (empty = allow all)
     pub allow_from: Vec<String>,
+    /// Whether to deny by default when allow_from is empty
+    pub deny_by_default: bool,
     /// Inbound message sender
     pub inbound_tx: Option<mpsc::Sender<InboundMessage>>,
 }
@@ -92,11 +94,22 @@ pub struct BaseChannel {
 impl BaseChannel {
     /// Create a new base channel
     pub fn new(name: impl Into<String>, config: Config, allow_from: Vec<String>) -> Self {
+        Self::with_default_policy(name, config, allow_from, false)
+    }
+
+    /// Create a new base channel with specific deny_by_default policy
+    pub fn with_default_policy(
+        name: impl Into<String>,
+        config: Config,
+        allow_from: Vec<String>,
+        deny_by_default: bool,
+    ) -> Self {
         Self {
             name: name.into(),
             config,
             running: false,
             allow_from,
+            deny_by_default,
             inbound_tx: None,
         }
     }
@@ -108,20 +121,52 @@ impl BaseChannel {
 
     /// Check if a sender is allowed
     pub fn is_allowed(&self, sender_id: &str) -> bool {
-        // If no allow list, allow everyone
+        // If no allow list, fallback to default policy
         if self.allow_from.is_empty() {
-            return true;
+            return !self.deny_by_default;
         }
 
         let sender_str = sender_id.to_string();
-        if self.allow_from.contains(&sender_str) {
+        
+        // Helper to check wildcard matching (e.g., matching @foo:matrix.org against *@*:matrix.org)
+        let matches_pattern = |pattern: &str, target: &str| -> bool {
+            // Handle Matrix ID specific wildcard matching
+            // Users often write *@domain to mean "anyone at domain" but Matrix IDs are @user:domain
+            let mut eval_pattern = pattern.to_string();
+            if eval_pattern.starts_with("*@") && target.starts_with('@') && target.contains(':') {
+                eval_pattern = eval_pattern.replace("*@", "*:");
+            }
+
+            if !eval_pattern.contains('*') {
+                return eval_pattern == target;
+            }
+            
+            // Split by '*', escape each part, then join with '.*'
+            let mut regex_pattern = String::from("^");
+            let parts: Vec<&str> = eval_pattern.split('*').collect();
+            for (i, part) in parts.iter().enumerate() {
+                if i > 0 {
+                    regex_pattern.push_str(".*");
+                }
+                regex_pattern.push_str(&regex::escape(part));
+            }
+            regex_pattern.push('$');
+            
+            if let Ok(re) = regex::Regex::new(&regex_pattern) {
+                re.is_match(target)
+            } else {
+                false
+            }
+        };
+
+        if self.allow_from.iter().any(|allowed| matches_pattern(allowed, &sender_str)) {
             return true;
         }
 
         // Handle compound IDs (e.g., "12345|username")
         if sender_str.contains('|') {
             for part in sender_str.split('|') {
-                if !part.is_empty() && self.allow_from.contains(&part.to_string()) {
+                if !part.is_empty() && self.allow_from.iter().any(|allowed| matches_pattern(allowed, part)) {
                     return true;
                 }
             }
@@ -221,6 +266,28 @@ mod tests {
         assert!(channel.is_allowed("12345|user1"));
         assert!(channel.is_allowed("99999|user1"));
         assert!(!channel.is_allowed("99999|unknown"));
+    }
+
+    #[test]
+    fn test_base_channel_deny_by_default() {
+        let config = Config::default();
+        let channel = BaseChannel::with_default_policy("test", config, vec![], true);
+        assert!(!channel.is_allowed("user1"));
+        assert!(!channel.is_allowed("anyone"));
+    }
+
+    #[test]
+    fn test_base_channel_wildcard_matching() {
+        let config = Config::default();
+        let channel = BaseChannel::new(
+            "test",
+            config,
+            vec!["*@matrix.org".to_string(), "@admin:*".to_string()],
+        );
+
+        assert!(channel.is_allowed("@user:matrix.org"));
+        assert!(channel.is_allowed("@admin:example.com"));
+        assert!(!channel.is_allowed("@user:example.com"));
     }
 
     #[test]

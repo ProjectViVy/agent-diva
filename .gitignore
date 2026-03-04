@@ -47,3 +47,9 @@ target/doc/
 *.temp
 
 logs/
+
+# Log files
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*

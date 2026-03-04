@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from 'vue';
-import { Send, Square, Trash2, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain } from 'lucide-vue-next';
+import { ref, computed, nextTick, watch, onMounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -8,11 +9,19 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
+const escapeHtml = (text: string): string =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 const md = new MarkdownIt({
   html: false, // 禁用 HTML 标签以防止 XSS
   linkify: true,
   breaks: true,
-  highlight: function (str, lang) {
+  highlight: function (str: string, lang: string): string {
     if (lang && hljs.getLanguage(lang)) {
       try {
         return '<pre class="hljs"><code>' +
@@ -21,7 +30,7 @@ const md = new MarkdownIt({
       } catch (__) {}
     }
 
-    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+    return '<pre class="hljs"><code>' + escapeHtml(str) + '</code></pre>';
   }
 });
 
@@ -38,10 +47,25 @@ interface Message {
   toolResult?: string;
   toolStatus?: 'running' | 'success' | 'error';
   toolCallId?: string;
+  rawMeta?: Record<string, unknown>;
+  fromHistory?: boolean;
 }
 
 const expandedTools = ref<Record<number, boolean>>({});
 const expandedReasoning = ref<Record<number, boolean>>({});
+const expandedRawMeta = ref<Record<number, boolean>>({});
+
+interface HistoryPrefs {
+  autoExpandReasoning: boolean;
+  autoExpandToolDetails: boolean;
+  showRawMetaByDefault: boolean;
+}
+
+const defaultHistoryPrefs: HistoryPrefs = {
+  autoExpandReasoning: true,
+  autoExpandToolDetails: false,
+  showRawMetaByDefault: false,
+};
 
 const toggleTool = (index: number) => {
   expandedTools.value[index] = !expandedTools.value[index];
@@ -51,10 +75,28 @@ const toggleReasoning = (index: number) => {
   expandedReasoning.value[index] = !expandedReasoning.value[index];
 };
 
+const toggleRawMeta = (index: number) => {
+  expandedRawMeta.value[index] = !expandedRawMeta.value[index];
+};
+
+const hasRawMeta = (msg: Message) => {
+  return !!msg.rawMeta && Object.keys(msg.rawMeta).length > 0;
+};
+
+const renderRawMeta = (msg: Message) => {
+  if (!msg.rawMeta) return '';
+  try {
+    return JSON.stringify(msg.rawMeta, null, 2);
+  } catch {
+    return String(msg.rawMeta);
+  }
+};
+
 const props = defineProps<{
   messages: Message[];
   isTyping: boolean;
   themeMode?: string;
+  historyPrefs?: HistoryPrefs;
 }>();
 
 const emit = defineEmits<{
@@ -66,6 +108,11 @@ const emit = defineEmits<{
 const input = ref('');
 const messagesEndRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
+
+const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
+  ...defaultHistoryPrefs,
+  ...(props.historyPrefs ?? {}),
+}));
 
 const sakura = [
   { left: '6%', top: '18%', size: 16, opacity: 0.25, delay: 0 },
@@ -88,12 +135,19 @@ watch(() => props.messages, (newMessages, oldMessages) => {
   if (oldMessages && newMessages.length < oldMessages.length) {
     expandedReasoning.value = {};
     expandedTools.value = {};
+    expandedRawMeta.value = {};
   }
 
-  // Auto-expand reasoning when it starts
+  // Auto-expand structured sections based on local preferences
   newMessages.forEach((msg, index) => {
-    if (msg.role === 'agent' && msg.isThinking && expandedReasoning.value[index] === undefined) {
-       expandedReasoning.value[index] = true;
+    if (expandedReasoning.value[index] === undefined && msg.reasoning) {
+      expandedReasoning.value[index] = effectiveHistoryPrefs.value.autoExpandReasoning || !!msg.isThinking;
+    }
+    if (expandedTools.value[index] === undefined && msg.role === 'tool') {
+      expandedTools.value[index] = effectiveHistoryPrefs.value.autoExpandToolDetails;
+    }
+    if (expandedRawMeta.value[index] === undefined && hasRawMeta(msg)) {
+      expandedRawMeta.value[index] = effectiveHistoryPrefs.value.showRawMetaByDefault;
     }
   });
   scrollToBottom();
@@ -108,6 +162,16 @@ const handleSend = () => {
   if (!input.value.trim() || props.isTyping) return;
   emit('send', input.value);
   input.value = '';
+};
+
+const handleClear = async () => {
+  try {
+    await invoke('reset_session', { channel: 'gui', chatId: 'main' });
+  } catch (error) {
+    console.error('Failed to reset session on backend:', error);
+  } finally {
+    emit('clear');
+  }
 };
 
 const handleStop = () => {
@@ -247,6 +311,10 @@ const getEmotionEmoji = (emotion?: string) => {
 
               <!-- Tool Details Content -->
               <div v-if="expandedTools[index]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
+                <div v-if="msg.toolCallId">
+                  <div class="font-semibold text-gray-500 mb-1">tool_call_id</div>
+                  <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolCallId }}</div>
+                </div>
                 <div>
                   <div class="font-semibold text-gray-500 mb-1">{{ t('chat.inputArgs') }}</div>
                   <div class="bg-gray-100 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
@@ -254,6 +322,22 @@ const getEmotionEmoji = (emotion?: string) => {
                 <div v-if="msg.toolResult">
                   <div class="font-semibold text-gray-500 mb-1">{{ t('chat.execResult') }}</div>
                   <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
+                </div>
+              </div>
+
+              <div v-if="hasRawMeta(msg)" class="border-t border-gray-100 bg-white/70 px-3 py-2">
+                <button
+                  @click="toggleRawMeta(index)"
+                  class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <span>{{ expandedRawMeta[index] ? t('chat.hideRawMeta') : t('chat.viewRawMeta') }}</span>
+                  <component :is="expandedRawMeta[index] ? ChevronDown : ChevronRight" :size="12" />
+                </button>
+                <div
+                  v-if="expandedRawMeta[index]"
+                  class="mt-2 bg-gray-50 border border-gray-200 rounded p-2 font-mono text-[11px] text-gray-600 max-h-52 overflow-y-auto whitespace-pre-wrap break-all"
+                >
+                  {{ renderRawMeta(msg) }}
                 </div>
               </div>
             </div>
@@ -291,6 +375,19 @@ const getEmotionEmoji = (emotion?: string) => {
                     <div class="markdown-body" v-html="md.render(msg.reasoning)"></div>
                  </div>
               </div>
+
+              <div v-if="hasRawMeta(msg)" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
+                <div
+                  @click="toggleRawMeta(index)"
+                  class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-black/5 transition-colors select-none"
+                >
+                  <span class="text-xs text-gray-500">{{ t('chat.rawMeta') }}</span>
+                  <component :is="expandedRawMeta[index] ? ChevronDown : ChevronRight" :size="14" class="text-gray-400" />
+                </div>
+                <div v-if="expandedRawMeta[index]" class="px-3 py-2 border-t border-gray-100/50 bg-gray-50/30 text-xs text-gray-600">
+                  <div class="font-mono whitespace-pre-wrap break-all">{{ renderRawMeta(msg) }}</div>
+                </div>
+              </div>
               
               <!-- Content or Loading -->
               <div v-if="!msg.content && msg.role === 'agent' && msg.isStreaming" class="flex space-x-1 py-1">
@@ -322,11 +419,11 @@ const getEmotionEmoji = (emotion?: string) => {
     <div class="chat-input-bar border-t p-4 z-20">
       <div class="flex items-center space-x-3 bg-white rounded-xl border border-gray-200 px-2 py-2 shadow-sm focus-within:ring-2 focus-within:ring-pink-500/20 focus-within:border-pink-500 transition-all">
         <button
-          @click="emit('clear')"
+          @click="handleClear"
           class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-          :title="t('chat.clearChat')"
+          :title="t('chat.newSession')"
         >
-          <Trash2 :size="20" />
+          <Plus :size="20" />
         </button>
         
         <div class="flex-1 relative flex items-center">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { MessageSquare, Play, Save, Check } from 'lucide-vue-next';
+import { MessageSquare, Play, Check } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -14,13 +14,17 @@ const channels = ref<any>({});
 const selectedChannel = ref<string | null>(null);
 const testStatus = ref<'idle' | 'testing' | 'success' | 'failed'>('idle');
 const testMessage = ref('');
-const saveStatus = ref<'idle' | 'saving' | 'success' | 'failed'>('idle');
+const isInitializing = ref(true);
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSavedSnapshot = '';
 
 onMounted(async () => {
   try {
     channels.value = await invoke('get_channels');
   } catch (e) {
     console.error('Failed to load channels:', e);
+  } finally {
+    isInitializing.value = false;
   }
 });
 
@@ -56,35 +60,51 @@ const testConnection = async (channelName: string) => {
     }, 3000);
 };
 
-const saveChannel = async (channelName: string) => {
-    if (!channels.value[channelName]) return;
-    
-    saveStatus.value = 'saving';
-    
-    try {
-        await invoke('update_channel', {
-            name: channelName,
-            enabled: channels.value[channelName].enabled,
-            config: channels.value[channelName]
-        });
-        
-        saveStatus.value = 'success';
-        console.log(`Saved channel ${channelName}`);
-    } catch (e) {
-        saveStatus.value = 'failed';
-        console.error(`Failed to save channel ${channelName}:`, e);
+const scheduleAutoSave = (channelName: string) => {
+    if (isInitializing.value || !channels.value[channelName]) return;
+
+    if (autosaveTimer) {
+        clearTimeout(autosaveTimer);
     }
-    
-    setTimeout(() => {
-        saveStatus.value = 'idle';
-    }, 2000);
+
+    autosaveTimer = setTimeout(async () => {
+        const config = channels.value[channelName];
+        if (!config) return;
+        const snapshot = JSON.stringify(config);
+        if (snapshot === lastSavedSnapshot) return;
+
+        try {
+            await invoke('update_channel', {
+                name: channelName,
+                enabled: config.enabled,
+                config
+            });
+            lastSavedSnapshot = snapshot;
+        } catch (e) {
+            console.error(`Failed to auto-save channel ${channelName}:`, e);
+        }
+    }, 300);
 };
+
+watch(selectedChannel, (channelName) => {
+    if (!channelName || !channels.value[channelName]) return;
+    lastSavedSnapshot = JSON.stringify(channels.value[channelName]);
+});
+
+watch(
+    () => (selectedChannel.value ? channels.value[selectedChannel.value] : null),
+    () => {
+        if (!selectedChannel.value) return;
+        scheduleAutoSave(selectedChannel.value);
+    },
+    { deep: true }
+);
 </script>
 
 <template>
-  <div class="flex h-full fade-in">
+  <div class="flex h-full min-h-0 fade-in">
     <!-- Sidebar: List of Channels -->
-    <div class="w-1/3 min-w-[200px] border-r border-gray-100 flex flex-col bg-gray-50/30">
+    <div class="w-1/3 min-w-[200px] min-h-0 border-r border-gray-100 flex flex-col bg-gray-50/30">
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
          <button
             v-for="(config, name) in channels"
@@ -109,7 +129,7 @@ const saveChannel = async (channelName: string) => {
     </div>
 
     <!-- Main Area -->
-    <div class="flex-1 overflow-y-auto p-6 bg-white">
+    <div class="flex-1 min-h-0 overflow-y-auto p-6 bg-white">
         <div v-if="selectedChannel" class="space-y-8">
             <!-- Header -->
             <div class="flex items-center space-x-4">
@@ -463,15 +483,6 @@ const saveChannel = async (channelName: string) => {
                     <span>{{ testStatus === 'testing' ? t('channels.testing') : t('channels.testConnection') }}</span>
                 </button>
                 
-                <button 
-                    @click="saveChannel(selectedChannel)"
-                    class="flex-[2] px-4 py-3 bg-pink-500 hover:bg-pink-600 text-white rounded-xl font-medium shadow-md shadow-pink-500/20 transition-all flex items-center justify-center space-x-2"
-                    :disabled="saveStatus === 'saving'"
-                >
-                    <div v-if="saveStatus === 'saving'" class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    <Save v-else :size="18" />
-                    <span>{{ saveStatus === 'saving' ? t('channels.saving') : t('channels.saveChannel') }}</span>
-                </button>
             </div>
             
             <!-- Feedback messages -->

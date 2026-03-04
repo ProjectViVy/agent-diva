@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { ChevronLeft } from 'lucide-vue-next';
 import SettingsDashboard from './settings/SettingsDashboard.vue';
+import GeneralSettings from './settings/GeneralSettings.vue';
 import ProvidersSettings from './settings/ProvidersSettings.vue';
 import ChannelsSettings from './settings/ChannelsSettings.vue';
 import NetworkSettings from './settings/NetworkSettings.vue';
@@ -18,6 +19,11 @@ interface SavedModel {
   apiBase: string;
   apiKey: string;
   displayName: string;
+}
+interface ChatDisplayPrefs {
+  autoExpandReasoning: boolean;
+  autoExpandToolDetails: boolean;
+  showRawMetaByDefault: boolean;
 }
 
 const props = defineProps<{
@@ -40,19 +46,22 @@ const props = defineProps<{
     };
   };
   savedModels?: SavedModel[];
+  chatDisplayPrefs: ChatDisplayPrefs;
 }>();
 
 const emit = defineEmits<{
   (e: 'save', config: typeof props.config): void;
   (e: 'save-tools-config', tools: typeof props.toolsConfig): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
+  (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
 }>();
 
-const currentView = ref<'dashboard' | 'providers' | 'channels' | 'network' | 'language' | 'about'>('dashboard');
+const currentView = ref<'dashboard' | 'general' | 'providers' | 'channels' | 'network' | 'language' | 'about'>('dashboard');
 
 const pageTitle = computed(() => {
   if (currentView.value === 'dashboard') return t('settings.title');
   const titles = {
+    general: t('settings.general'),
     providers: t('settings.providers'),
     channels: t('settings.channels'),
     network: t('settings.network'),
@@ -62,7 +71,7 @@ const pageTitle = computed(() => {
   return titles[currentView.value] || t('settings.title');
 });
 
-const handleNavigate = (view: 'providers' | 'channels' | 'network' | 'language' | 'about') => {
+const handleNavigate = (view: 'general' | 'providers' | 'channels' | 'network' | 'language' | 'about') => {
   currentView.value = view;
 };
 
@@ -72,7 +81,7 @@ const goBack = () => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-white rounded-xl overflow-hidden min-w-[320px]">
+  <div class="h-full min-h-0 flex flex-col bg-white rounded-xl overflow-hidden min-w-[320px]">
     <!-- Top Bar -->
     <div class="p-6 border-b border-gray-100 flex justify-between items-center h-20">
       <div class="flex items-center space-x-2">
@@ -91,12 +100,18 @@ const goBack = () => {
     </div>
     
     <!-- Content Area -->
-    <div class="flex-1 overflow-hidden relative bg-gray-50/30">
+    <div class="flex-1 min-h-0 overflow-hidden relative bg-gray-50/30">
        <Transition name="page" mode="out-in">
-          <div :key="currentView" class="h-full w-full">
+          <div :key="currentView" class="h-full min-h-0 w-full overflow-y-auto">
             <SettingsDashboard 
               v-if="currentView === 'dashboard'"
               @navigate="handleNavigate"
+            />
+
+            <GeneralSettings
+              v-else-if="currentView === 'general'"
+              :chat-display-prefs="chatDisplayPrefs"
+              @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
             />
             
             <ProvidersSettings 

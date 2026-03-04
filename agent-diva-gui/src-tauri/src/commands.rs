@@ -259,6 +259,124 @@ pub async fn stop_generation(
 }
 
 #[tauri::command]
+pub async fn reset_session(
+    channel: Option<String>,
+    chat_id: Option<String>,
+    state: State<'_, AgentState>,
+) -> Result<bool, String> {
+    let url = format!("{}/sessions/reset", state.api_base_url);
+    let payload = serde_json::json!({
+        "channel": channel,
+        "chat_id": chat_id
+    });
+
+    let response = state
+        .client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to request session reset: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid reset response: {}", e))?;
+
+    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    if !status_ok {
+        let message = value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("Reset request rejected: {}", message));
+    }
+
+    Ok(value
+        .get("reset")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true))
+}
+
+#[tauri::command]
+pub async fn get_sessions(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+    let url = format!("{}/sessions", state.api_base_url);
+
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch sessions: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid get sessions response: {}", e))?;
+
+    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    if !status_ok {
+        let message = value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("Get sessions request rejected: {}", message));
+    }
+
+    Ok(value.get("sessions").cloned().unwrap_or(serde_json::Value::Array(vec![])))
+}
+
+#[tauri::command]
+pub async fn get_session_history(
+    chat_id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    // URL encode the chat_id in case it contains special characters like ':'
+    let id_encoded = urlencoding::encode(&chat_id);
+    let url = format!("{}/sessions/{}", state.api_base_url, id_encoded);
+
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch session history: {}", e))?;
+
+    if !response.status().is_success() {
+        // A 404 or other failure could mean no history
+         if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(serde_json::Value::Null);
+         }
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid get session history response: {}", e))?;
+
+    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    
+    if !status_ok {
+        let message = value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("Get session history request rejected: {}", message));
+    }
+
+    Ok(value.get("session").cloned().unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
 pub async fn start_background_stream(
     window: Window,
     state: State<'_, AgentState>,

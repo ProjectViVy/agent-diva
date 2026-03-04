@@ -15,6 +15,7 @@ pub struct AppState {
 pub enum ManagerCommand {
     Chat(ApiRequest),
     StopChat(StopChatRequest, oneshot::Sender<Result<bool, String>>),
+    ResetSession(ResetSessionRequest, oneshot::Sender<Result<bool, String>>),
     UpdateConfig(ConfigUpdate),
     UpdateChannel(ChannelUpdate),
     TestChannel(ChannelUpdate, oneshot::Sender<Result<(), String>>),
@@ -22,6 +23,8 @@ pub enum ManagerCommand {
     GetChannels(oneshot::Sender<ChannelsConfig>),
     GetTools(oneshot::Sender<ToolsConfigResponse>),
     UpdateTools(ToolsConfigUpdate),
+    GetSessions(oneshot::Sender<Result<Vec<agent_diva_core::session::SessionInfo>, String>>),
+    GetSessionHistory(String, oneshot::Sender<Result<Option<agent_diva_core::session::store::Session>, String>>),
 }
 
 pub struct ApiRequest {
@@ -31,6 +34,12 @@ pub struct ApiRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StopChatRequest {
+    pub channel: Option<String>,
+    pub chat_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResetSessionRequest {
     pub channel: Option<String>,
     pub chat_id: Option<String>,
 }

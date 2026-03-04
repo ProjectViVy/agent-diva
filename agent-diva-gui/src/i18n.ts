@@ -25,7 +25,6 @@ zhPatched.network = {
   maxResults: zhPatched.network?.maxResults || '最大结果数',
   enableSearch: zhPatched.network?.enableSearch || '启用 Web Search',
   enableFetch: zhPatched.network?.enableFetch || '启用 Web Fetch',
-  save: zhPatched.network?.save || '保存网络设置',
 };
 
 const i18n = createI18n({

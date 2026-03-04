@@ -11,6 +11,7 @@ pub struct CronTool {
     cron_service: Arc<CronService>,
     channel: Arc<tokio::sync::RwLock<String>>,
     chat_id: Arc<tokio::sync::RwLock<String>>,
+    in_cron_context: Arc<tokio::sync::RwLock<bool>>,
 }
 
 impl CronTool {
@@ -20,6 +21,7 @@ impl CronTool {
             cron_service,
             channel: Arc::new(tokio::sync::RwLock::new(String::new())),
             chat_id: Arc::new(tokio::sync::RwLock::new(String::new())),
+            in_cron_context: Arc::new(tokio::sync::RwLock::new(false)),
         }
     }
 
@@ -40,6 +42,10 @@ impl CronTool {
     ) -> String {
         if message.is_empty() {
             return "Error: message is required for add".to_string();
+        }
+
+        if *self.in_cron_context.read().await {
+            return "Error: cannot schedule new jobs from within a cron job execution".to_string();
         }
 
         let channel = self.channel.read().await.clone();
@@ -151,36 +157,43 @@ impl Tool for CronTool {
                 },
                 "every_seconds": {
                     "type": "integer",
-                    "description": "Interval in seconds (for recurring tasks)"
+                    "description": "Schedule interval in seconds"
                 },
                 "cron_expr": {
                     "type": "string",
-                    "description": "Cron expression like '0 9 * * *' (for scheduled tasks)"
+                    "description": "Cron expression (e.g. '0 0 * * * *')"
                 },
                 "at": {
                     "type": "string",
-                    "description": "ISO 8601 timestamp (e.g. '2023-10-27T10:00:00Z') for one-time task"
+                    "description": "ISO 8601 absolute time string"
                 },
                 "timezone": {
                     "type": "string",
-                    "description": "Timezone for cron expression (e.g. 'America/New_York')"
+                    "description": "Timezone name (e.g. 'UTC', 'America/New_York'). Defaults to Local."
                 },
                 "job_id": {
                     "type": "string",
-                    "description": "Job ID (for remove)"
-                }
+                    "description": "Job ID for removal"
+                },
+                "context_channel": { "type": "string" },
+                "context_chat_id": { "type": "string" },
+                "_in_cron_context": { "type": "boolean" }
             },
             "required": ["action"]
         })
     }
 
-    async fn execute(&self, args: Value) -> std::result::Result<String, ToolError> {
+    async fn execute(&self, args: Value) -> super::base::Result<String> {
         if let (Some(channel), Some(chat_id)) = (
             args.get("context_channel").and_then(|v| v.as_str()),
             args.get("context_chat_id").and_then(|v| v.as_str()),
         ) {
             self.set_context(channel.to_string(), chat_id.to_string())
                 .await;
+        }
+
+        if let Some(in_cron) = args["_in_cron_context"].as_bool() {
+            *self.in_cron_context.write().await = in_cron;
         }
 
         let action = args
@@ -190,21 +203,12 @@ impl Tool for CronTool {
 
         match action {
             "add" => {
-                let message = args
-                    .get("message")
-                    .and_then(|v| v.as_str())
-                    .map(String::from)
-                    .unwrap_or_default();
-                let every_seconds = args.get("every_seconds").and_then(|v| v.as_i64());
-                let cron_expr = args
-                    .get("cron_expr")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-                let at = args.get("at").and_then(|v| v.as_str()).map(String::from);
-                let timezone = args
-                    .get("timezone")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
+                let message = args["message"].as_str().unwrap_or("").to_string();
+                let every_seconds = args["every_seconds"].as_i64();
+                let cron_expr = args["cron_expr"].as_str().map(|s| s.to_string());
+                let at = args["at"].as_str().map(|s| s.to_string());
+                let timezone = args["timezone"].as_str().map(|s| s.to_string());
+                
                 Ok(self
                     .add_job(message, every_seconds, cron_expr, at, timezone)
                     .await)

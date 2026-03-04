@@ -309,6 +309,21 @@ impl AgentLoop {
                             Some(RuntimeControlCommand::StopSession { session_key }) => {
                                 self.cancelled_sessions.insert(session_key);
                             }
+                            Some(RuntimeControlCommand::ResetSession { session_key }) => {
+                                if let Err(e) = self.sessions.archive_and_reset(&session_key) {
+                                    error!("Failed to archive and reset session: {}", e);
+                                } else {
+                                    info!("Archived and reset session: {}", session_key);
+                                }
+                            }
+                            Some(RuntimeControlCommand::GetSessions { reply_tx }) => {
+                                let sessions = self.sessions.list_sessions();
+                                let _ = reply_tx.send(sessions);
+                            }
+                            Some(RuntimeControlCommand::GetSession { session_key, reply_tx }) => {
+                                let session = self.sessions.get(&session_key).cloned();
+                                let _ = reply_tx.send(session);
+                            }
                             None => {
                                 info!("Runtime control channel closed");
                                 self.runtime_control_rx = None;
@@ -400,6 +415,21 @@ impl AgentLoop {
                 }
                 RuntimeControlCommand::StopSession { session_key } => {
                     self.cancelled_sessions.insert(session_key);
+                }
+                RuntimeControlCommand::ResetSession { session_key } => {
+                    if let Err(e) = self.sessions.archive_and_reset(&session_key) {
+                        error!("Failed to archive and reset session: {}", e);
+                    } else {
+                        info!("Archived and reset session: {}", session_key);
+                    }
+                }
+                RuntimeControlCommand::GetSessions { reply_tx } => {
+                    let sessions = self.sessions.list_sessions();
+                    let _ = reply_tx.send(sessions);
+                }
+                RuntimeControlCommand::GetSession { session_key, reply_tx } => {
+                    let session = self.sessions.get(&session_key).cloned();
+                    let _ = reply_tx.send(session);
                 }
             }
         }
@@ -663,7 +693,7 @@ impl AgentLoop {
                     // Convert HashMap to Value for execute
                     let mut params_value = serde_json::to_value(&tool_call.arguments)
                         .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-                    if tool_call.name == "cron" {
+                        if tool_call.name == "cron" {
                         if let Some(params_obj) = params_value.as_object_mut() {
                             params_obj.insert(
                                 "context_channel".to_string(),
@@ -673,6 +703,12 @@ impl AgentLoop {
                                 "context_chat_id".to_string(),
                                 serde_json::Value::String(msg.chat_id.clone()),
                             );
+                            if msg.channel == "cron" {
+                                params_obj.insert(
+                                    "_in_cron_context".to_string(),
+                                    serde_json::Value::Bool(true),
+                                );
+                            }
                         }
                     }
                     let result = self.tools.execute(&tool_call.name, params_value).await;

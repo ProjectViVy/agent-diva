@@ -126,6 +126,24 @@ impl SessionManager {
         }
     }
 
+    /// Archive an existing session and clear it from memory, forcing a fresh start
+    pub fn archive_and_reset(&mut self, key: &str) -> crate::Result<bool> {
+        self.cache.remove(key);
+
+        let path = self.session_path(key);
+        if path.exists() {
+            let safe_key = key.replace([':', '/', '\\'], "_");
+            let timestamp = chrono::Utc::now().timestamp_millis();
+            let archive_filename = format!("{}.reset.{}.jsonl", safe_key, timestamp);
+            let archive_path = self.sessions_dir.join(archive_filename);
+            
+            std::fs::rename(&path, &archive_path)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     /// List all sessions
     pub fn list_sessions(&self) -> Vec<SessionInfo> {
         let mut sessions = Vec::new();
@@ -176,7 +194,7 @@ impl SessionManager {
 }
 
 /// Information about a session
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SessionInfo {
     /// Session key
     pub key: String,
@@ -231,5 +249,44 @@ mod tests {
 
         assert_eq!(session.messages.len(), 1);
         assert_eq!(session.messages[0].content, "Test message");
+    }
+
+    #[test]
+    fn test_archive_and_reset_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        // Create and modify session
+        let session = manager.get_or_create("archive:789");
+        session.add_message("user", "Message to be archived");
+        let key = session.key.clone();
+
+        // Save it so it exists on disk
+        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+
+        // Archive it
+        let archived = manager.archive_and_reset(&key).unwrap();
+        assert!(archived);
+
+        // Check it's removed from cache
+        assert!(manager.cache.get(&key).is_none());
+
+        // Get or create should now be empty
+        let new_session = manager.get_or_create("archive:789");
+        assert_eq!(new_session.messages.len(), 0);
+
+        // Check if the original file is gone but there's a file with .reset. in it
+        let mut reset_files_count = 0;
+        for entry in std::fs::read_dir(temp_dir.path().join("sessions")).unwrap() {
+            let entry = entry.unwrap();
+            let file_name = entry.file_name().into_string().unwrap();
+            if file_name.contains(".reset.") {
+                reset_files_count += 1;
+            } else if file_name == "archive_789.jsonl" {
+                // Should not find the active file since it wasn't saved yet
+                panic!("Original file still exists!");
+            }
+        }
+        assert_eq!(reset_files_count, 1, "Should have exactly one archived file");
     }
 }

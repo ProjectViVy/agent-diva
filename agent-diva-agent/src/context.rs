@@ -335,22 +335,22 @@ fn read_trimmed_markdown(path: &Path, max_chars: usize) -> Option<String> {
 fn parse_identity_field(content: &str, keys: &[&str]) -> Option<String> {
     for line in content.lines() {
         let line = line.trim().trim_start_matches(&['-', '*'][..]).trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        // Split on ASCII or full-width colon to avoid manual byte indices.
+        let (prefix, value_part) = match line
+            .split_once(':')
+            .or_else(|| line.split_once('：'))
+        {
+            Some((p, v)) => (p.trim(), v.trim()),
+            None => continue,
+        };
+
         for key in keys {
-            if line.len() <= key.len() + 1 {
-                continue;
-            }
-            let (prefix, rest) = line.split_at(key.len());
-            if !prefix.eq_ignore_ascii_case(key) {
-                continue;
-            }
-            let value = rest
-                .strip_prefix(':')
-                .or_else(|| rest.strip_prefix('：'))
-                .map(str::trim);
-            if let Some(value) = value {
-                if !value.is_empty() {
-                    return Some(value.to_string());
-                }
+            if prefix.eq_ignore_ascii_case(key) && !value_part.is_empty() {
+                return Some(value_part.to_string());
             }
         }
     }
@@ -556,4 +556,13 @@ mod tests {
             Some("pragmatic")
         );
     }
+
+        #[test]
+        fn test_parse_identity_field_supports_chinese_voice_line() {
+            let raw = "- Voice: 简洁、实用、协作";
+            assert_eq!(
+                parse_identity_field(raw, &["voice"]).as_deref(),
+                Some("简洁、实用、协作")
+            );
+        }
 }

@@ -25,3 +25,4 @@ futures = "0.3"
 eventsource-stream = "0.2"
 
 dirs.workspace = true
+urlencoding = "2.1.3"

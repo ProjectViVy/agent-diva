@@ -156,6 +156,76 @@ pub async fn stop_chat_handler(
     }
 }
 
+pub async fn reset_session_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<crate::state::ResetSessionRequest>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::ResetSession(payload, tx))
+        .await
+    {
+        tracing::error!("Failed to send ResetSession request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+
+    match rx.await {
+        Ok(Ok(reset)) => Json(serde_json::json!({ "status": "ok", "reset": reset })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => {
+            tracing::error!("Failed to receive ResetSession response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
+}
+
+pub async fn get_sessions_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::GetSessions(tx)).await {
+        tracing::error!("Failed to send GetSessions request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+
+    match rx.await {
+        Ok(Ok(sessions)) => Json(serde_json::json!({ "status": "ok", "sessions": sessions })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => {
+            tracing::error!("Failed to receive GetSessions response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
+}
+
+pub async fn get_session_history_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    // If the path just gives an id (e.g. from frontend gui), then assume channel is implicit, normally the id comes as format `channel:chat_id` but frontend may just send `chat_id`. Wait, let the frontend send `channel:chat_id` via the path or query.
+    // To support fetching any session_key, we will decode the path parameter if it's url encoded, or just use it as is.
+    let session_key = if !id.contains(':') {
+        format!("gui:{}", id) // fallback for backwards compatibility or assumptions
+    } else {
+        id
+    };
+
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::GetSessionHistory(session_key.clone(), tx)).await {
+        tracing::error!("Failed to send GetSessionHistory request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+
+    match rx.await {
+        Ok(Ok(Some(session))) => Json(serde_json::json!({ "status": "ok", "session": session })),
+        Ok(Ok(None)) => Json(serde_json::json!({ "status": "error", "message": "Session not found" })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => {
+            tracing::error!("Failed to receive GetSessionHistory response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
+}
+
 pub async fn events_handler(
     State(state): State<AppState>,
     Query(query): Query<EventsQuery>,

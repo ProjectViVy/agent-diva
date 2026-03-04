@@ -30,7 +30,12 @@ pub struct MatrixHandler {
 impl MatrixHandler {
     pub fn new(config: MatrixConfig, base_config: Config) -> Self {
         Self {
-            base: BaseChannel::new("matrix", base_config, config.allow_from.clone()),
+            base: BaseChannel::with_default_policy(
+                "matrix",
+                base_config,
+                config.allow_from.clone(),
+                true, // deny_by_default = true
+            ),
             config,
             running: Arc::new(RwLock::new(false)),
             processed_ids: Arc::new(RwLock::new(VecDeque::with_capacity(2000))),
@@ -56,6 +61,13 @@ impl MatrixHandler {
                 "Matrix access_token not configured".to_string(),
             ));
         }
+        
+        // Warn if not running end-to-end encryption and no explicit allow_from is provided.
+        // It's dangerous to run an open bot on a public Matrix federation without E2EE or filters.
+        if !self.config.e2ee_enabled && self.config.allow_from.is_empty() {
+            warn!("Matrix is configured with e2e_enabled=false and an empty allow_from list! With deny-by-default, the bot will ignore ALL incoming messages.");
+        }
+
         Ok(())
     }
 

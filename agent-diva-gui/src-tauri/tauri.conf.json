@@ -12,9 +12,21 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "agent-diva-gui",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "DIVA",
+        "url": "/splashscreen.html",
+        "width": 400,
+        "height": 300,
+        "resizable": false,
+        "decorations": false,
+        "center": true
       }
     ],
     "security": {

@@ -41,6 +41,8 @@ use tracing::{error, info, warn};
 mod client;
 use client::ApiClient;
 
+use agent_diva_tools::wtf;
+
 #[derive(Parser)]
 #[command(name = "agent-diva")]
 #[command(about = "A lightweight personal AI assistant framework")]
@@ -177,6 +179,7 @@ enum CronCommands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    wtf::print_ascii_agent_diva_logo();
     let cli = Cli::parse();
 
     // Create config loader
@@ -528,6 +531,7 @@ use agent_diva_providers::{DynamicProvider, LLMProvider};
 /// Run the agent gateway
 async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
     {
+        
         let config = loader.load()?;
 
         // Check if API key is configured

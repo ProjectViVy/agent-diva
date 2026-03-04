@@ -9,8 +9,8 @@ use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
     chat_handler, events_handler, get_channels_handler, get_config_handler, get_providers_handler,
-    get_tools_handler, heartbeat_handler, stop_chat_handler, test_channel_handler,
-    update_channel_handler, update_config_handler, update_tools_handler,
+    get_tools_handler, heartbeat_handler, stop_chat_handler, reset_session_handler, test_channel_handler,
+    update_channel_handler, update_config_handler, update_tools_handler, get_sessions_handler, get_session_history_handler,
 };
 use crate::state::AppState;
 
@@ -22,6 +22,9 @@ pub async fn run_server(
     let app = Router::new()
         .route("/api/chat", post(chat_handler))
         .route("/api/chat/stop", post(stop_chat_handler))
+        .route("/api/sessions", get(get_sessions_handler))
+        .route("/api/sessions/:id", get(get_session_history_handler))
+        .route("/api/sessions/reset", post(reset_session_handler))
         .route("/api/events", get(events_handler))
         .route(
             "/api/config",

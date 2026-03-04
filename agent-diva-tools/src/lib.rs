@@ -11,6 +11,7 @@ pub mod registry;
 pub mod shell;
 pub mod spawn;
 pub mod web;
+pub mod wtf;
 
 pub use base::{Tool, ToolError};
 pub use cron::CronTool;
@@ -21,3 +22,4 @@ pub use registry::ToolRegistry;
 pub use shell::ExecTool;
 pub use spawn::SpawnTool;
 pub use web::{WebFetchTool, WebSearchTool};
+pub use wtf::{print_ascii_agent_diva_logo, ASCII_AGENT_DIVA_LOGO};

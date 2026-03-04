@@ -20,6 +20,8 @@ interface Message {
   toolResult?: string;
   toolStatus?: 'running' | 'success' | 'error';
   toolCallId?: string;
+  rawMeta?: Record<string, unknown>;
+  fromHistory?: boolean;
 }
 
 interface ToolStartPayload {
@@ -43,6 +45,56 @@ interface SavedModel {
   apiKey: string;
   displayName: string;
 }
+
+interface SessionInfo {
+  chat_id: string;
+  snippet: string;
+  timestamp: number;
+}
+interface ChatDisplayPrefs {
+  autoExpandReasoning: boolean;
+  autoExpandToolDetails: boolean;
+  showRawMetaByDefault: boolean;
+}
+
+interface BackendSessionInfo {
+  key: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  path?: string;
+}
+
+interface BackendChatMessage {
+  role: string;
+  content: string;
+  timestamp?: string;
+  reasoning_content?: string | null;
+  tool_call_id?: string | null;
+  tool_calls?: serdeJsonValue[] | null;
+  name?: string | null;
+  thinking_blocks?: serdeJsonValue[] | null;
+}
+
+interface BackendSessionHistory {
+  key: string;
+  messages: BackendChatMessage[];
+}
+
+type serdeJsonValue = Record<string, unknown>;
+
+interface SessionCacheEntry {
+  session: BackendSessionHistory;
+  cachedAt: number;
+}
+
+const SESSION_CACHE_PREFIX = 'agent-diva-session-cache:';
+const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
+const HISTORY_PREFS_KEY = 'agent-diva-history-prefs';
+const defaultChatDisplayPrefs: ChatDisplayPrefs = {
+  autoExpandReasoning: true,
+  autoExpandToolDetails: false,
+  showRawMetaByDefault: false,
+};
 
 const messages = ref<Message[]>([
   {
@@ -81,10 +133,161 @@ const toolsConfig = ref({
 });
 
 const savedModels = ref<SavedModel[]>([]);
+const sessions = ref<SessionInfo[]>([]);
+const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
 
 const unlisteners: UnlistenFn[] = [];
 
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+function extractChatId(sessionKey: string): string {
+  if (!sessionKey) {
+    return '';
+  }
+  const idx = sessionKey.indexOf(':');
+  if (idx === -1 || idx === sessionKey.length - 1) {
+    return sessionKey;
+  }
+  return sessionKey.slice(idx + 1);
+}
+
+function parseSessionTimestamp(updatedAt?: string | null, createdAt?: string | null): number {
+  const parsed = Date.parse(updatedAt || createdAt || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseMessageTimestamp(rawTimestamp?: string): number {
+  const parsed = Date.parse(rawTimestamp || '');
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function mapSessionRole(
+  role: string
+): Message['role'] | null {
+  if (role === 'assistant') return 'agent';
+  if (role === 'user' || role === 'system' || role === 'tool') return role;
+  return null;
+}
+
+function hasValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0;
+  return true;
+}
+
+function extractToolName(
+  role: string,
+  name?: string | null,
+  toolCalls?: serdeJsonValue[] | null
+): string | undefined {
+  if (name && name.trim()) return name.trim();
+  if (!toolCalls || toolCalls.length === 0) return role === 'tool' ? 'tool' : undefined;
+  const firstCall = toolCalls[0];
+  const maybeFn = firstCall?.function as Record<string, unknown> | undefined;
+  const fnName = maybeFn?.name;
+  if (typeof fnName === 'string' && fnName.trim()) return fnName.trim();
+  return role === 'tool' ? 'tool' : undefined;
+}
+
+function extractToolArgs(toolCalls?: serdeJsonValue[] | null): string | undefined {
+  if (!toolCalls || toolCalls.length === 0) return undefined;
+  const firstCall = toolCalls[0];
+  const maybeFn = firstCall?.function as Record<string, unknown> | undefined;
+  const fnArgs = maybeFn?.arguments ?? firstCall?.args;
+  if (!hasValue(fnArgs)) return undefined;
+  if (typeof fnArgs === 'string') return fnArgs;
+  try {
+    return JSON.stringify(fnArgs, null, 2);
+  } catch {
+    return String(fnArgs);
+  }
+}
+
+function buildRawMeta(msg: BackendChatMessage): Record<string, unknown> | undefined {
+  const rawMeta: Record<string, unknown> = {};
+  if (hasValue(msg.tool_call_id)) rawMeta.tool_call_id = msg.tool_call_id;
+  if (hasValue(msg.tool_calls)) rawMeta.tool_calls = msg.tool_calls;
+  if (hasValue(msg.name)) rawMeta.name = msg.name;
+  if (hasValue(msg.thinking_blocks)) rawMeta.thinking_blocks = msg.thinking_blocks;
+  if (Object.keys(rawMeta).length === 0) return undefined;
+  return rawMeta;
+}
+
+function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
+  const mappedRole = mapSessionRole(msg.role);
+  if (!mappedRole) {
+    return null;
+  }
+
+  const toolName = extractToolName(msg.role, msg.name, msg.tool_calls);
+  const toolArgs = extractToolArgs(msg.tool_calls);
+  const rawMeta = buildRawMeta(msg);
+  const toolResult = mappedRole === 'tool' ? (msg.content || '') : undefined;
+  const toolStatus = mappedRole === 'tool'
+    ? (/^error\b/i.test(msg.content || '') ? 'error' : 'success')
+    : undefined;
+
+  return {
+    role: mappedRole,
+    content: msg.content || '',
+    reasoning: msg.reasoning_content || undefined,
+    timestamp: parseMessageTimestamp(msg.timestamp),
+    emotion: mappedRole === 'agent' ? 'normal' : undefined,
+    toolName,
+    toolArgs,
+    toolResult,
+    toolStatus,
+    toolCallId: msg.tool_call_id || undefined,
+    rawMeta,
+    fromHistory: true,
+  };
+}
+
+function getSessionCacheKeys(chatId: string): string[] {
+  if (!chatId) return [];
+  const normalized = chatId.includes(':') ? chatId : `gui:${chatId}`;
+  const keys = [normalized];
+  if (chatId !== normalized) {
+    keys.push(chatId);
+  }
+  return keys.map((key) => `${SESSION_CACHE_PREFIX}${key}`);
+}
+
+function readSessionFromCache(chatId: string): BackendSessionHistory | null {
+  try {
+    for (const key of getSessionCacheKeys(chatId)) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as SessionCacheEntry;
+      if (!parsed || !parsed.session || !Array.isArray(parsed.session.messages)) continue;
+      if (!Number.isFinite(parsed.cachedAt) || Date.now() - parsed.cachedAt > SESSION_CACHE_TTL_MS) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      return parsed.session;
+    }
+  } catch (e) {
+    console.warn('Failed to read session cache:', e);
+  }
+  return null;
+}
+
+function writeSessionToCache(session: BackendSessionHistory) {
+  try {
+    if (!session?.key) return;
+    const entry: SessionCacheEntry = {
+      session,
+      cachedAt: Date.now(),
+    };
+    localStorage.setItem(
+      `${SESSION_CACHE_PREFIX}${session.key}`,
+      JSON.stringify(entry)
+    );
+  } catch (e) {
+    console.warn('Failed to write session cache:', e);
+  }
+}
 
 function generateChatId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -103,6 +306,18 @@ onMounted(() => {
       console.error("Failed to parse saved models", e);
     }
   }
+
+  const storedChatPrefs = localStorage.getItem(HISTORY_PREFS_KEY);
+  if (storedChatPrefs) {
+    try {
+      chatDisplayPrefs.value = {
+        ...defaultChatDisplayPrefs,
+        ...JSON.parse(storedChatPrefs),
+      };
+    } catch (e) {
+      console.error('Failed to parse chat display preferences', e);
+    }
+  }
 });
 
 // Save models to localStorage whenever they change
@@ -110,8 +325,19 @@ watch(savedModels, (newVal) => {
   localStorage.setItem('agent-diva-saved-models', JSON.stringify(newVal));
 }, { deep: true });
 
+watch(chatDisplayPrefs, (newVal) => {
+  localStorage.setItem(HISTORY_PREFS_KEY, JSON.stringify(newVal));
+}, { deep: true });
+
 function updateSavedModels(models: SavedModel[]) {
   savedModels.value = models;
+}
+
+function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
+  chatDisplayPrefs.value = {
+    ...defaultChatDisplayPrefs,
+    ...prefs,
+  };
 }
 
 async function sendMessage(content: string) {
@@ -239,7 +465,91 @@ const clearMessages = () => {
       emotion: 'happy'
     }
   ];
+  
+  // Refresh sessions list quietly when cleared because it produces a new session file
+  if (isTauri()) {
+    setTimeout(refreshSessions, 1000);
+  }
 };
+
+async function refreshSessions() {
+  if (!isTauri()) return;
+  try {
+    const fetched = await invoke<BackendSessionInfo[]>("get_sessions");
+    if (fetched && Array.isArray(fetched)) {
+      const mapped = fetched.map((session) => {
+        const chatId = extractChatId(session.key);
+        return {
+          chat_id: chatId,
+          snippet: chatId || session.key || '...',
+          timestamp: parseSessionTimestamp(session.updated_at, session.created_at),
+        };
+      });
+      sessions.value = mapped.sort((a, b) => b.timestamp - a.timestamp);
+    }
+  } catch (e) {
+    console.error("Failed to fetch sessions:", e);
+  }
+}
+
+async function loadSession(chatId: string) {
+  if (!isTauri()) return;
+  
+  try {
+    let sessionHistory = readSessionFromCache(chatId);
+    if (!sessionHistory) {
+      sessionHistory = await invoke<BackendSessionHistory | null>("get_session_history", { chatId });
+      if (sessionHistory && Array.isArray(sessionHistory.messages)) {
+        writeSessionToCache(sessionHistory);
+      }
+    }
+
+    if (!sessionHistory || !Array.isArray(sessionHistory.messages)) {
+      messages.value.push({
+        role: 'system',
+        content: `${t('app.errorPrefix')}Session not found`,
+        timestamp: Date.now()
+      });
+      return;
+    }
+
+    currentChatId.value = extractChatId(sessionHistory.key) || chatId;
+
+    const newMessages: Message[] = sessionHistory.messages
+      .map(mapBackendMessageToUi)
+      .filter((msg): msg is Message => msg !== null);
+
+    if (newMessages.length > 0) {
+      messages.value = newMessages;
+    } else {
+      messages.value.push({
+        role: 'system',
+        content: `${t('app.errorPrefix')}Session has no displayable messages`,
+        timestamp: Date.now()
+      });
+      return;
+    }
+
+    const selectedSession = sessions.value.find((session) => session.chat_id === currentChatId.value);
+    if (!selectedSession) {
+      sessions.value.unshift({
+        chat_id: currentChatId.value,
+        snippet: currentChatId.value,
+        timestamp: Date.now(),
+      });
+    } else {
+      selectedSession.timestamp = Date.now();
+      sessions.value = [...sessions.value].sort((a, b) => b.timestamp - a.timestamp);
+    }
+  } catch (e) {
+    console.error("Failed to load session history:", e);
+    messages.value.push({ 
+      role: 'system', 
+      content: t('app.errorPrefix') + e, 
+      timestamp: Date.now() 
+    });
+  }
+}
 
 async function saveConfig(newConfig: typeof config.value) {
   try {
@@ -316,43 +626,55 @@ async function checkHealth() {
 }
 
 onMounted(async () => {
+  const markSplashComplete = () => {
+    if (isTauri()) {
+      invoke('set_splash_complete', { task: 'frontend' }).catch((e) =>
+        console.warn('set_splash_complete failed:', e)
+      );
+    }
+  };
+
   if (!isTauri()) {
       console.log("Running in browser mode - Tauri listeners skipped");
       return;
   }
 
   try {
-    await invoke("start_background_stream");
-  } catch (e) {
-    console.warn("Failed to start background stream:", e);
-  }
-
-  try {
-    const fetchedTools = await invoke<typeof toolsConfig.value>("get_tools_config");
-    toolsConfig.value = fetchedTools;
-  } catch (e) {
-    console.warn("Failed to load tools config:", e);
-  }
-
-  // Initial health check and polling
-  await checkHealth();
-  const healthInterval = setInterval(checkHealth, 5000);
-  
-  // Register cleanup
-  onUnmounted(() => {
-    clearInterval(healthInterval);
-  });
-
-  // Listen for streaming text delta
-  unlisteners.push(await listen<string>("agent-response-delta", (event) => {
-    const lastMsg = messages.value[messages.value.length - 1];
-    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      lastMsg.content += event.payload;
+    try {
+      await invoke("start_background_stream");
+    } catch (e) {
+      console.warn("Failed to start background stream:", e);
     }
-  }));
 
-  // Listen for reasoning delta
-  unlisteners.push(await listen<string>("agent-reasoning-delta", (event) => {
+    try {
+      const fetchedTools = await invoke<typeof toolsConfig.value>("get_tools_config");
+      toolsConfig.value = fetchedTools;
+    } catch (e) {
+      console.warn("Failed to load tools config:", e);
+    }
+
+    // Initial health check and polling
+    await checkHealth();
+    const healthInterval = setInterval(checkHealth, 5000);
+
+    // Fetch sessions
+    await refreshSessions();
+
+    // Register cleanup
+    onUnmounted(() => {
+      clearInterval(healthInterval);
+    });
+
+    // Listen for streaming text delta
+      unlisteners.push(await listen<string>("agent-response-delta", (event) => {
+      const lastMsg = messages.value[messages.value.length - 1];
+      if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
+        lastMsg.content += event.payload;
+      }
+    }));
+
+    // Listen for reasoning delta
+    unlisteners.push(await listen<string>("agent-reasoning-delta", (event) => {
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
       if (!lastMsg.reasoning) {
@@ -519,6 +841,11 @@ onMounted(async () => {
       emotion: currentEmotion.value
     });
   }));
+  } catch (e) {
+    console.error("App initialization error:", e);
+  } finally {
+    markSplashComplete();
+  }
 });
 
 onUnmounted(() => {
@@ -527,7 +854,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="w-screen h-screen overflow-hidden bg-transparent">
+  <div class="w-screen h-screen overflow-hidden bg-transparent relative">
     <NormalMode
       :messages="messages"
       :is-typing="isTyping"
@@ -536,16 +863,17 @@ onUnmounted(() => {
       :config="config"
       :tools-config="toolsConfig"
       :saved-models="savedModels"
+      :sessions="sessions"
+      :chat-display-prefs="chatDisplayPrefs"
       @send="sendMessage"
       @clear="clearMessages"
       @stop="stopMessage"
       @save-config="saveConfig"
       @save-tools-config="saveToolsConfig"
       @update-saved-models="updateSavedModels"
+      @save-chat-display-prefs="updateChatDisplayPrefs"
+      @load-session="loadSession"
     />
   </div>
 </template>
 
-<style>
-/* Global resets if needed, but tailwind handles most */
-</style>

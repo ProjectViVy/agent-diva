@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Server, MessageSquare, Globe, Info, Search } from 'lucide-vue-next';
+import { Server, MessageSquare, Globe, Info, Search, SlidersHorizontal } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'providers' | 'channels' | 'network' | 'language' | 'about'): void;
+  (e: 'navigate', view: 'general' | 'providers' | 'channels' | 'network' | 'language' | 'about'): void;
 }>();
 
 const cards = computed(() => [
+  { id: 'general', icon: SlidersHorizontal, title: t('dashboard.general'), desc: t('dashboard.generalDesc'), color: 'text-violet-600', bg: 'bg-violet-100' },
   { id: 'providers', icon: Server, title: t('dashboard.providers'), desc: t('dashboard.providersDesc'), color: 'text-purple-600', bg: 'bg-purple-100' },
   { id: 'channels', icon: MessageSquare, title: t('dashboard.channels'), desc: t('dashboard.channelsDesc'), color: 'text-pink-600', bg: 'bg-pink-100' },
   { id: 'network', icon: Search, title: t('dashboard.network'), desc: t('dashboard.networkDesc'), color: 'text-blue-600', bg: 'bg-blue-100' },

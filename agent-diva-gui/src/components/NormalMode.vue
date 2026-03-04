@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Menu, MessageSquare, Settings, Heart, Minus, X, Server, Check } from 'lucide-vue-next';
+import { Menu, MessageSquare, Settings, Heart, Minus, X, Server, Check, History } from 'lucide-vue-next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import ChatView from './ChatView.vue';
 import SettingsView from './SettingsView.vue';
@@ -11,9 +11,21 @@ const { t } = useI18n();
 interface Message {
   role: 'user' | 'agent' | 'system' | 'tool';
   content: string;
+  reasoning?: string;
+  toolName?: string;
+  toolArgs?: string;
+  toolResult?: string;
+  toolStatus?: 'running' | 'success' | 'error';
+  toolCallId?: string;
+  rawMeta?: Record<string, unknown>;
   isStreaming?: boolean;
   timestamp?: number;
   emotion?: string;
+}
+interface ChatDisplayPrefs {
+  autoExpandReasoning: boolean;
+  autoExpandToolDetails: boolean;
+  showRawMetaByDefault: boolean;
 }
 
 interface SavedModel {
@@ -25,7 +37,7 @@ interface SavedModel {
   displayName: string;
 }
 
-const props = defineProps<{
+interface Props {
   messages: Message[];
   isTyping: boolean;
   connectionStatus?: 'connected' | 'error' | 'connecting';
@@ -49,7 +61,11 @@ const props = defineProps<{
     };
   };
   savedModels?: SavedModel[];
-}>();
+  sessions?: { chat_id: string; snippet: string; timestamp: number }[];
+  chatDisplayPrefs: ChatDisplayPrefs;
+}
+
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
   (e: 'send', content: string): void;
@@ -59,6 +75,8 @@ const emit = defineEmits<{
   (e: 'save-config', config: { apiBase: string; apiKey: string; model: string }): void;
   (e: 'save-tools-config', tools: NonNullable<typeof props.toolsConfig>): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
+  (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
+  (e: 'load-session', id: string): void;
 }>();
 
 const activeTab = ref<'chat' | 'settings'>('chat');
@@ -67,9 +85,11 @@ const sidebarOpen = ref(false);
 const soulSidebarOpen = ref(false);
 const themeMode = ref('love'); // Default to love theme
 const isModelDropdownOpen = ref(false);
+const isHistoryDropdownOpen = ref(false);
 
-const handleSaveConfig = (newConfig: any) => {
-  emit('save-config', newConfig);
+const handleSessionSelect = (id: string) => {
+  emit('load-session', id);
+  isHistoryDropdownOpen.value = false;
 };
 
 const handleUpdateSavedModels = (models: SavedModel[]) => {
@@ -149,7 +169,24 @@ const emotionConfig = computed(() => ({
   normal: { emoji: '🙂', label: t('emotion.normal') },
 }));
 
-const currentConfig = computed(() => emotionConfig.value[props.currentEmotion || 'normal'] || emotionConfig.value['normal']);
+const currentConfig = computed(() => {
+  const currentEmotion = props.currentEmotion || 'normal';
+  if (currentEmotion in emotionConfig.value) {
+    return emotionConfig.value[currentEmotion as keyof typeof emotionConfig.value];
+  }
+  return emotionConfig.value['normal'];
+});
+
+const formatSessionTimestamp = (timestamp: number) => {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return t('chat.unknownTime');
+  }
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return t('chat.unknownTime');
+  }
+  return date.toLocaleString();
+};
 </script>
 
 <template>
@@ -217,7 +254,7 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
         </div>
 
         <!-- Provider Selector Button -->
-        <div class="relative no-drag ml-4">
+        <div class="relative no-drag ml-4 flex space-x-2">
           <button 
             v-if="config"
             @click="isModelDropdownOpen = !isModelDropdownOpen"
@@ -261,6 +298,41 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
           
           <!-- Overlay to close -->
           <div v-if="isModelDropdownOpen" class="fixed inset-0 z-[90]" @click="isModelDropdownOpen = false"></div>
+
+          <!-- History Button -->
+          <div class="relative no-drag">
+            <button
+              @click="isHistoryDropdownOpen = !isHistoryDropdownOpen"
+              class="flex items-center space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg transition-all text-xs text-gray-600 hover:text-pink-600 shadow-sm group"
+              :title="t('chat.historySessions')"
+            >
+              <History :size="14" class="text-gray-400 group-hover:text-pink-500" />
+            </button>
+            
+            <!-- History Dropdown -->
+            <div v-if="isHistoryDropdownOpen" class="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-[100] animate-in fade-in zoom-in duration-100">
+               <div class="py-1 max-h-80 overflow-y-auto">
+                  <div v-if="sessions && sessions.length > 0">
+                      <button
+                          v-for="session in sessions"
+                          :key="session.chat_id"
+                          @click="handleSessionSelect(session.chat_id)"
+                          class="w-full text-left px-3 py-2 text-xs hover:bg-pink-50 flex items-center justify-between group text-gray-600 border-b border-gray-50 last:border-0"
+                      >
+                          <div class="flex flex-col min-w-0 flex-1 pr-2">
+                             <span class="text-gray-400 text-[10px] mb-0.5">{{ formatSessionTimestamp(session.timestamp) }}</span>
+                             <span class="truncate block w-full text-gray-700">{{ session.snippet || '...' }}</span>
+                          </div>
+                      </button>
+                  </div>
+                  <div v-else class="px-3 py-4 text-center text-gray-400 text-xs">
+                      <div>{{ t('chat.noHistory') }}</div>
+                  </div>
+               </div>
+            </div>
+            <!-- Overlay to close -->
+            <div v-if="isHistoryDropdownOpen" class="fixed inset-0 z-[90]" @click="isHistoryDropdownOpen = false"></div>
+          </div>
         </div>
       </div>
 
@@ -316,7 +388,7 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
     </header>
 
     <!-- Sidebar Menu & Overlay -->
-    <div v-if="sidebarOpen" class="fixed inset-0 z-40 no-drag">
+    <div v-if="sidebarOpen" class="fixed inset-0 z-[60] no-drag">
       <!-- Click outside to close -->
       <div
         class="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity"
@@ -325,7 +397,7 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
 
       <!-- Side Menu -->
       <aside
-        class="absolute inset-y-0 left-0 w-60 bg-white/95 border-r border-gray-200 shadow-xl flex flex-col py-4 px-3 space-y-3 z-50"
+        class="absolute inset-y-0 left-0 w-60 bg-white/95 border-r border-gray-200 shadow-xl flex flex-col py-4 px-3 space-y-3 z-[70]"
       >
         <!-- Sidebar Header / Logo -->
         <div class="flex items-center px-2 pb-1">
@@ -333,8 +405,8 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
             H
           </div>
           <div class="flex flex-col">
-            <span class="text-sm font-semibold text-gray-800 leading-tight">Hikari</span>
-            <span class="text-[10px] text-gray-400 leading-tight">Agent Diva</span>
+            <span class="text-sm font-semibold text-gray-800 leading-tight">DiVA</span>
+            <span class="text-[10px] text-gray-400 leading-tight">Project ViVY</span>
           </div>
         </div>
 
@@ -374,7 +446,7 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
 
     <!-- Main Content -->
     <main
-      class="flex-1 overflow-hidden relative z-10 transition-all duration-200"
+      class="flex-1 min-h-0 overflow-hidden relative z-10 transition-all duration-200"
       :class="sidebarOpen ? 'filter blur-sm scale-[0.99]' : ''"
     >
       <!-- Placeholder pages for side menu -->
@@ -391,20 +463,23 @@ const currentConfig = computed(() => emotionConfig.value[props.currentEmotion ||
             :messages="messages"
             :is-typing="isTyping"
             :theme-mode="themeMode"
+            :history-prefs="chatDisplayPrefs"
             @send="(content) => emit('send', content)"
             @clear="emit('clear')"
             @stop="emit('stop')"
           />
         </div>
-        <div v-else class="h-full">
+        <div v-else class="h-full min-h-0">
           <SettingsView
             v-if="config && toolsConfig"
             :config="config"
             :tools-config="toolsConfig"
             :saved-models="savedModels"
+            :chat-display-prefs="chatDisplayPrefs"
             @save="(newConfig) => emit('save-config', newConfig)"
             @save-tools-config="(tools) => emit('save-tools-config', tools)"
             @update-saved-models="handleUpdateSavedModels"
+            @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
           />
           <div v-else class="h-full flex items-center justify-center text-gray-500">
             Loading configuration...

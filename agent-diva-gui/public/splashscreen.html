@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DIVA</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        background: linear-gradient(160deg, #fff5f7 0%, #ffe4ef 60%, #ffd6e8 100%);
+        color: #6b2737;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        position: relative; /* 为底部的版权信息提供定位参考 */
+      }
+
+      /* 主内容区容器，确保整体居中 */
+      .main-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+      }
+
+      /* 顶部 Logo 和 标题容器 (左爱心，右文字) */
+      .logo-title-wrapper {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 24px;
+        margin-bottom: 10px;
+      }
+
+      /* 爱心 Logo 样式 */
+      .heart-logo {
+        width: 70px;
+        height: 70px;
+        fill: #ec4899;
+        /* 添加一个轻微的呼吸动效让界面更生动 */
+        animation: pulse 1.5s infinite ease-in-out; 
+      }
+
+      /* 标题排版：上下两行 */
+      .title {
+        display: flex;
+        flex-direction: column;
+        font-size: 36px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        line-height: 1.1;
+      }
+
+      /* 进度条外框 */
+      .progress-container {
+        width: 320px;
+        height: 8px;
+        background: rgba(255, 182, 193, 0.5); /* 延续原代码的半透明粉色 */
+        border-radius: 9999px;
+        overflow: hidden;
+      }
+
+      /* 进度条内层动画 */
+      .progress-bar {
+        width: 30%;
+        height: 100%;
+        background: #ec4899;
+        border-radius: 9999px;
+        animation: loading 2s infinite ease-in-out;
+      }
+
+      /* 加载文字 */
+      .splash-text {
+        font-size: 14px;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+      }
+
+      /* 底部版权说明 */
+      .copyright {
+        position: absolute;
+        bottom: 24px;
+        font-size: 12px;
+        color: #999999; /* 灰色小字 */
+        letter-spacing: 0.5px;
+        font-weight: 500;
+      }
+
+      /* 动画定义 */
+      @keyframes pulse {
+        0% { transform: scale(0.95); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(0.95); }
+      }
+
+      @keyframes loading {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(350%); }
+      }
+    </style>
+  </head>
+  <body>
+    
+    <div class="main-content">
+      
+      <div class="logo-title-wrapper">
+        <svg class="heart-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+        <div class="title">
+          <span>AGENT</span>
+          <span>DiVA</span>
+        </div>
+      </div>
+
+      <div class="progress-container">
+        <div class="progress-bar"></div>
+      </div>
+
+      <span class="splash-text">加载中...</span>
+
+    </div>
+
+    <div class="copyright">Power By Undefine Innnovation Foundation</div>
+
+  </body>
+</html>

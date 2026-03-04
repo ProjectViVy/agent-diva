@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Save, Globe } from 'lucide-vue-next';
+import { Globe } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -26,22 +26,45 @@ const emit = defineEmits<{
 }>();
 
 const localConfig = ref(JSON.parse(JSON.stringify(props.toolsConfig)));
+const isSyncingFromProps = ref(false);
+const skipNextAutoSave = ref(false);
 
 watch(
   () => props.toolsConfig,
   (val) => {
+    isSyncingFromProps.value = true;
+    skipNextAutoSave.value = true;
     localConfig.value = JSON.parse(JSON.stringify(val));
+    isSyncingFromProps.value = false;
   },
   { deep: true }
 );
 
-const save = () => {
+const sanitizeLocalConfig = () => {
+  const sanitized = JSON.parse(JSON.stringify(localConfig.value));
+  const provider = sanitized.web.search.provider;
+  const maxLimit = provider === 'zhipu' ? 50 : 10;
+  sanitized.web.search.max_results = Math.min(
+    maxLimit,
+    Math.max(1, Number(sanitized.web.search.max_results) || 5)
+  );
+  return sanitized;
+};
+
+const autoSave = () => {
+  const sanitized = sanitizeLocalConfig();
+  if (sanitized.web.search.max_results !== localConfig.value.web.search.max_results) {
+    localConfig.value.web.search.max_results = sanitized.web.search.max_results;
+  }
+  emit('save-tools-config', sanitized);
+};
+
+const clampMaxResults = () => {
   const maxLimit = localConfig.value.web.search.provider === 'zhipu' ? 50 : 10;
   localConfig.value.web.search.max_results = Math.min(
     maxLimit,
     Math.max(1, Number(localConfig.value.web.search.max_results) || 5)
   );
-  emit('save-tools-config', localConfig.value);
 };
 
 const maxResultsLimit = computed(() =>
@@ -62,12 +85,20 @@ const apiKeyPlaceholder = computed(() =>
 
 watch(
   () => localConfig.value.web.search.provider,
+  clampMaxResults
+);
+
+watch(
+  localConfig,
   () => {
-    localConfig.value.web.search.max_results = Math.min(
-      maxResultsLimit.value,
-      Math.max(1, Number(localConfig.value.web.search.max_results) || 5)
-    );
-  }
+    if (skipNextAutoSave.value) {
+      skipNextAutoSave.value = false;
+      return;
+    }
+    if (isSyncingFromProps.value) return;
+    autoSave();
+  },
+  { deep: true }
 );
 </script>
 
@@ -115,12 +146,6 @@ watch(
       </div>
     </div>
 
-    <div>
-      <button @click="save" class="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full font-medium shadow-lg flex items-center space-x-2">
-        <Save :size="18" />
-        <span>{{ t('network.save') }}</span>
-      </button>
-    </div>
   </div>
 </template>
 

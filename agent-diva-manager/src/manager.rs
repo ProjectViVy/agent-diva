@@ -151,6 +151,72 @@ impl Manager {
                                 ));
                             }
                         }
+                        ManagerCommand::ResetSession(req, reply) => {
+                            let channel = req.channel.unwrap_or_else(|| "api".to_string());
+                            let chat_id = req.chat_id.unwrap_or_else(|| "default".to_string());
+                            let session_key = format!("{}:{}", channel, chat_id);
+                            if let Some(tx) = &self.runtime_control_tx {
+                                match tx.send(RuntimeControlCommand::ResetSession { session_key }) {
+                                    Ok(_) => {
+                                        let _ = reply.send(Ok(true));
+                                    }
+                                    Err(e) => {
+                                        let _ = reply.send(Err(format!(
+                                            "failed to send reset command: {}",
+                                            e
+                                        )));
+                                    }
+                                }
+                            } else {
+                                let _ = reply.send(Err(
+                                    "runtime control channel is not initialized".to_string()
+                                ));
+                            }
+                        }
+                        ManagerCommand::GetSessions(reply) => {
+                            if let Some(tx) = &self.runtime_control_tx {
+                                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                                if let Err(e) = tx.send(RuntimeControlCommand::GetSessions { reply_tx }) {
+                                    let _ = reply.send(Err(format!("failed to send GetSessions command: {}", e)));
+                                } else {
+                                    match reply_rx.await {
+                                        Ok(sessions) => {
+                                            let _ = reply.send(Ok(sessions));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!(
+                                                "failed to receive sessions: {}",
+                                                e
+                                            )));
+                                        }
+                                    }
+                                }
+                            } else {
+                                let _ = reply.send(Err("runtime control channel is not initialized".to_string()));
+                            }
+                        }
+                        ManagerCommand::GetSessionHistory(session_key, reply) => {
+                            if let Some(tx) = &self.runtime_control_tx {
+                                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                                if let Err(e) = tx.send(RuntimeControlCommand::GetSession { session_key, reply_tx }) {
+                                    let _ = reply.send(Err(format!("failed to send GetSession command: {}", e)));
+                                } else {
+                                    match reply_rx.await {
+                                        Ok(session) => {
+                                            let _ = reply.send(Ok(session));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!(
+                                                "failed to receive session: {}",
+                                                e
+                                            )));
+                                        }
+                                    }
+                                }
+                            } else {
+                                let _ = reply.send(Err("runtime control channel is not initialized".to_string()));
+                            }
+                        }
                         ManagerCommand::UpdateConfig(update) => {
                             debug!("Processing UpdateConfig command");
                             debug!("Update request: {:?}", update);

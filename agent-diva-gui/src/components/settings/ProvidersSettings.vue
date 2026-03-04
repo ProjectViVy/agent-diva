@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Server, Check, Cpu, Save } from 'lucide-vue-next';
+import { Server, Check, Cpu } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -83,11 +83,16 @@ const filteredProviders = computed(() => {
   );
 });
 
+const emitConfigSave = () => {
+  emit('save', { ...localConfig.value });
+};
+
 const selectProvider = (provider: ProviderSpec) => {
   selectedProvider.value = provider;
   localConfig.value.apiBase = provider.default_api_base;
   const key = providerApiKeys.value[provider.name] || '';
   localConfig.value.apiKey = key;
+  emitConfigSave();
 };
 
 const isModelSaved = (providerName: string, modelName: string) => {
@@ -121,6 +126,7 @@ const toggleModel = (modelName: string) => {
   }
   
   emit('update-saved-models', newSavedModels);
+  emitConfigSave();
 };
 
 const updateProviderKey = (key: string) => {
@@ -140,10 +146,7 @@ const updateProviderKey = (key: string) => {
         emit('update-saved-models', newModels);
     }
   }
-};
-
-const handleSave = () => {
-  emit('save', localConfig.value);
+  emitConfigSave();
 };
 
 watch(() => props.config, (newVal) => {
@@ -152,9 +155,9 @@ watch(() => props.config, (newVal) => {
 </script>
 
 <template>
-  <div class="flex h-full fade-in">
+  <div class="flex h-full min-h-0 fade-in">
     <!-- Sidebar: List of Providers -->
-    <div class="w-1/3 min-w-[200px] border-r border-gray-100 flex flex-col bg-gray-50/30">
+    <div class="w-1/3 min-w-[200px] min-h-0 border-r border-gray-100 flex flex-col bg-gray-50/30">
       <div class="p-4 border-b border-gray-100">
         <input 
           v-model="searchTerm" 
@@ -191,8 +194,8 @@ watch(() => props.config, (newVal) => {
     </div>
 
     <!-- Main Area -->
-    <div class="flex-1 overflow-y-auto p-6 bg-white relative">
-      <div v-if="selectedProvider" class="space-y-8 pb-20">
+    <div class="flex-1 min-h-0 overflow-y-auto p-6 bg-white">
+      <div v-if="selectedProvider" class="space-y-8">
         <!-- Header -->
         <div class="flex items-center justify-between">
             <div class="flex items-center space-x-4">
@@ -273,16 +276,6 @@ watch(() => props.config, (newVal) => {
         <p>{{ t('providers.selectProvider') }}</p>
       </div>
 
-      <!-- Floating Save Button -->
-      <div class="absolute bottom-6 right-6" v-if="selectedProvider">
-        <button 
-          @click="handleSave" 
-          class="px-6 py-3 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white rounded-full font-medium shadow-lg shadow-pink-500/30 transition-all flex items-center space-x-2 hover:scale-105 active:scale-95"
-        >
-          <Save :size="18" />
-          <span>{{ t('providers.saveConfig') }}</span>
-        </button>
-      </div>
     </div>
   </div>
 </template>
