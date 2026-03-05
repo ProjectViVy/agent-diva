@@ -6,11 +6,7 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
-const props = defineProps<{
-  // lang: 'zh' | 'en'; // Removed
-}>();
-
-const channels = ref<any>({});
+const channels = ref<Record<string, any>>({});
 const selectedChannel = ref<string | null>(null);
 const testStatus = ref<'idle' | 'testing' | 'success' | 'failed'>('idle');
 const testMessage = ref('');

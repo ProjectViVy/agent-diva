@@ -121,6 +121,71 @@ pub struct CronStore {
     pub jobs: Vec<CronJob>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CronTrigger {
+    Scheduled,
+    Manual,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CronJobLifecycleStatus {
+    Running,
+    Scheduled,
+    Paused,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CronRunSnapshot {
+    pub run_id: String,
+    pub job_id: String,
+    #[serde(rename = "startedAtMs")]
+    pub started_at_ms: i64,
+    #[serde(rename = "lastHeartbeatAtMs")]
+    pub last_heartbeat_at_ms: i64,
+    pub trigger: CronTrigger,
+    pub cancelable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CronJobDto {
+    #[serde(flatten)]
+    pub job: CronJob,
+    #[serde(rename = "isRunning")]
+    pub is_running: bool,
+    #[serde(rename = "activeRun", skip_serializing_if = "Option::is_none")]
+    pub active_run: Option<CronRunSnapshot>,
+    #[serde(rename = "computedStatus")]
+    pub computed_status: CronJobLifecycleStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateCronJobRequest {
+    pub name: String,
+    pub schedule: CronSchedule,
+    #[serde(default)]
+    pub payload: CronPayload,
+    #[serde(rename = "deleteAfterRun", default)]
+    pub delete_after_run: bool,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCronJobRequest {
+    pub name: String,
+    pub schedule: CronSchedule,
+    #[serde(default)]
+    pub payload: CronPayload,
+    #[serde(rename = "deleteAfterRun", default)]
+    pub delete_after_run: bool,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
 fn default_version() -> i32 {
     1
 }

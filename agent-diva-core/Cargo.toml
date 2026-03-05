@@ -10,6 +10,7 @@ description = "Core types and traits for agent-diva"
 [dependencies]
 # Async runtime
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 futures = { workspace = true }
 async-trait = { workspace = true }
 

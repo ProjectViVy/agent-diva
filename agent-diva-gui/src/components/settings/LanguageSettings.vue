@@ -4,6 +4,7 @@ import { Globe } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t, locale } = useI18n();
+const currentLocale = computed(() => locale.value);
 
 const toggleLang = () => {
   locale.value = locale.value === 'zh' ? 'en' : 'zh';
@@ -24,16 +25,18 @@ const toggleLang = () => {
     <div class="bg-gray-50 rounded-xl p-6 border border-gray-100">
       <div class="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div class="flex items-center space-x-4">
-           <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg">
-             {{ locale === 'zh' ? '🇨🇳' : '🇺🇸' }}
-           </div>
-           <div>
-             <div class="font-medium text-gray-800">{{ t('language.current') }}</div>
-             <div class="text-sm text-gray-500">{{ locale === 'zh' ? t('language.chinese') : t('language.english') }}</div>
-           </div>
+          <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg">
+            {{ currentLocale === 'zh' ? 'CN' : 'EN' }}
+          </div>
+          <div>
+            <div class="font-medium text-gray-800">{{ t('language.current') }}</div>
+            <div class="text-sm text-gray-500">
+              {{ currentLocale === 'zh' ? t('language.chinese') : t('language.english') }}
+            </div>
+          </div>
         </div>
-        
-        <button 
+
+        <button
           @click="toggleLang"
           class="px-4 py-2 bg-white border border-gray-300 hover:border-blue-500 hover:text-blue-600 text-gray-700 rounded-lg transition-all text-sm font-medium"
         >

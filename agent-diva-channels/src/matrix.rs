@@ -61,7 +61,7 @@ impl MatrixHandler {
                 "Matrix access_token not configured".to_string(),
             ));
         }
-        
+
         // Warn if not running end-to-end encryption and no explicit allow_from is provided.
         // It's dangerous to run an open bot on a public Matrix federation without E2EE or filters.
         if !self.config.e2ee_enabled && self.config.allow_from.is_empty() {

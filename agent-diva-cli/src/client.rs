@@ -65,12 +65,7 @@ impl ApiClient {
         if let Some(chat_id) = chat_id {
             payload["chat_id"] = serde_json::Value::String(chat_id.to_string());
         }
-        let response = self
-            .client
-            .post(&url)
-            .json(&payload)
-            .send()
-            .await?;
+        let response = self.client.post(&url).json(&payload).send().await?;
 
         if !response.status().is_success() {
             anyhow::bail!("Server returned error: {}", response.status());
@@ -156,6 +151,9 @@ impl ApiClient {
                 .unwrap_or("unknown error");
             anyhow::bail!("Stop failed: {}", msg);
         }
-        Ok(body.get("stopped").and_then(|v| v.as_bool()).unwrap_or(true))
+        Ok(body
+            .get("stopped")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true))
     }
 }

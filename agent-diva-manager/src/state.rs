@@ -3,6 +3,7 @@ use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
     ChannelsConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
 };
+use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 
@@ -24,7 +25,28 @@ pub enum ManagerCommand {
     GetTools(oneshot::Sender<ToolsConfigResponse>),
     UpdateTools(ToolsConfigUpdate),
     GetSessions(oneshot::Sender<Result<Vec<agent_diva_core::session::SessionInfo>, String>>),
-    GetSessionHistory(String, oneshot::Sender<Result<Option<agent_diva_core::session::store::Session>, String>>),
+    GetSessionHistory(
+        String,
+        oneshot::Sender<Result<Option<agent_diva_core::session::store::Session>, String>>,
+    ),
+    ListCronJobs(oneshot::Sender<Result<Vec<CronJobDto>, String>>),
+    GetCronJob(String, oneshot::Sender<Result<Option<CronJobDto>, String>>),
+    CreateCronJob(
+        CreateCronJobRequest,
+        oneshot::Sender<Result<CronJobDto, String>>,
+    ),
+    UpdateCronJob(
+        String,
+        UpdateCronJobRequest,
+        oneshot::Sender<Result<CronJobDto, String>>,
+    ),
+    DeleteCronJob(String, oneshot::Sender<Result<(), String>>),
+    SetCronJobEnabled(String, bool, oneshot::Sender<Result<CronJobDto, String>>),
+    RunCronJobNow(String, bool, oneshot::Sender<Result<CronJobDto, String>>),
+    StopCronJobRun(
+        String,
+        oneshot::Sender<Result<agent_diva_core::cron::CronRunSnapshot, String>>,
+    ),
 }
 
 pub struct ApiRequest {
@@ -56,6 +78,17 @@ pub struct ChannelUpdate {
     pub name: String,
     pub enabled: Option<bool>,
     pub config: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetCronJobEnabledRequest {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunCronJobRequest {
+    #[serde(default)]
+    pub force: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

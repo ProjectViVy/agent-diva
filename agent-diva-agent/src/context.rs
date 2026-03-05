@@ -340,10 +340,7 @@ fn parse_identity_field(content: &str, keys: &[&str]) -> Option<String> {
         }
 
         // Split on ASCII or full-width colon to avoid manual byte indices.
-        let (prefix, value_part) = match line
-            .split_once(':')
-            .or_else(|| line.split_once('：'))
-        {
+        let (prefix, value_part) = match line.split_once(':').or_else(|| line.split_once('：')) {
             Some((p, v)) => (p.trim(), v.trim()),
             None => continue,
         };
@@ -557,12 +554,12 @@ mod tests {
         );
     }
 
-        #[test]
-        fn test_parse_identity_field_supports_chinese_voice_line() {
-            let raw = "- Voice: 简洁、实用、协作";
-            assert_eq!(
-                parse_identity_field(raw, &["voice"]).as_deref(),
-                Some("简洁、实用、协作")
-            );
-        }
+    #[test]
+    fn test_parse_identity_field_supports_chinese_voice_line() {
+        let raw = "- Voice: 简洁、实用、协作";
+        assert_eq!(
+            parse_identity_field(raw, &["voice"]).as_deref(),
+            Some("简洁、实用、协作")
+        );
+    }
 }

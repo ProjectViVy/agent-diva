@@ -296,10 +296,7 @@ pub async fn reset_session(
         return Err(format!("Reset request rejected: {}", message));
     }
 
-    Ok(value
-        .get("reset")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true))
+    Ok(value.get("reset").and_then(|v| v.as_bool()).unwrap_or(true))
 }
 
 #[tauri::command]
@@ -331,7 +328,10 @@ pub async fn get_sessions(state: State<'_, AgentState>) -> Result<serde_json::Va
         return Err(format!("Get sessions request rejected: {}", message));
     }
 
-    Ok(value.get("sessions").cloned().unwrap_or(serde_json::Value::Array(vec![])))
+    Ok(value
+        .get("sessions")
+        .cloned()
+        .unwrap_or(serde_json::Value::Array(vec![])))
 }
 
 #[tauri::command]
@@ -352,9 +352,9 @@ pub async fn get_session_history(
 
     if !response.status().is_success() {
         // A 404 or other failure could mean no history
-         if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(serde_json::Value::Null);
-         }
+        }
         return Err(format!("Server returned error: {}", response.status()));
     }
 
@@ -364,7 +364,7 @@ pub async fn get_session_history(
         .map_err(|e| format!("Invalid get session history response: {}", e))?;
 
     let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
-    
+
     if !status_ok {
         let message = value
             .get("message")
@@ -373,7 +373,302 @@ pub async fn get_session_history(
         return Err(format!("Get session history request rejected: {}", message));
     }
 
-    Ok(value.get("session").cloned().unwrap_or(serde_json::Value::Null))
+    Ok(value
+        .get("session")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn get_cron_jobs(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+    let url = format!("{}/cron/jobs", state.api_base_url);
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch cron jobs: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid get cron jobs response: {}", e))?;
+
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+
+    Ok(value
+        .get("jobs")
+        .cloned()
+        .unwrap_or(serde_json::Value::Array(vec![])))
+}
+
+#[tauri::command]
+pub async fn get_cron_job(
+    job_id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/cron/jobs/{}",
+        state.api_base_url,
+        urlencoding::encode(&job_id)
+    );
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch cron job: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid get cron job response: {}", e))?;
+
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+
+    Ok(value.get("job").cloned().unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn create_cron_job(
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!("{}/cron/jobs", state.api_base_url);
+    let response = state
+        .client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to create cron job: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid create cron job response: {}", e))?;
+
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+
+    Ok(value.get("job").cloned().unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn update_cron_job(
+    job_id: String,
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/cron/jobs/{}",
+        state.api_base_url,
+        urlencoding::encode(&job_id)
+    );
+    let response = state
+        .client
+        .put(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to update cron job: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid update cron job response: {}", e))?;
+
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+
+    Ok(value.get("job").cloned().unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn set_cron_job_enabled(
+    job_id: String,
+    enabled: bool,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/cron/jobs/{}/enable",
+        state.api_base_url,
+        urlencoding::encode(&job_id)
+    );
+    let response = state
+        .client
+        .post(&url)
+        .json(&serde_json::json!({ "enabled": enabled }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to update cron job status: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid cron job status response: {}", e))?;
+
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+
+    Ok(value.get("job").cloned().unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn run_cron_job(
+    job_id: String,
+    force: bool,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/cron/jobs/{}/run",
+        state.api_base_url,
+        urlencoding::encode(&job_id)
+    );
+    let response = state
+        .client
+        .post(&url)
+        .json(&serde_json::json!({ "force": force }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to run cron job: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid run cron job response: {}", e))?;
+
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+
+    Ok(value.get("job").cloned().unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn stop_cron_job_run(
+    job_id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/cron/jobs/{}/stop",
+        state.api_base_url,
+        urlencoding::encode(&job_id)
+    );
+    let response = state
+        .client
+        .post(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to stop cron job: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid stop cron job response: {}", e))?;
+
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+
+    Ok(value.get("run").cloned().unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn delete_cron_job(job_id: String, state: State<'_, AgentState>) -> Result<(), String> {
+    let url = format!(
+        "{}/cron/jobs/{}",
+        state.api_base_url,
+        urlencoding::encode(&job_id)
+    );
+    let response = state
+        .client
+        .delete(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to delete cron job: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid delete cron job response: {}", e))?;
+
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

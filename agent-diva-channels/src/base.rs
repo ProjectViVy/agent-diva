@@ -127,7 +127,7 @@ impl BaseChannel {
         }
 
         let sender_str = sender_id.to_string();
-        
+
         // Helper to check wildcard matching (e.g., matching @foo:matrix.org against *@*:matrix.org)
         let matches_pattern = |pattern: &str, target: &str| -> bool {
             // Handle Matrix ID specific wildcard matching
@@ -140,7 +140,7 @@ impl BaseChannel {
             if !eval_pattern.contains('*') {
                 return eval_pattern == target;
             }
-            
+
             // Split by '*', escape each part, then join with '.*'
             let mut regex_pattern = String::from("^");
             let parts: Vec<&str> = eval_pattern.split('*').collect();
@@ -151,7 +151,7 @@ impl BaseChannel {
                 regex_pattern.push_str(&regex::escape(part));
             }
             regex_pattern.push('$');
-            
+
             if let Ok(re) = regex::Regex::new(&regex_pattern) {
                 re.is_match(target)
             } else {
@@ -159,14 +159,23 @@ impl BaseChannel {
             }
         };
 
-        if self.allow_from.iter().any(|allowed| matches_pattern(allowed, &sender_str)) {
+        if self
+            .allow_from
+            .iter()
+            .any(|allowed| matches_pattern(allowed, &sender_str))
+        {
             return true;
         }
 
         // Handle compound IDs (e.g., "12345|username")
         if sender_str.contains('|') {
             for part in sender_str.split('|') {
-                if !part.is_empty() && self.allow_from.iter().any(|allowed| matches_pattern(allowed, part)) {
+                if !part.is_empty()
+                    && self
+                        .allow_from
+                        .iter()
+                        .any(|allowed| matches_pattern(allowed, part))
+                {
                     return true;
                 }
             }

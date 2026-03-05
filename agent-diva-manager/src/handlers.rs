@@ -15,7 +15,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::state::{
     ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, ManagerCommand,
-    StopChatRequest, ToolsConfigResponse, ToolsConfigUpdate,
+    RunCronJobRequest, SetCronJobEnabledRequest, StopChatRequest, ToolsConfigResponse,
+    ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -59,21 +60,17 @@ pub async fn chat_handler(
             Err(e) => format!("Failed to send stop request: {}", e),
         };
 
-        let stream = futures::stream::once(async move {
-            Ok(Event::default().event("error").data(stop_message))
-        })
-        .boxed();
+        let stream =
+            futures::stream::once(
+                async move { Ok(Event::default().event("error").data(stop_message)) },
+            )
+            .boxed();
         return Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default());
     }
 
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
-    let msg = InboundMessage::new(
-        channel,
-        "user",
-        chat_id,
-        payload.message,
-    );
+    let msg = InboundMessage::new(channel, "user", chat_id, payload.message);
 
     let req = ApiRequest { msg, event_tx };
 
@@ -83,50 +80,52 @@ pub async fn chat_handler(
 
     let stream = UnboundedReceiverStream::new(event_rx)
         .map(|event| {
-        let evt = match event {
-            AgentEvent::AssistantDelta { text } => Event::default().event("delta").data(text),
-            AgentEvent::ReasoningDelta { text } => {
-                Event::default().event("reasoning_delta").data(text)
-            }
-            AgentEvent::ToolCallDelta { name, args_delta } => {
-                let data = serde_json::json!({
-                    "name": name,
-                    "delta": args_delta
-                });
-                Event::default().event("tool_delta").data(data.to_string())
-            }
-            AgentEvent::FinalResponse { content } => Event::default().event("final").data(content),
-            AgentEvent::ToolCallStarted {
-                name,
-                args_preview,
-                call_id,
-            } => {
-                let data = serde_json::json!({
-                    "name": name,
-                    "args": args_preview,
-                    "id": call_id
-                });
-                Event::default().event("tool_start").data(data.to_string())
-            }
-            AgentEvent::ToolCallFinished {
-                name,
-                result,
-                is_error,
-                call_id,
-            } => {
-                let data = serde_json::json!({
-                    "name": name,
-                    "result": result,
-                    "error": is_error,
-                    "id": call_id
-                });
-                Event::default().event("tool_finish").data(data.to_string())
-            }
-            AgentEvent::Error { message } => Event::default().event("error").data(message),
-            _ => Event::default().comment("keep-alive"),
-        };
-        Ok(evt)
-    })
+            let evt = match event {
+                AgentEvent::AssistantDelta { text } => Event::default().event("delta").data(text),
+                AgentEvent::ReasoningDelta { text } => {
+                    Event::default().event("reasoning_delta").data(text)
+                }
+                AgentEvent::ToolCallDelta { name, args_delta } => {
+                    let data = serde_json::json!({
+                        "name": name,
+                        "delta": args_delta
+                    });
+                    Event::default().event("tool_delta").data(data.to_string())
+                }
+                AgentEvent::FinalResponse { content } => {
+                    Event::default().event("final").data(content)
+                }
+                AgentEvent::ToolCallStarted {
+                    name,
+                    args_preview,
+                    call_id,
+                } => {
+                    let data = serde_json::json!({
+                        "name": name,
+                        "args": args_preview,
+                        "id": call_id
+                    });
+                    Event::default().event("tool_start").data(data.to_string())
+                }
+                AgentEvent::ToolCallFinished {
+                    name,
+                    result,
+                    is_error,
+                    call_id,
+                } => {
+                    let data = serde_json::json!({
+                        "name": name,
+                        "result": result,
+                        "error": is_error,
+                        "id": call_id
+                    });
+                    Event::default().event("tool_finish").data(data.to_string())
+                }
+                AgentEvent::Error { message } => Event::default().event("error").data(message),
+                _ => Event::default().comment("keep-alive"),
+            };
+            Ok(evt)
+        })
         .boxed();
 
     Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
@@ -210,14 +209,20 @@ pub async fn get_session_history_handler(
     };
 
     let (tx, rx) = oneshot::channel();
-    if let Err(e) = state.api_tx.send(ManagerCommand::GetSessionHistory(session_key.clone(), tx)).await {
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::GetSessionHistory(session_key.clone(), tx))
+        .await
+    {
         tracing::error!("Failed to send GetSessionHistory request: {}", e);
         return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
     }
 
     match rx.await {
         Ok(Ok(Some(session))) => Json(serde_json::json!({ "status": "ok", "session": session })),
-        Ok(Ok(None)) => Json(serde_json::json!({ "status": "error", "message": "Session not found" })),
+        Ok(Ok(None)) => {
+            Json(serde_json::json!({ "status": "error", "message": "Session not found" }))
+        }
         Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
         Err(e) => {
             tracing::error!("Failed to receive GetSessionHistory response: {}", e);
@@ -434,4 +439,149 @@ pub async fn get_providers_handler() -> Json<Vec<agent_diva_providers::registry:
 
 pub async fn heartbeat_handler() -> &'static str {
     "ok"
+}
+
+pub async fn list_cron_jobs_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::ListCronJobs(tx)).await {
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(jobs)) => Json(serde_json::json!({ "status": "ok", "jobs": jobs })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn get_cron_job_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::GetCronJob(id, tx)).await {
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(Some(job))) => Json(serde_json::json!({ "status": "ok", "job": job })),
+        Ok(Ok(None)) => Json(serde_json::json!({ "status": "error", "message": "Job not found" })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn create_cron_job_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<agent_diva_core::cron::CreateCronJobRequest>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::CreateCronJob(payload, tx))
+        .await
+    {
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(job)) => Json(serde_json::json!({ "status": "ok", "job": job })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn update_cron_job_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<agent_diva_core::cron::UpdateCronJobRequest>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UpdateCronJob(id, payload, tx))
+        .await
+    {
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(job)) => Json(serde_json::json!({ "status": "ok", "job": job })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn set_cron_job_enabled_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<SetCronJobEnabledRequest>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::SetCronJobEnabled(id, payload.enabled, tx))
+        .await
+    {
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(job)) => Json(serde_json::json!({ "status": "ok", "job": job })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn run_cron_job_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<RunCronJobRequest>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::RunCronJobNow(id, payload.force, tx))
+        .await
+    {
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(job)) => Json(serde_json::json!({ "status": "ok", "job": job })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn stop_cron_job_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::StopCronJobRun(id, tx))
+        .await
+    {
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(run)) => Json(serde_json::json!({ "status": "ok", "run": run })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn delete_cron_job_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::DeleteCronJob(id, tx))
+        .await
+    {
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(())) => Json(serde_json::json!({ "status": "ok" })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
 }

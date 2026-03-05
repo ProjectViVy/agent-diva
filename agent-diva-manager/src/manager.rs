@@ -5,6 +5,7 @@ use agent_diva_agent::tool_config::network::{
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{AgentEvent, MessageBus};
 use agent_diva_core::config::ConfigLoader;
+use agent_diva_core::cron::CronService;
 use agent_diva_providers::{DynamicProvider, LiteLLMClient, ProviderRegistry};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -23,6 +24,7 @@ pub struct Manager {
     current_api_key: Option<String>,
     channel_manager: Option<Arc<ChannelManager>>,
     runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+    cron_service: Arc<CronService>,
 }
 
 impl Manager {
@@ -37,6 +39,7 @@ impl Manager {
         api_base: Option<String>,
         channel_manager: Option<Arc<ChannelManager>>,
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+        cron_service: Arc<CronService>,
     ) -> Self {
         Self {
             api_rx,
@@ -48,6 +51,7 @@ impl Manager {
             current_api_key: api_key,
             channel_manager,
             runtime_control_tx,
+            cron_service,
         }
     }
 
@@ -216,6 +220,38 @@ impl Manager {
                             } else {
                                 let _ = reply.send(Err("runtime control channel is not initialized".to_string()));
                             }
+                        }
+                        ManagerCommand::ListCronJobs(reply) => {
+                            let jobs = self.cron_service.list_job_views(true).await;
+                            let _ = reply.send(Ok(jobs));
+                        }
+                        ManagerCommand::GetCronJob(job_id, reply) => {
+                            let job = self.cron_service.get_job(&job_id).await;
+                            let _ = reply.send(Ok(job));
+                        }
+                        ManagerCommand::CreateCronJob(request, reply) => {
+                            let result = self.cron_service.create_job(request).await;
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::UpdateCronJob(job_id, request, reply) => {
+                            let result = self.cron_service.update_job(&job_id, request).await;
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::DeleteCronJob(job_id, reply) => {
+                            let result = self.cron_service.delete_job(&job_id).await;
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::SetCronJobEnabled(job_id, enabled, reply) => {
+                            let result = self.cron_service.set_job_enabled(&job_id, enabled).await;
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::RunCronJobNow(job_id, force, reply) => {
+                            let result = self.cron_service.run_job_now(&job_id, force).await;
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::StopCronJobRun(job_id, reply) => {
+                            let result = self.cron_service.stop_run(&job_id).await;
+                            let _ = reply.send(result);
                         }
                         ManagerCommand::UpdateConfig(update) => {
                             debug!("Processing UpdateConfig command");

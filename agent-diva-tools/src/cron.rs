@@ -121,6 +121,25 @@ impl CronTool {
     async fn remove_job(&self, job_id: Option<String>) -> String {
         match job_id {
             Some(id) => {
+                let channel = self.channel.read().await.clone();
+                let chat_id = self.chat_id.read().await.clone();
+
+                if !channel.is_empty() && !chat_id.is_empty() {
+                    let jobs = self.cron_service.list_jobs(true).await;
+                    let Some(job) = jobs.iter().find(|job| job.id == id) else {
+                        return format!("Job {} not found", id);
+                    };
+
+                    let same_context = job.payload.channel.as_deref() == Some(channel.as_str())
+                        && job.payload.to.as_deref() == Some(chat_id.as_str());
+                    if !same_context {
+                        return format!(
+                            "Error: job {} is not in current session context ({}:{})",
+                            id, channel, chat_id
+                        );
+                    }
+                }
+
                 if self.cron_service.remove_job(&id).await {
                     format!("Removed job {}", id)
                 } else {
@@ -208,7 +227,7 @@ impl Tool for CronTool {
                 let cron_expr = args["cron_expr"].as_str().map(|s| s.to_string());
                 let at = args["at"].as_str().map(|s| s.to_string());
                 let timezone = args["timezone"].as_str().map(|s| s.to_string());
-                
+
                 Ok(self
                     .add_job(message, every_seconds, cron_expr, at, timezone)
                     .await)
@@ -371,5 +390,62 @@ mod tests {
             .unwrap();
 
         assert!(result.contains("no session context"));
+    }
+
+    #[tokio::test]
+    async fn test_cron_tool_remove_respects_context() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().join("cron.json");
+        let service = Arc::new(CronService::new(store_path, None));
+        service.start().await;
+
+        let tool = CronTool::new(Arc::clone(&service));
+        tool.set_context("gui".to_string(), "user-a".to_string())
+            .await;
+
+        // Create one job in context A and another in context B.
+        let in_context = service
+            .add_job(
+                "A".to_string(),
+                CronSchedule::every(60_000),
+                "msg-a".to_string(),
+                true,
+                Some("gui".to_string()),
+                Some("user-a".to_string()),
+                false,
+            )
+            .await;
+
+        let out_context = service
+            .add_job(
+                "B".to_string(),
+                CronSchedule::every(60_000),
+                "msg-b".to_string(),
+                true,
+                Some("gui".to_string()),
+                Some("user-b".to_string()),
+                false,
+            )
+            .await;
+
+        let blocked = tool
+            .execute(json!({
+                "action": "remove",
+                "job_id": out_context.id
+            }))
+            .await
+            .unwrap();
+        assert!(blocked.contains("not in current session context"));
+
+        let ok = tool
+            .execute(json!({
+                "action": "remove",
+                "job_id": in_context.id
+            }))
+            .await
+            .unwrap();
+        assert!(ok.contains("Removed job"));
+
+        service.stop().await;
     }
 }

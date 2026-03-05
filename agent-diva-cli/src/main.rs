@@ -10,7 +10,7 @@ use agent_diva_agent::{
     AgentEvent, AgentLoop, ToolConfig,
 };
 use agent_diva_channels::ChannelManager;
-use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage};
+use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersConfig};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::{CronSchedule, CronService};
@@ -531,7 +531,6 @@ use agent_diva_providers::{DynamicProvider, LLMProvider};
 /// Run the agent gateway
 async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
     {
-        
         let config = loader.load()?;
 
         // Check if API key is configured
@@ -560,11 +559,16 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
         let cron_store = cron_store_path(loader);
         let bus_for_cron = bus.clone();
         let cron_callback: JobCallback = Arc::new(
-            move |job: agent_diva_core::cron::CronJob| -> std::pin::Pin<
+            move |job: agent_diva_core::cron::CronJob,
+                  cancel_token|
+                  -> std::pin::Pin<
                 Box<dyn std::future::Future<Output = Option<String>> + Send>,
             > {
                 let bus = bus_for_cron.clone();
                 Box::pin(async move {
+                    if cancel_token.is_cancelled() {
+                        return Some("Error: cancelled".to_string());
+                    }
                     let deliver = job.payload.deliver;
                     if !deliver {
                         return Some("skipped (deliver=false)".to_string());
@@ -580,41 +584,38 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
                         .to
                         .clone()
                         .unwrap_or_else(|| "direct".to_string());
-                    // Keep scheduled reminders lightweight: directly deliver payload message.
-                    if target_channel == "api" {
-                        let api_chat_id = if target_chat_id.starts_with("cron:") {
+                    // Trigger one full agent turn by publishing cron payload as inbound message.
+                    // GUI cron jobs are bridged through API stream so frontend background SSE can receive it.
+                    let (conversation_channel, conversation_chat_id) = if target_channel == "gui" {
+                        let chat_id = if target_chat_id.starts_with("cron:") {
                             target_chat_id
                         } else {
                             format!("cron:{}", target_chat_id)
                         };
-                        let _ = bus.publish_event(
-                            "api",
-                            api_chat_id,
-                            AgentEvent::FinalResponse {
-                                content: job.payload.message,
-                            },
-                        );
-                        return Some("delivered to api event stream".to_string());
-                    }
+                        ("api".to_string(), chat_id)
+                    } else {
+                        (target_channel.clone(), target_chat_id)
+                    };
 
-                    let mut outbound = OutboundMessage::new(
-                        target_channel.clone(),
-                        target_chat_id,
+                    let inbound = InboundMessage::new(
+                        conversation_channel,
+                        "cron",
+                        conversation_chat_id,
                         job.payload.message,
-                    );
-                    outbound.metadata.insert(
-                        "cron_job_id".to_string(),
-                        serde_json::Value::String(job.id.clone()),
-                    );
-                    if let Err(e) = bus.publish_outbound(outbound) {
-                        error!("Failed to publish cron outbound job {}: {}", job.id, e);
+                    )
+                    .with_metadata("cron_job_id", job.id.clone())
+                    .with_metadata("cron_trigger", "scheduled")
+                    .with_metadata("cron_delivery_channel", target_channel);
+
+                    if let Err(e) = bus.publish_inbound(inbound) {
+                        error!("Failed to publish cron inbound job {}: {}", job.id, e);
                         return Some(format!(
-                            "failed to publish cron outbound job {}: {}",
+                            "failed to publish cron inbound job {}: {}",
                             job.id, e
                         ));
                     }
 
-                    Some("delivered".to_string())
+                    Some("triggered agent turn".to_string())
                 })
             },
         );
@@ -743,6 +744,7 @@ async fn run_gateway(loader: &ConfigLoader) -> Result<()> {
             provider_api_base,
             Some(channel_manager.clone()),
             Some(runtime_control_tx),
+            Arc::clone(&cron_service),
         );
         // Keep a sender clone outside API server state so manager doesn't exit
         // immediately if API server startup fails (e.g. port already in use).
@@ -974,11 +976,7 @@ struct TuiApp {
 }
 
 fn chat_id_from_tui_session(session_key: &str) -> String {
-    session_key
-        .split(':')
-        .nth(2)
-        .unwrap_or("tui")
-        .to_string()
+    session_key.split(':').nth(2).unwrap_or("tui").to_string()
 }
 
 impl TuiApp {
@@ -1947,10 +1945,9 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
                             let chat_id = chat_id_from_tui_session(&app.session_key);
                             match client.stop(Some("cli"), Some(&chat_id)).await {
                                 Ok(_) => app.add_line(TimelineKind::System, "stop requested"),
-                                Err(e) => app.add_line(
-                                    TimelineKind::Error,
-                                    format!("stop failed: {}", e),
-                                ),
+                                Err(e) => {
+                                    app.add_line(TimelineKind::Error, format!("stop failed: {}", e))
+                                }
                             }
                         } else {
                             app.add_line(TimelineKind::User, content.clone());

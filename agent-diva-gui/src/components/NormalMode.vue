@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Menu, MessageSquare, Settings, Heart, Minus, X, Server, Check, History } from 'lucide-vue-next';
+import { Menu, MessageSquare, Settings, Heart, Minus, X, Server, Check, History, AlarmClock } from 'lucide-vue-next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import ChatView from './ChatView.vue';
 import SettingsView from './SettingsView.vue';
+import CronTaskManagementView from './CronTaskManagementView.vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -80,7 +81,7 @@ const emit = defineEmits<{
 }>();
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'home' | 'console' | 'neuro' | null>(null);
+const activeMenu = ref<'home' | 'console' | 'neuro' | 'cron' | null>(null);
 const sidebarOpen = ref(false);
 const soulSidebarOpen = ref(false);
 const themeMode = ref('love'); // Default to love theme
@@ -111,7 +112,7 @@ const toggleSidebar = () => {
   emit('toggle-sidebar');
 };
 
-const handleMenuClick = (key: 'home' | 'console' | 'neuro') => {
+const handleMenuClick = (key: 'home' | 'console' | 'neuro' | 'cron') => {
   if (key === 'home') {
     activeMenu.value = null;
     activeTab.value = 'chat';
@@ -441,6 +442,15 @@ const formatSessionTimestamp = (timestamp: number) => {
             <span>神经系统</span>
           </span>
         </button>
+        <button
+          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-gray-100 text-gray-700"
+          @click="handleMenuClick('cron')"
+        >
+          <span class="flex items-center space-x-2">
+            <AlarmClock :size="16" class="text-emerald-500" />
+            <span>{{ t('cron.title') }}</span>
+          </span>
+        </button>
       </aside>
     </div>
 
@@ -450,7 +460,10 @@ const formatSessionTimestamp = (timestamp: number) => {
       :class="sidebarOpen ? 'filter blur-sm scale-[0.99]' : ''"
     >
       <!-- Placeholder pages for side menu -->
-      <div v-if="activeMenu" class="h-full flex items-center justify-center">
+      <div v-if="activeMenu === 'cron'" class="h-full">
+        <CronTaskManagementView />
+      </div>
+      <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
         <div class="text-gray-500 text-lg font-semibold tracking-wide">
           敬请期待！
         </div>

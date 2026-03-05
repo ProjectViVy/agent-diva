@@ -47,6 +47,8 @@ target/doc/
 *.temp
 
 logs/
+!docs/logs/
+!docs/logs/**
 
 # Log files
 *.log

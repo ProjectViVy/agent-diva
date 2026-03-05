@@ -4,4 +4,7 @@ pub mod service;
 pub mod types;
 
 pub use service::CronService;
-pub use types::{CronJob, CronJobState, CronPayload, CronSchedule, CronStore};
+pub use types::{
+    CreateCronJobRequest, CronJob, CronJobDto, CronJobLifecycleStatus, CronJobState, CronPayload,
+    CronRunSnapshot, CronSchedule, CronStore, CronTrigger, UpdateCronJobRequest,
+};

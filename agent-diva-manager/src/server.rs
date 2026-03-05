@@ -8,9 +8,12 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
-    chat_handler, events_handler, get_channels_handler, get_config_handler, get_providers_handler,
-    get_tools_handler, heartbeat_handler, stop_chat_handler, reset_session_handler, test_channel_handler,
-    update_channel_handler, update_config_handler, update_tools_handler, get_sessions_handler, get_session_history_handler,
+    chat_handler, create_cron_job_handler, delete_cron_job_handler, events_handler,
+    get_channels_handler, get_config_handler, get_cron_job_handler, get_providers_handler,
+    get_session_history_handler, get_sessions_handler, get_tools_handler, heartbeat_handler,
+    list_cron_jobs_handler, reset_session_handler, run_cron_job_handler,
+    set_cron_job_enabled_handler, stop_chat_handler, stop_cron_job_handler, test_channel_handler,
+    update_channel_handler, update_config_handler, update_cron_job_handler, update_tools_handler,
 };
 use crate::state::AppState;
 
@@ -39,6 +42,22 @@ pub async fn run_server(
             "/api/tools",
             get(get_tools_handler).post(update_tools_handler),
         )
+        .route(
+            "/api/cron/jobs",
+            get(list_cron_jobs_handler).post(create_cron_job_handler),
+        )
+        .route(
+            "/api/cron/jobs/:id",
+            get(get_cron_job_handler)
+                .put(update_cron_job_handler)
+                .delete(delete_cron_job_handler),
+        )
+        .route(
+            "/api/cron/jobs/:id/enable",
+            post(set_cron_job_enabled_handler),
+        )
+        .route("/api/cron/jobs/:id/run", post(run_cron_job_handler))
+        .route("/api/cron/jobs/:id/stop", post(stop_cron_job_handler))
         .route("/api/channels/:name/test", post(test_channel_handler))
         .route("/api/health", get(heartbeat_handler))
         .layer(CorsLayer::permissive())

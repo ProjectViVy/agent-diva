@@ -136,7 +136,7 @@ impl SessionManager {
             let timestamp = chrono::Utc::now().timestamp_millis();
             let archive_filename = format!("{}.reset.{}.jsonl", safe_key, timestamp);
             let archive_path = self.sessions_dir.join(archive_filename);
-            
+
             std::fs::rename(&path, &archive_path)?;
             Ok(true)
         } else {
@@ -287,6 +287,9 @@ mod tests {
                 panic!("Original file still exists!");
             }
         }
-        assert_eq!(reset_files_count, 1, "Should have exactly one archived file");
+        assert_eq!(
+            reset_files_count, 1,
+            "Should have exactly one archived file"
+        );
     }
 }
