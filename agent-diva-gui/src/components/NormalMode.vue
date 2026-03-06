@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { Menu, MessageSquare, Settings, Heart, Minus, X, Server, Check, History, AlarmClock } from 'lucide-vue-next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import ChatView from './ChatView.vue';
+import ConsoleView from './ConsoleView.vue';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import { useI18n } from 'vue-i18n';
@@ -462,6 +463,9 @@ const formatSessionTimestamp = (timestamp: number) => {
       <!-- Placeholder pages for side menu -->
       <div v-if="activeMenu === 'cron'" class="h-full">
         <CronTaskManagementView />
+      </div>
+      <div v-else-if="activeMenu === 'console'" class="h-full">
+        <ConsoleView />
       </div>
       <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
         <div class="text-gray-500 text-lg font-semibold tracking-wide">

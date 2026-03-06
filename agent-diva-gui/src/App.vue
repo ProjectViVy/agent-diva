@@ -37,6 +37,19 @@ interface ToolFinishPayload {
   call_id?: string | null;
 }
 
+interface StreamTextPayload {
+  request_id: string;
+  data: string;
+}
+
+interface StreamToolStartPayload extends ToolStartPayload {
+  request_id: string;
+}
+
+interface StreamToolFinishPayload extends ToolFinishPayload {
+  request_id: string;
+}
+
 interface SavedModel {
   id: string;
   provider: string;
@@ -110,6 +123,7 @@ const currentEmotion = ref('happy');
 const suppressNextStopError = ref(false);
 const currentChannel = ref('gui');
 const currentChatId = ref(generateChatId());
+const activeStreamRequestId = ref<string | null>(null);
 
 // Config state
 const config = ref({
@@ -296,6 +310,29 @@ function generateChatId(): string {
   return `chat-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 }
 
+function generateStreamRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `stream-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+}
+
+function closeStreamingPlaceholder(removeIfEmpty = false) {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const lastMsg = messages.value[i];
+    if (lastMsg.role !== 'agent' || !lastMsg.isStreaming) {
+      continue;
+    }
+    if (removeIfEmpty && !lastMsg.content && !lastMsg.reasoning) {
+      messages.value.splice(i, 1);
+      return;
+    }
+    lastMsg.isStreaming = false;
+    lastMsg.isThinking = false;
+    return;
+  }
+}
+
 // Load saved models from localStorage
 onMounted(() => {
   const storedModels = localStorage.getItem('agent-diva-saved-models');
@@ -361,6 +398,9 @@ async function sendMessage(content: string) {
   
   isTyping.value = true;
   suppressNextStopError.value = false;
+  closeStreamingPlaceholder(true);
+  const streamRequestId = generateStreamRequestId();
+  activeStreamRequestId.value = streamRequestId;
   
   // Create a placeholder for the agent response
   messages.value.push({ 
@@ -380,6 +420,7 @@ async function sendMessage(content: string) {
                 lastMsg.content = t('app.mockResponse', { content });
                 lastMsg.isStreaming = false;
                 isTyping.value = false;
+                activeStreamRequestId.value = null;
             }
         }, 1000);
         return;
@@ -389,9 +430,11 @@ async function sendMessage(content: string) {
       message: content,
       channel: currentChannel.value,
       chatId: currentChatId.value,
+      streamRequestId,
     });
   } catch (error) {
     console.error("Failed to send message:", error);
+    activeStreamRequestId.value = null;
     
     // Remove the placeholder agent message
     if (messages.value.length > 0) {
@@ -457,6 +500,8 @@ async function stopMessage() {
 
 const clearMessages = () => {
   currentChatId.value = generateChatId();
+  activeStreamRequestId.value = null;
+  isTyping.value = false;
   messages.value = [
     {
       role: 'agent',
@@ -666,45 +711,61 @@ onMounted(async () => {
     });
 
     // Listen for streaming text delta
-      unlisteners.push(await listen<string>("agent-response-delta", (event) => {
+      unlisteners.push(await listen<StreamTextPayload>("agent-response-delta", (event) => {
+      if (event.payload.request_id !== activeStreamRequestId.value) {
+        return;
+      }
       const lastMsg = messages.value[messages.value.length - 1];
       if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-        lastMsg.content += event.payload;
+        lastMsg.content += event.payload.data;
       }
     }));
 
     // Listen for reasoning delta
-    unlisteners.push(await listen<string>("agent-reasoning-delta", (event) => {
+    unlisteners.push(await listen<StreamTextPayload>("agent-reasoning-delta", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) {
+      return;
+    }
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
       if (!lastMsg.reasoning) {
         lastMsg.reasoning = "";
       }
-      lastMsg.reasoning += event.payload;
+      lastMsg.reasoning += event.payload.data;
       lastMsg.isThinking = true;
     }
   }));
 
   // Listen for completion
-  unlisteners.push(await listen<string>("agent-response-complete", (event) => {
+  unlisteners.push(await listen<StreamTextPayload>("agent-response-complete", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) {
+      return;
+    }
     suppressNextStopError.value = false;
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      if (!lastMsg.content && event.payload) {
-         lastMsg.content = event.payload;
+      if (!lastMsg.content && event.payload.data) {
+         lastMsg.content = event.payload.data;
       }
       lastMsg.isStreaming = false;
       lastMsg.isThinking = false;
       isTyping.value = false;
+      activeStreamRequestId.value = null;
     }
   }));
 
   // Listen for tool usage
-  unlisteners.push(await listen<string>("agent-tool-delta", () => {
+  unlisteners.push(await listen<StreamTextPayload>("agent-tool-delta", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) {
+      return;
+    }
     // Optional: show tool usage in UI
   }));
 
-  unlisteners.push(await listen<ToolStartPayload>("agent-tool-start", (event) => {
+  unlisteners.push(await listen<StreamToolStartPayload>("agent-tool-start", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) {
+      return;
+    }
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && (lastMsg.content === '') && lastMsg.isStreaming) {
       messages.value.pop();
@@ -712,7 +773,7 @@ onMounted(async () => {
       lastMsg.isStreaming = false;
     }
 
-    const payload = event.payload || ({} as ToolStartPayload);
+    const payload = event.payload || ({} as StreamToolStartPayload);
     const toolName = payload.name || t('app.unknownTool');
     const toolArgs = payload.args_preview || '';
 
@@ -736,13 +797,16 @@ onMounted(async () => {
     });
   }));
 
-  unlisteners.push(await listen<ToolFinishPayload>("agent-tool-end", (event) => {
+  unlisteners.push(await listen<StreamToolFinishPayload>("agent-tool-end", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) {
+      return;
+    }
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && lastMsg.content === '' && lastMsg.isStreaming) {
       messages.value.pop();
     }
 
-    const payload = event.payload || ({} as ToolFinishPayload);
+    const payload = event.payload || ({} as StreamToolFinishPayload);
 
     // Prefer matching by call_id to avoid cross-updates when multiple tools run.
     let toolMsgIndex = -1;
@@ -791,9 +855,27 @@ onMounted(async () => {
   }));
 
   // Listen for errors
-  unlisteners.push(await listen<string>("agent-error", (event) => {
-    if (suppressNextStopError.value && event.payload === "Generation stopped by user.") {
+  unlisteners.push(await listen<unknown>("agent-error", (event) => {
+    const payload = event.payload;
+    const isStreamPayload =
+      typeof payload === 'object'
+      && payload !== null
+      && 'request_id' in payload
+      && 'data' in payload;
+    const requestId = isStreamPayload ? String((payload as StreamTextPayload).request_id) : null;
+    const errorMessage = isStreamPayload
+      ? String((payload as StreamTextPayload).data)
+      : String(payload ?? '');
+
+    if (requestId && requestId !== activeStreamRequestId.value) {
+      return;
+    }
+
+    if (suppressNextStopError.value && errorMessage === "Generation stopped by user.") {
       suppressNextStopError.value = false;
+      if (requestId && requestId === activeStreamRequestId.value) {
+        activeStreamRequestId.value = null;
+      }
       return;
     }
     
@@ -809,7 +891,7 @@ onMounted(async () => {
         // Re-check last message after pop
         if (messages.value.length > 0) {
             const newLastMsg = messages.value[messages.value.length - 1];
-            if (newLastMsg.role === 'system' && newLastMsg.content === `${t('app.errorPrefix')}${event.payload}`) {
+            if (newLastMsg.role === 'system' && newLastMsg.content === `${t('app.errorPrefix')}${errorMessage}`) {
                 return; // Skip duplicate
             }
         }
@@ -817,10 +899,13 @@ onMounted(async () => {
 
     messages.value.push({ 
       role: 'system', 
-      content: `${t('app.errorPrefix')}${event.payload}`, 
+      content: `${t('app.errorPrefix')}${errorMessage}`, 
       timestamp: Date.now() 
     });
-    isTyping.value = false;
+    if (requestId && requestId === activeStreamRequestId.value) {
+      isTyping.value = false;
+      activeStreamRequestId.value = null;
+    }
   }));
 
   // Listen for external hook messages

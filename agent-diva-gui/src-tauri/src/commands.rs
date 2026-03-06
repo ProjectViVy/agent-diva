@@ -1,9 +1,25 @@
 use crate::app_state::AgentState;
+use agent_diva_core::config::{Config, ConfigLoader};
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, State, Window};
+use std::ffi::OsString;
+use std::path::PathBuf;
+use std::process::Stdio;
+use tauri::path::BaseDirectory;
+use tauri::{AppHandle, Emitter, Manager, State, Window};
+use tokio::process::Command as TokioCommand;
+use tokio::sync::Mutex as AsyncMutex;
 use tracing::{error, info};
+
+struct GatewayProcess {
+    child: tokio::process::Child,
+    executable_path: String,
+}
+
+static GATEWAY_PROCESS: Lazy<AsyncMutex<Option<GatewayProcess>>> =
+    Lazy::new(|| AsyncMutex::new(None));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderSpec {
@@ -120,11 +136,35 @@ struct BackgroundFinalEvent {
     content: String,
 }
 
+#[derive(Serialize, Clone)]
+struct StreamTextPayload {
+    request_id: String,
+    data: String,
+}
+
+#[derive(Serialize, Clone)]
+struct StreamToolStartPayload {
+    request_id: String,
+    name: String,
+    args_preview: String,
+    call_id: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+struct StreamToolFinishPayload {
+    request_id: String,
+    name: String,
+    result: String,
+    is_error: Option<bool>,
+    call_id: Option<String>,
+}
+
 #[tauri::command]
 pub async fn send_message(
     message: String,
     channel: Option<String>,
     chat_id: Option<String>,
+    stream_request_id: String,
     window: Window,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
@@ -155,58 +195,113 @@ pub async fn send_message(
             Ok(event) => {
                 match event.event.as_str() {
                     "delta" => {
-                        let _ = window.emit("agent-response-delta", event.data);
+                        let _ = window.emit(
+                            "agent-response-delta",
+                            StreamTextPayload {
+                                request_id: stream_request_id.clone(),
+                                data: event.data,
+                            },
+                        );
                     }
                     "reasoning_delta" => {
-                        let _ = window.emit("agent-reasoning-delta", event.data);
+                        let _ = window.emit(
+                            "agent-reasoning-delta",
+                            StreamTextPayload {
+                                request_id: stream_request_id.clone(),
+                                data: event.data,
+                            },
+                        );
                     }
                     "tool_delta" => {
                         if let Ok(data) = serde_json::from_str::<ToolDeltaEvent>(&event.data) {
-                            let _ = window.emit("agent-tool-delta", data.delta);
+                            let _ = window.emit(
+                                "agent-tool-delta",
+                                StreamTextPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data: data.delta,
+                                },
+                            );
                         }
                     }
                     "final" => {
-                        let _ = window.emit("agent-response-complete", event.data);
+                        let _ = window.emit(
+                            "agent-response-complete",
+                            StreamTextPayload {
+                                request_id: stream_request_id.clone(),
+                                data: event.data,
+                            },
+                        );
                     }
                     "tool_start" => {
                         if let Ok(data) = serde_json::from_str::<ToolStartEvent>(&event.data) {
-                            let _ = window.emit("agent-tool-start", data);
+                            let _ = window.emit(
+                                "agent-tool-start",
+                                StreamToolStartPayload {
+                                    request_id: stream_request_id.clone(),
+                                    name: data.name,
+                                    args_preview: data.args_preview,
+                                    call_id: data.call_id,
+                                },
+                            );
                         } else {
                             // Fallback if parsing fails
                             let _ = window.emit(
                                 "agent-tool-start",
-                                serde_json::json!({
-                                    "name": "unknown",
-                                    "args_preview": event.data,
-                                    "call_id": serde_json::Value::Null
-                                }),
+                                StreamToolStartPayload {
+                                    request_id: stream_request_id.clone(),
+                                    name: "unknown".to_string(),
+                                    args_preview: event.data,
+                                    call_id: None,
+                                },
                             );
                         }
                     }
                     "tool_finish" => {
                         if let Ok(data) = serde_json::from_str::<ToolFinishEvent>(&event.data) {
-                            let _ = window.emit("agent-tool-end", data);
+                            let _ = window.emit(
+                                "agent-tool-end",
+                                StreamToolFinishPayload {
+                                    request_id: stream_request_id.clone(),
+                                    name: data.name,
+                                    result: data.result,
+                                    is_error: data.is_error,
+                                    call_id: data.call_id,
+                                },
+                            );
                         } else {
                             let _ = window.emit(
                                 "agent-tool-end",
-                                serde_json::json!({
-                                    "name": "unknown",
-                                    "result": event.data,
-                                    "is_error": false,
-                                    "call_id": serde_json::Value::Null
-                                }),
+                                StreamToolFinishPayload {
+                                    request_id: stream_request_id.clone(),
+                                    name: "unknown".to_string(),
+                                    result: event.data,
+                                    is_error: Some(false),
+                                    call_id: None,
+                                },
                             );
                         }
                     }
                     "error" => {
-                        let _ = window.emit("agent-error", event.data);
+                        let _ = window.emit(
+                            "agent-error",
+                            StreamTextPayload {
+                                request_id: stream_request_id.clone(),
+                                data: event.data,
+                            },
+                        );
                     }
                     _ => {}
                 }
             }
             Err(e) => {
                 error!("Stream error: {}", e);
-                let _ = window.emit("agent-error", e.to_string());
+                let _ = window.emit(
+                    "agent-error",
+                    StreamTextPayload {
+                        request_id: stream_request_id.clone(),
+                        data: e.to_string(),
+                    },
+                );
             }
         }
     }
@@ -853,4 +948,742 @@ pub async fn test_channel(
     }
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeInfo {
+    pub platform: String,
+    pub is_bundled: bool,
+    pub resource_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GatewayProcessStatus {
+    pub running: bool,
+    pub pid: Option<u32>,
+    pub executable_path: Option<String>,
+    pub details: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceStatusPayload {
+    pub installed: bool,
+    pub running: bool,
+    pub state: String,
+    pub executable_path: Option<String>,
+    pub details: Option<String>,
+}
+
+fn runtime_platform() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    }
+}
+
+fn is_bundled_app() -> bool {
+    !cfg!(debug_assertions)
+}
+
+fn bundled_binary_name(base: &str) -> String {
+    if cfg!(target_os = "windows") {
+        format!("{base}.exe")
+    } else {
+        base.to_string()
+    }
+}
+
+fn config_loader() -> ConfigLoader {
+    match std::env::var("AGENT_DIVA_CONFIG_DIR") {
+        Ok(path) if !path.trim().is_empty() => ConfigLoader::with_dir(expand_user_path(&path)),
+        _ => ConfigLoader::new(),
+    }
+}
+
+fn expand_user_path(path: &str) -> PathBuf {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+fn resolve_configured_path(path: &str, config_dir: &std::path::Path) -> PathBuf {
+    let expanded = expand_user_path(path);
+    if expanded.is_absolute() {
+        expanded
+    } else {
+        config_dir.join(expanded)
+    }
+}
+
+fn runtime_info_from_app(app: &AppHandle) -> RuntimeInfo {
+    let resource_dir = app
+        .path()
+        .resolve(".", BaseDirectory::Resource)
+        .ok()
+        .map(|path| path.display().to_string());
+
+    RuntimeInfo {
+        platform: runtime_platform().to_string(),
+        is_bundled: is_bundled_app(),
+        resource_dir,
+    }
+}
+
+fn ensure_bundled_runtime(app: &AppHandle) -> Result<RuntimeInfo, String> {
+    let info = runtime_info_from_app(app);
+    if !info.is_bundled {
+        return Err("service management is only available in bundled app".to_string());
+    }
+    Ok(info)
+}
+
+fn candidate_cli_paths(app: &AppHandle) -> Vec<PathBuf> {
+    let platform = runtime_platform();
+    let binary_name = bundled_binary_name("agent-diva");
+    let mut candidates = Vec::new();
+
+    if let Ok(resource_path) = app.path().resolve(
+        format!("bin/{platform}/{binary_name}"),
+        BaseDirectory::Resource,
+    ) {
+        candidates.push(resource_path);
+    }
+
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(exe_dir) = current_exe.parent() {
+            candidates.push(exe_dir.join(&binary_name));
+            candidates.push(
+                exe_dir
+                    .join("resources")
+                    .join("bin")
+                    .join(platform)
+                    .join(&binary_name),
+            );
+        }
+    }
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest_dir
+        .parent()
+        .and_then(|path| path.parent())
+        .map(PathBuf::from)
+        .unwrap_or(manifest_dir);
+    candidates.push(
+        workspace_root
+            .join("target")
+            .join("release")
+            .join(&binary_name),
+    );
+    candidates.push(
+        workspace_root
+            .join("target")
+            .join("debug")
+            .join(&binary_name),
+    );
+    if let Ok(path) = which::which(&binary_name) {
+        candidates.push(path);
+    }
+
+    candidates
+}
+
+fn resolve_cli_binary(app: &AppHandle) -> Result<PathBuf, String> {
+    candidate_cli_paths(app)
+        .into_iter()
+        .find(|path| path.exists())
+        .ok_or_else(|| {
+            format!(
+                "unable to locate bundled agent-diva binary for platform {}",
+                runtime_platform()
+            )
+        })
+}
+
+async fn run_service_cli(app: &AppHandle, args: &[&str]) -> Result<String, String> {
+    if runtime_platform() != "windows" {
+        return Err("service management is currently implemented for Windows only".to_string());
+    }
+    if cfg!(debug_assertions) {
+        return Err("service management is only available in bundled app".to_string());
+    }
+
+    let cli_binary = resolve_cli_binary(app)?;
+    let output = TokioCommand::new(&cli_binary)
+        .arg("service")
+        .args(args)
+        .output()
+        .await
+        .map_err(|e| format!("failed to execute {}: {}", cli_binary.display(), e))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let message = if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("service command failed with status {}", output.status)
+        };
+        Err(message)
+    }
+}
+
+async fn run_command_capture<I, S>(program: &str, args: I) -> Result<std::process::Output, String>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    TokioCommand::new(program)
+        .args(args.into_iter().map(Into::into))
+        .output()
+        .await
+        .map_err(|e| format!("failed to execute {program}: {e}"))
+}
+
+fn command_output_message(program: &str, output: &std::process::Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !stderr.is_empty() {
+        stderr
+    } else if !stdout.is_empty() {
+        stdout
+    } else {
+        format!("{program} exited with status {}", output.status)
+    }
+}
+
+fn resolve_resource_path(app: &AppHandle, relative: &str) -> Option<PathBuf> {
+    app.path().resolve(relative, BaseDirectory::Resource).ok()
+}
+
+fn resolve_linux_service_script(app: &AppHandle, file_name: &str) -> Result<PathBuf, String> {
+    if let Some(path) = resolve_resource_path(app, &format!("systemd/{file_name}")) {
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest_dir
+        .parent()
+        .and_then(|path| path.parent())
+        .map(PathBuf::from)
+        .unwrap_or(manifest_dir);
+    let fallback = workspace_root
+        .join("contrib")
+        .join("systemd")
+        .join(file_name);
+    if fallback.exists() {
+        return Ok(fallback);
+    }
+
+    Err(format!(
+        "unable to locate Linux service script: {file_name}"
+    ))
+}
+
+fn resolve_macos_launchd_script(app: &AppHandle, file_name: &str) -> Result<PathBuf, String> {
+    if let Some(path) = resolve_resource_path(app, &format!("launchd/{file_name}")) {
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest_dir
+        .parent()
+        .and_then(|path| path.parent())
+        .map(PathBuf::from)
+        .unwrap_or(manifest_dir);
+    let fallback = workspace_root
+        .join("contrib")
+        .join("launchd")
+        .join(file_name);
+    if fallback.exists() {
+        return Ok(fallback);
+    }
+
+    Err(format!(
+        "unable to locate macOS launchd script: {file_name}"
+    ))
+}
+
+async fn run_macos_launchd_bash(_app: &AppHandle, script: &PathBuf) -> Result<(), String> {
+    let script_dir = script
+        .parent()
+        .ok_or_else(|| "script has no parent directory".to_string())?;
+    let bundle_root = script_dir
+        .parent()
+        .ok_or_else(|| "launchd script has no bundle root".to_string())?;
+    let output = TokioCommand::new("bash")
+        .arg(script)
+        .current_dir(bundle_root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await
+        .map_err(|e| {
+            format!(
+                "failed to execute launchd script {}: {}",
+                script.display(),
+                e
+            )
+        })?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(command_output_message("bash", &output))
+    }
+}
+
+async fn run_macos_launchctl(action: &str) -> Result<(), String> {
+    let output = TokioCommand::new("launchctl")
+        .arg(action)
+        .arg("com.agent-diva.gateway")
+        .output()
+        .await
+        .map_err(|e| format!("failed to execute launchctl {action}: {e}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(command_output_message("launchctl", &output))
+    }
+}
+
+async fn linux_service_status() -> Result<ServiceStatusPayload, String> {
+    let load_state = run_command_capture(
+        "systemctl",
+        ["show", "agent-diva", "--property=LoadState", "--value"],
+    )
+    .await?;
+    if !load_state.status.success() {
+        return Err(command_output_message("systemctl", &load_state));
+    }
+
+    let load_state_value = String::from_utf8_lossy(&load_state.stdout)
+        .trim()
+        .to_string();
+    let active_state = run_command_capture(
+        "systemctl",
+        ["show", "agent-diva", "--property=ActiveState", "--value"],
+    )
+    .await?;
+    if !active_state.status.success() {
+        return Err(command_output_message("systemctl", &active_state));
+    }
+
+    let active_state_value = String::from_utf8_lossy(&active_state.stdout)
+        .trim()
+        .to_string();
+    let installed = !matches!(load_state_value.as_str(), "" | "not-found");
+    let running = active_state_value == "active";
+    let state = if installed {
+        format!("{load_state_value}/{active_state_value}")
+    } else {
+        "NotInstalled".to_string()
+    };
+
+    Ok(ServiceStatusPayload {
+        installed,
+        running,
+        state: state.clone(),
+        executable_path: Some("/usr/bin/agent-diva".to_string()),
+        details: Some(if installed {
+            format!("systemd load={load_state_value}, active={active_state_value}")
+        } else {
+            "systemd unit not installed".to_string()
+        }),
+    })
+}
+
+async fn run_linux_privileged_bash(script: &PathBuf) -> Result<(), String> {
+    let pkexec = which::which("pkexec").map_err(|_| {
+        "pkexec not found; install policykit or run the bundled script manually with sudo"
+            .to_string()
+    })?;
+    let output = TokioCommand::new(pkexec)
+        .arg("bash")
+        .arg(script)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await
+        .map_err(|e| {
+            format!(
+                "failed to execute privileged script {}: {}",
+                script.display(),
+                e
+            )
+        })?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(command_output_message("pkexec", &output))
+    }
+}
+
+async fn run_linux_systemctl(action: &str) -> Result<(), String> {
+    let pkexec = which::which("pkexec").map_err(|_| {
+        "pkexec not found; install policykit or run systemctl manually with sudo".to_string()
+    })?;
+    let output = TokioCommand::new(pkexec)
+        .arg("systemctl")
+        .arg(action)
+        .arg("agent-diva")
+        .output()
+        .await
+        .map_err(|e| format!("failed to execute systemctl {action}: {e}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(command_output_message("systemctl", &output))
+    }
+}
+
+async fn macos_service_status() -> Result<ServiceStatusPayload, String> {
+    let plist_path = dirs::home_dir()
+        .map(|home| {
+            home.join("Library")
+                .join("LaunchAgents")
+                .join("com.agent-diva.gateway.plist")
+        })
+        .ok_or_else(|| "failed to resolve home directory for launchd status".to_string())?;
+    let installed = plist_path.exists();
+
+    let launchctl_output = run_command_capture("launchctl", ["list"]).await?;
+    if !launchctl_output.status.success() {
+        return Err(command_output_message("launchctl", &launchctl_output));
+    }
+
+    let stdout = String::from_utf8_lossy(&launchctl_output.stdout);
+    let running = stdout.contains("com.agent-diva.gateway");
+    let state = if installed {
+        if running {
+            "Loaded".to_string()
+        } else {
+            "Installed".to_string()
+        }
+    } else {
+        "NotInstalled".to_string()
+    };
+
+    Ok(ServiceStatusPayload {
+        installed,
+        running,
+        state: state.clone(),
+        executable_path: Some(plist_path.display().to_string()),
+        details: Some(if installed {
+            if running {
+                "launchd Loaded".to_string()
+            } else {
+                "launchd Installed".to_string()
+            }
+        } else {
+            "launchd plist not found".to_string()
+        }),
+    })
+}
+
+fn resolve_log_directory(config: &Config, loader: &ConfigLoader) -> PathBuf {
+    resolve_configured_path(&config.logging.dir, loader.config_dir())
+}
+
+fn latest_log_file(log_dir: &std::path::Path) -> Result<Option<PathBuf>, String> {
+    if !log_dir.exists() {
+        return Ok(None);
+    }
+
+    let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
+    let entries = std::fs::read_dir(log_dir)
+        .map_err(|e| format!("failed to read log directory {}: {}", log_dir.display(), e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("failed to inspect log directory entry: {e}"))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if !(name.starts_with("gateway.log") || name.starts_with("gateway-")) {
+            continue;
+        }
+
+        let modified = entry
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        match &newest {
+            Some((current, _)) if modified <= *current => {}
+            _ => newest = Some((modified, path)),
+        }
+    }
+
+    Ok(newest.map(|(_, path)| path))
+}
+
+fn resolved_cli_binary_for_launch(
+    app: &AppHandle,
+    bin_path: Option<String>,
+) -> Result<PathBuf, String> {
+    if let Some(bin_path) = bin_path {
+        let candidate = PathBuf::from(bin_path);
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+        return Err(format!(
+            "gateway binary not found at {}",
+            candidate.display()
+        ));
+    }
+
+    resolve_cli_binary(app)
+}
+
+async fn refresh_gateway_process_status() -> GatewayProcessStatus {
+    let mut guard = GATEWAY_PROCESS.lock().await;
+    if let Some(process) = guard.as_mut() {
+        match process.child.try_wait() {
+            Ok(Some(status)) => {
+                let detail = format!("gateway process exited with status {status}");
+                *guard = None;
+                GatewayProcessStatus {
+                    running: false,
+                    pid: None,
+                    executable_path: None,
+                    details: Some(detail),
+                }
+            }
+            Ok(None) => GatewayProcessStatus {
+                running: true,
+                pid: process.child.id(),
+                executable_path: Some(process.executable_path.clone()),
+                details: Some("gateway process is running".to_string()),
+            },
+            Err(error) => GatewayProcessStatus {
+                running: false,
+                pid: None,
+                executable_path: Some(process.executable_path.clone()),
+                details: Some(format!("failed to inspect gateway process: {error}")),
+            },
+        }
+    } else {
+        GatewayProcessStatus {
+            running: false,
+            pid: None,
+            executable_path: None,
+            details: Some("gateway process is not managed by the GUI".to_string()),
+        }
+    }
+}
+
+#[tauri::command]
+pub fn get_runtime_info(app: AppHandle) -> RuntimeInfo {
+    runtime_info_from_app(&app)
+}
+
+#[tauri::command]
+pub async fn get_service_status(app: AppHandle) -> Result<ServiceStatusPayload, String> {
+    let info = ensure_bundled_runtime(&app)?;
+    match info.platform.as_str() {
+        "windows" => {
+            let output = run_service_cli(&app, &["status", "--json"]).await?;
+            let mut payload: ServiceStatusPayload = serde_json::from_str(&output)
+                .map_err(|e| format!("failed to parse service status payload: {}", e))?;
+            if payload.details.is_none() {
+                payload.details = Some(payload.state.clone());
+            }
+            Ok(payload)
+        }
+        "linux" => linux_service_status().await,
+        "macos" => macos_service_status().await,
+        _ => Err("unsupported platform".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn install_service(app: AppHandle) -> Result<(), String> {
+    let info = ensure_bundled_runtime(&app)?;
+    match info.platform.as_str() {
+        "windows" => {
+            let _ = run_service_cli(&app, &["install", "--auto-start"]).await?;
+            Ok(())
+        }
+        "linux" => {
+            let script = resolve_linux_service_script(&app, "install.sh")?;
+            run_linux_privileged_bash(&script).await
+        }
+        "macos" => {
+            let script = resolve_macos_launchd_script(&app, "install.sh")?;
+            run_macos_launchd_bash(&app, &script).await
+        }
+        _ => Err("unsupported platform".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn uninstall_service(app: AppHandle) -> Result<(), String> {
+    let info = ensure_bundled_runtime(&app)?;
+    match info.platform.as_str() {
+        "windows" => {
+            let _ = run_service_cli(&app, &["uninstall"]).await?;
+            Ok(())
+        }
+        "linux" => {
+            let script = resolve_linux_service_script(&app, "uninstall.sh")?;
+            run_linux_privileged_bash(&script).await
+        }
+        "macos" => {
+            let script = resolve_macos_launchd_script(&app, "uninstall.sh")?;
+            run_macos_launchd_bash(&app, &script).await
+        }
+        _ => Err("unsupported platform".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn start_service(app: AppHandle) -> Result<(), String> {
+    let info = ensure_bundled_runtime(&app)?;
+    match info.platform.as_str() {
+        "windows" => {
+            let _ = run_service_cli(&app, &["start"]).await?;
+            Ok(())
+        }
+        "linux" => run_linux_systemctl("start").await,
+        "macos" => run_macos_launchctl("start").await,
+        _ => Err("unsupported platform".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn stop_service(app: AppHandle) -> Result<(), String> {
+    let info = ensure_bundled_runtime(&app)?;
+    match info.platform.as_str() {
+        "windows" => {
+            let _ = run_service_cli(&app, &["stop"]).await?;
+            Ok(())
+        }
+        "linux" => run_linux_systemctl("stop").await,
+        "macos" => run_macos_launchctl("stop").await,
+        _ => Err("unsupported platform".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn get_gateway_process_status() -> GatewayProcessStatus {
+    refresh_gateway_process_status().await
+}
+
+#[tauri::command]
+pub async fn start_gateway(app: AppHandle, bin_path: Option<String>) -> Result<(), String> {
+    let current_status = refresh_gateway_process_status().await;
+    if current_status.running {
+        return Err("gateway process is already running".to_string());
+    }
+
+    let loader = config_loader();
+    std::fs::create_dir_all(loader.config_dir()).map_err(|e| {
+        format!(
+            "failed to create config directory {}: {}",
+            loader.config_dir().display(),
+            e
+        )
+    })?;
+
+    let executable = resolved_cli_binary_for_launch(&app, bin_path)?;
+    let mut command = TokioCommand::new(&executable);
+    command
+        .arg("--config-dir")
+        .arg(loader.config_dir())
+        .arg("gateway")
+        .arg("run")
+        .current_dir(loader.config_dir())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    let child = command.spawn().map_err(|e| {
+        format!(
+            "failed to spawn gateway process {}: {}",
+            executable.display(),
+            e
+        )
+    })?;
+
+    let mut guard = GATEWAY_PROCESS.lock().await;
+    *guard = Some(GatewayProcess {
+        child,
+        executable_path: executable.display().to_string(),
+    });
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_gateway() -> Result<(), String> {
+    let mut guard = GATEWAY_PROCESS.lock().await;
+    let Some(process) = guard.as_mut() else {
+        return Ok(());
+    };
+
+    process
+        .child
+        .kill()
+        .await
+        .map_err(|e| format!("failed to stop gateway process: {e}"))?;
+    *guard = None;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_config() -> Result<String, String> {
+    let loader = config_loader();
+    let config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    serde_json::to_string_pretty(&config).map_err(|e| format!("failed to serialize config: {}", e))
+}
+
+#[tauri::command]
+pub fn save_config(raw: String) -> Result<(), String> {
+    let loader = config_loader();
+    let config: Config =
+        serde_json::from_str(&raw).map_err(|e| format!("failed to parse config JSON: {}", e))?;
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))
+}
+
+#[tauri::command]
+pub fn tail_logs(lines: usize) -> Result<Vec<String>, String> {
+    let loader = config_loader();
+    let config = loader
+        .load()
+        .map_err(|e| format!("failed to load config for logs: {}", e))?;
+    let log_dir = resolve_log_directory(&config, &loader);
+    let Some(log_file) = latest_log_file(&log_dir)? else {
+        return Ok(Vec::new());
+    };
+
+    let content = std::fs::read_to_string(&log_file)
+        .map_err(|e| format!("failed to read log file {}: {}", log_file.display(), e))?;
+    let mut all_lines: Vec<String> = content.lines().map(ToString::to_string).collect();
+    let keep = lines.max(1);
+    if all_lines.len() > keep {
+        all_lines = all_lines.split_off(all_lines.len().saturating_sub(keep));
+    }
+    Ok(all_lines)
 }

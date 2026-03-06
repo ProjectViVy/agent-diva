@@ -290,6 +290,7 @@ impl AgentLoop {
 
     async fn handle_inbound(&mut self, msg: InboundMessage) {
         debug!("Received message from {}:{}", msg.channel, msg.chat_id);
+        let event_msg = msg.clone();
         match self.process_inbound_message(msg, None).await {
             Ok(Some(response)) => {
                 if let Err(e) = self.bus.publish_outbound(response) {
@@ -297,7 +298,11 @@ impl AgentLoop {
                 }
             }
             Ok(None) => debug!("No response needed"),
-            Err(e) => error!("Error processing message: {}", e),
+            Err(e) => {
+                let error_message = format!("Failed to process message: {}", e);
+                error!("{}", error_message);
+                self.emit_error_event(&event_msg, None, error_message);
+            }
         }
     }
 
@@ -388,7 +393,48 @@ impl AgentLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_providers::LiteLLMClient;
+    use agent_diva_providers::{
+        LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
+        ProviderResult,
+    };
+    use async_trait::async_trait;
+    use futures::stream;
+    use tokio::time::{timeout, Duration};
+
+    struct FailingStreamProvider;
+
+    #[async_trait]
+    impl LLMProvider for FailingStreamProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            Ok(Box::pin(stream::iter(vec![Err(ProviderError::ApiError(
+                "simulated stream failure".to_string(),
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
 
     #[tokio::test]
     async fn test_agent_loop_creation() {
@@ -422,5 +468,34 @@ mod tests {
         let cfg = SoulGovernanceSettings::default();
         assert!(cfg.frequent_change_window_secs > 0);
         assert!(cfg.frequent_change_threshold > 0);
+    }
+
+    #[tokio::test]
+    async fn test_handle_inbound_emits_error_event_on_provider_failure() {
+        let bus = MessageBus::new();
+        let mut event_rx = bus.subscribe_events();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1));
+        let msg = InboundMessage::new("gui", "user", "chat-1", "Hello");
+
+        agent.handle_inbound(msg).await;
+
+        let error_event = timeout(Duration::from_secs(1), async {
+            loop {
+                let bus_event = event_rx.recv().await.unwrap();
+                if let AgentEvent::Error { message } = bus_event.event {
+                    break (bus_event.channel, bus_event.chat_id, message);
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for error event");
+
+        assert_eq!(error_event.0, "gui");
+        assert_eq!(error_event.1, "chat-1");
+        assert!(error_event.2.contains("simulated stream failure"));
     }
 }

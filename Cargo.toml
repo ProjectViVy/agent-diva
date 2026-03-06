@@ -8,6 +8,7 @@ members = [
     "agent-diva-channels",
     "agent-diva-tools",
     "agent-diva-cli",
+    "agent-diva-service",
     "agent-diva-migration",
     "agent-diva-gui/src-tauri", "agent-diva-manager",
 ]
@@ -62,6 +63,7 @@ lazy_static = "1.4"
 once_cell = "1.19"
 bytes = "1.5"
 which = "6.0"
+windows-service = "0.7"
 
 # Testing
 mockito = "1.2"

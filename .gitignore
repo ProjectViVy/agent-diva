@@ -42,6 +42,10 @@ coverage/
 # Documentation build
 target/doc/
 
+# GUI bundle 构建产物（由 prepare_gui_bundle.py 生成）
+agent-diva-gui/src-tauri/resources/bin/
+agent-diva-gui/src-tauri/resources/manifests/
+
 # Temporary files
 *.tmp
 *.temp

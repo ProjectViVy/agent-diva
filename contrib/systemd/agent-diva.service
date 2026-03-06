@@ -1,0 +1,28 @@
+[Unit]
+Description=Agent Diva Gateway - AI Assistant Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agent-diva
+Group=agent-diva
+ExecStart=/usr/bin/agent-diva gateway run
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+LimitNOFILE=65536
+LimitNPROC=4096
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/agent-diva /var/log/agent-diva
+
+Environment="RUST_LOG=info"
+Environment="AGENT_DIVA_CONFIG_DIR=/etc/agent-diva"
+
+[Install]
+WantedBy=multi-user.target

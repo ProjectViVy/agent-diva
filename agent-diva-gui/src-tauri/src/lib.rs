@@ -93,7 +93,19 @@ pub fn run() {
             commands::get_channels,
             commands::update_channel,
             commands::test_channel,
-            commands::check_health
+            commands::check_health,
+            commands::get_gateway_process_status,
+            commands::start_gateway,
+            commands::stop_gateway,
+            commands::load_config,
+            commands::save_config,
+            commands::tail_logs,
+            commands::get_runtime_info,
+            commands::get_service_status,
+            commands::install_service,
+            commands::uninstall_service,
+            commands::start_service,
+            commands::stop_service
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

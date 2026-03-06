@@ -39,7 +39,9 @@ use tokio::sync::{broadcast, mpsc};
 use tracing::{error, info, warn};
 
 mod client;
+mod service;
 use client::ApiClient;
+use service::{run_service_command, ServiceCommands};
 
 use agent_diva_tools::wtf;
 
@@ -69,8 +71,11 @@ struct Cli {
 enum Commands {
     /// Initialize agent-diva configuration
     Onboard,
-    /// Run the agent gateway
-    Gateway,
+    /// Run and manage the agent gateway
+    Gateway {
+        #[command(subcommand)]
+        command: Option<GatewayCommands>,
+    },
     /// Send a message to the agent
     Agent {
         /// Message to send
@@ -99,11 +104,23 @@ enum Commands {
         #[command(subcommand)]
         command: ChannelCommands,
     },
+    /// Manage the Windows service companion
+    Service {
+        #[command(subcommand)]
+        command: ServiceCommands,
+    },
     /// Manage cron jobs
     Cron {
         #[command(subcommand)]
         command: CronCommands,
     },
+}
+
+#[derive(Subcommand, Clone, Copy)]
+#[command(rename_all = "kebab-case")]
+enum GatewayCommands {
+    /// Run the gateway in foreground mode
+    Run,
 }
 
 #[derive(Subcommand)]
@@ -200,10 +217,12 @@ async fn main() -> Result<()> {
             info!("Running onboard command");
             run_onboard(&config_loader).await?;
         }
-        Commands::Gateway => {
-            info!("Starting gateway");
-            run_gateway(&config_loader).await?;
-        }
+        Commands::Gateway { command } => match command.unwrap_or(GatewayCommands::Run) {
+            GatewayCommands::Run => {
+                info!("Starting gateway");
+                run_gateway(&config_loader).await?;
+            }
+        },
         Commands::Agent {
             message,
             model,
@@ -244,6 +263,10 @@ async fn main() -> Result<()> {
                 run_channel_status(&config_loader).await?;
             }
         },
+        Commands::Service { command } => {
+            info!("Processing service command");
+            run_service_command(cli.config_dir.as_ref(), command).await?;
+        }
         Commands::Cron { command } => match command {
             CronCommands::Add {
                 name,
@@ -509,7 +532,7 @@ async fn run_onboard(loader: &ConfigLoader) -> Result<()> {
     println!("\nYou can now run:");
     println!(
         "  {} - Start the gateway",
-        style("agent-diva gateway").cyan()
+        style("agent-diva gateway run").cyan()
     );
     println!(
         "  {} - Send a message",

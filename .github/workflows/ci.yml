@@ -3,26 +3,45 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    tags:
+      - "v*.*.*"
     paths:
-      - '**.rs'
-      - 'Cargo.toml'
+      - '**/*.rs'
+      - '**/Cargo.toml'
       - 'Cargo.lock'
+      - 'justfile'
+      - 'agent-diva-gui/**'
+      - 'scripts/ci/**'
+      - 'docs/app-building/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main, develop]
     paths:
-      - '**.rs'
-      - 'Cargo.toml'
+      - '**/*.rs'
+      - '**/Cargo.toml'
       - 'Cargo.lock'
+      - 'justfile'
+      - 'agent-diva-gui/**'
+      - 'scripts/ci/**'
+      - 'docs/app-building/**'
       - '.github/workflows/ci.yml'
 
 env:
   CARGO_TERM_COLOR: always
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9'
+
+permissions:
+  contents: write
 
 jobs:
-  check:
-    name: Check
-    runs-on: ubuntu-latest
+  rust-check:
+    name: Rust Check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -34,22 +53,37 @@ jobs:
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Install just
+        run: cargo install just --locked
 
-      - name: Run clippy
-        run: cargo clippy --all -- -D warnings
+      - name: Run workspace validation
+        run: |
+          just fmt-check
+          just check
+          just test
 
-      - name: Check code
-        run: cargo check --all
+      - name: Validate Windows service CLI (dry run)
+        if: runner.os == 'Windows'
+        run: |
+          cargo build -p agent-diva-cli -p agent-diva-service --release
+          .\target\release\agent-diva.exe service install --auto-start --dry-run
+          .\target\release\agent-diva.exe service status --dry-run
+          .\target\release\agent-diva.exe service uninstall --dry-run
 
-  test:
-    name: Test
+  gui-build:
+    name: GUI Build (${{ matrix.os_tag }})
+    needs: rust-check
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable]
+        include:
+          - os: ubuntu-latest
+            os_tag: linux
+          - os: windows-latest
+            os_tag: windows
+          - os: macos-latest
+            os_tag: macos
     steps:
       - uses: actions/checkout@v4
 
@@ -59,18 +93,78 @@ jobs:
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Run tests
-        run: cargo test --all
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
 
-      - name: Run doc tests
-        run: cargo test --doc --all
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: agent-diva-gui/pnpm-lock.yaml
 
-  build:
-    name: Build
+      - name: Install Linux GUI build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Build GUI companion CLI
+        shell: bash
+        run: cargo build -p agent-diva-cli --release
+
+      - name: Build optional service companion
+        shell: bash
+        run: |
+          if [ -f agent-diva-service/Cargo.toml ]; then
+            cargo build -p agent-diva-service --release
+          else
+            echo "agent-diva-service not present; continuing without service binary"
+          fi
+
+      - name: Stage GUI bundle resources
+        run: python scripts/ci/prepare_gui_bundle.py --gui-root agent-diva-gui
+
+      - name: Install frontend dependencies
+        working-directory: agent-diva-gui
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri bundles
+        working-directory: agent-diva-gui
+        run: pnpm tauri build
+
+      - name: Upload GUI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-gui-${{ matrix.os_tag }}-${{ runner.arch }}-${{ github.sha }}
+          path: agent-diva-gui/src-tauri/target/release/bundle/**
+          if-no-files-found: error
+
+  headless-build:
+    name: Headless Build (${{ matrix.os_tag }})
+    needs: rust-check
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            os_tag: linux
+            binary_path: target/release/agent-diva
+          - os: windows-latest
+            os_tag: windows
+            binary_path: target/release/agent-diva.exe
+          - os: macos-latest
+            os_tag: macos
+            binary_path: target/release/agent-diva
     steps:
       - uses: actions/checkout@v4
 
@@ -80,11 +174,39 @@ jobs:
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Build debug
-        run: cargo build --all
+      - name: Build headless binary
+        run: cargo build -p agent-diva-cli --release
 
-      - name: Build release
-        run: cargo build --all --release
+      - name: Read CLI version
+        id: cli_version
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import pathlib
+          import tomllib
+
+          cargo_toml = pathlib.Path("agent-diva-cli/Cargo.toml")
+          data = tomllib.loads(cargo_toml.read_text(encoding="utf-8"))
+          print(f"version={data['package']['version']}")
+          PY
+
+      - name: Package headless bundle
+        shell: bash
+        run: |
+          python scripts/ci/package_headless.py \
+            --binary "${{ matrix.binary_path }}" \
+            --version "${{ steps.cli_version.outputs.version }}" \
+            --os "${{ matrix.os_tag }}" \
+            --arch "${{ runner.arch }}" \
+            --output-dir dist \
+            --readme docs/app-building/headless-bundle-quickstart.md
+
+      - name: Upload headless artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-headless-${{ matrix.os_tag }}-${{ runner.arch }}-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
 
   coverage:
     name: Code Coverage
@@ -106,3 +228,21 @@ jobs:
         with:
           files: ./cobertura.xml
           fail_ci_if_error: false
+
+  release:
+    name: Release (tag)
+    needs: [gui-build, headless-build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./artifacts/**/*

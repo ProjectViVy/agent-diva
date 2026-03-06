@@ -117,7 +117,9 @@ impl Manager {
                                                 if bus_event.channel == channel && bus_event.chat_id == chat_id {
                                                     // Forward event
                                                     let event = bus_event.event;
-                                                    let _ = event_tx.send(event.clone());
+                                                    if event_tx.send(event.clone()).is_err() {
+                                                        break;
+                                                    }
 
                                                     // Check if final
                                                     match event {

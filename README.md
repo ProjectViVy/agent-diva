@@ -88,7 +88,7 @@ Ensure the bot is invited to the server and has appropriate permissions.
 
 ```bash
 # Start the gateway (agents + enabled channels)
-agent-diva gateway
+agent-diva gateway run
 
 # Send a single message
 agent-diva agent --message "Hello, Agent Diva!"
@@ -108,7 +108,7 @@ agent-diva status
 
 ### Scheduled tasks (cron)
 
-`agent-diva gateway` now runs scheduled jobs automatically. You can manage and run jobs from CLI:
+`agent-diva gateway run` now runs scheduled jobs automatically. The legacy `agent-diva gateway` form is still accepted as a compatibility alias. You can manage and run jobs from CLI:
 
 ```bash
 # Add a recurring job

@@ -1,0 +1,20 @@
+[package]
+name = "agent-diva-service"
+version = "0.1.0"
+edition = "2021"
+authors = ["agent-diva contributors"]
+license = "MIT"
+description = "Windows service companion for agent-diva"
+
+[[bin]]
+name = "agent-diva-service"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-service = { workspace = true }

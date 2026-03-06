@@ -1,0 +1,148 @@
+name: Release Artifacts
+
+on:
+  # 自动从 CI workflow 的成功运行中生成 Release 资产
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+  # 手动补发或回溯历史版本时使用
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "CI workflow run id to consume artifacts from"
+        required: true
+        type: string
+      tag:
+        description: "Tag to release (e.g. v0.2.0)"
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Release from CI artifacts
+    runs-on: ubuntu-latest
+    # 自动模式：仅在 CI 成功且分支名以 v 开头（约定为 tag）时执行；
+    # 手动模式：workflow_dispatch 时总是执行。
+    if: >
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_branch, 'v')) ||
+      github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine CI run id and tag
+        id: meta
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            echo "run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_id=${{ inputs.run_id }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Parse release version from tag
+        id: version
+        run: |
+          tag="${{ steps.meta.outputs.tag }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          # 约定 tag 为 vMAJOR.MINOR.PATCH 形式
+          echo "release_version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download GUI and headless artifacts from CI
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.meta.outputs.run_id }}
+          path: _artifacts
+
+      - name: Normalize artifact structure into dist/
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist/gui dist/headless
+
+          echo "Artifacts downloaded to _artifacts/:"
+          ls -R _artifacts || true
+
+          for dir in _artifacts/*; do
+            name="$(basename "$dir")"
+            if [[ -d "$dir" ]]; then
+              case "$name" in
+                agent-diva-gui-*)
+                  echo "Staging GUI artifacts from $name"
+                  mkdir -p "dist/gui/$name"
+                  cp -R "$dir"/. "dist/gui/$name"/
+                  ;;
+                agent-diva-headless-*)
+                  echo "Staging headless artifacts from $name"
+                  mkdir -p dist/headless
+                  cp "$dir"/* dist/headless/ || true
+                  ;;
+                *)
+                  echo "Skipping unrelated artifact: $name"
+                  ;;
+              esac
+            fi
+          done
+
+          echo "dist/ layout after normalization:"
+          ls -R dist || true
+
+      - name: Validate headless bundles structure
+        run: |
+          set -euo pipefail
+
+          if compgen -G "dist/headless/*" > /dev/null; then
+            for archive in dist/headless/*; do
+              echo "Validating headless bundle: $archive"
+              if [[ "$archive" == *.zip ]]; then
+                unzip -l "$archive" | tee /tmp/ls.txt
+              else
+                tar tzf "$archive" | tee /tmp/ls.txt
+              fi
+
+              # 至少包含二进制、README 与 bundle-manifest 关键文件
+              grep -q "agent-diva" /tmp/ls.txt || (echo "missing agent-diva binary in $archive" && exit 1)
+              grep -qi "README" /tmp/ls.txt || (echo "missing README in $archive" && exit 1)
+              grep -qi "bundle-manifest" /tmp/ls.txt || (echo "missing bundle-manifest in $archive" && exit 1)
+            done
+          else
+            echo "No headless bundles found under dist/headless"
+            exit 1
+          fi
+
+      - name: Validate GUI bundles presence
+        run: |
+          set -euo pipefail
+
+          if compgen -G "dist/gui/*" > /dev/null; then
+            echo "GUI bundles present:"
+            ls -R dist/gui
+          else
+            echo "No GUI bundles found under dist/gui"
+            exit 1
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Agent Diva ${{ steps.version.outputs.release_version }}
+          files: |
+            dist/gui/**
+            dist/headless/**
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.tag, 'alpha') || contains(steps.version.outputs.tag, 'beta') || contains(steps.version.outputs.tag, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

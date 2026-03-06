@@ -1,4 +1,4 @@
-﻿# Migration Guide
+# Migration Guide
 
 This guide helps you migrate from the Python version of agent-diva to the Rust version.
 
@@ -116,7 +116,7 @@ Some CLI commands have changed:
 | Python | Rust | Notes |
 |--------|------|-------|
 | `agent-diva chat` | `agent-diva agent` | Renamed for clarity |
-| `agent-diva serve` | `agent-diva gateway` | Renamed for clarity |
+| `agent-diva serve` | `agent-diva gateway run` | Renamed for clarity |
 | `Agent Diva config` | (removed) | Edit config.json directly |
 
 ### API Changes
@@ -177,7 +177,7 @@ The Python version supported dynamic plugin loading. The Rust version uses a dif
 | spawn | ✅ | ✅ |
 | cron | ✅ | ✅ |
 
-> Note: In Rust, cron jobs are executed automatically while `agent-diva gateway` is running.
+> Note: In Rust, cron jobs are executed automatically while `agent-diva gateway run` is running. The bare `agent-diva gateway` form remains available as a compatibility alias.
 
 ## Post-Migration Checklist
 

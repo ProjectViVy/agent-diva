@@ -74,7 +74,7 @@ ANTHROPIC_API_KEY=...
 
 ```bash
 # 启动网关（代理 + 已启用的渠道）
-agent-diva gateway
+agent-diva gateway run
 
 # 发送单条消息
 agent-diva agent --message "Hello, Agent Diva!"
@@ -88,7 +88,7 @@ agent-diva status
 
 ### 定时任务（cron）
 
-`agent-diva gateway` 会自动执行已到期的定时任务。也可通过 CLI 管理和手动触发：
+`agent-diva gateway run` 会自动执行已到期的定时任务。为兼容既有用法，`agent-diva gateway` 仍可继续使用。也可通过 CLI 管理和手动触发：
 
 ```bash
 # 添加循环任务
