@@ -59,14 +59,14 @@ pub struct WebSearchTool {
 }
 
 impl WebSearchTool {
-    /// Create a new web search tool with the default provider (brave).
+    /// Create a new web search tool with the default provider (bocha).
     pub fn new(api_key: Option<String>) -> Self {
-        Self::with_provider_and_max_results("brave", api_key, 5)
+        Self::with_provider_and_max_results("bocha", api_key, 5)
     }
 
-    /// Create with custom max results using brave provider.
+    /// Create with custom max results using bocha provider.
     pub fn with_max_results(api_key: Option<String>, max_results: usize) -> Self {
-        Self::with_provider_and_max_results("brave", api_key, max_results)
+        Self::with_provider_and_max_results("bocha", api_key, max_results)
     }
 
     /// Create with explicit provider and max results.
@@ -91,7 +91,7 @@ impl WebSearchTool {
     }
 
     fn max_results_limit(provider: &str) -> usize {
-        if provider == "zhipu" {
+        if provider == "zhipu" || provider == "bocha" {
             50
         } else {
             10
@@ -105,6 +105,7 @@ impl WebSearchTool {
             .clone()
             .or_else(|| match provider.as_str() {
                 "brave" => std::env::var("BRAVE_API_KEY").ok(),
+                "bocha" => std::env::var("BOCHA_API_KEY").ok(),
                 "zhipu" => std::env::var("ZHIPU_API_KEY")
                     .ok()
                     .or_else(|| std::env::var("BIGMODEL_API_KEY").ok()),
@@ -289,6 +290,113 @@ impl WebSearchTool {
 
         Ok(lines.join("\n"))
     }
+
+    async fn search_bocha(
+        &self,
+        params: &Value,
+        query: &str,
+        count: usize,
+        api_key: &str,
+    ) -> Result<String, ToolError> {
+        let freshness = params
+            .get("freshness")
+            .and_then(|v| v.as_str())
+            .unwrap_or("noLimit");
+        let summary = params
+            .get("summary")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let mut body = serde_json::Map::new();
+        body.insert("query".to_string(), Value::String(query.to_string()));
+        body.insert(
+            "count".to_string(),
+            Value::Number(serde_json::Number::from(count as u64)),
+        );
+        body.insert(
+            "freshness".to_string(),
+            Value::String(freshness.to_string()),
+        );
+        body.insert("summary".to_string(), Value::Bool(summary));
+
+        if let Some(include) = params.get("include").and_then(|v| v.as_str()) {
+            if !include.trim().is_empty() {
+                body.insert("include".to_string(), Value::String(include.to_string()));
+            }
+        }
+        if let Some(exclude) = params.get("exclude").and_then(|v| v.as_str()) {
+            if !exclude.trim().is_empty() {
+                body.insert("exclude".to_string(), Value::String(exclude.to_string()));
+            }
+        }
+
+        let response = self
+            .client
+            .post("https://api.bocha.cn/v1/web-search")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&Value::Object(body))
+            .send()
+            .await
+            .map_err(|e| ToolError::ExecutionFailed(format!("Request failed: {}", e)))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(ToolError::ExecutionFailed(format!(
+                "Bocha request failed ({}): {}",
+                status, text
+            )));
+        }
+
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to parse response: {}", e)))?;
+
+        let results = data
+            .get("data")
+            .and_then(|v| v.get("webPages"))
+            .and_then(|v| v.get("value"))
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| ToolError::ExecutionFailed("No results found".to_string()))?;
+
+        if results.is_empty() {
+            return Ok(format!("No results for: {}", query));
+        }
+
+        let mut lines = vec![format!("Results for: {}\n", query)];
+        for (i, item) in results.iter().take(count).enumerate() {
+            let title = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let url = item.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            lines.push(format!("{}. {}\n   {}", i + 1, title, url));
+
+            let desc = item
+                .get("summary")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.is_empty())
+                .or_else(|| {
+                    item.get("snippet")
+                        .and_then(|v| v.as_str())
+                        .filter(|v| !v.is_empty())
+                });
+            if let Some(desc) = desc {
+                lines.push(format!("   {}", desc));
+            }
+            if let Some(site_name) = item.get("siteName").and_then(|v| v.as_str()) {
+                if !site_name.is_empty() {
+                    lines.push(format!("   Source: {}", site_name));
+                }
+            }
+            if let Some(publish_date) = item.get("datePublished").and_then(|v| v.as_str()) {
+                if !publish_date.is_empty() {
+                    lines.push(format!("   Published: {}", publish_date));
+                }
+            }
+        }
+
+        Ok(lines.join("\n"))
+    }
 }
 
 impl Default for WebSearchTool {
@@ -317,9 +425,26 @@ impl Tool for WebSearchTool {
                 },
                 "count": {
                     "type": "integer",
-                    "description": "Number of results (brave: 1-10, zhipu: 1-50)",
+                    "description": "Number of results (brave: 1-10, bocha/zhipu: 1-50)",
                     "minimum": 1,
                     "maximum": 50
+                },
+                "freshness": {
+                    "type": "string",
+                    "description": "Time range filter (bocha only)",
+                    "enum": ["oneDay", "oneWeek", "oneMonth", "oneYear", "noLimit"]
+                },
+                "summary": {
+                    "type": "boolean",
+                    "description": "Include long-form summaries in results (bocha only)"
+                },
+                "include": {
+                    "type": "string",
+                    "description": "Domain whitelist filter (bocha only)"
+                },
+                "exclude": {
+                    "type": "string",
+                    "description": "Domain blacklist filter (bocha only)"
                 },
                 "search_engine": {
                     "type": "string",
@@ -364,7 +489,7 @@ impl Tool for WebSearchTool {
             .ok_or_else(|| ToolError::InvalidParams("Missing 'query' parameter".to_string()))?;
 
         let provider = self.normalized_provider();
-        if provider != "brave" && provider != "zhipu" {
+        if provider != "brave" && provider != "bocha" && provider != "zhipu" {
             return Err(ToolError::ExecutionFailed(format!(
                 "Unsupported web search provider: {}",
                 provider
@@ -379,6 +504,7 @@ impl Tool for WebSearchTool {
         let api_key = self.resolve_api_key().ok_or_else(|| {
             let hint = match provider.as_str() {
                 "brave" => "BRAVE_API_KEY",
+                "bocha" => "BOCHA_API_KEY",
                 "zhipu" => "ZHIPU_API_KEY or BIGMODEL_API_KEY",
                 _ => "an API key",
             };
@@ -387,6 +513,7 @@ impl Tool for WebSearchTool {
 
         match provider.as_str() {
             "brave" => self.search_brave(query, count, &api_key).await,
+            "bocha" => self.search_bocha(&params, query, count, &api_key).await,
             "zhipu" => self.search_zhipu(&params, query, count, &api_key).await,
             _ => unreachable!(),
         }
@@ -692,10 +819,17 @@ mod tests {
         let tool = WebSearchTool::new(None);
         let params = json!({"query": "rust programming"});
 
-        // Should fail without API key (unless BRAVE_API_KEY env var is set)
+        // Should fail without API key (unless BOCHA_API_KEY env var is set)
         let result = tool.execute(params).await;
         // This might succeed if env var is set, or fail otherwise
         assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_web_search_max_results_limit() {
+        assert_eq!(WebSearchTool::max_results_limit("brave"), 10);
+        assert_eq!(WebSearchTool::max_results_limit("bocha"), 50);
+        assert_eq!(WebSearchTool::max_results_limit("zhipu"), 50);
     }
 
     #[tokio::test]

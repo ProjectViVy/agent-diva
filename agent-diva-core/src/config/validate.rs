@@ -138,19 +138,24 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     }
 
     let provider = config.tools.web.search.provider.trim().to_lowercase();
-    if provider != "brave" && provider != "zhipu" {
+    if provider != "brave" && provider != "bocha" && provider != "zhipu" {
         errors.push(
-            "tools.web.search.provider currently only supports 'brave' or 'zhipu'".to_string(),
+            "tools.web.search.provider currently only supports 'brave', 'bocha', or 'zhipu'"
+                .to_string(),
         );
     }
-    let max_allowed = if provider == "zhipu" { 50 } else { 10 };
+    let max_allowed = if provider == "zhipu" || provider == "bocha" {
+        50
+    } else {
+        10
+    };
     if config.tools.web.search.max_results == 0 || config.tools.web.search.max_results > max_allowed
     {
         errors.push(format!(
             "tools.web.search.max_results must be in [1, {}] when provider='{}'",
             max_allowed,
             if provider.is_empty() {
-                "brave"
+                "bocha"
             } else {
                 &provider
             }
@@ -194,5 +199,15 @@ mod tests {
 
         let err = validate_config(&config).unwrap_err();
         assert!(err.to_string().contains("tools.mcp_servers.bad"));
+    }
+
+    #[test]
+    fn test_validate_bocha_accepts_higher_max_results() {
+        let mut config = Config::default();
+        config.providers.anthropic.api_key = "test-key".to_string();
+        config.tools.web.search.provider = "bocha".to_string();
+        config.tools.web.search.max_results = 50;
+
+        validate_config(&config).unwrap();
     }
 }

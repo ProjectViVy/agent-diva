@@ -643,10 +643,10 @@ impl ConfigMigrator {
             tools: ToolsConfig {
                 web: WebToolsConfig {
                     search: WebSearchConfig {
-                        provider: "brave".to_string(),
+                        provider: "bocha".to_string(),
                         enabled: true,
                         api_key: py.tools.web.search.api_key,
-                        max_results: py.tools.web.search.max_results.clamp(1, 10),
+                        max_results: py.tools.web.search.max_results.clamp(1, 50),
                     },
                     fetch: WebFetchConfig::default(),
                 },

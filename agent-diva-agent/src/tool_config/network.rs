@@ -37,7 +37,7 @@ fn default_enabled() -> bool {
 }
 
 fn default_search_provider() -> String {
-    "brave".to_string()
+    "bocha".to_string()
 }
 
 fn default_max_results() -> u32 {
@@ -65,7 +65,9 @@ impl Default for WebFetchRuntimeConfig {
 
 impl WebSearchRuntimeConfig {
     pub fn normalized_max_results(&self) -> usize {
-        let max = if self.provider.eq_ignore_ascii_case("zhipu") {
+        let max = if self.provider.eq_ignore_ascii_case("zhipu")
+            || self.provider.eq_ignore_ascii_case("bocha")
+        {
             50
         } else {
             10

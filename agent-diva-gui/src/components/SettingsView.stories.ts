@@ -106,7 +106,7 @@ export const Default: Story = {
     toolsConfig: {
       web: {
         search: {
-          provider: 'brave',
+          provider: 'bocha',
           enabled: true,
           api_key: '',
           max_results: 5,
@@ -139,7 +139,7 @@ export const LocalProvider: Story = {
     toolsConfig: {
       web: {
         search: {
-          provider: 'brave',
+          provider: 'bocha',
           enabled: true,
           api_key: '',
           max_results: 5,

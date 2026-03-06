@@ -1,0 +1,2390 @@
+暂时无法在飞书文档外展示此内容
+一、快速开始
+请先前往 博查AI开放平台（https://open.bocha.cn）注册账号并获取API-KEY，免费领取调用资源包。
+Web Search - 进行网页搜索（通搜）
+搜索全网信息和网页链接，返回结果包括网页标题、网页URL、网页摘要、网站名称、网站图标、发布时间、图片链接等，每次搜索返回的网页最多支持50条（count50）。
+- 支持使用自然语言搜索
+- 支持指定搜索的时间范围
+- 支持指定搜索的网站范围
+- 支持输出文本摘要
+- 0.15s 响应时延（极速响应）
+curl --location 'https://api.bocha.cn/v1/web-search' \
+--header 'Authorization: Bearer BOCHA-API-KEY' \
+--header 'Content-Type: application/json' \
+--data '{
+    "query":"阿里巴巴2024年的ESG报告",
+    "summary": true,
+    "freshness":"noLimit",
+    "count": 10
+}'
+AI Search - 进行混合搜索（AI搜）
+搜索全网信息，同时根据搜索词自动获取垂域结构化数据，可开启大模型实时生成答案和追问问题，支持流式输出，每次搜索返回的参考网页最多支持50条（count50）。
+在搜索网页信息的基础上，动态返回垂直领域内容的结构化模态卡，例如天气卡、日历卡、百科卡等几十种模态卡。
+curl --location 'https://api.bocha.cn/v1/ai-search' \
+--header 'Authorization: Bearer BOCHA-API-KEY' \
+--header 'Content-Type: application/json' \
+--data '{
+    "query": "北京天气",
+    "freshness": "noLimit",
+    "count": 10,
+    "answer": false,
+    "stream": false
+}'
+Semantic Rerank - 语义排序（Rerank）
+使用 Bocha Semantic Reranker 分析用户问题与给定文档的语义相关度，给出打分和排序。
+由于Semantic Reranker与LLM都是基于Transformer架构，语义排序后的结果LLM会更加喜欢。
+通知：11月1日起博查搜索开放平台提供的gte-rerank API不再免费，资费调整为：0.005元/次。
+curl --location 'https://api.bocha.cn/v1/rerank' \
+--header 'Authorization: Bearer BOCHA-API-KEY' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "gte-rerank",
+    "query": "阿里巴巴2024年的ESG报告",
+    "top_n": 2,
+    "return_documents": true,
+    "documents": [
+      "阿里巴巴集团发布《2024财年环境、社会和治理（ESG）报告》（下称“报告”），详细分享过去一年在 ESG各方面取得的进展。 报告显示，阿里巴巴扎实推进减碳举措，全集团自身运营净碳排放和价值链碳强度继续实现“双降”。 集团亦持续利用数字技术和平台能力，服务于无障碍、医疗、适老化和中小微企业等普惠发展。 阿里巴巴集团首席执行官吴泳铭在报告中表示：“ESG的核心是围绕如何成为一家更好的公司。 25年来，我们与ESG相关的行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 在集团明确‘用户为先’和‘AI 驱动’的两大业务战略的同时，我们也明确ESG作为阿里巴巴基石战略之一的定位不变。 阿里巴巴在减少碳排放上取得扎实进展。",
+      "ESG的核心是围绕如何成为一家更好的公司。 今年是阿里巴巴成立25年。 25年来，阿里巴巴秉持“让天下没有难做的生意”，协助国内电商繁荣发展；坚持开放生态，魔搭社区已开放了超3800个开源模型；助力乡村振兴，累计派出了29位乡村特派员深入27个县域；推动平台减碳，首创了范围3+减碳方案；坚持全员公益，用“人人3小时”带来小而美的改变……这些行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 我希望这个过程中，每一个阿里人都能学会做难而正确的选择，保持前瞻、保持善意、保持务实。 一个更好的阿里巴巴，值得我们共同努力。 阿里巴巴二十多年来坚持不变的使命，是让天下没有难做的生意。 今天，这一使命被赋予了新的时代意义。"
+      ]
+  }'
+二、产品说明
+一句话介绍
+博查是一个给AI用的世界知识搜索引擎，它可以让你的AI应用连接世界知识，获得干净、准确、高质量的搜索结果。
+博查AI开放平台提供Web Search API、Semantic Reranker API等搜索服务，让你的AI应用可以从近百亿网页和生态内容源中搜索高质量世界知识，包括新闻、图片、视频、百科、机酒、学术等。
+博查是基于多模态混合搜索与语义排序技术的新一代搜索引擎，适用于 AI Agents、AI Chatbots、AI Search 以及各类 RAG 应用的线上应用或数据冷启动。
+Bocha Search API（搜索API）
+Bocha Search API产品提供Web Search、AI Search、Agent Search系列API。分别提供全网搜索、多模态混合搜索和专有领域知识搜索能力。
+[图片]
+Bocha Semantic Reranker API（语义排序API）
+Bocha-semantic-reranker 是博查自研的一种新的语义排序模型。在关键字和向量化混合搜索并得到BM25-ranked结果和RRF-ranked结果之后，抽取top-N利用语义信息对候选结果进行再次排序，并按和query语义相关性进行输出，显著提升搜索结果与用户问题相关性。目前最高支持 @recall50@top_n50的文档排序，将查询语句与文档内容之间的深层语义进行匹配，给出排序结果与得分。
+[图片]
+Bocha-semantic-reranker 基于 Transformer 架构，以 80M 参数实现接近于世界一线 280M、560M参数模型的排序效果，推理速度更快、成本更低、性价比更高。
+[图片]
+博查 Semantic Reranker API 已正式发布，接口文档：Semantic Reranker API
+Bocha Hybrid Search Database（BochaDB）
+支持关键字 + 向量混合搜索，使用 bocha-semantic-reranker 进行二次排序，显著提升搜索结果与问题的相关性。
+[图片]
+BochaDB 目前已经开始小范围内测，待稳定版本开发完成后即开放公测，敬请期待。
+应用场景
+在AI对话、AI搜索、AI智能体等AI应用的开发过程中，均需要引入联网搜索API来提供实时信息来增强检索并且降低大模型的幻觉。国内开展业务需要使用内容合规、高质量的搜索API，但国内还没有厂家提供类似服务。
+博查正式发布AI开放平台，为AI应用提供内容合规、价格实惠、更适合AI使用的搜索服务，数据来源和搜索结果符合国内安全规范，数据不出海，满足B端企业用户应用场景。
+详细介绍
+什么是给AI用的搜索引擎？
+使用方式
+可以通过官方API、大模型Function Call、AI开发平台插件、MCP Server等方式调用。
+[图片]
+三、客户案例
+目前博查已经累计服务30,000+泛企业用户，被100,000+ AI应用接入，并且成为 DeepSeek 官方联网搜索供应方，以及阿里、腾讯、字节、华为等企业的联网搜索能力提供商。博查的搜索内容源包括全网近百亿个网页，以及生态合作内容（含短视频、新闻、百科、天气、医疗、火车票、酒店、餐厅、景点、企业、学术等）。博查后续将会继续与各个平台在内容生态、智能体创作等方面开展共创合作，为博查用户的搜索问题提供丰富多彩的答案。
+[图片]
+四、API列表
+博查提供 3 种 Search API 和 1 种 Rerank API，通过完整搜索引擎与多种合作内容源，提供世界知识搜索服务。内容包含网页链接和超长文本摘要，更适合AI使用且符合国内规范。
+[图片]
+1. Web Search API
+接口文档
+Web Search API
+简介
+从全网搜索任何网页信息和网页链接，结果准确、摘要完整，更适合AI使用。支持设置搜索的时间范围(freshness)，可输出干净的长文本摘要(summary)。
+[图片]
+搜索结果
+包括网页、图片、视频，Response格式兼容Bing Search API。
+- 网页包括name、url、snippet、summary、siteName、siteIcon等信息
+- 图片包括 contentUrl、hostPageUrl、width、height等信息
+[图片]
+2. AI Search API
+接口文档
+AI Search API
+简介
+调用AI搜索回答用户问题，智能识别用户的query词，返回网页、图片、多模态参考源（模态卡）、总结答案和追问问题，支持流式响应和非流式响应两种。
+[图片]
+搜索结果
+- 网页：返回 0～50条网页信息，含摘要。
+- 图片：网页中附带的图片。
+- 模态卡：例如天气、百科、医疗、万年历、火车、星座属相、贵金属、汇率、油价、手机、股票、汽车等。
+模态卡
+模态卡类型如下：
+更新日期
+模态卡类型
+模态卡内容
+2025/01/03
+weather（天气）
+国内天气、国际天气
+2025/01/03
+baike（百科）
+百科类内容
+2025/01/03
+medical（医疗）
+医疗权威内容
+2025/01/03
+calendar（万年历）
+日历
+2025/01/03
+train（火车）
+火车交通车次（含票价）、火车时刻表
+2025/01/03
+star（星座属相）
+星座运势、属相等
+2025/01/03
+gold（贵金属）
+金价、期货价格等
+2025/01/03
+exchangerate（汇率）
+汇率信息
+2025/01/03
+oil（油价）
+油价信息
+2025/01/03
+phone（手机参数对比）
+手机参数、手机参数对比
+2025/01/03
+stock（股票）
+股票信息
+2025/01/03
+car（汽车）
+汽车内容，包括车型库和汽车品牌
+模态卡是指搜索引擎中，根据用户不同的搜索词，动态显示的更深层次的信息。例如当用户搜索：北京天气时返回天气卡，搜索日期时返回日历卡：
+- 天气卡：
+[图片]
+- 日历卡：
+[图片]
+3. Agent Search API
+接口文档
+Agent Search API
+Agent Search 已经结束内测邀请。如需垂直领域内容的搜索，可以使用 AI Search API。
+简介
+调用指定AI智能体回答用户问题，返回专业、有深度的答案和追问问题。
+[图片]
+智能体列表
+名称
+agent_id
+price
+agent_type
+search_engine
+需要开白名单
+开发状态
+餐厅搜索
+bocha-restaurant-agent
+内测免费
+生活
+amap
+需要
+✅
+酒店搜索
+bocha-hotel-agent
+内测免费
+生活
+amap
+需要
+✅
+景点搜索
+bocha-attraction-agent
+内测免费
+生活
+amap
+需要
+✅
+机票搜索
+bocha-flight-ticket-agent
+内测免费
+生活
+ly
+需要
+✅本期免费额度已用完
+火车票搜索
+bocha-train-ticket-agent
+内测免费
+生活
+ly
+需要
+✅本期免费额度已用完
+企业搜索
+bocha-company-agent
+内测免费
+商业
+bocha
+需要
+✅本期免费额度已用完
+学术搜索
+bocha-scholar-agent
+内测免费
+知识
+bocha
+需要
+✅
+文库搜索
+bocha-wenku-agent
+内测免费
+知识
+tencent
+需要
+✅
+请求示例
+[图片]
+4. Semantic Reranker API
+接口文档
+Semantic Reranker API
+简介
+使用 bocha-semantic-reranker 对文档进行排序。
+排序结果
+{
+    "code": 200,
+    "log_id": "56a3067f9b92dfd0",
+    "msg": null,
+    "data": {
+        "model": "bocha-semantic-reranker",
+        "results": [
+            {
+                "index": 0,
+                "document": {
+                    "text": "阿里巴巴集团发布《2024财年环境、社会和治理（ESG）报告》（下称“报告”），详细分享过去一年在 ESG各方面取得的进展。 报告显示，阿里巴巴扎实推进减碳举措，全集团自身运营净碳排放和价值链碳强度继续实现“双降”。 集团亦持续利用数字技术和平台能力，服务于无障碍、医疗、适老化和中小微企业等普惠发展。 阿里巴巴集团首席执行官吴泳铭在报告中表示：“ESG的核心是围绕如何成为一家更好的公司。 25年来，我们与ESG相关的行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 在集团明确‘用户为先’和‘AI 驱动’的两大业务战略的同时，我们也明确ESG作为阿里巴巴基石战略之一的定位不变。 阿里巴巴在减少碳排放上取得扎实进展。"
+                },
+                "relevance_score": 0.7166407801262326
+            },
+            {
+                "index": 1,
+                "document": {
+                    "text": "ESG的核心是围绕如何成为一家更好的公司。 今年是阿里巴巴成立25年。 25年来，阿里巴巴秉持“让天下没有难做的生意”，协助国内电商繁荣发展；坚持开放生态，魔搭社区已开放了超3800个开源模型；助力乡村振兴，累计派出了29位乡村特派员深入27个县域；推动平台减碳，首创了范围3+减碳方案；坚持全员公益，用“人人3小时”带来小而美的改变……这些行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 我希望这个过程中，每一个阿里人都能学会做难而正确的选择，保持前瞻、保持善意、保持务实。 一个更好的阿里巴巴，值得我们共同努力。 阿里巴巴二十多年来坚持不变的使命，是让天下没有难做的生意。 今天，这一使命被赋予了新的时代意义。"
+                },
+                "relevance_score": 0.5658672473649548
+            }
+        ]
+    }
+}
+5. 余额查询 API
+接口文档
+余额查询 API
+简介
+通过此接口实时查询账户的余额情况。
+查询结果
+{
+    "success": true,
+    "code": "200",
+    "msg": "success",
+    "data": {
+        "remaining": 10820856.78 //账户余额，单位：元，保留两位小数（分）
+    },
+    "timestamp": 1739845090213
+}
+五、联系我们
+[图片]
+
+Web Search API
+一、API简介
+从全网搜索任何网页信息和网页链接，结果准确、摘要完整，更适合AI使用。
+可配置搜索时间范围、是否显示摘要，支持按分页获取更多结果。
+二、搜索结果
+包括网页、图片、视频，Response格式兼容Bing Search API。
+- 网页包括name、url、snippet、summary、siteName、siteIcon、datePublished等信息
+[图片]
+- 图片包括 contentUrl、hostPageUrl、width、height等信息
+- 视频搜索目前在WebSearch中暂未开放
+三、API接口
+接口域名：https://api.bocha.cn/
+EndPoint：https://api.bocha.cn/v1/web-search
+四、调用方式
+请求方式
+POST
+请求参数
+请求头
+参数
+取值
+说明
+Authorization
+Bearer {API KEY} 
+
+鉴权参数，示例：Bearer xxxxxx，API KEY请先前往博查AI开放平台（https://open.bocha.cn）> API KEY 管理中获取。
+Content-Type 
+application/json 
+解释请求正文的方式。 
+请求体
+参数
+类型
+必填
+说明
+query
+String 
+是
+用户的搜索词。
+freshness
+String
+
+否
+搜索指定时间范围内的网页。
+可填值：
+- noLimit，不限（默认）
+- oneDay，一天内
+- oneWeek，一周内
+- oneMonth，一个月内
+- oneYear，一年内
+- YYYY-MM-DD..YYYY-MM-DD，搜索日期范围，例如："2025-01-01..2025-04-06"
+- YYYY-MM-DD，搜索指定日期，例如："2025-04-06"
+推荐使用“noLimit”。搜索算法会自动进行时间范围的改写，效果更佳。如果指定时间范围，很有可能出现时间范围内没有相关网页的情况，导致找不到搜索结果。
+summary
+
+Boolean
+否
+是否显示文本摘要。
+可填值：
+- true，显示
+- false，不显示（默认）
+include
+String
+否
+指定搜索的网站范围。多个域名使用|或,分隔，最多不能超过100个
+可填值：
+- 根域名
+- 子域名
+例如：qq.com|m.163.com
+exclude
+String
+否
+排除搜索的网站范围。多个域名使用|或,分隔，最多不能超过100个
+可填值：
+- 根域名
+- 子域名
+例如：qq.com|m.163.com
+count
+
+Int
+
+否
+返回结果的条数（实际返回结果数量可能会小于count指定的数量）。
+- 可填范围：1-50，最大单次搜索返回50条
+- 默认为10
+响应内容
+响应定义
+SearchData
+- _type: "SearchResponse" 搜索的类型
+- queryContext: WebSearchQueryContext 
+- webPages: WebSearchWebPages 搜索的网页结果
+- images: WebSearchImages 搜索的图片结果
+- videos: WebSearchVideos 搜索的视频结果
+WebSearchQueryContext
+- originalQuery: String 原始的搜索关键字
+WebSearchWebPages
+- webSearchUrl: String
+- totalEstimatedMatches: int 搜索匹配的网页总数
+- value: List<WebPageValue>
+- someResultsRemoved: boolean 结果中是否有被安全过滤
+WebPageValue
+- id: String 网页的排序ID
+- name: String 网页的标题
+- url: String 网页的URL
+- displayUrl: String 网页的展示URL（url decode后的格式）
+- snippet: String 网页内容的简短描述
+- summary: String 网页内容的文本摘要，当请求参数中 summary 为 true 时显示此属性
+- siteName: String 网页的网站名称
+- siteIcon: String 网页的网站图标
+- datePublished: String 网页的发布时间（例如：2025-02-23T08:18:30+08:00），UTC+8时间
+- dateLastCrawled: String 网页的发布时间（此处其实是发布时间，名字起为LastCrawled是兼容性适配）
+接口中返回的dateLastCrawled值（例如：2025-02-23T08:18:30Z）实际上要表达的是 UTC+8 北京时间2025-02-23 08:18:30，并非UTC时间。
+实际应用中请使用 datePublished 字段，或将"2025-02-23T08:18:30Z"替换成"2025-02-23T08:18:30+08:00"，即得到正确的UTC+8时间，可以使用 datetime 函数正确解析。
+这个问题我们会在将来v2版本中修复。
+- cachedPageUrl: String 网页的缓存页面URL
+- language: String 网页的语言
+- isFamilyFriendly: boolean 是否为家庭友好的页面
+- isNavigational: boolean 是否为导航性页面
+WebSearchImages
+- id: String 
+- readLink: String
+- webSearchUrl: String
+- isFamilyFriendly: boolean
+- value: List<ImageValue>
+WebSearchVideos
+- id: String
+- readLink: String
+- webSearchUrl: String
+- isFamilyFriendly: boolean
+- scenario: String
+- value: List<VideoValue>
+ImageValue
+- webSearchUrl: String
+- name: String
+- thumbnailUrl: String
+- datePublished: String
+- contentUrl: String
+- hostPageUrl: String
+- contentSize: String
+- encodingFormat: String
+- hostPageDisplayUrl: String
+- width: int
+- height: int
+- thumbnail: Thumbnail
+VideoValue
+- webSearchUrl: String
+- name: String
+- description: String
+- thumbnailUrl: String
+- publisher: List<Publisher>
+- creator: Creator
+- contentUrl: String
+- hostPageUrl: String
+- encodingFormat: String
+- hostPageDisplayUrl: String
+- width: int
+- height: int
+- duration: String
+- motionThumbnailUrl: String
+- embedHtml: String
+- allowHttpsEmbed: boolean
+- viewCount: int
+- thumbnail: Thumbnail
+- allowMobileEmbed: boolean
+- isSuperfresh: boolean
+- datePublished: String
+Creator
+- name: String
+Publisher
+- name: String
+Thumbnail
+- height: int
+- width: int
+RankingResponse
+- mainline: Mainline
+Mainline
+- items: List<MainlineItem>
+MainlineItem
+- answerType: String
+- value: MainlineItemValue
+MainlineItemValue
+- id: String
+调用示例
+请求内容
+body：
+{
+    "query": "阿里巴巴2024年的esg报告",
+    "freshness": "noLimit",
+    "summary": true,
+    "count": 50
+}
+响应内容
+{
+    "code": 200,
+    "log_id": "d71841ad20095f61",
+    "msg": null,
+    "data": {
+        "_type": "SearchResponse",
+        "queryContext": {
+            "originalQuery": "阿里巴巴2024年的esg报告"
+        },
+        "webPages": {
+            "webSearchUrl": "",
+            "totalEstimatedMatches": 8912791,
+            "value": [
+                {
+                    "id": null,
+                    "name": "阿里巴巴发布2024年ESG报告　持续推进减碳与数字化普惠",
+                    "url": "https://www.alibabagroup.com/document-1752073403914780672",
+                    "displayUrl": "https://www.alibabagroup.com/document-1752073403914780672",
+                    "snippet": "阿里巴巴集团发布《2024财年环境、社会和治理（ESG）报告》（下称“报告”），详细分享过去一年在ESG各方面取得的进展。报告显示，阿里巴巴扎实推进减碳举措，全集团自身运营净碳排放和价值链碳...",
+                    "siteName": "www.alibabagroup.com",
+                    "siteIcon": "https://th.bochaai.com/favicon?domain_url=https://www.alibabagroup.com/document-1752073403914780672",
+                    "dateLastCrawled": "2024-07-22T00:00:00Z",
+                    "cachedPageUrl": null,
+                    "language": null,
+                    "isFamilyFriendly": null,
+                    "isNavigational": null
+                },
+                {
+                    "id": null,
+                    "name": "阿里巴巴发布2024年ESG报告: 保持前瞻、保持善意、保持务实",
+                    "url": "https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "displayUrl": "https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "snippet": "2024财年是阿里巴巴深化ESG治理的一年。在环境保护议题中，阿里巴巴以ESG治理机制的保障为基础，继续探索“在发展中减碳”，通过科技提升能源利用效率，使用可再生能源、带动生态伙伴参与等方式，推进绿色低碳高质量发展。数据显示，2024财年，阿里巴巴实现自身运营碳排放和价值链碳排放强度的“双降”目标；自身运营中的减排量达到232.0万吨，相比上一财年显著提升63.5%；清洁电力使用比例...",
+                    "siteName": "大鱼号",
+                    "siteIcon": "https://th.bochaai.com/favicon?domain_url=https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "dateLastCrawled": "2024-07-22T11:54:00Z",
+                    "cachedPageUrl": null,
+                    "language": null,
+                    "isFamilyFriendly": null,
+                    "isNavigational": null
+                },
+                {
+                    "id": null,
+                    "name": "186页|阿里巴巴：2024年环境、社会和治理（ESG）报告",
+                    "url": "https://m.sohu.com/a/815036254_121819701/?pvid=000115_3w_a",
+                    "displayUrl": "https://m.sohu.com/a/815036254_121819701/?pvid=000115_3w_a",
+                    "snippet": "阿里巴巴集团的2024年环境、社会和治理（ESG）报告涵盖了公司在可持续发展方面的多项进展和成就。报告强调了公司的使命—“让天下没有难做的生意”，并通过技术创新和平台优势，支持中小微企...",
+                    "siteName": "搜狐网",
+                    "siteIcon": "https://th.bochaai.com/favicon?domain_url=https://m.sohu.com/a/815036254_121819701/?pvid=000115_3w_a",
+                    "dateLastCrawled": "2024-11-07T06:50:00Z",
+                    "cachedPageUrl": null,
+                    "language": null,
+                    "isFamilyFriendly": null,
+                    "isNavigational": null
+                },
+                {
+                    "id": null,
+                    "name": "阿里巴巴发布2024年ESG报告，阿里云数据中心清洁能源占比达56.0%",
+                    "url": "http://tech.cnr.cn/techph/20240722/t20240722_526807992.shtml",
+                    "displayUrl": "http://tech.cnr.cn/techph/20240722/t20240722_526807992.shtml",
+                    "snippet": "阿里巴巴集团发布《环境、社会和治理报告（2024）》（以下简称“ESG报告”）提及，阿里巴巴自身运营减少碳排放量达232.0万吨，相比上一财年显著提升63.5%，其中，阿里云自建数据中心电力使用效率（PUE）从 2023财年1.215降至1.2...",
+                    "siteName": "央广网",
+                    "siteIcon": "https://th.bochaai.com/favicon?domain_url=http://tech.cnr.cn/techph/20240722/t20240722_526807992.shtml",
+                    "dateLastCrawled": "2024-07-22T17:54:38Z",
+                    "cachedPageUrl": null,
+                    "language": null,
+                    "isFamilyFriendly": null,
+                    "isNavigational": null
+                },
+                {
+                    "id": null,
+                    "name": "CSR周刊：京东物流携手野生救援共推环境保护，阿里巴巴发布2024年ESG报告引领可持续发展",
+                    "url": "https://m.thepaper.cn/newsDetail_forward_28258281",
+                    "displayUrl": "https://m.thepaper.cn/newsDetail_forward_28258281",
+                    "snippet": "·阿里巴巴发布2024年ESG报告：保持前瞻、保持善意、保持务实·TT语音发布首份网络信息内容生态治理报告·Atlas Corp.发布《2023年可持续发展报告》·唯品会发布《环境、社会及治理报告（2023...",
+                    "siteName": "澎拜",
+                    "siteIcon": "https://th.bochaai.com/favicon?domain_url=https://m.thepaper.cn/newsDetail_forward_28258281",
+                    "dateLastCrawled": "2024-07-31T18:09:00Z",
+                    "cachedPageUrl": null,
+                    "language": null,
+                    "isFamilyFriendly": null,
+                    "isNavigational": null
+                },
+                {
+                    "id": null,
+                    "name": "阿里巴巴ESG报告：2024财年优酷无障碍剧场播放次数近百万",
+                    "url": "https://t.m.youth.cn/transfer/index/url/news.youth.cn/yl/202407/t20240722_15396110.htm",
+                    "displayUrl": "https://t.m.youth.cn/transfer/index/url/news.youth.cn/yl/202407/t20240722_15396110.htm",
+                    "snippet": "阿里巴巴2024年ESG报告截图 无障碍电影在影片台词与声效间隙增加旁白解说，帮助视障观众了解剧情。过去一年，优酷无障碍剧场以科技推动无障碍观影建设，开发明星AI语音讲述包;在线上积极扩充片库，加快新热剧集、电影的更新速度;在线下进社区、进影院、进校园，为视障者带去不一样的观影体验。在取得诸多成绩此同时，越来越多的公益机构和爱心人士也加入其中，共同为中国无障碍事业发展贡献力量。前沿技术是优酷无障碍剧场发展的重要力量。两个月前，无障碍剧场上线演员胡歌的AI语音讲述包，这也是国内视听平台首次运...",
+                    "siteName": "中国青年网",
+                    "siteIcon": "https://th.bochaai.com/favicon?domain_url=https://t.m.youth.cn/transfer/index/url/news.youth.cn/yl/202407/t20240722_15396110.htm",
+                    "dateLastCrawled": "2024-07-22T18:48:00Z",
+                    "cachedPageUrl": null,
+                    "language": null,
+                    "isFamilyFriendly": null,
+                    "isNavigational": null
+                },
+                {
+                    "id": null,
+                    "name": "2024年阿里巴巴环境、社会和治理（ESG）报告-阿里巴巴",
+                    "url": "https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "displayUrl": "https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "snippet": "《2024年阿里巴巴环境、社会和治理（ESG）报告》由阿里巴巴集团发布，涵盖修复绿色星球、支持员工发展、服务可持续的美好生活、助力中小微企业高质量发展、助力提升社会包容和韧性、推动人人参与的公益、构建信任等方面内容。在修复绿色星球方面，阿里巴巴致力于实现碳中和，通过技术创新和管理优化降低自身运营和价值链的碳排放，同时带动和赋能平台生态减排；在支持员工发展方面，推动多元、平等和共融，吸引和保留人才，促进员工健康与活力；在...",
+                    "siteName": "搜狐网",
+                    "siteIcon": "https://th.bochaai.com/favicon?domain_url=https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "dateLastCrawled": "2024-07-26T12:33:00Z",
+                    "cachedPageUrl": null,
+                    "language": null,
+                    "isFamilyFriendly": null,
+                    "isNavigational": null
+                }
+            ],
+            "someResultsRemoved": true
+        },
+        "images": {
+            "id": null,
+            "readLink": null,
+            "webSearchUrl": null,
+            "value": [
+                {
+                    "webSearchUrl": null,
+                    "name": null,
+                    "thumbnailUrl": "http://dayu-img.uc.cn/columbus/img/oc/1002/45628755e2db09ccf7e6ea3bf22ad2b0.jpg",
+                    "datePublished": null,
+                    "contentUrl": "http://dayu-img.uc.cn/columbus/img/oc/1002/45628755e2db09ccf7e6ea3bf22ad2b0.jpg",
+                    "hostPageUrl": "https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "contentSize": null,
+                    "encodingFormat": null,
+                    "hostPageDisplayUrl": "https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "width": 553,
+                    "height": 311,
+                    "thumbnail": null
+                },
+                {
+                    "webSearchUrl": null,
+                    "name": null,
+                    "thumbnailUrl": "http://image.uczzd.cn/15500294364735623464.jpg?id=0&from=export",
+                    "datePublished": null,
+                    "contentUrl": "http://image.uczzd.cn/15500294364735623464.jpg?id=0&from=export",
+                    "hostPageUrl": "https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "contentSize": null,
+                    "encodingFormat": null,
+                    "hostPageDisplayUrl": "https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "width": 0,
+                    "height": 0,
+                    "thumbnail": null
+                },
+                {
+                    "webSearchUrl": null,
+                    "name": null,
+                    "thumbnailUrl": "http://image.uczzd.cn/11174338884233139640.jpg?id=0&from=export",
+                    "datePublished": null,
+                    "contentUrl": "http://image.uczzd.cn/11174338884233139640.jpg?id=0&from=export",
+                    "hostPageUrl": "https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "contentSize": null,
+                    "encodingFormat": null,
+                    "hostPageDisplayUrl": "https://mparticle.uc.cn/article_org.html?uc_param_str=frdnsnpfvecpntnwprdssskt#!wm_cid=632457937121448960!!wm_id=b3f0578cbbd8434da8e437702e399f91",
+                    "width": 0,
+                    "height": 0,
+                    "thumbnail": null
+                },
+                {
+                    "webSearchUrl": null,
+                    "name": null,
+                    "thumbnailUrl": "http://q9.itc.cn/q_70/images01/20240726/3bbb91f089924a56b5abb95d0776fcc5.png",
+                    "datePublished": null,
+                    "contentUrl": "http://q9.itc.cn/q_70/images01/20240726/3bbb91f089924a56b5abb95d0776fcc5.png",
+                    "hostPageUrl": "https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "contentSize": null,
+                    "encodingFormat": null,
+                    "hostPageDisplayUrl": "https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "width": 1285,
+                    "height": 722,
+                    "thumbnail": null
+                },
+                {
+                    "webSearchUrl": null,
+                    "name": null,
+                    "thumbnailUrl": "http://q6.itc.cn/q_70/images01/20240726/490b71f2963b43588bb053f20bb4d775.png",
+                    "datePublished": null,
+                    "contentUrl": "http://q6.itc.cn/q_70/images01/20240726/490b71f2963b43588bb053f20bb4d775.png",
+                    "hostPageUrl": "https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "contentSize": null,
+                    "encodingFormat": null,
+                    "hostPageDisplayUrl": "https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "width": 883,
+                    "height": 374,
+                    "thumbnail": null
+                },
+                {
+                    "webSearchUrl": null,
+                    "name": null,
+                    "thumbnailUrl": "http://q7.itc.cn/q_70/images01/20240726/ee26d6fa8658472d8b4c5e7236b1640a.png",
+                    "datePublished": null,
+                    "contentUrl": "http://q7.itc.cn/q_70/images01/20240726/ee26d6fa8658472d8b4c5e7236b1640a.png",
+                    "hostPageUrl": "https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "contentSize": null,
+                    "encodingFormat": null,
+                    "hostPageDisplayUrl": "https://m.sohu.com/a/796245119_121713887/?pvid=000115_3w_a",
+                    "width": 1285,
+                    "height": 722,
+                    "thumbnail": null
+                }
+            ],
+            "isFamilyFriendly": null
+        },
+        "videos": null
+    }
+}
+当前版本Web Search API 暂不返回 videos （返回结果为空）。如需视频搜索能力，请先使用 AI Search API中的视频结果。
+五、Python SDK
+import requests
+import json
+
+url = "https://api.bocha.cn/v1/web-search"
+
+payload = json.dumps({
+  "query": "天空为什么是蓝色的？",
+  "summary": True,
+  "count": 10
+})
+
+headers = {
+  'Authorization': 'Bearer sk-********',
+  'Content-Type': 'application/json'
+}
+
+response = requests.request("POST", url, headers=headers, data=payload)
+
+print(response.json())
+六、OpenAPI Yaml配置文件
+在各种 AI Agent 开发平台中，可以参考以下下的 yaml 文件，快速添加成自定义插件：
+openapi: 3.0.3
+info:
+  title: 博查AI搜索
+  description: 从博查搜索网页信息和网页链接，搜索结果准确、完整，更适合AI使用。
+  version: 1.0.0
+servers:
+  - url: https://api.bocha.cn/v1
+paths:
+  /web-search:
+    post:
+      summary: 从近百亿网页和生态内容源中搜索高质量世界知识，例如新闻、图片、百科、文库等。
+      operationId: WebSearch
+      requestBody:
+        description: 请求参数
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: 搜索关键字或语句
+                  example: "阿里巴巴2024年的ESG报告"
+                summary:
+                  type: boolean
+                  description: 是否在搜索结果中包含摘要
+                  example: true
+                freshness:
+                  type: string
+                  description: 搜索指定时间范围内的网页（可选值 "noLimit"、"oneDay"、"oneWeek"、"oneMonth"、"oneYear"）
+                  default: "noLimit"
+                  enum:
+                    - "noLimit"
+                    - "oneDay"
+                    - "oneWeek"
+                    - "oneMonth"
+                    - "oneYear"
+                  example: "noLimit"
+                count:
+                  type: integer
+                  description: 返回的搜索结果数量（1-8），默认为8
+                  default: 10
+                  minimum: 1
+                  maximum: 50
+                  example: 10
+              required:
+                - query
+                - count
+      responses:
+        '200':
+          description: 成功的搜索响应
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 响应的状态码
+                    example: 200
+                  log_id:
+                    type: string
+                    description: 请求的唯一日志ID
+                    example: "0d0eb34abc6eec9d"
+                  msg:
+                    type: string
+                    nullable: true
+                    description: 请求的消息提示（如果有的话）
+                    example: null
+                  data:
+                    type: object
+                    properties:
+                      _type:
+                        type: string
+                        description: 搜索的类型
+                        example: "SearchResponse"
+                      queryContext:
+                        type: object
+                        properties:
+                          originalQuery:
+                            type: string
+                            description: 原始的搜索关键字
+                            example: "阿里巴巴2024年的ESG报告"
+                      webPages:
+                        type: object
+                        properties:
+                          webSearchUrl:
+                            type: string
+                            description: 网页搜索的URL
+                            example: "https://bochaai.com/search?q=阿里巴巴2024年的ESG报告"
+                          totalEstimatedMatches:
+                            type: integer
+                            description: 搜索匹配的网页总数
+                            example: 1618000
+                          value:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                  nullable: true
+                                  description: 网页的排序ID
+                                name:
+                                  type: string
+                                  description: 网页的标题
+                                url:
+                                  type: string
+                                  description: 网页的URL
+                                displayUrl:
+                                  type: string
+                                  description: 网页的展示URL
+                                snippet:
+                                  type: string
+                                  description: 网页内容的简短描述
+                                summary:
+                                  type: string
+                                  description: 网页内容的文本摘要
+                                siteName:
+                                  type: string
+                                  description: 网页的网站名称
+                                siteIcon:
+                                  type: string
+                                  description: 网页的网站图标
+                                datePublished:
+                                  type: string
+                                  format: date-time
+                                  description: 网页的发布时间
+                                dateLastCrawled:
+                                  type: string
+                                  format: date-time
+                                  description: 网页的收录时间或发布时间
+                                cachedPageUrl:
+                                  type: string
+                                  nullable: true
+                                  description: 网页的缓存页面URL
+                                language:
+                                  type: string
+                                  nullable: true
+                                  description: 网页的语言
+                                isFamilyFriendly:
+                                  type: boolean
+                                  nullable: true
+                                  description: 是否为家庭友好的页面
+                                isNavigational:
+                                  type: boolean
+                                  nullable: true
+                                  description: 是否为导航性页面
+                      images:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            nullable: true
+                            description: 图片搜索结果的ID
+                          webSearchUrl:
+                            type: string
+                            nullable: true
+                            description: 图片搜索的URL
+                          value:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                webSearchUrl:
+                                  type: string
+                                  nullable: true
+                                  description: 图片搜索结果的URL
+                                name:
+                                  type: string
+                                  nullable: true
+                                  description: 图片的名称
+                                thumbnailUrl:
+                                  type: string
+                                  description: 图像缩略图的URL
+                                  example: "http://dayu-img.uc.cn/columbus/img/oc/1002/45628755e2db09ccf7e6ea3bf22ad2b0.jpg"
+                                datePublished:
+                                  type: string
+                                  nullable: true
+                                  description: 图像的发布日期
+                                contentUrl:
+                                  type: string
+                                  description: 访问全尺寸图像的URL
+                                  example: "http://dayu-img.uc.cn/columbus/img/oc/1002/45628755e2db09ccf7e6ea3bf22ad2b0.jpg"
+                                hostPageUrl:
+                                  type: string
+                                  description: 图片所在网页的URL
+                                  example: "http://dayu-img.uc.cn/columbus/img/oc/1002/45628755e2db09ccf7e6ea3bf22ad2b0.jpg"
+                                contentSize:
+                                  type: string
+                                  nullable: true
+                                  description: 图片内容的大小
+                                encodingFormat:
+                                  type: string
+                                  nullable: true
+                                  description: 图片的编码格式
+                                hostPageDisplayUrl:
+                                  type: string
+                                  nullable: true
+                                  description: 图片所在网页的显示URL
+                                width:
+                                  type: integer
+                                  description: 图片的宽度
+                                  example: 553
+                                height:
+                                  type: integer
+                                  description: 图片的高度
+                                  example: 311
+                                thumbnail:
+                                  type: string
+                                  nullable: true
+                                  description: 图片缩略图（如果有的话）
+                      videos:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            nullable: true
+                            description: 视频搜索结果的ID
+                          readLink:
+                            type: string
+                            nullable: true
+                            description: 视频的读取链接
+                          webSearchUrl:
+                            type: string
+                            nullable: true
+                            description: 视频搜索的URL
+                          isFamilyFriendly:
+                            type: boolean
+                            description: 是否为家庭友好的视频
+                          scenario:
+                            type: string
+                            description: 视频的场景
+                          value:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                webSearchUrl:
+                                  type: string
+                                  description: 视频搜索结果的URL
+                                name:
+                                  type: string
+                                  description: 视频的名称
+                                description:
+                                  type: string
+                                  description: 视频的描述
+                                thumbnailUrl:
+                                  type: string
+                                  description: 视频的缩略图URL
+                                publisher:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      name:
+                                        type: string
+                                        description: 发布者名称
+                                creator:
+                                  type: object
+                                  properties:
+                                    name:
+                                      type: string
+                                      description: 创作者名称
+                                contentUrl:
+                                  type: string
+                                  description: 视频内容的URL
+                                hostPageUrl:
+                                  type: string
+                                  description: 视频所在网页的URL
+                                encodingFormat:
+                                  type: string
+                                  description: 视频编码格式
+                                hostPageDisplayUrl:
+                                  type: string
+                                  description: 视频所在网页的显示URL
+                                width:
+                                  type: integer
+                                  description: 视频的宽度
+                                height:
+                                  type: integer
+                                  description: 视频的高度
+                                duration:
+                                  type: string
+                                  description: 视频的长度
+                                motionThumbnailUrl:
+                                  type: string
+                                  description: 动态缩略图的URL
+                                embedHtml:
+                                  type: string
+                                  description: 用于嵌入视频的HTML代码
+                                allowHttpsEmbed:
+                                  type: boolean
+                                  description: 是否允许HTTPS嵌入
+                                viewCount:
+                                  type: integer
+                                  description: 视频的观看次数
+                                thumbnail:
+                                  type: object
+                                  properties:
+                                    height:
+                                      type: integer
+                                      description: 视频缩略图的高度
+                                    width:
+                                      type: integer
+                                      description: 视频缩略图的宽度
+                                allowMobileEmbed:
+                                  type: boolean
+                                  description: 是否允许移动端嵌入
+                                isSuperfresh:
+                                  type: boolean
+                                  description: 是否为最新视频
+                                datePublished:
+                                  type: string
+                                  description: 视频的发布日期
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 未授权 - API 密钥无效或缺失
+        '500':
+          description: 搜索服务内部错误
+      security:
+        - apiKeyAuth: []
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+
+七、异常码
+http异常码
+消息体
+异常原因
+处理方式
+403
+
+{
+  "code": "403",
+  "message": "You do not have enough money",
+  "log_id": "c66aac17eab1bb7e"
+}
+余额不足
+请前往 https://open.bochaai.com 进行充值
+400
+{
+  "code": "400",
+  "message": "Missing parameter query",
+  "log_id": "c66aac17eab1bb7e"
+}
+请求参数缺失
+
+400
+{
+  "code": "400",
+  "message": "The API KEY is missing",
+  "log_id": "c66aac17eab1bb7e"
+}
+权限校验失败，Header 缺少 Authorization
+
+401
+{
+  "code": "401",
+  "message": "Invalid API KEY",
+  "log_id": "c66aac17eab1bb7e"
+}
+API KEY无效
+权限校验失败
+429
+{
+  "code": "429",
+  "message": "You have reached the request limit",
+  "log_id": "c66aac17eab1bb7e"
+}
+请求频达到率限制
+频率限制与总充值金额有关，具体详见：API 定价
+500
+{
+  "code": "500",
+  "message": "xxxx",
+  "log_id": "c66aac17eab1bb7e"
+}
+各种异常
+AI Search API
+一、API简介
+调用AI搜索回答用户问题，返回网页、图片、多模态参考源（模态卡）、总结答案和追问问题。
+搜索全网信息，同时根据搜索词自动获取垂域结构化数据，可开启大模型实时生成答案和追问问题，支持流式输出，每次搜索返回的参考网页最多支持50条（count50）。
+二、搜索结果
+- 网页：返回最多50条网页信息，含摘要。
+- 图片：网页中附带的图片。
+- 模态卡：例如天气、百科、医疗、万年历、火车、星座属相、贵金属、汇率、油价、手机、股票、汽车等。
+模态卡
+模态卡类型如下：
+更新日期
+模态卡类型
+模态卡内容
+2025/01/03
+weather（天气）
+国内天气、国际天气
+2025/01/03
+baike（百科）
+百科类内容
+2025/01/03
+medical（医疗）
+医疗权威内容
+2025/01/03
+calendar（万年历）
+日历
+2025/01/03
+train（火车）
+火车交通车次（含票价）、火车时刻表
+2025/01/03
+star（星座属相）
+星座运势、属相等
+2025/01/03
+gold（贵金属）
+金价、期货价格等
+2025/01/03
+exchangerate（汇率）
+汇率信息
+2025/01/03
+oil（油价）
+油价信息
+2025/01/03
+phone（手机参数对比）
+手机参数、手机参数对比
+2025/01/03
+stock（股票）
+股票信息
+2025/01/03
+car（汽车）
+汽车内容，包括车型库和汽车品牌
+模态卡是指搜索引擎中，根据用户不同的搜索词，动态显示的更深层次的信息。例如当用户搜索：北京天气时返回天气卡，搜索日期时返回日历卡：
+- 天气卡：
+[图片]
+- 日历卡：
+[图片]
+2024年11月13日起，抖音视频需要配合SDK才能唤起视频播放，因此返回结果中的douyin object将不再提供原始视频播放链接及部分播放数据，请悉知。
+三、API接口
+接口域名：https://api.bocha.cn
+EndPoint：https://api.bocha.cn/v1/ai-search
+四、调用方式
+请求方式
+POST
+请求参数
+请求头
+参数
+取值
+说明
+Authorization
+Bearer {API KEY} 
+鉴权参数，示例：Bearer xxxxxx
+Content-Type 
+application/json 
+解释请求正文的方式。 
+Connection 
+keep-alive 
+网络连接在当前请求/响应后是否应保持打开状态或应关闭。 
+Accept 
+*/*  
+客户端可以接受的媒体类型。 设置为 */* 接受所有类型。 
+请求体
+参数
+类型
+必填
+说明
+query
+String 
+是
+用户的搜索内容。
+freshness
+String
+否
+搜索指定时间范围内的网页。
+可填值：
+- oneDay，一天内
+- oneWeek，一周内
+- oneMonth，一个月内
+- oneYear，一年内
+- noLimit，不限（默认）
+include
+String
+否
+指定搜索的 site 范围。多个域名使用|或,分隔，最多不能超过100个
+可填值：
+- 根域名
+- 子域名
+例如：qq.com|m.163.com
+也可以在query中使用site方式来指定搜索范围。
+例如："query" : "site:qq.com|m.163.com 阿里ESG报告"
+count
+Int
+否
+每次搜索返回搜索结果的数量，最多50条。默认10条。
+（返回的结果数量有可能小于指定的count值）
+answer
+
+Boolean
+
+否
+
+是否使用大模型进行回答。 默认为 true。
+- false：关闭大模型回答，不再输出总结答案和追问问题。 
+- true：设置为 true 表示使用大模型回答，接口返回总结答案、追问问题。
+stream
+
+Boolean
+
+否
+是否启用流式返回。 默认为 false。
+- false：如果未指定值或设置为 false，则采用非流式响应。 “非流式响应”是指所有响应全部准备好后再返回给客户端，客户端不需要拼接内容。 
+- true：设置为 true 表示采用流式响应。 “流式响应”将模型的实时响应提供给客户端，客户端需要根据消息类型组装最终的回复。
+非流式返回
+响应内容
+当使用非流式响应时，在大模型生成了所有要返回的内容后，将返回的消息发送给客户端，调用者无需拼接返回内容。但客户端必须等待整个数据加载完毕才能处理它。
+参数
+类型
+说明
+conversation_id
+String
+会话 ID。
+messages
+
+List<Object>
+全部消息都处理完成后，以 JSON 数组形式返回。
+详情请参考流式返回中 Message Object 消息结构的具体说明。
+code
+Integer
+状态码。
+200 代表调用成功。
+msg
+String
+状态信息。
+响应示例
+请求
+curl --location 'https://api.bocha.cn/v1/ai-search' \
+--header 'Authorization: Bearer sk-xxxxxxxx' \
+--header 'Content-Type: application/json' \
+--data '{
+  "query": "西瓜的功效与作用",
+  "freshness": "noLimit",
+  "answer": false,
+  "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "1c66382f8ee339f4",
+    "conversation_id": "8eaad0b73cf342d299579cc3f7aa364c",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "webpage", // 网页信息
+            "content": "{\"webSearchUrl\":\"https://bochaai.com/search?q=西瓜的功效与作用\",\"value\":[{\"id\":\"https://api.bochaai.com/v1/#WebPages.0\",\"name\":\"半截楼西瓜\",\"url\":\"https://baike.sogou.com/v66235606.htm\",\"displayUrl\":\"https://baike.sogou.com/v66235606.htm\",\"snippet\":\"西瓜性寒，味甘，归心、胃、膀胱经；具有清热解暑、生津止渴、利尿除烦的功效；主治胸膈气壅，满闷不舒，小便不利，口鼻生疮，暑热，中暑，解酒毒等症。\",\"summary\":\"西瓜性寒，味甘，归心、胃、膀胱经；具有清热解暑、生津止渴、利尿除烦的功效；主治胸膈气壅，满闷不舒，小便不利，口鼻生疮，暑热，中暑，解酒毒等症。\",\"siteName\":\"搜狗百科\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://baike.sogou.com/v66235606.htm\",\"dateLastCrawled\":\"2022-06-08T08:57:00Z\"},{\"id\":\"https://api.bochaai.com/v1/#WebPages.1\",\"name\":\"排毒\",\"url\":\"https://baike.sogou.com/v111643.htm\",\"displayUrl\":\"https://baike.sogou.com/v111643.htm\",\"snippet\":\"是瓜果之首，不仅具有食用价值，而且医药价值颇高，是消暑、解渴、利尿之佳品，民间有“天然白虎汤”之称。当遇到酷热特别是发烧时，抱着西瓜睡觉，比敷冰袋降温还有效。主要功效可概括如下： 1、西瓜可清热解暑，...\",\"summary\":\"是瓜果之首，不仅具有食用价值，而且医药价值颇高，是消暑、解渴、利尿之佳品，民间有“天然白虎汤”之称。当遇到酷热特别是发烧时，抱着西瓜睡觉，比敷冰袋降温还有效。主要功效可概括如下： 1、西瓜可清热解暑，除烦止渴：西瓜中含有大量的水分，在急性热病发烧、口渴汗多、烦躁时，吃上一块又甜又沙、水分十足的西瓜，症状会马上改善; 2、西瓜所含的糖和盐能利尿并消除肾脏炎症，蛋白酶能把不溶性蛋白质转化为可溶的蛋白质，增加肾炎病人的营养 3、西瓜还含有能使血压降低的物质; 4、吃西瓜后尿量会明显增加，这可以减少胆色素的含量，并可使大便通畅，对治疗黄疸有一定作用; 5、新鲜的西瓜汁和鲜嫩的瓜皮增加皮肤弹性，减少皱纹，增添光泽。 Tips：但西瓜性寒，一次不能吃得过多。\",\"siteName\":\"搜狗百科\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://baike.sogou.com/v111643.htm\",\"dateLastCrawled\":\"2024-09-25T21:17:07Z\"},{\"id\":\"https://api.bochaai.com/v1/#WebPages.2\",\"name\":\"西瓜\",\"url\":\"https://baike.sogou.com/v174417913.htm\",\"displayUrl\":\"https://baike.sogou.com/v174417913.htm\",\"snippet\":\"清热解暑，除烦止渴，利小便。主治：暑热或温热病热盛伤津，心烦口渴；心火上炎，口舌生疮；湿热蕴结下焦，小便黄赤不利。 \",\"summary\":\"清热解暑，除烦止渴，利小便。主治：暑热或温热病热盛伤津，心烦口渴；心火上炎，口舌生疮；湿热蕴结下焦，小便黄赤不利。 \",\"siteName\":\"搜狗百科\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://baike.sogou.com/v174417913.htm\",\"dateLastCrawled\":\"2023-08-28T15:27:14Z\"},{\"id\":\"https://api.bochaai.com/v1/#WebPages.3\",\"name\":\"西瓜的功效与作用\",\"url\":\"https://www.rwys.com/articlecontent/74868\",\"displayUrl\":\"https://www.rwys.com/articlecontent/74868\",\"snippet\":\"清热去火､通便､除烦解渴｡西瓜的第一个作用是可以清热去火,由于从中医养生的视角上而言西瓜性偏寒性,在夏季假如适度服食可以非常好的消除炎热｡西瓜的第二个作用是可以通便,假如由于肝脏功能､肾脏功能和心脏功...\",\"summary\":\"清热去火､通便､除烦解渴｡西瓜的第一个作用是可以清热去火,由于从中医养生的视角上而言西瓜性偏寒性,在夏季假如适度服食可以非常好的消除炎热｡西瓜的第二个作用是可以通便,假如由于肝脏功能､肾脏功能和心脏功能阻碍所导致的浮肿,适度服食西瓜可以针对小便不畅造成的浮肿具有显著的减轻功效｡西瓜的第三个作用是可以除烦解渴,由于西瓜之中含有很多水份可以为人体填补充裕的液体,从而做到除烦解渴的作用｡\",\"siteName\":\"如闻医生\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://www.rwys.com/articlecontent/74868\",\"dateLastCrawled\":\"2024-12-25T03:57:59Z\"},{\"id\":\"https://api.bochaai.com/v1/#WebPages.4\",\"name\":\"西瓜功效与作用-有来医生\",\"url\":\"https://www.youlai.cn/ask/856112.html\",\"displayUrl\":\"https://www.youlai.cn/ask/856112.html\",\"snippet\":\"西瓜功效与作用｡第一､西瓜可清热解暑,除烦止渴｡第二､西瓜所含的糖和盐能利尿并消除肾脏炎症,蛋白酶能把不溶性蛋白质转化为可溶性蛋白质,增加肾炎病人的营养｡第三､西瓜还有能使血压降低的物质,能起到降血压...\",\"summary\":\"西瓜功效与作用｡第一､西瓜可清热解暑,除烦止渴｡第二､西瓜所含的糖和盐能利尿并消除肾脏炎症,蛋白酶能把不溶性蛋白质转化为可溶性蛋白质,增加肾炎病人的营养｡第三､西瓜还有能使血压降低的物质,能起到降血压的作用｡第四､吃西瓜后尿量会明显增加,这可以减少胆色素的含量,并可使大便通畅｡治疗黄疸有一定作用｡注意事项:产妇的体质比较虚弱,而从中医的角度来说,西瓜属寒性,所以吃多了会导致过寒而损伤脾胃｡ \",\"siteName\":\"有来医生\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://www.youlai.cn/ask/856112.html\",\"dateLastCrawled\":\"2023-10-15T18:00:00Z\"},{\"id\":\"https://api.bochaai.com/v1/#WebPages.5\",\"name\":\"西瓜的功效与作用及禁忌是什么-有来医生\",\"url\":\"https://www.youlai.cn/ask/1805824.html\",\"displayUrl\":\"https://www.youlai.cn/ask/1805824.html\",\"snippet\":\"西瓜是一种日常生活中非常常见的水果,从中医的角度来讲具有一定的清热利湿､利水消肿的功效｡适量的吃一些西瓜可以有效的预防感冒,并且可以在一定程度上改善水肿的现象,能够加速身体内废物的排出,从而起到一定的...\",\"summary\":\"西瓜是一种日常生活中非常常见的水果,从中医的角度来讲具有一定的清热利湿､利水消肿的功效｡适量的吃一些西瓜可以有效的预防感冒,并且可以在一定程度上改善水肿的现象,能够加速身体内废物的排出,从而起到一定的降低血压､降低血脂的作用｡但是需要注意,因为西瓜本身属于一种寒凉性的食物,吃得太多容易导致腹泻现象,脾胃虚弱的人群建议最好不要使用｡ \",\"siteName\":\"有来医生\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://www.youlai.cn/ask/1805824.html\",\"dateLastCrawled\":\"2023-03-25T13:46:00Z\"},{\"id\":\"https://api.bochaai.com/v1/#WebPages.6\",\"name\":\"西瓜的功效与作用-有来医生\",\"url\":\"https://www.youlai.cn/ask/856114.html\",\"displayUrl\":\"https://www.youlai.cn/ask/856114.html\",\"snippet\":\"西瓜的功效与作用有以下几点:第一,防治肾炎,因为西瓜中含有瓜氨酸和精氨酸,能够起到利尿的作用,还能达到消除肾炎的效果;第二,营养丰富,因为西瓜中含有丰富的营养物质,是除了脂肪和胆固醇外,几乎所有的人体...\",\"summary\":\"西瓜的功效与作用有以下几点:第一,防治肾炎,因为西瓜中含有瓜氨酸和精氨酸,能够起到利尿的作用,还能达到消除肾炎的效果;第二,营养丰富,因为西瓜中含有丰富的营养物质,是除了脂肪和胆固醇外,几乎所有的人体所需营养物质;第三,美容养颜,因为西瓜含有丰富的维生素C,能够减少皮肤的皱纹,还能够增加皮肤的光泽和弹性,从而达到美容养颜的功效｡ \",\"siteName\":\"有来医生\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://www.youlai.cn/ask/856114.html\",\"dateLastCrawled\":\"2023-03-05T09:28:00Z\"},{\"id\":\"https://api.bochaai.com/v1/#WebPages.7\",\"name\":\"西瓜的功效和作用\",\"url\":\"https://www.meilo.cn/317/626448.html\",\"displayUrl\":\"https://www.meilo.cn/317/626448.html\",\"snippet\":\"病情分析:西瓜一般可以清热解暑,另外西瓜还可以起到生津止渴的功效,同时西瓜也可以为机体提供膳食纤维,通常可以起到刺激肠道蠕动的作用,在预防便秘的方面可以起到非常好的作用｡西瓜本身水分含量比较丰富,适当...\",\"summary\":\"病情分析:西瓜一般可以清热解暑,另外西瓜还可以起到生津止渴的功效,同时西瓜也可以为机体提供膳食纤维,通常可以起到刺激肠道蠕动的作用,在预防便秘的方面可以起到非常好的作用｡西瓜本身水分含量比较丰富,适当的吃些西瓜对身体有一定的好处,但一定不能过量,否则会引起腹泻的症状｡\",\"siteName\":\"美咯\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://www.meilo.cn/317/626448.html\",\"dateLastCrawled\":\"2022-04-07T17:30:14Z\"},{\"id\":\"https://api.bochaai.com/v1/#WebPages.8\",\"name\":\"西瓜的作用与功效-有来医生\",\"url\":\"https://www.youlai.cn/ask/1305285.html\",\"displayUrl\":\"https://www.youlai.cn/ask/1305285.html\",\"snippet\":\"西瓜堪称“瓜中之王”,它的味道甘甜多汁,清爽解渴,是所有水果中果汁含量最丰富的｡但除此之外,它的营养成分没有明显的特色,和其他的水果基本上一致｡西瓜的果皮,果肉以及种子都可以食用和药用｡具有清咽,利喉...\",\"summary\":\"西瓜堪称“瓜中之王”,它的味道甘甜多汁,清爽解渴,是所有水果中果汁含量最丰富的｡但除此之外,它的营养成分没有明显的特色,和其他的水果基本上一致｡西瓜的果皮,果肉以及种子都可以食用和药用｡具有清咽,利喉,消炎作用的西瓜霜就是用西瓜皮加工而成的｡但是西瓜寒凉,脾胃虚寒､消化不良以及有胃肠疾患的病人不宜一次吃得太多｡ \",\"siteName\":\"有来医生\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://www.youlai.cn/ask/1305285.html\",\"dateLastCrawled\":\"2023-07-03T17:48:00Z\"}],\"someResultsRemoved\":true}"
+        },
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "baike_pro", //模态卡 - 百科卡
+            "content": "[{\"id\":null,\"name\":\"西瓜 - 搜狗百科\",\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C\",\"displayUrl\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=西瓜\",\"snippet\":null,\"summary\":null,\"siteName\":\"baike.sogou.com\",\"siteIcon\":\"https://th.bochaai.com/favicon?domain_url=https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C\",\"datePublished\":\"2025-01-03T00:00:00Z\",\"modelCard\":{\"module_list\":[{\"item_list\":[{\"data\":{\"baikeURL\":[\"https://baike.sogou.com/m/v181522625.htm\"],\"card\":{\"abstract_info\":\"西瓜（学名：Citrullus lanatus(Thunb.) Matsum. et Nakai），葫芦科西瓜属植物。西瓜是一年生蔓生藤本，茎、枝粗壮，卷须较粗壮，具短柔毛，叶柄粗，密被柔毛，叶片纸质，轮廓三角状卵形，带白绿色，果实大型，近于球形或椭圆形，肉质，多汁，果皮光滑。西瓜喜温暖、干燥的气候，不耐寒，其原种可能来自非洲，久已广泛栽培于世界热带到温带。中文学名：西瓜；拉丁学名：Citrullus lanatus(Thunb.) Matsum. et Nakai；别称：夏瓜，寒瓜，青门绿玉房；二名法：Citrullus lanatus；界：植物界；门：被子植物门；纲：双子叶植物纲又称木兰纲；亚纲：五桠果亚纲；目：葫芦目；科：葫芦科；属：西瓜属；种：西瓜；英文名：Watermelon；域：真核域；族：南瓜族；亚族：葫芦亚族；花果期：夏季；类型：一年生蔓生藤本；生长习性：喜温暖、干燥的气候、不耐寒；生长适温：24-30度；分布范围：温带、热带区域均有栽培；命名者及年代：Thunb，1916。栽培历史中国是世界上最大的西瓜产地，但关于西瓜的由来，说法不一。一种说法认为西瓜并非源于中国，而是产自于非洲，于西域传来，故名西瓜。另一种说法源于神农尝百草的传说，相传西瓜在神农尝百草时被发现，原名叫稀瓜，意思是水多肉稀的瓜，但后来传着传着就变成了西瓜。较为流行的观点认为，西瓜的原生地在非洲，它原是葫芦科的野生植物，后经人工培植成为食用西瓜。早在四千年前，埃及人就种植西瓜，后来逐渐北移，最初由地中海沿岸传至北欧，而后南下进入中东、印度等地，四五世纪时，由西域传入中国，所以称之为“西瓜”。据明代科学家徐光启《农政全书》记载：“西瓜，种出西域，故之名。”明李时珍在《本草纲目》中记载：“按胡峤于回纥得瓜种，名曰西瓜。则西瓜自五代时始入中国；今南北皆有。”这说明西瓜在中国的栽培已有悠久的历史。过去，有人引宋代欧阳修《新五代史·四夷附录》说：五代同州郃阳县令胡峤入契丹“始食西瓜”，“契丹破回纥得此种，以牛粪覆棚而种，大如中国冬瓜而味甘”，“周广顺三年（953）……峤归”。于是，西瓜从五代时由西域传入中国的说法，似乎成了定论。1981年湖南人民出版社出版的中学生课外读物《衣食住行史话》中就有“西瓜始于五代”一节。其实，这种说法并不确切。明代李时珍在《本草纲目》中指出：西瓜又名寒瓜。“陶弘景（南北朝时人）注瓜蒂言永嘉（晋怀帝年号）有寒瓜甚大，可藏至春音，即此也。盖五代之先瓜种已入浙东，但无西瓜之名，未遍中国尔。”《南史·滕昙恭传》说，昙恭“年五岁，母杨氏患热，思食寒瓜，土俗所不产。昙恭历访不能得，衔悲哀切。俄遇一桑门问其故，昙恭具以告。桑门曰：‘吾有两瓜，分一相遗。’还以与母，举室惊异，寻访桑门，莫知所在”。唐代段成式的《酉阳杂俎》卷十九记载隐侯（沈约）的《行园》诗云：“寒瓜方卧垅，秋蒲正满陂。紫茄纷烂熳，绿芋都参差。”从诗中谈到寒瓜卧垅的时节看，正跟西瓜相符。另外，旧北京曾称先上市的西瓜为“水瓜”，后上市的为“寒瓜”；今访老农，也说晚西瓜确有“寒瓜”一称。看来，上述文献资料可以和李时珍的说法相印证。然而，李时珍的说法几百年来似乎并未引起人们的注意。1976年，广西贵县西汉墓椁室淤泥中曾发现西瓜籽；1980年，江苏省扬州西郊邗江县汉墓随葬漆笥中出有西瓜籽，墓主卒于汉宣帝本始三年（前71年）。名称来源因9世纪自西域传入中国，故名西瓜。1、茎、枝粗壮，具明显的棱沟，被长而密的白色或淡黄褐色长柔毛。2、卷须较粗壮，具短柔毛，2歧，叶柄粗，长3-12厘米，粗0.2-0.4厘米，具不明显的沟纹，密被柔毛。3、叶片纸质，轮廓三角状卵形，带白绿色，长8-20厘米，宽5-15厘米，两面具短硬毛，脉上和背面较多，3深裂，中裂片较长，倒卵形、长圆状披针形或披针形，顶端急尖或渐尖，裂片又羽状或二重羽状浅裂或深裂，边缘波状或有疏齿，末次裂片通常有少数浅锯齿，先端钝圆，叶片基部心形，有时形成半圆形的弯缺，弯缺宽1-2厘米，深0.5-0.8厘米。4、雌雄同株。雌、雄花均单生于叶腋。（1）雄花：花梗长3-4厘米，密被黄褐色长柔毛；花萼筒宽钟形，密被长柔毛，花萼裂片狭披针形，与花萼筒近等长，长2-3毫米；花冠淡黄色，径2.5-3厘米，外面带绿色，被长柔毛，裂片卵状长圆形，长1-1.5厘米，宽0.5-0.8厘米，顶端钝或稍尖，脉黄褐色，被毛；雄蕊3，近离生，1枚1室，2枚2室，花丝短，药室折曲。（2）雌花：花萼和花冠与雄花同；子房卵形，长0.5-0.8厘米，宽0.4厘米，密被长柔毛，花柱长4-5毫米，柱头3，肾形。5、果实大型，近于球形或椭圆形，肉质，多汁，果皮光滑，色泽及纹饰各式。种子多数，卵形，黑色、红色，有时为白色、黄色、淡绿色或有斑纹，两面平滑，基部钝圆，通常边缘稍拱起，长1-1.5厘米，宽0.5-0.8厘米，厚1-2毫米，花果期夏季。西瓜喜温暖、干燥的气候、不耐寒，生长发育的最适温度24-30度，根系生长发育的最适温度30-32度，根毛发生的最低温度14度。西瓜在生长发育过程中需要较大的昼夜温差，较大的昼夜温差能培育高品质西瓜。西瓜耐旱、不耐湿，阴雨天多时，湿度过大，易感病，产量低，品质差。西瓜喜光照，在日照充足的条件下，产量高，品质好。西瓜生育期长，产量高，因此需要大量养分。每生产100公斤西瓜约需吸收氮0.19公斤、磷0.092公斤，钾0.136公斤，但不同生育期对养分的吸收量有明显的差异，在发芽期占0.01%，幼苗期占0.54%，抽蔓期占14.6%，结果期是西瓜吸收养分最旺盛的时期，占总养分量的84.8%，因此，西瓜随着植株的生长，需肥量逐渐增加，到果实旺盛生长时，达到最大值。西瓜适应性强，以土质疏松，土层深厚，排水良好的砂质土最佳。喜弱酸性，PH5-7。中国各地栽培，品种甚多，外果皮、果肉及种子形式多样，以新疆、甘肃兰州、山东德州、江苏溧阳等地最为有名。其原种可能来自非洲，久已广泛栽培于世界热带到温带，金、元时始传入中国。营养土配制：营养土配制方法较多，常用2/3草炭土加1/3未种过瓜的大田土拌匀过筛，或1/3腐熟农家肥加2/3大田土。每方土加2kg过磷酸钙，用800倍多菌灵液消毒，或用甲醛熏蒸。浸种催芽：可用55℃温水浸种消毒，不断搅拌至水温降至30℃左右。浸泡4小时后，清洗种子，然后用湿毛巾包紧置于30℃左右环境下催芽。播种：播种前一天应用800倍甲基托布津液浇透苗土，待种子芽长到0.5cm左右时，播种于育苗盘内，种子应平放，芽尖向上，上盖细营养土1.5cm厚，并用800倍甲基托布津液浇透育苗盘，温度保持在25～30℃，以保证出苗整齐。出苗后温度保持在18～28℃即可。苗床宁干勿湿。早春应防止冻害，保证充足光照。夏季应防幼苗高温徒长。\",\"ambiguation\":\"西瓜\",\"catalogList\":[{\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C#paragraph_1\",\"value\":\"物种起源\"},{\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C#paragraph_2\",\"value\":\"形态特征\"},{\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C#paragraph_3\",\"value\":\"生长习性\"},{\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C#paragraph_9\",\"value\":\"分布范围\"},{\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C#paragraph_10\",\"value\":\"繁殖栽培\"},{\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C#paragraph_14\",\"value\":\"种类介绍\"},{\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C#paragraph_19\",\"value\":\"主要价值\"},{\"url\":\"https://baike.sogou.com/v181522625.htm?ch=frombaikevr&fromTitle=%E8%A5%BF%E7%93%9C#paragraph_25\",\"value\":\"植物文化\"}],\"dynAbstract\":\"西瓜（学名：Citrullus lanatus(Thunb.) Matsum. et Nakai），葫芦科西瓜属植物。西瓜是一年生蔓生藤本，茎、枝粗壮，卷须较粗壮，具短柔毛，叶柄粗，密被柔毛，叶片纸质，轮廓三角状卵形，带白绿色，果实大型，近于球形或椭圆形，肉质，多汁，果皮光滑。西瓜喜温暖、干燥的气候，不耐寒，其原种可能来自非洲，久已广泛栽培于世界热带到温带。\",\"lemmaStructTitle\":\"{\\\"aliasList\\\":[],\\\"ambiList\\\":[{\\\"lid\\\":181522625,\\\"ambi\\\":\\\"西瓜\\\",\\\"ambiTitle\\\":\\\"葫芦科西瓜属植物\\\"},{\\\"lid\\\":6589833,\\\"ambi\\\":\\\"西瓜\\\",\\\"ambiTitle\\\":\\\"王晓申、李欣蔓主演电影\\\"},{\\\"lid\\\":106820529,\\\"ambi\\\":\\\"西瓜\\\",\\\"ambiTitle\\\":\\\"2003年日剧\\\"},{\\\"lid\\\":174417913,\\\"ambi\\\":\\\"西瓜\\\",\\\"ambiTitle\\\":\\\"中药\\\"},{\\\"lid\\\":195385553,\\\"ambi\\\":\\\"西瓜\\\",\\\"ambiTitle\\\":\\\"动漫《Dr.STONE 石纪元》及其衍生作品中的角色\\\"}],\\\"ambiSize\\\":5,\\\"ambiguation\\\":\\\"西瓜\\\",\\\"ambiguationTitle\\\":\\\"葫芦科西瓜属植物\\\",\\\"lemmaId\\\":181522625,\\\"type\\\":1}\",\"oriPicList\":[\"http://pic.baike.soso.com/ugc/baikepic2/0/20231030183213-1120068479_jpg_1600_900_161584.jpg/0\"],\"subTitle\":\"葫芦科西瓜属植物\",\"title\":\"西瓜\"}}}]}]}}]"
+        },
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "medical_common", //模态卡 - 医疗卡
+            "content": "[{\"id\":null,\"name\":\"西瓜的功效与作用_三甲医生权威解读\",\"url\":null,\"displayUrl\":null,\"snippet\":null,\"summary\":null,\"siteName\":null,\"siteIcon\":null,\"datePublished\":\"2025-01-03T00:00:00Z\",\"modelCard\":{\"recommendVideos\":null,\"subitem\":[{\"content\":\"具体功效如下:1、解暑生津:西瓜清甜多汁、口感爽脆,可以生食也可以榨汁,是纯天然的饮品,富含多种营养素,对人体都是大有益处的,西瓜属于寒味,性寒味甘、生津消渴,适用于暑热烦躁、口舌长疮、消渴多饮、咽喉肿痛;2、防晒美白:西瓜的含水量很高,富含多种有益于健康和美容的化学成分,西瓜含有的氨基酸,包括腺嘌呤等重要的代谢成分、糖类、维生素、矿物质等营养物质,这些成分很容易被人体皮肤所吸收,对于面部皮肤滋润...\",\"department\":\"临床营养科\",\"doctorLevel\":\"主任医师\",\"doctorName\":\"马方\",\"hospital\":\"北京协和医院\",\"hospitalLv\":\"三级甲等\",\"title\":\"<em>西瓜的功效与作用</em>\",\"wapUrl4Resin\":\"https://m.youlai.cn/a/video/350041.html\"},{\"content\":\"西瓜是夏季最畅销的一种瓜类食品,老少都爱吃.在炎热的夏天,吃上一块冰镇的西瓜,那简直是一种享受.西瓜还可以给小朋友榨西瓜汁喝,西瓜能解暑降温,还能解渴.还有很多有利于人体所需要的营养,那么让我们来了解一下西瓜的功效与作用吧.西瓜的作用西瓜可清热解暑,除烦止渴:西瓜中含有大量的水分,在急性热病发烧、口渴汗多、烦躁时,吃上一块又甜又沙、水分十足的西瓜,症状会马上改善.西瓜所含的糖和盐能利尿并消除肾脏炎症,蛋白酶能把不溶性蛋白质转化为可溶的蛋白质,增加肾炎病人的营养.西瓜含有能使血压降低的物质,能起到降血压的作用.吃西瓜后尿量会明显增加,这可以减少胆色素的含量,并可使大便通畅,对治疗黄疸有一定作用新鲜的西瓜汁和鲜嫩的瓜皮增加皮肤弹性,减少皱纹,增添光泽.西瓜的功效西瓜可以补充体内水分的损失,可以补充体力、功能,还含有丰富的维生素、矿物质,还有利尿消肿的功能,所以体内有水分存积的患这可以多吃.西瓜的功效与作用主要是根据它的成分来的,首先,它含有大量水分,可以补充我们体内的损失,另外,它含有充足的糖分,可以补充体力,供能,而且它含有丰富的维生素、矿物质,对我们人体都是比较有益的营养素.而且西瓜还有利尿消肿的作用,所以夏季吃西瓜是非常有好处的.而对于这个体内容易有水份存积的患者,也是可以多吃一些西瓜的.\",\"department\":\"营养科\",\"doctorLevel\":\"主任医师\",\"doctorName\":\"王兴国\",\"hospital\":\"大连市中心医院\",\"hospitalLv\":\"三级甲等\",\"title\":\"<em>西瓜的功效与作用</em>\",\"wapUrl4Resin\":\"https://m.bohe.cn/article/mingyi/73244.html\"}]}}]"
+        }
+    ]
+}
+流式返回
+响应内容
+当使用流式响应时，会实时增量返回消息内容。即大语言模型一生成返回消息就会将消息返回给客户端。
+参数
+类型
+说明
+event 
+String 
+当前流式返回的数据包事件，不同 event 下，数据包会返回不同字段。 
+- message：返回的消息内容 
+data:{"event":"message","message":{"role":"assistant","type":"follow_up","content":"你觉得《三国演义》对中国历史和文化的影响有哪些？","content_type":"text"},"is_finish":true,"index":3,"conversation_id":"123","seq_id": 0}
+- done：正常结束标志  
+data:{"event":"done"}
+- error：错误结束标志  
+data:{"event":"error", "error_information":{"code": 具体错误码,"msg": 具体错误信息}}
+message 
+Object 
+增量返回的消息内容。 
+详情请参考返回参数内容中 Message 消息结构和模态卡字段说明。 
+is_finish 
+Boolean 
+当前 message 是否结束。 
+- false：未结束 
+- true：结束。注意当该值为 true 时仅表示一条完整的消息已经发送完成，不代表整个模型返回结束。 
+index 
+Integer 
+同一个 index 的增量返回属于同一条消息。 
+conversation_id
+String 
+会话 ID。
+seq_id
+Interger
+全部流式返回内容中，当前event的序号。从0开始。
+code
+Integer 
+状态码。 
+0 代表调用成功。 
+stream模式下，只有出错时的 error_information 里面才会出现 code
+msg 
+String 
+状态信息。 
+stream模式下，只有出错时的 error_information 里面才会出现 msg
+Message Object
+参数
+类型
+说明
+role
+String
+发送这条消息的实体。取值： 
+- user：代表该条消息内容是用户发送的。 
+- assistant：代表该条消息内容是 博查 发送的。 
+type
+String
+
+当 role=assistant 时，用于标识消息类型，取值： 
+- source:  参考源，此时content_type会有webpage、video、image三种，分别代表网页、视频和图片。如果没有搜索结果，则不返回source
+- answer：最终返回给用户的消息内容。  
+- follow_up：推荐问题。 
+content
+String
+消息内容。 
+- 当type=answer时，content_type=text。消息内容是 Markdown 格式
+- 如果content_type != text，返回的是json encode后的文本
+content_type
+
+String
+消息内容的类型。 
+- text: 文本类型。 
+type=source（来自网页搜索到的参考源）：
+- webpage：网页Object，每个Message返回一条
+- image:  图片Object，每个Message返回一条
+- video：视频Object，每个Message返回一条
+type=source（来自多模态搜索到的参考源）：
+- douyin：抖音短视频Object，每个Message返回一条
+- weather_china：国内天气，示例搜索词：北京天气、杭州天气
+- weather_international：国际天气，示例搜索词：巴黎天气
+- baike_pro: 百科专业版，示例搜索词：西瓜的功效与作用
+- medical_common：医疗普通版，示例搜索词：站着和坐着哪个对腰椎伤害大
+- medical_pro：医疗专业版，示例搜索词：站着和坐着哪个对腰椎伤害大
+- calendar：万年历，示例搜索词：万年历
+- train_line：火车线路、车票信息，示例搜索词：长春到白城火车时刻表
+- train_station_common：火车站点信息、列车时刻表，示例搜索词：K84次列车途经站点
+- train_station_pro：火车站点信息、列车时刻表专业版，示例搜索词：G2556高铁时刻表停靠站
+- star_chinese_zodiac_animal：中国属相、生肖运势，示例搜索词：
+  - 属虎男最佳婚配属相
+  - 属马人性格好吗
+- star_chinese_zodiac：中国属相年份，示例搜索词：
+  - 2024年是什么年
+  - 94年属什么的
+- star_western_zodiac_sign：星座，示例搜索词：
+  - 水瓶座
+  - 射手座性格
+- star_western_zodiac：星座日期，示例搜索词：
+  - 12月是什么星座
+  - 8月份星座
+- gold_price：贵金属价格，示例搜索词：
+  - 今日金价
+  - 现在黄金多少钱一克
+- gold_price_trend：贵金属价格趋势，示例搜索词：黄金今日价格
+- gold_price_futures_trend：贵金属期货价格趋势，示例搜索词：黄金期货实时行情
+- exchangerate：汇率，示例搜索词：
+  - 美元对人民币汇率
+  - 一美元等于多少人民币
+- oil_price：油价，示例搜索词：
+  - 今日油价
+  - 北京今日油价92汽油
+- phone：手机参数、参数对比，示例搜索词：华为pura70和mate60哪个好
+- stock：股票，示例搜索词：东方财富股票
+- car_common：汽车信息，示例搜索词：长安汽车
+- car_pro：汽车信息专业版，示例搜索词：宝马x3
+Message Object 示例
+// webpage object，注意：stream 中是在 content 中以 json_encode 后的字符串格式返回的
+{
+    "id": "https://api.bing.microsoft.com/api/v7/#WebPages.0", 
+    "name": "每日科普|为啥天空是蓝色的？_人民号", 
+    "url": "https://mp.pdnews.cn/Pc/ArtInfoApi/article?id=37552812", 
+    "displayUrl": "https://mp.pdnews.cn/Pc/ArtInfoApi/article?id=37552812", 
+    "snippet": "太阳光接近水平射入大气层，阳光中的偏蓝光都因为瑞利散射而被散射到了我们看不到的角度，因此，天空就被印成了美丽的橙红色。 因为太阳位置和我们观测时所处位置的变化，天空也会呈现为十分美丽的渐变色。 朝阳升起时，随着太阳的角度越来越高，蓝光开始占领天空，于是天空由橙红转向蓝色。 夕阳落下时，随着太阳的角度越来越低，红橙光洒满天际，于是天空便映衬着十分美丽的晚霞，太阳本身也会在此时显得格外红。 说到这里，你大概会想问既然较短波长的光被散射得比较厉害，那么比蓝光波长更短的紫光呢？ 比它波长稍长一些的绿光呢？ 其实，这就与人类的眼睛以及大脑构造有关了。 事实上，天空中散射的紫光当然比蓝光多得多，但是很可惜，人眼并不能识别出它们。 人类是三色视觉，拥有三种识别颜色的视锥以及单色视杆。", 
+    "dateLastCrawled": "2024-06-30T11:11:00Z", 
+    "cachedPageUrl": "http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=5001627273276920&mkt=zh-CN&setlang=en-US&w=wsl35u7nrlziehuVZIhDtTBgTXH9L4rm", 
+    "language": "zh_chs", 
+    "isFamilyFriendly": true, 
+    "isNavigational": false
+}
+
+// webpage object 时的 json
+{
+    "event": "message",
+    "message": {
+        "role": "assistant",
+        "type": "source",
+        "content_type": "webpage",
+        "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.0\",\"name\":\"每日科普|为啥天空是蓝色的？_人民号\",\"url\":\"https://mp.pdnews.cn/Pc/ArtInfoApi/article?id=37552812\",\"displayUrl\":\"https://mp.pdnews.cn/Pc/ArtInfoApi/article?id=37552812\",\"snippet\":\"太阳光接近水平射入大气层，阳光中的偏蓝光都因为瑞利散射而被散射到了我们看不到的角度，因此，天空就被印成了美丽的橙红色。 因为太阳位置和我们观测时所处位置的变化，天空也会呈现为十分美丽的渐变色。 朝阳升起时，随着太阳的角度越来越高，蓝光开始占领天空，于是天空由橙红转向蓝色。 夕阳落下时，随着太阳的角度越来越低，红橙光洒满天际，于是天空便映衬着十分美丽的晚霞，太阳本身也会在此时显得格外红。 说到这里，你大概会想问既然较短波长的光被散射得比较厉害，那么比蓝光波长更短的紫光呢？ 比它波长稍长一些的绿光呢？ 其实，这就与人类的眼睛以及大脑构造有关了。 事实上，天空中散射的紫光当然比蓝光多得多，但是很可惜，人眼并不能识别出它们。 人类是三色视觉，拥有三种识别颜色的视锥以及单色视杆。\",\"dateLastCrawled\":\"2024-06-30T11:11:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=5001627273276920&mkt=zh-CN&setlang=en-US&w=wsl35u7nrlziehuVZIhDtTBgTXH9L4rm\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"
+    },
+    "index": 0,
+    "conversation_id": "3884a14cd62d4c228194eefbad885e02",
+    "seq_id": 0,
+    "is_finish": false
+}
+
+// image object，注意：stream 中是在 content 中以 json_encode 后的字符串格式返回的
+{
+    "webSearchUrl": "https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=678CDEA1B1B8BB1EB57466421C23E9AE8EE70039&FORM=IQFRBA",
+    "name": "为什么天空是蓝色的原理（地球大气层为什么是蓝色，蓝天是如何形成的？） | 说明书网",
+    "thumbnailUrl": "https://tse1-mm.cn.bing.net/th?id=OIP-C.9f9RwmII52Po_WqIC6lZegHaEo&pid=Api",
+    "datePublished": "2022-10-27T06:52:00Z",
+    "contentUrl": "https://www.shuomingshu.cn/wp-content/uploads/images/2022/10/27/d1525a40f3714fa19b860b65b807d0ff_2ioofc53dak.jpg",
+    "hostPageUrl": "https://www.shuomingshu.cn/changshi/159108.html",
+    "contentSize": "316482 B",
+    "encodingFormat": "jpeg",
+    "hostPageDisplayUrl": "https://www.shuomingshu.cn/changshi/159108.html",
+    "width": 1920,
+    "height": 1200,
+    "thumbnail": {
+        "height": 296,
+        "width": 474
+    }
+}
+
+// image object 时的 stream json
+{
+    "event": "message",
+    "message": {
+        "role": "assistant",
+        "type": "source",
+        "content_type": "image",
+        "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=678CDEA1B1B8BB1EB57466421C23E9AE8EE70039&FORM=IQFRBA\",\"name\":\"为什么天空是蓝色的原理（地球大气层为什么是蓝色，蓝天是如何形成的？） | 说明书网\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.9f9RwmII52Po_WqIC6lZegHaEo&pid=Api\",\"datePublished\":\"2022-10-27T06:52:00Z\",\"contentUrl\":\"https://www.shuomingshu.cn/wp-content/uploads/images/2022/10/27/d1525a40f3714fa19b860b65b807d0ff_2ioofc53dak.jpg\",\"hostPageUrl\":\"https://www.shuomingshu.cn/changshi/159108.html\",\"contentSize\":\"316482 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"https://www.shuomingshu.cn/changshi/159108.html\",\"width\":1920,\"height\":1200,\"thumbnail\":{\"height\":296,\"width\":474}}"
+    },
+    "index": 0,
+    "conversation_id": "3884a14cd62d4c228194eefbad885e02",
+    "seq_id": 0,
+    "is_finish": false
+}
+
+// video object，注意：stream 中是在 content 中以 json_encode 后的字符串格式返回的
+
+
+// douyin object，注意：stream 中是在 content 中以 json_encode 后的字符串格式返回的
+{
+  "type": "short_video",
+  "description": "为什么会有金灿灿的天空呢？ #原创动画 #轻漫计划#天空为什么是蓝色 #科普 #天空 @抖音青少年动画 @抖音动漫 @抖音知识 @抖音科普 @抖音青少年 #轻漫计划",
+  "width": 540,
+  "height": 960,
+  "definition": "540p",
+  "duration": 95,
+  "size": 4412697,
+  "creator": {
+    "name": "珍妮马斯JellieMons",
+    "avatar_url": "https://p3-open-sign.onewsimg.com/aweme-avatar/tos-cn-i-0813_oAGgICDnAbbAOBCAylseALSQAAeWU9A33ACLYg~tplv-tt-cs0:300:300.jpeg?lk3s=7b4e885f&scene=core&x-expires=1782909478&x-signature=J9ufTuon3KXaFoeoyuQ77wQ3GS4%3D",
+    "followers_count": 52760
+  },
+  "interactions": {
+    "read_count": 3363,
+    "digg_count": 79,
+    "share_count": 1,
+    "comment_count": 0
+  },
+  "publish_time": 1708510845,
+  "article_url": "https://feedcoop.douyin.com/d7337999632162816562/?biz_log=B6fXnNwwCKhTbtuG2PEqiKQdeLSmqZuZ5b1RLPHGs84ZKF3zxWAZfzFDqGcfNnVQPGkWaUa5Yp7FzZMPjzvxbEusgENh17pJQZQNwx3jMW7naT5ZfKbo345VGJkYqmStnhfFL2Vvcx5YTYbW1TUyrm8&group_id=7337999632162816562&label=torchlight&platform_source=1&utm_source=bochaaisearch_default_content",
+  "content_url": "https://open.toutiao.com/video/url/?param=E3CDqwMWmNTSqVQDQRkJjCLnLjn9W3Cxk4rfrrWB3s2EtxDAVuspu8DL4S2ywGzyU3Q65e8VUERHPhq5fFU2AWELJNAdWW2NsstavEeq2oRK6haMooiTdcYf61qhJKDqg6dHuNzGFsu9ELGCAzG8NS6YttyVxyVCaNqyrsWc4K68iGTvGo47tVWoLKvS7FYVg9Mi4kEK2YARTjNM8Ey9gV623ZkBBdHd6dzGg&partner=bochaaisearch_default_content&version=3",
+  "cover_images": [
+    {
+      "height": 1920,
+      "width": 1080,
+      "url": "https://p9-open-sign.onewsimg.com/tos-cn-p-0015/oEz1nbRFADsDQPnzdBlgeBtrQR9bAPFw2AflSz~tplv-obj.jpeg?lk3s=2c3e0c70&scene=torchlight&x-expires=1782909478&x-signature=DnylPFZ0Kh0YMMFaqgvapj8uJ2U%3D"
+    }
+  ]
+}
+
+// douyin object 时的 stream json
+{
+    "event": "message",
+    "message": {
+        "role": "assistant",
+        "type": "source",
+        "content_type": "douyin",
+        "content": "{\"type\":\"short_video\",\"description\":\"为什么会有金灿灿的天空呢？ #原创动画 #轻漫计划#天空为什么是蓝色 #科普 #天空 @抖音青少年动画 @抖音动漫 @抖音知识 @抖音科普 @抖音青少年 #轻漫计划\",\"width\":540,\"height\":960,\"definition\":\"540p\",\"duration\":95,\"size\":4412697,\"creator\":{\"name\":\"珍妮马斯JellieMons\",\"avatar_url\":\"https://p3-open-sign.onewsimg.com/aweme-avatar/tos-cn-i-0813_oAGgICDnAbbAOBCAylseALSQAAeWU9A33ACLYg~tplv-tt-cs0:300:300.jpeg?lk3s=7b4e885f&scene=core&x-expires=1782909478&x-signature=J9ufTuon3KXaFoeoyuQ77wQ3GS4%3D\",\"followers_count\":52760},\"interactions\":{\"read_count\":3363,\"digg_count\":79,\"share_count\":1,\"comment_count\":0},\"publish_time\":1708510845,\"article_url\":\"https://feedcoop.douyin.com/d7337999632162816562/?biz_log=B6fXnNwwCKhTbtuG2PEqiKQdeLSmqZuZ5b1RLPHGs84ZKF3zxWAZfzFDqGcfNnVQPGkWaUa5Yp7FzZMPjzvxbEusgENh17pJQZQNwx3jMW7naT5ZfKbo345VGJkYqmStnhfFL2Vvcx5YTYbW1TUyrm8&group_id=7337999632162816562&label=torchlight&platform_source=1&utm_source=bochaaisearch_default_content\",\"content_url\":\"https://open.toutiao.com/video/url/?param=E3CDqwMWmNTSqVQDQRkJjCLnLjn9W3Cxk4rfrrWB3s2EtxDAVuspu8DL4S2ywGzyU3Q65e8VUERHPhq5fFU2AWELJNAdWW2NsstavEeq2oRK6haMooiTdcYf61qhJKDqg6dHuNzGFsu9ELGCAzG8NS6YttyVxyVCaNqyrsWc4K68iGTvGo47tVWoLKvS7FYVg9Mi4kEK2YARTjNM8Ey9gV623ZkBBdHd6dzGg&partner=bochaaisearch_default_content&version=3\",\"cover_images\":[{\"height\":1920,\"width\":1080,\"url\":\"https://p9-open-sign.onewsimg.com/tos-cn-p-0015/oEz1nbRFADsDQPnzdBlgeBtrQR9bAPFw2AflSz~tplv-obj.jpeg?lk3s=2c3e0c70&scene=torchlight&x-expires=1782909478&x-signature=DnylPFZ0Kh0YMMFaqgvapj8uJ2U%3D\"}]}"
+    },
+    "index": 3,
+    "conversation_id": "56ec3222e5c04094a6f47271387a1407",
+    "seq_id": 0,
+    "is_finish": false
+}
+响应示例
+请求
+curl --location 'https://api.bochaai.com/v1/ai-search' \
+--header 'Authorization: Bearer sk-xxxxxxxx' \
+--header 'Content-Type: application/json' \
+--data '{
+  "query": "天空为什么是蓝色的",
+  "stream": true
+}'
+返回
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.0\",\"name\":\"\u6bcf\u65e5\u79d1\u666e|\u4e3a\u5565\u5929\u7a7a\u662f\u84dd\u8272\u7684\uff1f_\u4eba\u6c11\u53f7\",\"url\":\"https://mp.pdnews.cn/Pc/ArtInfoApi/article?id=37552812\",\"displayUrl\":\"https://mp.pdnews.cn/Pc/ArtInfoApi/article?id=37552812\",\"snippet\":\"\u592a\u9633\u5149\u63a5\u8fd1\u6c34\u5e73\u5c04\u5165\u5927\u6c14\u5c42\uff0c\u9633\u5149\u4e2d\u7684\u504f\u84dd\u5149\u90fd\u56e0\u4e3a\u745e\u5229\u6563\u5c04\u800c\u88ab\u6563\u5c04\u5230\u4e86\u6211\u4eec\u770b\u4e0d\u5230\u7684\u89d2\u5ea6\uff0c\u56e0\u6b64\uff0c\u5929\u7a7a\u5c31\u88ab\u5370\u6210\u4e86\u7f8e\u4e3d\u7684\u6a59\u7ea2\u8272\u3002 \u56e0\u4e3a\u592a\u9633\u4f4d\u7f6e\u548c\u6211\u4eec\u89c2\u6d4b\u65f6\u6240\u5904\u4f4d\u7f6e\u7684\u53d8\u5316\uff0c\u5929\u7a7a\u4e5f\u4f1a\u5448\u73b0\u4e3a\u5341\u5206\u7f8e\u4e3d\u7684\u6e10\u53d8\u8272\u3002 \u671d\u9633\u5347\u8d77\u65f6\uff0c\u968f\u7740\u592a\u9633\u7684\u89d2\u5ea6\u8d8a\u6765\u8d8a\u9ad8\uff0c\u84dd\u5149\u5f00\u59cb\u5360\u9886\u5929\u7a7a\uff0c\u4e8e\u662f\u5929\u7a7a\u7531\u6a59\u7ea2\u8f6c\u5411\u84dd\u8272\u3002 \u5915\u9633\u843d\u4e0b\u65f6\uff0c\u968f\u7740\u592a\u9633\u7684\u89d2\u5ea6\u8d8a\u6765\u8d8a\u4f4e\uff0c\u7ea2\u6a59\u5149\u6d12\u6ee1\u5929\u9645\uff0c\u4e8e\u662f\u5929\u7a7a\u4fbf\u6620\u886c\u7740\u5341\u5206\u7f8e\u4e3d\u7684\u665a\u971e\uff0c\u592a\u9633\u672c\u8eab\u4e5f\u4f1a\u5728\u6b64\u65f6\u663e\u5f97\u683c\u5916\u7ea2\u3002 \u8bf4\u5230\u8fd9\u91cc\uff0c\u4f60\u5927\u6982\u4f1a\u60f3\u95ee\u65e2\u7136\u8f83\u77ed\u6ce2\u957f\u7684\u5149\u88ab\u6563\u5c04\u5f97\u6bd4\u8f83\u5389\u5bb3\uff0c\u90a3\u4e48\u6bd4\u84dd\u5149\u6ce2\u957f\u66f4\u77ed\u7684\u7d2b\u5149\u5462\uff1f \u6bd4\u5b83\u6ce2\u957f\u7a0d\u957f\u4e00\u4e9b\u7684\u7eff\u5149\u5462\uff1f \u5176\u5b9e\uff0c\u8fd9\u5c31\u4e0e\u4eba\u7c7b\u7684\u773c\u775b\u4ee5\u53ca\u5927\u8111\u6784\u9020\u6709\u5173\u4e86\u3002 \u4e8b\u5b9e\u4e0a\uff0c\u5929\u7a7a\u4e2d\u6563\u5c04\u7684\u7d2b\u5149\u5f53\u7136\u6bd4\u84dd\u5149\u591a\u5f97\u591a\uff0c\u4f46\u662f\u5f88\u53ef\u60dc\uff0c\u4eba\u773c\u5e76\u4e0d\u80fd\u8bc6\u522b\u51fa\u5b83\u4eec\u3002 \u4eba\u7c7b\u662f\u4e09\u8272\u89c6\u89c9\uff0c\u62e5\u6709\u4e09\u79cd\u8bc6\u522b\u989c\u8272\u7684\u89c6\u9525\u4ee5\u53ca\u5355\u8272\u89c6\u6746\u3002\",\"dateLastCrawled\":\"2024-06-30T11:11:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=5001627273276920&mkt=zh-CN&setlang=en-US&w=wsl35u7nrlziehuVZIhDtTBgTXH9L4rm\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"}, "index": 0, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.1\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff1f\u770b\u4f3c\u5f88\u7b80\u5355\u7684\u95ee\u9898\uff0c\u4f46\u5230\u5e95\u4e3a\u4ec0\u4e48 ...\",\"url\":\"https://www.163.com/dy/article/IS74BSFT0511A3AG.html\",\"displayUrl\":\"https://www.163.com/dy/article/IS74BSFT0511A3AG.html\",\"snippet\":\"\u6709\u4eba\u53ef\u80fd\u4f1a\u8bf4\uff0c\u56e0\u4e3a\u5927\u6d77\u662f\u84dd\u8272\u7684\uff0c\u800c\u5730\u7403\u8868\u9762\u5927\u90e8\u5206\u90fd\u88ab\u6d77\u6c34\u8986\u76d6\uff0c\u5927\u6d77\u628a\u84dd\u8272\u5149\u7ebf\u53cd\u5c04\u5230\u5929\u7a7a\uff0c\u56e0\u6b64\u5929\u7a7a\u5c31\u662f\u84dd\u8272\u7684\u3002 \u8fd9\u79cd\u56de\u7b54\u5176\u5b9e\u662f\u4e0d\u6b63\u786e\u7684\u3002 \u8981\u60f3\u5f04\u6e05\u695a\u95ee\u9898\u7684\u672c\u8d28\uff0c\u6211\u4eec\u9996\u5148\u9700\u8981\u4ece\u592a\u9633\u7684\u989c\u8272\u8bf4\u8d77\u3002 \u4e3a\u4ec0\u4e48\u8981\u8bf4\u592a\u9633\u7684\u989c\u8272\u5462\uff1f \u56e0\u4e3a\u4e0a\u9762\u6240\u8bb2\u7684\u201c\u84dd\u8272\u5929\u7a7a\u201d\u662f\u6709\u524d\u63d0\u7684\uff0c\u53ea\u6709\u9633\u5149\u7a7f\u8fc7\u5927\u6c14\u5c42\u65f6\uff0c\u624d\u4f1a\u51fa\u73b0\u84dd\u8272\u7684\u5929\u7a7a\uff0c\u5728\u4e4c\u4e91\u5bc6\u5e03\u6216\u8005\u591c\u665a\uff0c\u5929\u7a7a\u5f53\u7136\u4e0d\u662f\u84dd\u8272\u7684\u3002 \u4e5f\u80fd\u591f\u770b\u51fa\uff0c\u5929\u7a7a\u4e4b\u6240\u4ee5\u662f\u84dd\u8272\u7684\uff0c\u4e0e\u592a\u9633\u5149\u6709\u7740\u5bc6\u5207\u5173\u7cfb\u3002 \u95ee\u9898\u6765\u4e86\uff0c\u592a\u9633\u5149\u4f3c\u4e4e\u4ec0\u4e48\u989c\u8272\u7684\uff1f \u5343\u4e07\u4e0d\u8981\u7528\u773c\u775b\u76f4\u63a5\u770b\u592a\u9633\uff0c\u88f8\u773c\u770b\u592a\u9633\u592a\u523a\u773c\u4e86\uff0c\u4f1a\u4f24\u5bb3\u6211\u4eec\u7684\u773c\u775b\u3002 \u4f46\u6211\u4eec\u6bcf\u4e2a\u4eba\u90fd\u4f1a\u4e0d\u7ecf\u610f\u95f4\u7559\u610f\u5230\u592a\u9633\u7684\u989c\u8272\uff0c\u90a3\u5c31\u662f\u9ec4\u8272\u6216\u8005\u8bf4\u6a59\u8272\u3002 \u4ece\u5929\u6587\u5b66\u89d2\u5ea6\u6765\u8bb2\uff0c\u592a\u9633\u662f\u4e00\u9897\u9ec4\u77ee\u661f\uff0c\u56e0\u6b64\u66f4\u504f\u5411\u9ec4\u8272\u3002 \u4f46\u5f88\u591a\u4eba\u53ef\u80fd\u4e0d\u77e5\u9053\uff0c\u592a\u9633\u5149\u5176\u5b9e\u662f\u767d\u8272\u7684\u3002\",\"dateLastCrawled\":\"2024-06-30T14:08:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=4890619555020860&mkt=zh-CN&setlang=en-US&w=zCJY62V1lPuv_wQTdXL1AMw2YJH0dgrj\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"}, "index": 1, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.2\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u6709\u4e0d\u540c\u7684\u989c\u8272 - \u4e2d\u56fd\u6c14\u8c61\u5c40\u653f\u5e9c\u95e8\u6237\u7f51\u7ad9\",\"url\":\"https://www.cma.gov.cn/kppd/kppdqxwq/kppdjckp/202111/t20211103_4162011.html\",\"displayUrl\":\"https://www.cma.gov.cn/kppd/kppdqxwq/kppdjckp/202111/t...\",\"snippet\":\"\u5929\u7a7a\u662f\u84dd\u8272\u7684\uff0c\u662f\u592a\u9633\u5149\u7ebf\u5c04\u5165\u5927\u6c14\u5c42\u540e\uff0c\u9047\u5230\u5927\u6c14\u5206\u5b50\u548c\u60ac\u6d6e\u5728\u5927\u6c14\u4e2d\u7684\u5fae\u7c92\u53d1\u751f\u6563\u5c04\u7684\u7ed3\u679c\u3002 \u592a\u9633\u5149\u5728\u8fdb\u5165\u5927\u6c14\u5c42\u4f20\u64ad\u65f6\uff0c\u5927\u6c14\u5206\u5b50\u548c\u60ac\u6d6e\u7684\u5fae\u7c92\u80fd\u628a\u592a\u9633\u5149\u5411\u56db\u9762\u516b\u65b9\u6563\u5c04\u51fa\u53bb\uff0c\u6240\u4ee5\u5b83\u4eec\u5c31\u6210\u4e86\u6563\u5c04\u5149\u7684\u5149\u6e90\u3002 \u592a\u9633\u53ef\u89c1\u5149\u662f\u7531\u7ea2\u3001\u6a59\u3001\u9ec4\u3001\u7eff\u3001\u9752\u3001\u84dd\u3001\u7d2b\u7ec4\u6210\u7684\u3002 \u4e0d\u540c\u8272\u7684\u5149\u6ce2\u957f\u4e0d\u540c\uff0c\u6ce2\u957f\u8f83\u77ed\u7684\u7d2b\u3001\u84dd\u3001\u9752\u8272\u5149\u6ce2\u6700\u5bb9\u6613\u88ab\u6563\u5c04\uff0c\u800c\u6ce2\u957f\u8f83\u957f\u7684\u7ea2\u3001\u6a59\u3001\u9ec4\u8272\u5149\u7684\u900f\u5c04\u80fd\u529b\u8f83\u5f3a\uff0c\u5b83\u4eec\u80fd\u900f\u8fc7\u5927\u6c14\u5206\u5b50\u548c\u5fae\u7c92\uff0c\u4fdd\u6301\u539f\u6765\u7684\u65b9\u5411\u524d\u8fdb\uff0c\u5f88\u5c11\u88ab\u7a7a\u6c14\u5206\u5b50\u6563\u5c04\u3002 \u5bf9\u4e0b\u5c42\u7a7a\u6c14\u5206\u5b50\u6563\u5c04\u6765\u8bb2\uff0c\u4e3b\u8981\u662f\u84dd\u8272\u5149\u7ebf\u88ab\u6563\u5c04\u51fa\u6765\u3002 \u6240\u4ee5\uff0c\u4eba\u4eec\u770b\u5230\u7684\u5929\u7a7a\u662f\u851a\u84dd\u8272\u7684\u3002 \u4f4e\u5c42\u5927\u6c14\u4e2d\u6240\u89c1\u5230\u7684\u84dd\u8272\u5929\u7a7a\u4e5f\u4e0d\u662f\u4e00\u6210\u4e0d\u53d8\u7684\u3002 \u6709\u8f7b\u96fe\u65f6\uff0c\u770b\u5230\u7684\u5929\u7a7a\u662f\u767d\u8272\u7684\uff1b\u6709\u973e\u65f6\uff0c\u770b\u5230\u7684\u5929\u7a7a\u662f\u6de1\u84dd\u8272\u7684\u3002\",\"dateLastCrawled\":\"2024-06-29T17:31:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=4888815674019519&mkt=zh-CN&setlang=en-US&w=F2epRHJOO1SvLVAQA8Ew3iKNY3NWDDL9\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"}, "index": 2, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.3\",\"name\":\"\u5929\u7a7a\u4e3a\u4f55\u84dd\u8272\uff1f\u89e3\u6790\u84dd\u5149\u6ce2\u66f4\u5bb9\u6613\u6563\u5c04\u7684\u79d1\u5b66\u73b0\u8c61 - \u7b80\u4e66\",\"url\":\"https://www.jianshu.com/p/6a391ff8adc2\",\"displayUrl\":\"https://www.jianshu.com/p/6a391ff8adc2\",\"snippet\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u5448\u73b0\u84dd\u8272\u662f\u7531\u4e8e\u5927\u6c14\u4e2d\u7684\u6c14\u4f53\u548c\u5fae\u7c92\u5bf9\u592a\u9633\u5149\u7684\u6563\u5c04\u73b0\u8c61\u3002 \u592a\u9633\u5149\u662f\u7531\u5404\u79cd\u6ce2\u957f\u7684\u5149\u7ec4\u6210\u7684\uff0c\u5176\u4e2d\u5305\u62ec\u7ea2\u3001\u6a59\u3001\u9ec4\u3001\u7eff\u3001\u84dd\u548c\u7d2b\u8272\u7b49\u3002 \u5f53\u592a\u9633\u5149\u5c04\u5411\u5730\u7403\u7684\u5927\u6c14\u5c42\u65f6\uff0c\u5176\u4e2d\u7684\u84dd\u5149\u6ce2\u957f\u76f8\u5bf9\u8f83\u77ed\uff0c\u800c\u84dd\u5149\u6ce2\u957f\u7684\u5149\u5728\u5927\u6c14\u4e2d\u7684\u5206\u5b50\u548c\u5fae\u7c92\u4e2d\u53d1\u751f\u6563\u5c04\u7684\u51e0\u7387\u66f4\u9ad8\u3002 \u8fd9\u662f\u56e0\u4e3a\u84dd\u5149\u7684\u6ce2\u957f\u4e0e\u5927\u6c14\u4e2d\u7684\u5206\u5b50\u548c\u5fae\u7c92\u7684\u5c3a\u5bf8\u76f8\u8fd1\uff0c\u6240\u4ee5\u5b83\u4eec\u66f4\u5bb9\u6613\u4e0e\u84dd\u5149\u6ce2\u957f\u8fdb\u884c\u76f8\u4e92\u4f5c\u7528\u3002 \u5f53\u592a\u9633\u5149\u8fdb\u5165\u5927\u6c14\u5c42\u540e\uff0c\u5b83\u4f1a\u4e0e\u5927\u6c14\u4e2d\u7684\u6c14\u4f53\u5206\u5b50\uff08\u5982\u6c2e\u6c14\u548c\u6c27\u6c14\uff09\u4ee5\u53ca\u60ac\u6d6e\u5728\u7a7a\u6c14\u4e2d\u7684\u5fae\u5c0f\u7c92\u5b50\uff08\u5982\u6c34\u6ef4\u3001\u5c18\u57c3\u7b49\uff09\u53d1\u751f\u78b0\u649e\u3002 \u8fd9\u4e9b\u78b0\u649e\u4f1a\u4f7f\u84dd\u5149\u6ce2\u957f\u7684\u5149\u6563\u5c04\u5230\u5404\u4e2a\u65b9\u5411\uff0c\u5305\u62ec\u5411\u4e0a\u3001\u5411\u4e0b\u548c\u6c34\u5e73\u65b9\u5411\u3002 \u800c\u5176\u4ed6\u6ce2\u957f\u7684\u5149\uff0c\u5982\u7ea2\u5149\uff0c\u7531\u4e8e\u5176\u6ce2\u957f\u8f83\u957f\uff0c\u4e0e\u6c14\u4f53\u5206\u5b50\u548c\u5fae\u7c92\u7684\u76f8\u4e92\u4f5c\u7528\u8f83\u5c0f\uff0c\u6240\u4ee5\u76f8\u5bf9\u8f83\u5c11\u53d1\u751f\u6563\u5c04\u3002 \u7531\u4e8e\u84dd\u5149\u6ce2\u957f\u7684\u5149\u5728\u5927\u6c14\u4e2d\u66f4\u5bb9\u6613\u6563\u5c04\uff0c\u6240\u4ee5\u6211\u4eec\u5728\u89c2\u5bdf\u5929\u7a7a\u65f6\u4f1a\u770b\u5230\u84dd\u8272\u3002\",\"dateLastCrawled\":\"2024-06-05T17:51:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=4813537775147869&mkt=zh-CN&setlang=en-US&w=OAEfWpT2Y2qM8aL4zt09RT22aYcIH4fc\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"}, "index": 3, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.4\",\"name\":\"\u6839\u636e\u79d1\u5b66\uff1a\u4e3a\u4ec0\u4e48\u5929\u7a7a\u662f\u84dd\u8272\u7684\uff1f - sina\",\"url\":\"https://k.sina.cn/article_2215881863_8413ac87001001faw.html\",\"displayUrl\":\"https://k.sina.cn/article_2215881863_8413ac87001001faw.html\",\"snippet\":\"\u672c\u6587\u4ecb\u7ecd\u4e86\u592a\u9633\u53d1\u51fa\u7684\u4e0d\u540c\u6ce2\u957f\u7684\u5149\uff0c\u5730\u7403\u5927\u6c14\u5c42\u7684\u745e\u5229\u6563\u5c04\u7279\u6027\uff0c\u4ee5\u53ca\u4eba\u7c7b\u773c\u775b\u7684\u611f\u53d7\u8303\u56f4\uff0c\u8fd9\u4e09\u4e2a\u56e0\u7d20\u7ec4\u5408\u5728\u4e00\u8d77\u5bfc\u81f4\u5929\u7a7a\u7684\u84dd\u8272\u3002\u6587\u7ae0\u8fd8\u89e3\u91ca\u4e86\u65e5\u51fa\u548c\u65e5\u843d\u65f6\u5929\u7a7a\u7684\u4e0d\u540c\u989c\u8272\uff0c\u4ee5\u53ca\u592a\u9633\u5149\u7684\u5149\u8c31\u548c\u6563\u5c04\u73b0\u8c61\u3002\",\"dateLastCrawled\":\"2024-06-30T02:07:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=4723940458705024&mkt=zh-CN&setlang=en-US&w=EcjDocUL48JkMzIFRgW-3tYoj-Gw8Cun\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"}, "index": 4, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.5\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff1f-\u5927\u8fde\u7406\u5de5\u5927\u5b66\u5927\u5b66\u7269\u7406\u6559\u5b66\u4e2d\u5fc3\",\"url\":\"http://phyedu.dlut.edu.cn/info/1191/2212.htm\",\"displayUrl\":\"phyedu.dlut.edu.cn/info/1191/2212.htm\",\"snippet\":\"\u672c\u6587\u4ecb\u7ecd\u4e86\u745e\u5229\u6563\u5c04\u7684\u6982\u5ff5\u548c\u539f\u7406\uff0c\u4ee5\u53ca\u5b83\u5982\u4f55\u89e3\u91ca\u5929\u7a7a\u7684\u84dd\u8272\u548c\u65e5\u51fa\u65e5\u843d\u7684\u7ea2\u8272\u3002\u6587\u7ae0\u8fd8\u63d0\u4f9b\u4e86\u4e00\u4e9b\u76f8\u5173\u7684\u7269\u7406\u77e5\u8bc6\u548c\u79d1\u666e\u95ee\u9898\uff0c\u9002\u5408\u5bf9\u5149\u5b66\u611f\u5174\u8da3\u7684\u8bfb\u8005\u3002\",\"dateLastCrawled\":\"2024-06-28T19:23:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=4525375531672187&mkt=zh-CN&setlang=en-US&w=YJ2vdo91OcYJ52h0Lft7CFURnZYW1a9c\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"}, "index": 5, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.6\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff1f\u674e\u6c38\u4e50\u8001\u5e08\u7b2c\u4e00\u4e2a\u79d1\u666e\u89c6\u9891 - \u54d4\u54e9\u54d4\u54e9\",\"url\":\"https://www.bilibili.com/video/BV1cJ411W75a/\",\"displayUrl\":\"https://www.bilibili.com/video/BV1cJ411W75a\",\"snippet\":\"\u4eca\u5929\u6211\u4eec\u6765\u8ba8\u8bba\u4e00\u4e2a\u95ee\u9898\uff0c\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff1f \u65e9\u6668\u7684\u592a\u9633\u4e3a\u4ec0\u4e48\u662f\u7ea2\u8272\u7684\uff0c\u4e2d\u5348\u592a\u9633\u53c8\u53d8\u767d\u4e86\u3002 \u8fd9\u4e2a\u95ee\u9898\u53ef\u80fd\u5927\u5bb6\u5c0f\u7684\u65f6\u5019\u90fd\u95ee\u8fc7\u7238\u7238\u5988\u5988\uff0c\u4f46\u662f\u53ef\u80fd\u4e5f\u6ca1\u6709\u5f97\u5230\u5f88\u597d\u7684\u56de\u7b54\u3002 \u6211\u8bb0\u5f97\u6709\u4e00\u6b21\u770b\u300a\u5929\u5929\u5411\u4e0a\u300b\u8fd9\u4e2a\u680f\u76ee\uff0c\u6c6a\u6db5\u66fe\u7ecf\u8bf4\u8fc7\u4e00\u4e2a\u4e8b\u513f\u3002 \u4ed6\u8bf4\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u7684\u5462\uff1f \u56e0\u4e3a\u6d77\u662f\u84dd\u7684\uff0c\u90a3\u4e3a\u4ec0\u4e48\u6d77\u662f\u84dd\u7684\u5462\uff1f \u56e0\u4e3a\u6d77\u91cc\u6709\u9c7c\uff0c\u9c7c\u4f1a\u5410\u6ce1\u6ce1 \u535f\u565c \u535f\u565c...\u5c31\u628a\u8fd9\u4e2a\u6d77\u6c34\u5f04\u84dd\u4e86\u5f53\u7136\u4e86\u8fd9\u662f\u4e2a\u7b11\u8bdd\uff0c\u4ece\u79d1\u5b66\u7684\u89d2\u5ea6\u600e\u4e48\u89e3\u91ca\u8fd9\u4ef6\u4e8b\u513f\u5462\uff1f\u5185\u5bb9\u8be6\u89c1\u89c6\u9891\u2026\u2026, \u89c6\u9891\u64ad\u653e\u91cf 382349\u3001\u5f39\u5e55\u91cf 1402\u3001\u70b9\u8d5e\u6570 16054\u3001\u6295\u786c\u5e01\u679a\u6570 3689\u3001\u6536\u85cf\u4eba\u6570 3466\u3001\u8f6c\u53d1\u4eba\u6570 1867, \u89c6\u9891\u4f5c\u8005 \u674e\u6c38\u4e50\u8001\u5e08\u5b98\u65b9, \u4f5c\u8005\u7b80\u4ecb \u5fae\u4fe1\u516c\u4f17\u53f7\u201c\u674e\u6c38\u4e50\u8001\u5e08\u201d\uff0c\u76f8\u5173\u89c6\u9891\uff1a\u3010\u8da3\u5473\u5730\u7406\u3011\u5929\u7a7a\u989c\u8272\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff1f\",\"dateLastCrawled\":\"2024-06-26T15:19:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=5049241280459840&mkt=zh-CN&setlang=en-US&w=f-b4BNURRCb4IWeoQbJBUvAbK66hdeeU\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"}, "index": 6, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{\"id\":\"https://api.bing.microsoft.com/api/v7/#WebPages.7\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u7684\uff1f\u80cc\u540e\u9690\u85cf\u7740\u4ec0\u4e48\u5316\u5b66\u539f\u7406\uff1f_\u4e01\u8fbe\u5c14_\u84dd\u8272 ...\",\"url\":\"https://www.sohu.com/a/593912270_121124329\",\"displayUrl\":\"https://www.sohu.com/a/593912270_121124329\",\"snippet\":\"\u5982\u679c\u6982\u62ec\u6765\u8bb2\uff0c\u5c31\u662f\u4e01\u8fbe\u5c14\u6548\u5e94\u89e3\u91ca\u201c\u5929\u7a7a\u4e3a\u4f55\u662f\u84dd\u8272\u201d\uff0c\u5b83\u7684\u7ed3\u8bba\u5e94\u8be5\u4e3a\uff1a\u4e0d\u540c\u5730\u533a\u7531\u4e8e\u73af\u5883\u4e0d\u4e00\u6837\uff0c\u56e0\u6b64\u5929\u7a7a\u7684\u989c\u8272\u5dee\u5f02\u4f1a\u5f88\u660e\u663e\u3002 \u4f46\u5b9e\u9645\u4e0a\uff0c\u8fd9\u4e00\u70b9\u5e76\u4e0d\u5b58\u5728\uff0c\u90a3\u4e48\u5929\u7a7a\u5230\u5e95\u4e3a\u4ec0\u4e48\u5448\u73b0\u84dd\u8272\u5462\uff1f \u73b0\u5728\u6211\u4eec\u5df2\u7ecf\u80fd\u628a\u5927\u6c14\u4e2d\u7684\u6742\u8d28\u5c0f\u5fae\u7c92\u7684\u5f71\u54cd\u6392\u9664\u4e86\uff08\u81f3\u5c11\u4e0d\u662f\u4e3b\u8981\u539f\u56e0\uff09\uff0c\u90a3\u4e48\u8fd8\u6709\u4ec0\u4e48\u5462\uff1f \u601d\u6765\u60f3\u53bb\uff0c\u4f3c\u4e4e\u5c31\u53ea\u6709\u5927\u6c14\u672c\u8eab\u4e86\uff0c\u96be\u9053\u662f\u56e0\u4e3a\u5927\u6c14\u4e2d\u7684\u5404\u79cd\u6c14\u4f53\u5206\u5b50\u5417\uff1f \u5f88\u5e78\u8fd0\uff0c\u6211\u4eec\u7684\u60f3\u6cd5\u548c\u8457\u540d\u7269\u7406\u5b66\u5bb6 \u7ea6\u7ff0\u00b7\u5a01\u5ec9\u00b7\u65af\u7279\u62c9\u7279\u8d70\u5230\u4e00\u5757\uff08\u4e5f\u5c31\u662f\u745e\u5229\u7537\u7235\uff0c\u56e0\u6b64\u540e\u4eba\u76f4\u63a5\u79f0\u5176\u4e3a \u745e\u5229\uff0c\u8fd9\u79cd\u53eb\u6cd5\u4e5f\u4f53\u73b0\u5728\u7269\u7406\u5b66\u5bb6\u5f00\u5c14\u6587\u8eab\u4e0a\uff0c\u5b9e\u9645\u4e0a\u4ed6\u7684\u672c\u540d\u53eb\u505a\u5a01\u5ec9\u00b7\u6c64\u59c6\u900a\uff09 \u5728\u7ecf\u8fc7\u4ed4\u7ec6\u7814\u7a76\u540e\uff0c\u745e\u5229\u53d1\u73b0\uff0c\u6563\u5c04\u73b0\u8c61\u4e0d\u4ec5\u4ec5\u4f1a\u53d1\u751f\u5728\u6742\u8d28\u5fae\u7c92\u8eab\u4e0a\uff0c\u5bf9\u4e8e\u5355\u72ec\u7684\u539f\u5b50\u6216\u5206\u5b50\u800c\u8a00\uff0c\u6563\u5c04\u73b0\u8c61\u540c\u6837\u4f1a\u53d1\u3002\",\"dateLastCrawled\":\"2024-06-25T12:04:00Z\",\"cachedPageUrl\":\"http://cncc.bingj.com/cache.aspx?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&d=4764549377556752&mkt=zh-CN&setlang=en-US&w=xOe2-oCwnSp2qocCdsGpYYRrLvi5299U\",\"language\":\"zh_chs\",\"isFamilyFriendly\":true,\"isNavigational\":false}"}, "index": 7, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "webpage", "content": "{}"}, "index": 8, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": true}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=678CDEA1B1B8BB1EB57466421C23E9AE8EE70039&FORM=IQFRBA\",\"name\":\"\u4e3a\u4ec0\u4e48\u5929\u7a7a\u662f\u84dd\u8272\u7684\u539f\u7406\uff08\u5730\u7403\u5927\u6c14\u5c42\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\uff0c\u84dd\u5929\u662f\u5982\u4f55\u5f62\u6210\u7684\uff1f\uff09 | \u8bf4\u660e\u4e66\u7f51\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.9f9RwmII52Po_WqIC6lZegHaEo&pid=Api\",\"datePublished\":\"2022-10-27T06:52:00Z\",\"contentUrl\":\"https://www.shuomingshu.cn/wp-content/uploads/images/2022/10/27/d1525a40f3714fa19b860b65b807d0ff_2ioofc53dak.jpg\",\"hostPageUrl\":\"https://www.shuomingshu.cn/changshi/159108.html\",\"contentSize\":\"316482 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"https://www.shuomingshu.cn/changshi/159108.html\",\"width\":1920,\"height\":1200,\"thumbnail\":{\"height\":296,\"width\":474}}"}, "index": 0, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=7B06D7B8BF109A498CE189B2A50F475F80DBB0D6&FORM=IQFRBA\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff1f\u745e\u5229\u6563\u5c04\u7684\u7ed3\u679c\uff01 - \u597d\u6c49\u79d1\u666e\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.Bkhxj8h-JfBt15G2i4tldQHaEK&pid=Api\",\"datePublished\":\"2022-06-13T08:58:00Z\",\"contentUrl\":\"https://www.108hei.com/wp-content/uploads/2022/06/2022060600184929.jpg\",\"hostPageUrl\":\"https://www.108hei.com/archives/4750\",\"contentSize\":\"72103 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"https://www.108hei.com/archives/4750\",\"width\":800,\"height\":450,\"thumbnail\":{\"height\":266,\"width\":474}}"}, "index": 1, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=15186B35B9C89DC9CF17FE9015378A310F7AB645&FORM=IQFRBA\",\"name\":\"\u84dd\u8272\u5929\u7a7a\u56fe\u7247-\u7f8e\u4e3d\u7684\u84dd\u8272\u5929\u7a7a\u666f\u8272\u7d20\u6750-\u9ad8\u6e05\u56fe\u7247-\u6444\u5f71\u7167\u7247-\u5bfb\u56fe\u514d\u8d39\u6253\u5305\u4e0b\u8f7d\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.-QUXZU1hCl3WNyHgvPfOawHaE7&pid=Api\",\"datePublished\":\"2018-11-23T22:50:00Z\",\"contentUrl\":\"http://pic.52112.com/JPG-180505/180505_34/hvuvO9Mc2X_small.jpg\",\"hostPageUrl\":\"http://www.52112.com/pic/166521.html\",\"contentSize\":\"42430 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"http://www.52112.com/pic/166521.html\",\"width\":800,\"height\":533,\"thumbnail\":{\"height\":315,\"width\":474}}"}, "index": 2, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=30B5A35384A9BB3B0A00EC06CF6E44F92E1DE1F6&FORM=IQFRBA\",\"name\":\"\u84dd\u8272\u5929\u7a7a\u56fe\u7247-\u7f8e\u4e3d\u7684\u84dd\u8272\u5929\u7a7a\u666f\u8272\u7d20\u6750-\u9ad8\u6e05\u56fe\u7247-\u6444\u5f71\u7167\u7247-\u5bfb\u56fe\u514d\u8d39\u6253\u5305\u4e0b\u8f7d\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.fTKHCD_C7DwS3yE_aIJN2QHaE6&pid=Api\",\"datePublished\":\"2019-11-09T03:30:00Z\",\"contentUrl\":\"https://pic.52112.com/JPG-180515/180515_65/WhdZr2DmEb_small.jpg\",\"hostPageUrl\":\"https://www.52112.com/pic/166521.html\",\"contentSize\":\"34242 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"https://www.52112.com/pic/166521.html\",\"width\":800,\"height\":530,\"thumbnail\":{\"height\":314,\"width\":474}}"}, "index": 3, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=678CDEA1B1B8BB1EB57457E907C5124EC1DD4905&FORM=IQFRBA\",\"name\":\"\u4e3a\u4ec0\u4e48\u5929\u7a7a\u662f\u84dd\u8272\u7684\u539f\u7406\uff08\u5730\u7403\u5927\u6c14\u5c42\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\uff0c\u84dd\u5929\u662f\u5982\u4f55\u5f62\u6210\u7684\uff1f\uff09 | \u8bf4\u660e\u4e66\u7f51\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.d0wNadoC9qJrJmrJcCRwKAHaEo&pid=Api\",\"datePublished\":\"2022-10-27T06:52:00Z\",\"contentUrl\":\"https://www.shuomingshu.cn/wp-content/uploads/images/2022/10/27/416288d7299b4c9798306dc3f1867c31_lijwoe1a5ju.jpg\",\"hostPageUrl\":\"https://www.shuomingshu.cn/changshi/159108.html\",\"contentSize\":\"717386 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"https://www.shuomingshu.cn/changshi/159108.html\",\"width\":1920,\"height\":1200,\"thumbnail\":{\"height\":296,\"width\":474}}"}, "index": 4, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=087013AF1837B1C5B62B413D3B40235CDC17384E&FORM=IQFRBA\",\"name\":\"\u79d1\u5b66\u63a2\u7d22|\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684 - \u77e5\u4e4e\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.97dMLpFuXDktvMqMCQXDpAHaJ4&pid=Api\",\"datePublished\":\"2022-05-27T11:20:00Z\",\"contentUrl\":\"https://pic3.zhimg.com/v2-12cee2c14a29f8b950b1e2d5d58fd262_r.jpg\",\"hostPageUrl\":\"https://zhuanlan.zhihu.com/p/497321098\",\"contentSize\":\"125626 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"https://zhuanlan.zhihu.com/p/497321098\",\"width\":900,\"height\":1200,\"thumbnail\":{\"height\":632,\"width\":474}}"}, "index": 5, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=3DEA3AC6114ED05494435A0928950CFE65A4F104&FORM=IQFRBA\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff1f\u4e03\u4e2a\u89d2\u5ea6\u5206\u6790\uff0c\u770b\u5b8c\u604d\u7136\u5927\u609f-\u641c\u72d0\u5927\u89c6\u91ce-\u641c\u72d0\u65b0\u95fb\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.IYNJhtfbhZN8e0xfK5sTgQHaD5&pid=Api\",\"datePublished\":\"2022-12-13T02:54:00Z\",\"contentUrl\":\"http://5b0988e595225.cdn.sohucs.com/images/20190909/4abdd2cccad14773b196924e17d4a454.png\",\"hostPageUrl\":\"https://www.sohu.com/picture/339707477\",\"contentSize\":\"551857 B\",\"encodingFormat\":\"png\",\"hostPageDisplayUrl\":\"https://www.sohu.com/picture/339707477\",\"width\":1251,\"height\":658,\"thumbnail\":{\"height\":249,\"width\":474}}"}, "index": 6, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=83F664F4584738613EE237F67E0F1EF7DC060FBE&FORM=IQFRBA\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff1f\u4f60\u53ef\u80fd\u4e0d\u77e5\u9053\u7684\u771f\u76f8 - \u77e5\u4e4e\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.FyeSHlRW_OAY_i1uALO2cQHaF7&pid=Api\",\"datePublished\":\"2023-07-10T07:17:00Z\",\"contentUrl\":\"https://pic2.zhimg.com/v2-7efb0c14a23bdf71d2a3cd8cfec074ed_b.jpg\",\"hostPageUrl\":\"https://zhuanlan.zhihu.com/p/642598707\",\"contentSize\":\"28540 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"https://zhuanlan.zhihu.com/p/642598707\",\"width\":720,\"height\":576,\"thumbnail\":{\"height\":379,\"width\":474}}"}, "index": 7, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "source", "content_type": "image", "content": "{\"webSearchUrl\":\"https://www.bing.com/images/search?q=%E5%A4%A9%E7%A9%BA%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E8%93%9D%E8%89%B2%E7%9A%84&id=A38713E9B0912C68F7A0AE979DF3462FBB060DD4&FORM=IQFRBA\",\"name\":\"\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\u4ec0\u4e48\u539f\u7406(\u5929\u7a7a\u4e3a\u4ec0\u4e48\u662f\u84dd\u8272\u7684\uff0c\u539f\u6765\u662f\u8fd9\u6837\u5f62\u6210\u7684) | \u8bf4\u660e\u4e66\u7f51\",\"thumbnailUrl\":\"https://tse1-mm.cn.bing.net/th?id=OIP-C.O1HFqDe7FNnxX-rPmKdipgHaES&pid=Api\",\"datePublished\":\"2022-12-12T02:45:00Z\",\"contentUrl\":\"https://www.shuomingshu.cn/wp-content/uploads/images/2022/12/12/c0a9a32528814066894ef8a8097ccf28_1dtp20q5ry4.jpg\",\"hostPageUrl\":\"https://www.shuomingshu.cn/changshi/175090.html\",\"contentSize\":\"17781 B\",\"encodingFormat\":\"jpeg\",\"hostPageDisplayUrl\":\"https://www.shuomingshu.cn/changshi/175090.html\",\"width\":628,\"height\":364,\"thumbnail\":{\"height\":274,\"width\":474}}"}, "index": 8, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+···
+data:{"event": "message", "message": {"role": "assistant", "type": "answer", "content_type": "text", "content": "\u4e4b\u6240\u4ee5\u5448\u73b0\u84dd\u8272"}, "index": 1, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "answer", "content_type": "text", "content": "\uff0c\u662f\u7531\u4e8e\u592a\u9633\u5149"}, "index": 2, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+data:{"event": "message", "message": {"role": "assistant", "type": "answer", "content_type": "text", "content": "\u5728\u8fdb\u5165\u5927\u6c14\u5c42"}, "index": 3, "conversation_id": "4cc9e91fded948328e82739390db9c36", "seq_id": 0, "is_finish": false}
+···
+data:{"event": "done"}
+五、模态卡字段说明
+通用参数
+名称
+类型
+中文名
+说明
+id
+string
+
+
+name
+string
+网页标题
+
+url
+string
+网页Url
+
+displayUrl
+string
+网页显示Url
+
+snippet
+string
+文本摘要
+
+summary
+string
+总结摘要
+
+siteName
+string
+网站名称
+
+siteIcon
+string
+网站图标
+
+datePublished
+string
+网页发布日期
+
+modelCard
+Object 或 Array
+模态卡结构化信息
+根据模态卡类型不同，是 Object 或 Array
+模态卡参数
+天气
+国内天气
+- weather_china：国内天气，示例搜索词：北京天气、杭州天气
+暂时无法在飞书文档外展示此内容
+国际天气
+- weather_international：国际天气，示例搜索词：巴黎天气
+暂时无法在飞书文档外展示此内容
+百科
+百科专业版
+- baike_pro: 百科专业版，示例搜索词：西瓜的功效与作用
+暂时无法在飞书文档外展示此内容
+医疗
+医疗普通版
+- medical_common：医疗普通版，示例搜索词：站着和坐着哪个对腰椎伤害大
+暂时无法在飞书文档外展示此内容
+医疗专业版
+- medical_pro：医疗专业版，示例搜索词：站着和坐着哪个对腰椎伤害大
+暂时无法在飞书文档外展示此内容
+万年历
+- calendar：万年历，示例搜索词：万年历
+火车
+火车线路
+- train_line：火车线路、车票信息，示例搜索词：长春到白城火车时刻表
+暂时无法在飞书文档外展示此内容
+火车站点信息、列车时刻表
+- train_station_common：火车站点信息、列车时刻表，示例搜索词：K84次列车途经站点
+暂时无法在飞书文档外展示此内容
+火车站点信息、列车时刻表专业版
+- train_station_pro：火车站点信息、列车时刻表专业版，示例搜索词：G2556高铁时刻表停靠站
+暂时无法在飞书文档外展示此内容
+星座属相
+中国属相
+- star_chinese_zodiac_animal：中国属相、生肖运势，示例搜索词：
+  - 属虎男最佳婚配属相
+  - 属马人性格好吗
+暂时无法在飞书文档外展示此内容
+中国属相年份
+- star_chinese_zodiac：中国属相年份，示例搜索词：
+  - 2024年是什么年
+  - 94年属什么的
+暂时无法在飞书文档外展示此内容
+星座
+- star_western_zodiac_sign：星座，示例搜索词：
+  - 水瓶座
+  - 射手座性格
+暂时无法在飞书文档外展示此内容
+星座日期
+- star_western_zodiac：星座日期，示例搜索词：
+  - 12月是什么星座
+  - 8月份星座
+暂时无法在飞书文档外展示此内容
+贵金属
+价格
+- gold_price：贵金属价格，示例搜索词：
+  - 今日金价
+  - 现在黄金多少钱一克
+暂时无法在飞书文档外展示此内容
+价格趋势
+- gold_price_trend：贵金属价格趋势，示例搜索词：黄金今日价格
+暂时无法在飞书文档外展示此内容
+期货价格趋势
+- gold_price_futures_trend：贵金属期货价格趋势，示例搜索词：黄金期货实时行情
+暂时无法在飞书文档外展示此内容
+汇率
+- exchangerate：汇率，示例搜索词：
+  - 美元对人民币汇率
+  - 一美元等于多少人民币
+暂时无法在飞书文档外展示此内容
+油价
+- oil_price：油价，示例搜索词：
+  - 今日油价
+  - 北京今日油价92汽油
+暂时无法在飞书文档外展示此内容
+手机
+- phone：手机参数、参数对比，示例搜索词：华为pura70和mate60哪个好
+暂时无法在飞书文档外展示此内容
+股票
+- stock：股票，示例搜索词：东方财富股票
+暂时无法在飞书文档外展示此内容
+汽车
+汽车普通版
+- car_common：汽车信息，示例搜索词：长安汽车
+暂时无法在飞书文档外展示此内容
+汽车专业版
+- car_pro：汽车信息专业版，示例搜索词：宝马x3
+暂时无法在飞书文档外展示此内容
+六、Python SDK
+源码
+# BoCha AI Search Python SDK
+import requests, json
+from typing import Iterator
+
+def bocha_ai_search(
+    query: str,
+    api_key: str,
+    api_url: str = "https://api.bocha.cn/v1/ai-search",
+    freshness: str = "noLimit",
+    answer: bool = False,
+    stream: bool = False
+):
+    """ 博查AI搜索 """
+    data = {
+        "query": query,
+        "freshness": freshness,
+        "answer": answer,
+        "stream": stream
+    }
+
+    resp = requests.post(
+        api_url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        json=data,
+        stream=stream
+    )
+
+    if stream:
+        return (json.loads(line) for line in parse_response_stream(resp.iter_lines()))
+    else:
+        if resp.status_code == 200:
+            return resp.json()
+        else:
+            return { "code": resp.code, "msg": "bocha ai search api error." }
+
+def parse_response_stream(resp: Iterator[bytes]) -> Iterator[str]:
+    """将stream的sse event bytes数据解析成line格式"""
+    for line in resp:
+        if line:
+            if line.startswith(b"data:"):
+                _line = line[len(b"data:"):]
+                _line = _line.decode("utf-8")
+            else:
+                _line = line.decode("utf-8")
+            yield _line
+
+用法 - 非流式输出
+BOCHA_API_KEY = "YOUR-API-KEY"
+BOCHA_API_URL = "https://api.bocha.cn/v1/ai-search"
+
+response = bocha_ai_search(
+    api_url=BOCHA_API_URL,
+    api_key=BOCHA_API_KEY,
+    query="天空为什么是蓝色的",
+    freshness="noLimit",
+    answer=False,
+    stream=False
+)
+
+print(json.dumps(response))
+用法 - SSE 流式输出
+BOCHA_API_KEY = "YOUR-API-KEY"
+BOCHA_API_URL = "https://api.bocha.cn/v1/ai-search"
+
+resps = bocha_ai_search(
+    api_url=BOCHA_API_URL,
+    api_key=BOCHA_API_KEY,
+    query="天空为什么是蓝色的",
+    freshness="noLimit",
+    answer=True,
+    stream=True
+)
+
+for resp in resps:
+    print(resp)
+    # if resp.get('event', "") == 'message':
+    #     if resp.get('message', {}).get('type', "") == 'answer':
+    #         print(resp.get('message', {}).get('content', ""))
+    #     if resp.get('message', {}).get('content_type', "") == 'douyin':
+    #         print(resp.get('message', {}).get('content', ""))
+    # if resp.get('event', "") == 'done':
+    #     print('完成了')
+    # if resp.get('code', ""):
+    #     print(resp.get('msg'))
+    # if resp.get('event', "") == 'message':
+    #     print(resp.get('message', {}).get('content', ""))
+    # if resp.get('event', "") == 'done':
+    #     print('完成了')
+    # if resp.get('code', ""):
+    #     print(resp.get('msg'))
+
+
+    Agent Search 已经结束内测邀请。如需垂直领域内容的搜索，可以使用 AI Search API。
+一、API简介
+调用指定AI智能体回答用户问题，返回专业、有深度的答案和追问问题。
+[图片]
+二、智能体列表
+名称
+agent_id
+price
+agent_type
+search_engine
+需要开白名单
+开发状态
+餐厅搜索
+bocha-restaurant-agent
+内测免费
+生活
+amap
+需要
+✅
+酒店搜索
+bocha-hotel-agent
+内测免费
+生活
+amap
+需要
+✅
+景点搜索
+bocha-attraction-agent
+内测免费
+生活
+amap
+需要
+✅
+火车票搜索
+bocha-train-ticket-agent
+内测免费
+生活
+ly
+需要
+✅本期免费额度已用完
+机票搜索
+bocha-flight-ticket-agent
+内测免费
+生活
+ly
+需要
+✅本期免费额度已用完
+企业搜索
+bocha-company-agent
+内测免费
+商业
+bocha
+需要
+✅本期免费额度已用完
+学术搜索
+bocha-scholar-agent
+内测免费
+知识
+bocha
+需要
+✅
+文库搜索
+bocha-wenku-agent
+内测免费
+知识
+tencent
+需要
+✅
+商品搜索
+bocha-product-agent
+内测免费
+电商
+jd
+需要
+⏰ 延期
+路线规划
+bocha-route-planning-agent
+内测免费
+地理信息
+amap
+需要
+⏰ 延期
+请求示例
+[图片]
+
+大部分 Agent 在内测期间都是免费调用。
+如果有需求的话可以加入博查交流群提前联系我们，内测开始后会向给大家开通接口调用白名单。
+内测期间，免费的 Agent 调用次数有全局每日调用次数上限限值，如果遇到调用次数达到限值，请次日重新尝试，或联系我们提高限值。
+三、API接口
+接口域名：https://api.bocha.cn
+EndPoint：https://api.bocha.cn/v1/agent-search
+四、调用方式
+请求方式
+POST
+请求参数
+请求头
+参数
+取值
+说明
+Authorization
+Bearer {API KEY} 
+鉴权参数，示例：Bearer xxxxxx，API KEY请先前往博查AI开放平台（https://open.bocha.cn）> API KEY 管理中获取。
+Content-Type 
+application/json 
+解释请求正文的方式。 
+请求体
+参数
+类型
+必填
+说明
+agentId
+String
+是
+调用的智能体Id。
+query
+String 
+是
+用户的搜索词。可以是自然语言，例如：在杭州龙湖西溪天街附近给我找几家拉面馆？
+searchType
+
+String
+
+是
+
+搜索方式。
+- neural：默认值。此时query语句可以是自然语言，博查会使用意图理解模型从query语句中自动提取参数。
+- keyword：将query语句作为关键词进行搜索，此时需要手动指定paramteres。
+parameters
+
+Object
+
+否
+
+智能体调用时要求指定的额外参数。
+- searchType = neural 时，parameters可以填写以控制搜索范围，也可以设置为null，设置null时博查会从query词中自动提取参数。
+- searchType = keyword 时，必须填写 parameters。
+answer
+
+Boolean
+否
+是否返回AI生成的答案。
+- false：不返回答案，默认值
+- true：返回答案
+内测版本暂时不返回答案，所以可不填此参数
+stream
+
+Boolean
+是
+是否启用流式返回。 
+- false：如果未指定值或设置为 false，则采用非流式响应。 “非流式响应”是指所有响应全部准备好后再返回给客户端，客户端不需要拼接内容。 
+- true：设置为 true 表示采用流式响应。 “流式响应”将模型的实时响应提供给客户端，客户端需要根据消息类型组装最终的回复。
+非流式返回
+响应内容
+当使用非流式响应时，在大模型生成了所有要返回的内容后，将返回的消息发送给客户端，调用者无需拼接返回内容。但客户端必须等待整个数据加载完毕才能处理它。
+参数
+类型
+说明
+conversation_id
+String
+会话 ID。
+messages
+List<Object>
+全部消息都处理完成后，以 JSON 数组形式返回。
+详情请参考流式返回中 Message Object 消息结构的具体说明。
+code
+Integer
+状态码。
+200 代表调用成功。
+msg
+String
+状态信息。
+响应示例
+1. 餐厅搜索 bocha-restaurant-agent
+搜索高德，使用自然语言搜索餐厅。例如：杭州龙湖西溪天街附近的拉面馆
+请求
+curl --location \
+--request POST 'https://api.bocha.cn/v1/agent-search' \
+--header 'Authorization: Bearer {API KEY}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "agentId": "bocha-restaurant-agent",
+    "query": "杭州龙湖西溪天街附近的拉面馆",
+    "searchType": "neural",
+    "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "50322f086bfdead5",
+    "conversation_id": "9c4d2f83fad544bdb4b37f3cbb6ed6da",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "restaurant",
+            "content": "[{\"id\":\"B0IGP7K8MH\",\"name\":\"兰州牛肉面(龙湖杭州西溪天街店)\",\"longitude\":\"120.067311\",\"latitude\":\"30.293987\",\"types\":\"餐饮服务|中餐厅|中餐厅\",\"address\":\"蒋村龙湖西溪天街1幢号107室\",\"metadata\":{\"phone\":\"18697227168|18817212076\",\"score\":\"4.7\",\"tag\":\"红烧牛肉拌面,土豆牛肉饭,兰州拉面,牛肉刀削面,红烧牛肉面,牛肉炒刀削面,新疆大盘鸡,新疆拌面,牛肉面\",\"business_area\":\"西溪\",\"main_tag\":\"牛肉面\",\"daily_opening_hours\":\"10:30-21:00\",\"weekly_opening_days\":\"每天\",\"average_spend\":\"27.00\"},\"images\":[{\"url\":\"http://store.is.autonavi.com/query_pic?id=st325047e1-db2f-4764-9003-44982546dfb9&user=search&operate=original\"},{\"url\":\"http://store.is.autonavi.com/showpic/ecf2464ae1ecac80db18c434da2f68cd\"},{\"url\":\"http://store.is.autonavi.com/showpic/1d6a972d47d8b90a553f868040a8ac4e\"}],\"type_code\":\"050100\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"西湖区\",\"district_code\":\"330106\",\"distance_meter\":\"142\"},{\"id\":\"B0H35X678L\",\"name\":\"兰州尕胖子牛肉面(西溪天街铂金岛店)\",\"longitude\":\"120.067438\",\"latitude\":\"30.292421\",\"types\":\"餐饮服务|中餐厅|中餐厅\",\"address\":\"余杭塘路1001号龙湖西溪天街F1\",\"metadata\":{\"phone\":\"13735594880\",\"score\":\"4.7\",\"tag\":\"牛肉面\",\"business_area\":\"西溪\",\"main_tag\":\"牛肉面\",\"daily_opening_hours\":\"10:00-21:00\",\"weekly_opening_days\":\"每天\",\"average_spend\":\"20.00\"},\"images\":[{\"url\":\"http://store.is.autonavi.com/showpic/532dee7cede0b5cd344a8a0c6fcacbe4\"},{\"url\":\"http://store.is.autonavi.com/showpic/bb6e34a7a1b2494b10303a45870033c0\"},{\"url\":\"http://store.is.autonavi.com/showpic/845436aaf59392aa4f87bbdeb1bbc623\"}],\"type_code\":\"050100\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"西湖区\",\"district_code\":\"330106\",\"distance_meter\":\"155\"},{\"id\":\"B0JULUKRK0\",\"name\":\"兰州牛肉面(杭州总店)\",\"longitude\":\"120.072113\",\"latitude\":\"30.293083\",\"types\":\"餐饮服务|中餐厅|清真菜馆\",\"address\":\"绿城西溪世纪中心6期114兰州牛肉面\",\"metadata\":{\"phone\":\"13282132076|18817212076\",\"score\":\"3.8\",\"business_area\":\"西溪\",\"main_tag\":\"小吃快餐\"},\"images\":[{\"url\":\"https://aos-comment.amap.com/B0JULUKRK0/comment/7403d228a4c5b5917b6ee3737d6cbd94_2048_2048_80.jpg\"},{\"url\":\"https://aos-comment.amap.com/B0JULUKRK0/comment/9f5a3d45f5bb8b520813170b970b6c12_2048_2048_80.jpg\"},{\"url\":\"http://store.is.autonavi.com/showpic/d39ae5409019e09f61d0dd76e82bac78\"}],\"type_code\":\"050121\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"西湖区\",\"district_code\":\"330106\",\"distance_meter\":\"338\"},{\"id\":\"B0HG2X2TQL\",\"name\":\"中国兰州牛肉拉面(天街店)\",\"longitude\":\"120.068822\",\"latitude\":\"30.292372\",\"types\":\"餐饮服务|快餐厅|快餐厅\",\"address\":\"龙湖西溪天街10号楼107室\",\"metadata\":{\"phone\":\"13297778889\",\"score\":\"4.1\",\"business_area\":\"西溪\",\"main_tag\":\"牛肉面\",\"daily_opening_hours\":\"08:00-23:30\",\"weekly_opening_days\":\"每天\"},\"images\":[{\"url\":\"http://s-pic.oss-cn-beijing.aliyuncs.com/desensitize/deep/images/publish/baf8ca40b4ce9ad48b7d0cf5baa86ebf.jpg\"},{\"url\":\"http://store.is.autonavi.com/showpic/f264b1eb6d52ea6e69e8fb9f4e1be65d\"},{\"url\":\"http://store.is.autonavi.com/showpic/53f00ce8db650ce08d827caf2011568e\"}],\"type_code\":\"050300\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"西湖区\",\"district_code\":\"330106\",\"distance_meter\":\"113\"}]"
+        }
+    ]
+}
+预览
+https://bocha.cn/share/fc3e020f-d4b3-4fdf-9168-b7d34e0531ac
+[图片]
+2. 酒店搜索 bocha-hotel-agent
+搜索高德，使用自然语言搜索酒店。
+请求
+curl --location \
+--request POST 'https://api.bocha.cn/v1/agent-search' \
+--header 'Authorization: Bearer {API KEY}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "agentId": "bocha-hotel-agent",
+    "query": "杭州西湖旁边的酒店",
+    "searchType": "neural",
+    "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "e2cec10b75bff989",
+    "conversation_id": "b4d6f24ed30748e086e5aaf201d19a12",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "hotel",
+            "content": "[{\"id\":\"B0FFITA3EB\",\"name\":\"7天优品酒店\",\"longitude\":\"120.141683\",\"latitude\":\"30.271213\",\"types\":\"住宿服务|宾馆酒店|宾馆酒店\",\"address\":\"天目山路121号\",\"metadata\":{\"phone\":\"0571-89913558\",\"business_area\":\"西湖\",\"main_tag\":\"快捷酒店\",\"score\":\"4.6\"},\"images\":[{\"title\":\"Logo\",\"url\":\"http://store.is.autonavi.com/showpic/20c6231b2974d38a3446f95552f0c74e\"},{\"url\":\"http://store.is.autonavi.com/showpic/8f734842e4ae51c485bd644c3585bedd\"},{\"title\":\"商务双床房\",\"url\":\"http://store.is.autonavi.com/showpic/973bc68386cb027e62c50d73cf7ffb95\"}],\"type_code\":\"100100\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"西湖区\",\"district_code\":\"330106\"},{\"id\":\"B0FFGMCUK9\",\"name\":\"杭州西兰精品酒店(浙大紫金港三坝地铁站店)\",\"longitude\":\"120.098561\",\"latitude\":\"30.301759\",\"types\":\"住宿服务|宾馆酒店|宾馆酒店\",\"address\":\"古墩路同人精华A幢1层600-1号\",\"metadata\":{\"phone\":\"0571-88751777|18058712776\",\"business_area\":\"三墩\",\"main_tag\":\"经济型\",\"score\":\"4.6\"},\"images\":[{\"title\":\"Logo\",\"url\":\"http://store.is.autonavi.com/showpic/49693bf16c2ee391103ef6574a2c082e\"},{\"title\":\"外观35\",\"url\":\"http://store.is.autonavi.com/showpic/480c69dd00996ae7043cb418abfd270a\"},{\"url\":\"http://store.is.autonavi.com/showpic/719e8d43baf1cb759bc056c8e4939ef5\"}],\"type_code\":\"100100\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"西湖区\",\"district_code\":\"330106\"},{\"id\":\"B0FFG8VM7O\",\"name\":\"布丁酒店(杭州转塘音乐学院象山美院店)\",\"longitude\":\"120.079318\",\"latitude\":\"30.148874\",\"types\":\"住宿服务|宾馆酒店|经济型连锁酒店\",\"address\":\"转塘镇象山364号1幢1单元\",\"metadata\":{\"phone\":\"0571-28250099|0571-28258696\",\"main_tag\":\"经济型\",\"score\":\"4.4\"},\"images\":[{\"url\":\"http://store.is.autonavi.com/showpic/b26ffba425436f9581fbf50cf4a9d99e\"},{\"title\":\"标准房\",\"url\":\"http://store.is.autonavi.com/showpic/aea9c6bcaae5871b1e43f9f97aa3037f\"},{\"url\":\"http://store.is.autonavi.com/showpic/033454eede47b73adaf1b86de12bc455\"}],\"type_code\":\"100105\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"西湖区\",\"district_code\":\"330106\"}]"
+        }
+    ]
+}
+预览
+https://bocha.cn/share/ba315d52-3fe6-4359-86a4-fe6443cd3a5f
+[图片]
+3. 景点搜索 bocha-attraction-agent
+搜索高德，使用自然语言搜索景点。
+请求
+curl --location \
+--request POST 'https://api.bocha.cn/v1/agent-search' \
+--header 'Authorization: Bearer {API KEY}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "agentId": "bocha-attraction-agent",
+    "query": "杭州余杭区有名的景点",
+    "searchType": "neural",
+    "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "b07bb31ee31dd0ab",
+    "conversation_id": "5085422b6cf7494695ae08c62f709118",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "attraction",
+            "content": "[{\"id\":\"B0FFLG1X47\",\"name\":\"余杭区图书馆(中泰街道分馆)\",\"longitude\":\"119.935177\",\"latitude\":\"30.242208\",\"types\":\"科教文化服务|图书馆|图书馆\",\"address\":\"中泰路370号杭州·南湖大厦F3层\",\"metadata\":{\"main_tag\":\"图书馆\",\"daily_opening_hours\":\"08:30-12:00 13:30-17:30\",\"weekly_opening_days\":\"每天\"},\"images\":[{\"url\":\"https://aos-comment.amap.com/B0FFLG1X47/comment/42e1ad694ff311116ba5c00669172cb6_2048_2048_80.jpg\"},{\"url\":\"https://aos-comment.amap.com/B0FFLG1X47/comment/fd7a9d3eeb81d0b193097b56dc902b9f_2048_2048_80.jpg\"},{\"url\":\"https://aos-comment.amap.com/B0FFLG1X47/comment/191bb639ee4932d2bde2ffe73eca4cd4_2048_2048_80.jpg\"}],\"type_code\":\"140500\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"余杭区\",\"district_code\":\"330110\"},{\"id\":\"B0JK3ZC4D4\",\"name\":\"余杭区艺术中心\",\"longitude\":\"119.988259\",\"latitude\":\"30.225610\",\"types\":\"科教文化服务|科教文化场所|科教文化场所\",\"address\":\"闲林中路291号16号-1号商铺楼\",\"metadata\":{\"main_tag\":\"科教文化服务,科教文化场所,科教文化场所\",\"business_area\":\"闲林\"},\"images\":[{\"url\":\"https://aos-comment.amap.com/B0JK3ZC4D4/headerImg/5672d8248cbc1371bbaaf6a80b6e300c_2048_2048_80.jpg\"},{\"url\":\"http://store.is.autonavi.com/showpic/6cee547a6040800a4cf0bf58a1586ae3\"}],\"type_code\":\"140000\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"余杭区\",\"district_code\":\"330110\"},{\"id\":\"B0JUH5T917\",\"name\":\"余杭区数字非遗馆\",\"longitude\":\"119.976702\",\"latitude\":\"30.369023\",\"types\":\"科教文化服务|展览馆|展览馆\",\"address\":\"崇北街9号余杭文化中心二楼\",\"metadata\":{\"main_tag\":\"展览馆\",\"daily_opening_hours\":\"09:00-16:30\",\"weekly_opening_days\":\"周二至周日\",\"phone\":\"0571-88531107\",\"score\":\"4.3\",\"business_area\":\"瓶窑\"},\"images\":[{\"url\":\"http://store.is.autonavi.com/showpic/15ad3c98a3f99e4cd8ef635c5a650fae\"},{\"url\":\"http://store.is.autonavi.com/showpic/4196e8446d30570205d5acfd2388191c\"},{\"url\":\"http://store.is.autonavi.com/showpic/d6042bd901b42629595d295a4c6a27e0\"}],\"type_code\":\"140200\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"余杭区\",\"district_code\":\"330110\"},{\"id\":\"B0FFJ86KIQ\",\"name\":\"梦想小镇\",\"longitude\":\"119.997880\",\"latitude\":\"30.289118\",\"types\":\"风景名胜|风景名胜|国家级景点\",\"address\":\"良睦路1399号\",\"metadata\":{\"tag\":\"音乐酒吧,黄油,油菜花,煮茶\",\"main_tag\":\"4A景区\",\"daily_opening_hours\":\"24小时营业\",\"weekly_opening_days\":\"每天\",\"phone\":\"0571-88722256\",\"score\":\"4.7\",\"average_spend\":\"0.00\"},\"images\":[{\"url\":\"http://store.is.autonavi.com/showpic/2e6cc4461de7b753147aad53b314f5a0\"},{\"url\":\"http://store.is.autonavi.com/showpic/bf7e2d9e52f1d2a2bb9f43150ab9184a\"},{\"url\":\"https://aos-comment.amap.com/B0FFJ86KIQ/comment/2c5dbd837bee51f8c7a5f97b8e761394_2048_2048_80.jpg\"}],\"type_code\":\"110202\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"余杭区\",\"district_code\":\"330110\"},{\"id\":\"B0FFHUUQ7K\",\"name\":\"宝寿山景区\",\"longitude\":\"120.008159\",\"latitude\":\"30.217244\",\"types\":\"风景名胜|风景名胜|风景名胜\",\"address\":\"西和路靠近宝寿寺\",\"metadata\":{\"tag\":\"马尔代夫,烧烤架\",\"main_tag\":\"名山丘陵\",\"daily_opening_hours\":\"08:30-19:00 08:30-17:00 08:30-19:00 08:30-19:00\",\"weekly_opening_days\":\"开放\",\"phone\":\"0571-88696655\",\"score\":\"4.7\"},\"images\":[{\"url\":\"http://store.is.autonavi.com/showpic/b47fb28df006defe6afadda6731c1b08\"},{\"url\":\"http://store.is.autonavi.com/showpic/c39d4b88c887e12c81177cbecedec7d6\"},{\"url\":\"http://store.is.autonavi.com/showpic/b4efd41fc34167af780fe6ebf8c127ce\"}],\"type_code\":\"110200\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"余杭区\",\"district_code\":\"330110\"},{\"id\":\"B0FFF8B93M\",\"name\":\"良渚文化村\",\"longitude\":\"120.013803\",\"latitude\":\"30.361263\",\"types\":\"风景名胜|风景名胜|风景名胜\",\"address\":\"玉鸟路\",\"metadata\":{\"tag\":\"下午茶\",\"main_tag\":\"景区\",\"daily_opening_hours\":\"24小时营业\",\"weekly_opening_days\":\"每天\",\"score\":\"4.7\",\"average_spend\":\"0.00\"},\"images\":[{\"url\":\"http://store.is.autonavi.com/showpic/4bfbe7836501fcd00bf1b68fe62b63d3\"},{\"url\":\"http://store.is.autonavi.com/showpic/96f217d99bacffa7b372288149945b06\"},{\"url\":\"http://store.is.autonavi.com/showpic/5e454993f24f5ed2e3596759f599b283\"}],\"type_code\":\"110200\",\"province_name\":\"浙江省\",\"province_code\":\"330000\",\"city_name\":\"杭州市\",\"city_code\":\"0571\",\"district_name\":\"余杭区\",\"district_code\":\"330110\"}]"
+        }
+    ]
+}
+预览
+https://bocha.cn/share/0ee54e72-6f7c-477e-b46a-5c2a1aa5c56a
+[图片]
+4. 机票搜索 bocha-flight-ticket-agent
+搜索携程，使用自然语言搜索15天内的机票。例如：明天北京到上海的机票
+请求
+curl --location \
+--request POST 'https://api.bocha.cn/v1/agent-search' \
+--header 'Authorization: Bearer {API KEY}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "agentId": "bocha-flight-ticket-agent",
+    "query": "明天北京到上海的机票",
+    "searchType": "neural",
+    "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "06b38e187e2590a8",
+    "conversation_id": "f391a8b0914d4186a0c683eba32c25aa",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "flight_ticket",
+            "content": "[{\"flight_no\":\"GJ3647\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"17时35分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"19时45分\",\"arrive_terminal\":\"T1\",\"flight_company\":\"长龙航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1630\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"NS8545\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"17时35分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"19时45分\",\"flight_company\":\"河北航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1630\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"3U2447\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"17时35分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"19时45分\",\"flight_company\":\"四川航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1630\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"CZ4447\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"17时35分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"19时45分\",\"flight_company\":\"南方航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1630\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"MU4855\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"17时35分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"19时45分\",\"flight_company\":\"东方航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1630\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"CZ8887\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"12时00分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"14时10分\",\"flight_company\":\"南方航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1630\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"HO5757\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"17时25分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"20时05分\",\"flight_company\":\"吉祥航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1300\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"HO5742\",\"dep_city\":\"北京\",\"dep_airport\":\"首都\",\"dep_time\":\"13时30分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"16时00分\",\"flight_company\":\"吉祥航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1300\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"HO5744\",\"dep_city\":\"北京\",\"dep_airport\":\"首都\",\"dep_time\":\"11时25分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"13时50分\",\"flight_company\":\"吉祥航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1300\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"HO5740\",\"dep_city\":\"北京\",\"dep_airport\":\"首都\",\"dep_time\":\"08时30分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"10时55分\",\"flight_company\":\"吉祥航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1300\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"HO7562\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"16时00分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"18时20分\",\"flight_company\":\"吉祥航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1190\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"HO7564\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"12时00分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"14时10分\",\"flight_company\":\"吉祥航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1190\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"HO7560\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"08时00分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"10时10分\",\"flight_company\":\"吉祥航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1190\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"G56900\",\"dep_city\":\"北京\",\"dep_airport\":\"首都\",\"dep_time\":\"08时00分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"10时20分\",\"flight_company\":\"华夏航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1180\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"SC5410\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"20时30分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"22时35分\",\"flight_company\":\"山东航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1000\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"SC5392\",\"dep_city\":\"北京\",\"dep_airport\":\"首都\",\"dep_time\":\"20时30分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"22时40分\",\"flight_company\":\"山东航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1000\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"ZH4934\",\"dep_city\":\"北京\",\"dep_airport\":\"大兴\",\"dep_time\":\"20时30分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"22时35分\",\"flight_company\":\"深圳航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1000\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"SC5406\",\"dep_city\":\"北京\",\"dep_airport\":\"首都\",\"dep_time\":\"20时20分\",\"arr_city\":\"上海\",\"arr_airport\":\"浦东\",\"arr_time\":\"22时35分\",\"flight_company\":\"山东航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1000\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"MF3443\",\"dep_city\":\"北京\",\"dep_airport\":\"首都\",\"dep_time\":\"20时00分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"22时10分\",\"flight_company\":\"厦门航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1000\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"},{\"flight_no\":\"SC5388\",\"dep_city\":\"北京\",\"dep_airport\":\"首都\",\"dep_time\":\"19时30分\",\"arr_city\":\"上海\",\"arr_airport\":\"虹桥\",\"arr_time\":\"21时50分\",\"flight_company\":\"山东航空\",\"flight_date\":\"2024-09-19\",\"price\":\"1000\",\"h5_url\":\"https://m.ctrip.com/html5/flight/pages/first?acity=SHA&acityName=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dcity=BJS&dcityName=%E5%8C%97%E4%BA%AC&ddate=2024-09-19&from=outer&sid=58858031\"}]"
+        }
+    ]
+}
+预览
+https://bocha.cn/share/13c6f146-233a-4b87-aa0e-986eb22cc50c
+[图片]
+5. 火车票搜索 bocha-train-ticket-agent
+搜索携程，使用自然语言搜索15天内的火车票。例如：明天北京到上海的火车票
+请求
+curl --location \
+--request POST 'https://api.bocha.cn/v1/agent-search' \
+--header 'Authorization: Bearer {API KEY}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "agentId": "bocha-train-ticket-agent",
+    "query": "明天北京到上海的火车票",
+    "searchType": "neural",
+    "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "3d3acb59bd51d582",
+    "conversation_id": "80bf206aba764906b8bb4193da9b652b",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "train_ticket",
+            "content": "[{\"train_no\":\"G101\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"06:10\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"12:09\",\"all_time\":\"5小时59分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"553\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"930\",\"ticket_left\":\"17\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"1873\",\"ticket_left\":\"6\"}]},{\"train_no\":\"D7\",\"start_city\":\"北京\",\"start_station\":\"北京\",\"start_time\":\"19:22\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"07:25\",\"all_time\":\"12小时3分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"361\",\"ticket_left\":\"99\"},{\"ticket_type\":\"二等卧上\",\"ticket_price\":\"542\",\"ticket_left\":\"0\"},{\"ticket_type\":\"二等卧中\",\"ticket_price\":\"578\",\"ticket_left\":\"0\"},{\"ticket_type\":\"二等卧下\",\"ticket_price\":\"632\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等卧上\",\"ticket_price\":\"686\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等卧下\",\"ticket_price\":\"777\",\"ticket_left\":\"99\"},{\"ticket_type\":\"无座\",\"ticket_price\":\"361\",\"ticket_left\":\"99\"}]},{\"train_no\":\"D5\",\"start_city\":\"北京\",\"start_station\":\"北京\",\"start_time\":\"21:21\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"09:27\",\"all_time\":\"12小时6分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"361\",\"ticket_left\":\"99\"},{\"ticket_type\":\"二等卧上\",\"ticket_price\":\"542\",\"ticket_left\":\"99\"},{\"ticket_type\":\"二等卧中\",\"ticket_price\":\"578\",\"ticket_left\":\"99\"},{\"ticket_type\":\"二等卧下\",\"ticket_price\":\"632\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等卧上\",\"ticket_price\":\"686\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等卧下\",\"ticket_price\":\"777\",\"ticket_left\":\"99\"},{\"ticket_type\":\"无座\",\"ticket_price\":\"361\",\"ticket_left\":\"99\"}]},{\"train_no\":\"T109\",\"start_city\":\"北京\",\"start_station\":\"北京\",\"start_time\":\"20:03\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"11:02\",\"all_time\":\"14小时59分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"硬座\",\"ticket_price\":\"177.5\",\"ticket_left\":\"99\"},{\"ticket_type\":\"硬卧上\",\"ticket_price\":\"304.5\",\"ticket_left\":\"0\"},{\"ticket_type\":\"硬卧中\",\"ticket_price\":\"315.5\",\"ticket_left\":\"0\"},{\"ticket_type\":\"硬卧下\",\"ticket_price\":\"325.5\",\"ticket_left\":\"0\"},{\"ticket_type\":\"软卧上\",\"ticket_price\":\"476.5\",\"ticket_left\":\"2\"},{\"ticket_type\":\"软卧下\",\"ticket_price\":\"497.5\",\"ticket_left\":\"2\"},{\"ticket_type\":\"无座\",\"ticket_price\":\"177.5\",\"ticket_left\":\"99\"}]},{\"train_no\":\"1461\",\"start_city\":\"北京\",\"start_station\":\"北京丰台\",\"start_time\":\"12:00\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"06:45\",\"all_time\":\"18小时45分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E4%B8%B0%E5%8F%B0&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"硬座\",\"ticket_price\":\"152.5\",\"ticket_left\":\"99\"},{\"ticket_type\":\"硬卧上\",\"ticket_price\":\"275.5\",\"ticket_left\":\"99\"},{\"ticket_type\":\"硬卧中\",\"ticket_price\":\"285.5\",\"ticket_left\":\"99\"},{\"ticket_type\":\"硬卧下\",\"ticket_price\":\"296.5\",\"ticket_left\":\"99\"},{\"ticket_type\":\"软卧上\",\"ticket_price\":\"443.5\",\"ticket_left\":\"8\"},{\"ticket_type\":\"软卧下\",\"ticket_price\":\"463.5\",\"ticket_left\":\"8\"},{\"ticket_type\":\"无座\",\"ticket_price\":\"152.5\",\"ticket_left\":\"99\"}]},{\"train_no\":\"D9\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"19:36\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"07:46\",\"all_time\":\"12小时10分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"359\",\"ticket_left\":\"0\"},{\"ticket_type\":\"二等卧上\",\"ticket_price\":\"538\",\"ticket_left\":\"0\"},{\"ticket_type\":\"二等卧中\",\"ticket_price\":\"574\",\"ticket_left\":\"0\"},{\"ticket_type\":\"二等卧下\",\"ticket_price\":\"628\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等卧上\",\"ticket_price\":\"682\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等卧下\",\"ticket_price\":\"772\",\"ticket_left\":\"99\"}]},{\"train_no\":\"G27\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"19:00\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"23:29\",\"all_time\":\"4小时29分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"666\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1066\",\"ticket_left\":\"0\"},{\"ticket_type\":\"优选一等座\",\"ticket_price\":\"1465\",\"ticket_left\":\"0\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2331\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G23\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"18:00\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"22:43\",\"all_time\":\"4小时43分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"631\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1042\",\"ticket_left\":\"0\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2172\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G13\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"13:00\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"17:35\",\"all_time\":\"4小时35分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"667\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1067\",\"ticket_left\":\"0\"},{\"ticket_type\":\"优选一等座\",\"ticket_price\":\"1467\",\"ticket_left\":\"0\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2331\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G133\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"11:50\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"18:02\",\"all_time\":\"6小时12分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"604\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1013\",\"ticket_left\":\"99\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2013\",\"ticket_left\":\"2\"}]},{\"train_no\":\"G3\",\"start_city\":\"北京\",\"start_station\":\"北京\",\"start_time\":\"07:40\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"12:32\",\"all_time\":\"4小时52分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"671\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1073\",\"ticket_left\":\"99\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2344\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G1\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"07:00\",\"end_city\":\"上海\",\"end_station\":\"上海\",\"end_time\":\"11:29\",\"all_time\":\"4小时29分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"667\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1067\",\"ticket_left\":\"15\"},{\"ticket_type\":\"优选一等座\",\"ticket_price\":\"1467\",\"ticket_left\":\"3\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2331\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G25\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"18:04\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"22:58\",\"all_time\":\"4小时54分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"626\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1035\",\"ticket_left\":\"99\"},{\"ticket_type\":\"优选一等座\",\"ticket_price\":\"1422\",\"ticket_left\":\"5\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2318\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G161\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"17:33\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"23:37\",\"all_time\":\"6小时4分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"553\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"930\",\"ticket_left\":\"99\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"1748\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G159\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"17:19\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"23:18\",\"all_time\":\"5小时59分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"576\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"969\",\"ticket_left\":\"0\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"1873\",\"ticket_left\":\"5\"}]},{\"train_no\":\"G21\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"17:00\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"21:18\",\"all_time\":\"4小时18分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"662\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1060\",\"ticket_left\":\"0\"},{\"ticket_type\":\"优选一等座\",\"ticket_price\":\"1457\",\"ticket_left\":\"0\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2318\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G157\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"16:53\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"23:13\",\"all_time\":\"6小时20分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"576\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"969\",\"ticket_left\":\"99\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"1873\",\"ticket_left\":\"1\"}]},{\"train_no\":\"G153\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"16:30\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"22:27\",\"all_time\":\"5小时57分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"576\",\"ticket_left\":\"99\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"969\",\"ticket_left\":\"99\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"1873\",\"ticket_left\":\"1\"}]},{\"train_no\":\"G19\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"16:00\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"20:28\",\"all_time\":\"4小时28分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"662\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"1060\",\"ticket_left\":\"0\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"2318\",\"ticket_left\":\"0\"}]},{\"train_no\":\"G151\",\"start_city\":\"北京\",\"start_station\":\"北京南\",\"start_time\":\"15:49\",\"end_city\":\"上海\",\"end_station\":\"上海虹桥\",\"end_time\":\"22:12\",\"all_time\":\"6小时23分钟\",\"date\":\"2024-09-19\",\"h5_url\":\"https://m.ctrip.com/webapp/train/list?aStation=%E4%B8%8A%E6%B5%B7%E8%99%B9%E6%A1%A5&allianceid=4497095&dDate=2024-09-19&dStation=%E5%8C%97%E4%BA%AC%E5%8D%97&sid=58858031&ticketType=0\",\"tickets\":[{\"ticket_type\":\"二等座\",\"ticket_price\":\"576\",\"ticket_left\":\"0\"},{\"ticket_type\":\"一等座\",\"ticket_price\":\"969\",\"ticket_left\":\"99\"},{\"ticket_type\":\"商务座\",\"ticket_price\":\"1873\",\"ticket_left\":\"0\"}]}]"
+        }
+    ]
+}
+预览
+https://bocha.cn/share/59dbf519-09fd-4cea-987c-1e8327276559
+[图片]
+6. 企业搜索 bocha-company-agent
+搜索企业信息，包括公司名称、类型、成立日期、经营状态、统一社会信用代码等详细信息
+请求
+curl --location \
+--request POST 'https://api.bocha.cn/v1/agent-search' \
+--header 'Authorization: Bearer {API KEY}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "agentId": "bocha-company-agent",
+    "query": "字节跳动相关的公司有哪些",
+    "searchType": "neural",
+    "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "ab0d491dd028cfea",
+    "conversation_id": "6e45aaf5b96d4c65ab1b4a3e67a5d976",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "company",
+            "content": "[{\"id\":2352987806,\"name\":\"抖音有限公司\",\"base\":\"北京\",\"legalPersonName\":\"张利东\",\"creditCode\":\"91110105MA005AEF36\",\"orgNumber\":\"MA005AEF-3\",\"regCapital\":\"10000万人民币\",\"regNumber\":\"110105021171492\",\"regStatus\":\"存续\",\"estiblishTime\":\"2016-05-04 00:00:00.0\",\"matchType\":\"历史名称匹配\",\"companyType\":1,\"type\":1},{\"id\":25174642,\"name\":\"北京抖音信息服务有限公司\",\"base\":\"北京\",\"legalPersonName\":\"张利东\",\"creditCode\":\"911101085923662400\",\"orgNumber\":\"59236624-0\",\"regCapital\":\"20000万人民币\",\"regNumber\":\"110108014706658\",\"regStatus\":\"存续\",\"estiblishTime\":\"2012-03-09 00:00:00.0\",\"matchType\":\"历史名称匹配\",\"companyType\":1,\"type\":1},{\"id\":13310516,\"name\":\"抖音视界有限公司\",\"base\":\"北京\",\"legalPersonName\":\"韩尚佑\",\"creditCode\":\"91110107599635562F\",\"orgNumber\":\"59963556-2\",\"regCapital\":\"30000万美元\",\"regNumber\":\"110000450211646\",\"regStatus\":\"存续\",\"estiblishTime\":\"2012-07-25 00:00:00.0\",\"matchType\":\"历史名称匹配\",\"companyType\":1,\"type\":1},{\"id\":3192135256,\"name\":\"浙江字节跳动科技有限公司\",\"base\":\"浙江\",\"legalPersonName\":\"郭继春\",\"creditCode\":\"91330205MA2AJL1P1C\",\"orgNumber\":\"MA2AJL1P-1\",\"regCapital\":\"1000万人民币\",\"regNumber\":\"330205000292132\",\"regStatus\":\"存续\",\"estiblishTime\":\"2018-05-09 00:00:00.0\",\"matchType\":\"公司名称匹配\",\"companyType\":1,\"type\":1},{\"id\":3266848464,\"name\":\"北京字跳网络技术有限公司\",\"base\":\"北京\",\"legalPersonName\":\"李英\",\"creditCode\":\"91110108MA01F2L25J\",\"orgNumber\":\"MA01F2L2-5\",\"regCapital\":\"10000万美元\",\"regNumber\":\"110000450378943\",\"regStatus\":\"存续\",\"estiblishTime\":\"2018-10-15 00:00:00.0\",\"matchType\":\"微信公众号匹配\",\"companyType\":1,\"type\":1},{\"id\":453918461,\"name\":\"天津字节跳动科技有限公司\",\"base\":\"天津\",\"legalPersonName\":\"肖金梅\",\"creditCode\":\"911201160942809466\",\"orgNumber\":\"09428094-6\",\"regCapital\":\"2600万美元\",\"regNumber\":\"120000400150403\",\"regStatus\":\"存续\",\"estiblishTime\":\"2014-07-17 00:00:00.0\",\"matchType\":\"公司名称匹配\",\"companyType\":1,\"type\":1},{\"id\":2968743530,\"name\":\"福建字节跳动科技有限公司\",\"base\":\"福建\",\"legalPersonName\":\"朱时雨\",\"creditCode\":\"91350125MA2XT4JW2J\",\"orgNumber\":\"MA2XT4JW-2\",\"regCapital\":\"5000万人民币\",\"regNumber\":\"350125100064467\",\"regStatus\":\"存续\",\"estiblishTime\":\"2016-11-24 00:00:00.0\",\"matchType\":\"公司名称匹配\",\"companyType\":1,\"type\":1},{\"id\":3421512517,\"name\":\"中國字節跳動集團股份有限公司\",\"base\":\"香港\",\"legalPersonName\":\"\",\"creditCode\":\"\",\"orgNumber\":\"\",\"regCapital\":\"-\",\"regNumber\":\"\",\"regStatus\":\"已告解散\",\"estiblishTime\":\"2020-04-03 00:00:00.0\",\"matchType\":\"公司名称匹配\",\"companyType\":2,\"type\":1},{\"id\":2350593501,\"name\":\"北京抖音科技有限公司\",\"base\":\"北京\",\"legalPersonName\":\"王迪\",\"creditCode\":\"91110101MA0045N17U\",\"orgNumber\":\"MA0045N1-7\",\"regCapital\":\"1000万人民币\",\"regNumber\":\"110101020839442\",\"regStatus\":\"存续\",\"estiblishTime\":\"2016-03-11 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":2791028018,\"name\":\"今日头条有限公司\",\"base\":\"北京\",\"legalPersonName\":\"涂晴\",\"creditCode\":\"91110108MA007R7P8D\",\"orgNumber\":\"MA007R7P-8\",\"regCapital\":\"10000万人民币\",\"regNumber\":\"110108021890807\",\"regStatus\":\"存续\",\"estiblishTime\":\"2016-08-24 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":3433220456,\"name\":\"北京火山引擎科技有限公司\",\"base\":\"北京\",\"legalPersonName\":\"李飞\",\"creditCode\":\"91110108MA01R70K8D\",\"orgNumber\":\"MA01R70K-8\",\"regCapital\":\"100000万人民币\",\"regNumber\":\"110108028740260\",\"regStatus\":\"存续\",\"estiblishTime\":\"2020-05-11 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":3285913796,\"name\":\"北京懂车帝科技有限公司\",\"base\":\"北京\",\"legalPersonName\":\"马骏\",\"creditCode\":\"91110108MA01GA6003\",\"orgNumber\":\"MA01GA60-0\",\"regCapital\":\"1000万人民币\",\"regNumber\":\"110108026427596\",\"regStatus\":\"存续\",\"estiblishTime\":\"2018-12-20 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":2352885932,\"name\":\"北京今日头条科技有限公司\",\"base\":\"北京\",\"legalPersonName\":\"郭继春\",\"creditCode\":\"91110105MA004FR44Q\",\"orgNumber\":\"MA004FR4-4\",\"regCapital\":\"151000万人民币\",\"regNumber\":\"110105020933807\",\"regStatus\":\"存续\",\"estiblishTime\":\"2016-03-16 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":3129432553,\"name\":\"深圳今日头条科技有限公司\",\"base\":\"广东\",\"legalPersonName\":\"李墨稼\",\"creditCode\":\"91440300MA5EWHWQ6J\",\"orgNumber\":\"MA5EWHWQ-6\",\"regCapital\":\"1700000万人民币\",\"regNumber\":\"440300203144153\",\"regStatus\":\"存续\",\"estiblishTime\":\"2017-12-07 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":2334077773,\"name\":\"深圳市脸萌科技有限公司\",\"base\":\"广东\",\"legalPersonName\":\"李飞\",\"creditCode\":\"9144030008867405X2\",\"orgNumber\":\"08867405-X\",\"regCapital\":\"1000万人民币\",\"regNumber\":\"440306108726701\",\"regStatus\":\"存续\",\"estiblishTime\":\"2014-01-21 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":4129263673,\"name\":\"杭州字节跳动科技有限公司\",\"base\":\"浙江\",\"legalPersonName\":\"罗颖铭\",\"creditCode\":\"91330110MA2KCU5Q0E\",\"orgNumber\":\"MA2KCU5Q-0\",\"regCapital\":\"47000万人民币\",\"regNumber\":\"330184001426390\",\"regStatus\":\"存续\",\"estiblishTime\":\"2020-12-24 00:00:00.0\",\"matchType\":\"公司名称匹配\",\"companyType\":1,\"type\":1},{\"id\":3300455686,\"name\":\"北京飞书科技有限公司\",\"base\":\"北京\",\"legalPersonName\":\"童遥\",\"creditCode\":\"91110106MA0065EG39\",\"orgNumber\":\"MA0065EG-3\",\"regCapital\":\"7000万人民币\",\"regNumber\":\"110106021413316\",\"regStatus\":\"存续\",\"estiblishTime\":\"2016-06-12 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":3114767784,\"name\":\"巨量引擎（上海）计算机科技有限公司\",\"base\":\"上海\",\"legalPersonName\":\"周轶坤\",\"creditCode\":\"91310120MA1HN81AX3\",\"orgNumber\":\"MA1HN81A-X\",\"regCapital\":\"100万人民币\",\"regNumber\":\"310120003897002\",\"regStatus\":\"存续\",\"estiblishTime\":\"2017-11-09 00:00:00.0\",\"matchType\":\"投资机构匹配\",\"companyType\":1,\"type\":1},{\"id\":3416444300,\"name\":\"深圳字节跳动电子科技有限公司\",\"base\":\"广东\",\"legalPersonName\":\"高强\",\"creditCode\":\"91440300MA5G0MUP65\",\"orgNumber\":\"MA5G0MUP-6\",\"regCapital\":\"500万人民币\",\"regNumber\":\"440300209029171\",\"regStatus\":\"存续\",\"estiblishTime\":\"2019-12-20 00:00:00.0\",\"matchType\":\"公司名称匹配\",\"companyType\":1,\"type\":1},{\"id\":3394551810,\"name\":\"武汉直接跳动网络科技有限公司\",\"base\":\"湖北\",\"legalPersonName\":\"杨蒙\",\"creditCode\":\"91420106MA4K4NMM70\",\"orgNumber\":\"MA4K4NMM-7\",\"regCapital\":\"196万人民币\",\"regNumber\":\"420106000909004\",\"regStatus\":\"存续\",\"estiblishTime\":\"2019-07-15 00:00:00.0\",\"matchType\":\"历史名称匹配\",\"companyType\":1,\"type\":1}]"
+        }
+    ]
+}
+预览
+https://bocha.cn/share/c9d13d75-9f8c-4b7a-9672-e0744c0f4bae
+[图片]
+7. 学术搜索 bocha-scholar-agent
+搜索全球百万篇学术文档库中的论文及下载链接
+请求
+curl --location \
+--request POST 'https://api.bocha.cn/v1/agent-search' \
+--header 'Authorization: Bearer {API KEY}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "agentId": "bocha-scholar-agent",
+    "query": "Foundation models",
+    "searchType": "neural",
+    "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "64c103a9a09b4178",
+    "conversation_id": "e93ff6431cf04a5f9c8e1eb14b928599",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "scholar",
+            "content": "[{\"title\":\"On the opportunities and risks of foundation models\",\"link\":\"https://arxiv.org/abs/2108.07258\",\"snippet\":\"… We call these models foundation models to underscore their … opportunities and risks of foundation models, ranging from … technical principles (eg, model architectures, training procedures…\",\"publication_info\":{\"summary\":\"R Bommasani, DA Hudson, E Adeli, R Altman… - arXiv preprint arXiv …, 2021 - arxiv.org\"},\"resources\":[{\"file_format\":\"PDF\",\"link\":\"https://arxiv.org/pdf/2108.07258.pdf%C3%82%C2%A0?trk=public_post_comment-text\",\"title\":\"arxiv.org\"}]},{\"title\":\"A study of a new foundation model\",\"link\":\"https://link.springer.com/article/10.1007/BF01174308\",\"snippet\":\"… is suggested by REISSNE~'S foundation model. A comparison of the obtained pressure … foundation constants to two. Advantages of the presented model over other foundation models …\",\"publication_info\":{\"summary\":\"AD Kerr - Acta Mechanica, 1965 - Springer\"}},{\"title\":\"Can foundation models wrangle your data?\",\"link\":\"https://arxiv.org/abs/2205.09911\",\"snippet\":\"… Foundation Models (FMs) [19] are models trained on broad data that can be adapted to a wide range of downstream tasks. These models … are often autoregressive language models (eg …\",\"publication_info\":{\"summary\":\"A Narayan, I Chami, L Orr, S Arora, C Ré - arXiv preprint arXiv:2205.09911, 2022 - arxiv.org\"},\"resources\":[{\"file_format\":\"PDF\",\"link\":\"https://arxiv.org/pdf/2205.09911\",\"title\":\"arxiv.org\"}]},{\"title\":\"Foundation models for generalist medical artificial intelligence\",\"link\":\"https://www.nature.com/articles/s41586-023-05881-4\",\"snippet\":\"… advances in foundation model research can … foundation models. ‘Generalist’ implies that they will be widely used across medical applications, largely replacing task-specific models. …\",\"publication_info\":{\"summary\":\"M Moor, O Banerjee, ZSH Abad, HM Krumholz… - Nature, 2023 - nature.com\"},\"resources\":[{\"file_format\":\"PDF\",\"link\":\"https://www.nature.com/articles/s41586-023-05881-4.pdf\",\"title\":\"nature.com\"}]},{\"title\":\"On the power of foundation models\",\"link\":\"https://proceedings.mlr.press/v202/yuan23b.html\",\"snippet\":\"… B∧, C∧ to denote the foundation models and the corresponding embedding spaces, but our results hold for any other ideal foundation models and their embedding spaces as well. …\",\"publication_info\":{\"summary\":\"Y Yuan - International Conference on Machine Learning, 2023 - proceedings.mlr.press\"},\"resources\":[{\"file_format\":\"PDF\",\"link\":\"https://proceedings.mlr.press/v202/yuan23b/yuan23b.pdf\",\"title\":\"mlr.press\"}]},{\"title\":\"Foundation models for decision making: Problems, methods, and opportunities\",\"link\":\"https://arxiv.org/abs/2303.04129\",\"snippet\":\"… discuss how foundation models can serve as generative models of … models of the environment (eg, for conducting modelbased rollouts). In Section 4, we discuss how foundation models …\",\"publication_info\":{\"summary\":\"S Yang, O Nachum, Y Du, J Wei, P Abbeel… - arXiv preprint arXiv …, 2023 - arxiv.org\"},\"resources\":[{\"file_format\":\"PDF\",\"link\":\"https://arxiv.org/pdf/2303.04129\",\"title\":\"arxiv.org\"}]},{\"title\":\"A comprehensive survey on pretrained foundation models: A history from bert to chatgpt\",\"link\":\"https://arxiv.org/abs/2302.09419\",\"snippet\":\"… Pretrained Foundation Models (PFMs) are regarded as the foundation for various … pretrained models, we summarize existing models ranging from traditional models to PFMs …\",\"publication_info\":{\"summary\":\"C Zhou, Q Li, C Li, J Yu, Y Liu, G Wang… - arXiv preprint arXiv …, 2023 - arxiv.org\"},\"resources\":[{\"file_format\":\"PDF\",\"link\":\"https://arxiv.org/pdf/2302.09419\",\"title\":\"arxiv.org\"}]},{\"title\":\"Elastic and viscoelastic foundation models\",\"link\":\"https://asmedigitalcollection.asme.org/appliedmechanics/article-abstract/31/3/491/386992\",\"snippet\":\"… The present paper contains a critical study of a number of foundation models as well as a … the Pasternak foundation is a mechanical model for the so-called \\\" generalized\\\" foundation. …\",\"publication_info\":{\"summary\":\"AD Kerr - 1964 - asmedigitalcollection.asme.org\"}},{\"title\":\"Foundation models for time series analysis: A tutorial and survey\",\"link\":\"https://dl.acm.org/doi/abs/10.1145/3637528.3671451\",\"snippet\":\"… We offer a comprehensive and up-to-date survey on foundation models for a wide spectrum … series analysis using foundation models, urging researchers to delve deeper into this area. …\",\"publication_info\":{\"summary\":\"Y Liang, H Wen, Y Nie, Y Jiang, M Jin, D Song… - Proceedings of the 30th …, 2024 - dl.acm.org\"},\"resources\":[{\"file_format\":\"PDF\",\"link\":\"https://arxiv.org/pdf/2403.14735\",\"title\":\"arxiv.org\"}]},{\"title\":\"A survey of hallucination in large foundation models\",\"link\":\"https://arxiv.org/abs/2309.05922\",\"snippet\":\"… a foundation model refers to a situation where the model generates content that is not based on factual or accurate information. Hallucination can occur when the model … to the model’s …\",\"publication_info\":{\"summary\":\"V Rawte, A Sheth, A Das - arXiv preprint arXiv:2309.05922, 2023 - arxiv.org\"},\"resources\":[{\"file_format\":\"PDF\",\"link\":\"https://arxiv.org/pdf/2309.05922\",\"title\":\"arxiv.org\"}]}]"
+        }
+    ]
+}
+预览
+https://bocha.cn/share/cf76a181-322b-49a9-ab0d-e15934355f5f
+[图片]
+8. 腾讯文库 bocha-wenku-agent
+搜索腾讯文库，例如职场办公、考试真题、简历模板、合同协议等上亿份文档
+请求
+curl --location \
+--request POST 'https://api.bocha.cn/v1/agent-search' \
+--header 'Authorization: Bearer {API KEY}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "agentId": "bocha-wenku-agent",
+    "query": "软件项目合同模板",
+    "searchType": "neural",
+    "stream": false
+}'
+返回
+{
+    "code": 200,
+    "log_id": "5735cc15f26625ec",
+    "conversation_id": "1f1888a498df4808a40b2e5a0bc5ed4f",
+    "messages": [
+        {
+            "role": "assistant",
+            "type": "source",
+            "content_type": "wenku",
+            "content": "[{\"id\":\"4yHqV8ytdQ\",\"title\":\"软件项目外包合同模板\",\"summary\":\"软件开发外包合同项目名称：\\t委托方（甲方）：\\t受托方（乙方）：\\t签订时间： 年 月日依照《中华人民共和国合同法》、《中华人民共和国知识产权法》等法律法规及行业规 章之规定，甲乙双方为了建立稳定的合作伙\",\"docType\":\"word\",\"docUrl\":\"https://wenku.docs.qq.com/detail?docId=4yHqV8ytdQ\",\"coverUrl\":\"https://docimg9.docs.qq.com/image/s7meOXkUR_G_Os7mXp26HQ.jpeg?w=1413&h=2085\"},{\"id\":\"AQbSieEBQN\",\"title\":\"软件项目外包合同模板\",\"summary\":\"�合同编号：__________甲方（委托方）：__________乙方（受托方）：__________一、项目概述1.1 项目名称：__________1.2 项目内容：__________1.3 \",\"docType\":\"word\",\"docUrl\":\"https://wenku.docs.qq.com/detail?docId=AQbSieEBQN\",\"coverUrl\":\"https://wkimg.docs.qq.com/img/j25kVdrjSm4OiMXrDV43T.png\"},{\"id\":\"NZI7Ybb7WL\",\"title\":\"软件项目合同标准模板\",\"summary\":\"软件项目合同标准模板合同编号：__________甲方（以下简称“甲方”）：乙方（以下简称“乙方”）：鉴于甲方拟委托乙方进行软件项目的开发工作，为确保双方在项目开发过程中的权益，经甲乙双方友好协商，特\",\"docType\":\"word\",\"docUrl\":\"https://wenku.docs.qq.com/detail?docId=NZI7Ybb7WL\",\"coverUrl\":\"https://wkimg.docs.qq.com/img/ld30w190yQhEIy2QlhwoG.png\"},{\"id\":\"xPNNphyLGn\",\"title\":\"软件项目合同标准模板\",\"summary\":\"软件项目合同标准模板\\f目录 TOC \\\\o \\\"1-3\\\" \\\\n 总则第一章\\t合同标的第二章\\t合同价格第三章\\t付款结算方式第四章\\t设备交货及维保第五章\\t知识产权第六章\\t违约责任及索赔第七章\\t不可抗力第八章\\t\",\"docType\":\"word\",\"docUrl\":\"https://wenku.docs.qq.com/detail?docId=xPNNphyLGn\",\"coverUrl\":\"https://wkimg.docs.qq.com/img/1ytbtomRQ9L8wDIp4eh2n.png\"},{\"id\":\"kiCrPA4Q1f\",\"title\":\"软件项目合同标准模板\",\"summary\":\"软件项目合同标准模板\\f目录 TOC \\\\o \\\"1-3\\\" \\\\n 总则第一章\\t合同标的第二章\\t合同价格第三章\\t付款结算方式第四章\\t设备交货及维保第五章\\t知识产权第六章\\t违约责任及索赔第七章\\t不可抗力第八章\\t\",\"docType\":\"word\",\"docUrl\":\"https://wenku.docs.qq.com/detail?docId=kiCrPA4Q1f\",\"coverUrl\":\"https://wkimg.docs.qq.com/img/9mL0dJ15tIQlV6KNe4ZBF.png\"}]"
+        }
+    ]
+}
+预览
+https://bocha.cn/share/eface436-7a38-4d8f-9320-1628a056d65a
+[图片]
+流式返回
+响应内容
+当使用流式响应时，会实时增量返回消息内容。即大语言模型一生成返回消息就会将消息返回给客户端。
+参数
+类型
+说明
+event 
+String 
+当前流式返回的数据包事件，不同 event 下，数据包会返回不同字段。 
+- message：返回的消息内容 
+data:{"event":"message","message":{"role":"assistant","type":"follow_up","content":"你觉得《三国演义》对中国历史和文化的影响有哪些？","content_type":"text"},"is_finish":true,"index":3,"conversation_id":"123","seq_id": 0}
+- done：正常结束标志  
+data:{"event":"done"}
+- error：错误结束标志  
+data:{"event":"error", "error_information":{"code": 具体错误码,"msg": 具体错误信息}}
+message 
+Object 
+增量返回的消息内容。 
+详情请参考返回参数内容中 Message 消息结构的具体说明。 
+is_finish 
+Boolean 
+当前 message 是否结束。 
+- false：未结束 
+- true：结束。注意当该值为 true 时仅表示一条完整的消息已经发送完成，不代表整个模型返回结束。 
+index 
+Integer 
+同一个 index 的增量返回属于同一条消息。 
+conversation_id
+String 
+会话 ID。
+seq_id
+Interger
+全部流式返回内容中，当前event的序号。从0开始。
+code
+Integer 
+状态码。 
+0 代表调用成功。 
+stream模式下，只有出错时的 error_information 里面才会出现 code
+msg 
+String 
+状态信息。 
+stream模式下，只有出错时的 error_information 里面才会出现 msg
+Message Object
+参数
+类型
+说明
+role
+String
+发送这条消息的实体。取值： 
+- user：代表该条消息内容是用户发送的。 
+- assistant：代表该条消息内容是 博查 发送的。 
+type
+String
+
+当 role=assistant 时，用于标识消息类型，取值： 
+- source:  参考源，此时content_type会有webpage、video、image三种，分别代表网页、视频和图片。如果没有搜索结果，则不返回source
+- answer：最终返回给用户的消息内容。  
+- follow_up：推荐问题。 
+content
+String
+消息内容。 
+- 当type=answer时，content_type=text。消息内容是 Markdown 格式
+- 如果content_type != text，返回的是json encode后的文本
+content_type
+
+String
+消息内容的类型。 
+- text: 文本类型。 
+type=source（来自智能体给到的参考源）：
+- douyin：抖音短视频Object，每个Message返回一条
+- weibo：微博Object，每个Message返回一条
+- baike：百科Object，每个Message返回一条
+- 持续增加中
+接口调用白名单
+由于 Agent Search 在内测期间不大范围开放，有些智能体需要配置用户白名单才能够使用。
+大部分 Agent 在内测期间都是免费调用。
+如果有需求的话可以加入博查交流群提前联系我们，内测开始后会向给大家开通接口调用白名单。
+内测期间，免费的 Agent 调用次数有全局每日调用次数上限限值，如果遇到调用次数达到限值，请次日重新尝试，或联系我们提高限值。
+
+
+一、API简介
+Bocha Semantic Reranker是一种基于文本语义的排序模型（Rerank Model），它的主要用途是提升搜索结果的质量。在搜索推荐系统中，Bocha Semantic Reranker可以基于关键字搜索、向量搜索和混合搜索的初步排序结果的质量进行优化。具体来说，在初始的BM25排序或RRF排序之后，Bocha Semantic Reranker会从top-N候选结果中，利用语义信息对文档进行二次排序。这一过程中，模型会根据查询语句与文档内容之间的深层语义匹配情况，给出每个文档的排序结果和得分，从而改善用户的搜索体验。由于这种方法是对初步排序结果进行二次优化，因此被称为“Reranker”。
+[图片]
+二、评分原理
+博查语义排序模型的评分过程是基于查询语句（用户的输入问题）以及与之匹配的文档内容（通常是最高512个tokens的文本）进行的。评分的过程如下：
+1. 评估语义相关性：模型会评估查询语句与每个文档的语义相关性，判断文档是否能够有效回答用户的查询或与查询意图高度匹配。
+2. 分配Rerank Score：根据语义相关性，模型为每个文档分配一个rerankScore，分数的范围从0到1。分数越高，表示文档与查询的语义相关性越强，越符合用户需求。通常，分数接近1表示高度相关，分数接近0表示不相关或低相关。
+Score
+Meaning
+0.75~1
+该文档高度相关并完全回答了问题，尽管可能包含与问题无关的额外文本。
+0.5~0.75
+该文档与问题是相关的，但缺乏使其完整的细节。
+0.2~0.5
+该文档与问题有一定的相关性；它部分回答了问题，或者只解决了问题的某些方面。
+0.1~0.2
+该文档与问题相关，但仅回答了一小部分。
+0~0.1
+该文档与问题无关紧要。
+三、排序效果
+以 80M 参数实现接近于世界一线 280M、560M参数模型的排序效果，推理速度更快、成本更低。
+[图片]
+由于模型版本会持续迭代及更新，官方API使用的reranker模型版本参与测评版本并不完全相同。
+API中使用的模型效果更好。
+三、API接口
+接口域名：https://api.bocha.cn
+EndPoint：https://api.bocha.cn/v1/rerank
+四、调用方式
+请求方式
+POST
+请求参数
+请求头
+参数
+取值
+说明
+Authorization
+Bearer {API KEY} 
+鉴权参数，示例：Bearer xxxxxx，API KEY请先前往博查AI开放平台（https://open.bocha.cn）> API KEY 管理中获取。
+Content-Type 
+application/json 
+解释请求正文的方式。 
+请求体
+参数
+类型
+必填
+说明
+model
+String
+是
+排序使用的模型版本。
+当前版本模型：
+- bocha-semantic-reranker-cn，邀测中
+- bocha-semantic-reranker-en，邀测中
+- gte-rerank，已开放使用
+query
+String 
+是
+用户的搜索词。可以是自然语言，例如：告诉我阿里巴巴2024年ESG报告的重点
+documents
+Array<String>
+是
+需要排序的文档数组。最多50个文档。
+top_n
+Integer
+否
+排序返回的Top文档数量。默认与documents数量相同。
+return_documents
+
+Boolean
+否
+排序结果列表是否返回每一条document原文。
+默认：False
+响应内容
+响应定义
+参数
+类型
+说明
+code
+Integer
+状态码。
+200 代表调用成功。
+log_id
+String
+请求id。
+msg
+String
+状态信息。
+data
+Object
+返回的结果。
+data.model
+String
+排序使用的模型。
+data.results
+Array
+排序结果。示例：
+[
+        {
+            "index": 0,
+            "document": {
+                "text": "阿里巴巴集团发布《2024财年环境、社会和治理（ESG）报告》（下称“报告”），详细分享过去一年在 ESG各方面取得的进展。 报告显示，阿里巴巴扎实推进减碳举措，全集团自身运营净碳排放和价值链碳强度继续实现“双降”。 集团亦持续利用数字技术和平台能力，服务于无障碍、医疗、适老化和中小微企业等普惠发展。 阿里巴巴集团首席执行官吴泳铭在报告中表示：“ESG的核心是围绕如何成为一家更好的公司。 25年来，我们与ESG相关的行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 在集团明确‘用户为先’和‘AI 驱动’的两大业务战略的同时，我们也明确ESG作为阿里巴巴基石战略之一的定位不变。 阿里巴巴在减少碳排放上取得扎实进展。"
+            },
+            "relevance_score": 0.7166407801262326
+        },
+        {
+            "index": 1,
+            "document": {
+                "text": "ESG的核心是围绕如何成为一家更好的公司。 今年是阿里巴巴成立25年。 25年来，阿里巴巴秉持“让天下没有难做的生意”，协助国内电商繁荣发展；坚持开放生态，魔搭社区已开放了超3800个开源模型；助力乡村振兴，累计派出了29位乡村特派员深入27个县域；推动平台减碳，首创了范围3+减碳方案；坚持全员公益，用“人人3小时”带来小而美的改变……这些行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 我希望这个过程中，每一个阿里人都能学会做难而正确的选择，保持前瞻、保持善意、保持务实。 一个更好的阿里巴巴，值得我们共同努力。 阿里巴巴二十多年来坚持不变的使命，是让天下没有难做的生意。 今天，这一使命被赋予了新的时代意义。"
+            },
+            "relevance_score": 0.5658672473649548
+        },
+  ···
+]
+调用示例
+请求内容
+body：
+{
+    "model": "gte-rerank",
+    "query": "阿里巴巴2024年的ESG报告",
+    "top_n": 2,
+    "return_documents": true,
+    "documents": [
+      "阿里巴巴集团发布《2024财年环境、社会和治理（ESG）报告》（下称“报告”），详细分享过去一年在 ESG各方面取得的进展。 报告显示，阿里巴巴扎实推进减碳举措，全集团自身运营净碳排放和价值链碳强度继续实现“双降”。 集团亦持续利用数字技术和平台能力，服务于无障碍、医疗、适老化和中小微企业等普惠发展。 阿里巴巴集团首席执行官吴泳铭在报告中表示：“ESG的核心是围绕如何成为一家更好的公司。 25年来，我们与ESG相关的行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 在集团明确‘用户为先’和‘AI 驱动’的两大业务战略的同时，我们也明确ESG作为阿里巴巴基石战略之一的定位不变。 阿里巴巴在减少碳排放上取得扎实进展。",
+      "ESG的核心是围绕如何成为一家更好的公司。 今年是阿里巴巴成立25年。 25年来，阿里巴巴秉持“让天下没有难做的生意”，协助国内电商繁荣发展；坚持开放生态，魔搭社区已开放了超3800个开源模型；助力乡村振兴，累计派出了29位乡村特派员深入27个县域；推动平台减碳，首创了范围3+减碳方案；坚持全员公益，用“人人3小时”带来小而美的改变……这些行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 我希望这个过程中，每一个阿里人都能学会做难而正确的选择，保持前瞻、保持善意、保持务实。 一个更好的阿里巴巴，值得我们共同努力。 阿里巴巴二十多年来坚持不变的使命，是让天下没有难做的生意。 今天，这一使命被赋予了新的时代意义。"
+      ]
+  }
+响应内容
+{
+    "code": 200,
+    "log_id": "56a3067f9b92dfd0",
+    "msg": null,
+    "data": {
+        "model": "gte-rerank",
+        "results": [
+            {
+                "index": 0,
+                "document": {
+                    "text": "阿里巴巴集团发布《2024财年环境、社会和治理（ESG）报告》（下称“报告”），详细分享过去一年在 ESG各方面取得的进展。 报告显示，阿里巴巴扎实推进减碳举措，全集团自身运营净碳排放和价值链碳强度继续实现“双降”。 集团亦持续利用数字技术和平台能力，服务于无障碍、医疗、适老化和中小微企业等普惠发展。 阿里巴巴集团首席执行官吴泳铭在报告中表示：“ESG的核心是围绕如何成为一家更好的公司。 25年来，我们与ESG相关的行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 在集团明确‘用户为先’和‘AI 驱动’的两大业务战略的同时，我们也明确ESG作为阿里巴巴基石战略之一的定位不变。 阿里巴巴在减少碳排放上取得扎实进展。"
+                },
+                "relevance_score": 0.7166407801262326
+            },
+            {
+                "index": 1,
+                "document": {
+                    "text": "ESG的核心是围绕如何成为一家更好的公司。 今年是阿里巴巴成立25年。 25年来，阿里巴巴秉持“让天下没有难做的生意”，协助国内电商繁荣发展；坚持开放生态，魔搭社区已开放了超3800个开源模型；助力乡村振兴，累计派出了29位乡村特派员深入27个县域；推动平台减碳，首创了范围3+减碳方案；坚持全员公益，用“人人3小时”带来小而美的改变……这些行动所构成的公司底色，与创造商业价值的阿里巴巴一样重要。 我希望这个过程中，每一个阿里人都能学会做难而正确的选择，保持前瞻、保持善意、保持务实。 一个更好的阿里巴巴，值得我们共同努力。 阿里巴巴二十多年来坚持不变的使命，是让天下没有难做的生意。 今天，这一使命被赋予了新的时代意义。"
+                },
+                "relevance_score": 0.5658672473649548
+            }
+        ]
+    }
+}
+五、技术支持
+博查 Semantic Reranker API 已正式发布，如有疑问可以加入博查交流群咨询。

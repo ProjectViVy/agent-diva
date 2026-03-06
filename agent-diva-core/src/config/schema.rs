@@ -845,7 +845,7 @@ pub struct WebSearchConfig {
 }
 
 fn default_search_provider() -> String {
-    "brave".to_string()
+    "bocha".to_string()
 }
 
 fn default_enabled() -> bool {

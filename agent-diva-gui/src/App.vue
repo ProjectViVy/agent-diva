@@ -121,7 +121,7 @@ const config = ref({
 const toolsConfig = ref({
   web: {
     search: {
-      provider: 'brave',
+      provider: 'bocha',
       enabled: true,
       api_key: '',
       max_results: 5

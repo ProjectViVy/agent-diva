@@ -28,6 +28,10 @@ const emit = defineEmits<{
 const localConfig = ref(JSON.parse(JSON.stringify(props.toolsConfig)));
 const isSyncingFromProps = ref(false);
 const skipNextAutoSave = ref(false);
+const bochaApiKeyGuideUrl = 'https://aq6ky2b8nql.feishu.cn/wiki/HmtOw1z6vik14Fkdu5uc9VaInBb';
+
+const isExtendedSearchProvider = (provider: string) =>
+  provider === 'zhipu' || provider === 'bocha';
 
 watch(
   () => props.toolsConfig,
@@ -43,7 +47,7 @@ watch(
 const sanitizeLocalConfig = () => {
   const sanitized = JSON.parse(JSON.stringify(localConfig.value));
   const provider = sanitized.web.search.provider;
-  const maxLimit = provider === 'zhipu' ? 50 : 10;
+  const maxLimit = isExtendedSearchProvider(provider) ? 50 : 10;
   sanitized.web.search.max_results = Math.min(
     maxLimit,
     Math.max(1, Number(sanitized.web.search.max_results) || 5)
@@ -60,7 +64,7 @@ const autoSave = () => {
 };
 
 const clampMaxResults = () => {
-  const maxLimit = localConfig.value.web.search.provider === 'zhipu' ? 50 : 10;
+  const maxLimit = isExtendedSearchProvider(localConfig.value.web.search.provider) ? 50 : 10;
   localConfig.value.web.search.max_results = Math.min(
     maxLimit,
     Math.max(1, Number(localConfig.value.web.search.max_results) || 5)
@@ -68,19 +72,27 @@ const clampMaxResults = () => {
 };
 
 const maxResultsLimit = computed(() =>
-  localConfig.value.web.search.provider === 'zhipu' ? 50 : 10
+  isExtendedSearchProvider(localConfig.value.web.search.provider) ? 50 : 10
+);
+
+const isBochaProvider = computed(() =>
+  localConfig.value.web.search.provider === 'bocha'
 );
 
 const apiKeyLabel = computed(() =>
-  localConfig.value.web.search.provider === 'zhipu'
-    ? 'Zhipu API Key'
-    : t('network.apiKey')
+  isBochaProvider.value
+    ? t('network.apiKeyBocha')
+    : localConfig.value.web.search.provider === 'zhipu'
+      ? t('network.apiKeyZhipu')
+      : t('network.apiKeyBrave')
 );
 
 const apiKeyPlaceholder = computed(() =>
-  localConfig.value.web.search.provider === 'zhipu'
-    ? 'Enter Zhipu API key...'
-    : t('network.apiKeyPlaceholder')
+  isBochaProvider.value
+    ? t('network.apiKeyPlaceholderBocha')
+    : localConfig.value.web.search.provider === 'zhipu'
+      ? t('network.apiKeyPlaceholderZhipu')
+      : t('network.apiKeyPlaceholderBrave')
 );
 
 watch(
@@ -119,8 +131,9 @@ watch(
         <div class="space-y-1">
           <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('network.provider') }}</label>
           <select v-model="localConfig.web.search.provider" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm">
-            <option value="brave">Brave</option>
-            <option value="zhipu">Zhipu</option>
+            <option value="bocha">{{ t('network.providerBocha') }}</option>
+            <option value="brave">{{ t('network.providerBrave') }}</option>
+            <option value="zhipu">{{ t('network.providerZhipu') }}</option>
           </select>
         </div>
         <div class="space-y-1">
@@ -132,6 +145,15 @@ watch(
       <div class="space-y-1">
         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ apiKeyLabel }}</label>
         <input v-model="localConfig.web.search.api_key" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg font-mono text-sm" :placeholder="apiKeyPlaceholder" />
+        <a
+          v-if="isBochaProvider"
+          :href="bochaApiKeyGuideUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex text-sm text-blue-600 hover:text-blue-700"
+        >
+          {{ t('network.apiKeyGuideBocha') }}
+        </a>
       </div>
 
       <div class="flex space-x-6">
