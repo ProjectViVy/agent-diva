@@ -223,6 +223,36 @@ impl Manager {
                                 let _ = reply.send(Err("runtime control channel is not initialized".to_string()));
                             }
                         }
+                        ManagerCommand::DeleteSession(session_key, reply) => {
+                            if let Some(tx) = &self.runtime_control_tx {
+                                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                                if let Err(e) = tx.send(RuntimeControlCommand::DeleteSession {
+                                    session_key: session_key.clone(),
+                                    reply_tx,
+                                }) {
+                                    let _ = reply.send(Err(format!(
+                                        "failed to send DeleteSession command: {}",
+                                        e
+                                    )));
+                                } else {
+                                    match reply_rx.await {
+                                        Ok(result) => {
+                                            let _ = reply.send(result);
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!(
+                                                "failed to receive delete result: {}",
+                                                e
+                                            )));
+                                        }
+                                    }
+                                }
+                            } else {
+                                let _ = reply.send(Err(
+                                    "runtime control channel is not initialized".to_string(),
+                                ));
+                            }
+                        }
                         ManagerCommand::ListCronJobs(reply) => {
                             let jobs = self.cron_service.list_job_views(true).await;
                             let _ = reply.send(Ok(jobs));

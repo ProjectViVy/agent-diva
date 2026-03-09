@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use std::net::SocketAddr;
@@ -8,10 +8,10 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
-    chat_handler, create_cron_job_handler, delete_cron_job_handler, events_handler,
-    get_channels_handler, get_config_handler, get_cron_job_handler, get_providers_handler,
-    get_session_history_handler, get_sessions_handler, get_tools_handler, heartbeat_handler,
-    list_cron_jobs_handler, reset_session_handler, run_cron_job_handler,
+    chat_handler, create_cron_job_handler, delete_cron_job_handler, delete_session_handler,
+    events_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
+    get_providers_handler, get_session_history_handler, get_sessions_handler, get_tools_handler,
+    heartbeat_handler, list_cron_jobs_handler, reset_session_handler, run_cron_job_handler,
     set_cron_job_enabled_handler, stop_chat_handler, stop_cron_job_handler, test_channel_handler,
     update_channel_handler, update_config_handler, update_cron_job_handler, update_tools_handler,
 };
@@ -26,7 +26,12 @@ pub async fn run_server(
         .route("/api/chat", post(chat_handler))
         .route("/api/chat/stop", post(stop_chat_handler))
         .route("/api/sessions", get(get_sessions_handler))
-        .route("/api/sessions/:id", get(get_session_history_handler))
+        .route(
+            "/api/sessions/:id",
+            get(get_session_history_handler)
+                .delete(delete_session_handler)
+                .post(delete_session_handler),
+        )
         .route("/api/sessions/reset", post(reset_session_handler))
         .route("/api/events", get(events_handler))
         .route(

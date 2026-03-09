@@ -60,6 +60,7 @@ interface SavedModel {
 }
 
 interface SessionInfo {
+  session_key: string;
   chat_id: string;
   snippet: string;
   timestamp: number;
@@ -123,7 +124,9 @@ const currentEmotion = ref('happy');
 const suppressNextStopError = ref(false);
 const currentChannel = ref('gui');
 const currentChatId = ref(generateChatId());
+const currentSessionKey = ref(`gui:${currentChatId.value}`);
 const activeStreamRequestId = ref<string | null>(null);
+const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
 
 // Config state
 const config = ref({
@@ -500,6 +503,7 @@ async function stopMessage() {
 
 const clearMessages = () => {
   currentChatId.value = generateChatId();
+  currentSessionKey.value = `gui:${currentChatId.value}`;
   activeStreamRequestId.value = null;
   isTyping.value = false;
   messages.value = [
@@ -525,25 +529,32 @@ async function refreshSessions() {
       const mapped = fetched.map((session) => {
         const chatId = extractChatId(session.key);
         return {
+          session_key: session.key,
           chat_id: chatId,
           snippet: chatId || session.key || '...',
           timestamp: parseSessionTimestamp(session.updated_at, session.created_at),
         };
       });
-      sessions.value = mapped.sort((a, b) => b.timestamp - a.timestamp);
+      sessions.value = mapped
+        .filter((session) => !locallyDeletedSessionKeys.value.has(session.session_key))
+        .sort((a, b) => b.timestamp - a.timestamp);
     }
   } catch (e) {
     console.error("Failed to fetch sessions:", e);
   }
 }
 
-async function loadSession(chatId: string) {
+async function loadSession(sessionKey: string) {
   if (!isTauri()) return;
-  
+  const chatId = extractChatId(sessionKey);
+
   try {
-    let sessionHistory = readSessionFromCache(chatId);
+    let sessionHistory = readSessionFromCache(sessionKey);
+    if (!sessionHistory && chatId && chatId !== sessionKey) {
+      sessionHistory = readSessionFromCache(chatId);
+    }
     if (!sessionHistory) {
-      sessionHistory = await invoke<BackendSessionHistory | null>("get_session_history", { chatId });
+      sessionHistory = await invoke<BackendSessionHistory | null>("get_session_history", { chatId: sessionKey });
       if (sessionHistory && Array.isArray(sessionHistory.messages)) {
         writeSessionToCache(sessionHistory);
       }
@@ -559,6 +570,7 @@ async function loadSession(chatId: string) {
     }
 
     currentChatId.value = extractChatId(sessionHistory.key) || chatId;
+    currentSessionKey.value = sessionHistory.key || sessionKey;
 
     const newMessages: Message[] = sessionHistory.messages
       .map(mapBackendMessageToUi)
@@ -575,9 +587,10 @@ async function loadSession(chatId: string) {
       return;
     }
 
-    const selectedSession = sessions.value.find((session) => session.chat_id === currentChatId.value);
+    const selectedSession = sessions.value.find((session) => session.session_key === currentSessionKey.value);
     if (!selectedSession) {
       sessions.value.unshift({
+        session_key: currentSessionKey.value,
         chat_id: currentChatId.value,
         snippet: currentChatId.value,
         timestamp: Date.now(),
@@ -592,6 +605,47 @@ async function loadSession(chatId: string) {
       role: 'system', 
       content: t('app.errorPrefix') + e, 
       timestamp: Date.now() 
+    });
+  }
+}
+
+async function deleteSession(sessionKey: string) {
+  if (!isTauri()) return;
+  if (!confirm(t('chat.confirmDeleteSession'))) return;
+  const chatId = extractChatId(sessionKey);
+  const wasCurrent = sessionKey === currentSessionKey.value || chatId === currentChatId.value;
+  let deleteFailed = false;
+  try {
+    await invoke('delete_session', { chatId: sessionKey });
+  } catch (e) {
+    deleteFailed = true;
+    console.error('Failed to delete session:', e);
+    messages.value.push({
+      role: 'system',
+      content: `${t('app.errorPrefix')}${e}`,
+      timestamp: Date.now(),
+    });
+  }
+  const keysToRemove = new Set<string>([
+    ...getSessionCacheKeys(sessionKey),
+    ...getSessionCacheKeys(chatId),
+  ]);
+  for (const key of keysToRemove) {
+    try {
+      localStorage.removeItem(key);
+    } catch (_) {}
+  }
+  locallyDeletedSessionKeys.value.add(sessionKey);
+  sessions.value = sessions.value.filter((session) => session.session_key !== sessionKey);
+  await refreshSessions();
+  if (wasCurrent) {
+    clearMessages();
+  }
+  if (deleteFailed) {
+    messages.value.push({
+      role: 'system',
+      content: 'Delete failed on backend; removed locally for this run.',
+      timestamp: Date.now(),
     });
   }
 }
@@ -958,7 +1012,7 @@ onUnmounted(() => {
       @update-saved-models="updateSavedModels"
       @save-chat-display-prefs="updateChatDisplayPrefs"
       @load-session="loadSession"
+      @delete-session="deleteSession"
     />
   </div>
 </template>
-

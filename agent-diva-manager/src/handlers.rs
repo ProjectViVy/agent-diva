@@ -231,6 +231,47 @@ pub async fn get_session_history_handler(
     }
 }
 
+pub async fn delete_session_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    do_delete_session(state, id).await
+}
+
+async fn do_delete_session(state: AppState, id: String) -> Json<serde_json::Value> {
+    let session_key = if !id.contains(':') {
+        format!("gui:{}", id)
+    } else {
+        id
+    };
+
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::DeleteSession(session_key.clone(), tx))
+        .await
+    {
+        tracing::error!("Failed to send DeleteSession request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+
+    match rx.await {
+        Ok(Ok(deleted)) => {
+            tracing::info!(
+                session_key = %session_key,
+                deleted,
+                "DeleteSession completed"
+            );
+            Json(serde_json::json!({ "status": "ok", "deleted": deleted }))
+        }
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => {
+            tracing::error!("Failed to receive DeleteSession response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
+}
+
 pub async fn events_handler(
     State(state): State<AppState>,
     Query(query): Query<EventsQuery>,

@@ -40,6 +40,18 @@ impl SessionManager {
         self.cache.get(key)
     }
 
+    /// Get a session if it exists (cache or disk). Does not create.
+    pub fn get_or_load(&mut self, key: &str) -> Option<&Session> {
+        if !self.cache.contains_key(key) {
+            if let Some(session) = self.load(key) {
+                self.cache.insert(key.to_string(), session);
+            } else {
+                return None;
+            }
+        }
+        self.cache.get(key)
+    }
+
     /// Load a session from disk
     fn load(&self, key: &str) -> Option<Session> {
         let path = self.session_path(key);
@@ -291,5 +303,53 @@ mod tests {
             reset_files_count, 1,
             "Should have exactly one archived file"
         );
+    }
+
+    #[test]
+    fn test_get_or_load_cache_hit() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let session = manager.get_or_create("gui:chat-1");
+        session.add_message("user", "Hello");
+        let key = session.key.clone();
+        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+
+        // Session is in cache; get_or_load should return it
+        let loaded = manager.get_or_load("gui:chat-1");
+        assert!(loaded.is_some());
+        assert_eq!(loaded.unwrap().key, "gui:chat-1");
+        assert_eq!(loaded.unwrap().messages.len(), 1);
+    }
+
+    #[test]
+    fn test_get_or_load_disk_exists_cache_miss() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        // Create and save session
+        let session = manager.get_or_create("gui:chat-2");
+        session.add_message("user", "From disk");
+        let key = session.key.clone();
+        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+
+        // Clear cache to simulate "not loaded this run"
+        manager.cache.clear();
+
+        // get_or_load should load from disk
+        let loaded = manager.get_or_load("gui:chat-2");
+        assert!(loaded.is_some());
+        assert_eq!(loaded.unwrap().key, "gui:chat-2");
+        assert_eq!(loaded.unwrap().messages[0].content, "From disk");
+    }
+
+    #[test]
+    fn test_get_or_load_disk_not_exists() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        // Session never created; no file on disk
+        let loaded = manager.get_or_load("gui:nonexistent");
+        assert!(loaded.is_none());
     }
 }

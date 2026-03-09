@@ -29,8 +29,34 @@ impl AgentLoop {
                 session_key,
                 reply_tx,
             } => {
-                let session = self.sessions.get(&session_key).cloned();
+                let session = self.sessions.get_or_load(&session_key).cloned();
                 let _ = reply_tx.send(session);
+            }
+            RuntimeControlCommand::DeleteSession {
+                session_key,
+                reply_tx,
+            } => {
+                let result = self
+                    .sessions
+                    .delete(&session_key)
+                    .map_err(|e| e.to_string());
+                match &result {
+                    Ok(deleted) => {
+                        info!(
+                            session_key = %session_key,
+                            deleted = *deleted,
+                            "Runtime delete session completed"
+                        );
+                    }
+                    Err(err) => {
+                        tracing::error!(
+                            session_key = %session_key,
+                            error = %err,
+                            "Runtime delete session failed"
+                        );
+                    }
+                }
+                let _ = reply_tx.send(result);
             }
         }
     }

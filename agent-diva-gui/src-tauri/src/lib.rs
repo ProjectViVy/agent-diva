@@ -77,6 +77,7 @@ pub fn run() {
             commands::reset_session,
             commands::get_sessions,
             commands::get_session_history,
+            commands::delete_session,
             commands::get_cron_jobs,
             commands::get_cron_job,
             commands::create_cron_job,

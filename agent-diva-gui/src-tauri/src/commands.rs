@@ -395,6 +395,46 @@ pub async fn reset_session(
 }
 
 #[tauri::command]
+pub async fn delete_session(chat_id: String, state: State<'_, AgentState>) -> Result<bool, String> {
+    let id_encoded = urlencoding::encode(&chat_id);
+    // Use POST /sessions/:id (same path as DELETE) - more reliable in some environments
+    let url = format!("{}/sessions/{}", state.api_base_url, id_encoded);
+
+    let response = state
+        .client
+        .post(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to delete session: {}", e))?;
+
+    if !response.status().is_success() {
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(false);
+        }
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid delete session response: {}", e))?;
+
+    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    if !status_ok {
+        let message = value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("Delete session request rejected: {}", message));
+    }
+
+    Ok(value
+        .get("deleted")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true))
+}
+
+#[tauri::command]
 pub async fn get_sessions(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
     let url = format!("{}/sessions", state.api_base_url);
 

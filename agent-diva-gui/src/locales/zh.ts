@@ -47,6 +47,8 @@ export default {
     newSession: '新建会话',
     historySessions: '历史会话',
     noHistory: '暂无历史',
+    deleteSession: '删除',
+    confirmDeleteSession: '确定要删除该会话吗？此操作不可恢复。',
     unknownTime: '未知时间',
     stopGeneration: '停止生成',
     emptyModels: '暂无已保存模型\n请在设置中添加',
@@ -99,6 +101,14 @@ export default {
     languageDesc: '切换界面显示语言',
     about: '关于',
     aboutDesc: '项目信息与版本说明',
+  },
+  nav: {
+    section: '导航',
+    chat: '聊天',
+    settings: '设置',
+    console: '中控台',
+    neuro: '神经系统',
+    comingSoon: '敬请期待',
   },
   general: {
     title: '通用',

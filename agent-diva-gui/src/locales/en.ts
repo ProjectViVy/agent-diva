@@ -47,6 +47,8 @@ export default {
     newSession: 'New Session',
     historySessions: 'History Sessions',
     noHistory: 'No History',
+    deleteSession: 'Delete',
+    confirmDeleteSession: 'Are you sure you want to delete this session? This cannot be undone.',
     unknownTime: 'Unknown time',
     stopGeneration: 'Stop Generation',
     emptyModels: 'No saved models\nPlease add in settings',
@@ -101,6 +103,14 @@ export default {
     languageDesc: 'Change interface language',
     about: 'About',
     aboutDesc: 'Project information and version',
+  },
+  nav: {
+    section: 'Navigation',
+    chat: 'Chat',
+    settings: 'Settings',
+    console: 'Console',
+    neuro: 'Neuro',
+    comingSoon: 'Coming soon',
   },
   general: {
     title: 'General',

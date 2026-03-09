@@ -277,37 +277,43 @@ onUnmounted(() => {
 <template>
   <div class="h-full min-h-0 overflow-y-auto bg-slate-50/80 p-6">
     <div class="mx-auto max-w-7xl space-y-6">
-      <section class="rounded-3xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 p-6 text-white shadow-xl">
-        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p class="text-sm/6 text-white/80">{{ t('cron.subtitle') }}</p>
-            <h2 class="text-3xl font-bold">{{ t('cron.title') }}</h2>
+      <section class="rounded-[28px] bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-5 py-4 text-white shadow-lg shadow-cyan-900/10">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <p class="text-xs font-medium uppercase tracking-[0.12em] text-white/72">{{ t('cron.subtitle') }}</p>
+            <h2 class="text-[30px] font-bold leading-none tracking-tight">{{ t('cron.title') }}</h2>
           </div>
-          <div class="flex gap-3">
-            <button class="rounded-xl bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur hover:bg-white/25" @click="fetchJobs">
-              <span class="inline-flex items-center gap-2"><RefreshCw :size="16" />{{ t('cron.refresh') }}</span>
+          <div class="flex shrink-0 flex-wrap gap-2 md:justify-end">
+            <button
+              class="rounded-xl border border-white/28 bg-white/12 px-3.5 py-2 text-xs font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] backdrop-blur transition hover:bg-white/20"
+              @click="fetchJobs"
+            >
+              <span class="inline-flex items-center gap-1.5"><RefreshCw :size="14" />{{ t('cron.refresh') }}</span>
             </button>
-            <button class="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" @click="openCreate">
-              <span class="inline-flex items-center gap-2"><Plus :size="16" />{{ t('cron.newTask') }}</span>
+            <button
+              class="rounded-xl bg-white px-3.5 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+              @click="openCreate"
+            >
+              <span class="inline-flex items-center gap-1.5"><Plus :size="14" />{{ t('cron.newTask') }}</span>
             </button>
           </div>
         </div>
-        <div class="mt-6 grid gap-4 md:grid-cols-4">
-          <div class="rounded-2xl bg-white/12 p-4">
-            <div class="text-sm text-white/75">{{ t('cron.totalTasks') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ jobs.length }}</div>
+        <div class="mt-4 grid gap-2 md:grid-cols-4">
+          <div class="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+            <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-white/68">{{ t('cron.totalTasks') }}</div>
+            <div class="mt-1 text-2xl font-semibold leading-none">{{ jobs.length }}</div>
           </div>
-          <div class="rounded-2xl bg-white/12 p-4">
-            <div class="text-sm text-white/75">{{ t('cron.runningTasks') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ runningJobs.length }}</div>
+          <div class="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+            <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-white/68">{{ t('cron.runningTasks') }}</div>
+            <div class="mt-1 text-2xl font-semibold leading-none">{{ runningJobs.length }}</div>
           </div>
-          <div class="rounded-2xl bg-white/12 p-4">
-            <div class="text-sm text-white/75">{{ t('cron.pausedTasks') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ pausedCount }}</div>
+          <div class="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+            <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-white/68">{{ t('cron.pausedTasks') }}</div>
+            <div class="mt-1 text-2xl font-semibold leading-none">{{ pausedCount }}</div>
           </div>
-          <div class="rounded-2xl bg-white/12 p-4">
-            <div class="text-sm text-white/75">{{ t('cron.failedTasks') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ failedCount }}</div>
+          <div class="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+            <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-white/68">{{ t('cron.failedTasks') }}</div>
+            <div class="mt-1 text-2xl font-semibold leading-none">{{ failedCount }}</div>
           </div>
         </div>
       </section>

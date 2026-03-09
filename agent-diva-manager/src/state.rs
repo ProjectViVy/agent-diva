@@ -29,6 +29,7 @@ pub enum ManagerCommand {
         String,
         oneshot::Sender<Result<Option<agent_diva_core::session::store::Session>, String>>,
     ),
+    DeleteSession(String, oneshot::Sender<Result<bool, String>>),
     ListCronJobs(oneshot::Sender<Result<Vec<CronJobDto>, String>>),
     GetCronJob(String, oneshot::Sender<Result<Option<CronJobDto>, String>>),
     CreateCronJob(
