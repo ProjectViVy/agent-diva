@@ -8,12 +8,17 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
-    chat_handler, create_cron_job_handler, delete_cron_job_handler, delete_session_handler,
-    events_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
-    get_providers_handler, get_session_history_handler, get_sessions_handler, get_tools_handler,
-    heartbeat_handler, list_cron_jobs_handler, reset_session_handler, run_cron_job_handler,
-    set_cron_job_enabled_handler, stop_chat_handler, stop_cron_job_handler, test_channel_handler,
-    update_channel_handler, update_config_handler, update_cron_job_handler, update_tools_handler,
+    add_provider_model_handler, chat_handler, create_cron_job_handler, create_mcp_handler,
+    create_provider_handler, delete_cron_job_handler, delete_mcp_handler, delete_provider_handler,
+    delete_provider_model_handler, delete_session_handler, delete_skill_handler, events_handler,
+    get_channels_handler, get_config_handler, get_cron_job_handler, get_mcps_handler,
+    get_provider_handler, get_provider_models_handler, get_providers_handler,
+    get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
+    heartbeat_handler, list_cron_jobs_handler, refresh_mcp_status_handler, reset_session_handler,
+    resolve_provider_handler, run_cron_job_handler, set_cron_job_enabled_handler,
+    set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler, test_channel_handler,
+    update_channel_handler, update_config_handler, update_cron_job_handler, update_mcp_handler,
+    update_provider_handler, update_tools_handler, upload_skill_handler,
 };
 use crate::state::AppState;
 
@@ -38,7 +43,25 @@ pub async fn run_server(
             "/api/config",
             get(get_config_handler).post(update_config_handler),
         )
-        .route("/api/providers", get(get_providers_handler))
+        .route(
+            "/api/providers",
+            get(get_providers_handler).post(create_provider_handler),
+        )
+        .route("/api/providers/resolve", post(resolve_provider_handler))
+        .route(
+            "/api/providers/:name",
+            get(get_provider_handler)
+                .put(update_provider_handler)
+                .delete(delete_provider_handler),
+        )
+        .route(
+            "/api/providers/:name/models",
+            get(get_provider_models_handler).post(add_provider_model_handler),
+        )
+        .route(
+            "/api/providers/:name/models/:model_id",
+            delete(delete_provider_model_handler),
+        )
         .route(
             "/api/channels",
             get(get_channels_handler).post(update_channel_handler),
@@ -47,6 +70,18 @@ pub async fn run_server(
             "/api/tools",
             get(get_tools_handler).post(update_tools_handler),
         )
+        .route(
+            "/api/skills",
+            get(get_skills_handler).post(upload_skill_handler),
+        )
+        .route("/api/skills/:name", delete(delete_skill_handler))
+        .route("/api/mcps", get(get_mcps_handler).post(create_mcp_handler))
+        .route(
+            "/api/mcps/:name",
+            axum::routing::put(update_mcp_handler).delete(delete_mcp_handler),
+        )
+        .route("/api/mcps/:name/enable", post(set_mcp_enabled_handler))
+        .route("/api/mcps/:name/refresh", post(refresh_mcp_status_handler))
         .route(
             "/api/cron/jobs",
             get(list_cron_jobs_handler).post(create_cron_job_handler),

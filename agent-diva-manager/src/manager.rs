@@ -4,13 +4,17 @@ use agent_diva_agent::tool_config::network::{
 };
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{AgentEvent, MessageBus};
-use agent_diva_core::config::ConfigLoader;
+use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
-use agent_diva_providers::{DynamicProvider, LiteLLMClient, ProviderRegistry};
+use agent_diva_providers::{
+    DynamicProvider, LiteLLMClient, ProviderCatalogService, ProviderRegistry,
+};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
+use crate::mcp_service::McpService;
+use crate::skill_service::SkillService;
 use crate::state::{ConfigResponse, ManagerCommand, ToolsConfigResponse};
 
 pub struct Manager {
@@ -19,12 +23,34 @@ pub struct Manager {
     provider: Arc<DynamicProvider>,
     loader: ConfigLoader,
     // Current config state
+    current_provider: Option<String>,
     current_model: String,
     current_api_base: Option<String>,
     current_api_key: Option<String>,
     channel_manager: Option<Arc<ChannelManager>>,
     runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
     cron_service: Arc<CronService>,
+}
+
+enum ProviderConfigTarget<'a> {
+    Builtin(&'a mut agent_diva_core::config::schema::ProviderConfig),
+    Shadow(&'a mut CustomProviderConfig),
+}
+
+impl ProviderConfigTarget<'_> {
+    fn set_api_key(&mut self, api_key: String) {
+        match self {
+            Self::Builtin(config) => config.api_key = api_key,
+            Self::Shadow(config) => config.api_key = api_key,
+        }
+    }
+
+    fn set_api_base(&mut self, api_base: Option<String>) {
+        match self {
+            Self::Builtin(config) => config.api_base = api_base,
+            Self::Shadow(config) => config.api_base = api_base,
+        }
+    }
 }
 
 impl Manager {
@@ -34,6 +60,7 @@ impl Manager {
         bus: MessageBus,
         provider: Arc<DynamicProvider>,
         loader: ConfigLoader,
+        initial_provider: Option<String>,
         initial_model: String,
         api_key: Option<String>,
         api_base: Option<String>,
@@ -46,6 +73,8 @@ impl Manager {
             bus,
             provider,
             loader,
+            current_provider: initial_provider
+                .or_else(|| Self::provider_name_for_model(None, &initial_model)),
             current_model: initial_model,
             current_api_base: api_base,
             current_api_key: api_key,
@@ -53,6 +82,23 @@ impl Manager {
             runtime_control_tx,
             cron_service,
         }
+    }
+
+    fn provider_name_for_model(preferred_provider: Option<&str>, model: &str) -> Option<String> {
+        let registry = ProviderRegistry::new();
+        preferred_provider
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .and_then(|name| registry.find_by_name(name))
+            .map(|spec| spec.name.clone())
+            .or_else(|| {
+                model
+                    .split('/')
+                    .next()
+                    .and_then(|prefix| registry.find_by_name(prefix))
+                    .map(|spec| spec.name.clone())
+            })
+            .or_else(|| registry.find_by_model(model).map(|spec| spec.name.clone()))
     }
 
     fn map_network_config(config: &agent_diva_core::config::schema::Config) -> NetworkToolConfig {
@@ -74,6 +120,111 @@ impl Manager {
                 },
             },
         }
+    }
+
+    fn reload_runtime_mcp(&self) {
+        let Some(tx) = &self.runtime_control_tx else {
+            return;
+        };
+        let Ok(config) = self.loader.load() else {
+            error!("Failed to load config for MCP runtime update");
+            return;
+        };
+        if let Err(e) = tx.send(RuntimeControlCommand::UpdateMcp {
+            servers: config.tools.active_mcp_servers(),
+        }) {
+            error!("Failed to send runtime MCP update: {}", e);
+        }
+    }
+
+    fn model_matches_provider(provider_id: &str, model: &str) -> bool {
+        let trimmed_provider = provider_id.trim();
+        let trimmed_model = model.trim();
+        if trimmed_provider.is_empty() || trimmed_model.is_empty() {
+            return false;
+        }
+
+        if trimmed_model
+            .split('/')
+            .next()
+            .is_some_and(|prefix| prefix == trimmed_provider)
+        {
+            return true;
+        }
+
+        ProviderRegistry::new()
+            .find_by_model(trimmed_model)
+            .is_some_and(|spec| spec.name == trimmed_provider)
+    }
+
+    async fn normalize_model_for_provider(
+        config: &agent_diva_core::config::schema::Config,
+        catalog: &ProviderCatalogService,
+        provider_id: &str,
+        requested_model: &str,
+        provider_explicit: bool,
+        model_explicit: bool,
+    ) -> String {
+        let requested_model = requested_model.trim();
+        let provider_models = catalog
+            .list_provider_models(config, provider_id, false, None)
+            .await
+            .ok();
+
+        if !requested_model.is_empty() {
+            if provider_explicit && model_explicit {
+                return requested_model.to_string();
+            }
+
+            let in_catalog = provider_models.as_ref().is_some_and(|catalog| {
+                catalog
+                    .models
+                    .iter()
+                    .any(|entry| entry.id == requested_model)
+            });
+            if in_catalog || Self::model_matches_provider(provider_id, requested_model) {
+                return requested_model.to_string();
+            }
+        }
+
+        if let Some(default_model) = catalog
+            .get_provider_view(config, provider_id)
+            .and_then(|view| view.default_model)
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            return default_model;
+        }
+
+        if let Some(first_model) = provider_models
+            .and_then(|catalog| catalog.models.into_iter().next().map(|entry| entry.id))
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            return first_model;
+        }
+
+        requested_model.to_string()
+    }
+
+    fn ensure_provider_credentials_slot<'a>(
+        config: &'a mut agent_diva_core::config::schema::Config,
+        provider_id: &str,
+    ) -> ProviderConfigTarget<'a> {
+        if agent_diva_core::config::schema::ProvidersConfig::is_builtin_provider(provider_id) {
+            let provider = config
+                .providers
+                .get_mut(provider_id)
+                .expect("builtin provider slot must exist");
+            return ProviderConfigTarget::Builtin(provider);
+        }
+
+        let provider = config
+            .providers
+            .custom_providers
+            .entry(provider_id.to_string())
+            .or_default();
+        ProviderConfigTarget::Shadow(provider)
     }
 
     pub async fn run(mut self) -> anyhow::Result<()> {
@@ -299,62 +450,90 @@ impl Manager {
                                 }
                             };
 
-                            // 2. Update model if provided
-                            let model_to_use = if let Some(ref m) = update.model {
-                                info!("Updating model to: {}", m);
-                                config.agents.defaults.model = m.clone();
-                                self.current_model = m.clone();
-                                m.clone()
+                            let requested_provider = update
+                                .provider
+                                .clone()
+                                .map(|value| value.trim().to_string())
+                                .filter(|value| !value.is_empty());
+                            let requested_model = update
+                                .model
+                                .clone()
+                                .map(|value| value.trim().to_string())
+                                .filter(|value| !value.is_empty());
+                            let clear_selection =
+                                requested_provider.is_none() && requested_model.is_none();
+
+                            if clear_selection {
+                                info!("Clearing active provider/model selection");
+                                config.agents.defaults.provider = None;
+                                config.agents.defaults.model.clear();
+                                self.current_provider = None;
+                                self.current_model.clear();
+                                self.current_api_base = None;
+                                self.current_api_key = None;
                             } else {
-                                self.current_model.clone()
-                            };
+                                let provider_to_use = requested_provider
+                                    .clone()
+                                .or_else(|| config.agents.defaults.provider.clone())
+                                .or_else(|| self.current_provider.clone());
+                                let catalog = ProviderCatalogService::new();
+                                let requested_model = requested_model
+                                    .clone()
+                                    .unwrap_or_else(|| config.agents.defaults.model.clone());
+                                let provider_explicit = requested_provider.is_some();
+                                let model_explicit = update
+                                    .model
+                                    .as_deref()
+                                    .map(str::trim)
+                                    .is_some_and(|value| !value.is_empty());
+                                let provider_id = provider_to_use
+                                    .as_deref()
+                                    .filter(|value| catalog.get_provider_view(&config, value).is_some())
+                                    .map(ToString::to_string)
+                                    .or_else(|| {
+                                        catalog.resolve_provider_id(
+                                            &config,
+                                            &requested_model,
+                                            provider_to_use.as_deref(),
+                                        )
+                                    });
 
-                            // 3. Update API Key/Base if provided
-                            // We need to find the provider for the model
-                            let registry = ProviderRegistry::new();
-                            let name_from_prefix = model_to_use
-                                .split('/')
-                                .next()
-                                .and_then(|prefix| registry.find_by_name(prefix))
-                                .map(|spec| spec.name.clone());
+                                if let Some(provider_id) = provider_id {
+                                    let model_to_use = Self::normalize_model_for_provider(
+                                        &config,
+                                        &catalog,
+                                        &provider_id,
+                                        &requested_model,
+                                        provider_explicit,
+                                        model_explicit,
+                                    )
+                                    .await;
+                                    info!(
+                                        "Resolved config update to provider={}, model={}",
+                                        provider_id, model_to_use
+                                    );
+                                    config.agents.defaults.provider = Some(provider_id.clone());
+                                    config.agents.defaults.model = model_to_use.clone();
+                                    self.current_provider = Some(provider_id.clone());
+                                    self.current_model = model_to_use.clone();
 
-                            let spec = name_from_prefix
-                                .as_deref()
-                                .and_then(|name| registry.find_by_name(name))
-                                .or_else(|| registry.find_by_model(&model_to_use));
-
-                            if let Some(spec) = spec {
-                                let provider_config = match spec.name.as_str() {
-                                    "anthropic" => Some(&mut config.providers.anthropic),
-                                    "openai" => Some(&mut config.providers.openai),
-                                    "openrouter" => Some(&mut config.providers.openrouter),
-                                    "deepseek" => Some(&mut config.providers.deepseek),
-                                    "groq" => Some(&mut config.providers.groq),
-                                    "zhipu" => Some(&mut config.providers.zhipu),
-                                    "dashscope" => Some(&mut config.providers.dashscope),
-                                    "vllm" => Some(&mut config.providers.vllm),
-                                    "gemini" => Some(&mut config.providers.gemini),
-                                    "moonshot" => Some(&mut config.providers.moonshot),
-                                    "minimax" => Some(&mut config.providers.minimax),
-                                    "aihubmix" => Some(&mut config.providers.aihubmix),
-                                    "custom" => Some(&mut config.providers.custom),
-                                    _ => None,
-                                };
-
-                                if let Some(cfg) = provider_config {
+                                    let mut credentials = Self::ensure_provider_credentials_slot(
+                                        &mut config,
+                                        &provider_id,
+                                    );
                                     if let Some(ref k) = update.api_key {
-                                        info!("Updating API key for provider: {}", spec.name);
-                                        cfg.api_key = k.clone();
+                                        info!("Updating API key for provider: {}", provider_id);
+                                        credentials.set_api_key(k.clone());
                                         self.current_api_key = Some(k.clone());
                                     }
                                     if let Some(ref b) = update.api_base {
-                                        info!("Updating API base for provider: {}", spec.name);
-                                        cfg.api_base = Some(b.clone());
+                                        info!("Updating API base for provider: {}", provider_id);
+                                        credentials.set_api_base(Some(b.clone()));
                                         self.current_api_base = Some(b.clone());
                                     }
+                                } else {
+                                    warn!("No provider found for model: {}", requested_model);
                                 }
-                            } else {
-                                warn!("No provider found for model: {}", model_to_use);
                             }
 
                             // 4. Save config
@@ -365,87 +544,61 @@ impl Manager {
                             info!("Configuration saved to disk");
 
                             // 5. Hot Reload Provider
-                            info!("Hot reloading provider for model: {}", model_to_use);
+                            let model_to_use = config.agents.defaults.model.trim().to_string();
+                            if model_to_use.is_empty() {
+                                info!("Active model cleared; skipping provider hot reload");
+                            } else {
+                                let catalog = ProviderCatalogService::new();
+                                info!("Hot reloading provider for model: {}", model_to_use);
 
-                            // Re-resolve spec to get the latest config
-                            let registry = ProviderRegistry::new();
-                            let name_from_prefix = model_to_use
-                                .split('/')
-                                .next()
-                                .and_then(|prefix| registry.find_by_name(prefix))
-                                .map(|spec| spec.name.clone());
+                                let provider_id = catalog.resolve_provider_id(
+                                    &config,
+                                    &model_to_use,
+                                    config.agents.defaults.provider.as_deref(),
+                                );
 
-                            let spec = name_from_prefix
-                                .as_deref()
-                                .and_then(|name| registry.find_by_name(name))
-                                .or_else(|| registry.find_by_model(&model_to_use));
-
-                            if let Some(spec) = spec {
-                                let provider_config = match spec.name.as_str() {
-                                    "anthropic" => Some(&config.providers.anthropic),
-                                    "openai" => Some(&config.providers.openai),
-                                    "openrouter" => Some(&config.providers.openrouter),
-                                    "deepseek" => Some(&config.providers.deepseek),
-                                    "groq" => Some(&config.providers.groq),
-                                    "zhipu" => Some(&config.providers.zhipu),
-                                    "dashscope" => Some(&config.providers.dashscope),
-                                    "vllm" => Some(&config.providers.vllm),
-                                    "gemini" => Some(&config.providers.gemini),
-                                    "moonshot" => Some(&config.providers.moonshot),
-                                    "minimax" => Some(&config.providers.minimax),
-                                    "aihubmix" => Some(&config.providers.aihubmix),
-                                    "custom" => Some(&config.providers.custom),
-                                    _ => None,
-                                };
-
-                                if let Some(cfg) = provider_config {
-                                    let api_key = if !cfg.api_key.is_empty() {
-                                        Some(cfg.api_key.clone())
-                                    } else {
-                                        None
-                                    };
-
-                                    let api_base = if let Some(base) = &cfg.api_base {
-                                        if !base.trim().is_empty() {
-                                            Some(base.trim().to_string())
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    };
-
-                                    let extra_headers = if let Some(headers) = &cfg.extra_headers {
-                                        if !headers.is_empty() {
-                                            Some(headers.clone())
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    };
+                                if let Some(provider_id) = provider_id {
+                                    self.current_provider = Some(provider_id.clone());
+                                    let access = catalog
+                                        .get_provider_access(&config, &provider_id)
+                                        .unwrap_or_else(|| agent_diva_providers::ProviderAccess::from_config(None));
+                                    let extra_headers = (!access.extra_headers.is_empty()).then(|| {
+                                        access
+                                            .extra_headers
+                                            .into_iter()
+                                            .collect::<std::collections::HashMap<String, String>>()
+                                    });
+                                    let resolved_api_base = access.api_base.clone().or_else(|| {
+                                        catalog
+                                            .get_provider_view(&config, &provider_id)
+                                            .and_then(|view| view.api_base)
+                                    });
+                                    self.current_api_key = access.api_key.clone();
+                                    self.current_api_base = resolved_api_base.clone();
 
                                     let new_client = LiteLLMClient::new(
-                                        api_key,
-                                        api_base,
+                                        access.api_key,
+                                        resolved_api_base,
                                         model_to_use.clone(),
                                         extra_headers,
-                                        Some(spec.name.clone()),
+                                        Some(provider_id),
                                         config.agents.defaults.reasoning_effort.clone(),
                                     );
 
                                     self.provider.update(Arc::new(new_client));
                                     info!("Provider updated successfully");
                                 } else {
-                                    warn!("Provider config not found for spec: {}", spec.name);
+                                    warn!(
+                                        "No provider found for model: {}, skipping provider update",
+                                        model_to_use
+                                    );
                                 }
-                            } else {
-                                warn!("No provider found for model: {}, skipping provider update", model_to_use);
                             }
                         }
                         ManagerCommand::GetConfig(reply) => {
                             debug!("Processing GetConfig request");
                             let resp = ConfigResponse {
+                                provider: self.current_provider.clone(),
                                 api_base: self.current_api_base.clone(),
                                 model: self.current_model.clone(),
                                 has_api_key: self.current_api_key.is_some(),
@@ -474,6 +627,70 @@ impl Manager {
                                         .into(),
                                 });
                             }
+                        }
+                        ManagerCommand::GetSkills(reply) => {
+                            let service = SkillService::new(self.loader.clone());
+                            let result = service.list_skills().map_err(|e| e.to_string());
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::GetMcps(reply) => {
+                            let service = McpService::new(self.loader.clone());
+                            let result = service.list_mcps().map_err(|e| e.to_string());
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::CreateMcp(payload, reply) => {
+                            let service = McpService::new(self.loader.clone());
+                            let result = service.create_mcp(payload).map_err(|e| e.to_string());
+                            if result.is_ok() {
+                                self.reload_runtime_mcp();
+                            }
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::UpdateMcp(name, payload, reply) => {
+                            let service = McpService::new(self.loader.clone());
+                            let result = service
+                                .update_mcp(&name, payload)
+                                .map_err(|e| e.to_string());
+                            if result.is_ok() {
+                                self.reload_runtime_mcp();
+                            }
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::DeleteMcp(name, reply) => {
+                            let service = McpService::new(self.loader.clone());
+                            let result = service.delete_mcp(&name).map_err(|e| e.to_string());
+                            if result.is_ok() {
+                                self.reload_runtime_mcp();
+                            }
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::SetMcpEnabled(name, enabled, reply) => {
+                            let service = McpService::new(self.loader.clone());
+                            let result = service.set_enabled(&name, enabled).map_err(|e| e.to_string());
+                            if result.is_ok() {
+                                self.reload_runtime_mcp();
+                            }
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::RefreshMcpStatus(name, reply) => {
+                            let service = McpService::new(self.loader.clone());
+                            let result = service.get_mcp(&name).map_err(|e| e.to_string());
+                            if result.is_ok() {
+                                self.reload_runtime_mcp();
+                            }
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::UploadSkill(request, reply) => {
+                            let service = SkillService::new(self.loader.clone());
+                            let result = service
+                                .upload_skill_zip(&request.file_name, request.bytes)
+                                .map_err(|e| e.to_string());
+                            let _ = reply.send(result);
+                        }
+                        ManagerCommand::DeleteSkill(name, reply) => {
+                            let service = SkillService::new(self.loader.clone());
+                            let result = service.delete_skill(&name).map_err(|e| e.to_string());
+                            let _ = reply.send(result);
                         }
                         ManagerCommand::UpdateTools(update) => {
                             info!("Processing UpdateTools request");
@@ -684,5 +901,57 @@ impl Manager {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn model_matches_provider_accepts_registry_resolved_models() {
+        assert!(Manager::model_matches_provider("openai", "gpt-4o"));
+        assert!(Manager::model_matches_provider("deepseek", "deepseek-chat"));
+        assert!(Manager::model_matches_provider(
+            "openrouter",
+            "openrouter/anthropic/claude-sonnet-4"
+        ));
+        assert!(!Manager::model_matches_provider("openai", "deepseek-chat"));
+    }
+
+    #[tokio::test]
+    async fn normalize_model_for_provider_replaces_cross_provider_model() {
+        let catalog = ProviderCatalogService::new();
+        let config = agent_diva_core::config::schema::Config::default();
+
+        let model = Manager::normalize_model_for_provider(
+            &config,
+            &catalog,
+            "openai",
+            "deepseek-chat",
+            true,
+            false,
+        )
+        .await;
+
+        assert_eq!(model, "openai/gpt-4o");
+    }
+
+    #[tokio::test]
+    async fn normalize_model_for_provider_keeps_explicit_model_for_explicit_provider() {
+        let catalog = ProviderCatalogService::new();
+        let config = agent_diva_core::config::schema::Config::default();
+
+        let model = Manager::normalize_model_for_provider(
+            &config,
+            &catalog,
+            "silicon",
+            "ByteDance-Seed/Seed-OSS-36B-Instruct",
+            true,
+            true,
+        )
+        .await;
+
+        assert_eq!(model, "ByteDance-Seed/Seed-OSS-36B-Instruct");
     }
 }

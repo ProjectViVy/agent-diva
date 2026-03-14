@@ -24,6 +24,8 @@ pub struct ProviderSpec {
     pub keywords: Vec<String>,
     pub env_key: String,
     pub display_name: String,
+    #[serde(default)]
+    pub default_model: Option<String>,
 
     // Model prefixing
     pub litellm_prefix: String,
@@ -32,15 +34,7 @@ pub struct ProviderSpec {
     // Extra env vars
     pub env_extras: Vec<(String, String)>,
 
-    // Gateway / local detection
-    pub is_gateway: bool,
-    pub is_local: bool,
-    pub detect_by_key_prefix: String,
-    pub detect_by_base_keyword: String,
     pub default_api_base: String,
-
-    // Gateway behavior
-    pub strip_model_prefix: bool,
 
     // Prompt caching support
     #[serde(default)]
@@ -65,6 +59,13 @@ impl ProviderSpec {
             }
             name
         }
+    }
+
+    pub fn default_model(&self) -> Option<&str> {
+        self.default_model
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
     }
 }
 
@@ -91,45 +92,7 @@ impl ProviderRegistry {
         let model_lower = model.to_lowercase();
         self.providers
             .iter()
-            .filter(|spec| !spec.is_gateway && !spec.is_local)
             .find(|spec| spec.keywords.iter().any(|kw| model_lower.contains(kw)))
-    }
-
-    /// Find a gateway/local provider
-    pub fn find_gateway(
-        &self,
-        provider_name: Option<&str>,
-        api_key: Option<&str>,
-        api_base: Option<&str>,
-    ) -> Option<&ProviderSpec> {
-        // 1. Direct match by config key
-        if let Some(name) = provider_name {
-            if let Some(spec) = self.find_by_name(name) {
-                if spec.is_gateway || spec.is_local {
-                    return Some(spec);
-                }
-            }
-        }
-
-        // 2. Auto-detect by api_key prefix / api_base keyword
-        for spec in &self.providers {
-            if !spec.detect_by_key_prefix.is_empty() {
-                if let Some(key) = api_key {
-                    if key.starts_with(&spec.detect_by_key_prefix) {
-                        return Some(spec);
-                    }
-                }
-            }
-            if !spec.detect_by_base_keyword.is_empty() {
-                if let Some(base) = api_base {
-                    if base.contains(&spec.detect_by_base_keyword) {
-                        return Some(spec);
-                    }
-                }
-            }
-        }
-
-        None
     }
 
     /// Find a provider by config field name
@@ -176,26 +139,6 @@ mod tests {
         let spec = registry.find_by_model("MiniMax-M2.1");
         assert!(spec.is_some());
         assert_eq!(spec.unwrap().name, "minimax");
-    }
-
-    #[test]
-    fn test_find_gateway() {
-        let registry = ProviderRegistry::new();
-
-        // Test OpenRouter by api_key prefix
-        let spec = registry.find_gateway(None, Some("sk-or-v1-abc123"), None);
-        assert!(spec.is_some());
-        assert_eq!(spec.unwrap().name, "openrouter");
-
-        // Test AiHubMix by api_base keyword
-        let spec = registry.find_gateway(None, None, Some("https://aihubmix.com/v1"));
-        assert!(spec.is_some());
-        assert_eq!(spec.unwrap().name, "aihubmix");
-
-        // Test vLLM by provider_name
-        let spec = registry.find_gateway(Some("vllm"), None, None);
-        assert!(spec.is_some());
-        assert_eq!(spec.unwrap().name, "vllm");
     }
 
     #[test]

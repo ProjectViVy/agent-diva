@@ -11,6 +11,9 @@ impl AgentLoop {
             RuntimeControlCommand::UpdateNetwork(network) => {
                 self.apply_network_config(network).await;
             }
+            RuntimeControlCommand::UpdateMcp { servers } => {
+                self.apply_mcp_config(servers).await;
+            }
             RuntimeControlCommand::StopSession { session_key } => {
                 self.cancelled_sessions.insert(session_key);
             }

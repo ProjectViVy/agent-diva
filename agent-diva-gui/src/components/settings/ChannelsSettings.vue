@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { MessageSquare, Play, Check } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
+import { getConfigStatus, type ChannelStatusSummary } from '../../api/desktop';
 
 const { t } = useI18n();
 
 const channels = ref<Record<string, any>>({});
+const channelStatuses = ref<ChannelStatusSummary[]>([]);
 const selectedChannel = ref<string | null>(null);
 const testStatus = ref<'idle' | 'testing' | 'success' | 'failed'>('idle');
 const testMessage = ref('');
@@ -17,11 +19,16 @@ let lastSavedSnapshot = '';
 onMounted(async () => {
   try {
     channels.value = await invoke('get_channels');
+    channelStatuses.value = (await getConfigStatus()).channels;
   } catch (e) {
     console.error('Failed to load channels:', e);
   } finally {
     isInitializing.value = false;
   }
+});
+
+const channelStatusMap = computed(() => {
+  return new Map(channelStatuses.value.map((item) => [item.name, item]));
 });
 
 const toggleChannelEnabled = (channelName: string) => {
@@ -116,7 +123,7 @@ watch(
                <div>
                   <div class="font-medium capitalize">{{ name }}</div>
                   <div class="text-[10px] uppercase tracking-wider opacity-70" :class="config.enabled ? 'text-green-600' : 'text-gray-400'">
-                      {{ config.enabled ? t('channels.enabled') : t('channels.disabled') }}
+                      {{ !config.enabled ? t('channels.disabled') : (channelStatusMap.get(name)?.ready ? t('channels.ready') : t('channels.needsSetup')) }}
                   </div>
                </div>
             </div>
@@ -149,18 +156,32 @@ watch(
 
             <!-- Config Form -->
             <div class="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div v-if="channelStatusMap.get(selectedChannel)" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">
+                        <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('channels.readiness') }}</div>
+                        <div class="mt-1 text-sm font-semibold" :class="channelStatusMap.get(selectedChannel)?.ready ? 'text-emerald-700' : 'text-amber-700'">
+                            {{ channelStatusMap.get(selectedChannel)?.ready ? t('channels.ready') : t('channels.needsSetup') }}
+                        </div>
+                    </div>
+                    <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">
+                        <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('channels.missingFields') }}</div>
+                        <div class="mt-1 text-xs text-gray-600">
+                            {{ channelStatusMap.get(selectedChannel)?.missing_fields.length ? channelStatusMap.get(selectedChannel)?.missing_fields.join(', ') : t('channels.none') }}
+                        </div>
+                    </div>
+                </div>
                 <!-- Telegram -->
                 <div v-if="selectedChannel === 'telegram'" class="space-y-4">
                     <div class="space-y-1">
                         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.botToken') }}</label>
-                        <input v-model="channels.telegram.token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Enter Telegram Bot Token" />
+                        <input v-model="channels.telegram.token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.telegramToken')" />
                     </div>
                 </div>
                 <!-- Discord -->
                 <div v-else-if="selectedChannel === 'discord'" class="space-y-4">
                     <div class="space-y-1">
                         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.botToken') }}</label>
-                        <input v-model="channels.discord.token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Enter Discord Bot Token" />
+                        <input v-model="channels.discord.token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.discordToken')" />
                     </div>
                 </div>
                 <!-- WhatsApp -->
@@ -197,7 +218,7 @@ watch(
                     </div>
                     <div class="space-y-1">
                         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.robotCode') }}</label>
-                        <input v-model="channels.dingtalk.robot_code" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                        <input v-model="channels.dingtalk.robot_code" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.optional')" />
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1">
@@ -224,7 +245,7 @@ watch(
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-1">
                                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.imapHost') }}</label>
-                                <input v-model="channels.email.imap_host" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="imap.example.com" />
+                                <input v-model="channels.email.imap_host" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.imapHost')" />
                             </div>
                             <div class="space-y-1">
                                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.imapPort') }}</label>
@@ -253,7 +274,7 @@ watch(
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-1">
                                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.smtpHost') }}</label>
-                                <input v-model="channels.email.smtp_host" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="smtp.example.com" />
+                                <input v-model="channels.email.smtp_host" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.smtpHost')" />
                             </div>
                             <div class="space-y-1">
                                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.smtpPort') }}</label>
@@ -263,16 +284,16 @@ watch(
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-1">
                                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.username') }}</label>
-                                <input v-model="channels.email.smtp_username" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Leave empty if same as IMAP" />
+                                <input v-model="channels.email.smtp_username" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.smtpSameAsImap')" />
                             </div>
                             <div class="space-y-1">
                                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.password') }}</label>
-                                <input v-model="channels.email.smtp_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Leave empty if same as IMAP" />
+                                <input v-model="channels.email.smtp_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.smtpSameAsImap')" />
                             </div>
                         </div>
                         <div class="space-y-1">
                             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.fromAddress') }}</label>
-                            <input v-model="channels.email.from_address" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional: Sender address" />
+                            <input v-model="channels.email.from_address" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.senderAddress')" />
                         </div>
                         <div class="flex space-x-6">
                             <div class="flex items-center space-x-2">
@@ -304,7 +325,7 @@ watch(
                                 <input type="checkbox" v-model="channels.email.consent_granted" id="consent_granted" class="rounded text-pink-500 focus:ring-pink-500" />
                                 <label for="consent_granted" class="text-sm text-gray-600 font-medium">{{ t('channels.consentGranted') }}</label>
                             </div>
-                            <p class="text-xs text-gray-400 ml-6">I confirm that I have explicit permission to access and send emails from this account.</p>
+                            <p class="text-xs text-gray-400 ml-6">{{ t('channels.emailConsentHint') }}</p>
                             
                             <div class="flex items-center space-x-2 mt-2">
                                 <input type="checkbox" v-model="channels.email.auto_reply_enabled" id="auto_reply" class="rounded text-pink-500 focus:ring-pink-500" />
@@ -325,7 +346,7 @@ watch(
                         <input v-model="channels.slack.bot_token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
                     </div>
                     <div class="space-y-1">
-                        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">App Token</label>
+                        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.appToken') }}</label>
                         <input v-model="channels.slack.app_token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
                     </div>
                 </div>
@@ -375,7 +396,7 @@ watch(
                             </div>
                             <div class="space-y-1">
                                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.username') }}</label>
-                                <input v-model="channels.irc.username" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                                <input v-model="channels.irc.username" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.optional')" />
                             </div>
                         </div>
                         <div class="space-y-1">
@@ -398,15 +419,15 @@ watch(
                         <h4 class="font-semibold text-gray-700 text-sm border-b pb-2">{{ t('channels.authSettings') }}</h4>
                         <div class="space-y-1">
                             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.serverPassword') }}</label>
-                            <input v-model="channels.irc.server_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                            <input v-model="channels.irc.server_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.optional')" />
                         </div>
                         <div class="space-y-1">
                             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.nickservPassword') }}</label>
-                            <input v-model="channels.irc.nickserv_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                            <input v-model="channels.irc.nickserv_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.optional')" />
                         </div>
                         <div class="space-y-1">
                             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.saslPassword') }}</label>
-                            <input v-model="channels.irc.sasl_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" placeholder="Optional" />
+                            <input v-model="channels.irc.sasl_password" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.optional')" />
                         </div>
                     </div>
                 </div>

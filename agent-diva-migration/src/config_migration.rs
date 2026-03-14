@@ -527,6 +527,7 @@ impl ConfigMigrator {
             agents: AgentsConfig {
                 defaults: AgentDefaults {
                     workspace: py.agents.defaults.workspace,
+                    provider: None,
                     model: py.agents.defaults.model,
                     max_tokens: py.agents.defaults.max_tokens,
                     temperature: py.agents.defaults.temperature,
@@ -635,6 +636,7 @@ impl ConfigMigrator {
                 minimax: self.convert_provider(&py.providers.minimax),
                 aihubmix: self.convert_provider(&py.providers.aihubmix),
                 custom: ProviderConfig::default(),
+                custom_providers: HashMap::new(),
             },
             gateway: GatewayConfig {
                 host: py.gateway.host,
@@ -671,6 +673,7 @@ impl ConfigMigrator {
                         )
                     })
                     .collect(),
+                mcp_manager: MCPManagerConfig::default(),
             },
             logging: LoggingConfig::default(),
         }
@@ -681,6 +684,7 @@ impl ConfigMigrator {
             api_key: py.api_key.clone(),
             api_base: py.api_base.clone(),
             extra_headers: py.extra_headers.clone(),
+            custom_models: Vec::new(),
         }
     }
 }

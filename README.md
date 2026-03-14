@@ -65,6 +65,21 @@ Default config file:
 ~/.agent-diva/config.json
 ```
 
+Primary CLI entrypoints:
+
+```bash
+# Initialize or refresh config + workspace templates
+agent-diva onboard
+agent-diva config refresh
+
+# Inspect resolved instance paths
+agent-diva config path
+
+# Validate or diagnose a specific instance
+agent-diva --config ~/.agent-diva/config.json config validate
+agent-diva --config ~/.agent-diva/config.json config doctor
+```
+
 Environment variable overrides are supported (both structured and aliases). For
 example:
 
@@ -90,6 +105,10 @@ Ensure the bot is invited to the server and has appropriate permissions.
 # Start the gateway (agents + enabled channels)
 agent-diva gateway run
 
+# Target an explicit config file / instance
+agent-diva --config ~/.agent-diva/config.json status --json
+agent-diva --config ~/.agent-diva/config.json agent --message "Hello from this instance"
+
 # Send a single message
 agent-diva agent --message "Hello, Agent Diva!"
 
@@ -98,6 +117,9 @@ agent-diva tui
 
 # Check status
 agent-diva status
+
+# Channel status / readiness
+agent-diva channels status
 ```
 
 ### Skills
@@ -191,9 +213,10 @@ cargo test --all
 
 ## Documentation
 
-- Architecture: `docs/architecture.md`
-- Development: `docs/development.md`
-- Migration: `docs/migration.md`
+- User Guide: `docs/userguide.md`
+- Architecture: `docs/dev/architecture.md`
+- Development: `docs/dev/development.md`
+- Migration: `docs/dev/migration.md`
 
 ## Contributing
 

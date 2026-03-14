@@ -16,7 +16,7 @@ pub mod wtf;
 pub use base::{Tool, ToolError};
 pub use cron::CronTool;
 pub use filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
-pub use mcp::load_mcp_tools;
+pub use mcp::{load_mcp_tools, probe_mcp_server};
 pub use message::MessageTool;
 pub use registry::ToolRegistry;
 pub use shell::ExecTool;

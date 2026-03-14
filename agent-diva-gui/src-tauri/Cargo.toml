@@ -16,12 +16,15 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 agent-diva-core = { path = "../../agent-diva-core" }
+agent-diva-cli = { path = "../../agent-diva-cli" }
+agent-diva-neuron = { path = "../../agent-diva-neuron" }
+agent-diva-providers = { path = "../../agent-diva-providers" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-reqwest = { version = "0.11", features = ["json", "stream"] }
+reqwest = { version = "0.11", features = ["json", "stream", "multipart"] }
 futures = "0.3"
 eventsource-stream = "0.2"
 once_cell = { workspace = true }

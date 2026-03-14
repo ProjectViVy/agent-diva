@@ -54,3 +54,7 @@ eventsource-stream = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockito = { workspace = true }

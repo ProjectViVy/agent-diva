@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { ChevronLeft } from 'lucide-vue-next';
 import SettingsDashboard from './settings/SettingsDashboard.vue';
 import GeneralSettings from './settings/GeneralSettings.vue';
+import McpSettings from './settings/McpSettings.vue';
+import SkillsSettings from './settings/SkillsSettings.vue';
 import ProvidersSettings from './settings/ProvidersSettings.vue';
 import ChannelsSettings from './settings/ChannelsSettings.vue';
 import NetworkSettings from './settings/NetworkSettings.vue';
@@ -26,8 +28,20 @@ interface ChatDisplayPrefs {
   showRawMetaByDefault: boolean;
 }
 
+type SettingsSubview =
+  | 'dashboard'
+  | 'general'
+  | 'mcp'
+  | 'skills'
+  | 'providers'
+  | 'channels'
+  | 'network'
+  | 'language'
+  | 'about';
+
 const props = defineProps<{
   config: {
+    provider: string;
     apiBase: string;
     apiKey: string;
     model: string;
@@ -47,6 +61,7 @@ const props = defineProps<{
   };
   savedModels?: SavedModel[];
   chatDisplayPrefs: ChatDisplayPrefs;
+  initialView?: SettingsSubview;
 }>();
 
 const emit = defineEmits<{
@@ -56,12 +71,14 @@ const emit = defineEmits<{
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
 }>();
 
-const currentView = ref<'dashboard' | 'general' | 'providers' | 'channels' | 'network' | 'language' | 'about'>('dashboard');
+const currentView = ref<SettingsSubview>(props.initialView || 'dashboard');
 
 const pageTitle = computed(() => {
   if (currentView.value === 'dashboard') return t('settings.title');
   const titles = {
     general: t('settings.general'),
+    mcp: t('settings.mcp'),
+    skills: t('settings.skills'),
     providers: t('settings.providers'),
     channels: t('settings.channels'),
     network: t('settings.network'),
@@ -71,13 +88,22 @@ const pageTitle = computed(() => {
   return titles[currentView.value] || t('settings.title');
 });
 
-const handleNavigate = (view: 'general' | 'providers' | 'channels' | 'network' | 'language' | 'about') => {
+const handleNavigate = (view: Exclude<SettingsSubview, 'dashboard'>) => {
   currentView.value = view;
 };
 
 const goBack = () => {
   currentView.value = 'dashboard';
 };
+
+watch(
+  () => props.initialView,
+  (newView) => {
+    if (newView) {
+      currentView.value = newView;
+    }
+  }
+);
 </script>
 
 <template>
@@ -112,6 +138,14 @@ const goBack = () => {
               v-else-if="currentView === 'general'"
               :chat-display-prefs="chatDisplayPrefs"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
+            />
+
+            <McpSettings
+              v-else-if="currentView === 'mcp'"
+            />
+
+            <SkillsSettings
+              v-else-if="currentView === 'skills'"
             />
             
             <ProvidersSettings 

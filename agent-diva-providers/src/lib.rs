@@ -3,6 +3,8 @@
 //! This crate provides abstractions and implementations for various LLM providers.
 
 pub mod base;
+pub mod catalog;
+pub mod discovery;
 pub mod litellm;
 pub mod registry;
 pub mod transcription;
@@ -10,6 +12,13 @@ pub mod transcription;
 pub use base::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
     ProviderResult, ToolCallRequest,
+};
+pub use catalog::{
+    CustomProviderUpsert, ProviderCatalogService, ProviderModelCatalogView, ProviderModelEntry,
+    ProviderModelSource, ProviderSource, ProviderView,
+};
+pub use discovery::{
+    fetch_provider_model_catalog, ModelCatalogSource, ProviderAccess, ProviderModelCatalog,
 };
 pub use litellm::LiteLLMClient;
 pub use registry::{ProviderRegistry, ProviderSpec};

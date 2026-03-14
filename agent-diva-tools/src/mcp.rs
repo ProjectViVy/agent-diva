@@ -39,6 +39,15 @@ pub fn load_mcp_tools(configs: &HashMap<String, MCPServerConfig>) -> Vec<Arc<dyn
     tools
 }
 
+/// Probe a configured MCP server and return the number of discovered tools.
+pub fn probe_mcp_server(
+    server_name: &str,
+    cfg: &MCPServerConfig,
+) -> std::result::Result<usize, String> {
+    let (_, tools) = discover_server_tools(server_name, cfg)?;
+    Ok(tools.len())
+}
+
 #[derive(Debug, Clone)]
 struct DiscoveredTool {
     original_name: String,

@@ -1,5 +1,11 @@
 use crate::app_state::AgentState;
+use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
 use agent_diva_core::config::{Config, ConfigLoader};
+use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
+use agent_diva_providers::{
+    CustomProviderUpsert, LiteLLMClient, Message, ProviderAccess, ProviderCatalogService,
+    ProviderModelCatalogView as SharedProviderModelCatalog, ProviderSource,
+};
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use once_cell::sync::Lazy;
@@ -7,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::Arc;
+use std::time::Instant;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State, Window};
 use tokio::process::Command as TokioCommand;
@@ -21,85 +29,253 @@ struct GatewayProcess {
 static GATEWAY_PROCESS: Lazy<AsyncMutex<Option<GatewayProcess>>> =
     Lazy::new(|| AsyncMutex::new(None));
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[cfg(windows)]
+fn configure_background_command(command: &mut TokioCommand) {
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn configure_background_command(_command: &mut TokioCommand) {}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderSpec {
     pub name: String,
     pub display_name: String,
     pub api_type: String,
-    pub keywords: Vec<String>,
-    pub env_key: String,
-    pub litellm_prefix: String,
-    pub skip_prefixes: Vec<String>,
-    pub is_gateway: bool,
-    pub is_local: bool,
+    pub source: String,
+    pub configured: bool,
+    pub ready: bool,
     pub default_api_base: String,
+    pub default_model: Option<String>,
     pub models: Vec<String>,
+    pub custom_models: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderModelCatalog {
+    pub provider: String,
+    pub source: String,
+    pub runtime_supported: bool,
+    pub api_base: Option<String>,
+    pub models: Vec<String>,
+    pub custom_models: Vec<String>,
+    pub warnings: Vec<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderModelTestResult {
+    pub ok: bool,
+    pub message: String,
+    pub latency_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomProviderPayload {
+    pub id: String,
+    pub display_name: String,
+    pub api_type: String,
+    pub api_key: String,
+    pub api_base: Option<String>,
+    pub default_model: Option<String>,
+    pub models: Vec<String>,
+    pub extra_headers: Option<std::collections::HashMap<String, String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeConfigSnapshot {
+    pub provider: Option<String>,
+    pub api_base: Option<String>,
+    pub model: String,
+    pub has_api_key: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillDto {
+    pub name: String,
+    pub description: String,
+    pub source: String,
+    pub available: bool,
+    pub active: bool,
+    pub path: String,
+    pub can_delete: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpConnectionStatusDto {
+    pub state: String,
+    pub connected: bool,
+    pub applied: bool,
+    pub tool_count: usize,
+    pub error: Option<String>,
+    pub checked_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerDto {
+    pub name: String,
+    pub enabled: bool,
+    pub transport: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub env: std::collections::HashMap<String, String>,
+    pub url: String,
+    pub tool_timeout: u64,
+    pub status: McpConnectionStatusDto,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerPayload {
+    pub name: String,
+    pub enabled: bool,
+    pub command: String,
+    pub args: Vec<String>,
+    pub env: std::collections::HashMap<String, String>,
+    pub url: String,
+    pub tool_timeout: u64,
 }
 
 #[tauri::command]
-pub async fn get_providers(state: State<'_, AgentState>) -> Result<Vec<ProviderSpec>, String> {
-    let url = format!("{}/providers", state.api_base_url);
-
-    // Try to fetch from API
-    let response = state
-        .client
-        .get(&url)
-        .timeout(std::time::Duration::from_secs(2)) // Short timeout for UI responsiveness
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch providers: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("Server error: {}", response.status()));
+pub async fn get_providers(_state: State<'_, AgentState>) -> Result<Vec<ProviderSpec>, String> {
+    let config = config_loader().load().unwrap_or_default();
+    let catalog = ProviderCatalogService::new();
+    let specs = catalog.list_provider_views(&config);
+    let mut providers = Vec::with_capacity(specs.len());
+    for spec in specs {
+        let models = catalog
+            .list_provider_models(&config, &spec.id, false, None)
+            .await
+            .map(|catalog| {
+                let custom_models = catalog.custom_models.clone();
+                (
+                    catalog.models.into_iter().map(|entry| entry.id).collect(),
+                    custom_models,
+                )
+            })
+            .unwrap_or_default();
+        providers.push(ProviderSpec {
+            name: spec.id,
+            display_name: spec.display_name,
+            api_type: spec.api_type,
+            source: match spec.source {
+                ProviderSource::Builtin => "builtin",
+                ProviderSource::Custom => "custom",
+            }
+            .to_string(),
+            configured: spec.configured,
+            ready: spec.ready,
+            default_api_base: spec.default_api_base.or(spec.api_base).unwrap_or_default(),
+            default_model: spec.default_model,
+            models: models.0,
+            custom_models: models.1,
+        });
     }
 
-    let specs: Vec<serde_json::Value> = response
-        .json()
-        .await
-        .map_err(|e| format!("Invalid JSON: {}", e))?;
-
-    let providers = specs
-        .into_iter()
-        .map(|spec| ProviderSpec {
-            name: spec["name"].as_str().unwrap_or_default().to_string(),
-            display_name: spec["display_name"]
-                .as_str()
-                .unwrap_or(spec["name"].as_str().unwrap_or("Unknown"))
-                .to_string(),
-            api_type: spec["api_type"].as_str().unwrap_or("other").to_string(),
-            keywords: spec["keywords"]
-                .as_array()
-                .unwrap_or(&vec![])
-                .iter()
-                .map(|k| k.as_str().unwrap_or_default().to_string())
-                .collect(),
-            env_key: spec["env_key"].as_str().unwrap_or_default().to_string(),
-            litellm_prefix: spec["litellm_prefix"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string(),
-            skip_prefixes: spec["skip_prefixes"]
-                .as_array()
-                .unwrap_or(&vec![])
-                .iter()
-                .map(|k| k.as_str().unwrap_or_default().to_string())
-                .collect(),
-            is_gateway: spec["is_gateway"].as_bool().unwrap_or(false),
-            is_local: spec["is_local"].as_bool().unwrap_or(false),
-            default_api_base: spec["default_api_base"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string(),
-            models: spec["models"]
-                .as_array()
-                .unwrap_or(&vec![])
-                .iter()
-                .map(|m| m.as_str().unwrap_or_default().to_string())
-                .collect(),
-        })
-        .collect();
-
     Ok(providers)
+}
+
+#[tauri::command]
+pub async fn create_custom_provider(
+    payload: CustomProviderPayload,
+) -> Result<ProviderSpec, String> {
+    let loader = config_loader();
+    let mut config = loader.load().unwrap_or_default();
+    let provider_id = payload.id.trim().to_string();
+    ProviderCatalogService::new().save_custom_provider(
+        &mut config,
+        CustomProviderUpsert {
+            id: payload.id,
+            display_name: payload.display_name,
+            api_type: payload.api_type,
+            api_key: payload.api_key,
+            api_base: payload.api_base,
+            default_model: payload.default_model,
+            models: payload.models,
+            extra_headers: payload.extra_headers,
+        },
+    )?;
+    loader
+        .save(&config)
+        .map_err(|error| format!("failed to save config: {error}"))?;
+
+    let catalog = ProviderCatalogService::new();
+    let spec = catalog
+        .get_provider_view(&config, &provider_id)
+        .ok_or_else(|| format!("provider '{provider_id}' not found after save"))?;
+    let models = catalog
+        .list_provider_models(&config, &spec.id, false, None)
+        .await
+        .map(|catalog| {
+            let custom_models = catalog.custom_models.clone();
+            (
+                catalog.models.into_iter().map(|entry| entry.id).collect(),
+                custom_models,
+            )
+        })
+        .unwrap_or_default();
+
+    Ok(ProviderSpec {
+        name: spec.id,
+        display_name: spec.display_name,
+        api_type: spec.api_type,
+        source: match spec.source {
+            ProviderSource::Builtin => "builtin",
+            ProviderSource::Custom => "custom",
+        }
+        .to_string(),
+        configured: spec.configured,
+        ready: spec.ready,
+        default_api_base: spec.default_api_base.or(spec.api_base).unwrap_or_default(),
+        default_model: spec.default_model,
+        models: models.0,
+        custom_models: models.1,
+    })
+}
+
+#[tauri::command]
+pub async fn add_provider_model(
+    provider: String,
+    model: String,
+) -> Result<ProviderModelCatalog, String> {
+    let loader = config_loader();
+    let mut config = loader.load().unwrap_or_default();
+    let provider_id = provider.trim().to_string();
+    let model_id = model.trim().to_string();
+    let catalog = ProviderCatalogService::new();
+    catalog.add_provider_model(&mut config, &provider_id, &model_id)?;
+    loader
+        .save(&config)
+        .map_err(|error| format!("failed to save config: {error}"))?;
+
+    let updated = catalog
+        .list_provider_models(&config, &provider_id, false, None)
+        .await?;
+    Ok(provider_model_catalog_dto(updated))
+}
+
+#[tauri::command]
+pub async fn remove_provider_model(
+    provider: String,
+    model: String,
+) -> Result<ProviderModelCatalog, String> {
+    let loader = config_loader();
+    let mut config = loader.load().unwrap_or_default();
+    let provider_id = provider.trim().to_string();
+    let model_id = model.trim().to_string();
+    let catalog = ProviderCatalogService::new();
+    catalog.remove_provider_model(&mut config, &provider_id, &model_id)?;
+    loader
+        .save(&config)
+        .map_err(|error| format!("failed to save config: {error}"))?;
+
+    let updated = catalog
+        .list_provider_models(&config, &provider_id, false, None)
+        .await?;
+    Ok(provider_model_catalog_dto(updated))
 }
 
 #[tauri::command]
@@ -883,6 +1059,7 @@ pub async fn check_health(state: State<'_, AgentState>) -> Result<bool, String> 
 pub async fn update_config(
     api_base: Option<String>,
     api_key: Option<String>,
+    provider: Option<String>,
     model: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
@@ -890,12 +1067,324 @@ pub async fn update_config(
         "Updating config via API: model={:?}, base={:?}",
         model, api_base
     );
-    state.reconfigure(api_base, api_key, model).await
+    state.reconfigure(api_base, api_key, provider, model).await
 }
 
 #[tauri::command]
 pub async fn get_tools_config(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
     state.get_tools_config().await
+}
+
+#[tauri::command]
+pub async fn get_provider_models(
+    provider: String,
+    api_base: Option<String>,
+    api_key: Option<String>,
+) -> Result<ProviderModelCatalog, String> {
+    let loader = config_loader();
+    let config = loader.load().unwrap_or_default();
+    let mut access = ProviderCatalogService::new()
+        .get_provider_access(&config, provider.trim())
+        .unwrap_or_else(|| ProviderAccess::from_config(None));
+    if let Some(api_base) = api_base
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+    {
+        access.api_base = Some(api_base);
+    }
+    if let Some(api_key) = api_key
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        access.api_key = Some(api_key);
+    }
+    let catalog = ProviderCatalogService::new()
+        .list_provider_models(&config, provider.trim(), true, Some(access))
+        .await?;
+
+    Ok(provider_model_catalog_dto(catalog))
+}
+
+#[tauri::command]
+pub async fn test_provider_model(
+    provider: String,
+    model: String,
+    api_base: Option<String>,
+    api_key: Option<String>,
+) -> Result<ProviderModelTestResult, String> {
+    let provider = provider.trim().to_string();
+    let model = model.trim().to_string();
+    if provider.is_empty() {
+        return Err("provider must not be empty".to_string());
+    }
+    if model.is_empty() {
+        return Err("model must not be empty".to_string());
+    }
+
+    let loader = config_loader();
+    let config = loader.load().unwrap_or_default();
+    let access = provider_access_for_test(&config, &provider, api_base, api_key);
+
+    let client = LiteLLMClient::new(
+        access.api_key,
+        access.api_base,
+        model.clone(),
+        (!access.extra_headers.is_empty()).then(|| {
+            access
+                .extra_headers
+                .into_iter()
+                .collect::<std::collections::HashMap<_, _>>()
+        }),
+        Some(provider.clone()),
+        config.agents.defaults.reasoning_effort.clone(),
+    );
+    let neuron = LlmNeuron::with_id(
+        Arc::new(client),
+        format!("provider-test:{provider}:{model}"),
+    );
+    let request = NeuronRequest::new(
+        vec![Message::user(
+            "Reply with a short connectivity confirmation for this model test.",
+        )],
+        16,
+        0.0,
+    )
+    .with_model(model);
+
+    let started = Instant::now();
+    match neuron.run_once(request).await {
+        Ok(_) => Ok(ProviderModelTestResult {
+            ok: true,
+            message: "Connection test succeeded.".to_string(),
+            latency_ms: started.elapsed().as_millis() as u64,
+        }),
+        Err(error) => Ok(ProviderModelTestResult {
+            ok: false,
+            message: format!("Connection test failed: {error}"),
+            latency_ms: started.elapsed().as_millis() as u64,
+        }),
+    }
+}
+
+#[tauri::command]
+pub async fn get_skills(state: State<'_, AgentState>) -> Result<Vec<SkillDto>, String> {
+    let value = state.get_skills().await?;
+    serde_json::from_value(value).map_err(|e| format!("Invalid skills payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_mcps(state: State<'_, AgentState>) -> Result<Vec<McpServerDto>, String> {
+    let value = state.get_mcps().await?;
+    serde_json::from_value(value).map_err(|e| format!("Invalid MCP payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn create_mcp(
+    payload: McpServerPayload,
+    state: State<'_, AgentState>,
+) -> Result<McpServerDto, String> {
+    let url = format!("{}/mcps", state.api_base_url);
+    let response = state
+        .client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to create MCP: {}", e))?;
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid create MCP response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    serde_json::from_value(value.get("mcp").cloned().unwrap_or(serde_json::Value::Null))
+        .map_err(|e| format!("Invalid created MCP payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn update_mcp(
+    name: String,
+    payload: McpServerPayload,
+    state: State<'_, AgentState>,
+) -> Result<McpServerDto, String> {
+    let url = format!("{}/mcps/{}", state.api_base_url, urlencoding::encode(&name));
+    let response = state
+        .client
+        .put(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to update MCP: {}", e))?;
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid update MCP response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    serde_json::from_value(value.get("mcp").cloned().unwrap_or(serde_json::Value::Null))
+        .map_err(|e| format!("Invalid updated MCP payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn delete_mcp(name: String, state: State<'_, AgentState>) -> Result<(), String> {
+    let url = format!("{}/mcps/{}", state.api_base_url, urlencoding::encode(&name));
+    let response = state
+        .client
+        .delete(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to delete MCP: {}", e))?;
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid delete MCP response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_mcp_enabled(
+    name: String,
+    enabled: bool,
+    state: State<'_, AgentState>,
+) -> Result<McpServerDto, String> {
+    let url = format!(
+        "{}/mcps/{}/enable",
+        state.api_base_url,
+        urlencoding::encode(&name)
+    );
+    let response = state
+        .client
+        .post(&url)
+        .json(&serde_json::json!({ "enabled": enabled }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to toggle MCP: {}", e))?;
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid toggle MCP response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    serde_json::from_value(value.get("mcp").cloned().unwrap_or(serde_json::Value::Null))
+        .map_err(|e| format!("Invalid toggled MCP payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn refresh_mcp_status(
+    name: String,
+    state: State<'_, AgentState>,
+) -> Result<McpServerDto, String> {
+    let url = format!(
+        "{}/mcps/{}/refresh",
+        state.api_base_url,
+        urlencoding::encode(&name)
+    );
+    let response = state
+        .client
+        .post(&url)
+        .json(&serde_json::json!({ "reapply": true }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to refresh MCP: {}", e))?;
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid refresh MCP response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    serde_json::from_value(value.get("mcp").cloned().unwrap_or(serde_json::Value::Null))
+        .map_err(|e| format!("Invalid refreshed MCP payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn upload_skill(
+    file_name: String,
+    bytes: Vec<u8>,
+    state: State<'_, AgentState>,
+) -> Result<SkillDto, String> {
+    let url = format!("{}/skills", state.api_base_url);
+    let part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(file_name)
+        .mime_str("application/zip")
+        .map_err(|e| format!("Failed to build upload part: {}", e))?;
+    let form = reqwest::multipart::Form::new().part("file", part);
+    let response = state
+        .client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to upload skill: {}", e))?;
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid upload response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    serde_json::from_value(
+        value
+            .get("skill")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+    )
+    .map_err(|e| format!("Invalid uploaded skill payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn delete_skill(name: String, state: State<'_, AgentState>) -> Result<(), String> {
+    let name = urlencoding::encode(&name);
+    let url = format!("{}/skills/{}", state.api_base_url, name);
+    let response = state
+        .client
+        .delete(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to delete skill: {}", e))?;
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid delete skill response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1043,6 +1532,51 @@ fn config_loader() -> ConfigLoader {
     }
 }
 
+fn cli_runtime_from_loader(loader: &ConfigLoader) -> CliRuntime {
+    CliRuntime::from_paths(
+        Some(loader.config_path().to_path_buf()),
+        Some(loader.config_dir().to_path_buf()),
+        None,
+    )
+}
+
+fn provider_access_for_test(
+    config: &Config,
+    provider: &str,
+    api_base: Option<String>,
+    api_key: Option<String>,
+) -> ProviderAccess {
+    let mut access = ProviderCatalogService::new()
+        .get_provider_access(config, provider)
+        .unwrap_or_else(|| ProviderAccess::from_config(None));
+    if let Some(api_base) = api_base
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+    {
+        access.api_base = Some(api_base);
+    }
+    if let Some(api_key) = api_key
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        access.api_key = Some(api_key);
+    }
+    access
+}
+
+fn provider_model_catalog_dto(catalog: SharedProviderModelCatalog) -> ProviderModelCatalog {
+    ProviderModelCatalog {
+        provider: catalog.provider,
+        source: catalog.catalog_source,
+        runtime_supported: catalog.runtime_supported,
+        api_base: catalog.api_base,
+        models: catalog.models.into_iter().map(|entry| entry.id).collect(),
+        custom_models: catalog.custom_models,
+        warnings: catalog.warnings,
+        error: catalog.error,
+    }
+}
+
 fn expand_user_path(path: &str) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {
@@ -1154,7 +1688,9 @@ async fn run_service_cli(app: &AppHandle, args: &[&str]) -> Result<String, Strin
     }
 
     let cli_binary = resolve_cli_binary(app)?;
-    let output = TokioCommand::new(&cli_binary)
+    let mut command = TokioCommand::new(&cli_binary);
+    configure_background_command(&mut command);
+    let output = command
         .arg("service")
         .args(args)
         .output()
@@ -1182,7 +1718,9 @@ where
     I: IntoIterator<Item = S>,
     S: Into<OsString>,
 {
-    TokioCommand::new(program)
+    let mut command = TokioCommand::new(program);
+    configure_background_command(&mut command);
+    command
         .args(args.into_iter().map(Into::into))
         .output()
         .await
@@ -1646,6 +2184,7 @@ pub async fn start_gateway(app: AppHandle, bin_path: Option<String>) -> Result<(
 
     let executable = resolved_cli_binary_for_launch(&app, bin_path)?;
     let mut command = TokioCommand::new(&executable);
+    configure_background_command(&mut command);
     command
         .arg("--config-dir")
         .arg(loader.config_dir())
@@ -1695,6 +2234,35 @@ pub fn load_config() -> Result<String, String> {
         .load()
         .map_err(|e| format!("failed to load config: {}", e))?;
     serde_json::to_string_pretty(&config).map_err(|e| format!("failed to serialize config: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_config(state: State<'_, AgentState>) -> Result<RuntimeConfigSnapshot, String> {
+    let url = format!("{}/config", state.api_base_url);
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch runtime config: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    response
+        .json::<RuntimeConfigSnapshot>()
+        .await
+        .map_err(|e| format!("Invalid runtime config payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_config_status() -> Result<StatusReport, String> {
+    let loader = config_loader();
+    let runtime = cli_runtime_from_loader(&loader);
+    collect_status_report(&runtime)
+        .await
+        .map_err(|e| format!("failed to collect config status: {}", e))
 }
 
 #[tauri::command]

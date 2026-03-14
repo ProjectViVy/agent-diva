@@ -4,6 +4,7 @@
     - openrouter
   env_key: OPENROUTER_API_KEY
   display_name: OpenRouter
+  default_model: openrouter/anthropic/claude-sonnet-4
   litellm_prefix: openrouter
   skip_prefixes: []
   env_extras: []
@@ -30,6 +31,7 @@
     - aihubmix
   env_key: OPENAI_API_KEY
   display_name: AiHubMix
+  default_model: aihubmix/claude-sonnet-4
   litellm_prefix: openai
   skip_prefixes: []
   env_extras: []
@@ -60,6 +62,7 @@
     - local
   env_key: CUSTOM_API_KEY
   display_name: Custom / Local
+  default_model: custom/default
   litellm_prefix: ""
   skip_prefixes: []
   env_extras: []
@@ -78,7 +81,8 @@
     - claude
   env_key: ANTHROPIC_API_KEY
   display_name: Anthropic
-  litellm_prefix: ""
+  default_model: anthropic/claude-sonnet-4-5
+  litellm_prefix: "https://api.anthropic.com/v1"
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -106,6 +110,7 @@
     - gpt
   env_key: OPENAI_API_KEY
   display_name: OpenAI
+  default_model: openai/gpt-4o
   litellm_prefix: ""
   skip_prefixes: []
   env_extras: []
@@ -138,6 +143,7 @@
     - deepseek
   env_key: DEEPSEEK_API_KEY
   display_name: DeepSeek
+  default_model: deepseek-chat
   litellm_prefix: deepseek
   skip_prefixes:
     - deepseek/
@@ -160,6 +166,7 @@
     - gemini
   env_key: GEMINI_API_KEY
   display_name: Gemini
+  default_model: gemini/gemini-2.0-flash
   litellm_prefix: gemini
   skip_prefixes:
     - gemini/
@@ -168,7 +175,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://generativelanguage.googleapis.com/v1beta"
   strip_model_prefix: false
   models:
     - gemini-1.5-pro
@@ -187,6 +194,7 @@
     - zai
   env_key: ZAI_API_KEY
   display_name: Zhipu AI
+  default_model: zhipu/glm-4-flash
   litellm_prefix: zai
   skip_prefixes:
     - zhipu/
@@ -199,7 +207,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://open.bigmodel.cn/api/paas/v4"
   strip_model_prefix: false
   models:
     - glm-4
@@ -220,6 +228,7 @@
     - dashscope
   env_key: DASHSCOPE_API_KEY
   display_name: DashScope
+  default_model: dashscope/qwen-max
   litellm_prefix: dashscope
   skip_prefixes:
     - dashscope/
@@ -229,7 +238,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   strip_model_prefix: false
   models:
     - qwen-max
@@ -249,6 +258,7 @@
     - kimi
   env_key: MOONSHOT_API_KEY
   display_name: Moonshot
+  default_model: moonshot/moonshot-v1-8k
   litellm_prefix: moonshot
   skip_prefixes:
     - moonshot/
@@ -259,7 +269,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.moonshot.ai/v1
+  default_api_base: "https://api.moonshot.cn/v1"
   strip_model_prefix: false
   models:
     - moonshot-v1-8k
@@ -276,6 +286,7 @@
     - minimax
   env_key: MINIMAX_API_KEY
   display_name: MiniMax
+  default_model: minimax/MiniMax-M2.1
   litellm_prefix: minimax
   skip_prefixes:
     - minimax/
@@ -285,7 +296,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.minimax.io/v1
+  default_api_base: "https://api.minimaxi.com/v1"
   strip_model_prefix: false
   models:
     - abab6.5-chat
@@ -301,6 +312,7 @@
     - vllm
   env_key: HOSTED_VLLM_API_KEY
   display_name: vLLM/Local
+  default_model: vllm/meta-llama/Llama-3.3-70B-Instruct
   litellm_prefix: hosted_vllm
   skip_prefixes: []
   env_extras: []
@@ -308,7 +320,7 @@
   is_local: true
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "http://localhost:11434/v1"
   strip_model_prefix: false
   models: []
   model_overrides: []
@@ -319,6 +331,7 @@
     - groq
   env_key: GROQ_API_KEY
   display_name: Groq
+  default_model: groq/llama-3.3-70b-versatile
   litellm_prefix: groq
   skip_prefixes:
     - groq/
@@ -327,7 +340,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.groq.com/openai/v1
+  default_api_base: "https://api.groq.com/openai/v1"
   strip_model_prefix: false
   models:
     - llama3-8b-8192
@@ -352,7 +365,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.x.ai/v1
+  default_api_base: "https://api.x.ai/v1"
   strip_model_prefix: false
   models:
     - grok-beta
@@ -374,30 +387,31 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.cherryin.ai/v1
+  default_api_base: "https://open.cherryin.cc/v1"
   strip_model_prefix: false
   models: []
   model_overrides: []
 
-- name: azure
-  api_type: openai
-  keywords:
-    - azure
-  env_key: AZURE_OPENAI_API_KEY
-  display_name: Azure OpenAI
-  litellm_prefix: azure
-  skip_prefixes: []
-  env_extras: []
-  is_gateway: false
-  is_local: false
-  detect_by_key_prefix: ""
-  detect_by_base_keyword: ""
-  default_api_base: ""
-  strip_model_prefix: false
-  models:
-    - gpt-4o
-    - gpt-4o-mini
-  model_overrides: []
+
+# - name: azure
+#   api_type: openai
+#   keywords:
+#     - azure
+#   env_key: AZURE_OPENAI_API_KEY
+#   display_name: Azure OpenAI
+#   litellm_prefix: azure
+#   skip_prefixes: []
+#   env_extras: []
+#   is_gateway: false
+#   is_local: false
+#   detect_by_key_prefix: ""
+#   detect_by_base_keyword: ""
+#   default_api_base: ""
+#   strip_model_prefix: false
+#   models:
+#     - gpt-4o
+#     - gpt-4o-mini
+#   model_overrides: []
 
 - name: 302ai
   api_type: openai
@@ -412,7 +426,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.302.ai/v1"
   strip_model_prefix: false
   models:
     - deepseek-chat
@@ -435,7 +449,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://ph8.co/v1"
   strip_model_prefix: false
   models:
     - deepseek-v3-241226
@@ -455,7 +469,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://ai.burncloud.com/v1"
   strip_model_prefix: false
   models:
     - claude-opus-4-5-20251101
@@ -498,7 +512,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.ppinfra.com/v3/openai"
   strip_model_prefix: false
   models:
     - deepseek/deepseek-v3.2
@@ -520,7 +534,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.together.xyz/v1
+  default_api_base: "https://api.together.xyz/v1"
   strip_model_prefix: false
   models:
     - meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo
@@ -540,7 +554,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.ocoolai.com/v1"
   strip_model_prefix: false
   models:
     - deepseek-chat
@@ -562,30 +576,31 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://models.inference.ai.azure.com
+  default_api_base: "https://models.inference.ai.azure.com"
   strip_model_prefix: false
   models:
     - gpt-4o
   model_overrides: []
 
-- name: copilot
-  api_type: openai
-  keywords:
-    - copilot
-  env_key: COPILOT_API_KEY
-  display_name: Copilot
-  litellm_prefix: copilot
-  skip_prefixes: []
-  env_extras: []
-  is_gateway: true
-  is_local: false
-  detect_by_key_prefix: ""
-  detect_by_base_keyword: ""
-  default_api_base: ""
-  strip_model_prefix: false
-  models:
-    - gpt-4o-mini
-  model_overrides: []
+# 需要完善oauth订阅登录
+# - name: copilot
+#   api_type: openai
+#   keywords:
+#     - copilot
+#   env_key: COPILOT_API_KEY
+#   display_name: Copilot
+#   litellm_prefix: copilot
+#   skip_prefixes: []
+#   env_extras: []
+#   is_gateway: true
+#   is_local: false
+#   detect_by_key_prefix: ""
+#   detect_by_base_keyword: ""
+#   default_api_base: ""
+#   strip_model_prefix: false
+#   models:
+#     - gpt-4o-mini
+#   model_overrides: []
 
 - name: yi
   api_type: openai
@@ -601,7 +616,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.lingyiwanwu.com/v1
+  default_api_base: "https://api.lingyiwanwu.com/v1"
   strip_model_prefix: false
   models:
     - yi-lightning
@@ -621,7 +636,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.baichuan-ai.com/v1
+  default_api_base: "https://api.baichuan-ai.com/v1"
   strip_model_prefix: false
   models:
     - Baichuan4
@@ -642,7 +657,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api-inference.modelscope.cn/v1
+  default_api_base: "https://api-inference.modelscope.cn/v1"
   strip_model_prefix: false
   models:
     - Qwen/Qwen2.5-72B-Instruct
@@ -662,7 +677,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.stepfun.com/v1
+  default_api_base: "https://api.stepfun.com/v1"
   strip_model_prefix: false
   models:
     - step-1-8k
@@ -683,7 +698,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://ark.cn-beijing.volces.com/api/v3
+  default_api_base: "https://ark.cn-beijing.volces.com/api/v3"
   strip_model_prefix: false
   models:
     - doubao-pro-32k
@@ -703,7 +718,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.hyperbolic.xyz/v1
+  default_api_base: "https://api.hyperbolic.xyz/v1"
   strip_model_prefix: false
   models:
     - meta-llama/Meta-Llama-3.1-405B
@@ -724,7 +739,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.mistral.ai/v1
+  default_api_base: "https://api.mistral.ai/v1"
   strip_model_prefix: false
   models:
     - mistral-large-latest
@@ -745,7 +760,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.jina.ai/v1
+  default_api_base: "https://api.jina.ai/v1"
   strip_model_prefix: false
   models:
     - jina-embeddings-v3
@@ -765,7 +780,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.fireworks.ai/inference/v1
+  default_api_base: "https://api.fireworks.ai/inference/v1"
   strip_model_prefix: false
   models:
     - accounts/fireworks/models/llama-v3-70b-instruct
@@ -785,7 +800,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.hunyuan.cloud.tencent.com/v1
+  default_api_base: "https://api.hunyuan.cloud.tencent.com/v1"
   strip_model_prefix: false
   models:
     - hunyuan-pro
@@ -807,7 +822,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://integrate.api.nvidia.com/v1
+  default_api_base: "https://integrate.api.nvidia.com/v1"
   strip_model_prefix: false
   models:
     - meta/llama-3.1-405b-instruct
@@ -828,32 +843,32 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://qianfan.baidubce.com/v2
+  default_api_base: "https://qianfan.baidubce.com/v2"
   strip_model_prefix: false
   models:
     - ernie-4.0-8k-latest
     - ernie-speed-8k
   model_overrides: []
 
-- name: dmxapi
-  api_type: openai
-  keywords:
-    - dmxapi
-  env_key: DMXAPI_API_KEY
-  display_name: DMXAPI
-  litellm_prefix: dmxapi
-  skip_prefixes: []
-  env_extras: []
-  is_gateway: true
-  is_local: false
-  detect_by_key_prefix: ""
-  detect_by_base_keyword: ""
-  default_api_base: ""
-  strip_model_prefix: false
-  models:
-    - gpt-4o
-    - DMXAPI-DeepSeek-R1
-  model_overrides: []
+# - name: dmxapi
+#   api_type: openai
+#   keywords:
+#     - dmxapi
+#   env_key: DMXAPI_API_KEY
+#   display_name: DMXAPI
+#   litellm_prefix: dmxapi
+#   skip_prefixes: []
+#   env_extras: []
+#   is_gateway: true
+#   is_local: false
+#   detect_by_key_prefix: ""
+#   detect_by_base_keyword: ""
+#   default_api_base: ""
+#   strip_model_prefix: false
+#   models:
+#     - gpt-4o
+#     - DMXAPI-DeepSeek-R1
+#   model_overrides: []
 
 - name: perplexity
   api_type: openai
@@ -869,7 +884,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.perplexity.ai
+  default_api_base: "https://api.perplexity.ai"
   strip_model_prefix: false
   models:
     - sonar-pro
@@ -890,7 +905,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.maas.com/v1
+  default_api_base: "https://cloud.infini-ai.com/maas/v1"
   strip_model_prefix: false
   models:
     - deepseek-r1
@@ -912,7 +927,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.voyageai.com/v1
+  default_api_base: "https://api.voyageai.com/v1"
   strip_model_prefix: false
   models:
     - voyage-3
@@ -932,7 +947,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.qnaigc.com/v1"
   strip_model_prefix: false
   models:
     - deepseek-r1
@@ -952,7 +967,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.tokenflux.ai/openai/v1"
   strip_model_prefix: false
   models:
     - gpt-4.1
@@ -972,7 +987,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://cephalon.cloud/user-center/v1"
   strip_model_prefix: false
   models:
     - DeepSeek-R1
@@ -991,7 +1006,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://maas-api.lanyun.net/v1"
   strip_model_prefix: false
   models:
     - deepseek-ai/DeepSeek-R1
@@ -1011,7 +1026,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.poe.com/v1"
   strip_model_prefix: false
   models:
     - gpt-4o
@@ -1030,7 +1045,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "：https://api.aiionly.com/v1"
   strip_model_prefix: false
   models:
     - gpt-5.1
@@ -1050,7 +1065,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.longcat.chat/openai/v1"
   strip_model_prefix: false
   models:
     - LongCat-Flash-Chat
@@ -1069,7 +1084,7 @@
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: https://api.cerebras.ai/v1
+  default_api_base: "https://api.cerebras.ai/v1"
   strip_model_prefix: false
   models:
     - gpt-oss-120b
@@ -1085,11 +1100,11 @@
   litellm_prefix: mimo
   skip_prefixes: []
   env_extras: []
-  is_gateway: true
+  is_gateway: false
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.xiaomimimo.com/v1"
   strip_model_prefix: false
   models:
     - mimo-v2-flash

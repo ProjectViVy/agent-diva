@@ -42,14 +42,6 @@ impl ApiClient {
         }
     }
 
-    pub async fn chat(
-        &self,
-        message: String,
-        event_tx: mpsc::UnboundedSender<AgentEvent>,
-    ) -> Result<()> {
-        self.chat_with_target(message, None, None, event_tx).await
-    }
-
     pub async fn chat_with_target(
         &self,
         message: String,

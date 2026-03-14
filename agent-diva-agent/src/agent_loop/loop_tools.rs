@@ -1,9 +1,11 @@
 use super::{AgentLoop, ToolConfig};
 use crate::tool_config::network::NetworkToolConfig;
+use agent_diva_core::config::MCPServerConfig;
 use agent_diva_tools::{
     load_mcp_tools, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
     ToolError, ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
 
@@ -77,5 +79,22 @@ impl AgentLoop {
         Self::register_web_tools(&mut self.tools, &network);
         self.subagent_manager.update_network_config(network).await;
         info!("Applied runtime network tool configuration update");
+    }
+
+    pub(super) async fn apply_mcp_config(&mut self, servers: HashMap<String, MCPServerConfig>) {
+        for name in self
+            .tools
+            .tool_names()
+            .into_iter()
+            .filter(|name| name.starts_with("mcp_"))
+        {
+            self.tools.unregister(&name);
+        }
+
+        for mcp_tool in load_mcp_tools(&servers) {
+            self.tools.register(mcp_tool);
+        }
+
+        info!("Applied runtime MCP tool configuration update");
     }
 }

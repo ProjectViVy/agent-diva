@@ -39,6 +39,17 @@ interface ChatDisplayPrefs {
   showRawMetaByDefault: boolean;
 }
 
+type SettingsSubview =
+  | 'dashboard'
+  | 'general'
+  | 'mcp'
+  | 'skills'
+  | 'providers'
+  | 'channels'
+  | 'network'
+  | 'language'
+  | 'about';
+
 interface SavedModel {
   id: string;
   provider: string;
@@ -54,6 +65,7 @@ interface Props {
   connectionStatus?: 'connected' | 'error' | 'connecting';
   currentEmotion?: string;
   config?: {
+    provider: string;
     apiBase: string;
     apiKey: string;
     model: string;
@@ -83,7 +95,7 @@ const emit = defineEmits<{
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'toggle-sidebar'): void;
-  (e: 'save-config', config: { apiBase: string; apiKey: string; model: string }): void;
+  (e: 'save-config', config: { provider: string; apiBase: string; apiKey: string; model: string }): void;
   (e: 'save-tools-config', tools: NonNullable<typeof props.toolsConfig>): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
@@ -95,6 +107,7 @@ type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
 const activeMenu = ref<'console' | 'neuro' | 'cron' | null>(null);
+const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
@@ -116,6 +129,7 @@ const handleUpdateSavedModels = (models: SavedModel[]) => {
 
 const selectSavedModel = (model: SavedModel) => {
   emit('save-config', {
+    provider: model.provider,
     apiBase: model.apiBase,
     apiKey: model.apiKey,
     model: model.model,
@@ -123,15 +137,42 @@ const selectSavedModel = (model: SavedModel) => {
   isModelDropdownOpen.value = false;
 };
 
+const isSavedModelSelected = (model: SavedModel) =>
+  props.config?.provider === model.provider && props.config?.model === model.model;
+
+const removeSavedModel = (model: SavedModel, event: MouseEvent) => {
+  event.stopPropagation();
+
+  const nextModels = (props.savedModels || []).filter((entry) => entry.id !== model.id);
+  emit('update-saved-models', nextModels);
+
+  if (isSavedModelSelected(model)) {
+    emit('save-config', {
+      provider: '',
+      apiBase: '',
+      apiKey: '',
+      model: '',
+    });
+  }
+};
+
+const currentProviderLabel = computed(() => {
+  if (!props.config?.provider) return 'DeepSeek';
+  return props.config.provider;
+});
+
 const toggleSidebar = () => {
   sidebarOpen.value = !sidebarOpen.value;
   emit('toggle-sidebar');
 };
 
-const navigateTo = (section: SidebarSection) => {
+const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
   if (section === 'chat' || section === 'settings') {
     activeMenu.value = null;
     activeTab.value = section;
+    if (section === 'settings') {
+      settingsInitialView.value = settingsView;
+    }
   } else {
     activeMenu.value = section;
   }
@@ -142,7 +183,7 @@ const navigateTo = (section: SidebarSection) => {
 };
 
 const openSettingsFromModelMenu = () => {
-  navigateTo('settings');
+  navigateTo('settings', 'providers');
 };
 
 const isSectionActive = (section: SidebarSection) => {
@@ -274,7 +315,10 @@ const formatSessionTimestamp = (timestamp: number) => {
             :title="t('app.switchModel')"
           >
             <Server :size="12" class="text-gray-400 group-hover:text-pink-500" />
-            <span class="max-w-[100px] truncate font-medium">{{ config.model || t('app.switchModel') }}</span>
+            <div class="flex flex-col items-start leading-tight">
+              <span class="max-w-[100px] truncate font-medium">{{ config.model || t('app.switchModel') }}</span>
+              <span class="max-w-[100px] truncate text-[10px] text-gray-400">{{ currentProviderLabel }}</span>
+            </div>
           </button>
 
           <div
@@ -283,16 +327,26 @@ const formatSessionTimestamp = (timestamp: number) => {
           >
             <div class="py-1 max-h-60 overflow-y-auto">
               <div v-if="savedModels && savedModels.length > 0">
-                <button
+                <div
                   v-for="model in savedModels"
                   :key="model.id"
                   @click="selectSavedModel(model)"
-                  class="w-full text-left px-3 py-2 text-xs hover:bg-pink-50 flex items-center justify-between group"
-                  :class="config?.model === model.model ? 'text-pink-600 font-medium' : 'text-gray-600'"
+                  class="w-full cursor-pointer px-3 py-2 text-left text-xs hover:bg-pink-50 flex items-center justify-between group"
+                  :class="isSavedModelSelected(model) ? 'text-pink-600 font-medium' : 'text-gray-600'"
                 >
                   <span class="truncate">{{ model.displayName }}</span>
-                  <Check v-if="config?.model === model.model" :size="12" class="text-pink-500" />
-                </button>
+                  <span class="ml-2 flex items-center gap-2">
+                    <Check v-if="isSavedModelSelected(model)" :size="12" class="text-pink-500" />
+                    <button
+                      type="button"
+                      class="rounded p-1 text-gray-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
+                      :title="t('providers.removeCurrentModel')"
+                      @click="removeSavedModel(model, $event)"
+                    >
+                      <Trash2 :size="12" />
+                    </button>
+                  </span>
+                </div>
               </div>
               <div v-else class="px-3 py-4 text-center text-gray-400 text-[10px]">
                 <div class="whitespace-pre-line">{{ t('chat.emptyModels') }}</div>
@@ -478,6 +532,7 @@ const formatSessionTimestamp = (timestamp: number) => {
             :tools-config="toolsConfig"
             :saved-models="savedModels"
             :chat-display-prefs="chatDisplayPrefs"
+            :initial-view="settingsInitialView"
             @save="(newConfig) => emit('save-config', newConfig)"
             @save-tools-config="(tools) => emit('save-tools-config', tools)"
             @update-saved-models="handleUpdateSavedModels"

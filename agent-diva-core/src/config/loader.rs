@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 #[derive(Clone)]
 pub struct ConfigLoader {
     config_dir: PathBuf,
+    config_path: PathBuf,
 }
 
 impl ConfigLoader {
@@ -18,23 +19,43 @@ impl ConfigLoader {
             .map(|h| h.join(".agent-diva"))
             .unwrap_or_else(|| PathBuf::from(".agent-diva"));
 
-        Self { config_dir }
+        let config_path = config_dir.join("config.json");
+
+        Self {
+            config_dir,
+            config_path,
+        }
     }
 
     /// Create a new config loader with a custom config directory
     pub fn with_dir<P: AsRef<Path>>(dir: P) -> Self {
+        let config_dir = dir.as_ref().to_path_buf();
         Self {
-            config_dir: dir.as_ref().to_path_buf(),
+            config_path: config_dir.join("config.json"),
+            config_dir,
+        }
+    }
+
+    /// Create a new config loader with an explicit config file path
+    pub fn with_file<P: AsRef<Path>>(path: P) -> Self {
+        let config_path = path.as_ref().to_path_buf();
+        let config_dir = config_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        Self {
+            config_dir,
+            config_path,
         }
     }
 
     /// Load configuration from file and environment
     pub fn load(&self) -> crate::Result<Config> {
-        let config_path = self.config_dir.join("config.json");
         let mut merged = serde_json::to_value(Config::default())?;
 
-        if config_path.exists() {
-            let content = std::fs::read_to_string(&config_path)?;
+        if self.config_path.exists() {
+            let content = std::fs::read_to_string(&self.config_path)?;
             let file_value: Value = serde_json::from_str(&content)?;
             merge_values(&mut merged, file_value);
         }
@@ -51,15 +72,19 @@ impl ConfigLoader {
     /// Save configuration to file
     pub fn save(&self, config: &Config) -> crate::Result<()> {
         std::fs::create_dir_all(&self.config_dir)?;
-        let config_path = self.config_dir.join("config.json");
         let content = serde_json::to_string_pretty(config)?;
-        std::fs::write(&config_path, content)?;
+        std::fs::write(&self.config_path, content)?;
         Ok(())
     }
 
     /// Get the config directory path
     pub fn config_dir(&self) -> &Path {
         &self.config_dir
+    }
+
+    /// Get the config file path
+    pub fn config_path(&self) -> &Path {
+        &self.config_path
     }
 }
 
@@ -221,6 +246,7 @@ fn normalize_alias_keys(config: &mut Value) {
         &["neuro_link", "generic_pipe"],
     );
     coalesce_alias_keys(config, &["tools"], "mcpServers", &["mcp_servers"]);
+    coalesce_alias_keys(config, &["tools"], "mcpManager", &["mcp_manager"]);
 }
 
 #[cfg(test)]
@@ -274,7 +300,8 @@ mod tests {
         let loader = ConfigLoader::with_dir(temp_dir.path());
         let config = loader.load().unwrap();
 
-        assert_eq!(config.agents.defaults.model, "anthropic/claude-opus-4-5");
+        assert_eq!(config.agents.defaults.provider.as_deref(), Some("deepseek"));
+        assert_eq!(config.agents.defaults.model, "deepseek-chat");
         assert_eq!(config.agents.defaults.max_tokens, 8192);
     }
 
@@ -443,5 +470,16 @@ mod tests {
         let server = config.tools.mcp_servers.get("filesystem").unwrap();
         assert_eq!(server.command, "uvx");
         assert_eq!(server.args.len(), 2);
+    }
+
+    #[test]
+    fn test_with_file_uses_parent_as_config_dir() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("instances").join("alpha.json");
+        let loader = ConfigLoader::with_file(&config_path);
+
+        assert_eq!(loader.config_path(), config_path.as_path());
+        assert_eq!(loader.config_dir(), config_path.parent().unwrap());
     }
 }

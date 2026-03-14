@@ -394,8 +394,7 @@ impl AgentLoop {
 mod tests {
     use super::*;
     use agent_diva_providers::{
-        LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
-        ProviderResult,
+        LLMResponse, LiteLLMClient, Message, ProviderError, ProviderEventStream, ProviderResult,
     };
     use async_trait::async_trait;
     use futures::stream;

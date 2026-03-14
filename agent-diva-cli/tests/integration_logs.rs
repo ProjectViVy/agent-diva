@@ -36,7 +36,7 @@ fn test_integration_logs() {
     // Note: CLI "Processing..." print is still plain text.
     // But the log from agent_loop.rs should be JSON.
 
-    let log_entry_found = stdout
+    let _log_entry_found = stdout
         .lines()
         .any(|line| line.contains("Processing message from") && line.trim().starts_with("{"));
 
@@ -44,7 +44,7 @@ fn test_integration_logs() {
     // But "Processing message from" happens early in process_inbound_message.
 
     // 2. Check for trace_id
-    let trace_id_found = stdout.contains("trace_id");
+    let _trace_id_found = stdout.contains("trace_id");
 
     // We accept failure if we can't run the full agent, but we should at least see some logs.
     // If we can't fully run it without config, maybe we can run 'onboard' or 'status'?

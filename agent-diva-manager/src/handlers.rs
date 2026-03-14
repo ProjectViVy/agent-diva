@@ -1,9 +1,12 @@
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::InboundMessage;
 use agent_diva_core::config::schema::ChannelsConfig;
-use agent_diva_providers::ProviderRegistry;
+use agent_diva_core::config::ConfigLoader;
+use agent_diva_providers::{
+    CustomProviderUpsert, ProviderCatalogService, ProviderModelCatalogView, ProviderView,
+};
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     response::sse::{Event, Sse},
     Json,
 };
@@ -15,8 +18,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::state::{
     ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, ManagerCommand,
-    RunCronJobRequest, SetCronJobEnabledRequest, StopChatRequest, ToolsConfigResponse,
-    ToolsConfigUpdate,
+    McpRefreshRequest, RunCronJobRequest, SetCronJobEnabledRequest, SetMcpEnabledRequest,
+    SkillUploadRequest, StopChatRequest, ToolsConfigResponse, ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -336,8 +339,9 @@ pub async fn get_config_handler(State(state): State<AppState>) -> Json<ConfigRes
     if let Err(e) = state.api_tx.send(ManagerCommand::GetConfig(tx)).await {
         tracing::error!("Failed to send GetConfig request: {}", e);
         return Json(ConfigResponse {
+            provider: Some("deepseek".to_string()),
             api_base: None,
-            model: "unknown".to_string(),
+            model: "deepseek-chat".to_string(),
             has_api_key: false,
         });
     }
@@ -347,8 +351,9 @@ pub async fn get_config_handler(State(state): State<AppState>) -> Json<ConfigRes
         Err(e) => {
             tracing::error!("Failed to receive GetConfig response: {}", e);
             Json(ConfigResponse {
+                provider: Some("deepseek".to_string()),
                 api_base: None,
-                model: "error".to_string(),
+                model: "deepseek-chat".to_string(),
                 has_api_key: false,
             })
         }
@@ -403,6 +408,202 @@ pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfi
                 web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
             })
         }
+    }
+}
+
+pub async fn get_skills_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::GetSkills(tx)).await {
+        tracing::error!("Failed to send GetSkills request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(skills)) => Json(serde_json::json!({ "status": "ok", "skills": skills })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn get_mcps_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::GetMcps(tx)).await {
+        tracing::error!("Failed to send GetMcps request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(mcps)) => Json(serde_json::json!({ "status": "ok", "mcps": mcps })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn create_mcp_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<crate::mcp_service::McpServerUpsert>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::CreateMcp(payload, tx))
+        .await
+    {
+        tracing::error!("Failed to send CreateMcp request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(mcp)) => Json(serde_json::json!({ "status": "ok", "mcp": mcp })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn update_mcp_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(payload): Json<crate::mcp_service::McpServerUpsert>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UpdateMcp(name, payload, tx))
+        .await
+    {
+        tracing::error!("Failed to send UpdateMcp request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(mcp)) => Json(serde_json::json!({ "status": "ok", "mcp": mcp })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn delete_mcp_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::DeleteMcp(name, tx)).await {
+        tracing::error!("Failed to send DeleteMcp request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(())) => Json(serde_json::json!({ "status": "ok" })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn set_mcp_enabled_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(payload): Json<SetMcpEnabledRequest>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::SetMcpEnabled(name, payload.enabled, tx))
+        .await
+    {
+        tracing::error!("Failed to send SetMcpEnabled request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(mcp)) => Json(serde_json::json!({ "status": "ok", "mcp": mcp })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn refresh_mcp_status_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(_payload): Json<McpRefreshRequest>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::RefreshMcpStatus(name, tx))
+        .await
+    {
+        tracing::error!("Failed to send RefreshMcpStatus request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(mcp)) => Json(serde_json::json!({ "status": "ok", "mcp": mcp })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn upload_skill_handler(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> Json<serde_json::Value> {
+    let mut file_name: Option<String> = None;
+    let mut bytes: Option<Vec<u8>> = None;
+
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(field)) => field,
+            Ok(None) => break,
+            Err(e) => {
+                return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+            }
+        };
+        if field.name() != Some("file") {
+            continue;
+        }
+        file_name = field.file_name().map(ToString::to_string);
+        match field.bytes().await {
+            Ok(body) => bytes = Some(body.to_vec()),
+            Err(e) => {
+                return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+            }
+        }
+    }
+
+    let Some(file_name) = file_name else {
+        return Json(serde_json::json!({ "status": "error", "message": "missing file upload" }));
+    };
+    let Some(bytes) = bytes else {
+        return Json(serde_json::json!({ "status": "error", "message": "missing file body" }));
+    };
+
+    let (tx, rx) = oneshot::channel();
+    let request = SkillUploadRequest { file_name, bytes };
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UploadSkill(request, tx))
+        .await
+    {
+        tracing::error!("Failed to send UploadSkill request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(skill)) => Json(serde_json::json!({ "status": "ok", "skill": skill })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn delete_skill_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::DeleteSkill(name, tx))
+        .await
+    {
+        tracing::error!("Failed to send DeleteSkill request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(())) => Json(serde_json::json!({ "status": "ok" })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
     }
 }
 
@@ -473,9 +674,220 @@ pub async fn test_channel_handler(
     }
 }
 
-pub async fn get_providers_handler() -> Json<Vec<agent_diva_providers::registry::ProviderSpec>> {
-    let registry = ProviderRegistry::new();
-    Json(registry.all().to_vec())
+pub async fn get_providers_handler() -> Json<Vec<ProviderView>> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    Json(ProviderCatalogService::new().list_provider_views(&config))
+}
+
+#[derive(serde::Deserialize)]
+pub struct ProviderModelsQuery {
+    #[serde(default = "default_provider_runtime_query")]
+    pub runtime: bool,
+}
+
+fn default_provider_runtime_query() -> bool {
+    true
+}
+
+#[derive(serde::Deserialize)]
+pub struct ProviderModelMutation {
+    pub model: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ResolveProviderRequest {
+    pub model: String,
+    pub preferred_provider: Option<String>,
+}
+
+pub async fn get_provider_handler(Path(name): Path<String>) -> Json<serde_json::Value> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    let catalog = ProviderCatalogService::new();
+    match catalog.get_provider_view(&config, &name) {
+        Some(provider) => Json(serde_json::json!(provider)),
+        None => Json(serde_json::json!({
+            "status": "error",
+            "message": format!("Unknown provider '{}'", name),
+        })),
+    }
+}
+
+pub async fn get_provider_models_handler(
+    Path(name): Path<String>,
+    Query(query): Query<ProviderModelsQuery>,
+) -> Json<ProviderModelCatalogView> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    let fallback = ProviderModelCatalogView {
+        provider: name.clone(),
+        catalog_source: "error".to_string(),
+        runtime_supported: false,
+        api_base: None,
+        models: vec![],
+        custom_models: vec![],
+        warnings: vec![],
+        error: Some(format!("Unknown provider '{}'", name)),
+    };
+
+    Json(
+        ProviderCatalogService::new()
+            .list_provider_models(&config, &name, query.runtime, None)
+            .await
+            .unwrap_or(fallback),
+    )
+}
+
+pub async fn add_provider_model_handler(
+    Path(name): Path<String>,
+    Json(payload): Json<ProviderModelMutation>,
+) -> Json<serde_json::Value> {
+    let loader = ConfigLoader::new();
+    let mut config = match loader.load() {
+        Ok(config) => config,
+        Err(error) => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": error.to_string(),
+            }))
+        }
+    };
+    let catalog = ProviderCatalogService::new();
+    if let Err(error) = catalog.add_provider_model(&mut config, &name, &payload.model) {
+        return Json(serde_json::json!({ "status": "error", "message": error }));
+    }
+    if config.agents.defaults.provider.as_deref() == Some(name.as_str()) {
+        config.agents.defaults.model = payload.model.clone();
+    }
+    if let Err(error) = loader.save(&config) {
+        return Json(serde_json::json!({ "status": "error", "message": error.to_string() }));
+    }
+
+    Json(serde_json::json!({ "status": "ok" }))
+}
+
+pub async fn delete_provider_model_handler(
+    Path((name, model_id)): Path<(String, String)>,
+) -> Json<serde_json::Value> {
+    let loader = ConfigLoader::new();
+    let mut config = match loader.load() {
+        Ok(config) => config,
+        Err(error) => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": error.to_string(),
+            }))
+        }
+    };
+    let catalog = ProviderCatalogService::new();
+    if let Err(error) = catalog.remove_provider_model(&mut config, &name, &model_id) {
+        return Json(serde_json::json!({ "status": "error", "message": error }));
+    }
+    if config.agents.defaults.provider.as_deref() == Some(name.as_str())
+        && config.agents.defaults.model == model_id
+    {
+        match catalog
+            .list_provider_models(&config, &name, false, None)
+            .await
+        {
+            Ok(models) => {
+                if let Some(next_model) = models.models.first() {
+                    config.agents.defaults.model = next_model.id.clone();
+                }
+            }
+            Err(error) => {
+                return Json(serde_json::json!({ "status": "error", "message": error }));
+            }
+        }
+    }
+    if let Err(error) = loader.save(&config) {
+        return Json(serde_json::json!({ "status": "error", "message": error.to_string() }));
+    }
+
+    Json(serde_json::json!({ "status": "ok" }))
+}
+
+pub async fn create_provider_handler(
+    Json(payload): Json<CustomProviderUpsert>,
+) -> Json<serde_json::Value> {
+    save_custom_provider(payload).await
+}
+
+pub async fn update_provider_handler(
+    Path(name): Path<String>,
+    Json(mut payload): Json<CustomProviderUpsert>,
+) -> Json<serde_json::Value> {
+    payload.id = name;
+    save_custom_provider(payload).await
+}
+
+pub async fn delete_provider_handler(Path(name): Path<String>) -> Json<serde_json::Value> {
+    let loader = ConfigLoader::new();
+    let mut config = match loader.load() {
+        Ok(config) => config,
+        Err(error) => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": error.to_string(),
+            }))
+        }
+    };
+    let catalog = ProviderCatalogService::new();
+    if let Err(error) = catalog.delete_custom_provider(&mut config, &name) {
+        return Json(serde_json::json!({ "status": "error", "message": error }));
+    }
+    if config.agents.defaults.provider.as_deref() == Some(name.as_str()) {
+        let fallback = catalog.list_provider_views(&config).into_iter().next();
+        config.agents.defaults.provider = fallback.as_ref().map(|provider| provider.id.clone());
+        if let Some(provider) = fallback {
+            if let Some(model) = provider.default_model {
+                config.agents.defaults.model = model;
+            }
+        }
+    }
+    if let Err(error) = loader.save(&config) {
+        return Json(serde_json::json!({ "status": "error", "message": error.to_string() }));
+    }
+
+    Json(serde_json::json!({ "status": "ok" }))
+}
+
+pub async fn resolve_provider_handler(
+    Json(payload): Json<ResolveProviderRequest>,
+) -> Json<serde_json::Value> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    let provider_id = ProviderCatalogService::new().resolve_provider_id(
+        &config,
+        &payload.model,
+        payload.preferred_provider.as_deref(),
+    );
+    Json(serde_json::json!({ "provider_id": provider_id }))
+}
+
+async fn save_custom_provider(payload: CustomProviderUpsert) -> Json<serde_json::Value> {
+    let loader = ConfigLoader::new();
+    let mut config = match loader.load() {
+        Ok(config) => config,
+        Err(error) => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": error.to_string(),
+            }))
+        }
+    };
+    let provider_id = payload.id.clone();
+    if let Err(error) = ProviderCatalogService::new().save_custom_provider(&mut config, payload) {
+        return Json(serde_json::json!({ "status": "error", "message": error }));
+    }
+    if let Err(error) = loader.save(&config) {
+        return Json(serde_json::json!({ "status": "error", "message": error.to_string() }));
+    }
+
+    let provider: Option<ProviderView> =
+        ProviderCatalogService::new().get_provider_view(&config, &provider_id);
+    Json(serde_json::json!({ "status": "ok", "provider": provider }))
 }
 
 pub async fn heartbeat_handler() -> &'static str {

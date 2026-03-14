@@ -1,8 +1,13 @@
 use crate::tool_config::network::NetworkToolConfig;
+use agent_diva_core::config::MCPServerConfig;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum RuntimeControlCommand {
     UpdateNetwork(NetworkToolConfig),
+    UpdateMcp {
+        servers: HashMap<String, MCPServerConfig>,
+    },
     StopSession {
         session_key: String,
     },

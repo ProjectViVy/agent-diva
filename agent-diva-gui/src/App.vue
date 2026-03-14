@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import NormalMode from "./components/NormalMode.vue";
 import { useI18n } from "vue-i18n";
+import { getConfigStatus, getRuntimeConfig } from "./api/desktop";
 
 const { t } = useI18n();
 
@@ -101,6 +102,11 @@ interface SessionCacheEntry {
   cachedAt: number;
 }
 
+interface RawProviderConfig {
+  api_key?: string;
+  api_base?: string | null;
+}
+
 const SESSION_CACHE_PREFIX = 'agent-diva-session-cache:';
 const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
 const HISTORY_PREFS_KEY = 'agent-diva-history-prefs';
@@ -130,6 +136,7 @@ const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
 
 // Config state
 const config = ref({
+  provider: "deepseek",
   apiBase: "https://api.deepseek.com/v1",
   apiKey: "",
   model: "deepseek-chat"
@@ -156,6 +163,72 @@ const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
 const unlisteners: UnlistenFn[] = [];
 
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+function buildSavedModelId(provider: string, model: string): string {
+  return `${provider.trim()}:${model.trim()}`;
+}
+
+function buildSavedModelDisplayName(provider: string, model: string): string {
+  return `${provider.trim()} - ${model.trim()}`;
+}
+
+function syncCurrentConfigToSavedModels(currentConfig: typeof config.value) {
+  const provider = currentConfig.provider?.trim();
+  const model = currentConfig.model?.trim();
+  if (!provider || !model) {
+    return;
+  }
+
+  const id = buildSavedModelId(provider, model);
+  const existingIndex = savedModels.value.findIndex(
+    (entry) => entry.provider === provider && entry.model === model
+  );
+  const nextEntry: SavedModel = {
+    id,
+    provider,
+    model,
+    apiBase: currentConfig.apiBase || "",
+    apiKey: currentConfig.apiKey || "",
+    displayName: buildSavedModelDisplayName(provider, model),
+  };
+
+  if (existingIndex === -1) {
+    savedModels.value = [...savedModels.value, nextEntry];
+    return;
+  }
+
+  const existing = savedModels.value[existingIndex];
+  const merged: SavedModel = {
+    ...existing,
+    id,
+    provider,
+    model,
+    apiBase: existing.apiBase || nextEntry.apiBase,
+    apiKey: existing.apiKey || nextEntry.apiKey,
+    displayName: existing.displayName || nextEntry.displayName,
+  };
+
+  if (JSON.stringify(existing) !== JSON.stringify(merged)) {
+    const nextSavedModels = [...savedModels.value];
+    nextSavedModels.splice(existingIndex, 1, merged);
+    savedModels.value = nextSavedModels;
+  }
+}
+
+function extractProviderConfigFromRaw(
+  parsed: {
+    providers?: Record<string, RawProviderConfig> & {
+      custom_providers?: Record<string, RawProviderConfig>;
+    };
+  },
+  provider?: string | null
+): RawProviderConfig | undefined {
+  if (!provider) {
+    return undefined;
+  }
+
+  return parsed.providers?.[provider] || parsed.providers?.custom_providers?.[provider];
+}
 
 function extractChatId(sessionKey: string): string {
   if (!sessionKey) {
@@ -346,6 +419,7 @@ onMounted(() => {
       console.error("Failed to parse saved models", e);
     }
   }
+  syncCurrentConfigToSavedModels(config.value);
 
   const storedChatPrefs = localStorage.getItem(HISTORY_PREFS_KEY);
   if (storedChatPrefs) {
@@ -363,6 +437,10 @@ onMounted(() => {
 // Save models to localStorage whenever they change
 watch(savedModels, (newVal) => {
   localStorage.setItem('agent-diva-saved-models', JSON.stringify(newVal));
+}, { deep: true });
+
+watch(() => ({ ...config.value }), (newConfig) => {
+  syncCurrentConfigToSavedModels(newConfig);
 }, { deep: true });
 
 watch(chatDisplayPrefs, (newVal) => {
@@ -652,9 +730,6 @@ async function deleteSession(sessionKey: string) {
 
 async function saveConfig(newConfig: typeof config.value) {
   try {
-    // Update local config ref
-    config.value = { ...newConfig };
-    
     console.log('[App] Saving config:', { 
         ...newConfig, 
         apiKey: newConfig.apiKey ? `${newConfig.apiKey.substring(0, 8)}...` : 'undefined' 
@@ -673,8 +748,17 @@ async function saveConfig(newConfig: typeof config.value) {
     await invoke("update_config", {
       apiBase: newConfig.apiBase || null,
       apiKey: newConfig.apiKey || null,
+      provider: newConfig.provider || null,
       model: newConfig.model || null
     });
+
+    const runtimeConfig = await getRuntimeConfig();
+    config.value = {
+      provider: runtimeConfig.provider || newConfig.provider,
+      apiBase: runtimeConfig.api_base || newConfig.apiBase,
+      apiKey: newConfig.apiKey,
+      model: runtimeConfig.model || newConfig.model,
+    };
     
     messages.value.push({ 
       role: 'system', 
@@ -743,6 +827,39 @@ onMounted(async () => {
       await invoke("start_background_stream");
     } catch (e) {
       console.warn("Failed to start background stream:", e);
+    }
+
+    try {
+      const [runtimeConfig, rawConfig, status] = await Promise.all([
+        getRuntimeConfig(),
+        invoke<string>("load_config"),
+        getConfigStatus(),
+      ]);
+      const parsed = JSON.parse(rawConfig) as {
+        agents?: { defaults?: { provider?: string | null; model?: string | null } };
+        providers?: Record<string, RawProviderConfig> & {
+          custom_providers?: Record<string, RawProviderConfig>;
+        };
+      };
+      const provider =
+        runtimeConfig.provider ||
+        parsed.agents?.defaults?.provider ||
+        status.default_provider ||
+        config.value.provider;
+      const providerConfig = extractProviderConfigFromRaw(parsed, provider);
+      config.value = {
+        provider,
+        apiBase: runtimeConfig.api_base || providerConfig?.api_base || config.value.apiBase,
+        apiKey: providerConfig?.api_key || "",
+        model:
+          runtimeConfig.model ||
+          parsed.agents?.defaults?.model ||
+          status.default_model ||
+          config.value.model,
+      };
+      syncCurrentConfigToSavedModels(config.value);
+    } catch (e) {
+      console.warn("Failed to load runtime config:", e);
     }
 
     try {

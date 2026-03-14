@@ -8,6 +8,14 @@ use crate::config::schema::LoggingConfig;
 
 /// Initialize the logging system
 pub fn init_logging(config: &LoggingConfig) -> WorkerGuard {
+    init_logging_with_terminal_output(config, true)
+}
+
+/// Initialize the logging system and optionally write logs to the current terminal.
+pub fn init_logging_with_terminal_output(
+    config: &LoggingConfig,
+    enable_terminal_output: bool,
+) -> WorkerGuard {
     // 1. Log Level
     let log_level_str = std::env::var("RUST_LOG").unwrap_or_else(|_| config.level.clone());
 
@@ -43,23 +51,25 @@ pub fn init_logging(config: &LoggingConfig) -> WorkerGuard {
     // But since is_json is runtime, we can't easily change the Layer type in the subscriber type chain
     // without boxing.
 
-    let stdout_layer = if is_json {
-        fmt::layer()
-            .json()
-            .with_target(true)
-            .with_thread_ids(true)
-            .with_file(true)
-            .with_line_number(true)
-            .boxed()
-    } else {
-        fmt::layer()
-            .with_target(true)
-            .with_thread_ids(true)
-            .with_file(true)
-            .with_line_number(true)
-            // .pretty() // Optional: make text output pretty
-            .boxed()
-    };
+    let stdout_layer = enable_terminal_output.then(|| {
+        if is_json {
+            fmt::layer()
+                .json()
+                .with_target(true)
+                .with_thread_ids(true)
+                .with_file(true)
+                .with_line_number(true)
+                .boxed()
+        } else {
+            fmt::layer()
+                .with_target(true)
+                .with_thread_ids(true)
+                .with_file(true)
+                .with_line_number(true)
+                // .pretty() // Optional: make text output pretty
+                .boxed()
+        }
+    });
 
     let file_layer = if is_json {
         fmt::layer()

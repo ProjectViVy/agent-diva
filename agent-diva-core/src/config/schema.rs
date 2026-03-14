@@ -76,6 +76,9 @@ pub struct AgentsConfig {
 pub struct AgentDefaults {
     /// Workspace directory
     pub workspace: String,
+    /// Explicit default provider selection
+    #[serde(default)]
+    pub provider: Option<String>,
     /// Default model
     pub model: String,
     /// Maximum tokens
@@ -93,7 +96,8 @@ impl Default for AgentDefaults {
     fn default() -> Self {
         Self {
             workspace: "~/.agent-diva/workspace".to_string(),
-            model: "anthropic/claude-opus-4-5".to_string(),
+            provider: Some("deepseek".to_string()),
+            model: "deepseek-chat".to_string(),
             max_tokens: 8192,
             temperature: 0.7,
             max_tool_iterations: 20,
@@ -745,6 +749,8 @@ pub struct ProvidersConfig {
     pub aihubmix: ProviderConfig,
     #[serde(default)]
     pub custom: ProviderConfig,
+    #[serde(default)]
+    pub custom_providers: HashMap<String, CustomProviderConfig>,
 }
 
 /// Individual provider configuration
@@ -756,6 +762,103 @@ pub struct ProviderConfig {
     pub api_base: Option<String>,
     #[serde(default)]
     pub extra_headers: Option<HashMap<String, String>>,
+    #[serde(default)]
+    pub custom_models: Vec<String>,
+}
+
+/// User-defined provider configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CustomProviderConfig {
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default = "default_custom_provider_api_type")]
+    pub api_type: String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default)]
+    pub api_base: Option<String>,
+    #[serde(default)]
+    pub default_model: Option<String>,
+    #[serde(default)]
+    pub models: Vec<String>,
+    #[serde(default)]
+    pub extra_headers: Option<HashMap<String, String>>,
+}
+
+fn default_custom_provider_api_type() -> String {
+    "openai".to_string()
+}
+
+impl ProvidersConfig {
+    pub const BUILTIN_PROVIDER_IDS: [&'static str; 13] = [
+        "anthropic",
+        "openai",
+        "openrouter",
+        "deepseek",
+        "groq",
+        "zhipu",
+        "dashscope",
+        "vllm",
+        "gemini",
+        "moonshot",
+        "minimax",
+        "aihubmix",
+        "custom",
+    ];
+
+    pub fn builtin_provider_names() -> &'static [&'static str] {
+        &Self::BUILTIN_PROVIDER_IDS
+    }
+
+    pub fn get(&self, name: &str) -> Option<&ProviderConfig> {
+        match name {
+            "anthropic" => Some(&self.anthropic),
+            "openai" => Some(&self.openai),
+            "openrouter" => Some(&self.openrouter),
+            "deepseek" => Some(&self.deepseek),
+            "groq" => Some(&self.groq),
+            "zhipu" => Some(&self.zhipu),
+            "dashscope" => Some(&self.dashscope),
+            "vllm" => Some(&self.vllm),
+            "gemini" => Some(&self.gemini),
+            "moonshot" => Some(&self.moonshot),
+            "minimax" => Some(&self.minimax),
+            "aihubmix" => Some(&self.aihubmix),
+            "custom" => Some(&self.custom),
+            _ => None,
+        }
+    }
+
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut ProviderConfig> {
+        match name {
+            "anthropic" => Some(&mut self.anthropic),
+            "openai" => Some(&mut self.openai),
+            "openrouter" => Some(&mut self.openrouter),
+            "deepseek" => Some(&mut self.deepseek),
+            "groq" => Some(&mut self.groq),
+            "zhipu" => Some(&mut self.zhipu),
+            "dashscope" => Some(&mut self.dashscope),
+            "vllm" => Some(&mut self.vllm),
+            "gemini" => Some(&mut self.gemini),
+            "moonshot" => Some(&mut self.moonshot),
+            "minimax" => Some(&mut self.minimax),
+            "aihubmix" => Some(&mut self.aihubmix),
+            "custom" => Some(&mut self.custom),
+            _ => None,
+        }
+    }
+
+    pub fn get_custom(&self, name: &str) -> Option<&CustomProviderConfig> {
+        self.custom_providers.get(name)
+    }
+
+    pub fn get_custom_mut(&mut self, name: &str) -> Option<&mut CustomProviderConfig> {
+        self.custom_providers.get_mut(name)
+    }
+
+    pub fn is_builtin_provider(name: &str) -> bool {
+        Self::BUILTIN_PROVIDER_IDS.contains(&name)
+    }
 }
 
 /// Gateway configuration
@@ -794,6 +897,31 @@ pub struct ToolsConfig {
     pub restrict_to_workspace: bool,
     #[serde(default, rename = "mcpServers", alias = "mcp_servers")]
     pub mcp_servers: HashMap<String, MCPServerConfig>,
+    #[serde(default, rename = "mcpManager", alias = "mcp_manager")]
+    pub mcp_manager: MCPManagerConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MCPManagerConfig {
+    #[serde(default)]
+    pub disabled_servers: Vec<String>,
+}
+
+impl ToolsConfig {
+    pub fn active_mcp_servers(&self) -> HashMap<String, MCPServerConfig> {
+        self.mcp_servers
+            .iter()
+            .filter(|(name, _)| !self.is_mcp_server_disabled(name))
+            .map(|(name, cfg)| (name.clone(), cfg.clone()))
+            .collect()
+    }
+
+    pub fn is_mcp_server_disabled(&self, name: &str) -> bool {
+        self.mcp_manager
+            .disabled_servers
+            .iter()
+            .any(|server| server == name)
+    }
 }
 
 /// MCP server connection configuration (stdio or HTTP)

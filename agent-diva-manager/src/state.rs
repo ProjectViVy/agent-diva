@@ -1,11 +1,15 @@
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
-    ChannelsConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
+    ChannelsConfig, MCPServerConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
+
+use crate::mcp_service::{McpServerDto, McpServerUpsert};
+use crate::skill_service::SkillDto;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,6 +28,25 @@ pub enum ManagerCommand {
     GetChannels(oneshot::Sender<ChannelsConfig>),
     GetTools(oneshot::Sender<ToolsConfigResponse>),
     UpdateTools(ToolsConfigUpdate),
+    GetMcps(oneshot::Sender<Result<Vec<McpServerDto>, String>>),
+    CreateMcp(
+        McpServerUpsert,
+        oneshot::Sender<Result<McpServerDto, String>>,
+    ),
+    UpdateMcp(
+        String,
+        McpServerUpsert,
+        oneshot::Sender<Result<McpServerDto, String>>,
+    ),
+    DeleteMcp(String, oneshot::Sender<Result<(), String>>),
+    SetMcpEnabled(String, bool, oneshot::Sender<Result<McpServerDto, String>>),
+    RefreshMcpStatus(String, oneshot::Sender<Result<McpServerDto, String>>),
+    GetSkills(oneshot::Sender<Result<Vec<SkillDto>, String>>),
+    UploadSkill(
+        SkillUploadRequest,
+        oneshot::Sender<Result<SkillDto, String>>,
+    ),
+    DeleteSkill(String, oneshot::Sender<Result<(), String>>),
     GetSessions(oneshot::Sender<Result<Vec<agent_diva_core::session::SessionInfo>, String>>),
     GetSessionHistory(
         String,
@@ -71,6 +94,7 @@ pub struct ResetSessionRequest {
 pub struct ConfigUpdate {
     pub api_base: Option<String>,
     pub api_key: Option<String>,
+    pub provider: Option<String>,
     pub model: Option<String>,
 }
 
@@ -94,10 +118,17 @@ pub struct RunCronJobRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigResponse {
+    pub provider: Option<String>,
     pub api_base: Option<String>,
     pub model: String,
     // Don't return API key for security, or maybe masked
     pub has_api_key: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillUploadRequest {
+    pub file_name: String,
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +148,17 @@ pub struct ToolsConfigUpdate {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetMcpEnabledRequest {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpRefreshRequest {
+    #[serde(default)]
+    pub reapply: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebToolsConfigUpdate {
     pub search: WebSearchConfig,
     pub fetch: WebFetchConfig,
@@ -129,4 +171,10 @@ impl From<WebToolsConfig> for WebToolsConfigResponse {
             fetch: value.fetch,
         }
     }
+}
+
+pub fn active_mcp_servers(
+    config: &agent_diva_core::config::schema::Config,
+) -> HashMap<String, MCPServerConfig> {
+    config.tools.active_mcp_servers()
 }

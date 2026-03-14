@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use reqwest::Client;
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{debug, warn};
@@ -32,6 +33,7 @@ struct ChatCompletionRequest {
 /// LiteLLM API response format
 #[derive(Debug, Deserialize)]
 struct ChatCompletionResponse {
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     choices: Vec<Choice>,
     #[serde(default)]
     usage: Usage,
@@ -47,7 +49,7 @@ struct Choice {
 struct ResponseMessage {
     #[serde(default)]
     content: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     tool_calls: Vec<ToolCall>,
     #[serde(default)]
     reasoning_content: Option<String>,
@@ -70,16 +72,17 @@ struct Function {
 
 #[derive(Debug, Deserialize, Default)]
 struct Usage {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     prompt_tokens: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     completion_tokens: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     total_tokens: i64,
 }
 
 #[derive(Debug, Deserialize)]
 struct StreamChunk {
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     choices: Vec<StreamChoice>,
     #[serde(default)]
     usage: Option<Usage>,
@@ -97,7 +100,7 @@ struct StreamChoice {
 struct StreamDelta {
     #[serde(default)]
     content: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     tool_calls: Vec<StreamToolCall>,
     #[serde(default)]
     reasoning_content: Option<String>,
@@ -150,9 +153,17 @@ pub struct LiteLLMClient {
     default_model: String,
     extra_headers: HashMap<String, String>,
     registry: ProviderRegistry,
-    gateway: Option<ProviderSpec>,
     selected_provider: Option<ProviderSpec>,
+    direct_openai_compatible: bool,
     default_reasoning_effort: Option<String>,
+}
+
+fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 impl LiteLLMClient {
@@ -174,14 +185,6 @@ impl LiteLLMClient {
         let selected_provider = provider_name
             .as_deref()
             .and_then(|name| registry.find_by_name(name))
-            .filter(|spec| !spec.is_gateway && !spec.is_local)
-            .cloned();
-        let gateway = registry
-            .find_gateway(
-                provider_name.as_deref(),
-                api_key.as_deref(),
-                api_base.as_deref(),
-            )
             .cloned();
 
         let api_base = api_base.and_then(|base| {
@@ -204,6 +207,8 @@ impl LiteLLMClient {
                 })
             })
             .unwrap_or_else(|| "http://localhost:4000".to_string());
+        let direct_openai_compatible =
+            provider_name.is_some() && selected_provider.is_none() && !api_base.trim().is_empty();
 
         Self {
             client: Client::builder()
@@ -216,35 +221,16 @@ impl LiteLLMClient {
             default_model,
             extra_headers: extra_headers.unwrap_or_default(),
             registry,
-            gateway,
             selected_provider,
+            direct_openai_compatible,
             default_reasoning_effort: default_reasoning_effort
                 .map(|s| s.trim().to_lowercase())
                 .filter(|s| !s.is_empty()),
         }
     }
 
-    /// Resolve model name by applying provider/gateway prefixes
+    /// Resolve model name for either native provider endpoints or LiteLLM-style gateways.
     fn resolve_model(&self, model: &str) -> String {
-        if let Some(gateway) = &self.gateway {
-            // Gateway mode
-            let mut resolved = model.to_string();
-            if gateway.strip_model_prefix {
-                if let Some(stripped) = model.split('/').next_back() {
-                    resolved = stripped.to_string();
-                }
-            }
-            if !gateway.litellm_prefix.is_empty()
-                && !resolved.starts_with(&format!("{}/", gateway.litellm_prefix))
-            {
-                resolved = format!("{}/{}", gateway.litellm_prefix, resolved);
-            }
-            debug!("Resolved model (gateway): {} -> {}", model, resolved);
-            return resolved;
-        }
-
-        // Direct provider mode: when using a provider's native API base,
-        // keep raw model ids (e.g. deepseek-chat) instead of LiteLLM prefixes.
         if let Some(provider) = &self.selected_provider {
             if !provider.default_api_base.is_empty()
                 && Self::normalize_api_base(&self.api_base)
@@ -256,11 +242,31 @@ impl LiteLLMClient {
                 );
                 return model.to_string();
             }
+
+            if !provider.litellm_prefix.is_empty()
+                && !provider.litellm_prefix.contains("://")
+                && !model.starts_with(&format!("{}/", provider.litellm_prefix))
+            {
+                let resolved = format!("{}/{}", provider.litellm_prefix, model);
+                debug!(
+                    "Resolved model (named provider through non-native base): {} -> {}",
+                    model, resolved
+                );
+                return resolved;
+            }
+        }
+
+        if self.direct_openai_compatible {
+            debug!(
+                "Model unchanged (custom openai-compatible base): {} -> {}",
+                model, model
+            );
+            return model.to_string();
         }
 
         // Standard mode: auto-prefix for known providers
         if let Some(spec) = self.registry.find_by_model(model) {
-            if !spec.litellm_prefix.is_empty() {
+            if !spec.litellm_prefix.is_empty() && !spec.litellm_prefix.contains("://") {
                 let has_skip_prefix = spec
                     .skip_prefixes
                     .iter()
@@ -299,9 +305,6 @@ impl LiteLLMClient {
 
     /// Check if the current model's provider supports prompt caching.
     fn supports_cache_control(&self, model: &str) -> bool {
-        if let Some(gateway) = &self.gateway {
-            return gateway.supports_prompt_caching;
-        }
         if let Some(spec) = self.registry.find_by_model(model) {
             return spec.supports_prompt_caching;
         }
@@ -618,7 +621,16 @@ impl LLMProvider for LiteLLMClient {
             )));
         }
 
-        let response_data: ChatCompletionResponse = response.json().await?;
+        let response_text = response.text().await?;
+        let response_data: ChatCompletionResponse =
+            serde_json::from_str(&response_text).map_err(|error| {
+                let snippet: String = response_text.chars().take(2_000).collect();
+                warn!(
+                    "Failed to parse chat completion response as JSON payload: {} | snippet: {}",
+                    error, snippet
+                );
+                ProviderError::JsonError(error)
+            })?;
         self.parse_response(response_data)
     }
 
@@ -845,34 +857,34 @@ mod tests {
     }
 
     #[test]
-    fn test_gateway_model_resolution() {
-        // OpenRouter gateway
+    fn test_named_provider_non_native_base_adds_litellm_prefix() {
         let client = LiteLLMClient::new(
             Some("sk-or-test".to_string()),
-            Some("https://openrouter.ai/api/v1".to_string()),
+            Some("http://localhost:4000".to_string()),
             "claude-3-opus".to_string(),
             None,
-            None,
+            Some("openrouter".to_string()),
             None,
         );
         assert_eq!(
             client.resolve_model("claude-3-opus"),
             "openrouter/claude-3-opus"
         );
+    }
 
-        // AiHubMix gateway with strip_model_prefix
+    #[test]
+    fn test_named_provider_native_base_keeps_raw_model() {
         let client = LiteLLMClient::new(
             Some("test-key".to_string()),
-            Some("https://aihubmix.com/v1".to_string()),
+            Some("https://openrouter.ai/api/v1".to_string()),
             "claude-3-opus".to_string(),
             None,
-            None,
+            Some("openrouter".to_string()),
             None,
         );
-        // anthropic/claude-3-opus -> claude-3-opus -> openai/claude-3-opus
         assert_eq!(
             client.resolve_model("anthropic/claude-3-opus"),
-            "openai/claude-3-opus"
+            "anthropic/claude-3-opus"
         );
     }
 
@@ -986,6 +998,35 @@ mod tests {
         let result = client.parse_response(response).unwrap();
         assert_eq!(result.tool_calls.len(), 1);
         assert!(result.tool_calls[0].arguments.contains_key("raw"));
+    }
+
+    #[test]
+    fn test_deserialize_response_with_null_tool_calls_and_usage() {
+        let payload = serde_json::json!({
+            "choices": [
+                {
+                    "message": {
+                        "content": "hello",
+                        "tool_calls": null,
+                        "reasoning_content": null
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "total_tokens": null
+            }
+        });
+
+        let response: ChatCompletionResponse = serde_json::from_value(payload).unwrap();
+
+        assert_eq!(response.choices.len(), 1);
+        assert!(response.choices[0].message.tool_calls.is_empty());
+        assert_eq!(response.usage.prompt_tokens, 0);
+        assert_eq!(response.usage.completion_tokens, 0);
+        assert_eq!(response.usage.total_tokens, 0);
     }
 
     #[test]
