@@ -100,3 +100,68 @@
 - Boundary conditions:
   - Do not add undocumented commands.
   - Do not let code behavior drift from the documented input/output contract.
+
+## 平台构建与打包指南（GUI + CLI）
+
+下面是常用的构建 / 打包路径，方便在本机或 CI 上快速得到可分发产物。
+
+### macOS：GUI dmg（内置 CLI，可由 GUI 一键启动网关）
+
+- **一键脚本**：在 workspace 根目录执行：
+  - `chmod +x scripts/build-macos-gui-bundle.sh`
+  - `./scripts/build-macos-gui-bundle.sh`
+- **脚本做的事**：
+  - 在根目录执行：`cargo build --release -p agent-diva-cli`，生成 `target/release/agent-diva`；
+  - 执行 `python3 scripts/ci/prepare_gui_bundle.py --gui-root agent-diva-gui --target-os macos`：
+    - 将 `agent-diva` 复制到 `agent-diva-gui/src-tauri/resources/bin/macos/agent-diva`；
+    - 写入 `resources/manifests/gui-bundle-manifest.json`；
+  - 进入 GUI 目录：`cd agent-diva-gui && pnpm install && pnpm tauri build`；
+  - 最终在 `agent-diva-gui/src-tauri/target/release/bundle/dmg/` 下生成 `.dmg`。
+- **运行效果**：
+  - 安装后，`Agent Diva.app` 中已内置 `agent-diva` CLI；
+  - GUI 通过 Tauri commands（如 `start_gateway`）从 `resources/bin/macos/agent-diva` 拉起 `agent-diva gateway run`，实现前后端一体的桌面体验。
+
+### Windows：GUI 安装包 + 可选网关服务
+
+- **GUI 安装包**（NSIS/MSI，由 Tauri 生成）：
+  - 在 Windows 开发机或 CI 上：
+    - 先构建 CLI：`cargo build --release -p agent-diva-cli`；
+    - 准备 GUI 资源：`python scripts/ci/prepare_gui_bundle.py --gui-root agent-diva-gui --target-os windows`；
+    - 构建 GUI：`cd agent-diva-gui && pnpm install && pnpm tauri build`；
+  - 产物：
+    - `.exe`/`.msi` 位于 `agent-diva-gui/src-tauri/target/release/bundle/nsis|msi/`；
+    - 安装包会将 `agent-diva.exe` 打入 `resources/bin/windows/`。
+- **可选 Windows 服务安装**：
+  - 安装器通过 `agent-diva-gui/src-tauri/windows/hooks.nsh` 提供“安装并启动 Agent Diva Gateway 服务”选项；
+  - 勾选时若找到 `resources/bin/windows/agent-diva.exe`，会调用：
+    - `agent-diva.exe service install --auto-start`
+    - `agent-diva.exe service start`
+  - GUI 中的服务管理命令（如 `install_service` / `start_service`）通过 CLI `service` 子命令桥接到系统服务。
+
+### Linux / 其他平台：CLI 构建与打包（无 GUI）
+
+- **本地构建 CLI**：
+  - `cargo build --release -p agent-diva-cli`
+  - 产物：`target/release/agent-diva`。
+- **已有打包脚本**：
+  - Linux 打包脚本：`scripts/package-linux.sh`（如存在）或参考 `justfile` 中的 `package-linux` / `build-all-packages`：
+    - 使用 `cargo build --release --package agent-diva-cli`；
+    - 生成 zip / deb / rpm 等分发包（需要额外工具如 `cargo-deb`、`cargo-generate-rpm`）。
+- **运行方式**：
+  - 直接使用 CLI 运行：
+    - `agent-diva gateway run`：启动本地网关；
+    - `agent-diva tui`：启动终端 UI；
+    - `agent-diva config` / `agent-diva provider` / `agent-diva chat` 等子命令见上文。
+
+### 通用建议
+
+- **先本地 smoke，再上 CI**：
+  - 在本机先用上述命令完成一次完整构建，确认 `.dmg` / 安装包可正常安装并运行；
+  - 再将构建脚本接入 CI，并在 `docs/logs/` 中记录对应版本的 `summary.md` / `verification.md`。
+- **环境前提**：
+  - Rust stable（`cargo`, `rustc`）；
+  - Node.js 18+、`pnpm`（或 npm/yarn）；
+  - 对应平台工具链：
+    - macOS：Xcode Command Line Tools、Tauri CLI；
+    - Windows：MSVC toolchain、NSIS/MSI 打包依赖由 Tauri 处理；
+    - Linux：pkg-config、zlib/zstd 等基础 C 库（由依赖自动触发）。
