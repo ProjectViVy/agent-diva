@@ -319,10 +319,11 @@ impl SubagentManager {
         );
 
         // Inject as system message to trigger main agent
+        // Use the origin channel/chat_id directly so the response routes back correctly
         let msg = InboundMessage::new(
-            "system",
+            origin_channel,
             "subagent",
-            format!("{}:{}", origin_channel, origin_chat_id),
+            origin_chat_id,
             announce_content,
         );
 

@@ -58,3 +58,30 @@ windows-service = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 mockito = { workspace = true }
+
+# cargo-deb 配置 - 用于生成 .deb 包
+[package.metadata.deb]
+maintainer = "Agent Diva Team <agent-diva@example.com>"
+copyright = "2024, Agent Diva Contributors"
+license-file = ["../LICENSE", "0"]
+extended-description = """\
+Agent Diva is a modular AI assistant framework that connects multiple chat platforms
+to multiple LLM providers with a built-in tool system."""
+depends = "$auto"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/agent-diva", "usr/bin/agent-diva", "755"],
+    ["../LICENSE", "usr/share/doc/agent-diva/LICENSE", "644"],
+    ["../README.md", "usr/share/doc/agent-diva/README.md", "644"],
+]
+
+[package.metadata.deb.variants.x86_64]
+name = "agent-diva"
+
+# 额外文件: systemd 服务
+[package.metadata.deb.systemd-units]
+unit-name = "agent-diva"
+unit-scripts = "../contrib/systemd"
+enable = false
+start = false

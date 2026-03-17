@@ -1,11 +1,15 @@
 //! LiteLLM HTTP client implementation
 
 use async_trait::async_trait;
+use regex::Regex;
 use reqwest::Client;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use std::sync::OnceLock;
+use tracing::{debug, error, warn};
+
+use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 
 use crate::base::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
@@ -379,7 +383,23 @@ impl LiteLLMClient {
                 &tc.function.arguments,
             ) {
                 Ok(args) => args,
-                Err(_) => {
+                Err(err) => {
+                    // Log detailed error context for tool call arguments parsing failure
+                    let problems = find_problematic_chars(&tc.function.arguments);
+                    let ctx = ErrorContext::new("parse_tool_call_arguments", err.to_string())
+                        .with_content(&tc.function.arguments)
+                        .with_metadata("tool_name", tc.function.name.clone())
+                        .with_metadata("tool_call_id", tc.id.clone());
+                    let ctx_str = ctx.to_detailed_string();
+                    if problems.is_empty() {
+                        warn!("{}", ctx_str);
+                    } else {
+                        warn!(
+                            "{}\n  Problematic characters found:\n    - {}",
+                            ctx_str,
+                            problems.join("\n    - ")
+                        );
+                    }
                     // Try unwrapping double-encoded JSON string
                     if let Ok(inner) = serde_json::from_str::<String>(&tc.function.arguments) {
                         serde_json::from_str::<HashMap<String, serde_json::Value>>(&inner)
@@ -424,12 +444,83 @@ impl LiteLLMClient {
         })
     }
 
+    /// Remove control characters from a string that could cause JSON parsing issues.
+    /// This includes:
+    /// - ASCII control characters (0x00-0x1F) except tab, newline, and carriage return
+    /// - DEL character (0x7F)
+    /// - ANSI escape sequences
+    fn sanitize_message_content(content: &str) -> String {
+        // First, remove ANSI escape sequences
+        static ANSI_RE: OnceLock<Regex> = OnceLock::new();
+        let ansi_re = ANSI_RE.get_or_init(|| {
+            Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+                .expect("invalid ANSI regex")
+        });
+        let without_ansi = ansi_re.replace_all(content, "");
+
+        // Then, filter out control characters except allowed whitespace
+        without_ansi
+            .chars()
+            .filter(|&c| {
+                let cp = c as u32;
+                // Keep tab (0x09), newline (0x0A), carriage return (0x0D)
+                // Keep normal printable chars and extended unicode
+                !(cp < 0x20 && cp != 0x09 && cp != 0x0A && cp != 0x0D) && cp != 0x7F
+            })
+            .collect()
+    }
+
+    /// Sanitize all message contents to prevent JSON parsing errors.
+    fn sanitize_messages(messages: Vec<Message>) -> Vec<Message> {
+        messages
+            .into_iter()
+            .map(|mut msg| {
+                // Check if content has problematic characters
+                let has_control_chars = msg.content.chars().any(|c| {
+                    let cp = c as u32;
+                    (cp < 0x20 && cp != 0x09 && cp != 0x0A && cp != 0x0D) || cp == 0x7F
+                });
+
+                if has_control_chars || msg.content.contains("\x1b") {
+                    let sanitized = Self::sanitize_message_content(&msg.content);
+                    if sanitized != msg.content {
+                        warn!(
+                            "Sanitized message content (role: {}, original len: {}, sanitized len: {})",
+                            msg.role,
+                            msg.content.len(),
+                            sanitized.len()
+                        );
+                    }
+                    msg.content = sanitized;
+                }
+
+                // Also sanitize reasoning_content if present
+                if let Some(reasoning) = msg.reasoning_content.take() {
+                    let has_control = reasoning.chars().any(|c| {
+                        let cp = c as u32;
+                        (cp < 0x20 && cp != 0x09 && cp != 0x0A && cp != 0x0D) || cp == 0x7F
+                    });
+                    if has_control || reasoning.contains("\x1b") {
+                        msg.reasoning_content = Some(Self::sanitize_message_content(&reasoning));
+                    } else {
+                        msg.reasoning_content = Some(reasoning);
+                    }
+                }
+
+                msg
+            })
+            .collect()
+    }
+
     fn build_request(
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
         options: RequestBuildOptions,
     ) -> ChatCompletionRequest {
+        // Sanitize messages to remove control characters
+        let messages = Self::sanitize_messages(messages);
+
         let mut request = ChatCompletionRequest {
             model: options.resolved_model,
             messages,
@@ -551,6 +642,110 @@ impl LiteLLMClient {
         }
         events
     }
+
+    fn serialize_request_body(body: &serde_json::Value) -> ProviderResult<String> {
+        serde_json::to_string(body).map_err(|e| {
+            error!("Failed to serialize request body: {}", e);
+            ProviderError::InvalidResponse(format!("Failed to serialize request body: {}", e))
+        })
+    }
+
+    fn extract_message_error_context(error_text: &str, body: &serde_json::Value) -> String {
+        if !error_text.contains("messages[") {
+            return String::new();
+        }
+
+        static MESSAGE_INDEX_RE: OnceLock<Option<Regex>> = OnceLock::new();
+        let re = MESSAGE_INDEX_RE
+            .get_or_init(|| Regex::new(r"messages\[(\d+)\]").ok())
+            .as_ref();
+        let Some(re) = re else {
+            return String::new();
+        };
+
+        let Some(caps) = re.captures(error_text) else {
+            return String::new();
+        };
+        let Some(idx_str) = caps.get(1) else {
+            return String::new();
+        };
+        let Ok(idx) = idx_str.as_str().parse::<usize>() else {
+            return String::new();
+        };
+        let Some(messages) = body.get("messages").and_then(|m| m.as_array()) else {
+            return String::new();
+        };
+        if idx >= messages.len() {
+            return format!("\n  Message index {} out of range (total: {})", idx, messages.len());
+        }
+
+        let msg = &messages[idx];
+        let msg_content = msg
+            .get("content")
+            .and_then(|c| c.as_str())
+            .unwrap_or("non-string content");
+        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("unknown");
+        let content_preview: String = msg_content.chars().take(500).collect();
+        let msg_problems = find_problematic_chars(msg_content);
+
+        format!(
+            "\n  Message[{}] (role: {}):\n    Content preview ({} chars): {}\n    Problematic chars in message: {}",
+            idx,
+            role,
+            msg_content.len(),
+            content_preview,
+            if msg_problems.is_empty() {
+                "none".to_string()
+            } else {
+                msg_problems.join("; ")
+            }
+        )
+    }
+
+    fn log_request_failure(
+        operation: &str,
+        status: reqwest::StatusCode,
+        error_text: &str,
+        url: &str,
+        model: &str,
+        body_json: &str,
+        body: &serde_json::Value,
+    ) {
+        let problems = find_problematic_chars(body_json);
+        let msg_info = Self::extract_message_error_context(error_text, body);
+        let ctx = ErrorContext::new(operation, format!("HTTP {}: {}", status, error_text))
+            .with_metadata("url", url.to_string())
+            .with_metadata("model", model.to_string())
+            .with_metadata("request_body_size", body_json.len().to_string());
+        let ctx_str = ctx.to_detailed_string();
+
+        if problems.is_empty() {
+            error!("{}{}", ctx_str, msg_info);
+        } else {
+            error!(
+                "{}\n  Request body problems:\n    - {}{}",
+                ctx_str,
+                problems.join("\n    - "),
+                msg_info
+            );
+        }
+    }
+
+    fn log_json_error(operation: &str, error: &serde_json::Error, content: &str) {
+        let problems = find_problematic_chars(content);
+        let ctx = ErrorContext::new(operation, error.to_string()).with_content(content);
+        let ctx_str = ctx.to_detailed_string();
+
+        if problems.is_empty() {
+            error!("{}", ctx_str);
+        } else {
+            error!(
+                "{}\n  Problematic characters found:\n    - {}",
+                ctx_str,
+                problems.join("\n    - ")
+            );
+        }
+    }
 }
 
 #[async_trait]
@@ -604,7 +799,23 @@ impl LLMProvider for LiteLLMClient {
 
         // Build HTTP request
         let url = format!("{}/chat/completions", self.api_base);
-        let req_builder = self.apply_headers(self.client.post(&url).json(&body));
+        let body_json = Self::serialize_request_body(&body)?;
+
+        // Log body size for debugging large requests
+        debug!(
+            "Sending request to {} with model {}: {} bytes, {} messages",
+            url,
+            resolved_model,
+            body_json.len(),
+            body.get("messages").and_then(|m| m.as_array()).map(|a| a.len()).unwrap_or(0)
+        );
+
+        let req_builder = self.apply_headers(
+            self.client
+                .post(&url)
+                .body(body_json.clone())
+                .header("Content-Type", "application/json"),
+        );
 
         // Send request
         let response = req_builder.send().await?;
@@ -615,6 +826,16 @@ impl LLMProvider for LiteLLMClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
+
+            Self::log_request_failure(
+                "chat_api_request",
+                status,
+                &error_text,
+                &url,
+                &resolved_model,
+                &body_json,
+                &body,
+            );
             return Err(ProviderError::ApiError(format!(
                 "HTTP {}: {}",
                 status, error_text
@@ -624,11 +845,7 @@ impl LLMProvider for LiteLLMClient {
         let response_text = response.text().await?;
         let response_data: ChatCompletionResponse =
             serde_json::from_str(&response_text).map_err(|error| {
-                let snippet: String = response_text.chars().take(2_000).collect();
-                warn!(
-                    "Failed to parse chat completion response as JSON payload: {} | snippet: {}",
-                    error, snippet
-                );
+                Self::log_json_error("parse_chat_completion_response", &error, &response_text);
                 ProviderError::JsonError(error)
             })?;
         self.parse_response(response_data)
@@ -681,7 +898,18 @@ impl LLMProvider for LiteLLMClient {
         Self::normalize_assistant_tool_call_content(&mut body);
 
         let url = format!("{}/chat/completions", self.api_base);
-        let req_builder = self.apply_headers(self.client.post(&url).json(&body));
+        let body_json = Self::serialize_request_body(&body)?;
+
+        // Log body size for debugging large requests
+        debug!(
+            "Sending streaming request to {} with model {}: {} bytes, {} messages",
+            url,
+            resolved_model,
+            body_json.len(),
+            body.get("messages").and_then(|m| m.as_array()).map(|a| a.len()).unwrap_or(0)
+        );
+
+        let req_builder = self.apply_headers(self.client.post(&url).body(body_json.clone()).header("Content-Type", "application/json"));
         let response = req_builder.send().await?;
 
         if !response.status().is_success() {
@@ -690,6 +918,16 @@ impl LLMProvider for LiteLLMClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
+
+            Self::log_request_failure(
+                "chat_stream_api_request",
+                status,
+                &error_text,
+                &url,
+                &resolved_model,
+                &body_json,
+                &body,
+            );
             return Err(ProviderError::ApiError(format!(
                 "HTTP {}: {}",
                 status, error_text
@@ -743,6 +981,7 @@ impl LLMProvider for LiteLLMClient {
                     let parsed = match serde_json::from_str::<StreamChunk>(&payload) {
                         Ok(chunk) => chunk,
                         Err(err) => {
+                            Self::log_json_error("parse_stream_chunk", &err, &payload);
                             let _ = tx.send(Err(ProviderError::JsonError(err)));
                             return;
                         }
@@ -1134,5 +1373,68 @@ mod tests {
         });
         LiteLLMClient::normalize_assistant_tool_call_content(&mut body);
         assert_eq!(body["messages"][0]["content"], "ok");
+    }
+
+    #[test]
+    fn test_sanitize_message_content_removes_control_chars() {
+        // Test with control characters
+        let input = "hello\x00world\x07bell\x01\x02";
+        let output = LiteLLMClient::sanitize_message_content(input);
+        assert_eq!(output, "helloworldbell");
+    }
+
+    #[test]
+    fn test_sanitize_message_content_removes_ansi_sequences() {
+        // Test with ANSI escape sequences
+        let input = "\x1b[32msuccess\x1b[0m \x1b[1;31merror\x1b[0m";
+        let output = LiteLLMClient::sanitize_message_content(input);
+        assert_eq!(output, "success error");
+    }
+
+    #[test]
+    fn test_sanitize_message_content_preserves_whitespace() {
+        // Test that normal whitespace is preserved
+        let input = "line1\nline2\r\nline3\tindented";
+        let output = LiteLLMClient::sanitize_message_content(input);
+        assert_eq!(output, "line1\nline2\r\nline3\tindented");
+    }
+
+    #[test]
+    fn test_sanitize_message_content_preserves_unicode() {
+        // Test that unicode is preserved
+        let input = "你好世界 🐈 日本語";
+        let output = LiteLLMClient::sanitize_message_content(input);
+        assert_eq!(output, "你好世界 🐈 日本語");
+    }
+
+    #[test]
+    fn test_sanitize_messages_cleans_content() {
+        use crate::base::Message;
+
+        let messages = vec![
+            Message::user("normal text"),
+            Message::assistant("text with \x00 null and \x1b[31mred\x1b[0m"),
+        ];
+
+        let sanitized = LiteLLMClient::sanitize_messages(messages);
+
+        assert_eq!(sanitized[0].content, "normal text");
+        assert_eq!(sanitized[1].content, "text with  null and red");
+    }
+
+    #[test]
+    fn test_sanitize_messages_preserves_clean_content() {
+        use crate::base::Message;
+
+        let messages = vec![
+            Message::user("Hello, world!"),
+            Message::assistant("This is a response."),
+        ];
+
+        let sanitized = LiteLLMClient::sanitize_messages(messages);
+
+        // Content should be unchanged
+        assert_eq!(sanitized[0].content, "Hello, world!");
+        assert_eq!(sanitized[1].content, "This is a response.");
     }
 }

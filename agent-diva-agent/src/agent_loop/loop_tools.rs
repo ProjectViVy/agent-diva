@@ -2,7 +2,7 @@ use super::{AgentLoop, ToolConfig};
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_tools::{
-    load_mcp_tools, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
+    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
     ToolError, ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
@@ -50,7 +50,7 @@ impl AgentLoop {
         Self::register_web_tools(&mut self.tools, &tool_config.network);
 
         // Register MCP tools discovered from configured servers
-        for mcp_tool in load_mcp_tools(&tool_config.mcp_servers) {
+        for mcp_tool in load_mcp_tools_sync(&tool_config.mcp_servers) {
             self.tools.register(mcp_tool);
         }
 
@@ -91,7 +91,7 @@ impl AgentLoop {
             self.tools.unregister(&name);
         }
 
-        for mcp_tool in load_mcp_tools(&servers) {
+        for mcp_tool in load_mcp_tools_sync(&servers) {
             self.tools.register(mcp_tool);
         }
 

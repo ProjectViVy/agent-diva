@@ -74,3 +74,70 @@ audit:
 # Run benchmarks
 bench:
     cargo bench --all
+
+# Package for Linux distribution
+package-linux:
+    cargo build --release --package agent-diva-cli
+    New-Item -ItemType Directory -Force -Path "dist\linux"
+    Copy-Item "target\release\agent-diva.exe" "dist\linux\agent-diva" -ErrorAction SilentlyContinue
+    Compress-Archive -Path "dist\linux\*" -DestinationPath "dist\agent-diva-linux-x86_64.zip" -Force
+    Write-Host "Package created: dist\agent-diva-linux-x86_64.zip"
+
+# Create distribution archive
+dist: build-release
+    New-Item -ItemType Directory -Force -Path "dist\linux"
+    Compress-Archive -Path "dist\linux\*" -DestinationPath "dist\agent-diva-0.2.0-linux.zip" -Force
+    Write-Host "Distribution package created"
+
+# Build deb package (requires cargo-deb on Linux)
+build-deb:
+    cargo deb -p agent-diva-cli
+
+# Build all release packages (Linux only)
+build-all-packages:
+    cargo build --release --package agent-diva-cli
+    cargo deb -p agent-diva-cli
+    cargo generate-rpm -p agent-diva-cli 2>$null || Write-Host "RPM generation skipped (cargo-generate-rpm not installed)"
+    Write-Host "All packages built"
+
+# Install cargo-deb tool
+install-cargo-deb:
+    cargo install cargo-deb
+
+# Install cross for cross-compilation
+install-cross:
+    cargo install cross
+
+# Cross-compile for Linux x86_64 (requires Docker)
+cross-linux-x86_64:
+    cross build --release --target x86_64-unknown-linux-gnu -p agent-diva-cli
+
+# Cross-compile for Linux ARM64 (requires Docker)
+cross-linux-arm64:
+    cross build --release --target aarch64-unknown-linux-gnu -p agent-diva-cli
+
+# Trigger GitHub Actions build (requires gh CLI)
+trigger-build:
+    gh workflow run build-release.yml
+
+# ===== macOS 打包命令 (需要在 macOS 上运行) =====
+# 在 macOS 上使用: ./scripts/package-macos.sh
+
+# Build macOS universal binary (macOS only)
+build-macos-universal:
+    #!/bin/bash
+    rustup target add x86_64-apple-darwin aarch64-apple-darwin
+    cargo build --release --package agent-diva-cli --target x86_64-apple-darwin
+    cargo build --release --package agent-diva-cli --target aarch64-apple-darwin
+    mkdir -p target/universal/release
+    lipo -create target/x86_64-apple-darwin/release/agent-diva target/aarch64-apple-darwin/release/agent-diva -output target/universal/release/agent-diva
+    echo "Universal binary created: target/universal/release/agent-diva"
+
+# Create macOS DMG (macOS only, requires create-dmg)
+build-macos-dmg:
+    #!/bin/bash
+    if ! command -v create-dmg &> /dev/null; then
+        echo "Installing create-dmg..."
+        brew install create-dmg
+    fi
+    ./scripts/package-macos.sh

@@ -49,6 +49,8 @@ agent-diva-gui/src-tauri/resources/manifests/
 # Temporary files
 *.tmp
 *.temp
+stderr.txt
+stdout.txt
 
 logs/
 !docs/logs/

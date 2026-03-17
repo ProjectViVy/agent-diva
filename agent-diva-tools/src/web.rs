@@ -1,6 +1,7 @@
 //! Web tools: web_search and web_fetch
 
 use crate::base::{Tool, ToolError};
+use crate::sanitize::sanitize_for_json;
 use async_trait::async_trait;
 use regex::Regex;
 use reqwest::{header, Client};
@@ -772,6 +773,9 @@ impl Tool for WebFetchTool {
         } else {
             text
         };
+
+        // Sanitize to remove control characters that could cause JSON errors
+        let text = sanitize_for_json(&text);
 
         // Return JSON response
         Ok(json!({

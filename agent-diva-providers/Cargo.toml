@@ -29,6 +29,9 @@ reqwest = { workspace = true }
 tracing = { workspace = true }
 serde_yaml.workspace = true
 
+# Regex for text sanitization
+regex = { workspace = true }
+
 [dev-dependencies]
 tokio-test = { workspace = true }
 mockito = { workspace = true }

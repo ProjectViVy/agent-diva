@@ -1,0 +1,345 @@
+name: Build Release Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 0.2.0)'
+        required: false
+        default: ''
+      build_dmg:
+        description: 'Build macOS DMG'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # 构建 Linux x86_64 deb 包
+  build-linux-deb:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Build deb package
+        run: cargo deb -p agent-diva-cli
+
+      - name: Rename deb package
+        run: |
+          VERSION=${{ github.event.inputs.version }}
+          if [ -z "$VERSION" ]; then
+            VERSION=$(grep '^version' agent-diva-cli/Cargo.toml | head -1 | cut -d'"' -f2)
+          fi
+          mv target/debian/agent-diva-cli_${VERSION}_amd64.deb target/debian/agent-diva_${VERSION}_amd64.deb || true
+          ls -la target/debian/
+
+      - name: Upload deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-linux-deb
+          path: target/debian/*.deb
+
+  # 构建 Linux x86_64 二进制
+  build-linux-x86_64:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release
+        run: cargo build --release --package agent-diva-cli
+
+      - name: Strip binary
+        run: strip target/release/agent-diva
+
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/release/agent-diva dist/
+          cp dist/linux/*.sh dist/ 2>/dev/null || true
+          cp dist/linux/README.md dist/ 2>/dev/null || true
+          cd dist
+          tar -czvf agent-diva-linux-x86_64.tar.gz agent-diva *.sh README.md 2>/dev/null || tar -czvf agent-diva-linux-x86_64.tar.gz agent-diva
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-linux-x86_64
+          path: dist/agent-diva-linux-x86_64.tar.gz
+
+  # 构建 Linux ARM64
+  build-linux-arm64:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Build for ARM64
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build --release --package agent-diva-cli --target aarch64-unknown-linux-gnu
+
+      - name: Strip binary
+        run: aarch64-linux-gnu-strip target/aarch64-unknown-linux-gnu/release/agent-diva
+
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/aarch64-unknown-linux-gnu/release/agent-diva dist/
+          cd dist
+          tar -czvf agent-diva-linux-arm64.tar.gz agent-diva
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-linux-arm64
+          path: dist/agent-diva-linux-arm64.tar.gz
+
+  # 构建 Windows x86_64
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release
+        run: cargo build --release --package agent-diva-cli
+
+      - name: Create zip
+        run: |
+          mkdir dist
+          copy target\release\agent-diva.exe dist\
+          cd dist
+          7z a agent-diva-windows-x86_64.zip agent-diva.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-windows-x86_64
+          path: dist/agent-diva-windows-x86_64.zip
+
+  # 构建 macOS x86_64 (Intel)
+  build-macos-x86_64:
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release
+        run: cargo build --release --package agent-diva-cli
+
+      - name: Strip binary
+        run: strip target/release/agent-diva
+
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/release/agent-diva dist/
+          cd dist
+          tar -czvf agent-diva-macos-x86_64.tar.gz agent-diva
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-macos-x86_64
+          path: dist/agent-diva-macos-x86_64.tar.gz
+
+  # 构建 macOS ARM64 (Apple Silicon)
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Build release
+        run: cargo build --release --package agent-diva-cli --target aarch64-apple-darwin
+
+      - name: Strip binary
+        run: strip target/aarch64-apple-darwin/release/agent-diva
+
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/aarch64-apple-darwin/release/agent-diva dist/
+          cd dist
+          tar -czvf agent-diva-macos-arm64.tar.gz agent-diva
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-macos-arm64
+          path: dist/agent-diva-macos-arm64.tar.gz
+
+  # 构建 macOS 通用二进制 + DMG 安装包
+  build-macos-universal:
+    runs-on: macos-latest
+    needs: [build-macos-x86_64, build-macos-arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Build for both architectures
+        run: |
+          cargo build --release --package agent-diva-cli --target x86_64-apple-darwin
+          cargo build --release --package agent-diva-cli --target aarch64-apple-darwin
+
+      - name: Strip binaries
+        run: |
+          strip target/x86_64-apple-darwin/release/agent-diva
+          strip target/aarch64-apple-darwin/release/agent-diva
+
+      - name: Create universal binary
+        run: |
+          mkdir -p target/universal/release
+          lipo -create \
+            target/x86_64-apple-darwin/release/agent-diva \
+            target/aarch64-apple-darwin/release/agent-diva \
+            -output target/universal/release/agent-diva
+
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/universal/release/agent-diva dist/
+          cd dist
+          tar -czvf agent-diva-macos-universal.tar.gz agent-diva
+
+      - name: Create DMG installer
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(grep '^version' agent-diva-cli/Cargo.toml | head -1 | cut -d'"' -f2)
+          fi
+          
+          mkdir -p dmg_temp
+          cp target/universal/release/agent-diva dmg_temp/
+          
+          # 创建安装脚本
+          cat > dmg_temp/install.sh << 'EOF'
+          #!/bin/bash
+          echo "Installing Agent Diva..."
+          sudo cp agent-diva /usr/local/bin/
+          sudo chmod +x /usr/local/bin/agent-diva
+          mkdir -p ~/.agent-diva
+          echo "Installation complete!"
+          echo "Run 'agent-diva --help' to get started."
+          EOF
+          chmod +x dmg_temp/install.sh
+          
+          # 创建 README
+          cat > dmg_temp/README.txt << EOF
+          Agent Diva v${VERSION}
+          ====================
+          
+          Installation:
+            1. Open Terminal
+            2. cd /Volumes/agent-diva
+            3. ./install.sh
+            
+          Or install manually:
+            sudo cp agent-diva /usr/local/bin/
+            
+          Usage:
+            agent-diva --help
+            agent-diva gateway
+            agent-diva tui
+            
+          Config directory: ~/.agent-diva
+          EOF
+          
+          # 创建 DMG
+          create-dmg \
+            --volname "Agent Diva ${VERSION}" \
+            --volicon "assets/rust-mcp-icon.png" 2>/dev/null || true \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --app-drop-link 400 200 \
+            --hide-extension "agent-diva" \
+            "dist/agent-diva-${VERSION}-macos.dmg" \
+            dmg_temp/ || \
+            hdiutil create -volname "Agent Diva ${VERSION}" \
+              -srcfolder dmg_temp \
+              -ov -format UDZO \
+              "dist/agent-diva-${VERSION}-macos.dmg"
+
+      - name: Upload universal tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-macos-universal
+          path: dist/agent-diva-macos-universal.tar.gz
+
+      - name: Upload DMG installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-diva-macos-dmg
+          path: dist/*.dmg
+
+  # 创建 GitHub Release
+  create-release:
+    needs: [build-linux-deb, build-linux-x86_64, build-linux-arm64, build-windows, build-macos-universal]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: ls -laR artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/agent-diva-linux-deb/*.deb
+            artifacts/agent-diva-linux-x86_64/*.tar.gz
+            artifacts/agent-diva-linux-arm64/*.tar.gz
+            artifacts/agent-diva-windows-x86_64/*.zip
+            artifacts/agent-diva-macos-universal/*.tar.gz
+            artifacts/agent-diva-macos-dmg/*.dmg
+          generate_release_notes: true

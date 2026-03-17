@@ -13,6 +13,9 @@ members = [
     "agent-diva-gui/src-tauri", "agent-diva-manager",
 ]
 
+[workspace.package]
+rust-version = "1.80.0"
+
 [workspace.dependencies]
 # Async runtime
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process"] }

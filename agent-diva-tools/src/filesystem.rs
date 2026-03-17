@@ -1,6 +1,7 @@
 //! Filesystem tools
 
 use crate::base::{Result, Tool};
+use crate::sanitize::{sanitize_for_json, truncate_file_content, MAX_FILE_CONTENT_CHARS};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -83,7 +84,19 @@ impl Tool for ReadFileTool {
                 }
 
                 match std::fs::read_to_string(&file_path) {
-                    Ok(content) => Ok(content),
+                    Ok(content) => {
+                        // Check file size before processing
+                        let char_count = content.chars().count();
+                        if char_count > MAX_FILE_CONTENT_CHARS {
+                            // Return a summary with preview for large files
+                            let sanitized = sanitize_for_json(&content);
+                            Ok(truncate_file_content(&sanitized))
+                        } else {
+                            // Sanitize file content to remove control characters
+                            // that could cause JSON parsing errors
+                            Ok(sanitize_for_json(&content))
+                        }
+                    }
                     Err(e) => Ok(format!("Error reading file: {}", e)),
                 }
             }

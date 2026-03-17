@@ -3,10 +3,11 @@
 use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::session::SessionManager;
 use agent_diva_providers::LLMProvider;
 use agent_diva_tools::{
-    load_mcp_tools, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
+    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
     ToolError, ToolRegistry, WriteFileTool,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -210,7 +211,7 @@ impl AgentLoop {
         Self::register_web_tools(&mut tools, &tool_config.network);
 
         // Register MCP tools discovered from configured servers
-        for mcp_tool in load_mcp_tools(&tool_config.mcp_servers) {
+        for mcp_tool in load_mcp_tools_sync(&tool_config.mcp_servers) {
             tools.register(mcp_tool);
         }
 
@@ -300,7 +301,11 @@ impl AgentLoop {
             Ok(None) => debug!("No response needed"),
             Err(e) => {
                 let error_message = format!("Failed to process message: {}", e);
-                error!("{}", error_message);
+                let ctx = ErrorContext::new("handle_inbound", &error_message)
+                    .with_metadata("channel", event_msg.channel.clone())
+                    .with_metadata("chat_id", event_msg.chat_id.clone())
+                    .with_metadata("sender_id", event_msg.sender_id.clone());
+                error!("{}", ctx.to_detailed_string());
                 self.emit_error_event(&event_msg, None, error_message);
             }
         }

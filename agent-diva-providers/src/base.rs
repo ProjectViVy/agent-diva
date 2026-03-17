@@ -44,6 +44,7 @@ impl Serialize for ToolCallRequest {
     where
         S: Serializer,
     {
+        use serde::ser::Error as _;
         use serde::ser::SerializeStruct;
 
         #[derive(Serialize)]
@@ -52,7 +53,12 @@ impl Serialize for ToolCallRequest {
             arguments: String,
         }
 
-        let arguments = serde_json::to_string(&self.arguments).unwrap_or_else(|_| "{}".to_string());
+        let arguments = serde_json::to_string(&self.arguments).map_err(|e| {
+            S::Error::custom(format!(
+                "failed to serialize tool call arguments for {}: {}",
+                self.name, e
+            ))
+        })?;
 
         let mut state = serializer.serialize_struct("ToolCallRequest", 3)?;
         state.serialize_field("id", &self.id)?;

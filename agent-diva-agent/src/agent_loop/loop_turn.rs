@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 impl AgentLoop {
     pub(super) async fn process_inbound_message_inner(
@@ -250,31 +250,42 @@ impl AgentLoop {
                         .bus
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
-                    // Convert HashMap to Value for execute
-                    let mut params_value = serde_json::to_value(&tool_call.arguments)
-                        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-                    if tool_call.name == "cron" {
-                        if let Some(params_obj) = params_value.as_object_mut() {
-                            params_obj.insert(
-                                "context_channel".to_string(),
-                                serde_json::Value::String(msg.channel.clone()),
-                            );
-                            params_obj.insert(
-                                "context_chat_id".to_string(),
-                                serde_json::Value::String(msg.chat_id.clone()),
-                            );
-                            if msg.channel == "cron" || is_cron_trigger {
-                                params_obj.insert(
-                                    "_in_cron_context".to_string(),
-                                    serde_json::Value::Bool(true),
-                                );
+                    let result = match serde_json::to_value(&tool_call.arguments) {
+                        Ok(mut params_value) => {
+                            if tool_call.name == "cron" {
+                                if let Some(params_obj) = params_value.as_object_mut() {
+                                    params_obj.insert(
+                                        "context_channel".to_string(),
+                                        serde_json::Value::String(msg.channel.clone()),
+                                    );
+                                    params_obj.insert(
+                                        "context_chat_id".to_string(),
+                                        serde_json::Value::String(msg.chat_id.clone()),
+                                    );
+                                    if msg.channel == "cron" || is_cron_trigger {
+                                        params_obj.insert(
+                                            "_in_cron_context".to_string(),
+                                            serde_json::Value::Bool(true),
+                                        );
+                                    }
+                                }
+                            }
+                            if is_cron_trigger && tool_call.name == "cron" {
+                                "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
+                            } else {
+                                self.tools.execute(&tool_call.name, params_value).await
                             }
                         }
-                    }
-                    let result = if is_cron_trigger && tool_call.name == "cron" {
-                        "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
-                    } else {
-                        self.tools.execute(&tool_call.name, params_value).await
+                        Err(e) => {
+                            warn!(
+                                "Failed to serialize arguments for tool '{}' (call_id: {}): {}",
+                                tool_call.name, tool_call.id, e
+                            );
+                            format!(
+                                "Error: failed to serialize arguments for tool '{}': {}",
+                                tool_call.name, e
+                            )
+                        }
                     };
                     if self.notify_on_soul_change {
                         if let Some(changed_file) =

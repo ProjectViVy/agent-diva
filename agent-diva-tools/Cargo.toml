@@ -13,6 +13,7 @@ agent-diva-core = { path = "../agent-diva-core" }
 # Async runtime
 tokio = { workspace = true }
 async-trait = { workspace = true }
+futures = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -32,6 +33,12 @@ reqwest = { workspace = true }
 
 # Logging and tracing
 tracing = { workspace = true }
+
+# Utilities
+which = { workspace = true }
+
+# MCP SDK from crates.io
+rust-mcp-sdk = { version = "0.9", default-features = false, features = ["client", "stdio", "sse", "streamable-http"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

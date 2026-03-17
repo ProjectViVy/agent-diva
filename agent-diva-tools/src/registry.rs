@@ -1,9 +1,11 @@
 //! Tool registry
 
 use super::base::Tool;
+use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::{error, warn};
 
 const ERROR_HINT: &str = "\n\n[Analyze the error above and try a different approach.]";
 
@@ -50,12 +52,33 @@ impl ToolRegistry {
     pub async fn execute(&self, name: &str, params: Value) -> String {
         let tool = match self.tools.get(name) {
             Some(tool) => tool,
-            None => return format!("Error: Tool '{}' not found{}", name, ERROR_HINT),
+            None => {
+                let ctx = ErrorContext::new("tool_lookup", format!("Tool '{}' not found", name))
+                    .with_metadata("tool_name", name.to_string())
+                    .with_metadata("available_tools", self.tool_names().join(", "));
+                warn!("{}", ctx.to_detailed_string());
+                return format!("Error: Tool '{}' not found{}", name, ERROR_HINT);
+            }
         };
 
         // Validate parameters
         let errors = tool.validate_params(&params);
         if !errors.is_empty() {
+            let params_str = serde_json::to_string(&params).unwrap_or_default();
+            let problems = find_problematic_chars(&params_str);
+            let ctx = ErrorContext::new("tool_validation", errors.join("; "))
+                .with_content(&params_str)
+                .with_metadata("tool_name", name.to_string());
+            let ctx_str = ctx.to_detailed_string();
+            if problems.is_empty() {
+                warn!("{}", ctx_str);
+            } else {
+                warn!(
+                    "{}\n  Problematic characters found:\n    - {}",
+                    ctx_str,
+                    problems.join("\n    - ")
+                );
+            }
             return format!(
                 "Error: Invalid parameters for tool '{}': {}{}",
                 name,
@@ -65,15 +88,38 @@ impl ToolRegistry {
         }
 
         // Execute tool
-        match tool.execute(params).await {
+        match tool.execute(params.clone()).await {
             Ok(result) => {
                 if result.starts_with("Error") {
+                    // Log tool execution error with context
+                    let params_str = serde_json::to_string(&params).unwrap_or_default();
+                    let ctx = ErrorContext::new("tool_execution", &result)
+                        .with_content(&params_str)
+                        .with_metadata("tool_name", name.to_string());
+                    warn!("{}", ctx.to_detailed_string());
                     format!("{}{}", result, ERROR_HINT)
                 } else {
                     result
                 }
             }
-            Err(e) => format!("Error executing {}: {}{}", name, e, ERROR_HINT),
+            Err(e) => {
+                let params_str = serde_json::to_string(&params).unwrap_or_default();
+                let problems = find_problematic_chars(&params_str);
+                let ctx = ErrorContext::new("tool_execution", e.to_string())
+                    .with_content(&params_str)
+                    .with_metadata("tool_name", name.to_string());
+                let ctx_str = ctx.to_detailed_string();
+                if problems.is_empty() {
+                    error!("{}", ctx_str);
+                } else {
+                    error!(
+                        "{}\n  Problematic characters found:\n    - {}",
+                        ctx_str,
+                        problems.join("\n    - ")
+                    );
+                }
+                format!("Error executing {}: {}{}", name, e, ERROR_HINT)
+            }
         }
     }
 

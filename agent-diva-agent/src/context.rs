@@ -4,6 +4,7 @@ use crate::skills::SkillsLoader;
 use agent_diva_core::memory::MemoryManager;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::Message;
+use agent_diva_tools::sanitize::truncate_tool_result;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -271,6 +272,9 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 
     /// Add a tool result to the message list
+    /// 
+    /// Large tool results are truncated to prevent oversized API requests
+    /// that could cause 400 errors from LLM providers.
     pub fn add_tool_result(
         &self,
         messages: &mut Vec<Message>,
@@ -278,7 +282,9 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         _tool_name: String,
         result: String,
     ) {
-        messages.push(Message::tool(result, tool_call_id));
+        // Truncate large tool results to prevent API errors
+        let truncated_result = truncate_tool_result(&result);
+        messages.push(Message::tool(truncated_result, tool_call_id));
     }
 
     /// Add an assistant message with optional tool calls

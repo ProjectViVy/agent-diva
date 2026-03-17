@@ -1,6 +1,7 @@
 //! Shell execution tool
 
 use crate::base::{Tool, ToolError};
+use crate::sanitize::sanitize_for_json;
 use async_trait::async_trait;
 use regex::Regex;
 use serde_json::{json, Value};
@@ -225,15 +226,19 @@ impl ExecTool {
 
         let mut result_parts = Vec::new();
 
-        // Stdout
+        // Stdout - sanitize to remove control characters and ANSI sequences
         if !output.stdout.is_empty() {
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            result_parts.push(stdout);
+            let stdout = sanitize_for_json(&stdout);
+            if !stdout.is_empty() {
+                result_parts.push(stdout);
+            }
         }
 
-        // Stderr
+        // Stderr - sanitize to remove control characters and ANSI sequences
         if !output.stderr.is_empty() {
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let stderr = sanitize_for_json(&stderr);
             if !stderr.trim().is_empty() {
                 result_parts.push(format!("STDERR:\n{}", stderr));
             }
@@ -328,5 +333,53 @@ mod tests {
         assert!(tool.guard_command("ls -la", &cwd).is_ok());
         assert!(tool.guard_command("echo hello", &cwd).is_ok());
         assert!(tool.guard_command("cat file.txt", &cwd).is_ok());
+    }
+
+    #[test]
+    fn test_sanitize_output_removes_ansi_colors() {
+        // Red text: ESC[31mhello ESC[0m
+        let input = "\x1b[31mhello\x1b[0m world";
+        let output = sanitize_for_json(input);
+        assert_eq!(output, "hello world");
+    }
+
+    #[test]
+    fn test_sanitize_output_removes_ansi_cursor_movement() {
+        // ESC[2J clears screen, ESC[H moves cursor home
+        let input = "\x1b[2J\x1b[Hcontent";
+        let output = sanitize_for_json(input);
+        assert_eq!(output, "content");
+    }
+
+    #[test]
+    fn test_sanitize_output_removes_control_chars() {
+        // Include NULL, BEL, and other control characters
+        let input = "hello\x00world\x07bell\x01\x02";
+        let output = sanitize_for_json(input);
+        assert_eq!(output, "helloworldbell");
+    }
+
+    #[test]
+    fn test_sanitize_output_preserves_whitespace() {
+        // Tab, newline, carriage return should be preserved
+        let input = "line1\nline2\r\nline3\tindented";
+        let output = sanitize_for_json(input);
+        assert_eq!(output, "line1\nline2\r\nline3\tindented");
+    }
+
+    #[test]
+    fn test_sanitize_output_preserves_unicode() {
+        // Chinese, emoji, etc. should be preserved
+        let input = "你好世界 🐈 日本語";
+        let output = sanitize_for_json(input);
+        assert_eq!(output, "你好世界 🐈 日本語");
+    }
+
+    #[test]
+    fn test_sanitize_output_complex_ansi() {
+        // Complex ANSI: bold + color + background
+        let input = "\x1b[1;34;47mcolored\x1b[0m text";
+        let output = sanitize_for_json(input);
+        assert_eq!(output, "colored text");
     }
 }

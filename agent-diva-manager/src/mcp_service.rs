@@ -1,6 +1,6 @@
 use agent_diva_core::config::schema::{Config, MCPServerConfig};
 use agent_diva_core::config::ConfigLoader;
-use agent_diva_tools::probe_mcp_server;
+use agent_diva_tools::probe_mcp_server_sync;
 use anyhow::anyhow;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -183,7 +183,7 @@ impl McpService {
                 checked_at: None,
             }
         } else {
-            match probe_mcp_server(name, server) {
+            match probe_mcp_server_sync(name, server) {
                 Ok(tool_count) => McpConnectionStatusDto {
                     state: "connected".to_string(),
                     connected: true,
