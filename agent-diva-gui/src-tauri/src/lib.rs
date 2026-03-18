@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod app_state;
 mod commands;
+mod process_utils;
 
 use app_state::AgentState;
 use std::sync::{Arc, Mutex};
@@ -49,6 +50,37 @@ pub fn run() {
             backend_done: false,
         })))
         .setup(|app| {
+            // Cleanup orphan gateway processes on startup
+            let cleanup_result = process_utils::cleanup_orphan_gateway_processes();
+            match cleanup_result {
+                Ok(count) if count > 0 => {
+                    tracing::info!("Cleaned up {} orphan gateway process(es) on startup", count);
+                }
+                Ok(_) => {
+                    tracing::debug!("No orphan gateway processes found on startup");
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to cleanup orphan processes on startup: {}", e);
+                }
+            }
+
+            // Auto-start gateway on GUI launch
+            let app_handle = app.handle().clone();
+            spawn(async move {
+                // Wait a bit for GUI to initialize
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+                tracing::info!("Auto-starting gateway...");
+                match commands::start_gateway(app_handle.clone(), None).await {
+                    Ok(()) => {
+                        tracing::info!("Gateway auto-started successfully");
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to auto-start gateway: {}", e);
+                    }
+                }
+            });
+
             let handle = app.handle().clone();
             let state = app.state::<Arc<Mutex<SplashState>>>().inner().clone();
             spawn(async move {
@@ -68,6 +100,23 @@ pub fn run() {
                 }
             });
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Handle window close events to cleanup gateway process
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let window_label = window.label();
+                if window_label == "main" {
+                    tracing::info!("Main window closing, cleaning up gateway process...");
+                    // Spawn async task to stop gateway
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = commands::stop_gateway().await {
+                            tracing::error!("Failed to stop gateway on exit: {}", e);
+                        } else {
+                            tracing::info!("Gateway process stopped successfully on exit");
+                        }
+                    });
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             set_splash_complete,
@@ -112,6 +161,7 @@ pub fn run() {
             commands::get_gateway_process_status,
             commands::start_gateway,
             commands::stop_gateway,
+            commands::uninstall_gateway,
             commands::load_config,
             commands::get_config,
             commands::get_config_status,

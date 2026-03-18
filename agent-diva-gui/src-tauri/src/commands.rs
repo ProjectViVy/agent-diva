@@ -1,4 +1,5 @@
 use crate::app_state::AgentState;
+use crate::process_utils;
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
@@ -19,7 +20,7 @@ use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State, Window};
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex as AsyncMutex;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 struct GatewayProcess {
     child: tokio::process::Child,
@@ -2060,11 +2061,36 @@ async fn refresh_gateway_process_status() -> GatewayProcessStatus {
             },
         }
     } else {
-        GatewayProcessStatus {
-            running: false,
-            pid: None,
-            executable_path: None,
-            details: Some("gateway process is not managed by the GUI".to_string()),
+        // GATEWAY_PROCESS is empty, check port and system processes
+        let port_occupied = process_utils::is_port_3000_occupied();
+        let gateway_pids = process_utils::find_gateway_processes();
+
+        if port_occupied || !gateway_pids.is_empty() {
+            // Gateway is running but not managed by GUI
+            let mut details = String::from("gateway process detected but not managed by GUI");
+            if port_occupied {
+                details.push_str(" (port 3000 occupied)");
+            }
+            if !gateway_pids.is_empty() {
+                details.push_str(&format!(
+                    " (found {} gateway process(es))",
+                    gateway_pids.len()
+                ));
+            }
+
+            GatewayProcessStatus {
+                running: true,
+                pid: gateway_pids.first().copied(),
+                executable_path: None,
+                details: Some(details),
+            }
+        } else {
+            GatewayProcessStatus {
+                running: false,
+                pid: None,
+                executable_path: None,
+                details: Some("gateway process is not running".to_string()),
+            }
         }
     }
 }
@@ -2173,6 +2199,44 @@ pub async fn start_gateway(app: AppHandle, bin_path: Option<String>) -> Result<(
         return Err("gateway process is already running".to_string());
     }
 
+    // Check for port 3000 conflicts before starting
+    if process_utils::is_port_3000_occupied() {
+        info!("Port 3000 is occupied, checking for gateway processes...");
+
+        // Try to identify and terminate the occupying process if it's a gateway
+        let gateway_pids = process_utils::find_gateway_processes();
+        if !gateway_pids.is_empty() {
+            info!(
+                "Found {} gateway process(es) occupying port 3000, terminating...",
+                gateway_pids.len()
+            );
+            for pid in gateway_pids {
+                match process_utils::terminate_process(pid) {
+                    Ok(()) => info!("Terminated gateway process {}", pid),
+                    Err(e) => warn!("Failed to terminate gateway process {}: {}", pid, e),
+                }
+            }
+
+            // Wait a bit for port to be released
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+            // Check again
+            if process_utils::is_port_3000_occupied() {
+                return Err("Port 3000 is still occupied after cleanup. Please check for other processes using this port.".to_string());
+            }
+        } else {
+            // Port is occupied by a non-gateway process
+            if let Some(pid) = process_utils::find_process_on_port_3000() {
+                return Err(format!("Port 3000 is occupied by process {} (not agent-diva gateway). Please stop this process first.", pid));
+            } else {
+                return Err(
+                    "Port 3000 is occupied by an unknown process. Please free this port first."
+                        .to_string(),
+                );
+            }
+        }
+    }
+
     let loader = config_loader();
     std::fs::create_dir_all(loader.config_dir()).map_err(|e| {
         format!(
@@ -2224,6 +2288,49 @@ pub async fn stop_gateway() -> Result<(), String> {
         .await
         .map_err(|e| format!("failed to stop gateway process: {e}"))?;
     *guard = None;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn uninstall_gateway() -> Result<(), String> {
+    info!("Uninstalling gateway: terminating all gateway processes...");
+
+    // First, stop the managed gateway process
+    let _ = stop_gateway().await;
+
+    // Then, find and terminate all gateway processes in the system
+    let gateway_pids = process_utils::find_gateway_processes();
+    if gateway_pids.is_empty() {
+        info!("No gateway processes found to uninstall");
+        return Ok(());
+    }
+
+    info!(
+        "Found {} gateway process(es) to terminate",
+        gateway_pids.len()
+    );
+    let mut errors = Vec::new();
+
+    for pid in gateway_pids {
+        match process_utils::terminate_process(pid) {
+            Ok(()) => {
+                info!("Terminated gateway process {}", pid);
+            }
+            Err(e) => {
+                warn!("Failed to terminate gateway process {}: {}", pid, e);
+                errors.push(format!("PID {}: {}", pid, e));
+            }
+        }
+    }
+
+    if !errors.is_empty() {
+        return Err(format!(
+            "Failed to terminate some processes: {}",
+            errors.join(", ")
+        ));
+    }
+
+    info!("Gateway uninstalled successfully");
     Ok(())
 }
 

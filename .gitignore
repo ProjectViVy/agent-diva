@@ -1,6 +1,12 @@
 # Rust
 /target
 **/*.rs.bk
+*.d
+*.rlib
+*.so
+*.dylib
+*.dll
+*.pdb
 
 # IDE
 .idea/
@@ -11,6 +17,12 @@
 .claude/
 .qoder/
 .workspace/
+.kiro/
+*.sublime-*
+*.code-workspace
+.project
+.classpath
+.settings/
 
 # JS/GUI
 **/node_modules/
@@ -27,13 +39,55 @@
 **/.parcel-cache/
 **/coverage/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
 # OS
 .DS_Store
 Thumbs.db
+*.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db
+desktop.ini
 
 # Environment
 .env
 .env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging.local
 
 # Test artifacts
 *.profraw
@@ -51,6 +105,10 @@ agent-diva-gui/src-tauri/resources/manifests/
 *.temp
 stderr.txt
 stdout.txt
+*.swp
+*~
+.*.swp
+*.*~
 
 logs/
 !docs/logs/
