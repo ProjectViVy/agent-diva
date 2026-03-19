@@ -1,6 +1,6 @@
 # Agent Diva
 
-<img src="docs/resources/diva.png" align="right" width="600" />
+<img src="docs/resources/diva.png" align="right" width="500" />
 
 ### The name "agent-diva"
 
