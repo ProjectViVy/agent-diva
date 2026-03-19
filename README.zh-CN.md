@@ -1,6 +1,6 @@
 # Agent Diva (Rust)
 
-<img src="docs/resources/diva.png" align="right" width="200" />
+<img src="docs/resources/diva.png" align="right" width="600" />
 
 ### agent-diva 的含义
 
