@@ -9,6 +9,11 @@
 *.pdb
 
 # IDE
+# Cursor: ignore local IDE noise under repo root, but keep versioned skills.
+# (Debug logs like .cursor/debug-*.log are also matched by *.log below.)
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
 .idea/
 .vscode/
 *.swp
