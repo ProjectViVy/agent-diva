@@ -120,6 +120,11 @@ cross-linux-arm64:
 trigger-build:
     gh workflow run build-release.yml
 
+# Windows GUI 安装包（NSIS + MSI）：一键 cargo release、bundle:prepare、tauri build
+package-windows-gui:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows-gui.ps1
+
+
 # ===== macOS 打包命令 (需要在 macOS 上运行) =====
 # 在 macOS 上使用: ./scripts/package-macos.sh
 

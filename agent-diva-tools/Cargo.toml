@@ -2,13 +2,14 @@
 name = "agent-diva-tools"
 version = "0.2.0"
 edition = "2021"
-authors = ["agent-diva contributors"]
+rust-version = "1.80.0"
+authors = ["mastwet@UndefineFoundation"]
 license = "MIT"
-repository = "https://github.com/HKUDS/agent-diva"
+repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Built-in tools for agent-diva"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.2.0" }
 
 # Async runtime
 tokio = { workspace = true }

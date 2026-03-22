@@ -1,6 +1,6 @@
 # Acceptance
 
-1. Open `docs/dev/provider-catalog-refactor-plan.md`.
+1. Open `docs/dev/archive/roadmaps/provider-catalog-refactor-plan.md`.
 2. Confirm the document explains the current provider/config pain points.
 3. Confirm the document contains a phased implementation plan for:
    - provider catalog unification,

@@ -81,7 +81,7 @@ You just came online. Use this first conversation to shape your identity.
 ## Completion
 - Tell the user onboarding is complete.
 - Mark bootstrap as completed in soul state or remove this file.
-- If this workspace has `docs/architecture-reports/soul-mechanism-analysis.md`, treat it as the primary soul-architecture reference when implementing related development tasks.
+- If this workspace has `docs/dev/archive/architecture-reports/soul-mechanism-analysis.md`, treat it as the primary soul-architecture reference when implementing related development tasks.
 "#;
 
 /// Sync workspace templates. Missing files are created; existing files are never overwritten.

@@ -48,9 +48,7 @@ impl ErrorContext {
 
     /// Format the context as a human-readable string
     pub fn to_detailed_string(&self) -> String {
-        let mut parts = vec![
-            format!("[{}] {}", self.operation, self.error_message),
-        ];
+        let mut parts = vec![format!("[{}] {}", self.operation, self.error_message)];
 
         if let Some(ref content) = self.problematic_content {
             parts.push(format!("Problematic content: {}", content));
@@ -183,16 +181,17 @@ mod tests {
 
     #[test]
     fn test_error_context_with_content() {
-        let ctx = ErrorContext::new("test", "error")
-            .with_content("problematic content");
-        assert_eq!(ctx.problematic_content, Some("problematic content".to_string()));
+        let ctx = ErrorContext::new("test", "error").with_content("problematic content");
+        assert_eq!(
+            ctx.problematic_content,
+            Some("problematic content".to_string())
+        );
     }
 
     #[test]
     fn test_error_context_truncation() {
         let long_content = "x".repeat(1000);
-        let ctx = ErrorContext::new("test", "error")
-            .with_content(long_content.clone());
+        let ctx = ErrorContext::new("test", "error").with_content(long_content.clone());
         assert!(ctx.problematic_content.as_ref().unwrap().len() < long_content.len());
         assert!(ctx.problematic_content.as_ref().unwrap().ends_with("..."));
     }

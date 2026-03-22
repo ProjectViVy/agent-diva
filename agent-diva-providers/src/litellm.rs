@@ -676,7 +676,11 @@ impl LiteLLMClient {
             return String::new();
         };
         if idx >= messages.len() {
-            return format!("\n  Message index {} out of range (total: {})", idx, messages.len());
+            return format!(
+                "\n  Message index {} out of range (total: {})",
+                idx,
+                messages.len()
+            );
         }
 
         let msg = &messages[idx];
@@ -684,7 +688,10 @@ impl LiteLLMClient {
             .get("content")
             .and_then(|c| c.as_str())
             .unwrap_or("non-string content");
-        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("unknown");
+        let role = msg
+            .get("role")
+            .and_then(|r| r.as_str())
+            .unwrap_or("unknown");
         let content_preview: String = msg_content.chars().take(500).collect();
         let msg_problems = find_problematic_chars(msg_content);
 
@@ -807,7 +814,10 @@ impl LLMProvider for LiteLLMClient {
             url,
             resolved_model,
             body_json.len(),
-            body.get("messages").and_then(|m| m.as_array()).map(|a| a.len()).unwrap_or(0)
+            body.get("messages")
+                .and_then(|m| m.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0)
         );
 
         let req_builder = self.apply_headers(
@@ -906,10 +916,18 @@ impl LLMProvider for LiteLLMClient {
             url,
             resolved_model,
             body_json.len(),
-            body.get("messages").and_then(|m| m.as_array()).map(|a| a.len()).unwrap_or(0)
+            body.get("messages")
+                .and_then(|m| m.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0)
         );
 
-        let req_builder = self.apply_headers(self.client.post(&url).body(body_json.clone()).header("Content-Type", "application/json"));
+        let req_builder = self.apply_headers(
+            self.client
+                .post(&url)
+                .body(body_json.clone())
+                .header("Content-Type", "application/json"),
+        );
         let response = req_builder.send().await?;
 
         if !response.status().is_success() {

@@ -1,4 +1,4 @@
-﻿# Repository Guidelines
+# Repository Guidelines
 
 ## Project Structure & Module Organization
 
@@ -9,7 +9,12 @@ This repository is a Rust workspace. Crates are organized by responsibility:
 - `agent-diva-providers`: LLM/transcription provider abstractions and implementations.
 - `agent-diva-channels`: channel adapters (Slack, Discord, Telegram, Email, QQ, etc.).
 - `agent-diva-tools`: built-in tools (filesystem, shell, web, cron, spawn).
-- `agent-diva-cli`: user-facing CLI entrypoint.
+- `agent-diva-neuron`: supporting types/helpers used heavily by the desktop GUI.
+- `agent-diva-manager`: default local gateway and HTTP control plane for **`agent-diva-cli`** (hard dependency; no `nano` feature in CLI).
+- `agent-diva-nano`: **template-line** local gateway stack in **`external/agent-diva-nano/`** (nested workspace; `cd external && cargo build -p agent-diva-nano`); not a root workspace member.
+- `agent-diva-cli`: user-facing CLI entrypoint (`agent-diva` binary).
+- `agent-diva-service`: Windows service wrapper.
+- `agent-diva-gui`: optional Tauri desktop app (separate from default CLI `cargo` closure).
 - `agent-diva-migration`: migration utility from earlier versions.
 
 Use each crate's `src/` for code; add crate-level integration tests under `tests/` when needed.

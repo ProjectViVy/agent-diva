@@ -25,7 +25,7 @@ This guide covers development practices and workflows for agent-diva.
 
 3. **Clone and build**:
    ```bash
-   git clone https://github.com/HKUDS/agent-diva.git
+   git clone https://github.com/ProjectViVy/agent-diva.git
    cd Agent Diva/agent-diva
    cargo build --all
    ```

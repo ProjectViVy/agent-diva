@@ -2,9 +2,9 @@
 name = "agent-diva-migration"
 version = "0.2.0"
 edition = "2021"
-authors = ["agent-diva contributors"]
+authors = ["mastwet@UndefineFoundation"]
 license = "MIT"
-repository = "https://github.com/HKUDS/agent-diva"
+repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Migration tool for agent-diva"
 
 [[bin]]

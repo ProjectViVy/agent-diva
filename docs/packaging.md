@@ -231,11 +231,25 @@ cargo deb -p agent-diva-cli
 ### Windows 环境
 
 ```powershell
-# 构建
+# 仅 CLI
 cargo build --release -p agent-diva-cli
 
 # 输出: target\release\agent-diva.exe
 ```
+
+**桌面 GUI 安装包（NSIS + MSI，一键）**
+
+依赖：`cargo`、`pnpm`、`python`、系统自带的 `curl.exe`（用于预取 NSIS，降低 Tauri 在线下载超时概率）。
+
+```powershell
+# 仓库根目录
+.\scripts\package-windows-gui.ps1
+
+# 或通过 just
+just package-windows-gui
+```
+
+可选开关：`-SkipCargo`、`-SkipPrepare`、`-SkipNsisPrecache`、`-SkipPnpmInstall`（说明见脚本注释或 `Get-Help .\scripts\package-windows-gui.ps1`）。产物通常在 `target\release\bundle\nsis\`、`target\release\bundle\msi\` 与 `target\release\agent-diva-gui.exe`。
 
 ### macOS 环境
 
@@ -266,6 +280,7 @@ just --list
 # 常用命令
 just build-release      # 构建 release 版本
 just package-linux      # 打包 Linux 版本
+just package-windows-gui  # Windows GUI 安装包 (NSIS + MSI)
 just build-deb          # 生成 DEB 包 (需要 cargo-deb)
 just trigger-build      # 触发 GitHub Actions 构建
 ```
@@ -287,7 +302,8 @@ agent-diva/
 ├── dist/
 │   └── linux/                   # Linux 安装脚本
 └── scripts/
-    └── package-linux.sh         # Linux 打包脚本
+    ├── package-linux.sh         # Linux 打包脚本
+    └── package-windows-gui.ps1  # Windows GUI 一键打包
 ```
 
 ---

@@ -320,12 +320,7 @@ impl SubagentManager {
 
         // Inject as system message to trigger main agent
         // Use the origin channel/chat_id directly so the response routes back correctly
-        let msg = InboundMessage::new(
-            origin_channel,
-            "subagent",
-            origin_chat_id,
-            announce_content,
-        );
+        let msg = InboundMessage::new(origin_channel, "subagent", origin_chat_id, announce_content);
 
         if let Err(e) = bus.publish_inbound(msg) {
             error!("Failed to announce subagent result: {}", e);

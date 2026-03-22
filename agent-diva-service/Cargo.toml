@@ -2,7 +2,7 @@
 name = "agent-diva-service"
 version = "0.1.0"
 edition = "2021"
-authors = ["agent-diva contributors"]
+authors = ["mastwet@UndefineFoundation"]
 license = "MIT"
 description = "Windows service companion for agent-diva"
 

@@ -272,7 +272,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 
     /// Add a tool result to the message list
-    /// 
+    ///
     /// Large tool results are truncated to prevent oversized API requests
     /// that could cause 400 errors from LLM providers.
     pub fn add_tool_result(

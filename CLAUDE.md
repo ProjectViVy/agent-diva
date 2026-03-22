@@ -41,17 +41,20 @@ Set log level: `RUST_LOG=debug cargo run`
 
 ## Architecture
 
-This is a Cargo workspace with 8 crates:
+This is a Cargo workspace (see root `Cargo.toml` for authoritative `members`). Primary crates:
 
 - **agent-diva-core** — Foundation: message bus (dual-queue inbound/outbound), configuration loading, session management (JSONL persistence), memory system (MEMORY.md + HISTORY.md), error types
 - **agent-diva-agent** — Agent loop, context builder (assembles LLM prompts), skill loader (Markdown-based skills), subagent manager
 - **agent-diva-providers** — LLM provider trait + implementations; uses LiteLLM-compatible HTTP API pattern with a provider registry
 - **agent-diva-channels** — Channel handler trait + channel manager + platform-specific handlers
 - **agent-diva-tools** — Tool trait + registry + implementations (filesystem, shell, web, message, spawn, cron, MCP)
-- **agent-diva-cli** — Entry point binary; commands: `onboard`, `gateway`, `agent`, `tui`, `status`, `channels`, `cron`
+- **agent-diva-neuron** — Supporting library used heavily by the desktop GUI stack
+- **agent-diva-manager** — Default local gateway / HTTP control plane for **`agent-diva-cli`** (required dependency)
+- **agent-diva-nano** — Template-line gateway stack in **`external/agent-diva-nano/`** (separate nested workspace; not built with root `cargo build --workspace`)
+- **agent-diva-cli** — Entry point binary `agent-diva`; commands include `onboard`, `gateway`, `agent`, `tui`, `status`, `channels`, `cron`
+- **agent-diva-service** — Windows service wrapper around the CLI
 - **agent-diva-migration** — Migrates config/sessions from the older Python version
 - **agent-diva-gui** — Optional Tauri + Vue.js desktop GUI (in `agent-diva-gui/src-tauri`)
-- **agent-diva-manager** — API server for remote management
 
 ### Data Flow
 

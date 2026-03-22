@@ -85,9 +85,7 @@ pub fn truncate_file_content(content: &str) -> String {
         let preview: String = content.chars().take(FILE_PREVIEW_CHARS).collect();
         format!(
             "{}\n\n... [Content truncated: {} total characters, showing first {}]\n",
-            preview,
-            char_count,
-            FILE_PREVIEW_CHARS
+            preview, char_count, FILE_PREVIEW_CHARS
         )
     }
 }
@@ -102,9 +100,7 @@ pub fn truncate_tool_result(result: &str) -> String {
         let truncated: String = result.chars().take(MAX_TOOL_RESULT_CHARS).collect();
         format!(
             "{}\n\n... [Result truncated: {} total characters, showing first {}]",
-            truncated,
-            char_count,
-            MAX_TOOL_RESULT_CHARS
+            truncated, char_count, MAX_TOOL_RESULT_CHARS
         )
     }
 }
