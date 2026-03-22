@@ -4,6 +4,7 @@ use agent_diva_core::config::schema::{
     ChannelsConfig, MCPServerConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
+use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
@@ -17,13 +18,35 @@ pub struct AppState {
     pub bus: MessageBus,
 }
 
+pub enum ProviderCommand {
+    GetProviders(oneshot::Sender<Vec<ProviderView>>),
+    GetProvider(
+        String,
+        oneshot::Sender<Result<Option<ProviderView>, String>>,
+    ),
+    GetProviderModels(String, bool, oneshot::Sender<ProviderModelCatalogView>),
+    ResolveProvider(String, Option<String>, oneshot::Sender<Option<String>>),
+    AddProviderModel(String, String, oneshot::Sender<Result<(), String>>),
+    DeleteProviderModel(String, String, oneshot::Sender<Result<(), String>>),
+    CreateProvider(
+        CustomProviderUpsert,
+        oneshot::Sender<Result<Option<ProviderView>, String>>,
+    ),
+    UpdateProvider(
+        String,
+        CustomProviderUpsert,
+        oneshot::Sender<Result<Option<ProviderView>, String>>,
+    ),
+    DeleteProvider(String, oneshot::Sender<Result<(), String>>),
+}
+
 pub enum ManagerCommand {
+    // Core runtime control plane used by the formal CLI runtime.
     Chat(ApiRequest),
     StopChat(StopChatRequest, oneshot::Sender<Result<bool, String>>),
     ResetSession(ResetSessionRequest, oneshot::Sender<Result<bool, String>>),
     UpdateConfig(ConfigUpdate),
     UpdateChannel(ChannelUpdate),
-    TestChannel(ChannelUpdate, oneshot::Sender<Result<(), String>>),
     GetConfig(oneshot::Sender<ConfigResponse>),
     GetChannels(oneshot::Sender<ChannelsConfig>),
     GetTools(oneshot::Sender<ToolsConfigResponse>),
@@ -71,6 +94,8 @@ pub enum ManagerCommand {
         String,
         oneshot::Sender<Result<agent_diva_core::cron::CronRunSnapshot, String>>,
     ),
+    // Companion / HTTP management plane for GUI and remote administration.
+    Provider(ProviderCommand),
 }
 
 pub struct ApiRequest {

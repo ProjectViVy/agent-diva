@@ -2,7 +2,11 @@
 name = "agent-diva-manager"
 version = "0.1.0"
 edition = "2021"
+authors = ["mastwet@UndefineFoundation"]
+license = "MIT"
+repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Manager server for Agent Diva"
+rust-version = "1.80.0"
 
 [dependencies]
 tokio = { workspace = true, features = ["full"] }
@@ -21,11 +25,12 @@ zip = "0.6"
 chrono = { workspace = true }
 
 # Internal dependencies
-agent-diva-core = { path = "../agent-diva-core" }
-agent-diva-agent = { path = "../agent-diva-agent" }
-agent-diva-providers = { path = "../agent-diva-providers" }
-agent-diva-channels = { path = "../agent-diva-channels" }
-agent-diva-tools = { path = "../agent-diva-tools" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.2.0" }
+agent-diva-agent = { path = "../agent-diva-agent", version = "0.2.0" }
+agent-diva-providers = { path = "../agent-diva-providers", version = "0.2.0" }
+agent-diva-channels = { path = "../agent-diva-channels", version = "0.2.0" }
+agent-diva-tools = { path = "../agent-diva-tools", version = "0.2.0" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tower = { version = "0.5", features = ["util"] }
