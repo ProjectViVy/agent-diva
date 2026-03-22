@@ -337,17 +337,6 @@ impl ChannelHandler for NextcloudTalkHandler {
         )
         .await
     }
-
-    async fn test_connection(&self) -> Result<()> {
-        Self::fetch_last_known_message_id(
-            &self.http,
-            &self.config.base_url,
-            &self.config.app_token,
-            &self.config.room_token,
-        )
-        .await
-        .map(|_| ())
-    }
 }
 
 #[cfg(test)]

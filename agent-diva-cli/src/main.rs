@@ -4,7 +4,6 @@ use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
     runtime_control::RuntimeControlCommand, AgentEvent, AgentLoop, ToolConfig,
 };
-use agent_diva_channels::ChannelManager;
 use agent_diva_cli::chat_commands::{
     build_network_tool_config, run_agent, run_agent_remote, run_chat, run_chat_remote,
 };
@@ -17,12 +16,10 @@ use agent_diva_cli::provider_commands::{
     run_provider_list, run_provider_login, run_provider_models, run_provider_set,
     run_provider_status,
 };
-use agent_diva_core::bus::{InboundMessage, MessageBus};
+use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::Config;
-use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::{CronSchedule, CronService};
-use agent_diva_providers::ProviderCatalogService;
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use console::style;
@@ -42,13 +39,14 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 mod service;
 use agent_diva_cli::client::ApiClient;
 use service::{run_service_command, ServiceCommands};
 
+use agent_diva_manager::{run_local_gateway, GatewayRuntimeConfig, DEFAULT_GATEWAY_PORT};
 use agent_diva_tools::wtf;
 
 #[derive(Parser)]
@@ -776,344 +774,55 @@ async fn run_onboard(runtime: &CliRuntime, args: OnboardArgs) -> Result<()> {
     Ok(())
 }
 
-use agent_diva_manager::{run_server, AppState, Manager};
-use agent_diva_providers::{DynamicProvider, LLMProvider};
-
 /// Run the agent gateway
+fn build_gateway_runtime_config(
+    runtime: &CliRuntime,
+    config: Config,
+    workspace: PathBuf,
+) -> GatewayRuntimeConfig {
+    GatewayRuntimeConfig {
+        config,
+        loader: runtime.loader().clone(),
+        workspace,
+        cron_store: runtime.cron_store_path(),
+        port: DEFAULT_GATEWAY_PORT,
+    }
+}
+
 async fn run_gateway(runtime: &CliRuntime) -> Result<()> {
-    {
-        let config = runtime.load_config()?;
+    // Remote CLI flows continue to use HTTP APIs and do not cross this boundary.
+    let config = runtime.load_config()?;
 
-        // Check if API key is configured
-        if current_provider_name(&config).is_none() {
-            anyhow::bail!(
-                "No provider found for model: {}",
-                config.agents.defaults.model
-            );
-        }
-
-        let workspace = runtime.effective_workspace(&config);
-        let _ = ensure_workspace_templates(&workspace)?;
-
-        println!("{}", style("Starting Agent Diva Gateway...").bold().cyan());
-        println!("Model: {}", config.agents.defaults.model);
-        println!("Workspace: {}", workspace.display());
-
-        // Create message bus
-        let bus = MessageBus::new();
-
-        // Create cron service and bind scheduled jobs to inbound queue.
-        let cron_store = runtime.cron_store_path();
-        let bus_for_cron = bus.clone();
-        let cron_callback: JobCallback = Arc::new(
-            move |job: agent_diva_core::cron::CronJob,
-                  cancel_token|
-                  -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Option<String>> + Send>,
-            > {
-                let bus = bus_for_cron.clone();
-                Box::pin(async move {
-                    if cancel_token.is_cancelled() {
-                        return Some("Error: cancelled".to_string());
-                    }
-                    let deliver = job.payload.deliver;
-                    if !deliver {
-                        return Some("skipped (deliver=false)".to_string());
-                    }
-
-                    let target_channel = job
-                        .payload
-                        .channel
-                        .clone()
-                        .unwrap_or_else(|| "cli".to_string());
-                    let target_chat_id = job
-                        .payload
-                        .to
-                        .clone()
-                        .unwrap_or_else(|| "direct".to_string());
-                    // Trigger one full agent turn by publishing cron payload as inbound message.
-                    // GUI cron jobs are bridged through API stream so frontend background SSE can receive it.
-                    let (conversation_channel, conversation_chat_id) = if target_channel == "gui" {
-                        let chat_id = if target_chat_id.starts_with("cron:") {
-                            target_chat_id
-                        } else {
-                            format!("cron:{}", target_chat_id)
-                        };
-                        ("api".to_string(), chat_id)
-                    } else {
-                        (target_channel.clone(), target_chat_id)
-                    };
-
-                    let inbound = InboundMessage::new(
-                        conversation_channel,
-                        "cron",
-                        conversation_chat_id,
-                        job.payload.message,
-                    )
-                    .with_metadata("cron_job_id", job.id.clone())
-                    .with_metadata("cron_trigger", "scheduled")
-                    .with_metadata("cron_delivery_channel", target_channel);
-
-                    if let Err(e) = bus.publish_inbound(inbound) {
-                        error!("Failed to publish cron inbound job {}: {}", job.id, e);
-                        return Some(format!(
-                            "failed to publish cron inbound job {}: {}",
-                            job.id, e
-                        ));
-                    }
-
-                    Some("triggered agent turn".to_string())
-                })
-            },
+    if current_provider_name(&config).is_none() {
+        anyhow::bail!(
+            "No provider found for model: {}",
+            config.agents.defaults.model
         );
-        let cron_service = Arc::new(CronService::new(cron_store, Some(cron_callback)));
-        cron_service.start().await;
-
-        // Create provider with Dynamic wrapper for hot-swapping
-        let initial_provider = Arc::new(build_provider(&config, &config.agents.defaults.model)?);
-        let dynamic_provider = Arc::new(DynamicProvider::new(initial_provider));
-        let agent_provider: Arc<dyn LLMProvider> = dynamic_provider.clone();
-
-        // Extract config values before moving
-        let model = config.agents.defaults.model.clone();
-        let max_iterations = config.agents.defaults.max_tool_iterations as usize;
-        let exec_timeout = config.tools.exec.timeout;
-        let restrict_to_workspace = config.tools.restrict_to_workspace;
-        let network = build_network_tool_config(&config);
-        let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
-
-        // Create agent loop with tools
-        let tool_config = ToolConfig {
-            network,
-            exec_timeout,
-            restrict_to_workspace,
-            mcp_servers: config.tools.active_mcp_servers(),
-            cron_service: Some(Arc::clone(&cron_service)),
-            soul_context: SoulContextSettings {
-                enabled: config.agents.soul.enabled,
-                max_chars: config.agents.soul.max_chars,
-                bootstrap_once: config.agents.soul.bootstrap_once,
-            },
-            notify_on_soul_change: config.agents.soul.notify_on_change,
-            soul_governance: SoulGovernanceSettings {
-                frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
-                frequent_change_threshold: config.agents.soul.frequent_change_threshold,
-                boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
-            },
-        };
-
-        let agent = AgentLoop::with_tools(
-            bus.clone(),
-            agent_provider,
-            workspace.clone(),
-            Some(model),
-            Some(max_iterations),
-            tool_config,
-            Some(runtime_control_rx),
-        );
-
-        // Extract provider keys for Manager
-        let (provider_api_key, provider_api_base) = {
-            let provider_name = current_provider_name(&config)
-                .ok_or_else(|| anyhow::anyhow!("No provider found for model"))?;
-            let catalog = ProviderCatalogService::new();
-            let access = catalog
-                .get_provider_access(&config, &provider_name)
-                .unwrap_or_else(|| agent_diva_providers::ProviderAccess::from_config(None));
-            let resolved_api_base = access.api_base.clone().or_else(|| {
-                catalog
-                    .get_provider_view(&config, &provider_name)
-                    .and_then(|view| view.api_base)
-            });
-            (access.api_key, resolved_api_base)
-        };
-
-        // Create and initialize channel manager
-        let mut channel_manager = ChannelManager::new(config.clone());
-
-        // Bridge channel inbound queue -> message bus inbound queue
-        let (inbound_tx, mut inbound_rx) = mpsc::channel::<InboundMessage>(1024);
-        channel_manager.set_inbound_sender(inbound_tx);
-        let bus_for_inbound_bridge = bus.clone();
-        let inbound_bridge_handle = tokio::spawn(async move {
-            while let Some(msg) = inbound_rx.recv().await {
-                if let Err(e) = bus_for_inbound_bridge.publish_inbound(msg) {
-                    error!("Failed to publish inbound message to bus: {}", e);
-                }
-            }
-        });
-
-        println!(
-            "\n{}",
-            style("Gateway is running. Press Ctrl+C to stop.").green()
-        );
-
-        // Initialize channels
-        if let Err(e) = channel_manager.initialize().await {
-            error!("Failed to initialize channels: {}", e);
-        }
-
-        // Subscribe outbound messages to each enabled channel.
-        // Note: only channels initialized in manager will actually send.
-        let configured_channels = [
-            ("telegram", config.channels.telegram.enabled),
-            ("discord", config.channels.discord.enabled),
-            ("whatsapp", config.channels.whatsapp.enabled),
-            ("feishu", config.channels.feishu.enabled),
-            ("dingtalk", config.channels.dingtalk.enabled),
-            ("email", config.channels.email.enabled),
-            ("slack", config.channels.slack.enabled),
-            ("qq", config.channels.qq.enabled),
-            ("matrix", config.channels.matrix.enabled),
-        ];
-
-        let channel_manager = Arc::new(channel_manager);
-
-        // Create Manager
-        let (api_tx, api_rx) = mpsc::channel(100);
-        let manager = Manager::new(
-            api_rx,
-            bus.clone(),
-            dynamic_provider,
-            runtime.loader().clone(),
-            config.agents.defaults.provider.clone(),
-            config.agents.defaults.model.clone(),
-            provider_api_key,
-            provider_api_base,
-            Some(channel_manager.clone()),
-            Some(runtime_control_tx),
-            Arc::clone(&cron_service),
-        );
-        // Keep a sender clone outside API server state so manager doesn't exit
-        // immediately if API server startup fails (e.g. port already in use).
-        let _api_tx_keepalive = api_tx.clone();
-
-        for (channel_name, enabled) in configured_channels {
-            if !enabled {
-                continue;
-            }
-            let manager = channel_manager.clone();
-            let channel_name = channel_name.to_string();
-            let channel_key = channel_name.clone();
-            bus.subscribe_outbound(channel_name, move |msg| {
-                let manager = manager.clone();
-                let channel_key = channel_key.clone();
-                async move {
-                    if let Err(e) = manager.send(&channel_key, msg).await {
-                        error!("Failed to send outbound message to {}: {}", channel_key, e);
-                    }
-                }
-            })
-            .await;
-        }
-
-        // Start outbound dispatcher loop
-        let bus_for_outbound_dispatch = bus.clone();
-        let outbound_dispatch_handle = tokio::spawn(async move {
-            bus_for_outbound_dispatch.dispatch_outbound_loop().await;
-        });
-
-        // Start channel manager
-        let channel_manager_for_task = channel_manager.clone();
-        let _channel_handle = tokio::spawn(async move {
-            if let Err(e) = channel_manager_for_task.start_all().await {
-                error!("Channel manager error: {}", e);
-            }
-        });
-
-        // Run agent loop
-        let agent = Some(agent);
-        let agent_handle = tokio::spawn(async move {
-            if let Some(mut agent) = agent {
-                if let Err(e) = agent.run().await {
-                    error!("Agent loop error: {}", e);
-                }
-            }
-        });
-
-        // Run Manager (which controls provider)
-        let mut manager_handle = tokio::spawn(async move {
-            if let Err(e) = manager.run().await {
-                if e.to_string().contains("RESTART_REQUIRED") {
-                    return Err(e);
-                }
-                error!("Manager loop error: {}", e);
-                Ok(())
-            } else {
-                Ok(())
-            }
-        });
-
-        // Run API Server
-        let state = AppState {
-            api_tx,
-            bus: bus.clone(),
-        };
-        let (server_shutdown_tx, server_shutdown_rx) = broadcast::channel(1);
-        let server_handle = tokio::spawn(async move {
-            if let Err(e) = run_server(state, 3000, server_shutdown_rx).await {
-                error!("API Server error: {}", e);
-            }
-        });
-
-        println!(
-            "{}",
-            style("API Server running on http://localhost:3000").green()
-        );
-
-        // Wait for shutdown signal
-
-        let mut manager_handle_completed = false;
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
-                println!("\n{}", style("Shutting down...").yellow());
-            }
-            res = &mut manager_handle => {
-                manager_handle_completed = true;
-                match res {
-                    Ok(Err(e)) => {
-                        error!("Manager loop error: {}", e);
-                    }
-                    Err(e) => {
-                        error!("Manager loop panicked or cancelled: {}", e);
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        // Stop the bus to signal all components to shut down
-        // Move bus stop before stopping channel manager to ensure no new messages are processed
-        bus.stop().await;
-
-        // Wait for components to shut down gracefully
-        // Send shutdown signal to server and wait for it
-        let _ = server_shutdown_tx.send(());
-        let _ = server_handle.await;
-
-        if !manager_handle_completed {
-            manager_handle.abort();
-            let _ = manager_handle.await;
-        }
-
-        inbound_bridge_handle.abort();
-        let _ = inbound_bridge_handle.await;
-
-        outbound_dispatch_handle.abort();
-        let _ = outbound_dispatch_handle.await;
-
-        agent_handle.abort();
-        let _ = agent_handle.await;
-
-        if let Err(e) = channel_manager.stop_all().await {
-            error!("Failed to stop channels: {}", e);
-        }
-        cron_service.stop().await;
-
-        println!("{}", style("Gateway stopped.").green());
     }
 
-    Ok(())
+    let workspace = runtime.effective_workspace(&config);
+    let _ = ensure_workspace_templates(&workspace)?;
+
+    println!("{}", style("Starting Agent Diva Gateway...").bold().cyan());
+    println!("Model: {}", config.agents.defaults.model);
+    println!("Workspace: {}", workspace.display());
+    println!(
+        "\n{}",
+        style("Gateway is running. Press Ctrl+C to stop.").green()
+    );
+    println!(
+        "{}",
+        style(format!(
+            "API Server running on http://localhost:{}",
+            DEFAULT_GATEWAY_PORT
+        ))
+        .green()
+    );
+
+    let result = run_local_gateway(build_gateway_runtime_config(runtime, config, workspace)).await;
+
+    println!("{}", style("Gateway stopped.").green());
+    result
 }
 
 #[derive(Clone)]

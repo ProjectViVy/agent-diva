@@ -37,6 +37,163 @@ pub struct ChannelManager {
 }
 
 impl ChannelManager {
+    fn slack_config_ready(config: &Config) -> bool {
+        config.channels.slack.enabled
+            && !config.channels.slack.bot_token.is_empty()
+            && !config.channels.slack.app_token.is_empty()
+    }
+
+    async fn start_handler(name: &str, handler: &ChannelHandlerPtr) -> Result<()> {
+        tracing::info!("Starting {} channel...", name);
+        let mut handler = handler.write().await;
+        handler.start().await.map_err(|e| {
+            tracing::error!("Failed to start {} channel: {}", name, e);
+            e
+        })
+    }
+
+    fn build_updated_handler(name: &str, new_config: &Config) -> Option<ChannelHandlerPtr> {
+        match name {
+            "telegram" => {
+                if new_config.channels.telegram.enabled
+                    && !new_config.channels.telegram.token.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(TelegramHandler::new(
+                        &new_config.channels.telegram,
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "discord" => {
+                if new_config.channels.discord.enabled
+                    && !new_config.channels.discord.token.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(DiscordHandler::new(
+                        &new_config.channels.discord,
+                        new_config.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "feishu" => {
+                if new_config.channels.feishu.enabled
+                    && !new_config.channels.feishu.app_id.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(FeishuHandler::new(
+                        new_config.channels.feishu.clone(),
+                        new_config.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "whatsapp" => {
+                if new_config.channels.whatsapp.enabled {
+                    Some(Arc::new(RwLock::new(WhatsAppHandler::new(
+                        new_config.channels.whatsapp.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "dingtalk" => {
+                if new_config.channels.dingtalk.enabled
+                    && !new_config.channels.dingtalk.client_id.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(DingTalkHandler::new(
+                        new_config.channels.dingtalk.clone(),
+                        new_config.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "email" => {
+                if new_config.channels.email.enabled
+                    && !new_config.channels.email.imap_username.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(EmailHandler::new(
+                        new_config.channels.email.clone(),
+                        new_config.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "slack" => Self::slack_config_ready(new_config).then(|| {
+                Arc::new(RwLock::new(SlackHandler::new(
+                    new_config.channels.slack.clone(),
+                ))) as ChannelHandlerPtr
+            }),
+            "qq" => {
+                if new_config.channels.qq.enabled && !new_config.channels.qq.app_id.is_empty() {
+                    Some(Arc::new(RwLock::new(QQHandler::new(
+                        new_config.channels.qq.clone(),
+                        new_config.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "matrix" => {
+                if new_config.channels.matrix.enabled
+                    && !new_config.channels.matrix.user_id.is_empty()
+                    && !new_config.channels.matrix.access_token.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(MatrixHandler::new(
+                        new_config.channels.matrix.clone(),
+                        new_config.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "neuro-link" | "generic_pipe" => {
+                if new_config.channels.neuro_link.enabled {
+                    Some(Arc::new(RwLock::new(NeuroLinkHandler::new(
+                        new_config.channels.neuro_link.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "irc" => {
+                if new_config.channels.irc.enabled && !new_config.channels.irc.server.is_empty() {
+                    Some(Arc::new(RwLock::new(IrcHandler::new(
+                        new_config.channels.irc.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "mattermost" => {
+                if new_config.channels.mattermost.enabled
+                    && !new_config.channels.mattermost.bot_token.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(MattermostHandler::new(
+                        new_config.channels.mattermost.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            "nextcloud_talk" => {
+                if new_config.channels.nextcloud_talk.enabled
+                    && !new_config.channels.nextcloud_talk.app_token.is_empty()
+                {
+                    Some(Arc::new(RwLock::new(NextcloudTalkHandler::new(
+                        new_config.channels.nextcloud_talk.clone(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Create a new channel manager
     pub fn new(config: Config) -> Self {
         Self {
@@ -162,22 +319,18 @@ impl ChannelManager {
         }
 
         // Initialize Slack channel
-        if self.config.channels.slack.enabled {
-            if !self.config.channels.slack.bot_token.is_empty()
-                && !self.config.channels.slack.app_token.is_empty()
-            {
-                let mut handler = SlackHandler::new(self.config.channels.slack.clone());
-                if let Some(ref tx) = self.inbound_tx {
-                    handler.set_inbound_sender(tx.clone());
-                }
-                handlers.insert(
-                    "slack".to_string(),
-                    Arc::new(RwLock::new(handler)) as Arc<RwLock<dyn ChannelHandler>>,
-                );
-                tracing::info!("Slack channel initialized");
-            } else {
-                tracing::warn!("Slack channel enabled but bot_token/app_token not configured");
+        if Self::slack_config_ready(&self.config) {
+            let mut handler = SlackHandler::new(self.config.channels.slack.clone());
+            if let Some(ref tx) = self.inbound_tx {
+                handler.set_inbound_sender(tx.clone());
             }
+            handlers.insert(
+                "slack".to_string(),
+                Arc::new(RwLock::new(handler)) as Arc<RwLock<dyn ChannelHandler>>,
+            );
+            tracing::info!("Slack channel initialized");
+        } else if self.config.channels.slack.enabled {
+            tracing::warn!("Slack channel enabled but bot_token/app_token not configured");
         }
 
         // Initialize QQ channel
@@ -289,16 +442,22 @@ impl ChannelManager {
     /// Start all channel handlers
     pub async fn start_all(&self) -> Result<()> {
         let handlers = self.handlers.read().await;
+        let mut failed_channels = Vec::new();
 
         for (name, handler) in handlers.iter() {
-            tracing::info!("Starting {} channel...", name);
-            let mut handler = handler.write().await;
-            if let Err(e) = handler.start().await {
-                tracing::error!("Failed to start {} channel: {}", name, e);
+            if let Err(e) = Self::start_handler(name, handler).await {
+                failed_channels.push(format!("{}: {}", name, e));
             }
         }
 
-        Ok(())
+        if failed_channels.is_empty() {
+            Ok(())
+        } else {
+            Err(ChannelError::Error(format!(
+                "Failed to start channel(s): {}",
+                failed_channels.join(", ")
+            )))
+        }
     }
 
     /// Stop all channel handlers
@@ -349,151 +508,7 @@ impl ChannelManager {
         handlers.remove(name);
 
         // 2. Initialize new handler if enabled
-        let handler: Option<Arc<RwLock<dyn ChannelHandler>>> = match name {
-            "telegram" => {
-                if new_config.channels.telegram.enabled
-                    && !new_config.channels.telegram.token.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(TelegramHandler::new(
-                        &new_config.channels.telegram,
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "discord" => {
-                if new_config.channels.discord.enabled
-                    && !new_config.channels.discord.token.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(DiscordHandler::new(
-                        &new_config.channels.discord,
-                        new_config.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "feishu" => {
-                if new_config.channels.feishu.enabled
-                    && !new_config.channels.feishu.app_id.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(FeishuHandler::new(
-                        new_config.channels.feishu.clone(),
-                        new_config.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "whatsapp" => {
-                if new_config.channels.whatsapp.enabled {
-                    Some(Arc::new(RwLock::new(WhatsAppHandler::new(
-                        new_config.channels.whatsapp.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "dingtalk" => {
-                if new_config.channels.dingtalk.enabled
-                    && !new_config.channels.dingtalk.client_id.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(DingTalkHandler::new(
-                        new_config.channels.dingtalk.clone(),
-                        new_config.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "email" => {
-                if new_config.channels.email.enabled
-                    && !new_config.channels.email.imap_username.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(EmailHandler::new(
-                        new_config.channels.email.clone(),
-                        new_config.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "slack" => {
-                if new_config.channels.slack.enabled
-                    && !new_config.channels.slack.bot_token.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(SlackHandler::new(
-                        new_config.channels.slack.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "qq" => {
-                if new_config.channels.qq.enabled && !new_config.channels.qq.app_id.is_empty() {
-                    Some(Arc::new(RwLock::new(QQHandler::new(
-                        new_config.channels.qq.clone(),
-                        new_config.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "matrix" => {
-                if new_config.channels.matrix.enabled
-                    && !new_config.channels.matrix.user_id.is_empty()
-                    && !new_config.channels.matrix.access_token.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(MatrixHandler::new(
-                        new_config.channels.matrix.clone(),
-                        new_config.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "neuro-link" | "generic_pipe" => {
-                if new_config.channels.neuro_link.enabled {
-                    Some(Arc::new(RwLock::new(NeuroLinkHandler::new(
-                        new_config.channels.neuro_link.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "irc" => {
-                if new_config.channels.irc.enabled && !new_config.channels.irc.server.is_empty() {
-                    Some(Arc::new(RwLock::new(IrcHandler::new(
-                        new_config.channels.irc.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "mattermost" => {
-                if new_config.channels.mattermost.enabled
-                    && !new_config.channels.mattermost.bot_token.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(MattermostHandler::new(
-                        new_config.channels.mattermost.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            "nextcloud_talk" => {
-                if new_config.channels.nextcloud_talk.enabled
-                    && !new_config.channels.nextcloud_talk.app_token.is_empty()
-                {
-                    Some(Arc::new(RwLock::new(NextcloudTalkHandler::new(
-                        new_config.channels.nextcloud_talk.clone(),
-                    ))))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
+        let handler = Self::build_updated_handler(name, &new_config);
 
         // 3. Register and start new handler
         if let Some(handler) = handler {
@@ -504,16 +519,7 @@ impl ChannelManager {
             }
 
             // Start handler
-            tracing::info!("Starting {} channel after update...", name);
-            {
-                let mut h = handler.write().await;
-                if let Err(e) = h.start().await {
-                    tracing::error!("Failed to start {} channel: {}", name, e);
-                    // Don't insert if failed to start? Or insert anyway?
-                    // If we don't insert, it's effectively disabled.
-                    return Err(e);
-                }
-            }
+            Self::start_handler(name, &handler).await?;
 
             handlers.insert(name.to_string(), handler);
             tracing::info!("{} channel updated and started", name);
@@ -541,66 +547,6 @@ impl ChannelManager {
     pub async fn list_channels(&self) -> Vec<String> {
         let handlers = self.handlers.read().await;
         handlers.keys().cloned().collect()
-    }
-
-    /// Test a specific channel configuration
-    pub async fn test_channel(&self, name: &str, new_config: Config) -> Result<()> {
-        let handler: Option<Box<dyn ChannelHandler>> = match name {
-            "telegram" => Some(Box::new(TelegramHandler::new(
-                &new_config.channels.telegram,
-            ))),
-            "discord" => Some(Box::new(DiscordHandler::new(
-                &new_config.channels.discord,
-                new_config.clone(),
-            ))),
-            "feishu" => Some(Box::new(FeishuHandler::new(
-                new_config.channels.feishu.clone(),
-                new_config.clone(),
-            ))),
-            "whatsapp" => Some(Box::new(WhatsAppHandler::new(
-                new_config.channels.whatsapp.clone(),
-            ))),
-            "dingtalk" => Some(Box::new(DingTalkHandler::new(
-                new_config.channels.dingtalk.clone(),
-                new_config.clone(),
-            ))),
-            "email" => Some(Box::new(EmailHandler::new(
-                new_config.channels.email.clone(),
-                new_config.clone(),
-            ))),
-            "slack" => Some(Box::new(SlackHandler::new(
-                new_config.channels.slack.clone(),
-            ))),
-            "qq" => Some(Box::new(QQHandler::new(
-                new_config.channels.qq.clone(),
-                new_config.clone(),
-            ))),
-            "matrix" => Some(Box::new(MatrixHandler::new(
-                new_config.channels.matrix.clone(),
-                new_config.clone(),
-            ))),
-            "neuro-link" | "generic_pipe" => Some(Box::new(NeuroLinkHandler::new(
-                new_config.channels.neuro_link.clone(),
-            ))),
-            "irc" => Some(Box::new(IrcHandler::new(new_config.channels.irc.clone()))),
-            "mattermost" => Some(Box::new(MattermostHandler::new(
-                new_config.channels.mattermost.clone(),
-            ))),
-            "nextcloud_talk" => Some(Box::new(NextcloudTalkHandler::new(
-                new_config.channels.nextcloud_talk.clone(),
-            ))),
-            _ => None,
-        };
-
-        if let Some(handler) = handler {
-            tracing::info!("Testing {} channel connection...", name);
-            handler.test_connection().await
-        } else {
-            Err(ChannelError::NotConfigured(format!(
-                "Channel {} not found or not supported for testing",
-                name
-            )))
-        }
     }
 }
 

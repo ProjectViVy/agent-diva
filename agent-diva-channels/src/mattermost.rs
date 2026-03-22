@@ -308,12 +308,6 @@ impl ChannelHandler for MattermostHandler {
 
         Ok(())
     }
-
-    async fn test_connection(&self) -> Result<()> {
-        Self::fetch_bot_identity(&self.http, &self.config.base_url, &self.config.bot_token)
-            .await
-            .map(|_| ())
-    }
 }
 
 /// Poll for new posts in a channel since `since` timestamp (milliseconds).

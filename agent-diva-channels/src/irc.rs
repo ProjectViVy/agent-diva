@@ -278,33 +278,6 @@ impl ChannelHandler for IrcHandler {
 
         Ok(())
     }
-
-    async fn test_connection(&self) -> Result<()> {
-        // Try a TLS/TCP connect and immediately disconnect
-        let addr = format!("{}:{}", self.config.server, self.config.port);
-        let tcp = tokio::net::TcpStream::connect(&addr)
-            .await
-            .map_err(|e| ChannelError::ConnectionFailed(format!("TCP connect failed: {}", e)))?;
-
-        if self.config.use_tls {
-            let connector = native_tls::TlsConnector::builder()
-                .danger_accept_invalid_certs(!self.config.verify_tls)
-                .build()
-                .map_err(|e| ChannelError::ConnectionFailed(format!("TLS setup failed: {}", e)))?;
-            let connector = tokio_native_tls::TlsConnector::from(connector);
-            let mut tls = connector
-                .connect(&self.config.server, tcp)
-                .await
-                .map_err(|e| {
-                    ChannelError::ConnectionFailed(format!("TLS handshake failed: {}", e))
-                })?;
-            let _ = tls.shutdown().await;
-        } else {
-            drop(tcp);
-        }
-
-        Ok(())
-    }
 }
 
 /// Establish an IRC connection, perform registration, and run the message loop.

@@ -29,11 +29,6 @@ pub trait ChannelHandler: Send + Sync {
 
     /// Check if a sender is allowed
     fn is_allowed(&self, sender_id: &str) -> bool;
-
-    /// Test connection (optional)
-    async fn test_connection(&self) -> Result<()> {
-        Ok(())
-    }
 }
 
 /// Channel errors
@@ -300,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn test_channel_error_display() {
+    fn test_error_messages_display_for_channel_errors() {
         let err = ChannelError::NotConfigured("test".to_string());
         assert_eq!(err.to_string(), "Channel not configured: test");
 

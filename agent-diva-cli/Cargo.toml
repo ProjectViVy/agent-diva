@@ -2,9 +2,10 @@
 name = "agent-diva-cli"
 version = "0.2.0"
 edition = "2021"
-authors = ["agent-diva contributors"]
+rust-version = "1.80.0"
+authors = ["mastwet@UndefineFoundation"]
 license = "MIT"
-repository = "https://github.com/HKUDS/agent-diva"
+repository = "https://github.com/ProjectViVy/agent-diva"
 description = "CLI application for agent-diva"
 
 [[bin]]
@@ -12,12 +13,12 @@ name = "agent-diva"
 path = "src/main.rs"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core" }
-agent-diva-agent = { path = "../agent-diva-agent" }
-agent-diva-providers = { path = "../agent-diva-providers" }
-agent-diva-channels = { path = "../agent-diva-channels" }
-agent-diva-tools = { path = "../agent-diva-tools" }
-agent-diva-manager = { path = "../agent-diva-manager" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.2.0" }
+agent-diva-agent = { path = "../agent-diva-agent", version = "0.2.0" }
+agent-diva-providers = { path = "../agent-diva-providers", version = "0.2.0" }
+agent-diva-channels = { path = "../agent-diva-channels", version = "0.2.0" }
+agent-diva-tools = { path = "../agent-diva-tools", version = "0.2.0" }
+agent-diva-manager = { path = "../agent-diva-manager", version = "0.1.0" }
 
 # Async runtime
 tokio = { workspace = true }
