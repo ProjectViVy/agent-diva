@@ -16,6 +16,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 agent-diva-core = { path = "../../agent-diva-core" }
+# GUI currently depends on CLI only for local runtime/status helpers. Manager
+# companion/runtime APIs are consumed over HTTP from the Tauri bridge.
 agent-diva-cli = { path = "../../agent-diva-cli" }
 agent-diva-neuron = { path = "../../agent-diva-neuron" }
 agent-diva-providers = { path = "../../agent-diva-providers" }

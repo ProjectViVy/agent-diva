@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { MessageSquare, Play, Check } from 'lucide-vue-next';
+import { MessageSquare } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { getConfigStatus, type ChannelStatusSummary } from '../../api/desktop';
 
@@ -10,8 +10,6 @@ const { t } = useI18n();
 const channels = ref<Record<string, any>>({});
 const channelStatuses = ref<ChannelStatusSummary[]>([]);
 const selectedChannel = ref<string | null>(null);
-const testStatus = ref<'idle' | 'testing' | 'success' | 'failed'>('idle');
-const testMessage = ref('');
 const isInitializing = ref(true);
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 let lastSavedSnapshot = '';
@@ -35,32 +33,6 @@ const toggleChannelEnabled = (channelName: string) => {
     if (channels.value[channelName]) {
         channels.value[channelName].enabled = !channels.value[channelName].enabled;
     }
-};
-
-const testConnection = async (channelName: string) => {
-    if (!channels.value[channelName]) return;
-    
-    testStatus.value = 'testing';
-    testMessage.value = '';
-    
-    try {
-        await invoke('test_channel', {
-            name: channelName,
-            config: channels.value[channelName]
-        });
-        
-        testStatus.value = 'success';
-    } catch (e: any) {
-        testStatus.value = 'failed';
-        testMessage.value = e.message || String(e);
-    }
-    
-    // Reset status after 3 seconds
-    setTimeout(() => {
-        if (testStatus.value !== 'testing') {
-            testStatus.value = 'idle';
-        }
-    }, 3000);
 };
 
 const scheduleAutoSave = (channelName: string) => {
@@ -489,28 +461,6 @@ watch(
                 </div>
             </div>
 
-            <div class="flex space-x-3">
-                <button 
-                    @click="testConnection(selectedChannel)"
-                    class="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-all flex items-center justify-center space-x-2"
-                    :disabled="testStatus === 'testing'"
-                >
-                    <div v-if="testStatus === 'testing'" class="animate-spin rounded-full h-4 w-4 border-2 border-gray-500 border-t-transparent"></div>
-                    <Play v-else :size="18" />
-                    <span>{{ testStatus === 'testing' ? t('channels.testing') : t('channels.testConnection') }}</span>
-                </button>
-                
-            </div>
-            
-            <!-- Feedback messages -->
-            <div v-if="testStatus === 'success'" class="p-3 bg-green-100 text-green-700 rounded-lg text-sm flex items-center">
-                <Check :size="16" class="mr-2" />
-                {{ t('channels.testSuccess') }}
-            </div>
-            <div v-if="testStatus === 'failed'" class="p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-                {{ t('channels.testFailed') }}: {{ testMessage }}
-            </div>
-            
         </div>
         <div v-else class="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
             <MessageSquare :size="48" class="opacity-20" />

@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
 import { Pause, Play, PlayCircle, Square, Plus, Pencil, Trash2, RefreshCw } from 'lucide-vue-next';
+import { appConfirm } from '../utils/appDialog';
 
 const { t } = useI18n();
 
@@ -248,10 +249,10 @@ async function stopJob(job: CronJobDto) {
 }
 
 async function deleteJob(job: CronJobDto) {
-  const confirmed = window.confirm(
-    job.isRunning ? t('cron.confirmDeleteRunning', { name: job.name }) : t('cron.confirmDelete', { name: job.name }),
-  );
-  if (!confirmed) return;
+  const message = job.isRunning
+    ? t('cron.confirmDeleteRunning', { name: job.name })
+    : t('cron.confirmDelete', { name: job.name });
+  if (!(await appConfirm(message))) return;
   await withBusy(job.id, async () => {
     await invoke('delete_cron_job', { jobId: job.id });
     await fetchJobs();

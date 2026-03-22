@@ -3,17 +3,21 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import {
+  type ConfigStatusReport,
+  getConfigStatus,
+} from '../../api/desktop';
+import {
   addProviderModel,
   createCustomProvider,
-  getConfigStatus,
+  deleteCustomProvider,
   getProviderModels,
   removeProviderModel,
   testProviderModel,
-  type ConfigStatusReport,
   type ProviderModelCatalog,
   type ProviderModelTestResult
-} from '../../api/desktop';
+} from '../../api/providers';
 import { invoke } from '@tauri-apps/api/core';
+import { appConfirm } from '../../utils/appDialog';
 
 const { t } = useI18n();
 
@@ -78,6 +82,7 @@ const manualModelName = ref('');
 const isManualModelDialogOpen = ref(false);
 const isCreateProviderDialogOpen = ref(false);
 const isSavingProvider = ref(false);
+const isDeletingCustomProvider = ref<string | null>(null);
 const providerApiKeys = ref<Record<string, string>>({});
 const providerApiBases = ref<Record<string, string>>({});
 const isRefreshing = ref(false);
@@ -346,6 +351,57 @@ const refreshSelectedProviderModels = async () => {
     console.error('Failed to refresh provider models:', error);
   } finally {
     isRefreshing.value = false;
+  }
+};
+
+const isCustomProviderSpec = (p: ProviderSpec) => p.source === 'custom';
+
+const requestDeleteCustomProvider = async (provider: ProviderSpec) => {
+  if (!isCustomProviderSpec(provider)) return;
+  if (
+    !(await appConfirm(
+      t('providers.deleteProviderConfirm', { name: provider.display_name }),
+    ))
+  ) {
+    return;
+  }
+  const id = provider.name;
+  isDeletingCustomProvider.value = id;
+  try {
+    await deleteCustomProvider(id);
+
+    const nextKeys = { ...providerApiKeys.value };
+    delete nextKeys[id];
+    providerApiKeys.value = nextKeys;
+    const nextBases = { ...providerApiBases.value };
+    delete nextBases[id];
+    providerApiBases.value = nextBases;
+    const nextCat = { ...runtimeCatalogs.value };
+    delete nextCat[id];
+    runtimeCatalogs.value = nextCat;
+
+    emit(
+      'update-saved-models',
+      (props.savedModels || []).filter((m) => m.provider !== id),
+    );
+
+    await refreshProviderState();
+
+    if (!providers.value.some((p) => p.name === localConfig.value.provider)) {
+      const next = providers.value[0];
+      if (next) {
+        localConfig.value.provider = next.name;
+        localConfig.value.model = next.default_model || next.models[0] || '';
+        localConfig.value.apiBase =
+          providerApiBases.value[next.name] || next.default_api_base;
+        localConfig.value.apiKey = providerApiKeys.value[next.name] || '';
+        emitConfigSave();
+      }
+    }
+  } catch (error) {
+    console.error('Failed to delete custom provider:', error);
+  } finally {
+    isDeletingCustomProvider.value = null;
   }
 };
 
@@ -688,32 +744,52 @@ watch(() => props.config, async (newVal) => {
       </div>
       
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
-          <button
+          <div
             v-for="provider in filteredProviders"
             :key="provider.name"
-            @click="selectProvider(provider)"
-            class="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between group"
+            class="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-stretch rounded-xl transition-all group"
             :class="selectedProvider?.name === provider.name ? 'bg-white shadow-sm border-l-4 border-pink-500 text-pink-700' : 'hover:bg-gray-100 text-gray-600 border-l-4 border-transparent'"
           >
-            <div class="flex items-center">
-               <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3" :class="selectedProvider?.name === provider.name ? 'bg-pink-100 text-pink-600' : 'bg-gray-200 text-gray-500'">
+            <button
+              type="button"
+              class="flex min-w-0 items-center px-4 py-3 text-left"
+              @click="selectProvider(provider)"
+            >
+              <div class="flex min-w-0 flex-1 items-center">
+                <div class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center mr-3" :class="selectedProvider?.name === provider.name ? 'bg-pink-100 text-pink-600' : 'bg-gray-200 text-gray-500'">
                   <Server :size="16" />
-               </div>
-               <div>
+                </div>
+                <div class="min-w-0">
                   <div class="font-medium flex items-center gap-2">
-                    <span>{{ provider.display_name }}</span>
+                    <span class="truncate">{{ provider.display_name }}</span>
                   </div>
-                  <div class="text-[10px] uppercase tracking-wider opacity-70 flex items-center gap-1 text-blue-600">
-                      <span>{{ provider.api_type || t('providers.standardApi') }}</span>
-                      <span v-if="providerStatusMap.get(provider.name)?.current" class="text-pink-600">{{ t('providers.currentTag') }}</span>
+                  <div class="text-[10px] uppercase tracking-wider opacity-70 flex flex-wrap items-center gap-1 text-blue-600">
+                    <span>{{ provider.api_type || t('providers.standardApi') }}</span>
+                    <span v-if="providerStatusMap.get(provider.name)?.current" class="text-pink-600">{{ t('providers.currentTag') }}</span>
                   </div>
-               </div>
+                </div>
+              </div>
+            </button>
+            <div
+              v-if="provider.source === 'custom'"
+              class="relative z-10 flex shrink-0 items-center pr-2"
+            >
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-gray-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                :title="t('providers.deleteProvider')"
+                :disabled="isDeletingCustomProvider === provider.name"
+                @click.stop="requestDeleteCustomProvider(provider)"
+              >
+                <LoaderCircle
+                  v-if="isDeletingCustomProvider === provider.name"
+                  :size="14"
+                  class="animate-spin text-rose-500"
+                />
+                <Trash2 v-else :size="14" />
+              </button>
             </div>
-            
-            <div v-if="savedModels?.some(m => m.provider === provider.name)" class="bg-pink-100 text-pink-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                {{ savedModels?.filter(m => m.provider === provider.name).length }}
-            </div>
-          </button>
+          </div>
       </div>
     </div>
 

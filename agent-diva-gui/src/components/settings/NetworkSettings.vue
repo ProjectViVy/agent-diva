@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { Globe } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
+import { openExternalUrl } from '../../utils/openExternal';
 
 const { t } = useI18n();
 
@@ -112,6 +113,10 @@ watch(
   },
   { deep: true }
 );
+
+const openBochaGuide = () => {
+  void openExternalUrl(bochaApiKeyGuideUrl);
+};
 </script>
 
 <template>
@@ -145,15 +150,14 @@ watch(
       <div class="space-y-1">
         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ apiKeyLabel }}</label>
         <input v-model="localConfig.web.search.api_key" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg font-mono text-sm" :placeholder="apiKeyPlaceholder" />
-        <a
+        <button
           v-if="isBochaProvider"
-          :href="bochaApiKeyGuideUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex text-sm text-blue-600 hover:text-blue-700"
+          type="button"
+          class="inline-flex text-sm text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline bg-transparent border-0 p-0 cursor-pointer text-left"
+          @click="openBochaGuide"
         >
           {{ t('network.apiKeyGuideBocha') }}
-        </a>
+        </button>
       </div>
 
       <div class="flex space-x-6">

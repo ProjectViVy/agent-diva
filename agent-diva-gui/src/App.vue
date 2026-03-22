@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import NormalMode from "./components/NormalMode.vue";
+import WelcomeWizard from "./components/WelcomeWizard.vue";
+import { appAlert, appConfirm } from "./utils/appDialog";
 import { useI18n } from "vue-i18n";
 import { getConfigStatus, getRuntimeConfig } from "./api/desktop";
+import {
+  HISTORY_PREFS_KEY,
+  SAVED_MODELS_KEY,
+  SESSION_CACHE_PREFIX,
+  WELCOME_STORAGE_KEY,
+} from "./utils/localStorageAgentDiva";
 
 const { t } = useI18n();
 
@@ -107,9 +115,7 @@ interface RawProviderConfig {
   api_base?: string | null;
 }
 
-const SESSION_CACHE_PREFIX = 'agent-diva-session-cache:';
 const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
-const HISTORY_PREFS_KEY = 'agent-diva-history-prefs';
 const defaultChatDisplayPrefs: ChatDisplayPrefs = {
   autoExpandReasoning: true,
   autoExpandToolDetails: false,
@@ -161,6 +167,16 @@ const sessions = ref<SessionInfo[]>([]);
 const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
 
 const unlisteners: UnlistenFn[] = [];
+
+const showWelcomeWizard = ref(false);
+const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
+
+type WelcomeDonePayload = {
+  skipped: boolean;
+  deepseekApiKey: string;
+  bochaApiKey: string;
+  navigate: 'chat' | 'providers' | 'network' | 'console';
+};
 
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -411,7 +427,7 @@ function closeStreamingPlaceholder(removeIfEmpty = false) {
 
 // Load saved models from localStorage
 onMounted(() => {
-  const storedModels = localStorage.getItem('agent-diva-saved-models');
+  const storedModels = localStorage.getItem(SAVED_MODELS_KEY);
   if (storedModels) {
     try {
       savedModels.value = JSON.parse(storedModels);
@@ -436,7 +452,7 @@ onMounted(() => {
 
 // Save models to localStorage whenever they change
 watch(savedModels, (newVal) => {
-  localStorage.setItem('agent-diva-saved-models', JSON.stringify(newVal));
+  localStorage.setItem(SAVED_MODELS_KEY, JSON.stringify(newVal));
 }, { deep: true });
 
 watch(() => ({ ...config.value }), (newConfig) => {
@@ -622,8 +638,41 @@ async function refreshSessions() {
   }
 }
 
-async function loadSession(sessionKey: string) {
-  if (!isTauri()) return;
+/** GUI channel sessions only, already newest-first (same order as `sessions`). */
+function listGuiSessionsForRestore(): SessionInfo[] {
+  return sessions.value.filter((s) => s.session_key.startsWith('gui:'));
+}
+
+/**
+ * After `refreshSessions`, load the most recently updated `gui:` session; try older GUI sessions if the first fails.
+ */
+async function restoreLatestGuiChatOnStartup() {
+  const guiSessions = listGuiSessionsForRestore();
+  if (guiSessions.length === 0) {
+    return;
+  }
+  for (const { session_key } of guiSessions) {
+    messages.value = [];
+    const ok = await loadSession(session_key);
+    if (ok) {
+      return;
+    }
+  }
+  currentChatId.value = generateChatId();
+  currentSessionKey.value = `gui:${currentChatId.value}`;
+  messages.value = [
+    {
+      role: 'agent',
+      content: t('app.welcome'),
+      timestamp: Date.now(),
+      emotion: 'happy',
+    },
+  ];
+}
+
+/** @returns true when history was applied to the message list */
+async function loadSession(sessionKey: string): Promise<boolean> {
+  if (!isTauri()) return false;
   const chatId = extractChatId(sessionKey);
 
   try {
@@ -644,7 +693,7 @@ async function loadSession(sessionKey: string) {
         content: `${t('app.errorPrefix')}Session not found`,
         timestamp: Date.now()
       });
-      return;
+      return false;
     }
 
     currentChatId.value = extractChatId(sessionHistory.key) || chatId;
@@ -662,7 +711,7 @@ async function loadSession(sessionKey: string) {
         content: `${t('app.errorPrefix')}Session has no displayable messages`,
         timestamp: Date.now()
       });
-      return;
+      return false;
     }
 
     const selectedSession = sessions.value.find((session) => session.session_key === currentSessionKey.value);
@@ -677,6 +726,7 @@ async function loadSession(sessionKey: string) {
       selectedSession.timestamp = Date.now();
       sessions.value = [...sessions.value].sort((a, b) => b.timestamp - a.timestamp);
     }
+    return true;
   } catch (e) {
     console.error("Failed to load session history:", e);
     messages.value.push({ 
@@ -684,12 +734,13 @@ async function loadSession(sessionKey: string) {
       content: t('app.errorPrefix') + e, 
       timestamp: Date.now() 
     });
+    return false;
   }
 }
 
 async function deleteSession(sessionKey: string) {
   if (!isTauri()) return;
-  if (!confirm(t('chat.confirmDeleteSession'))) return;
+  if (!(await appConfirm(t('chat.confirmDeleteSession')))) return;
   const chatId = extractChatId(sessionKey);
   const wasCurrent = sessionKey === currentSessionKey.value || chatId === currentChatId.value;
   let deleteFailed = false;
@@ -766,7 +817,7 @@ async function saveConfig(newConfig: typeof config.value) {
       timestamp: Date.now() 
     });
   } catch (error) {
-    alert(t('app.configUpdateError', { error }));
+    await appAlert(t('app.configUpdateError', { error }));
   }
 }
 
@@ -792,7 +843,48 @@ async function saveToolsConfig(newToolsConfig: typeof toolsConfig.value) {
       timestamp: Date.now()
     });
   } catch (error) {
-    alert(t('app.configUpdateError', { error }));
+    await appAlert(t('app.configUpdateError', { error }));
+  }
+}
+
+async function handleWelcomeDone(payload: WelcomeDonePayload) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(WELCOME_STORAGE_KEY, '1');
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  showWelcomeWizard.value = false;
+
+  if (!payload.skipped) {
+    const dk = payload.deepseekApiKey.trim();
+    const bk = payload.bochaApiKey.trim();
+    if (dk) {
+      await saveConfig({
+        ...config.value,
+        apiKey: dk,
+      });
+    }
+    if (bk) {
+      const nextTools = JSON.parse(JSON.stringify(toolsConfig.value)) as typeof toolsConfig.value;
+      nextTools.web.search.api_key = bk;
+      await saveToolsConfig(nextTools);
+    }
+  }
+
+  await nextTick();
+  const shell = normalModeRef.value as null | {
+    openSettingsTab: (view: 'providers' | 'network') => void;
+    openConsole: () => void;
+  };
+  if (!shell) return;
+  if (payload.navigate === 'providers') {
+    shell.openSettingsTab('providers');
+  } else if (payload.navigate === 'network') {
+    shell.openSettingsTab('network');
+  } else if (payload.navigate === 'console') {
+    shell.openConsole();
   }
 }
 
@@ -869,12 +961,21 @@ onMounted(async () => {
       console.warn("Failed to load tools config:", e);
     }
 
+    try {
+      if (typeof localStorage !== 'undefined' && !localStorage.getItem(WELCOME_STORAGE_KEY)) {
+        showWelcomeWizard.value = true;
+      }
+    } catch (_) {
+      /* ignore */
+    }
+
     // Initial health check and polling
     await checkHealth();
     const healthInterval = setInterval(checkHealth, 5000);
 
-    // Fetch sessions
+    // Fetch sessions and reopen the latest GUI chat (not a fresh random chat id)
     await refreshSessions();
+    await restoreLatestGuiChatOnStartup();
 
     // Register cleanup
     onUnmounted(() => {
@@ -1111,7 +1212,14 @@ onUnmounted(() => {
 
 <template>
   <div class="w-screen h-screen overflow-hidden bg-transparent relative">
+    <WelcomeWizard
+      :open="showWelcomeWizard"
+      :config="config"
+      :tools-config="toolsConfig"
+      @done="handleWelcomeDone"
+    />
     <NormalMode
+      ref="normalModeRef"
       :messages="messages"
       :is-typing="isTyping"
       :connection-status="connectionStatus"

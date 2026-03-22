@@ -14,6 +14,10 @@ struct SplashState {
     backend_done: bool,
 }
 
+fn should_manage_gateway_lifecycle() -> bool {
+    !cfg!(debug_assertions)
+}
+
 #[tauri::command]
 fn set_splash_complete(
     app: tauri::AppHandle,
@@ -50,36 +54,42 @@ pub fn run() {
             backend_done: false,
         })))
         .setup(|app| {
-            // Cleanup orphan gateway processes on startup
-            let cleanup_result = process_utils::cleanup_orphan_gateway_processes();
-            match cleanup_result {
-                Ok(count) if count > 0 => {
-                    tracing::info!("Cleaned up {} orphan gateway process(es) on startup", count);
-                }
-                Ok(_) => {
-                    tracing::debug!("No orphan gateway processes found on startup");
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to cleanup orphan processes on startup: {}", e);
-                }
-            }
-
-            // Auto-start gateway on GUI launch
-            let app_handle = app.handle().clone();
-            spawn(async move {
-                // Wait a bit for GUI to initialize
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-                tracing::info!("Auto-starting gateway...");
-                match commands::start_gateway(app_handle.clone(), None).await {
-                    Ok(()) => {
-                        tracing::info!("Gateway auto-started successfully");
+            if should_manage_gateway_lifecycle() {
+                // Cleanup orphan gateway processes on startup
+                let cleanup_result = process_utils::cleanup_orphan_gateway_processes();
+                match cleanup_result {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Cleaned up {} orphan gateway process(es) on startup", count);
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphan gateway processes found on startup");
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to auto-start gateway: {}", e);
+                        tracing::warn!("Failed to cleanup orphan processes on startup: {}", e);
                     }
                 }
-            });
+
+                // Auto-start gateway on GUI launch
+                let app_handle = app.handle().clone();
+                spawn(async move {
+                    // Wait a bit for GUI to initialize
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+                    tracing::info!("Auto-starting gateway...");
+                    match commands::start_gateway(app_handle.clone(), None).await {
+                        Ok(()) => {
+                            tracing::info!("Gateway auto-started successfully");
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to auto-start gateway: {}", e);
+                        }
+                    }
+                });
+            } else {
+                tracing::info!(
+                    "Gateway lifecycle management is disabled in debug mode; expecting an external backend"
+                );
+            }
 
             let handle = app.handle().clone();
             let state = app.state::<Arc<Mutex<SplashState>>>().inner().clone();
@@ -103,7 +113,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             // Handle window close events to cleanup gateway process
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
+            if should_manage_gateway_lifecycle()
+                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
+            {
                 let window_label = window.label();
                 if window_label == "main" {
                     tracing::info!("Main window closing, cleaning up gateway process...");
@@ -150,13 +162,13 @@ pub fn run() {
             commands::delete_skill,
             commands::get_providers,
             commands::create_custom_provider,
+            commands::delete_custom_provider,
             commands::add_provider_model,
             commands::remove_provider_model,
             commands::get_provider_models,
             commands::test_provider_model,
             commands::get_channels,
             commands::update_channel,
-            commands::test_channel,
             commands::check_health,
             commands::get_gateway_process_status,
             commands::start_gateway,
@@ -165,6 +177,7 @@ pub fn run() {
             commands::load_config,
             commands::get_config,
             commands::get_config_status,
+            commands::wipe_local_data,
             commands::save_config,
             commands::tail_logs,
             commands::get_runtime_info,
@@ -176,4 +189,14 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_manage_gateway_lifecycle;
+
+    #[test]
+    fn gateway_lifecycle_is_disabled_in_debug_builds() {
+        assert_eq!(should_manage_gateway_lifecycle(), !cfg!(debug_assertions));
+    }
 }

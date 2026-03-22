@@ -14,6 +14,7 @@ import {
   type McpServerDto,
   type McpServerPayload,
 } from '../../api/desktop';
+import { appConfirm } from '../../utils/appDialog';
 
 const { t } = useI18n();
 
@@ -196,7 +197,10 @@ async function submitForm() {
 }
 
 async function removeMcp(name: string) {
-  if (previewMode.value || !window.confirm(t('mcp.deleteConfirm', { name }))) {
+  if (previewMode.value) {
+    return;
+  }
+  if (!(await appConfirm(t('mcp.deleteConfirm', { name })))) {
     return;
   }
   try {
@@ -419,8 +423,8 @@ onMounted(refreshList);
       <p v-if="error" class="text-xs text-red-600 break-words">{{ error }}</p>
     </div>
 
-    <div v-if="showEditor" class="fixed inset-0 z-20 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-gray-100 p-6 space-y-6">
+    <div v-if="showEditor" class="app-modal-dimmer fixed inset-0 z-20">
+      <div class="app-modal-panel max-h-[90vh] w-full max-w-5xl space-y-6 overflow-y-auto p-6">
         <div class="flex items-start justify-between gap-3">
           <div>
             <h4 class="text-lg font-semibold text-gray-900">{{ editorMode === 'create' ? t('mcp.formCreate') : t('mcp.formEdit') }}</h4>

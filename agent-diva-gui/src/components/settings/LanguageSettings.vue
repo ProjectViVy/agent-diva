@@ -2,13 +2,14 @@
 import { computed } from 'vue';
 import { Globe } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
+import { LOCALE_STORAGE_KEY } from '../../utils/localStorageAgentDiva';
 
 const { t, locale } = useI18n();
 const currentLocale = computed(() => locale.value);
 
 const toggleLang = () => {
   locale.value = locale.value === 'zh' ? 'en' : 'zh';
-  localStorage.setItem('agent-diva-locale', locale.value);
+  localStorage.setItem(LOCALE_STORAGE_KEY, locale.value);
 };
 </script>
 

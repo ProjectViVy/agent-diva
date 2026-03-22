@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, defineExpose, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
   Check,
@@ -14,6 +14,7 @@ import {
 import ChatView from './ChatView.vue';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
+import AppDialogLayer from './AppDialogLayer.vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -161,10 +162,43 @@ const currentProviderLabel = computed(() => {
   return props.config.provider;
 });
 
+const closeSidebar = () => {
+  sidebarOpen.value = false;
+  isModelDropdownOpen.value = false;
+  isHistoryDropdownOpen.value = false;
+};
+
 const toggleSidebar = () => {
   sidebarOpen.value = !sidebarOpen.value;
+  // Full-viewport z-[90] scrims for model/history menus live in the header; clear them
+  // when opening the drawer so they cannot block clicks on the main surface (e.g. settings).
+  isModelDropdownOpen.value = false;
+  isHistoryDropdownOpen.value = false;
   emit('toggle-sidebar');
 };
+
+const onSidebarEscapeKey = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    closeSidebar();
+  }
+};
+
+watch(sidebarOpen, (open) => {
+  if (open) {
+    window.addEventListener('keydown', onSidebarEscapeKey);
+  } else {
+    window.removeEventListener('keydown', onSidebarEscapeKey);
+  }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onSidebarEscapeKey);
+});
+
+watch([activeTab, activeMenu], () => {
+  isModelDropdownOpen.value = false;
+  isHistoryDropdownOpen.value = false;
+});
 
 const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
   if (section === 'chat' || section === 'settings') {
@@ -177,9 +211,7 @@ const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'da
     activeMenu.value = section;
   }
 
-  sidebarOpen.value = false;
-  isModelDropdownOpen.value = false;
-  isHistoryDropdownOpen.value = false;
+  closeSidebar();
 };
 
 const openSettingsFromModelMenu = () => {
@@ -251,6 +283,15 @@ const formatSessionTimestamp = (timestamp: number) => {
   }
   return date.toLocaleString();
 };
+
+defineExpose({
+  openSettingsTab(view: SettingsSubview) {
+    navigateTo('settings', view);
+  },
+  openConsole() {
+    navigateTo('console');
+  },
+});
 </script>
 
 <template>
@@ -415,10 +456,18 @@ const formatSessionTimestamp = (timestamp: number) => {
       </div>
     </header>
 
-    <div v-if="sidebarOpen" class="fixed inset-0 z-[60] no-drag">
-      <div class="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" @click="sidebarOpen = false" />
+    <!-- z-[60] above titlebar (z-50): full-screen dim; backdrop closes on click (Escape also). -->
+    <div v-if="sidebarOpen" class="fixed inset-0 z-[60] pointer-events-none no-drag">
+      <div
+        class="absolute inset-0 z-0 bg-black/30 backdrop-blur-sm transition-opacity pointer-events-auto"
+        aria-hidden="true"
+        role="presentation"
+        @click="closeSidebar"
+      />
 
-      <aside class="absolute inset-y-0 left-0 w-60 bg-white/95 border-r border-gray-200 shadow-xl flex flex-col py-4 px-3 space-y-3 z-[70]">
+      <aside
+        class="absolute inset-y-0 left-0 z-10 w-60 bg-white/95 border-r border-gray-200 shadow-xl flex flex-col py-4 px-3 space-y-3 pointer-events-auto"
+      >
         <div class="flex items-center px-2 pb-1">
           <div class="w-8 h-8 rounded-xl bg-pink-500 text-white flex items-center justify-center text-lg font-bold shadow-md mr-2">
             V
@@ -544,6 +593,8 @@ const formatSessionTimestamp = (timestamp: number) => {
         </div>
       </template>
     </main>
+
+    <AppDialogLayer :theme-mode="themeMode" />
   </div>
 </template>
 

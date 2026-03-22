@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue';
-import { SlidersHorizontal, MessageSquareText, ServerCog, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap } from 'lucide-vue-next';
+import { SlidersHorizontal, MessageSquareText, ServerCog, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap, AlertTriangle } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import GatewayControlPanel from '../GatewayControlPanel.vue';
-import { getConfigStatus, type ConfigStatusReport } from '../../api/desktop';
+import { getConfigStatus, startGateway, wipeLocalData, type ConfigStatusReport } from '../../api/desktop';
+import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES } from '../../utils/localStorageAgentDiva';
 
 const { t } = useI18n();
 
@@ -24,6 +25,10 @@ const emit = defineEmits<{
 const localPrefs = ref<ChatDisplayPrefs>({ ...props.chatDisplayPrefs });
 const statusReport = ref<ConfigStatusReport | null>(null);
 const cacheCleared = ref(false);
+const preserveLocaleOnWipe = ref(false);
+const dangerConfirmInput = ref('');
+const wiping = ref(false);
+const wipeError = ref<string | null>(null);
 
 watch(
   () => props.chatDisplayPrefs,
@@ -53,16 +58,19 @@ const readyChannels = computed(() =>
   statusReport.value?.channels.filter((item) => item.enabled && item.ready).length ?? 0
 );
 
-const CACHE_KEYS = ['agent-diva-saved-models', 'agent-diva-history-prefs'];
-const CACHE_PREFIXES = ['agent-diva-session-cache:'];
+const dangerConfirmWord = computed(() => t('general.dangerConfirmWord'));
+
+const dangerConfirmOk = computed(
+  () => dangerConfirmInput.value.trim() === dangerConfirmWord.value
+);
 
 function clearUiCache() {
-  for (const key of CACHE_KEYS) {
+  for (const key of UI_CACHE_KEYS) {
     localStorage.removeItem(key);
   }
 
   const keysToRemove = Object.keys(localStorage).filter((key) =>
-    CACHE_PREFIXES.some((prefix) => key.startsWith(prefix))
+    UI_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix))
   );
   for (const key of keysToRemove) {
     localStorage.removeItem(key);
@@ -72,6 +80,28 @@ function clearUiCache() {
   window.setTimeout(() => {
     cacheCleared.value = false;
   }, 2500);
+}
+
+async function runFullWipe() {
+  if (!dangerConfirmOk.value || wiping.value) {
+    return;
+  }
+  wipeError.value = null;
+  wiping.value = true;
+  try {
+    await wipeLocalData();
+    clearAgentDivaLocalStorage({ preserveLocale: preserveLocaleOnWipe.value });
+    try {
+      await startGateway(null);
+    } catch (gwErr) {
+      console.warn('start_gateway after wipe:', gwErr);
+    }
+    window.location.reload();
+  } catch (e) {
+    wipeError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    wiping.value = false;
+  }
 }
 </script>
 
@@ -180,6 +210,54 @@ function clearUiCache() {
       </div>
 
       <GatewayControlPanel />
+    </div>
+
+    <div class="rounded-xl border-2 border-red-200 bg-red-50/80 p-4 space-y-4">
+      <div class="flex items-center space-x-2 text-red-900">
+        <AlertTriangle :size="18" class="shrink-0" />
+        <span class="text-sm font-semibold">{{ t('general.dangerZoneTitle') }}</span>
+      </div>
+      <p class="text-sm text-red-900/90 leading-relaxed">{{ t('general.dangerZoneDesc') }}</p>
+      <p class="text-xs text-red-800/80 leading-relaxed">{{ t('general.dangerServiceNote') }}</p>
+
+      <div v-if="statusReport" class="rounded-lg border border-red-200 bg-white/90 px-3 py-2 space-y-1">
+        <div class="text-xs font-medium text-red-900/90">{{ t('general.dangerPathsHint') }}</div>
+        <div class="text-xs font-mono text-gray-800 break-all space-y-0.5">
+          <div>{{ statusReport.config.config_path }}</div>
+          <div>{{ statusReport.config.workspace }}</div>
+          <div>{{ statusReport.config.runtime_dir }}</div>
+        </div>
+      </div>
+
+      <label class="flex items-center gap-2 text-sm text-red-950 cursor-pointer">
+        <input v-model="preserveLocaleOnWipe" type="checkbox" class="rounded border-red-300" />
+        <span>{{ t('general.dangerPreserveLocale') }}</span>
+      </label>
+
+      <div class="space-y-1">
+        <label class="text-xs font-medium text-red-900/90 block">
+          {{ t('general.dangerConfirmPrompt', { word: dangerConfirmWord }) }}
+        </label>
+        <input
+          v-model="dangerConfirmInput"
+          type="text"
+          autocomplete="off"
+          class="w-full max-w-md rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400/60"
+          :placeholder="dangerConfirmWord"
+        />
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          :disabled="!dangerConfirmOk || wiping"
+          class="inline-flex items-center rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+          @click="runFullWipe"
+        >
+          {{ wiping ? t('general.dangerWiping') : t('general.dangerWipe') }}
+        </button>
+        <span v-if="wipeError" class="text-sm text-red-800">{{ t('general.dangerFailed', { error: wipeError }) }}</span>
+      </div>
     </div>
   </div>
 </template>

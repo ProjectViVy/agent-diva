@@ -5,14 +5,14 @@ use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
     CustomProviderUpsert, LiteLLMClient, Message, ProviderAccess, ProviderCatalogService,
-    ProviderModelCatalogView as SharedProviderModelCatalog, ProviderSource,
+    ProviderModelCatalogView as SharedProviderModelCatalog, ProviderView as SharedProviderView,
 };
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Instant;
@@ -140,40 +140,25 @@ pub struct McpServerPayload {
     pub tool_timeout: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WipeSummary {
+    pub removed_paths: Vec<String>,
+}
+
+// Manager API bridge commands. These proxy companion/runtime HTTP APIs without
+// depending on manager internals from the GUI host process.
 #[tauri::command]
-pub async fn get_providers(_state: State<'_, AgentState>) -> Result<Vec<ProviderSpec>, String> {
-    let config = config_loader().load().unwrap_or_default();
-    let catalog = ProviderCatalogService::new();
-    let specs = catalog.list_provider_views(&config);
-    let mut providers = Vec::with_capacity(specs.len());
-    for spec in specs {
-        let models = catalog
-            .list_provider_models(&config, &spec.id, false, None)
+pub async fn get_providers(state: State<'_, AgentState>) -> Result<Vec<ProviderSpec>, String> {
+    let views = state.get_provider_views().await?;
+    let mut providers = Vec::with_capacity(views.len());
+    for view in views {
+        let models = state
+            .get_provider_model_catalog(&view.id, false)
             .await
-            .map(|catalog| {
-                let custom_models = catalog.custom_models.clone();
-                (
-                    catalog.models.into_iter().map(|entry| entry.id).collect(),
-                    custom_models,
-                )
-            })
+            .map(provider_models_from_catalog)
             .unwrap_or_default();
-        providers.push(ProviderSpec {
-            name: spec.id,
-            display_name: spec.display_name,
-            api_type: spec.api_type,
-            source: match spec.source {
-                ProviderSource::Builtin => "builtin",
-                ProviderSource::Custom => "custom",
-            }
-            .to_string(),
-            configured: spec.configured,
-            ready: spec.ready,
-            default_api_base: spec.default_api_base.or(spec.api_base).unwrap_or_default(),
-            default_model: spec.default_model,
-            models: models.0,
-            custom_models: models.1,
-        });
+        providers.push(provider_spec_from_view(view, models.0, models.1));
     }
 
     Ok(providers)
@@ -182,13 +167,11 @@ pub async fn get_providers(_state: State<'_, AgentState>) -> Result<Vec<Provider
 #[tauri::command]
 pub async fn create_custom_provider(
     payload: CustomProviderPayload,
+    state: State<'_, AgentState>,
 ) -> Result<ProviderSpec, String> {
-    let loader = config_loader();
-    let mut config = loader.load().unwrap_or_default();
     let provider_id = payload.id.trim().to_string();
-    ProviderCatalogService::new().save_custom_provider(
-        &mut config,
-        CustomProviderUpsert {
+    let view = state
+        .create_custom_provider(&CustomProviderUpsert {
             id: payload.id,
             display_name: payload.display_name,
             api_type: payload.api_type,
@@ -197,64 +180,38 @@ pub async fn create_custom_provider(
             default_model: payload.default_model,
             models: payload.models,
             extra_headers: payload.extra_headers,
-        },
-    )?;
-    loader
-        .save(&config)
-        .map_err(|error| format!("failed to save config: {error}"))?;
-
-    let catalog = ProviderCatalogService::new();
-    let spec = catalog
-        .get_provider_view(&config, &provider_id)
-        .ok_or_else(|| format!("provider '{provider_id}' not found after save"))?;
-    let models = catalog
-        .list_provider_models(&config, &spec.id, false, None)
-        .await
-        .map(|catalog| {
-            let custom_models = catalog.custom_models.clone();
-            (
-                catalog.models.into_iter().map(|entry| entry.id).collect(),
-                custom_models,
-            )
         })
+        .await
+        .and_then(|provider| {
+            provider.ok_or_else(|| format!("provider '{provider_id}' not found after save"))
+        })?;
+    let models = state
+        .get_provider_model_catalog(&view.id, false)
+        .await
+        .map(provider_models_from_catalog)
         .unwrap_or_default();
 
-    Ok(ProviderSpec {
-        name: spec.id,
-        display_name: spec.display_name,
-        api_type: spec.api_type,
-        source: match spec.source {
-            ProviderSource::Builtin => "builtin",
-            ProviderSource::Custom => "custom",
-        }
-        .to_string(),
-        configured: spec.configured,
-        ready: spec.ready,
-        default_api_base: spec.default_api_base.or(spec.api_base).unwrap_or_default(),
-        default_model: spec.default_model,
-        models: models.0,
-        custom_models: models.1,
-    })
+    Ok(provider_spec_from_view(view, models.0, models.1))
+}
+
+#[tauri::command]
+pub async fn delete_custom_provider(
+    provider: String,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    state.delete_custom_provider(provider.trim()).await
 }
 
 #[tauri::command]
 pub async fn add_provider_model(
     provider: String,
     model: String,
+    state: State<'_, AgentState>,
 ) -> Result<ProviderModelCatalog, String> {
-    let loader = config_loader();
-    let mut config = loader.load().unwrap_or_default();
     let provider_id = provider.trim().to_string();
     let model_id = model.trim().to_string();
-    let catalog = ProviderCatalogService::new();
-    catalog.add_provider_model(&mut config, &provider_id, &model_id)?;
-    loader
-        .save(&config)
-        .map_err(|error| format!("failed to save config: {error}"))?;
-
-    let updated = catalog
-        .list_provider_models(&config, &provider_id, false, None)
-        .await?;
+    state.add_provider_model(&provider_id, &model_id).await?;
+    let updated = state.get_provider_model_catalog(&provider_id, false).await?;
     Ok(provider_model_catalog_dto(updated))
 }
 
@@ -262,20 +219,12 @@ pub async fn add_provider_model(
 pub async fn remove_provider_model(
     provider: String,
     model: String,
+    state: State<'_, AgentState>,
 ) -> Result<ProviderModelCatalog, String> {
-    let loader = config_loader();
-    let mut config = loader.load().unwrap_or_default();
     let provider_id = provider.trim().to_string();
     let model_id = model.trim().to_string();
-    let catalog = ProviderCatalogService::new();
-    catalog.remove_provider_model(&mut config, &provider_id, &model_id)?;
-    loader
-        .save(&config)
-        .map_err(|error| format!("failed to save config: {error}"))?;
-
-    let updated = catalog
-        .list_provider_models(&config, &provider_id, false, None)
-        .await?;
+    state.remove_provider_model(&provider_id, &model_id).await?;
+    let updated = state.get_provider_model_catalog(&provider_id, false).await?;
     Ok(provider_model_catalog_dto(updated))
 }
 
@@ -1081,7 +1030,15 @@ pub async fn get_provider_models(
     provider: String,
     api_base: Option<String>,
     api_key: Option<String>,
+    state: State<'_, AgentState>,
 ) -> Result<ProviderModelCatalog, String> {
+    if api_base.is_none() && api_key.is_none() {
+        let catalog = state
+            .get_provider_model_catalog(provider.trim(), true)
+            .await?;
+        return Ok(provider_model_catalog_dto(catalog));
+    }
+
     let loader = config_loader();
     let config = loader.load().unwrap_or_default();
     let mut access = ProviderCatalogService::new()
@@ -1113,6 +1070,8 @@ pub async fn test_provider_model(
     api_base: Option<String>,
     api_key: Option<String>,
 ) -> Result<ProviderModelTestResult, String> {
+    // Keep this local so the GUI can probe ad-hoc credentials without
+    // introducing new manager API surface or mutating manager-managed config.
     let provider = provider.trim().to_string();
     let model = model.trim().to_string();
     if provider.is_empty() {
@@ -1450,36 +1409,6 @@ pub async fn update_channel(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn test_channel(
-    name: String,
-    config: serde_json::Value,
-    state: State<'_, AgentState>,
-) -> Result<(), String> {
-    let url = format!("{}/channels/test", state.api_base_url);
-
-    let payload = serde_json::json!({
-        "name": name,
-        "enabled": true, // Test usually implies temporarily enabling or just checking config
-        "config": config
-    });
-
-    let response = state
-        .client
-        .post(&url)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to test channel: {}", e))?;
-
-    if !response.status().is_success() {
-        let error_text = response.text().await.unwrap_or_default();
-        return Err(format!("Test failed: {}", error_text));
-    }
-
-    Ok(())
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct RuntimeInfo {
     pub platform: String,
@@ -1504,6 +1433,8 @@ pub struct ServiceStatusPayload {
     pub details: Option<String>,
 }
 
+// Local runtime bridge helpers below operate on the desktop host process,
+// bundled runtime assets, and local filesystem/process state.
 fn runtime_platform() -> &'static str {
     if cfg!(target_os = "windows") {
         "windows"
@@ -1575,6 +1506,35 @@ fn provider_model_catalog_dto(catalog: SharedProviderModelCatalog) -> ProviderMo
         custom_models: catalog.custom_models,
         warnings: catalog.warnings,
         error: catalog.error,
+    }
+}
+
+fn provider_models_from_catalog(catalog: SharedProviderModelCatalog) -> (Vec<String>, Vec<String>) {
+    (
+        catalog.models.into_iter().map(|entry| entry.id).collect(),
+        catalog.custom_models,
+    )
+}
+
+fn provider_spec_from_view(
+    view: SharedProviderView,
+    models: Vec<String>,
+    custom_models: Vec<String>,
+) -> ProviderSpec {
+    ProviderSpec {
+        name: view.id,
+        display_name: view.display_name,
+        api_type: view.api_type,
+        source: serde_json::to_value(view.source)
+            .ok()
+            .and_then(|value| value.as_str().map(ToString::to_string))
+            .unwrap_or_else(|| "builtin".to_string()),
+        configured: view.configured,
+        ready: view.ready,
+        default_api_base: view.default_api_base.or(view.api_base).unwrap_or_default(),
+        default_model: view.default_model,
+        models,
+        custom_models,
     }
 }
 
@@ -2380,6 +2340,165 @@ pub fn save_config(raw: String) -> Result<(), String> {
     loader
         .save(&config)
         .map_err(|e| format!("failed to save config: {}", e))
+}
+
+fn validate_wipe_config_root(path: &Path) -> Result<(), String> {
+    if path.as_os_str().is_empty() {
+        return Err("config directory path is empty".to_string());
+    }
+    if path.components().count() < 2 {
+        return Err("config directory path is too short to be safe".to_string());
+    }
+    if let Some(home) = dirs::home_dir() {
+        if path == home.as_path() {
+            return Err("refusing to delete user home as config directory".to_string());
+        }
+        if path.exists() {
+            if let (Ok(h_canon), Ok(p_canon)) = (home.canonicalize(), path.canonicalize()) {
+                if h_canon == p_canon {
+                    return Err("refusing to delete user home as config directory".to_string());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_external_workspace_delete(ws_canon: &Path) -> Result<(), String> {
+    if let Some(home) = dirs::home_dir() {
+        if let Ok(h) = home.canonicalize() {
+            if ws_canon == h.as_path() {
+                return Err("refusing to delete workspace: path is user home".to_string());
+            }
+        }
+    }
+    let lossy = ws_canon.to_string_lossy().to_lowercase();
+    const BLOCKED: &[&str] = &[
+        "\\program files\\",
+        "\\program files (x86)\\",
+        "\\windows\\",
+        "\\programdata\\",
+    ];
+    for fragment in BLOCKED {
+        if lossy.contains(fragment) {
+            return Err(format!(
+                "refusing to delete workspace under protected system location ({fragment})"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn wipe_local_disk_blocking(
+    config_root: PathBuf,
+    workspace: PathBuf,
+) -> Result<WipeSummary, Vec<String>> {
+    let mut removed_paths = Vec::new();
+    let mut errors = Vec::new();
+
+    let cr_exists = config_root.exists();
+    let ws_still_exists = workspace.exists();
+
+    let workspace_inside_config = if cr_exists && ws_still_exists {
+        let cr_c = std::fs::canonicalize(&config_root).map_err(|e| {
+            vec![format!(
+                "failed to canonicalize config directory {}: {}",
+                config_root.display(),
+                e
+            )]
+        })?;
+        let ws_c = std::fs::canonicalize(&workspace).map_err(|e| {
+            vec![format!(
+                "failed to canonicalize workspace {}: {}",
+                workspace.display(),
+                e
+            )]
+        })?;
+        ws_c.starts_with(&cr_c)
+    } else {
+        false
+    };
+
+    if cr_exists {
+        match std::fs::remove_dir_all(&config_root) {
+            Ok(()) => removed_paths.push(config_root.display().to_string()),
+            Err(e) => errors.push(format!(
+                "failed to remove config directory {}: {}",
+                config_root.display(),
+                e
+            )),
+        }
+    }
+
+    if workspace.exists() && !workspace_inside_config {
+        let ws_canon = std::fs::canonicalize(&workspace).map_err(|e| {
+            vec![format!(
+                "failed to canonicalize workspace {}: {}",
+                workspace.display(),
+                e
+            )]
+        })?;
+        if let Err(msg) = validate_external_workspace_delete(&ws_canon) {
+            errors.push(msg);
+        } else {
+            match std::fs::remove_dir_all(&workspace) {
+                Ok(()) => {
+                    let label = ws_canon.display().to_string();
+                    if !removed_paths.iter().any(|p| p == &label) {
+                        removed_paths.push(label);
+                    }
+                }
+                Err(e) => errors.push(format!(
+                    "failed to remove workspace {}: {}",
+                    workspace.display(),
+                    e
+                )),
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(WipeSummary { removed_paths })
+    } else {
+        Err(errors)
+    }
+}
+
+/// Stops the gateway, terminates stray gateway processes, then deletes the config directory
+/// (and the workspace directory when it lies outside the config directory).
+#[tauri::command]
+pub async fn wipe_local_data() -> Result<WipeSummary, String> {
+    stop_gateway().await?;
+
+    let gateway_pids = process_utils::find_gateway_processes();
+    if !gateway_pids.is_empty() {
+        info!(
+            "wipe_local_data: terminating {} lingering gateway process(es)",
+            gateway_pids.len()
+        );
+    }
+    for pid in gateway_pids {
+        if let Err(e) = process_utils::terminate_process(pid) {
+            warn!(
+                "wipe_local_data: failed to terminate gateway pid {}: {}",
+                pid, e
+            );
+        }
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(450)).await;
+
+    let loader = config_loader();
+    validate_wipe_config_root(loader.config_dir())?;
+
+    let runtime = cli_runtime_from_loader(&loader);
+    let config = loader.load().unwrap_or_default();
+    let config_root = loader.config_dir().to_path_buf();
+    let workspace = runtime.effective_workspace(&config);
+
+    tokio::task::spawn_blocking(move || wipe_local_disk_blocking(config_root, workspace))
+        .await
+        .map_err(|e| format!("wipe task join error: {}", e))?
+        .map_err(|errs| errs.join("; "))
 }
 
 #[tauri::command]

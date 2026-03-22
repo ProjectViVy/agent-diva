@@ -1,8 +1,9 @@
 import { createI18n } from 'vue-i18n';
 import zh from './locales/zh';
 import en from './locales/en';
+import { LOCALE_STORAGE_KEY } from './utils/localStorageAgentDiva';
 
-const savedLocale = localStorage.getItem('agent-diva-locale') || 'zh';
+const savedLocale = localStorage.getItem(LOCALE_STORAGE_KEY) || 'zh';
 
 const zhPatched: any = { ...zh };
 

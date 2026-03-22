@@ -82,6 +82,9 @@ const mockChannels = {
         custom_models: args.payload.models || [],
       };
     }
+    if (cmd === 'delete_custom_provider') {
+      return;
+    }
     if (cmd === 'add_provider_model') {
       return {
         provider: args.provider,

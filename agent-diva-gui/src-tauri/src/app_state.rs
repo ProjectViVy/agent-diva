@@ -1,3 +1,7 @@
+use agent_diva_providers::{
+    CustomProviderUpsert, ProviderModelCatalogView as SharedProviderModelCatalog, ProviderView,
+};
+
 #[derive(Clone)]
 pub struct AgentState {
     pub client: reqwest::Client,
@@ -70,6 +74,156 @@ impl AgentState {
             .map_err(|e| format!("Request failed: {}", e))?;
         if !response.status().is_success() {
             return Err(format!("Server error: {}", response.status()));
+        }
+        Ok(())
+    }
+
+    pub async fn get_provider_views(&self) -> Result<Vec<ProviderView>, String> {
+        let url = format!("{}/providers", self.api_base_url);
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
+        }
+        response
+            .json::<Vec<ProviderView>>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))
+    }
+
+    pub async fn get_provider_model_catalog(
+        &self,
+        provider: &str,
+        runtime: bool,
+    ) -> Result<SharedProviderModelCatalog, String> {
+        let url = format!(
+            "{}/providers/{}/models?runtime={}",
+            self.api_base_url,
+            urlencoding::encode(provider),
+            runtime
+        );
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
+        }
+        response
+            .json::<SharedProviderModelCatalog>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))
+    }
+
+    pub async fn create_custom_provider(
+        &self,
+        payload: &CustomProviderUpsert,
+    ) -> Result<Option<ProviderView>, String> {
+        let url = format!("{}/providers", self.api_base_url);
+        let response = self
+            .client
+            .post(&url)
+            .json(payload)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        let value = response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))?;
+        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+            return Err(value
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error")
+                .to_string());
+        }
+        serde_json::from_value(value.get("provider").cloned().unwrap_or(serde_json::Value::Null))
+            .map_err(|e| format!("Invalid provider payload: {}", e))
+    }
+
+    pub async fn delete_custom_provider(&self, provider: &str) -> Result<(), String> {
+        let url = format!(
+            "{}/providers/{}",
+            self.api_base_url,
+            urlencoding::encode(provider)
+        );
+        let response = self
+            .client
+            .delete(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        let value = response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))?;
+        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+            return Err(value
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error")
+                .to_string());
+        }
+        Ok(())
+    }
+
+    pub async fn add_provider_model(&self, provider: &str, model: &str) -> Result<(), String> {
+        let url = format!(
+            "{}/providers/{}/models",
+            self.api_base_url,
+            urlencoding::encode(provider)
+        );
+        let response = self
+            .client
+            .post(&url)
+            .json(&serde_json::json!({ "model": model }))
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        let value = response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))?;
+        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+            return Err(value
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error")
+                .to_string());
+        }
+        Ok(())
+    }
+
+    pub async fn remove_provider_model(&self, provider: &str, model: &str) -> Result<(), String> {
+        let url = format!(
+            "{}/providers/{}/models/{}",
+            self.api_base_url,
+            urlencoding::encode(provider),
+            urlencoding::encode(model)
+        );
+        let response = self
+            .client
+            .delete(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        let value = response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))?;
+        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+            return Err(value
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error")
+                .to_string());
         }
         Ok(())
     }
