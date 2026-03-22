@@ -1,4 +1,4 @@
-# Justfile for nanobot
+# Justfile for Agent Diva
 
 set shell := ["powershell.exe", "-c"]
 
@@ -75,19 +75,12 @@ audit:
 bench:
     cargo bench --all
 
-# Package for Linux distribution
-package-linux:
-    cargo build --release --package agent-diva-cli
+# Linux x86_64 zip (Windows host: requires Docker + `cross`; CI/Linux: use scripts/package-linux.sh)
+package-linux: cross-linux-x86_64
     New-Item -ItemType Directory -Force -Path "dist\linux"
-    Copy-Item "target\release\agent-diva.exe" "dist\linux\agent-diva" -ErrorAction SilentlyContinue
-    Compress-Archive -Path "dist\linux\*" -DestinationPath "dist\agent-diva-linux-x86_64.zip" -Force
+    Copy-Item "target\x86_64-unknown-linux-gnu\release\agent-diva" "dist\linux\agent-diva" -Force
+    Compress-Archive -Path "dist\linux\agent-diva" -DestinationPath "dist\agent-diva-linux-x86_64.zip" -Force
     Write-Host "Package created: dist\agent-diva-linux-x86_64.zip"
-
-# Create distribution archive
-dist: build-release
-    New-Item -ItemType Directory -Force -Path "dist\linux"
-    Compress-Archive -Path "dist\linux\*" -DestinationPath "dist\agent-diva-0.2.0-linux.zip" -Force
-    Write-Host "Distribution package created"
 
 # Build deb package (requires cargo-deb on Linux)
 build-deb:

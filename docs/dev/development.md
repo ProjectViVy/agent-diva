@@ -1,4 +1,4 @@
-﻿# Development Guide
+# Development Guide
 
 This guide covers development practices and workflows for agent-diva.
 
@@ -188,7 +188,7 @@ Create `.vscode/launch.json`:
 
 ```json
 {
-    "version": "0.2.0",
+    "version": "0.4.0",
     "configurations": [
         {
             "type": "lldb",
@@ -340,7 +340,9 @@ cargo update
 4. **CI automatically**:
    - Builds binaries for all platforms
    - Creates GitHub release
-   - Publishes to crates.io
+   - Publishes to crates.io (main workspace closure: `agent-diva-core` → … → `agent-diva-manager` → `agent-diva-cli`; see `.github/workflows/release.yml` and `scripts/wait-crates-io-version.sh`)
+
+**`agent-diva-nano`** lives in an external repository; publish or package the nano stack from that repo — this monorepo does not ship a `publish-nano-stack` helper script.
 
 ## Resources
 

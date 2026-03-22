@@ -1,4 +1,4 @@
-﻿name: Release
+name: Release
 
 on:
   push:
@@ -120,29 +120,66 @@ jobs:
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Read workspace version
+        id: ws
+        run: |
+          VERSION=$(grep -A20 '^\[workspace.package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
+          echo "Publishing workspace version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Publish agent-diva-core
         run: cargo publish --package agent-diva-core --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
 
-      - name: Wait for agent-diva-core to be available
-        run: sleep 30
-
-      - name: Publish agent-diva-agent
-        run: cargo publish --package agent-diva-agent --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
+      - name: Wait for agent-diva-core on crates.io
+        env:
+          CRATE: agent-diva-core
+          VERSION: ${{ steps.ws.outputs.version }}
+        run: bash scripts/wait-crates-io-version.sh
 
       - name: Publish agent-diva-providers
         run: cargo publish --package agent-diva-providers --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
 
-      - name: Publish agent-diva-channels
-        run: cargo publish --package agent-diva-channels --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
+      - name: Wait for agent-diva-providers on crates.io
+        env:
+          CRATE: agent-diva-providers
+          VERSION: ${{ steps.ws.outputs.version }}
+        run: bash scripts/wait-crates-io-version.sh
 
       - name: Publish agent-diva-tools
         run: cargo publish --package agent-diva-tools --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
+
+      - name: Wait for agent-diva-tools on crates.io
+        env:
+          CRATE: agent-diva-tools
+          VERSION: ${{ steps.ws.outputs.version }}
+        run: bash scripts/wait-crates-io-version.sh
+
+      - name: Publish agent-diva-channels
+        run: cargo publish --package agent-diva-channels --token ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: Wait for agent-diva-channels on crates.io
+        env:
+          CRATE: agent-diva-channels
+          VERSION: ${{ steps.ws.outputs.version }}
+        run: bash scripts/wait-crates-io-version.sh
+
+      - name: Publish agent-diva-agent
+        run: cargo publish --package agent-diva-agent --token ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: Wait for agent-diva-agent on crates.io
+        env:
+          CRATE: agent-diva-agent
+          VERSION: ${{ steps.ws.outputs.version }}
+        run: bash scripts/wait-crates-io-version.sh
+
+      - name: Publish agent-diva-manager
+        run: cargo publish --package agent-diva-manager --token ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: Wait for agent-diva-manager on crates.io
+        env:
+          CRATE: agent-diva-manager
+          VERSION: ${{ steps.ws.outputs.version }}
+        run: bash scripts/wait-crates-io-version.sh
 
       - name: Publish agent-diva-cli
         run: cargo publish --package agent-diva-cli --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true

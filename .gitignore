@@ -1,5 +1,7 @@
 # Rust
 /target
+# Accidental cargo message-mode output at repo root
+/build_utf8.json
 **/*.rs.bk
 *.d
 *.rlib
