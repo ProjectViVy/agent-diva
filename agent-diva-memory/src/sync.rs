@@ -2,6 +2,7 @@
 
 use crate::compat_source::MemoryMdChunkSource;
 use crate::contracts::{DiaryStore, MemoryStore};
+use crate::derived::derive_structured_memory_records;
 use crate::diary::FileDiaryStore;
 use crate::store::SqliteMemoryStore;
 use crate::types::{DiaryEntry, DiaryPartition, MemoryRecord};
@@ -36,7 +37,11 @@ pub fn sync_diary_entry_to_sqlite<P: AsRef<Path>>(
     entry: &DiaryEntry,
 ) -> agent_diva_core::Result<()> {
     let store = SqliteMemoryStore::new(workspace.as_ref())?;
-    store.store_record(&stored_diary_record(entry))
+    store.store_record(&stored_diary_record(entry))?;
+    for record in derive_structured_memory_records(entry) {
+        store.store_record(&record)?;
+    }
+    Ok(())
 }
 
 pub fn backfill_workspace_sources<P: AsRef<Path>>(
@@ -49,6 +54,9 @@ pub fn backfill_workspace_sources<P: AsRef<Path>>(
         for day in diary_store.list_days(partition.clone())? {
             for entry in diary_store.load_day(&day, partition.clone())? {
                 store.store_record(&stored_diary_record(&entry))?;
+                for record in derive_structured_memory_records(&entry) {
+                    store.store_record(&record)?;
+                }
             }
         }
     }
@@ -131,7 +139,9 @@ mod tests {
     fn test_backfill_workspace_sources_is_idempotent() {
         let temp = TempDir::new().unwrap();
         let diary_store = FileDiaryStore::new(temp.path());
-        diary_store.append_entry(&sample_entry()).unwrap();
+        let mut entry = sample_entry();
+        entry.confirmed = vec!["用户偏好中文回复，尽量保持简洁。".into()];
+        diary_store.append_entry(&entry).unwrap();
 
         std::fs::create_dir_all(temp.path().join("memory")).unwrap();
         std::fs::write(
@@ -145,8 +155,11 @@ mod tests {
         backfill_workspace_sources(temp.path(), &store).unwrap();
 
         let records = store.list_records().unwrap();
-        assert_eq!(records.len(), 2);
+        assert_eq!(records.len(), 3);
         assert!(records.iter().any(|record| record.id == "diary:entry-1"));
+        assert!(records
+            .iter()
+            .any(|record| record.id == "derived:relationship:entry-1"));
         assert!(records
             .iter()
             .any(|record| record.id.starts_with("compat:compat-memory-md-")));

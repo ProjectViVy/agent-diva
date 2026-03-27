@@ -342,7 +342,37 @@ mod tests {
 
         let memory_store = agent_diva_memory::SqliteMemoryStore::new(temp_dir.path()).unwrap();
         let records = memory_store.list_records().unwrap();
-        assert_eq!(records.len(), 1);
-        assert!(records[0].id.starts_with("diary:"));
+        assert!(records.iter().any(|record| record.id.starts_with("diary:")));
+    }
+
+    #[test]
+    fn test_persist_if_relevant_derives_structured_memory_records() {
+        let temp_dir = TempDir::new().unwrap();
+        let extractor = RationalDiaryExtractor;
+        let assistant_output = r#"
+## 协作规则
+- 已确认：用户偏好中文回复，并希望答案尽量简洁直接。
+- 已确认：所有回复必须以前缀 [I strictly follow the rules] 开头。
+- 已确认：这个 agent 应该先说明动作再改文件，不要自作主张提交代码。
+- 建议：后续把这些规则写成可检索的结构化 memory。
+"#;
+
+        let persisted = extractor
+            .persist_if_relevant(temp_dir.path(), "请整理我们的协作规则", assistant_output)
+            .unwrap();
+        assert!(persisted);
+
+        let memory_store = agent_diva_memory::SqliteMemoryStore::new(temp_dir.path()).unwrap();
+        let records = memory_store.list_records().unwrap();
+        assert!(records.iter().any(|record| record.id.starts_with("diary:")));
+        assert!(records
+            .iter()
+            .any(|record| record.domain == MemoryDomain::Relationship));
+        assert!(records
+            .iter()
+            .any(|record| record.domain == MemoryDomain::SelfModel));
+        assert!(records
+            .iter()
+            .any(|record| record.domain == MemoryDomain::SoulSignal));
     }
 }

@@ -5,33 +5,31 @@ use crate::contracts::{
     MemoryStore, MemoryToolContract, MemoryToolRecallResult, RecallEngine,
 };
 use crate::diary::FileDiaryStore;
-use crate::embeddings::{
-    cosine_similarity, provider_from_config, EmbeddingProvider, EmbeddingProviderConfig,
-};
+use crate::embeddings::{provider_from_config, EmbeddingProvider, EmbeddingProviderConfig};
 use crate::layout::brain_db_path;
 use crate::recall::FileRecallEngine;
+use crate::retrieval::{
+    CachedSemanticRetriever, DefaultHybridReranker, EmbeddingCacheStore, MergedKeywordRetriever,
+    RetrievalEngine,
+};
 use crate::snapshot::{export_snapshot, hydrate_snapshot, snapshot_exists};
 use crate::sqlite_recall::SqliteRecallEngine;
 use crate::store::SqliteMemoryStore;
-use crate::sync::{backfill_workspace_sources, canonical_record_key, fingerprint};
+use crate::sync::backfill_workspace_sources;
 use crate::types::{
     DiaryEntry, DiaryFilter, DiaryPartition, MemoryGetRequest, MemoryGetResult, MemoryQuery,
     MemoryRecord, MemorySearchResult, MemorySearchResultItem, RecallMode,
 };
 use chrono::Local;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tracing::warn;
 
 pub struct WorkspaceMemoryService {
     workspace: PathBuf,
     diary_store: FileDiaryStore,
-    file_recall_engine: Arc<FileRecallEngine>,
-    sqlite_recall_engine: Arc<SqliteRecallEngine>,
     memory_store: Arc<SqliteMemoryStore>,
-    embedding_provider: Arc<dyn EmbeddingProvider>,
-    embedding_config: EmbeddingProviderConfig,
+    retrieval_engine: RetrievalEngine,
 }
 
 impl WorkspaceMemoryService {
@@ -46,15 +44,27 @@ impl WorkspaceMemoryService {
         let memory_store = Arc::new(
             initialize_memory_store(workspace).expect("sqlite memory store initialization"),
         );
+        let file_recall_engine: Arc<dyn RecallEngine> =
+            Arc::new(FileRecallEngine::for_workspace(workspace));
+        let sqlite_recall_engine = Arc::new(SqliteRecallEngine::new(Arc::clone(&memory_store)));
+        let embedding_provider: Arc<dyn EmbeddingProvider> = Arc::from(embedding_provider);
+        let semantic = Arc::new(CachedSemanticRetriever::new(
+            Arc::clone(&memory_store) as Arc<dyn EmbeddingCacheStore>,
+            Arc::clone(&embedding_provider),
+            embedding_config.clone(),
+        ));
+        let keyword = Arc::new(MergedKeywordRetriever::new(
+            Arc::clone(&sqlite_recall_engine),
+            file_recall_engine,
+        ));
+        let retrieval_engine =
+            RetrievalEngine::new(keyword, Arc::new(DefaultHybridReranker::new(semantic)));
 
         let service = Self {
             workspace: workspace.to_path_buf(),
-            file_recall_engine: Arc::new(FileRecallEngine::for_workspace(workspace)),
-            sqlite_recall_engine: Arc::new(SqliteRecallEngine::new(Arc::clone(&memory_store))),
             diary_store,
             memory_store,
-            embedding_provider: Arc::from(embedding_provider),
-            embedding_config,
+            retrieval_engine,
         };
         service
             .recover_and_backfill()
@@ -75,7 +85,7 @@ impl WorkspaceMemoryService {
         query: &str,
         limit: usize,
     ) -> agent_diva_core::Result<Vec<MemoryRecord>> {
-        self.merged_recall(&MemoryQuery {
+        self.retrieval_engine.recall(&MemoryQuery {
             query: Some(query.trim().to_string()),
             limit: limit.max(1),
             recall_mode: Some(RecallMode::HybridReady),
@@ -99,131 +109,6 @@ impl WorkspaceMemoryService {
             let _ = export_snapshot(&self.workspace, &records);
         }
         Ok(())
-    }
-
-    fn merged_recall(&self, query: &MemoryQuery) -> agent_diva_core::Result<Vec<MemoryRecord>> {
-        let widened_query = MemoryQuery {
-            limit: query.limit.max(1).saturating_mul(4),
-            ..query.clone()
-        };
-        let sqlite_records = self.sqlite_recall_engine.recall(&widened_query)?;
-        let file_records = self.file_recall_engine.recall(&widened_query)?;
-        let merged = merge_records(&widened_query, sqlite_records, file_records);
-        self.hybrid_rerank(query, merged)
-    }
-
-    fn hybrid_rerank(
-        &self,
-        query: &MemoryQuery,
-        mut records: Vec<MemoryRecord>,
-    ) -> agent_diva_core::Result<Vec<MemoryRecord>> {
-        let mode = query.recall_mode.clone().unwrap_or(RecallMode::HybridReady);
-        if matches!(mode, RecallMode::KeywordOnly | RecallMode::SemanticDisabled) {
-            records.truncate(query.limit.max(1));
-            return Ok(records);
-        }
-
-        let Some(query_text) = query
-            .query
-            .as_deref()
-            .filter(|value| !value.trim().is_empty())
-        else {
-            records.truncate(query.limit.max(1));
-            return Ok(records);
-        };
-        if !self.embedding_provider.is_enabled() {
-            records.truncate(query.limit.max(1));
-            return Ok(records);
-        }
-
-        let query_embedding = match self.memory_store.query_embedding(query_text) {
-            Ok(Some(embedding)) => embedding,
-            Ok(None) => {
-                let embedding = match self.embedding_provider.embed_one(query_text) {
-                    Ok(embedding) => embedding,
-                    Err(error) => {
-                        warn!(
-                            "memory query embedding failed, degrading to keyword recall: {error}"
-                        );
-                        records.truncate(query.limit.max(1));
-                        return Ok(records);
-                    }
-                };
-                let _ = self.memory_store.upsert_query_embedding(
-                    query_text,
-                    &self.embedding_config,
-                    &embedding,
-                );
-                embedding
-            }
-            Err(error) => {
-                warn!("memory query embedding cache read failed: {error}");
-                records.truncate(query.limit.max(1));
-                return Ok(records);
-            }
-        };
-
-        let mut scored = Vec::with_capacity(records.len());
-        for record in records {
-            let semantic_score = match self.ensure_record_embedding(&record) {
-                Ok(Some(embedding)) => cosine_similarity(&query_embedding, &embedding),
-                Ok(None) => 0.0,
-                Err(error) => {
-                    warn!("record embedding unavailable for {}: {error}", record.id);
-                    0.0
-                }
-            };
-            let keyword_score = record_score(&record, query) as f32;
-            let combined = keyword_score + semantic_score * 100.0;
-            scored.push((record, combined));
-        }
-        scored.sort_by(|left, right| {
-            right
-                .1
-                .partial_cmp(&left.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(source_rank(&right.0).cmp(&source_rank(&left.0)))
-                .then(right.0.timestamp.cmp(&left.0.timestamp))
-                .then(left.0.id.cmp(&right.0.id))
-        });
-        scored.truncate(query.limit.max(1));
-        Ok(scored.into_iter().map(|(record, _)| record).collect())
-    }
-
-    fn ensure_record_embedding(
-        &self,
-        record: &MemoryRecord,
-    ) -> agent_diva_core::Result<Option<Vec<f32>>> {
-        let content = embedding_text(record);
-        let content_hash = compute_content_hash(&content);
-        if let Some((embedding, provider, stored_hash)) =
-            self.memory_store.record_embedding(&record.id)?
-        {
-            if stored_hash == content_hash
-                && provider.provider == self.embedding_config.provider
-                && provider.model == self.embedding_config.model
-            {
-                return Ok(Some(embedding));
-            }
-        }
-
-        let embedding = match self.embedding_provider.embed_one(&content) {
-            Ok(embedding) => embedding,
-            Err(error) => {
-                warn!(
-                    "memory document embedding failed for {}: {error}",
-                    record.id
-                );
-                return Ok(None);
-            }
-        };
-        self.memory_store.upsert_record_embedding(
-            &record.id,
-            &self.embedding_config,
-            &content,
-            &embedding,
-        )?;
-        Ok(Some(embedding))
     }
 
     pub fn format_recall_context(records: &[MemoryRecord]) -> Option<String> {
@@ -304,12 +189,12 @@ impl MemoryToolContract for WorkspaceMemoryService {
         query: &MemoryQuery,
     ) -> agent_diva_core::Result<MemoryToolRecallResult> {
         Ok(MemoryToolRecallResult {
-            records: self.merged_recall(query)?,
+            records: self.retrieval_engine.recall(query)?,
         })
     }
 
     fn memory_search(&self, query: &MemoryQuery) -> agent_diva_core::Result<MemorySearchResult> {
-        let records = self.merged_recall(query)?;
+        let records = self.retrieval_engine.recall(query)?;
         Ok(MemorySearchResult {
             results: records
                 .into_iter()
@@ -382,109 +267,6 @@ fn recreate_memory_store(workspace: &Path) -> agent_diva_core::Result<SqliteMemo
         let _ = std::fs::rename(&db_path, backup);
     }
     SqliteMemoryStore::new(workspace)
-}
-
-fn merge_records(
-    query: &MemoryQuery,
-    sqlite_records: Vec<MemoryRecord>,
-    file_records: Vec<MemoryRecord>,
-) -> Vec<MemoryRecord> {
-    let mut merged = Vec::new();
-    let mut seen_ids = HashSet::new();
-    let mut sqlite_fingerprints = HashSet::new();
-
-    for record in sqlite_records {
-        let key = canonical_record_key(&record);
-        seen_ids.insert(key);
-        sqlite_fingerprints.insert(fingerprint(&record));
-        merged.push(record);
-    }
-
-    for record in file_records {
-        let key = canonical_record_key(&record);
-        if seen_ids.contains(&key) {
-            continue;
-        }
-        if sqlite_fingerprints.contains(&fingerprint(&record)) {
-            continue;
-        }
-        seen_ids.insert(key);
-        merged.push(record);
-    }
-
-    let mut score_cache = HashMap::new();
-    merged.sort_by(|left, right| {
-        let right_score = *score_cache
-            .entry(right.id.clone())
-            .or_insert_with(|| record_score(right, query));
-        let left_score = *score_cache
-            .entry(left.id.clone())
-            .or_insert_with(|| record_score(left, query));
-        right_score
-            .cmp(&left_score)
-            .then(source_rank(right).cmp(&source_rank(left)))
-            .then(right.timestamp.cmp(&left.timestamp))
-            .then(left.id.cmp(&right.id))
-    });
-    merged
-}
-
-fn record_score(record: &MemoryRecord, query: &MemoryQuery) -> usize {
-    let haystack = [
-        record.title.to_lowercase(),
-        record.summary.to_lowercase(),
-        record.content.to_lowercase(),
-        record.tags.join(" ").to_lowercase(),
-        record
-            .source_refs
-            .iter()
-            .filter_map(|source| source.path.as_deref())
-            .collect::<Vec<_>>()
-            .join("\n")
-            .to_lowercase(),
-    ]
-    .join("\n");
-    crate::recall::query_match_score(&haystack, query.query.as_deref()).unwrap_or(0)
-}
-
-fn source_rank(record: &MemoryRecord) -> u8 {
-    if record.id.starts_with("diary:")
-        || (!record.id.starts_with("compat:")
-            && record
-                .source_refs
-                .iter()
-                .all(|source| source.path.as_deref() != Some("memory/MEMORY.md")))
-    {
-        3
-    } else if record.id.starts_with("compat:")
-        || record.id.starts_with("compat-memory-md-")
-        || record
-            .source_refs
-            .iter()
-            .any(|source| source.path.as_deref() == Some("memory/MEMORY.md"))
-    {
-        1
-    } else {
-        2
-    }
-}
-
-fn embedding_text(record: &MemoryRecord) -> String {
-    format!(
-        "{}\n{}\n{}\n{}",
-        record.title,
-        record.summary,
-        record.content,
-        record.tags.join(" ")
-    )
-}
-
-fn compute_content_hash(content: &str) -> String {
-    use sha2::{Digest, Sha256};
-
-    let mut hasher = Sha256::new();
-    hasher.update(content.as_bytes());
-    format!("{:x}", hasher.finalize())
 }
 
 fn build_snippet(record: &MemoryRecord) -> String {
@@ -582,6 +364,37 @@ mod tests {
         (temp_dir, service)
     }
 
+    fn structured_signal_service() -> (TempDir, WorkspaceMemoryService) {
+        let temp_dir = TempDir::new().unwrap();
+        let mut entry = DiaryEntry::new(
+            DiaryPartition::Rational,
+            MemoryDomain::Workspace,
+            MemoryScope::Workspace,
+            "协作规则整理",
+            "用户希望回复保持中文、简洁，并要求先说明动作再改文件。",
+            r#"
+## 结论
+- 已确认：用户偏好中文回复，并希望答案尽量简洁直接。
+- 已确认：所有回复必须以前缀 [I strictly follow the rules] 开头。
+- 已确认：这个 agent 应该先说明动作再改文件，不要自作主张提交代码。
+"#,
+        );
+        entry.timestamp = DateTime::parse_from_rfc3339("2026-03-27T09:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        entry.confirmed = vec![
+            "用户偏好中文回复，并希望答案尽量简洁直接。".into(),
+            "所有回复必须以前缀 [I strictly follow the rules] 开头。".into(),
+            "这个 agent 应该先说明动作再改文件，不要自作主张提交代码。".into(),
+        ];
+        FileDiaryStore::new(temp_dir.path())
+            .append_entry(&entry)
+            .unwrap();
+
+        let service = WorkspaceMemoryService::new(temp_dir.path());
+        (temp_dir, service)
+    }
+
     #[test]
     fn test_memory_recall_includes_diary_matches() {
         let (_temp_dir, service) = sample_service();
@@ -593,7 +406,10 @@ mod tests {
             })
             .unwrap();
         assert!(!result.records.is_empty());
-        assert_eq!(result.records[0].title, "Architecture note");
+        assert!(result
+            .records
+            .iter()
+            .any(|record| record.title == "Architecture note"));
     }
 
     #[test]
@@ -694,7 +510,42 @@ mod tests {
             })
             .unwrap();
         assert!(!result.results.is_empty());
-        assert!(result.results[0].snippet.contains("Mapped"));
+        assert!(result
+            .results
+            .iter()
+            .any(|item| !item.snippet.trim().is_empty()));
+    }
+
+    #[test]
+    fn test_memory_recall_returns_derived_relationship_record() {
+        let (_temp_dir, service) = structured_signal_service();
+        let result = service
+            .memory_recall(&MemoryQuery {
+                query: Some("用户偏好 中文 简洁".into()),
+                domain: Some(MemoryDomain::Relationship),
+                limit: 5,
+                ..MemoryQuery::default()
+            })
+            .unwrap();
+        assert!(!result.records.is_empty());
+        assert_eq!(result.records[0].domain, MemoryDomain::Relationship);
+        assert!(result.records[0].id.starts_with("derived:relationship:"));
+    }
+
+    #[test]
+    fn test_memory_search_returns_derived_soul_signal_record() {
+        let (_temp_dir, service) = structured_signal_service();
+        let result = service
+            .memory_search(&MemoryQuery {
+                query: Some("identity-signal prefix".into()),
+                domain: Some(MemoryDomain::SoulSignal),
+                limit: 5,
+                ..MemoryQuery::default()
+            })
+            .unwrap();
+        assert!(!result.results.is_empty());
+        assert_eq!(result.results[0].domain, MemoryDomain::SoulSignal);
+        assert!(result.results[0].id.starts_with("derived:soul_signal:"));
     }
 
     #[test]

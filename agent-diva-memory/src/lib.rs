@@ -4,10 +4,12 @@ mod backend;
 pub mod compat;
 mod compat_source;
 pub mod contracts;
+pub mod derived;
 pub mod diary;
 pub mod embeddings;
 pub mod layout;
 pub mod recall;
+pub mod retrieval;
 pub mod service;
 pub mod snapshot;
 pub mod sqlite_recall;
@@ -20,6 +22,7 @@ pub use contracts::{
     DiaryReadRequest, DiaryStore, DiaryToolContract, DiaryToolListResult, DiaryToolReadResult,
     MemoryStore, MemoryToolContract, MemoryToolRecallResult, RecallEngine,
 };
+pub use derived::derive_structured_memory_records;
 pub use diary::FileDiaryStore;
 pub use embeddings::{
     cosine_similarity, provider_from_config, EmbeddingProvider, EmbeddingProviderConfig,
@@ -30,6 +33,10 @@ pub use layout::{
     rational_diary_dir_path,
 };
 pub use recall::FileRecallEngine;
+pub use retrieval::{
+    CachedSemanticRetriever, DefaultHybridReranker, HybridReranker, KeywordRetriever,
+    MergedKeywordRetriever, RetrievalEngine, SemanticRetriever,
+};
 pub use service::WorkspaceMemoryService;
 pub use snapshot::{export_snapshot, hydrate_snapshot, snapshot_exists};
 pub use sqlite_recall::SqliteRecallEngine;
