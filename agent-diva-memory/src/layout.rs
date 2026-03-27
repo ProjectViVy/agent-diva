@@ -21,3 +21,7 @@ pub fn index_dir_path(workspace: &Path) -> PathBuf {
 pub fn brain_db_path(workspace: &Path) -> PathBuf {
     workspace.join("memory").join("brain.db")
 }
+
+pub fn snapshot_path(workspace: &Path) -> PathBuf {
+    workspace.join("memory").join("MEMORY_SNAPSHOT.md")
+}

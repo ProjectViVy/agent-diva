@@ -2,8 +2,8 @@
 
 use crate::base::{Result, Tool, ToolError};
 use agent_diva_memory::{
-    DiaryFilter, DiaryPartition, DiaryReadRequest, DiaryToolContract, MemoryDomain, MemoryQuery,
-    MemoryScope, MemoryToolContract,
+    DiaryFilter, DiaryPartition, DiaryReadRequest, DiaryToolContract, MemoryDomain,
+    MemoryGetRequest, MemoryQuery, MemoryScope, MemoryToolContract, RecallMode,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -15,6 +15,26 @@ pub struct MemoryRecallTool {
 }
 
 impl MemoryRecallTool {
+    pub fn new(contract: Arc<dyn MemoryToolContract>) -> Self {
+        Self { contract }
+    }
+}
+
+pub struct MemorySearchTool {
+    contract: Arc<dyn MemoryToolContract>,
+}
+
+impl MemorySearchTool {
+    pub fn new(contract: Arc<dyn MemoryToolContract>) -> Self {
+        Self { contract }
+    }
+}
+
+pub struct MemoryGetTool {
+    contract: Arc<dyn MemoryToolContract>,
+}
+
+impl MemoryGetTool {
     pub fn new(contract: Arc<dyn MemoryToolContract>) -> Self {
         Self { contract }
     }
@@ -47,41 +67,78 @@ impl Tool for MemoryRecallTool {
     }
 
     fn description(&self) -> &str {
-        "Recall relevant long-term memory and diary records by query, time range, domain, or scope."
+        "Recall compact long-term memory and diary records for answer generation."
+    }
+
+    fn parameters(&self) -> Value {
+        memory_query_parameters()
+    }
+
+    async fn execute(&self, args: Value) -> Result<String> {
+        let query = parse_memory_query(&args)?;
+        let result = self
+            .contract
+            .memory_recall(&query)
+            .map_err(map_contract_error)?;
+        serialize_json(&result, "memory recall")
+    }
+}
+
+#[async_trait]
+impl Tool for MemorySearchTool {
+    fn name(&self) -> &str {
+        "memory_search"
+    }
+
+    fn description(&self) -> &str {
+        "Search memory broadly and return snippets, timestamps, and source locations."
+    }
+
+    fn parameters(&self) -> Value {
+        memory_query_parameters()
+    }
+
+    async fn execute(&self, args: Value) -> Result<String> {
+        let query = parse_memory_query(&args)?;
+        let result = self
+            .contract
+            .memory_search(&query)
+            .map_err(map_contract_error)?;
+        serialize_json(&result, "memory search")
+    }
+}
+
+#[async_trait]
+impl Tool for MemoryGetTool {
+    fn name(&self) -> &str {
+        "memory_get"
+    }
+
+    fn description(&self) -> &str {
+        "Fetch a full memory record or source fragment by record id or source path."
     }
 
     fn parameters(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "query": { "type": "string", "description": "Optional search text." },
-                "domain": { "type": "string", "enum": memory_domain_values() },
-                "scope": { "type": "string", "enum": memory_scope_values() },
-                "since": { "type": "string", "description": "Optional RFC3339 start time." },
-                "until": { "type": "string", "description": "Optional RFC3339 end time." },
-                "limit": { "type": "integer", "description": "Max records to return. Defaults to 5." }
+                "id": { "type": "string", "description": "Memory record id." },
+                "source_path": { "type": "string", "description": "Optional source path locator." }
             },
             "required": []
         })
     }
 
     async fn execute(&self, args: Value) -> Result<String> {
-        let query = MemoryQuery {
-            query: optional_string(&args, "query"),
-            domain: optional_memory_domain(&args, "domain")?,
-            scope: optional_memory_scope(&args, "scope")?,
-            since: optional_datetime(&args, "since")?,
-            until: optional_datetime(&args, "until")?,
-            limit: optional_usize(&args, "limit").unwrap_or(5),
+        let request = MemoryGetRequest {
+            id: optional_string(&args, "id"),
+            source_path: optional_string(&args, "source_path"),
         };
-
         let result = self
             .contract
-            .memory_recall(&query)
+            .memory_get(&request)
             .map_err(map_contract_error)?;
-        serde_json::to_string_pretty(&result).map_err(|error| {
-            ToolError::ExecutionFailed(format!("Failed to serialize memory recall result: {error}"))
-        })
+        serialize_json(&result, "memory get")
     }
 }
 
@@ -120,9 +177,7 @@ impl Tool for DiaryReadTool {
             .contract
             .diary_read(&DiaryReadRequest { date, partition })
             .map_err(map_contract_error)?;
-        serde_json::to_string_pretty(&result).map_err(|error| {
-            ToolError::ExecutionFailed(format!("Failed to serialize diary read result: {error}"))
-        })
+        serialize_json(&result, "diary read")
     }
 }
 
@@ -166,10 +221,46 @@ impl Tool for DiaryListTool {
             .contract
             .diary_list(&filter)
             .map_err(map_contract_error)?;
-        serde_json::to_string_pretty(&result).map_err(|error| {
-            ToolError::ExecutionFailed(format!("Failed to serialize diary list result: {error}"))
-        })
+        serialize_json(&result, "diary list")
     }
+}
+
+fn memory_query_parameters() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "query": { "type": "string", "description": "Optional search text." },
+            "domain": { "type": "string", "enum": memory_domain_values() },
+            "scope": { "type": "string", "enum": memory_scope_values() },
+            "since": { "type": "string", "description": "Optional RFC3339 start time." },
+            "until": { "type": "string", "description": "Optional RFC3339 end time." },
+            "recall_mode": {
+                "type": "string",
+                "enum": ["keyword_only", "semantic_disabled", "hybrid_ready"],
+                "description": "Optional internal recall mode override."
+            },
+            "limit": { "type": "integer", "description": "Max records to return. Defaults to 5." }
+        },
+        "required": []
+    })
+}
+
+fn parse_memory_query(args: &Value) -> Result<MemoryQuery> {
+    Ok(MemoryQuery {
+        query: optional_string(args, "query"),
+        domain: optional_memory_domain(args, "domain")?,
+        scope: optional_memory_scope(args, "scope")?,
+        since: optional_datetime(args, "since")?,
+        until: optional_datetime(args, "until")?,
+        recall_mode: optional_recall_mode(args, "recall_mode")?,
+        limit: optional_usize(args, "limit").unwrap_or(5),
+    })
+}
+
+fn serialize_json<T: serde::Serialize>(value: &T, label: &str) -> Result<String> {
+    serde_json::to_string_pretty(value).map_err(|error| {
+        ToolError::ExecutionFailed(format!("Failed to serialize {label} result: {error}"))
+    })
 }
 
 fn required_string(args: &Value, key: &str) -> Result<String> {
@@ -211,6 +302,18 @@ fn optional_diary_partition(args: &Value, key: &str) -> Result<Option<DiaryParti
         Some("emotional") => Ok(Some(DiaryPartition::Emotional)),
         Some(other) => Err(ToolError::InvalidArguments(format!(
             "Invalid diary partition '{other}'"
+        ))),
+        None => Ok(None),
+    }
+}
+
+fn optional_recall_mode(args: &Value, key: &str) -> Result<Option<RecallMode>> {
+    match args.get(key).and_then(Value::as_str) {
+        Some("keyword_only") => Ok(Some(RecallMode::KeywordOnly)),
+        Some("semantic_disabled") => Ok(Some(RecallMode::SemanticDisabled)),
+        Some("hybrid_ready") => Ok(Some(RecallMode::HybridReady)),
+        Some(other) => Err(ToolError::InvalidArguments(format!(
+            "Invalid recall mode '{other}'"
         ))),
         None => Ok(None),
     }
@@ -277,7 +380,8 @@ fn memory_scope_values() -> Vec<&'static str> {
 mod tests {
     use super::*;
     use agent_diva_memory::{
-        DiaryEntry, DiaryToolListResult, DiaryToolReadResult, MemoryRecord, MemorySourceRef,
+        DiaryEntry, DiaryToolListResult, DiaryToolReadResult, MemoryGetResult, MemoryRecord,
+        MemorySearchResult, MemorySearchResultItem, MemorySourceRef,
     };
     use chrono::Utc;
 
@@ -301,6 +405,33 @@ mod tests {
                     source_refs: vec![MemorySourceRef::default()],
                     confidence: 0.8,
                 }],
+            })
+        }
+
+        fn memory_search(
+            &self,
+            _query: &MemoryQuery,
+        ) -> agent_diva_core::Result<MemorySearchResult> {
+            Ok(MemorySearchResult {
+                results: vec![MemorySearchResultItem {
+                    id: "rec-1".into(),
+                    title: "Workspace".into(),
+                    snippet: "Summary".into(),
+                    timestamp: Utc::now(),
+                    domain: MemoryDomain::Workspace,
+                    scope: MemoryScope::Workspace,
+                    source_refs: vec![MemorySourceRef::default()],
+                }],
+            })
+        }
+
+        fn memory_get(
+            &self,
+            _request: &MemoryGetRequest,
+        ) -> agent_diva_core::Result<MemoryGetResult> {
+            Ok(MemoryGetResult {
+                record: None,
+                source_fragment: Some("fragment".into()),
             })
         }
     }
@@ -341,6 +472,23 @@ mod tests {
             .await
             .unwrap();
         assert!(result.contains("\"records\""));
+    }
+
+    #[tokio::test]
+    async fn test_memory_search_tool_returns_json() {
+        let tool = MemorySearchTool::new(Arc::new(StubMemoryTools));
+        let result = tool
+            .execute(json!({"query": "workspace", "limit": 3}))
+            .await
+            .unwrap();
+        assert!(result.contains("\"results\""));
+    }
+
+    #[tokio::test]
+    async fn test_memory_get_tool_returns_json() {
+        let tool = MemoryGetTool::new(Arc::new(StubMemoryTools));
+        let result = tool.execute(json!({"id": "rec-1"})).await.unwrap();
+        assert!(result.contains("fragment"));
     }
 
     #[tokio::test]

@@ -1,7 +1,6 @@
 //! Context builder for assembling prompts
 
 use crate::skills::SkillsLoader;
-use agent_diva_core::memory::MemoryManager;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::Message;
 use agent_diva_tools::sanitize::truncate_tool_result;
@@ -34,7 +33,6 @@ impl Default for SoulContextSettings {
 pub struct ContextBuilder {
     workspace: PathBuf,
     skills_loader: SkillsLoader,
-    memory_manager: MemoryManager,
     soul_settings: SoulContextSettings,
 }
 
@@ -42,11 +40,9 @@ impl ContextBuilder {
     /// Create a new context builder
     pub fn new(workspace: PathBuf) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, None);
-        let memory_manager = MemoryManager::new(&workspace);
         Self {
             workspace,
             skills_loader,
-            memory_manager,
             soul_settings: SoulContextSettings::default(),
         }
     }
@@ -54,11 +50,9 @@ impl ContextBuilder {
     /// Create a new context builder with skills
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
-        let memory_manager = MemoryManager::new(&workspace);
         Self {
             workspace,
             skills_loader,
-            memory_manager,
             soul_settings: SoulContextSettings::default(),
         }
     }
@@ -120,13 +114,6 @@ Your workspace is at: {workspace_path}
             prompt.push_str(&skills_summary);
         }
 
-        // Inject long-term memory if available
-        let memory_context = self.memory_manager.get_memory_context();
-        if !memory_context.is_empty() {
-            prompt.push_str("\n\n");
-            prompt.push_str(&memory_context);
-        }
-
         prompt.push_str(
             r#"
 
@@ -136,7 +123,8 @@ For normal conversation, just respond with text - do not call the message tool.
 When a user asks to create a reminder, timer, or recurring schedule, use the 'cron' tool instead of saying the feature is unavailable.
 When the user asks about prior work, project status, recent conclusions, commitments, or user preferences, prefer memory-backed answers over guesses.
 If the system already injected recalled memory for the current turn, use that context first.
-If recalled memory is insufficient, use 'memory_recall' for broad search, then 'diary_list' and 'diary_read' only to expand specific dates or details.
+Use 'memory_recall' for compact answer-oriented recall, 'memory_search' for broader discovery, and 'memory_get' to fetch a full record or source fragment.
+Use 'diary_list' and 'diary_read' only to expand diary dates or specific diary details.
 Do not treat missing or unmatched memory as established fact.
 
 Always be helpful, accurate, and concise. When using tools, explain what you're doing."#,
@@ -384,7 +372,8 @@ mod tests {
         assert!(prompt.contains("agent-diva"));
         assert!(prompt.contains("/tmp/test"));
         assert!(prompt.contains("prefer memory-backed answers over guesses"));
-        assert!(prompt.contains("'memory_recall' for broad search"));
+        assert!(prompt.contains("'memory_search' for broader discovery"));
+        assert!(!prompt.contains("## Long-term Memory"));
     }
 
     #[test]
@@ -480,8 +469,10 @@ mod tests {
         let workspace = TempDir::new().unwrap();
         fs::write(workspace.path().join("BOOTSTRAP.md"), "# Bootstrap Steps").unwrap();
         let store = SoulStateStore::new(workspace.path());
-        let mut state = agent_diva_core::soul::SoulState::default();
-        state.bootstrap_completed_at = Some(chrono::Utc::now());
+        let state = agent_diva_core::soul::SoulState {
+            bootstrap_completed_at: Some(chrono::Utc::now()),
+            ..Default::default()
+        };
         store.save(&state).unwrap();
 
         let builder = ContextBuilder::new(workspace.path().to_path_buf());

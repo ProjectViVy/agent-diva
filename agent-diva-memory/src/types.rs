@@ -109,6 +109,7 @@ pub struct MemoryQuery {
     pub scope: Option<MemoryScope>,
     pub since: Option<DateTime<Utc>>,
     pub until: Option<DateTime<Utc>>,
+    pub recall_mode: Option<RecallMode>,
     pub limit: usize,
 }
 
@@ -120,9 +121,46 @@ impl Default for MemoryQuery {
             scope: None,
             since: None,
             until: None,
+            recall_mode: None,
             limit: 5,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RecallMode {
+    KeywordOnly,
+    SemanticDisabled,
+    HybridReady,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MemorySearchResultItem {
+    pub id: String,
+    pub title: String,
+    pub snippet: String,
+    pub timestamp: DateTime<Utc>,
+    pub domain: MemoryDomain,
+    pub scope: MemoryScope,
+    pub source_refs: Vec<MemorySourceRef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MemorySearchResult {
+    pub results: Vec<MemorySearchResultItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct MemoryGetRequest {
+    pub id: Option<String>,
+    pub source_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MemoryGetResult {
+    pub record: Option<MemoryRecord>,
+    pub source_fragment: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

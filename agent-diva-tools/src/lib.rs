@@ -18,7 +18,7 @@ pub mod wtf;
 pub use base::{Tool, ToolError};
 pub use cron::CronTool;
 pub use filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
-pub use memory::{DiaryListTool, DiaryReadTool, MemoryRecallTool};
+pub use memory::{DiaryListTool, DiaryReadTool, MemoryGetTool, MemoryRecallTool, MemorySearchTool};
 pub use message::MessageTool;
 pub use registry::ToolRegistry;
 pub use sanitize::sanitize_for_json;

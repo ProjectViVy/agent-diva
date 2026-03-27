@@ -4,8 +4,8 @@ use agent_diva_core::config::MCPServerConfig;
 use agent_diva_memory::WorkspaceMemoryService;
 use agent_diva_tools::{
     load_mcp_tools_sync, CronTool, DiaryListTool, DiaryReadTool, EditFileTool, ExecTool,
-    ListDirTool, MemoryRecallTool, ReadFileTool, SpawnTool, ToolError, ToolRegistry, WebFetchTool,
-    WebSearchTool, WriteFileTool,
+    ListDirTool, MemoryGetTool, MemoryRecallTool, MemorySearchTool, ReadFileTool, SpawnTool,
+    ToolError, ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -68,6 +68,8 @@ impl AgentLoop {
         service: Arc<WorkspaceMemoryService>,
     ) {
         tools.register(Arc::new(MemoryRecallTool::new(service.clone())));
+        tools.register(Arc::new(MemorySearchTool::new(service.clone())));
+        tools.register(Arc::new(MemoryGetTool::new(service.clone())));
         tools.register(Arc::new(DiaryReadTool::new(service.clone())));
         tools.register(Arc::new(DiaryListTool::new(service)));
     }

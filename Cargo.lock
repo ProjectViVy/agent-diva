@@ -199,10 +199,14 @@ name = "agent-diva-memory"
 version = "0.1.0"
 dependencies = [
  "agent-diva-core",
+ "async-trait",
  "chrono",
+ "mockito",
+ "reqwest 0.11.27",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tracing",
  "uuid",

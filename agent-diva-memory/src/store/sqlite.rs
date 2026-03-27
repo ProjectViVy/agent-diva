@@ -1,16 +1,18 @@
 //! SQLite-backed durable memory store foundation with FTS support.
 
 use crate::contracts::MemoryStore;
+use crate::embeddings::EmbeddingProviderConfig;
 use crate::layout::brain_db_path;
 use crate::recall::{normalized_query_terms, query_match_score};
 use crate::types::{MemoryQuery, MemoryRecord, MemorySourceRef};
 use agent_diva_core::{Error, Result};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension, ToSql};
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, Clone)]
 pub struct SqliteMemoryStore {
@@ -41,6 +43,166 @@ impl SqliteMemoryStore {
 
     pub fn db_path(&self) -> &Path {
         &self.db_path
+    }
+
+    pub fn is_healthy(&self) -> bool {
+        let Ok(conn) = lock_conn(&self.conn) else {
+            return false;
+        };
+        let schema_ok = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type IN ('table', 'view') AND name IN ('memory_records', 'memory_records_fts')",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|count| count >= 2)
+            .unwrap_or(false);
+        let version_ok = conn
+            .query_row(
+                "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|version| version >= SCHEMA_VERSION)
+            .unwrap_or(false);
+        schema_ok && version_ok
+    }
+
+    pub fn is_empty(&self) -> Result<bool> {
+        let conn = lock_conn(&self.conn)?;
+        let count = conn
+            .query_row("SELECT COUNT(*) FROM memory_records", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .map_err(sqlite_error)?;
+        Ok(count == 0)
+    }
+
+    pub fn upsert_record_embedding(
+        &self,
+        record_id: &str,
+        provider: &EmbeddingProviderConfig,
+        content: &str,
+        embedding: &[f32],
+    ) -> Result<()> {
+        let conn = lock_conn(&self.conn)?;
+        conn.execute(
+            "INSERT INTO memory_record_embeddings (
+                record_id, provider, model, dimensions, content_hash, embedding_json, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(record_id) DO UPDATE SET
+                provider = excluded.provider,
+                model = excluded.model,
+                dimensions = excluded.dimensions,
+                content_hash = excluded.content_hash,
+                embedding_json = excluded.embedding_json,
+                updated_at = excluded.updated_at",
+            params![
+                record_id,
+                provider.provider,
+                provider.model,
+                i64::try_from(provider.dimensions).unwrap_or(0),
+                content_hash(content),
+                serde_json::to_string(embedding)?,
+                Utc::now().to_rfc3339(),
+            ],
+        )
+        .map_err(sqlite_error)?;
+        Ok(())
+    }
+
+    pub fn record_embedding(
+        &self,
+        record_id: &str,
+    ) -> Result<Option<(Vec<f32>, EmbeddingProviderConfig, String)>> {
+        let conn = lock_conn(&self.conn)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT provider, model, dimensions, embedding_json, content_hash
+                 FROM memory_record_embeddings
+                 WHERE record_id = ?1",
+            )
+            .map_err(sqlite_error)?;
+        stmt.query_row([record_id], |row| {
+            let provider = row.get::<_, String>(0)?;
+            let model = row.get::<_, String>(1)?;
+            let dimensions = row.get::<_, i64>(2)?;
+            let embedding_json = row.get::<_, String>(3)?;
+            let content_hash = row.get::<_, String>(4)?;
+            let embedding = serde_json::from_str::<Vec<f32>>(&embedding_json).map_err(|error| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    embedding_json.len(),
+                    rusqlite::types::Type::Text,
+                    Box::new(error),
+                )
+            })?;
+            Ok((
+                embedding,
+                EmbeddingProviderConfig {
+                    provider,
+                    base_url: String::new(),
+                    api_key: None,
+                    model,
+                    dimensions: usize::try_from(dimensions).unwrap_or_default(),
+                },
+                content_hash,
+            ))
+        })
+        .optional()
+        .map_err(sqlite_error)
+    }
+
+    pub fn upsert_query_embedding(
+        &self,
+        query: &str,
+        provider: &EmbeddingProviderConfig,
+        embedding: &[f32],
+    ) -> Result<()> {
+        let conn = lock_conn(&self.conn)?;
+        let query_hash = content_hash(query);
+        conn.execute(
+            "INSERT INTO memory_query_embeddings (
+                query_hash, query_text, provider, model, dimensions, embedding_json, created_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(query_hash) DO UPDATE SET
+                query_text = excluded.query_text,
+                provider = excluded.provider,
+                model = excluded.model,
+                dimensions = excluded.dimensions,
+                embedding_json = excluded.embedding_json,
+                created_at = excluded.created_at",
+            params![
+                query_hash,
+                query,
+                provider.provider,
+                provider.model,
+                i64::try_from(provider.dimensions).unwrap_or(0),
+                serde_json::to_string(embedding)?,
+                Utc::now().to_rfc3339(),
+            ],
+        )
+        .map_err(sqlite_error)?;
+        Ok(())
+    }
+
+    pub fn query_embedding(&self, query: &str) -> Result<Option<Vec<f32>>> {
+        let conn = lock_conn(&self.conn)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT embedding_json
+                 FROM memory_query_embeddings
+                 WHERE query_hash = ?1",
+            )
+            .map_err(sqlite_error)?;
+        stmt.query_row([content_hash(query)], |row| row.get::<_, String>(0))
+            .optional()
+            .map_err(sqlite_error)?
+            .map(|embedding_json| {
+                serde_json::from_str(&embedding_json).map_err(|error| {
+                    Error::Internal(format!("invalid cached query embedding json: {error}"))
+                })
+            })
+            .transpose()
     }
 
     fn all_candidates(&self, query: &MemoryQuery) -> Result<Vec<ScoredRecord>> {
@@ -254,7 +416,28 @@ fn init_schema(conn: &Connection) -> Result<()> {
          );
 
          CREATE INDEX IF NOT EXISTS idx_memory_records_timestamp
-         ON memory_records(timestamp DESC);",
+         ON memory_records(timestamp DESC);
+
+         CREATE TABLE IF NOT EXISTS memory_record_embeddings (
+            record_id TEXT PRIMARY KEY,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            dimensions INTEGER NOT NULL,
+            content_hash TEXT NOT NULL,
+            embedding_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(record_id) REFERENCES memory_records(id) ON DELETE CASCADE
+         );
+
+         CREATE TABLE IF NOT EXISTS memory_query_embeddings (
+            query_hash TEXT PRIMARY KEY,
+            query_text TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            dimensions INTEGER NOT NULL,
+            embedding_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+         );",
     )
     .map_err(sqlite_error)?;
 
@@ -397,6 +580,12 @@ fn score_record(record: &MemoryRecord, query: &MemoryQuery) -> Option<usize> {
     .join("\n");
     let text_score = query_match_score(&haystack, query.query.as_deref())?;
     Some(text_score + source_rank_for_id(&record.id) as usize)
+}
+
+fn content_hash(content: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 fn joined_tags(record: &MemoryRecord) -> String {
@@ -666,5 +855,28 @@ mod tests {
             .unwrap();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].id, record.id);
+    }
+
+    #[test]
+    fn test_sqlite_memory_store_reports_health_and_embeddings() {
+        let temp = TempDir::new().unwrap();
+        let store = SqliteMemoryStore::new(temp.path()).unwrap();
+        store.store_record(&sample_record()).unwrap();
+        assert!(store.is_healthy());
+        assert!(!store.is_empty().unwrap());
+
+        let provider = EmbeddingProviderConfig {
+            provider: "openai".into(),
+            base_url: "https://api.openai.com".into(),
+            api_key: None,
+            model: "text-embedding-3-small".into(),
+            dimensions: 3,
+        };
+        store
+            .upsert_record_embedding("rec-1", &provider, "abc", &[0.1, 0.2, 0.3])
+            .unwrap();
+        let (embedding, stored_provider, _) = store.record_embedding("rec-1").unwrap().unwrap();
+        assert_eq!(embedding.len(), 3);
+        assert_eq!(stored_provider.model, provider.model);
     }
 }

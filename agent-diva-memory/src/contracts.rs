@@ -1,6 +1,9 @@
 //! Stable memory contracts for future backends, retrieval, and tools.
 
-use crate::types::{DiaryEntry, DiaryFilter, DiaryPartition, MemoryQuery, MemoryRecord};
+use crate::types::{
+    DiaryEntry, DiaryFilter, DiaryPartition, MemoryGetRequest, MemoryGetResult, MemoryQuery,
+    MemoryRecord, MemorySearchResult,
+};
 
 pub trait MemoryStore: Send + Sync {
     fn store_record(&self, record: &MemoryRecord) -> agent_diva_core::Result<()>;
@@ -50,6 +53,8 @@ pub struct DiaryToolListResult {
 pub trait MemoryToolContract: Send + Sync {
     fn memory_recall(&self, query: &MemoryQuery)
         -> agent_diva_core::Result<MemoryToolRecallResult>;
+    fn memory_search(&self, query: &MemoryQuery) -> agent_diva_core::Result<MemorySearchResult>;
+    fn memory_get(&self, request: &MemoryGetRequest) -> agent_diva_core::Result<MemoryGetResult>;
 }
 
 pub trait DiaryToolContract: Send + Sync {
@@ -90,6 +95,25 @@ mod tests {
                     }],
                     confidence: 0.8,
                 }],
+            })
+        }
+
+        fn memory_search(
+            &self,
+            _query: &MemoryQuery,
+        ) -> agent_diva_core::Result<MemorySearchResult> {
+            Ok(MemorySearchResult {
+                results: Vec::new(),
+            })
+        }
+
+        fn memory_get(
+            &self,
+            _request: &MemoryGetRequest,
+        ) -> agent_diva_core::Result<MemoryGetResult> {
+            Ok(MemoryGetResult {
+                record: None,
+                source_fragment: None,
             })
         }
     }

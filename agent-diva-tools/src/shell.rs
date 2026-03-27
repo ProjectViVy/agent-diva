@@ -281,7 +281,7 @@ mod tests {
     async fn test_exec_simple_command() {
         let tool = ExecTool::new();
         let params = json!({
-            "command": if cfg!(target_os = "windows") { "echo hello" } else { "echo hello" }
+            "command": "echo hello"
         });
 
         let result = tool.execute(params).await.unwrap();

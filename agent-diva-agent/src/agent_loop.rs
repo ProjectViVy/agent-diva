@@ -9,7 +9,8 @@ use agent_diva_memory::WorkspaceMemoryService;
 use agent_diva_providers::LLMProvider;
 use agent_diva_tools::{
     load_mcp_tools_sync, CronTool, DiaryListTool, DiaryReadTool, EditFileTool, ExecTool,
-    ListDirTool, MemoryRecallTool, ReadFileTool, SpawnTool, ToolError, ToolRegistry, WriteFileTool,
+    ListDirTool, MemoryGetTool, MemoryRecallTool, MemorySearchTool, ReadFileTool, SpawnTool,
+    ToolError, ToolRegistry, WriteFileTool,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
@@ -205,6 +206,8 @@ impl AgentLoop {
         tools.register(Arc::new(EditFileTool::new(allowed_dir.clone())));
         tools.register(Arc::new(ListDirTool::new(allowed_dir)));
         tools.register(Arc::new(MemoryRecallTool::new(memory_service.clone())));
+        tools.register(Arc::new(MemorySearchTool::new(memory_service.clone())));
+        tools.register(Arc::new(MemoryGetTool::new(memory_service.clone())));
         tools.register(Arc::new(DiaryReadTool::new(memory_service.clone())));
         tools.register(Arc::new(DiaryListTool::new(memory_service.clone())));
 
