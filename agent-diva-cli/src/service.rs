@@ -1,10 +1,16 @@
 use anyhow::Result;
 use clap::Subcommand;
+#[cfg(windows)]
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::path::Path;
+use std::path::PathBuf;
 
+#[cfg(windows)]
 const SERVICE_NAME: &str = "AgentDivaGateway";
+#[cfg(windows)]
 const SERVICE_DISPLAY_NAME: &str = "Agent Diva Gateway Service";
+#[cfg(windows)]
 const SERVICE_DESCRIPTION: &str = "Runs Agent Diva gateway as a background Windows service.";
 
 #[derive(Subcommand, Debug, Clone)]
@@ -54,6 +60,7 @@ pub enum ServiceCommands {
     },
 }
 
+#[cfg(windows)]
 #[derive(Debug, Serialize)]
 struct ServiceStatusOutput {
     installed: bool,
@@ -79,6 +86,7 @@ pub async fn run_service_command(
     }
 }
 
+#[cfg(windows)]
 fn sibling_service_binary(current_exe: &Path) -> PathBuf {
     current_exe
         .parent()

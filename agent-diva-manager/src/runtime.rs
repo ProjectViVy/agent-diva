@@ -16,8 +16,9 @@ use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
 use agent_diva_providers::{
-    backends::openai_codex::OpenAiCodexProvider, DynamicProvider, LLMProvider, LiteLLMClient,
-    ProviderAccess, ProviderCatalogService, ProviderRegistry, RuntimeBackend,
+    backends::openai_codex::OpenAiCodexProvider, resolve_openai_compatible_oauth_access,
+    DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess, ProviderCatalogService,
+    ProviderRegistry, RuntimeBackend,
 };
 use anyhow::Result;
 use std::path::PathBuf;
@@ -121,7 +122,7 @@ fn resolve_provider_name_for_model(
     })
 }
 
-fn build_provider(
+async fn build_provider(
     config: &Config,
     config_dir: &std::path::Path,
     model: &str,
@@ -135,9 +136,14 @@ fn build_provider(
             .flatten(),
     )
     .ok_or_else(|| anyhow::anyhow!("No provider found for model: {}", model))?;
-    let access = catalog
-        .get_provider_access(config, &provider_name)
-        .unwrap_or_else(|| ProviderAccess::from_config(None));
+    let access = resolve_openai_compatible_oauth_access(
+        config_dir,
+        &provider_name,
+        catalog
+            .get_provider_access(config, &provider_name)
+            .unwrap_or_else(|| ProviderAccess::from_config(None)),
+    )
+    .await?;
     let extra_headers = (!access.extra_headers.is_empty()).then(|| {
         access
             .extra_headers

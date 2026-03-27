@@ -194,4 +194,18 @@ mod tests {
         assert_eq!(spec.credential_store, CredentialStore::ExternalSecureStore);
         assert_eq!(spec.runtime_backend, RuntimeBackend::OpenaiCodex);
     }
+
+    #[test]
+    fn qwen_login_metadata_is_oauth_enabled() {
+        let registry = ProviderRegistry::new();
+        let spec = registry.find_by_name("qwen-login").unwrap();
+        assert_eq!(spec.auth_mode, AuthMode::OAuth);
+        assert!(spec.login_supported);
+        assert_eq!(spec.credential_store, CredentialStore::ExternalSecureStore);
+        assert_eq!(spec.runtime_backend, RuntimeBackend::OpenaiCompatible);
+        assert_eq!(
+            spec.default_api_base,
+            "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        );
+    }
 }

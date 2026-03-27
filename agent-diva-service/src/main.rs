@@ -1,6 +1,9 @@
 use clap::Parser;
-use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::path::Path;
+use std::path::PathBuf;
 
+#[cfg(windows)]
 const SERVICE_NAME: &str = "AgentDivaGateway";
 
 #[derive(Parser, Debug)]
@@ -16,6 +19,7 @@ struct Cli {
     console: bool,
 }
 
+#[cfg(windows)]
 fn sibling_cli_path(current_exe: &Path) -> PathBuf {
     current_exe
         .parent()

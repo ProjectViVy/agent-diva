@@ -3,7 +3,8 @@ use crate::provider_auth::{
     ProviderOAuthBackend, ResolvedOAuthLogin,
 };
 use agent_diva_core::auth::{
-    generate_pkce_state, parse_code_from_redirect, OAuthTokenManager, ProviderTokenSet,
+    generate_pkce_state, parse_code_from_redirect, OAuthProfileState, OAuthTokenManager,
+    ProviderTokenSet,
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -157,7 +158,7 @@ impl Default for OpenAiCodexOAuthBackend {
 
 #[async_trait]
 impl OAuthTokenManager for OpenAiCodexOAuthBackend {
-    async fn refresh_tokens(&self, refresh_token: &str) -> Result<ProviderTokenSet> {
+    async fn refresh_oauth_state(&self, refresh_token: &str) -> Result<OAuthProfileState> {
         let response = self
             .client
             .post(&self.token_url)
@@ -173,7 +174,11 @@ impl OAuthTokenManager for OpenAiCodexOAuthBackend {
         if refreshed.refresh_token.is_none() {
             refreshed.refresh_token = Some(refresh_token.to_string());
         }
-        Ok(refreshed)
+        Ok(OAuthProfileState {
+            account_id: extract_account_id_from_jwt(&refreshed.access_token),
+            token_set: refreshed,
+            metadata: BTreeMap::new(),
+        })
     }
 
     fn extract_account_id(&self, access_token: &str) -> Option<String> {
@@ -253,6 +258,7 @@ impl ProviderOAuthBackend for OpenAiCodexOAuthBackend {
             provider: self.provider_name().to_string(),
             account_id: extract_account_id_from_jwt(&token_set.access_token),
             token_set,
+            metadata: BTreeMap::new(),
         })
     }
 
@@ -281,9 +287,8 @@ impl ProviderOAuthBackend for OpenAiCodexOAuthBackend {
             user_code: device.user_code,
             verification_uri: device.verification_uri,
             verification_uri_complete: device.verification_uri_complete,
-            expires_in: device.expires_in,
-            interval: device.interval.unwrap_or(5).max(1),
-            message: None,
+            expires_in_seconds: device.expires_in,
+            interval_seconds: device.interval.unwrap_or(5).max(1),
         })
     }
 
@@ -293,10 +298,10 @@ impl ProviderOAuthBackend for OpenAiCodexOAuthBackend {
     ) -> Result<ResolvedOAuthLogin> {
         let started = Instant::now();
         loop {
-            if started.elapsed() > Duration::from_secs(pending.expires_in) {
+            if started.elapsed() > Duration::from_secs(pending.expires_in_seconds) {
                 anyhow::bail!("OpenAI Codex device-code flow timed out");
             }
-            tokio::time::sleep(Duration::from_secs(pending.interval)).await;
+            tokio::time::sleep(Duration::from_secs(pending.interval_seconds)).await;
             let response = self
                 .client
                 .post(&self.token_url)
@@ -314,6 +319,7 @@ impl ProviderOAuthBackend for OpenAiCodexOAuthBackend {
                     provider: self.provider_name().to_string(),
                     account_id: extract_account_id_from_jwt(&token_set.access_token),
                     token_set,
+                    metadata: BTreeMap::new(),
                 });
             }
         }

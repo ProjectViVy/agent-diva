@@ -5,9 +5,10 @@ use agent_diva_core::auth::ProviderAuthService;
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
-    backends::openai_codex::OpenAiCodexProvider, CustomProviderUpsert, LiteLLMClient, Message,
-    OpenAiCodexAuthHandler, OpenAiCodexBrowserSession, ProviderAccess, ProviderCatalogService,
-    ProviderLoginResult, ProviderModelCatalogView as SharedProviderModelCatalog, ProviderRegistry,
+    backends::openai_codex::OpenAiCodexProvider, BrowserLoginSession, CustomProviderUpsert,
+    LiteLLMClient, Message, ProviderAccess, ProviderCatalogService, ProviderLoginMode,
+    ProviderLoginResult, ProviderLoginService,
+    ProviderModelCatalogView as SharedProviderModelCatalog, ProviderRegistry,
     ProviderView as SharedProviderView, RuntimeBackend,
 };
 use eventsource_stream::Eventsource;
@@ -117,7 +118,7 @@ struct PendingProviderLogin {
     provider: String,
     profile: String,
     authorize_url: String,
-    session: OpenAiCodexBrowserSession,
+    session: BrowserLoginSession,
     status: PendingProviderLoginStatus,
 }
 
@@ -270,18 +271,36 @@ pub async fn login_provider(
 ) -> Result<ProviderLoginResponseDto, String> {
     let provider = provider.trim().to_string();
     let profile = normalize_profile_name(profile);
-    if provider != "openai-codex" {
+    let service = ProviderLoginService::new();
+    if !service.supports_login(&provider) {
         return Err(format!(
             "Provider '{}' does not support GUI login",
             provider
         ));
     }
+    let provider_mode = match &mode {
+        ProviderLoginModeDto::Browser => ProviderLoginMode::Browser,
+        ProviderLoginModeDto::PasteRedirect => ProviderLoginMode::PasteRedirect { input: None },
+        ProviderLoginModeDto::DeviceCode => ProviderLoginMode::DeviceCode,
+    };
+    if !service.supports_mode(&provider, &provider_mode) {
+        return Err(format!(
+            "Provider '{}' does not support login mode '{}'",
+            provider,
+            match mode {
+                ProviderLoginModeDto::Browser => "browser",
+                ProviderLoginModeDto::PasteRedirect => "paste_redirect",
+                ProviderLoginModeDto::DeviceCode => "device_code",
+            }
+        ));
+    }
 
     match mode {
         ProviderLoginModeDto::Browser => {
-            let handler = OpenAiCodexAuthHandler::default();
-            let session = handler.prepare_browser_login();
-            let authorize_url = session.authorize_url().to_string();
+            let prepared = service
+                .prepare_browser_login(&provider)
+                .map_err(|error| error.to_string())?;
+            let authorize_url = prepared.authorize_url.clone();
             let key = provider_login_key(&provider, &profile);
             {
                 let mut pending = PENDING_PROVIDER_LOGINS.lock().await;
@@ -291,7 +310,7 @@ pub async fn login_provider(
                         provider: provider.clone(),
                         profile: profile.clone(),
                         authorize_url: authorize_url.clone(),
-                        session: session.clone(),
+                        session: prepared.session.clone(),
                         status: PendingProviderLoginStatus::Pending,
                     },
                 );
@@ -300,11 +319,21 @@ pub async fn login_provider(
             tauri::async_runtime::spawn(async move {
                 let auth_service = ProviderAuthService::new(config_loader().config_dir());
                 let outcome: anyhow::Result<ProviderLoginResult> = async {
-                    let code = handler
-                        .wait_for_browser_callback(&session, std::time::Duration::from_secs(180))
+                    let code = service
+                        .wait_for_browser_callback(
+                            &provider,
+                            &prepared.session,
+                            std::time::Duration::from_secs(180),
+                        )
                         .await?;
-                    handler
-                        .complete_browser_login_with_code(&auth_service, &profile, &session, &code)
+                    service
+                        .complete_browser_login(
+                            &auth_service,
+                            &provider,
+                            &profile,
+                            &prepared.session,
+                            &code,
+                        )
                         .await
                 }
                 .await;
@@ -340,10 +369,10 @@ pub async fn login_provider(
             })?;
 
             let auth_service = ProviderAuthService::new(config_loader().config_dir());
-            let handler = OpenAiCodexAuthHandler::default();
-            let result: ProviderLoginResult = handler
+            let result: ProviderLoginResult = service
                 .complete_browser_login(
                     &auth_service,
+                    &provider,
                     &profile,
                     &pending_entry.session,
                     &redirect_url,
@@ -363,9 +392,10 @@ pub async fn login_provider(
                 message: None,
             })
         }
-        ProviderLoginModeDto::DeviceCode => {
-            Err("GUI device-code login is not implemented in this build".to_string())
-        }
+        ProviderLoginModeDto::DeviceCode => Err(format!(
+            "Provider '{}' does not support GUI device-code login in this build",
+            provider
+        )),
     }
 }
 
@@ -430,15 +460,15 @@ pub async fn refresh_provider_auth(
 ) -> Result<ProviderAuthStatusDto, String> {
     let provider = provider.trim().to_string();
     let auth = ProviderAuthService::new(config_loader().config_dir());
-    match provider.as_str() {
-        "openai-codex" => {
-            auth.refresh_openai_codex_tokens(profile.as_deref())
-                .await
-                .map_err(|error| error.to_string())?;
-            provider_auth_status_for(&auth, &provider).await
-        }
-        _ => Err(format!("Provider '{}' does not support refresh", provider)),
+    let service = ProviderLoginService::new();
+    if !service.supports_refresh(&provider) {
+        return Err(format!("Provider '{}' does not support refresh", provider));
     }
+    service
+        .refresh(&auth, &provider, profile.as_deref())
+        .await
+        .map_err(|error| error.to_string())?;
+    provider_auth_status_for(&auth, &provider).await
 }
 
 #[tauri::command]
@@ -2911,4 +2941,50 @@ pub fn tail_logs(lines: usize) -> Result<Vec<String>, String> {
         all_lines = all_lines.split_off(all_lines.len().saturating_sub(keep));
     }
     Ok(all_lines)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn qwen_login_browser_mode_returns_authorization_url() {
+        let temp = tempdir().unwrap();
+        std::env::set_var("AGENT_DIVA_CONFIG_DIR", temp.path());
+
+        let result = login_provider(
+            "qwen-login".to_string(),
+            "default".to_string(),
+            ProviderLoginModeDto::Browser,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.status, "authorization_required");
+        assert!(result
+            .authorize_url
+            .as_deref()
+            .unwrap()
+            .starts_with("https://chat.qwen.ai/"));
+    }
+
+    #[tokio::test]
+    async fn qwen_login_device_code_returns_provider_specific_message() {
+        let temp = tempdir().unwrap();
+        std::env::set_var("AGENT_DIVA_CONFIG_DIR", temp.path());
+
+        let error = login_provider(
+            "qwen-login".to_string(),
+            "default".to_string(),
+            ProviderLoginModeDto::DeviceCode,
+            None,
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.contains("qwen-login"));
+        assert!(error.contains("device"));
+    }
 }

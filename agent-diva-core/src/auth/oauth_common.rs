@@ -2,11 +2,27 @@ use base64::Engine;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+use crate::auth::profiles::ProviderTokenSet;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PkceState {
     pub state: String,
     pub code_verifier: String,
     pub code_challenge: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OAuthProfileState {
+    pub token_set: ProviderTokenSet,
+    pub account_id: Option<String>,
+    pub metadata: BTreeMap<String, String>,
+}
+
+#[async_trait::async_trait]
+pub trait OAuthTokenManager: Send + Sync {
+    async fn refresh_oauth_state(&self, refresh_token: &str) -> anyhow::Result<OAuthProfileState>;
+
+    fn extract_account_id(&self, access_token: &str) -> Option<String>;
 }
 
 pub fn generate_pkce_state() -> PkceState {

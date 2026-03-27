@@ -342,8 +342,10 @@ mod tests {
         registry::{ApiType, AuthMode, CredentialStore, RuntimeBackend},
         ProviderSpec,
     };
+    use agent_diva_core::auth::{OAuthProfileState, ProviderAuthService, ProviderTokenSet};
     use mockito::{Matcher, Server};
     use std::collections::HashMap;
+    use tempfile::tempdir;
 
     fn openai_like_spec(name: &str, api_base: &str) -> ProviderSpec {
         ProviderSpec {
@@ -519,5 +521,72 @@ mod tests {
         mock.assert_async().await;
         assert_eq!(catalog.source, ModelCatalogSource::Runtime);
         assert_eq!(catalog.api_base, Some(server.url()));
+    }
+
+    #[tokio::test]
+    async fn resolve_openai_compatible_oauth_access_prefers_auth_store_for_qwen_login() {
+        let dir = tempdir().unwrap();
+        let auth = ProviderAuthService::new(dir.path());
+        auth.store_oauth_profile(
+            "qwen-login",
+            "default",
+            OAuthProfileState {
+                token_set: ProviderTokenSet {
+                    access_token: "oauth-bearer".to_string(),
+                    refresh_token: Some("refresh".to_string()),
+                    id_token: None,
+                    expires_at: None,
+                    token_type: Some("Bearer".to_string()),
+                    scope: Some("openid".to_string()),
+                },
+                account_id: None,
+                metadata: HashMap::from([(
+                    "api_base".to_string(),
+                    "https://oauth.example/v1".to_string(),
+                )])
+                .into_iter()
+                .collect(),
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+        let access = resolve_openai_compatible_oauth_access(
+            dir.path(),
+            "qwen-login",
+            ProviderAccess {
+                api_key: Some("config-api-key".to_string()),
+                api_base: Some("https://config.example/v1".to_string()),
+                extra_headers: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(access.api_key.as_deref(), Some("oauth-bearer"));
+        assert_eq!(access.api_base.as_deref(), Some("https://oauth.example/v1"));
+    }
+
+    #[tokio::test]
+    async fn resolve_openai_compatible_oauth_access_keeps_dashscope_on_config_path() {
+        let dir = tempdir().unwrap();
+        let access = resolve_openai_compatible_oauth_access(
+            dir.path(),
+            "dashscope",
+            ProviderAccess {
+                api_key: Some("dashscope-key".to_string()),
+                api_base: Some("https://dashscope.aliyuncs.com/compatible-mode/v1".to_string()),
+                extra_headers: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(access.api_key.as_deref(), Some("dashscope-key"));
+        assert_eq!(
+            access.api_base.as_deref(),
+            Some("https://dashscope.aliyuncs.com/compatible-mode/v1")
+        );
     }
 }

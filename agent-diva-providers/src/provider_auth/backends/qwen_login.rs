@@ -396,4 +396,38 @@ mod tests {
             Some("https://dashscope.aliyuncs.com/compatible-mode/v1")
         );
     }
+
+    #[tokio::test]
+    async fn refresh_oauth_state_preserves_api_base_and_refresh_token() {
+        let mut server = mockito::Server::new_async().await;
+        let backend = QwenLoginOAuthBackend::new("https://example.com/authorize", server.url());
+        let _mock = server
+            .mock("POST", "/")
+            .match_body(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("grant_type".into(), "refresh_token".into()),
+                Matcher::UrlEncoded("refresh_token".into(), "refresh-123".into()),
+                Matcher::UrlEncoded("client_id".into(), QWEN_OAUTH_CLIENT_ID.into()),
+            ]))
+            .with_status(200)
+            .with_body(
+                r#"{
+                    "access_token":"qwen-access-2",
+                    "expires_in":3600,
+                    "resource_url":"oauth.example.com/compatible-mode"
+                }"#,
+            )
+            .create_async()
+            .await;
+
+        let refreshed = backend.refresh_oauth_state("refresh-123").await.unwrap();
+        assert_eq!(refreshed.token_set.access_token, "qwen-access-2");
+        assert_eq!(
+            refreshed.token_set.refresh_token.as_deref(),
+            Some("refresh-123")
+        );
+        assert_eq!(
+            refreshed.metadata.get("api_base").map(String::as_str),
+            Some("https://oauth.example.com/compatible-mode/v1")
+        );
+    }
 }

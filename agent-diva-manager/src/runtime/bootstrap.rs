@@ -11,11 +11,9 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
 
     let bus = MessageBus::new();
     let cron_service = start_cron_service(cron_store, bus.clone()).await;
-    let dynamic_provider = Arc::new(DynamicProvider::new(build_provider(
-        &config,
-        loader.config_dir(),
-        &config.agents.defaults.model,
-    )?));
+    let dynamic_provider = Arc::new(DynamicProvider::new(
+        build_provider(&config, loader.config_dir(), &config.agents.defaults.model).await?,
+    ));
     let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
     let agent = build_agent_loop(
         &config,

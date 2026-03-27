@@ -1,3 +1,4 @@
+use crate::auth::oauth_common::{OAuthProfileState, OAuthTokenManager};
 use crate::auth::profiles::{
     profile_id, ProviderAuthKind, ProviderAuthProfile, ProviderAuthProfilesData, ProviderTokenSet,
 };
@@ -57,10 +58,33 @@ impl ProviderAuthService {
         profile_name: &str,
         token_set: ProviderTokenSet,
     ) -> Result<ProviderAuthProfile> {
+        self.store_oauth_profile(
+            OPENAI_CODEX_PROVIDER,
+            profile_name,
+            OAuthProfileState {
+                account_id: extract_account_id_from_jwt(&token_set.access_token),
+                token_set,
+                metadata: Default::default(),
+            },
+            true,
+        )
+        .await
+    }
+
+    pub async fn store_oauth_profile(
+        &self,
+        provider: &str,
+        profile_name: &str,
+        state: OAuthProfileState,
+        set_active: bool,
+    ) -> Result<ProviderAuthProfile> {
         let mut profile =
-            ProviderAuthProfile::new_oauth(OPENAI_CODEX_PROVIDER, profile_name, token_set.clone());
-        profile.account_id = extract_account_id_from_jwt(&token_set.access_token);
-        self.store.upsert_profile(profile.clone(), true).await?;
+            ProviderAuthProfile::new_oauth(provider, profile_name, state.token_set.clone());
+        profile.account_id = state.account_id;
+        profile.metadata = state.metadata;
+        self.store
+            .upsert_profile(profile.clone(), set_active)
+            .await?;
         Ok(profile)
     }
 
@@ -140,25 +164,49 @@ impl ProviderAuthService {
         &self,
         profile_override: Option<&str>,
     ) -> Result<ProviderAuthProfile> {
+        self.refresh_oauth_profile(
+            OPENAI_CODEX_PROVIDER,
+            profile_override,
+            &OpenAiCodexTokenManager {
+                client: self.client.clone(),
+            },
+        )
+        .await
+    }
+
+    pub async fn refresh_oauth_profile(
+        &self,
+        provider: &str,
+        profile_override: Option<&str>,
+        token_manager: &dyn OAuthTokenManager,
+    ) -> Result<ProviderAuthProfile> {
         let profile = self
-            .get_profile(OPENAI_CODEX_PROVIDER, profile_override)
+            .get_profile(provider, profile_override)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("OpenAI Codex auth profile not found"))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!("OAuth auth profile not found for provider '{provider}'")
+            })?;
         let refresh_token = profile
             .token_set
             .as_ref()
             .and_then(|tokens| tokens.refresh_token.clone())
             .ok_or_else(|| {
-                anyhow::anyhow!("OpenAI Codex auth profile does not contain a refresh token")
+                anyhow::anyhow!(
+                    "OAuth auth profile for provider '{provider}' does not contain a refresh token"
+                )
             })?;
-        let refreshed = self
-            .refresh_openai_codex_tokens_with_refresh_token(&refresh_token)
-            .await?;
-        let account_id = extract_account_id_from_jwt(&refreshed.access_token);
+        let refreshed = token_manager.refresh_oauth_state(&refresh_token).await?;
+        let account_id = refreshed
+            .account_id
+            .clone()
+            .or_else(|| token_manager.extract_account_id(&refreshed.token_set.access_token));
+        let metadata = refreshed.metadata.clone();
+        let token_set = refreshed.token_set.clone();
         self.store
             .update_profile(&profile.id, |existing| {
-                existing.token_set = Some(refreshed.clone());
+                existing.token_set = Some(token_set.clone());
                 existing.account_id = account_id.clone();
+                existing.metadata = metadata.clone();
                 Ok(())
             })
             .await
@@ -189,6 +237,22 @@ impl ProviderAuthService {
         &self,
         refresh_token: &str,
     ) -> Result<ProviderTokenSet> {
+        OpenAiCodexTokenManager {
+            client: self.client.clone(),
+        }
+        .refresh_oauth_state(refresh_token)
+        .await
+        .map(|state| state.token_set)
+    }
+}
+
+struct OpenAiCodexTokenManager {
+    client: reqwest::Client,
+}
+
+#[async_trait::async_trait]
+impl OAuthTokenManager for OpenAiCodexTokenManager {
+    async fn refresh_oauth_state(&self, refresh_token: &str) -> Result<OAuthProfileState> {
         let response = self
             .client
             .post(OPENAI_OAUTH_TOKEN_URL)
@@ -222,6 +286,15 @@ impl ProviderAuthService {
             token_type: parsed.token_type,
             scope: parsed.scope,
         })
+        .map(|token_set| OAuthProfileState {
+            account_id: extract_account_id_from_jwt(&token_set.access_token),
+            token_set,
+            metadata: Default::default(),
+        })
+    }
+
+    fn extract_account_id(&self, access_token: &str) -> Option<String> {
+        extract_account_id_from_jwt(access_token)
     }
 }
 
@@ -267,7 +340,35 @@ pub fn extract_account_id_from_jwt(token: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
     use tempfile::tempdir;
+
+    struct FakeTokenManager;
+
+    #[async_trait::async_trait]
+    impl OAuthTokenManager for FakeTokenManager {
+        async fn refresh_oauth_state(&self, refresh_token: &str) -> Result<OAuthProfileState> {
+            Ok(OAuthProfileState {
+                token_set: ProviderTokenSet {
+                    access_token: "refreshed-access".into(),
+                    refresh_token: Some(refresh_token.to_string()),
+                    id_token: None,
+                    expires_at: None,
+                    token_type: Some("Bearer".into()),
+                    scope: Some("openid".into()),
+                },
+                account_id: Some("acct-1".into()),
+                metadata: BTreeMap::from([(
+                    "api_base".to_string(),
+                    "https://oauth.example/v1".to_string(),
+                )]),
+            })
+        }
+
+        fn extract_account_id(&self, access_token: &str) -> Option<String> {
+            Some(access_token.to_string())
+        }
+    }
 
     #[tokio::test]
     async fn store_and_get_bearer_token() {
@@ -320,5 +421,46 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(selected, "openai-codex:work");
+    }
+
+    #[tokio::test]
+    async fn refresh_oauth_profile_updates_metadata_for_generic_provider() {
+        let dir = tempdir().unwrap();
+        let service = ProviderAuthService::new(dir.path());
+        service
+            .store_oauth_profile(
+                "qwen-login",
+                "default",
+                OAuthProfileState {
+                    token_set: ProviderTokenSet {
+                        access_token: "access".into(),
+                        refresh_token: Some("refresh".into()),
+                        id_token: None,
+                        expires_at: None,
+                        token_type: Some("Bearer".into()),
+                        scope: Some("openid".into()),
+                    },
+                    account_id: None,
+                    metadata: BTreeMap::new(),
+                },
+                true,
+            )
+            .await
+            .unwrap();
+
+        let updated = service
+            .refresh_oauth_profile("qwen-login", None, &FakeTokenManager)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            updated.token_set.as_ref().unwrap().access_token,
+            "refreshed-access"
+        );
+        assert_eq!(updated.account_id.as_deref(), Some("acct-1"));
+        assert_eq!(
+            updated.metadata.get("api_base").map(String::as_str),
+            Some("https://oauth.example/v1")
+        );
     }
 }

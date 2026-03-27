@@ -314,14 +314,17 @@ pub async fn run_provider_refresh(
     profile: Option<String>,
     json: bool,
 ) -> Result<()> {
-    if provider != "openai-codex" {
+    let service = ProviderLoginService::new();
+    if !service.supports_refresh(&provider) {
         anyhow::bail!(
             "Provider '{}' does not support refresh in this build",
             provider
         );
     }
     let auth = ProviderAuthService::new(runtime.config_dir());
-    let refreshed = auth.refresh_openai_codex_tokens(profile.as_deref()).await?;
+    let refreshed = service
+        .refresh(&auth, &provider, profile.as_deref())
+        .await?;
     let report = ProviderActionReport {
         provider,
         profile: Some(refreshed.profile_name.clone()),

@@ -2,24 +2,28 @@
 
 执行与结果：
 
-- `cargo test -p agent-diva-core auth -- --nocapture`
-  - 结果：通过
-- `cargo test -p agent-diva-providers provider_auth -- --nocapture`
-  - 结果：通过
 - `cargo fmt --all -- --check`
   - 结果：通过
-- `cargo test -p agent-diva-cli --no-run`
+- `cargo test -p agent-diva-core refresh_oauth_profile_updates_metadata_for_generic_provider`
   - 结果：通过
-- `cargo test -p agent-diva-gui --no-run`
-  - 结果：失败，阻塞原因为磁盘空间耗尽，不是 `qwen-login` 代码路径类型错误
+- `cargo test -p agent-diva-providers qwen_login -- --nocapture`
+  - 结果：通过
+- `cargo test -p agent-diva-cli --test config_commands provider_status_json_reports_qwen_login_oauth_state`
+  - 结果：通过
+- `cargo test -p agent-diva-gui --lib qwen_login_ -- --nocapture`
+  - 结果：通过
+- `cargo fmt --all && cargo clippy --all -- -D warnings`
+  - 结果：通过
+- `cargo test --all`
+  - 结果：未在本轮观察窗口内结束；已确认跑过 `agent-diva-agent`、`agent-diva-channels`、`agent-diva-cli`、`agent-diva-core`、`agent-diva-gui`、`agent-diva-manager` 的前半段测试并持续前进，但在后续阶段长时间静默，未拿到完整收尾输出
 
 补充观察：
 
-- GUI 编译失败时的核心错误为 `No space left on device (os error 28)`，发生在 `target/debug` 与若干 Tauri / objc2 / aws-lc 依赖构建阶段。
-- 在清理 `target/debug` 释放空间后，CLI 编译级 smoke 可以通过，说明 `qwen-login` 对 CLI、manager、provider-auth 链路的 Rust 编译影响已收敛。
-- 最小真实 CLI smoke `./target/debug/agent-diva provider status qwen-login --json` 未完成，原因同样是环境磁盘已被 GUI 构建重新占满，启动时创建日志目录失败。
+- `just fmt-check`、`just check`、`just test` 在当前环境均无法直接执行，原因是 `just` 找不到 recipe 配置的 shell；因此本轮改用等价底层命令 `cargo fmt --all -- --check`、`cargo clippy --all -- -D warnings`、`cargo test --all` 进行验证。
+- `cargo clippy --all -- -D warnings` 暴露了两处仓库既有问题：`agent-diva-service` / `agent-diva-cli` 的 Windows-only dead code，以及 `agent-diva-gui/src-tauri/src/process_utils.rs` 的 `needless_borrows_for_generic_args`。本轮已顺手修正，使 clippy 可通过。
+- `cargo test --all` 长时间静默时，最后一条可见输出是在 manager/server 后段测试附近；当前没有证据表明该长时间停顿由 `qwen-login` 相关改动引起，但本轮也未拿到完整结束码。
 
 说明：
 
-- 本轮实现包含 `agent-diva-gui` 的 Tauri command 改动，但 GUI 编译验证受当前环境容量限制，未能完成最终 `--no-run` 验证。
-- 当前 `QwenLoginOAuthBackend` 中的 OAuth endpoint 常量基于 Qwen Code 客户端行为假设与既有计划约束实现；如后续验证发现契约有差异，只需调整 backend 常量与请求参数，不影响当前框架分层。
+- 本轮实现已将 `qwen-login` 从半恢复状态补齐为可编译、可登录、可 refresh、可被 runtime 消费的闭环，并通过定向测试验证关键路径。
+- 当前 `QwenLoginOAuthBackend` 中的 OAuth endpoint 常量仍基于现有客户端行为假设与项目约束实现；若后续联调发现契约差异，只需调整 backend 常量或请求参数，不影响当前补好的 registry / auth / CLI / GUI / runtime 分层。

@@ -48,7 +48,7 @@ pub fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
     }
 }
 
-fn build_local_cli_agent(
+async fn build_local_cli_agent(
     runtime: &CliRuntime,
     model: Option<String>,
     with_runtime_control: bool,
@@ -64,7 +64,7 @@ fn build_local_cli_agent(
     let _ = ensure_workspace_templates(&workspace)?;
 
     let bus = MessageBus::new();
-    let provider = build_provider(&config, runtime.config_dir(), &selected_model)?;
+    let provider = build_provider(&config, runtime.config_dir(), &selected_model).await?;
     let tool_config = ToolConfig {
         network: build_network_tool_config(&config),
         exec_timeout: config.tools.exec.timeout,
@@ -194,7 +194,7 @@ pub async fn run_agent(
     logs: bool,
 ) -> Result<()> {
     let (_config, _selected_model, mut agent, _runtime_control_tx) =
-        build_local_cli_agent(runtime, model, false)?;
+        build_local_cli_agent(runtime, model, false).await?;
 
     let session_key = session.unwrap_or_else(|| "cli:direct".to_string());
 
@@ -300,7 +300,7 @@ pub async fn run_chat(
     logs: bool,
 ) -> Result<()> {
     let (_config, selected_model, mut agent, runtime_control_tx) =
-        build_local_cli_agent(runtime, model, true)?;
+        build_local_cli_agent(runtime, model, true).await?;
     let mut current_session = session.unwrap_or_else(|| "cli:chat".to_string());
 
     println!("{}", style("Agent Diva Chat").bold().cyan());

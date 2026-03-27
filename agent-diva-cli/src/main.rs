@@ -1050,7 +1050,7 @@ async fn run_tui(
     let _ = ensure_workspace_templates(&workspace)?;
 
     let bus = MessageBus::new();
-    let provider = build_provider(&config, runtime.config_dir(), &selected_model)?;
+    let provider = build_provider(&config, runtime.config_dir(), &selected_model).await?;
 
     let tool_config = ToolConfig {
         network: build_network_tool_config(&config),

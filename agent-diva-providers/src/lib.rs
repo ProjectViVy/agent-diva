@@ -25,8 +25,8 @@ pub use discovery::{
 };
 pub use litellm::LiteLLMClient;
 pub use provider_auth::{
-    OpenAiCodexAuthHandler, OpenAiCodexBrowserSession, ProviderLoginMode, ProviderLoginRequest,
-    ProviderLoginResult, ProviderLoginService,
+    BrowserLoginSession, OpenAiCodexAuthHandler, OpenAiCodexBrowserSession, ProviderLoginMode,
+    ProviderLoginRequest, ProviderLoginResult, ProviderLoginService, QwenLoginOAuthBackend,
 };
 pub use registry::{AuthMode, CredentialStore, ProviderRegistry, ProviderSpec, RuntimeBackend};
 

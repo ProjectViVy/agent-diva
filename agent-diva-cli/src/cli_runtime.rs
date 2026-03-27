@@ -4,9 +4,9 @@ use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersCon
 use agent_diva_core::cron::CronService;
 use agent_diva_core::utils::sync_workspace_templates;
 use agent_diva_providers::{
-    backends::openai_codex::OpenAiCodexProvider, fetch_provider_model_catalog, LLMProvider,
-    LiteLLMClient, ProviderAccess, ProviderCatalogService, ProviderModelCatalog, ProviderRegistry,
-    ProviderSpec, RuntimeBackend,
+    backends::openai_codex::OpenAiCodexProvider, fetch_provider_model_catalog,
+    resolve_openai_compatible_oauth_access, LLMProvider, LiteLLMClient, ProviderAccess,
+    ProviderCatalogService, ProviderModelCatalog, ProviderRegistry, ProviderSpec, RuntimeBackend,
 };
 use anyhow::Result;
 use serde::Serialize;
@@ -317,7 +317,7 @@ pub fn session_channel_and_chat_id(session_key: &str) -> (&str, &str) {
     session_key.split_once(':').unwrap_or(("cli", session_key))
 }
 
-pub fn build_provider(
+pub async fn build_provider(
     config: &Config,
     config_dir: &Path,
     model: &str,
@@ -331,9 +331,14 @@ pub fn build_provider(
             .flatten(),
     )
     .ok_or_else(|| anyhow::anyhow!("No provider found for model: {}", model))?;
-    let access = catalog
-        .get_provider_access(config, &provider_name)
-        .unwrap_or_else(|| ProviderAccess::from_config(None));
+    let access = resolve_openai_compatible_oauth_access(
+        config_dir,
+        &provider_name,
+        catalog
+            .get_provider_access(config, &provider_name)
+            .unwrap_or_else(|| ProviderAccess::from_config(None)),
+    )
+    .await?;
     let api_key = access.api_key;
     let api_base = access.api_base;
     let extra_headers = (!access.extra_headers.is_empty()).then(|| {

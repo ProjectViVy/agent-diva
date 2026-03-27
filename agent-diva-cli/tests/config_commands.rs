@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use agent_diva_core::auth::{OAuthProfileState, ProviderAuthService, ProviderTokenSet};
 use mockito::Server;
 use serde_json::Value;
 use tempfile::tempdir;
@@ -169,6 +170,59 @@ fn provider_set_json_updates_model_and_credentials() {
     assert_eq!(saved["agents"]["defaults"]["provider"], "deepseek");
     assert_eq!(saved["agents"]["defaults"]["model"], "deepseek-chat");
     assert_eq!(saved["providers"]["deepseek"]["api_key"], "sk-deepseek");
+}
+
+#[test]
+fn provider_status_json_reports_qwen_login_oauth_state() {
+    let temp = tempdir().unwrap();
+    let config_path = write_config(temp.path(), false);
+    let auth = ProviderAuthService::new(config_path.parent().unwrap());
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    runtime.block_on(async {
+        auth.store_oauth_profile(
+            "qwen-login",
+            "default",
+            OAuthProfileState {
+                token_set: ProviderTokenSet {
+                    access_token: "oauth-bearer".into(),
+                    refresh_token: Some("refresh".into()),
+                    id_token: None,
+                    expires_at: None,
+                    token_type: Some("Bearer".into()),
+                    scope: Some("openid".into()),
+                },
+                account_id: Some("acct-qwen".into()),
+                metadata: std::collections::BTreeMap::from([(
+                    "api_base".to_string(),
+                    "https://oauth.example/v1".to_string(),
+                )]),
+            },
+            true,
+        )
+        .await
+        .unwrap();
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "provider",
+            "status",
+            "qwen-login",
+            "--json",
+        ])
+        .output()
+        .expect("failed to run provider status qwen-login --json");
+
+    assert!(output.status.success(), "{:?}", output);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let value: Value = serde_json::from_str(stdout.trim()).unwrap();
+    let provider = &value["providers"][0];
+    assert_eq!(provider["provider"], "qwen-login");
+    assert_eq!(provider["auth_mode"], "oauth");
+    assert_eq!(provider["authenticated"], true);
+    assert_eq!(provider["active_profile"], "default");
 }
 
 #[test]
