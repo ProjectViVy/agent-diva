@@ -49,12 +49,37 @@
 - `MemoryToolContract` / `DiaryToolContract` 已存在，tool schema 已稳定。
 - `WorkspaceMemoryService` 已作为 facade 工作。
 - 已有 diary 文件存储与读取链路。
-- 已补本地 SQLite `brain.db`、FTS、`EmbeddingProvider` 抽象、`HybridRecallEngine`。
-- 已支持 `MEMORY.md` chunk backfill、diary backfill、SQLite recall、file fallback。
+- 已补本地 SQLite `brain.db`、FTS、最小 embedding provider abstraction、query/document embedding cache、hybrid-ready rerank。
+- 已支持 `MEMORY.md` chunk backfill、diary backfill、SQLite recall、file fallback、snapshot/hydrate 灾后恢复链路。
+- 已新增 `memory_search` / `memory_get`，并保持 `memory_recall` / `diary_read` / `diary_list` 向后兼容。
+- prompt 主路径已经切换为 compact auto-recall，`MEMORY.md` 不再作为默认 system prompt 主上下文来源。
 
 这意味着当前项目已经不再是“只有 Markdown 和记忆文件注入”的状态，而是进入了“本地混合召回基础已成型”的状态。
 
 这一步非常重要，因为它决定了后面不需要推翻重来。
+
+### 3.1 当前状态校正
+
+需要明确的是，当前代码虽然已经明显接近本文路线，但还**没有**到“完整基础层完全交付”的程度。
+
+下面这些能力当前是“已具备第一版”：
+
+- compact recall 驱动的 prompt 主路径
+- 本地 SQLite + FTS recall
+- `Noop` / OpenAI-compatible embedding provider
+- 懒生成 document embedding 与 query embedding cache
+- hybrid-ready rerank
+- snapshot 导出与冷启动 hydrate
+- `memory_search` / `memory_get`
+
+下面这些能力当前仍然**未完成**或只完成了最小骨架：
+
+- 独立 retrieval engine 分层
+- 更成熟的 semantic / hybrid 策略治理
+- relationship / self-model / soul-signal 的真实闭环
+- diary / memory 的治理层
+- 外部向量后端适配面
+- 完整长期记忆 ontology
 
 ## 4. 为什么不能直接上完整记忆体系
 
@@ -112,15 +137,15 @@
 下面这些 contract 应长期保持稳定，至少在基础层阶段不应轻易改动：
 
 - `memory_recall`
+- `memory_search`
+- `memory_get`
 - `diary_read`
 - `diary_list`
 
-这三个 contract 已经足够支撑第一阶段。
+这五个 contract 已经足够支撑当前基础层阶段。
 
 如果未来需要：
 
-- `memory_search`
-- `memory_get`
 - `diary_search`
 - `memory_write`
 
@@ -142,7 +167,8 @@
 - 向量检索细节
 - embedding 计算策略
 
-这些逻辑都应该继续下沉到 `retrieval` / `sqlite` / `vector backend` 层。
+当前实现里，部分 hybrid/semantic 编排仍在 `WorkspaceMemoryService` 内，是下一步优先要继续下沉的内容。
+这些逻辑最终都应该继续下沉到 `retrieval` / `sqlite` / `vector backend` 层。
 
 ### 5.4 “先本地闭环，再外部增强”
 
@@ -235,16 +261,31 @@
 
 - `brain.db` 自动初始化
 - schema migration
-- `memory_records` / `diary_entries` 结构化索引
+- `memory_records` 结构化索引
 - FTS5 keyword recall
 - `EmbeddingProvider` 抽象
 - `Noop` fallback
-- `HybridRecallEngine`
+- hybrid-ready recall / rerank
 - diary backfill
 - `MEMORY.md` chunk backfill
 - file fallback
+- snapshot/hydrate 恢复链路
 
 这些能力现在已经形成第一版，应继续固化和补强。
+
+### 7.1.1 当前已完成的部分
+
+截至当前代码状态，下列内容已经落地：
+
+- SQLite durable store 与 schema migration
+- FTS keyword recall
+- compact recall 注入
+- `memory_search` / `memory_get`
+- embedding cache
+- query/document embedding 分离
+- snapshot/hydrate 恢复
+
+后续不应再把这些能力视为临时补丁，而应围绕它们继续做结构化整理。
 
 ### 7.2 能力二：最小可用 semantic 能力
 
@@ -257,6 +298,19 @@
 - semantic 不可用时自动退化为 keyword-only
 
 这一点已经开始具备，但后面还需要继续扩展到可替换后端。
+
+### 7.3 下一阶段优先级
+
+在“基础层修复”完成后，建议按下面顺序推进，而不要并行大改：
+
+1. 抽离独立 retrieval 层，把 semantic/hybrid 编排从 `WorkspaceMemoryService` 下沉。
+2. 落地 `relationship` / `self_model` / `soul_signal` 的最小写入与召回闭环。
+3. 增加 diary / memory 的治理策略：
+   写入规则、冲突规则、注入规则、生命周期规则。
+4. 预留外部向量后端接口，再考虑 LanceDB / Qdrant 适配。
+
+这个顺序非常关键。
+如果先做外部后端或复杂治理，反而会把当前刚稳定的基础层再次耦合坏。
 
 ### 7.3 能力三：最小可用多后端能力
 
