@@ -5,10 +5,11 @@ use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::session::SessionManager;
+use agent_diva_memory::WorkspaceMemoryService;
 use agent_diva_providers::LLMProvider;
 use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
-    ToolError, ToolRegistry, WriteFileTool,
+    load_mcp_tools_sync, CronTool, DiaryListTool, DiaryReadTool, EditFileTool, ExecTool,
+    ListDirTool, MemoryRecallTool, ReadFileTool, SpawnTool, ToolError, ToolRegistry, WriteFileTool,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
@@ -98,6 +99,7 @@ pub struct AgentLoop {
     context: ContextBuilder,
     sessions: SessionManager,
     tools: ToolRegistry,
+    memory_service: Arc<WorkspaceMemoryService>,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
     cancelled_sessions: HashSet<String>,
@@ -120,6 +122,7 @@ impl AgentLoop {
         context.set_soul_settings(SoulContextSettings::default());
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::new();
+        let memory_service = Arc::new(WorkspaceMemoryService::new(&workspace));
 
         let subagent_manager = Arc::new(SubagentManager::new(
             provider.clone(),
@@ -141,6 +144,7 @@ impl AgentLoop {
             context,
             sessions,
             tools,
+            memory_service,
             subagent_manager,
             runtime_control_rx: None,
             cancelled_sessions: HashSet::new(),
@@ -165,6 +169,7 @@ impl AgentLoop {
         context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
         let mut tools = ToolRegistry::new();
+        let memory_service = Arc::new(WorkspaceMemoryService::new(&workspace));
 
         let subagent_manager = Arc::new(SubagentManager::new(
             provider.clone(),
@@ -199,6 +204,9 @@ impl AgentLoop {
         tools.register(Arc::new(WriteFileTool::new(allowed_dir.clone())));
         tools.register(Arc::new(EditFileTool::new(allowed_dir.clone())));
         tools.register(Arc::new(ListDirTool::new(allowed_dir)));
+        tools.register(Arc::new(MemoryRecallTool::new(memory_service.clone())));
+        tools.register(Arc::new(DiaryReadTool::new(memory_service.clone())));
+        tools.register(Arc::new(DiaryListTool::new(memory_service.clone())));
 
         // Register shell tool
         tools.register(Arc::new(ExecTool::with_config(
@@ -230,6 +238,7 @@ impl AgentLoop {
             context,
             sessions,
             tools,
+            memory_service,
             subagent_manager,
             runtime_control_rx,
             cancelled_sessions: HashSet::new(),

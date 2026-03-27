@@ -1,8 +1,12 @@
-use crate::registry::{ApiType, ProviderSpec};
+use crate::registry::ProviderSpec;
+use crate::registry::{ApiType, ProviderRegistry, RuntimeBackend};
+use agent_diva_core::auth::{ProviderAuthKind, ProviderAuthService};
 use agent_diva_core::config::ProviderConfig;
+use anyhow::Result;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+use std::path::Path;
 use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -58,6 +62,51 @@ impl ProviderAccess {
             extra_headers,
         }
     }
+}
+
+pub async fn resolve_openai_compatible_oauth_access(
+    config_dir: &Path,
+    provider: &str,
+    fallback: ProviderAccess,
+) -> Result<ProviderAccess> {
+    let registry = ProviderRegistry::new();
+    let Some(spec) = registry.find_by_name(provider) else {
+        return Ok(fallback);
+    };
+    if spec.runtime_backend != RuntimeBackend::OpenaiCompatible || !spec.login_supported {
+        return Ok(fallback);
+    }
+
+    let auth = ProviderAuthService::new(config_dir);
+    let Some(profile) = auth.get_active_profile(provider).await? else {
+        return Ok(fallback);
+    };
+
+    let bearer = match profile.kind {
+        ProviderAuthKind::OAuth => profile
+            .token_set
+            .as_ref()
+            .map(|token_set| token_set.access_token.trim().to_string())
+            .filter(|token| !token.is_empty()),
+        ProviderAuthKind::Token => profile
+            .token
+            .as_ref()
+            .map(|token| token.trim().to_string())
+            .filter(|token| !token.is_empty()),
+    };
+
+    let api_base = profile
+        .metadata
+        .get("api_base")
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .or(fallback.api_base.clone());
+
+    Ok(ProviderAccess {
+        api_key: bearer.or(fallback.api_key),
+        api_base,
+        extra_headers: fallback.extra_headers,
+    })
 }
 
 pub async fn fetch_provider_model_catalog(
@@ -289,7 +338,10 @@ struct OpenAiModelEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{registry::ApiType, ProviderSpec};
+    use crate::{
+        registry::{ApiType, AuthMode, CredentialStore, RuntimeBackend},
+        ProviderSpec,
+    };
     use mockito::{Matcher, Server};
     use std::collections::HashMap;
 
@@ -301,6 +353,10 @@ mod tests {
             env_key: "TEST_API_KEY".to_string(),
             display_name: name.to_string(),
             default_model: None,
+            auth_mode: AuthMode::ApiKey,
+            login_supported: false,
+            credential_store: CredentialStore::Config,
+            runtime_backend: RuntimeBackend::OpenaiCompatible,
             litellm_prefix: String::new(),
             skip_prefixes: vec![],
             env_extras: vec![],
@@ -377,6 +433,10 @@ mod tests {
             env_key: "ANTHROPIC_API_KEY".to_string(),
             display_name: "Anthropic".to_string(),
             default_model: None,
+            auth_mode: AuthMode::ApiKey,
+            login_supported: false,
+            credential_store: CredentialStore::Config,
+            runtime_backend: RuntimeBackend::OpenaiCompatible,
             litellm_prefix: String::new(),
             skip_prefixes: vec![],
             env_extras: vec![],

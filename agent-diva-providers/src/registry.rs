@@ -14,6 +14,33 @@ pub enum ApiType {
     Other,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthMode {
+    #[default]
+    ApiKey,
+    #[serde(rename = "oauth")]
+    OAuth,
+    Token,
+    DeviceFlow,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialStore {
+    #[default]
+    Config,
+    ExternalSecureStore,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeBackend {
+    #[default]
+    OpenaiCompatible,
+    OpenaiCodex,
+}
+
 /// One LLM provider's metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderSpec {
@@ -26,6 +53,14 @@ pub struct ProviderSpec {
     pub display_name: String,
     #[serde(default)]
     pub default_model: Option<String>,
+    #[serde(default)]
+    pub auth_mode: AuthMode,
+    #[serde(default)]
+    pub login_supported: bool,
+    #[serde(default)]
+    pub credential_store: CredentialStore,
+    #[serde(default)]
+    pub runtime_backend: RuntimeBackend,
 
     // Model prefixing
     pub litellm_prefix: String,
@@ -70,6 +105,7 @@ impl ProviderSpec {
 }
 
 /// Registry of available LLM providers
+#[derive(Clone)]
 pub struct ProviderRegistry {
     providers: Vec<ProviderSpec>,
 }
@@ -147,5 +183,15 @@ mod tests {
         let spec = registry.find_by_name("anthropic");
         assert!(spec.is_some());
         assert_eq!(spec.unwrap().display_name, "Anthropic");
+    }
+
+    #[test]
+    fn openai_codex_metadata_is_oauth_enabled() {
+        let registry = ProviderRegistry::new();
+        let spec = registry.find_by_name("openai-codex").unwrap();
+        assert_eq!(spec.auth_mode, AuthMode::OAuth);
+        assert!(spec.login_supported);
+        assert_eq!(spec.credential_store, CredentialStore::ExternalSecureStore);
+        assert_eq!(spec.runtime_backend, RuntimeBackend::OpenaiCodex);
     }
 }

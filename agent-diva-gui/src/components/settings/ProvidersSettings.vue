@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue';
 import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import {
@@ -10,27 +10,28 @@ import {
   addProviderModel,
   createCustomProvider,
   deleteCustomProvider,
+  getProviderAuthStatus,
+  getProviderLoginStatus,
+  getProviders,
+  loginProvider,
+  logoutProvider,
   getProviderModels,
   removeProviderModel,
+  refreshProviderAuth,
   testProviderModel,
+  type PendingProviderLoginStatusDto,
+  type ProviderAuthStatusDto,
   type ProviderModelCatalog,
-  type ProviderModelTestResult
+  type ProviderModelTestResult,
+  type ProviderSpecDto,
+  useProviderProfile,
 } from '../../api/providers';
-import { invoke } from '@tauri-apps/api/core';
 import { appConfirm } from '../../utils/appDialog';
+import { openExternalUrl } from '../../utils/openExternal';
 
 const { t } = useI18n();
 
-interface ProviderSpec {
-  name: string;
-  api_type: string;
-  source?: string;
-  display_name: string;
-  default_model?: string | null;
-  default_api_base: string;
-  models: string[];
-  custom_models: string[];
-}
+type ProviderSpec = ProviderSpecDto;
 
 interface SavedModel {
   id: string;
@@ -88,7 +89,14 @@ const providerApiBases = ref<Record<string, string>>({});
 const isRefreshing = ref(false);
 const runtimeCatalogs = ref<Record<string, ProviderModelCatalog>>({});
 const modelTestStatuses = ref<Record<string, ModelTestStatus>>({});
+const providerAuthStatuses = ref<Record<string, ProviderAuthStatusDto>>({});
+const providerAuthBusy = ref<Record<string, string>>({});
+const providerAuthMessages = ref<Record<string, string>>({});
+const providerAuthErrors = ref<Record<string, string>>({});
+const providerProfileDrafts = ref<Record<string, string>>({});
+const providerRedirectInputs = ref<Record<string, string>>({});
 const modelTestTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const providerLoginTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const newProviderForm = ref<NewProviderForm>({
   id: '',
   displayName: '',
@@ -140,10 +148,39 @@ const providerModelsFor = (provider: ProviderSpec | null) => {
   return runtimeCatalogs.value[provider.name]?.models ?? provider.models;
 };
 
+const providerAuthStatusFor = (providerName: string) =>
+  providerAuthStatuses.value[providerName] ?? null;
+
+const selectedProviderAuthStatus = computed(() => {
+  if (!selectedProvider.value) return null;
+  return providerAuthStatusFor(selectedProvider.value.name);
+});
+
+const selectedProviderUsesExternalAuth = computed(() => {
+  return (
+    !!selectedProvider.value?.login_supported &&
+    selectedProvider.value?.credential_store === 'external_secure_store'
+  );
+});
+
+const selectedProviderProfileDraft = computed({
+  get: () => {
+    if (!selectedProvider.value) return 'default';
+    return providerProfileDrafts.value[selectedProvider.value.name] || 'default';
+  },
+  set: (value: string) => {
+    if (!selectedProvider.value) return;
+    providerProfileDrafts.value = {
+      ...providerProfileDrafts.value,
+      [selectedProvider.value.name]: value.trim() || 'default',
+    };
+  },
+});
+
 const refreshProviderState = async () => {
   isRefreshing.value = true;
   try {
-    providers.value = dedupeProviders(await invoke('get_providers'));
+    providers.value = dedupeProviders(await getProviders());
     statusReport.value = await getConfigStatus();
     buildProviderStateFromProps();
 
@@ -163,6 +200,108 @@ const refreshProviderState = async () => {
   } finally {
     isRefreshing.value = false;
   }
+};
+
+const updateProviderAuthSnapshot = (providerName: string, status: ProviderAuthStatusDto) => {
+  providerAuthStatuses.value = {
+    ...providerAuthStatuses.value,
+    [providerName]: status,
+  };
+  providers.value = providers.value.map((provider) =>
+    provider.name === providerName
+      ? {
+          ...provider,
+          authenticated: status.authenticated,
+          active_profile: status.active_profile,
+          expires_at: status.expires_at,
+          profiles: status.profiles,
+        }
+      : provider
+  );
+  if (selectedProvider.value?.name === providerName) {
+    selectedProvider.value = {
+      ...selectedProvider.value,
+      authenticated: status.authenticated,
+      active_profile: status.active_profile,
+      expires_at: status.expires_at,
+      profiles: status.profiles,
+    };
+  }
+  if (!providerProfileDrafts.value[providerName]) {
+    providerProfileDrafts.value = {
+      ...providerProfileDrafts.value,
+      [providerName]: status.active_profile || status.profiles[0]?.profile_name || 'default',
+    };
+  }
+};
+
+const setProviderAuthBusy = (providerName: string, action: string | null) => {
+  providerAuthBusy.value = {
+    ...providerAuthBusy.value,
+    [providerName]: action || '',
+  };
+};
+
+const clearProviderFeedback = (providerName: string) => {
+  providerAuthMessages.value = { ...providerAuthMessages.value, [providerName]: '' };
+  providerAuthErrors.value = { ...providerAuthErrors.value, [providerName]: '' };
+};
+
+const refreshProviderAuthState = async (providerName: string) => {
+  const provider = providers.value.find((item) => item.name === providerName);
+  if (!provider?.login_supported) return;
+  const status = await getProviderAuthStatus(providerName);
+  updateProviderAuthSnapshot(providerName, status);
+};
+
+const stopProviderLoginPolling = (providerName: string) => {
+  const timer = providerLoginTimers.get(providerName);
+  if (timer) {
+    clearTimeout(timer);
+    providerLoginTimers.delete(providerName);
+  }
+};
+
+const scheduleProviderLoginPolling = (providerName: string, profileName: string) => {
+  stopProviderLoginPolling(providerName);
+  providerLoginTimers.set(
+    providerName,
+    setTimeout(async () => {
+      try {
+        const status: PendingProviderLoginStatusDto = await getProviderLoginStatus(
+          providerName,
+          profileName
+        );
+        if (status.status === 'pending') {
+          scheduleProviderLoginPolling(providerName, profileName);
+          return;
+        }
+        if (status.status === 'completed') {
+          await refreshProviderAuthState(providerName);
+          providerAuthMessages.value = {
+            ...providerAuthMessages.value,
+            [providerName]: `Logged in as ${profileName}.`,
+          };
+          providerRedirectInputs.value = {
+            ...providerRedirectInputs.value,
+            [providerName]: '',
+          };
+          return;
+        }
+        if (status.status === 'failed') {
+          providerAuthErrors.value = {
+            ...providerAuthErrors.value,
+            [providerName]: status.message || 'Provider login failed.',
+          };
+        }
+      } catch (error) {
+        providerAuthErrors.value = {
+          ...providerAuthErrors.value,
+          [providerName]: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }, 1500)
+  );
 };
 
 onMounted(async () => {
@@ -249,6 +388,131 @@ const setSelectedProvider = async (provider: ProviderSpec) => {
   selectedProvider.value = provider;
   modelSearchTerm.value = '';
   manualModelName.value = '';
+  if (provider.login_supported) {
+    await refreshProviderAuthState(provider.name);
+  }
+};
+
+const startBrowserProviderLogin = async () => {
+  if (!selectedProvider.value) return;
+  const providerName = selectedProvider.value.name;
+  const profileName = selectedProviderProfileDraft.value.trim() || 'default';
+  clearProviderFeedback(providerName);
+  setProviderAuthBusy(providerName, 'login');
+  try {
+    const response = await loginProvider(providerName, profileName, 'browser');
+    if (response.authorize_url) {
+      await openExternalUrl(response.authorize_url);
+    }
+    providerAuthMessages.value = {
+      ...providerAuthMessages.value,
+      [providerName]:
+        'Browser authorization started. If loopback fails, paste the final redirect URL below.',
+    };
+    scheduleProviderLoginPolling(providerName, profileName);
+  } catch (error) {
+    providerAuthErrors.value = {
+      ...providerAuthErrors.value,
+      [providerName]: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    setProviderAuthBusy(providerName, null);
+  }
+};
+
+const completeProviderLoginWithRedirect = async () => {
+  if (!selectedProvider.value) return;
+  const providerName = selectedProvider.value.name;
+  const profileName = selectedProviderProfileDraft.value.trim() || 'default';
+  const redirectUrl = providerRedirectInputs.value[providerName]?.trim();
+  if (!redirectUrl) return;
+  clearProviderFeedback(providerName);
+  setProviderAuthBusy(providerName, 'complete');
+  try {
+    await loginProvider(providerName, profileName, 'paste_redirect', redirectUrl);
+    await refreshProviderAuthState(providerName);
+    providerAuthMessages.value = {
+      ...providerAuthMessages.value,
+      [providerName]: `Logged in as ${profileName}.`,
+    };
+    providerRedirectInputs.value = {
+      ...providerRedirectInputs.value,
+      [providerName]: '',
+    };
+  } catch (error) {
+    providerAuthErrors.value = {
+      ...providerAuthErrors.value,
+      [providerName]: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    setProviderAuthBusy(providerName, null);
+  }
+};
+
+const activateProviderProfile = async (profileName: string) => {
+  if (!selectedProvider.value) return;
+  const providerName = selectedProvider.value.name;
+  clearProviderFeedback(providerName);
+  setProviderAuthBusy(providerName, 'use');
+  try {
+    const status = await useProviderProfile(providerName, profileName);
+    updateProviderAuthSnapshot(providerName, status);
+    providerAuthMessages.value = {
+      ...providerAuthMessages.value,
+      [providerName]: `Active profile set to ${profileName}.`,
+    };
+  } catch (error) {
+    providerAuthErrors.value = {
+      ...providerAuthErrors.value,
+      [providerName]: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    setProviderAuthBusy(providerName, null);
+  }
+};
+
+const refreshSelectedProviderAuth = async () => {
+  if (!selectedProvider.value) return;
+  const providerName = selectedProvider.value.name;
+  clearProviderFeedback(providerName);
+  setProviderAuthBusy(providerName, 'refresh');
+  try {
+    const status = await refreshProviderAuth(providerName, selectedProviderProfileDraft.value);
+    updateProviderAuthSnapshot(providerName, status);
+    providerAuthMessages.value = {
+      ...providerAuthMessages.value,
+      [providerName]: 'OAuth token refreshed.',
+    };
+  } catch (error) {
+    providerAuthErrors.value = {
+      ...providerAuthErrors.value,
+      [providerName]: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    setProviderAuthBusy(providerName, null);
+  }
+};
+
+const logoutSelectedProviderAuth = async () => {
+  if (!selectedProvider.value) return;
+  const providerName = selectedProvider.value.name;
+  clearProviderFeedback(providerName);
+  setProviderAuthBusy(providerName, 'logout');
+  try {
+    const status = await logoutProvider(providerName, selectedProviderProfileDraft.value);
+    updateProviderAuthSnapshot(providerName, status);
+    providerAuthMessages.value = {
+      ...providerAuthMessages.value,
+      [providerName]: 'Provider profile removed from local auth store.',
+    };
+  } catch (error) {
+    providerAuthErrors.value = {
+      ...providerAuthErrors.value,
+      [providerName]: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    setProviderAuthBusy(providerName, null);
+  }
 };
 
 const openManualModelDialog = () => {
@@ -719,6 +983,13 @@ watch(() => props.config, async (newVal) => {
   buildProviderStateFromProps();
   await refreshProviderState();
 }, { deep: true });
+
+onBeforeUnmount(() => {
+  for (const timer of providerLoginTimers.values()) {
+    clearTimeout(timer);
+  }
+  providerLoginTimers.clear();
+});
 </script>
 
 <template>
@@ -843,46 +1114,159 @@ watch(() => props.config, async (newVal) => {
            >
              <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">
                <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('providers.readiness') }}</div>
-               <div class="mt-1 text-sm font-semibold" :class="providerStatusMap.get(selectedProvider.name)?.ready ? 'text-emerald-700' : 'text-amber-700'">
-                 {{ providerStatusMap.get(selectedProvider.name)?.ready ? t('providers.ready') : t('providers.missingConfig') }}
+               <div
+                 class="mt-1 text-sm font-semibold"
+                 :class="
+                   selectedProvider.login_supported
+                     ? (selectedProviderAuthStatus?.authenticated ? 'text-emerald-700' : 'text-amber-700')
+                     : (providerStatusMap.get(selectedProvider.name)?.ready ? 'text-emerald-700' : 'text-amber-700')
+                 "
+               >
+                 {{
+                   selectedProvider.login_supported
+                     ? (selectedProviderAuthStatus?.authenticated ? 'Authenticated' : 'Login required')
+                     : (providerStatusMap.get(selectedProvider.name)?.ready ? t('providers.ready') : t('providers.missingConfig'))
+                 }}
                </div>
              </div>
              <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">
-               <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('providers.currentModel') }}</div>
+               <div class="text-[11px] uppercase tracking-wider text-gray-400">
+                 {{ selectedProvider.login_supported ? 'Active profile' : t('providers.currentModel') }}
+               </div>
                <div class="mt-1 text-sm font-semibold text-gray-800">
-                 {{ providerStatusMap.get(selectedProvider.name)?.model || providerStatusMap.get(selectedProvider.name)?.default_model || '-' }}
+                 {{
+                   selectedProvider.login_supported
+                     ? (selectedProviderAuthStatus?.active_profile || '-')
+                     : (providerStatusMap.get(selectedProvider.name)?.model || providerStatusMap.get(selectedProvider.name)?.default_model || '-')
+                 }}
                </div>
              </div>
              <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">
-               <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('providers.missingFields') }}</div>
+               <div class="text-[11px] uppercase tracking-wider text-gray-400">
+                 {{ selectedProvider.login_supported ? 'Expires at' : t('providers.missingFields') }}
+               </div>
                <div class="mt-1 text-xs text-gray-600">
-                 {{ providerStatusMap.get(selectedProvider.name)?.missing_fields.length ? providerStatusMap.get(selectedProvider.name)?.missing_fields.join(', ') : t('providers.none') }}
+                 {{
+                   selectedProvider.login_supported
+                     ? (selectedProviderAuthStatus?.expires_at || '-')
+                     : (providerStatusMap.get(selectedProvider.name)?.missing_fields.length ? providerStatusMap.get(selectedProvider.name)?.missing_fields.join(', ') : t('providers.none'))
+                 }}
                </div>
             </div>
            </div>
-           
-           <!-- API Key -->
-            <div class="space-y-1">
-             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiKey') }}</label>
-             <input 
-               :value="providerApiKeys[selectedProvider.name]"
-               @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
-               type="password" 
-               :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
-               class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" 
-             />
+
+           <div v-if="selectedProviderUsesExternalAuth" class="space-y-4 rounded-xl border border-sky-100 bg-sky-50/60 p-4">
+             <div class="flex items-center justify-between gap-3">
+               <div>
+                 <div class="text-sm font-semibold text-sky-900">Provider Authentication</div>
+                 <div class="mt-1 text-xs text-sky-700">
+                   {{ selectedProvider.auth_mode }} via {{ selectedProvider.credential_store }}. Credentials are stored outside config.json.
+                 </div>
+               </div>
+               <div
+                 class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                 :class="selectedProviderAuthStatus?.authenticated ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
+               >
+                 {{ selectedProviderAuthStatus?.authenticated ? 'Authenticated' : 'Not logged in' }}
+               </div>
+             </div>
+
+             <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+               <input
+                 v-model="selectedProviderProfileDraft"
+                 type="text"
+                 placeholder="Profile name"
+                 class="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20"
+               />
+               <button
+                 type="button"
+                 class="rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                 :disabled="providerAuthBusy[selectedProvider.name] === 'login'"
+                 @click="startBrowserProviderLogin"
+               >
+                 {{ providerAuthBusy[selectedProvider.name] === 'login' ? 'Starting...' : 'Login' }}
+               </button>
+               <button
+                 type="button"
+                 class="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+                 :disabled="!selectedProviderAuthStatus?.authenticated || providerAuthBusy[selectedProvider.name] === 'refresh'"
+                 @click="refreshSelectedProviderAuth"
+               >
+                 {{ providerAuthBusy[selectedProvider.name] === 'refresh' ? 'Refreshing...' : 'Refresh' }}
+               </button>
+               <button
+                 type="button"
+                 class="rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                 :disabled="!selectedProviderAuthStatus?.authenticated || providerAuthBusy[selectedProvider.name] === 'logout'"
+                 @click="logoutSelectedProviderAuth"
+               >
+                 {{ providerAuthBusy[selectedProvider.name] === 'logout' ? 'Removing...' : 'Logout' }}
+               </button>
+             </div>
+
+             <div class="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+               <input
+                 v-model="providerRedirectInputs[selectedProvider.name]"
+                 type="text"
+                 placeholder="Paste redirect URL here if browser callback does not return"
+                 class="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20"
+               />
+               <button
+                 type="button"
+                 class="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+                 :disabled="!providerRedirectInputs[selectedProvider.name]?.trim() || providerAuthBusy[selectedProvider.name] === 'complete'"
+                 @click="completeProviderLoginWithRedirect"
+               >
+                 {{ providerAuthBusy[selectedProvider.name] === 'complete' ? 'Completing...' : 'Complete Login' }}
+               </button>
+             </div>
+
+             <div v-if="selectedProviderAuthStatus?.profiles?.length" class="space-y-2">
+               <div class="text-[11px] uppercase tracking-wider text-sky-700">Profiles</div>
+               <div class="flex flex-wrap gap-2">
+                 <button
+                   v-for="profile in selectedProviderAuthStatus.profiles"
+                   :key="profile.id"
+                   type="button"
+                   class="rounded-full border px-3 py-1 text-xs font-medium transition"
+                   :class="profile.is_active ? 'border-emerald-200 bg-emerald-100 text-emerald-700' : 'border-sky-200 bg-white text-sky-700 hover:bg-sky-50'"
+                   @click="activateProviderProfile(profile.profile_name)"
+                 >
+                   {{ profile.profile_name }}
+                 </button>
+               </div>
+             </div>
+
+             <div v-if="providerAuthMessages[selectedProvider.name]" class="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+               {{ providerAuthMessages[selectedProvider.name] }}
+             </div>
+             <div v-if="providerAuthErrors[selectedProvider.name]" class="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
+               {{ providerAuthErrors[selectedProvider.name] }}
+             </div>
            </div>
-           
-           <!-- API Base -->
-           <div class="space-y-1">
-             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiBaseUrl') }}</label>
-             <input 
-               :value="providerApiBases[selectedProvider.name] || selectedProvider.default_api_base || ''"
-               @input="e => updateProviderApiBase((e.target as HTMLInputElement).value)"
-               :placeholder="selectedProvider.default_api_base || t('providers.placeholderLocalCustom')"
-               class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" 
-             />
-           </div>
+
+           <template v-else>
+             <div class="space-y-1">
+               <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiKey') }}</label>
+               <input 
+                 :value="providerApiKeys[selectedProvider.name]"
+                 @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
+                 type="password" 
+                 :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
+                 class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" 
+               />
+             </div>
+             
+             <div class="space-y-1">
+               <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiBaseUrl') }}</label>
+               <input 
+                 :value="providerApiBases[selectedProvider.name] || selectedProvider.default_api_base || ''"
+                 @input="e => updateProviderApiBase((e.target as HTMLInputElement).value)"
+                 :placeholder="selectedProvider.default_api_base || t('providers.placeholderLocalCustom')"
+                 class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" 
+               />
+             </div>
+           </template>
         </div>
 
         <!-- Model Selection -->

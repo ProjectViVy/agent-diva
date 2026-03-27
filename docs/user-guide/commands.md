@@ -47,22 +47,36 @@
   - `agent-diva [--config <config.json> | --config-dir <dir>] provider status [--json]`
   - `agent-diva [--config <config.json> | --config-dir <dir>] provider set --provider <name> [--model <id>] [--api-key <key>] [--api-base <url>] [--json]`
   - `agent-diva [--config <config.json> | --config-dir <dir>] provider models --provider <name> [--static-fallback] [--json]`
-  - `agent-diva provider login <provider> [--json]`
+  - `agent-diva [--config <config.json> | --config-dir <dir>] provider login <provider> [--profile <name>] [--device-code | --paste-code <redirect-or-code>] [--json]`
+  - `agent-diva [--config <config.json> | --config-dir <dir>] provider logout <provider> [--profile <name>] [--json]`
+  - `agent-diva [--config <config.json> | --config-dir <dir>] provider use <provider> --profile <name> [--json]`
+  - `agent-diva [--config <config.json> | --config-dir <dir>] provider refresh <provider> [--profile <name>] [--json]`
 - Output / expected behavior:
   - `list`: print manageable providers from registry, including default model metadata and readiness.
   - `status`: print current default model, resolved provider, and readiness/missing fields.
   - `set`: update `agents.defaults.model` plus provider credentials through `ConfigLoader`.
   - `models`: query the provider's runtime model catalog when supported, optionally falling back to bundled static metadata.
-  - `login`: stable placeholder interface for future OAuth/device login flows.
+  - `login`: start provider authentication for providers that declare OAuth login support. In the current build, `openai-codex` supports browser PKCE, paste-redirect fallback, and CLI device-code login.
+  - `logout`: remove a stored auth profile from the provider auth store.
+  - `use`: switch the active auth profile for a provider.
+  - `refresh`: refresh an OAuth token when the provider/runtime supports refresh. In the current build, this is implemented for `openai-codex`.
 - Examples:
   - `agent-diva provider list`
   - `agent-diva --config ~/.agent-diva/config.json provider status --json`
   - `agent-diva --config ~/.agent-diva/config.json provider set --provider deepseek --api-key sk-...`
   - `agent-diva --config ~/.agent-diva/config.json provider models --provider openai --json`
+  - `agent-diva provider login openai-codex`
+  - `agent-diva provider login openai-codex --device-code`
+  - `agent-diva provider login openai-codex --paste-code 'http://localhost:1455/auth/callback?code=...&state=...'`
+  - `agent-diva provider use openai-codex --profile work`
+  - `agent-diva provider refresh openai-codex --profile work`
 - Boundary conditions:
   - `provider set` only supports providers that have config slots in the Rust config schema.
   - If registry metadata has no default model for a provider, `provider set` requires explicit `--model` unless the current configured model already belongs to that provider.
   - `provider models` is read-only and never mutates config.
+  - `provider login` checks provider metadata first and fails fast when `login_supported` is false.
+  - OAuth credentials are stored outside `config.json` in the provider auth store.
+  - GUI currently exposes browser login and paste-redirect completion for `openai-codex`; GUI device-code login is not implemented in this build.
   - Unsupported providers return structured `unsupported` or `static_fallback` responses instead of guessing undocumented endpoints.
   - JSON output must not include ASCII logo or extra stdout noise.
 

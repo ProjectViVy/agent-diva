@@ -1,5 +1,6 @@
 use agent_diva_providers::{
-    CustomProviderUpsert, ProviderCatalogService, ProviderModelCatalogView, ProviderView,
+    resolve_openai_compatible_oauth_access, CustomProviderUpsert, ProviderAccess,
+    ProviderCatalogService, ProviderModelCatalogView, ProviderView,
 };
 use tokio::sync::oneshot;
 
@@ -40,7 +41,20 @@ impl Manager {
             error: Some(format!("Unknown provider '{}'", name)),
         };
         let response = ProviderCatalogService::new()
-            .list_provider_models(&config, &name, runtime, None)
+            .list_provider_models(
+                &config,
+                &name,
+                runtime,
+                resolve_openai_compatible_oauth_access(
+                    self.loader.config_dir(),
+                    &name,
+                    ProviderCatalogService::new()
+                        .get_provider_access(&config, &name)
+                        .unwrap_or_else(|| ProviderAccess::from_config(None)),
+                )
+                .await
+                .ok(),
+            )
             .await
             .unwrap_or(fallback);
         let _ = reply.send(response);
@@ -109,7 +123,20 @@ impl Manager {
             && config.agents.defaults.model == model_id
         {
             match catalog
-                .list_provider_models(&config, &name, false, None)
+                .list_provider_models(
+                    &config,
+                    &name,
+                    false,
+                    resolve_openai_compatible_oauth_access(
+                        self.loader.config_dir(),
+                        &name,
+                        catalog
+                            .get_provider_access(&config, &name)
+                            .unwrap_or_else(|| ProviderAccess::from_config(None)),
+                    )
+                    .await
+                    .ok(),
+                )
                 .await
             {
                 Ok(models) => {

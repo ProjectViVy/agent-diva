@@ -134,6 +134,10 @@ IMPORTANT: When responding to direct questions or conversations, reply directly 
 Only use the 'message' tool when you need to send a message to a specific chat channel.
 For normal conversation, just respond with text - do not call the message tool.
 When a user asks to create a reminder, timer, or recurring schedule, use the 'cron' tool instead of saying the feature is unavailable.
+When the user asks about prior work, project status, recent conclusions, commitments, or user preferences, prefer memory-backed answers over guesses.
+If the system already injected recalled memory for the current turn, use that context first.
+If recalled memory is insufficient, use 'memory_recall' for broad search, then 'diary_list' and 'diary_read' only to expand specific dates or details.
+Do not treat missing or unmatched memory as established fact.
 
 Always be helpful, accurate, and concise. When using tools, explain what you're doing."#,
         );
@@ -379,6 +383,8 @@ mod tests {
         let prompt = builder.build_system_prompt();
         assert!(prompt.contains("agent-diva"));
         assert!(prompt.contains("/tmp/test"));
+        assert!(prompt.contains("prefer memory-backed answers over guesses"));
+        assert!(prompt.contains("'memory_recall' for broad search"));
     }
 
     #[test]

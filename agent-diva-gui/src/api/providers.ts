@@ -11,6 +11,9 @@ export interface ProviderModelCatalog {
   error?: string | null;
 }
 
+export const getProviders = () =>
+  invoke<ProviderSpecDto[]>("get_providers");
+
 export interface ProviderModelTestResult {
   ok: boolean;
   message: string;
@@ -22,12 +25,58 @@ export interface ProviderSpecDto {
   display_name: string;
   api_type: string;
   source: string;
+  auth_mode: string;
+  login_supported: boolean;
+  credential_store: string;
+  runtime_backend: string;
   configured: boolean;
   ready: boolean;
+  authenticated: boolean;
+  active_profile?: string | null;
+  expires_at?: string | null;
+  profiles: ProviderAuthProfileDto[];
   default_api_base: string;
   default_model?: string | null;
   models: string[];
   custom_models: string[];
+}
+
+export interface ProviderAuthProfileDto {
+  id: string;
+  profile_name: string;
+  account_id?: string | null;
+  is_active: boolean;
+}
+
+export interface ProviderAuthStatusDto {
+  provider: string;
+  active_profile?: string | null;
+  authenticated: boolean;
+  expires_at?: string | null;
+  profiles: ProviderAuthProfileDto[];
+}
+
+export type ProviderLoginMode = "browser" | "paste_redirect" | "device_code";
+
+export interface ProviderLoginResponseDto {
+  status: string;
+  authorize_url?: string | null;
+  result?: {
+    provider: string;
+    profile_name: string;
+    account_id?: string | null;
+    status: string;
+  } | null;
+  message?: string | null;
+}
+
+export interface PendingProviderLoginStatusDto {
+  provider: string;
+  profile: string;
+  status: string;
+  authorize_url?: string | null;
+  message?: string | null;
+  result?: ProviderLoginResponseDto["result"];
 }
 
 export interface CustomProviderPayload {
@@ -91,3 +140,43 @@ export const createCustomProvider = (payload: CustomProviderPayload) =>
 
 export const deleteCustomProvider = (provider: string) =>
   invoke<void>("delete_custom_provider", { provider });
+
+export const getProviderAuthStatus = (provider: string) =>
+  invoke<ProviderAuthStatusDto>("get_provider_auth_status", { provider });
+
+export const listProviderProfiles = (provider: string) =>
+  invoke<ProviderAuthProfileDto[]>("list_provider_profiles", { provider });
+
+export const loginProvider = (
+  provider: string,
+  profile: string,
+  mode: ProviderLoginMode,
+  redirectUrl?: string | null,
+) =>
+  invoke<ProviderLoginResponseDto>("login_provider", {
+    provider,
+    profile,
+    mode,
+    redirectUrl: redirectUrl ?? null,
+  });
+
+export const getProviderLoginStatus = (provider: string, profile: string) =>
+  invoke<PendingProviderLoginStatusDto>("get_provider_login_status", {
+    provider,
+    profile,
+  });
+
+export const useProviderProfile = (provider: string, profile: string) =>
+  invoke<ProviderAuthStatusDto>("use_provider_profile", { provider, profile });
+
+export const refreshProviderAuth = (provider: string, profile?: string | null) =>
+  invoke<ProviderAuthStatusDto>("refresh_provider_auth", {
+    provider,
+    profile: profile ?? null,
+  });
+
+export const logoutProvider = (provider: string, profile?: string | null) =>
+  invoke<ProviderAuthStatusDto>("logout_provider", {
+    provider,
+    profile: profile ?? null,
+  });

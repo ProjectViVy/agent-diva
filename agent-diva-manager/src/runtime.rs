@@ -10,13 +10,14 @@ use agent_diva_agent::{
     tool_config::network::WebSearchRuntimeConfig, AgentLoop, ToolConfig,
 };
 use agent_diva_channels::ChannelManager;
+use agent_diva_core::auth::ProviderAuthService;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
 use agent_diva_providers::{
-    DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess, ProviderCatalogService,
-    ProviderRegistry,
+    backends::openai_codex::OpenAiCodexProvider, DynamicProvider, LLMProvider, LiteLLMClient,
+    ProviderAccess, ProviderCatalogService, ProviderRegistry, RuntimeBackend,
 };
 use anyhow::Result;
 use std::path::PathBuf;
@@ -120,7 +121,11 @@ fn resolve_provider_name_for_model(
     })
 }
 
-fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
+fn build_provider(
+    config: &Config,
+    config_dir: &std::path::Path,
+    model: &str,
+) -> Result<Arc<dyn LLMProvider>> {
     let catalog = ProviderCatalogService::new();
     let provider_name = resolve_provider_name_for_model(
         config,
@@ -140,14 +145,26 @@ fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
             .collect::<std::collections::HashMap<String, String>>()
     });
 
-    Ok(LiteLLMClient::new(
-        access.api_key,
-        access.api_base,
-        model.to_string(),
-        extra_headers,
-        Some(provider_name),
-        config.agents.defaults.reasoning_effort.clone(),
-    ))
+    let provider_spec = provider_registry()
+        .find_by_name(&provider_name)
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("No provider spec found for provider: {}", provider_name))?;
+    let provider: Arc<dyn LLMProvider> = match provider_spec.runtime_backend {
+        RuntimeBackend::OpenaiCodex => Arc::new(OpenAiCodexProvider::new(
+            ProviderAuthService::new(config_dir),
+            model.to_string(),
+            None,
+        )),
+        RuntimeBackend::OpenaiCompatible => Arc::new(LiteLLMClient::new(
+            access.api_key,
+            access.api_base,
+            model.to_string(),
+            extra_headers,
+            Some(provider_name),
+            config.agents.defaults.reasoning_effort.clone(),
+        )),
+    };
+    Ok(provider)
 }
 
 fn build_network_tool_config(config: &Config) -> NetworkToolConfig {

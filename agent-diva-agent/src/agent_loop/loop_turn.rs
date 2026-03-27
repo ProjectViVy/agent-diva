@@ -1,5 +1,6 @@
 use super::AgentLoop;
 use crate::consolidation;
+use crate::diary::RationalDiaryExtractor;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
@@ -58,6 +59,12 @@ impl AgentLoop {
             if let Some(current_message) = current_message {
                 messages.push(current_message);
             }
+        }
+        if let Some(recall_context) =
+            self.maybe_prepare_memory_recall_context(&msg.content, is_cron_trigger)?
+        {
+            inject_memory_recall_context(&mut messages, &recall_context);
+            debug!("Injected auto-recalled memory context for this turn");
         }
 
         // Agent loop
@@ -386,6 +393,16 @@ impl AgentLoop {
             );
         }
 
+        match RationalDiaryExtractor.persist_if_relevant(
+            &self.workspace,
+            &msg.content,
+            &final_content,
+        ) {
+            Ok(true) => debug!("Persisted rational diary entry for this turn"),
+            Ok(false) => {}
+            Err(error) => error!("Failed to persist rational diary entry: {}", error),
+        }
+
         // Run memory consolidation if threshold reached
         {
             let session = self.sessions.get_or_create(&session_key);
@@ -433,6 +450,92 @@ impl AgentLoop {
             metadata: msg.metadata,
         }))
     }
+}
+
+impl AgentLoop {
+    fn maybe_prepare_memory_recall_context(
+        &self,
+        user_message: &str,
+        is_cron_trigger: bool,
+    ) -> agent_diva_core::Result<Option<String>> {
+        if is_cron_trigger || !should_auto_recall_user_message(user_message) {
+            return Ok(None);
+        }
+
+        let records = self.memory_service.recall_records_for_context(
+            user_message,
+            agent_diva_memory::service::WorkspaceMemoryService::DEFAULT_RECALL_CONTEXT_LIMIT,
+        )?;
+        Ok(agent_diva_memory::WorkspaceMemoryService::format_recall_context(&records))
+    }
+}
+
+fn inject_memory_recall_context(
+    messages: &mut [agent_diva_providers::Message],
+    recall_context: &str,
+) {
+    let Some(system_message) = messages.first_mut() else {
+        return;
+    };
+    if system_message.role != "system" || recall_context.trim().is_empty() {
+        return;
+    }
+    system_message.content.push_str("\n\n");
+    system_message.content.push_str(recall_context.trim());
+}
+
+fn should_auto_recall_user_message(message: &str) -> bool {
+    let trimmed = message.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let normalized = trimmed.to_lowercase();
+    let positive_markers = [
+        "之前",
+        "以前",
+        "最近",
+        "上次",
+        "进度",
+        "状态",
+        "偏好",
+        "习惯",
+        "约束",
+        "承诺",
+        "结论",
+        "分析",
+        "判断",
+        "下一步",
+        "做过什么",
+        "做了什么",
+        "before",
+        "previous",
+        "earlier",
+        "last time",
+        "recent",
+        "progress",
+        "status",
+        "preference",
+        "prefer",
+        "constraint",
+        "commitment",
+        "promise",
+        "conclusion",
+        "analysis",
+        "next step",
+        "what did we do",
+    ];
+    if !positive_markers
+        .iter()
+        .any(|marker| normalized.contains(marker))
+    {
+        return false;
+    }
+
+    let casual_patterns = ["你好", "hello", "hi ", "thanks", "谢谢", "早上好", "晚上好"];
+    !casual_patterns
+        .iter()
+        .any(|pattern| normalized == *pattern || normalized.starts_with(pattern))
 }
 
 fn changed_soul_file(
@@ -560,6 +663,11 @@ fn save_turn(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_memory::{
+        DiaryEntry, DiaryPartition, DiaryStore, FileDiaryStore, MemoryDomain, MemoryScope,
+    };
+    use chrono::{DateTime, Utc};
+    use tempfile::TempDir;
 
     #[test]
     fn test_changed_soul_file_detects_successful_updates() {
@@ -630,5 +738,83 @@ mod tests {
         let notice = format_soul_transparency_notice(&files, true, false);
         assert!(!notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
         assert!(!notice.contains("Governance hint:"));
+    }
+
+    #[test]
+    fn test_should_auto_recall_user_message_for_history_queries() {
+        assert!(should_auto_recall_user_message(
+            "之前我们对 memory 拆分做了什么结论？"
+        ));
+        assert!(should_auto_recall_user_message(
+            "What did we do last time for the provider status flow?"
+        ));
+        assert!(!should_auto_recall_user_message("你好"));
+        assert!(!should_auto_recall_user_message("请执行 cargo test"));
+    }
+
+    #[test]
+    fn test_inject_memory_recall_context_appends_to_system_prompt() {
+        let mut messages = vec![
+            agent_diva_providers::Message::system("base system"),
+            agent_diva_providers::Message::user("之前做了什么"),
+        ];
+        inject_memory_recall_context(&mut messages, "## Auto-Recalled Memory\n- item");
+        assert!(messages[0].content.contains("base system"));
+        assert!(messages[0].content.contains("## Auto-Recalled Memory"));
+        assert_eq!(messages[1].content, "之前做了什么");
+    }
+
+    #[test]
+    fn test_maybe_prepare_memory_recall_context_returns_none_for_non_trigger() {
+        let bus = agent_diva_core::bus::MessageBus::new();
+        let provider = std::sync::Arc::new(agent_diva_providers::LiteLLMClient::default());
+        let temp_dir = TempDir::new().unwrap();
+        let agent = AgentLoop::new(bus, provider, temp_dir.path().to_path_buf(), None, Some(1));
+        let recall = agent
+            .maybe_prepare_memory_recall_context("请执行 cargo test", false)
+            .unwrap();
+        assert!(recall.is_none());
+    }
+
+    #[test]
+    fn test_maybe_prepare_memory_recall_context_smoke() {
+        let temp_dir = TempDir::new().unwrap();
+        seed_memory_workspace(&temp_dir);
+        let bus = agent_diva_core::bus::MessageBus::new();
+        let provider = std::sync::Arc::new(agent_diva_providers::LiteLLMClient::default());
+        let agent = AgentLoop::new(bus, provider, temp_dir.path().to_path_buf(), None, Some(1));
+
+        let recall = agent
+            .maybe_prepare_memory_recall_context("之前我们对 memory 拆分做了什么结论？", false)
+            .unwrap()
+            .unwrap();
+
+        assert!(recall.contains("## Auto-Recalled Memory"));
+        assert!(recall.contains("Memory split conclusion"));
+        assert!(recall.contains("memory/MEMORY.md"));
+    }
+
+    fn seed_memory_workspace(temp_dir: &TempDir) {
+        std::fs::create_dir_all(temp_dir.path().join("memory")).unwrap();
+        std::fs::write(
+            temp_dir.path().join("memory").join("MEMORY.md"),
+            "# Long-term Memory\n\nMemory split conclusion: keep agent-diva-core minimal and move enhanced memory into agent-diva-memory.\n",
+        )
+        .unwrap();
+
+        let mut entry = DiaryEntry::new(
+            DiaryPartition::Rational,
+            MemoryDomain::Workspace,
+            MemoryScope::Workspace,
+            "Memory split conclusion",
+            "Keep core minimal and move enhanced memory into agent-diva-memory.",
+            "We finalized the split and kept MEMORY.md compatibility in core.",
+        );
+        entry.timestamp = DateTime::parse_from_rfc3339("2026-03-26T09:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        FileDiaryStore::new(temp_dir.path())
+            .append_entry(&entry)
+            .unwrap();
     }
 }

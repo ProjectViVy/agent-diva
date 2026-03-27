@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "agent-diva-core",
+    "agent-diva-memory",
     "agent-diva-agent",
     "agent-diva-neuron",
     "agent-diva-providers",
@@ -67,6 +68,9 @@ once_cell = "1.19"
 bytes = "1.5"
 which = "6.0"
 windows-service = "0.7"
+base64 = "0.22"
+sha2 = "0.10"
+urlencoding = "2.1"
 
 # Testing
 mockito = "1.2"

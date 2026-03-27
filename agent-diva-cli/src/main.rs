@@ -13,8 +13,8 @@ use agent_diva_cli::cli_runtime::{
     fetch_provider_models, print_json, redacted_config_value, set_provider_credentials, CliRuntime,
 };
 use agent_diva_cli::provider_commands::{
-    run_provider_list, run_provider_login, run_provider_models, run_provider_set,
-    run_provider_status,
+    run_provider_list, run_provider_login, run_provider_logout, run_provider_models,
+    run_provider_refresh, run_provider_set, run_provider_status, run_provider_use,
 };
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::validate::validate_config;
@@ -201,7 +201,13 @@ enum ProviderCommands {
     /// List manageable providers
     List(StatusArgs),
     /// Show provider readiness and active model/provider
-    Status(StatusArgs),
+    Status {
+        /// Optional provider name
+        provider: Option<String>,
+        /// Output structured JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Update the default provider/model and credentials
     Set {
         /// Provider name to activate
@@ -236,6 +242,47 @@ enum ProviderCommands {
     Login {
         /// Provider name
         provider: String,
+        /// Profile name to store/use
+        #[arg(long, default_value = "default")]
+        profile: String,
+        /// Use device-code flow instead of loopback browser callback
+        #[arg(long)]
+        device_code: bool,
+        /// Paste redirect URL instead of waiting for loopback callback
+        #[arg(long)]
+        paste_code: Option<String>,
+        /// Output structured JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Logout a provider profile
+    Logout {
+        /// Provider name
+        provider: String,
+        /// Optional profile name; defaults to active profile
+        #[arg(long)]
+        profile: Option<String>,
+        /// Output structured JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Set the active provider profile
+    Use {
+        /// Provider name
+        provider: String,
+        /// Profile name or full profile id
+        profile: String,
+        /// Output structured JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Refresh an OAuth provider token
+    Refresh {
+        /// Provider name
+        provider: String,
+        /// Optional profile name; defaults to active profile
+        #[arg(long)]
+        profile: Option<String>,
         /// Output structured JSON
         #[arg(long)]
         json: bool,
@@ -476,7 +523,9 @@ async fn main() -> Result<()> {
         },
         Commands::Provider { command } => match command {
             ProviderCommands::List(args) => run_provider_list(&runtime, args.json).await?,
-            ProviderCommands::Status(args) => run_provider_status(&runtime, args.json).await?,
+            ProviderCommands::Status { provider, json } => {
+                run_provider_status(&runtime, provider, json).await?
+            }
             ProviderCommands::Set {
                 provider,
                 model,
@@ -493,9 +542,31 @@ async fn main() -> Result<()> {
             } => {
                 run_provider_models(&runtime, provider, json, static_fallback).await?;
             }
-            ProviderCommands::Login { provider, json } => {
-                run_provider_login(provider, json).await?;
+            ProviderCommands::Login {
+                provider,
+                profile,
+                device_code,
+                paste_code,
+                json,
+            } => {
+                run_provider_login(&runtime, provider, profile, device_code, paste_code, json)
+                    .await?;
             }
+            ProviderCommands::Logout {
+                provider,
+                profile,
+                json,
+            } => run_provider_logout(&runtime, provider, profile, json).await?,
+            ProviderCommands::Use {
+                provider,
+                profile,
+                json,
+            } => run_provider_use(&runtime, provider, profile, json).await?,
+            ProviderCommands::Refresh {
+                provider,
+                profile,
+                json,
+            } => run_provider_refresh(&runtime, provider, profile, json).await?,
         },
         Commands::Config { command } => match command {
             ConfigCommands::Path(args) => run_config_path(&runtime, args.json).await?,
@@ -979,7 +1050,7 @@ async fn run_tui(
     let _ = ensure_workspace_templates(&workspace)?;
 
     let bus = MessageBus::new();
-    let provider = Arc::new(build_provider(&config, &selected_model)?);
+    let provider = build_provider(&config, runtime.config_dir(), &selected_model)?;
 
     let tool_config = ToolConfig {
         network: build_network_tool_config(&config),
@@ -1259,10 +1330,14 @@ fn is_structured_output(command: &Commands) -> bool {
             command: ChannelCommands::Status(args),
         } => args.json,
         Commands::Provider { command } => match command {
-            ProviderCommands::List(args) | ProviderCommands::Status(args) => args.json,
+            ProviderCommands::List(args) => args.json,
+            ProviderCommands::Status { json, .. } => *json,
             ProviderCommands::Set { json, .. }
             | ProviderCommands::Models { json, .. }
-            | ProviderCommands::Login { json, .. } => *json,
+            | ProviderCommands::Login { json, .. }
+            | ProviderCommands::Logout { json, .. }
+            | ProviderCommands::Use { json, .. }
+            | ProviderCommands::Refresh { json, .. } => *json,
         },
         Commands::Config { command } => match command {
             ConfigCommands::Path(args)

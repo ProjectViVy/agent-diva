@@ -738,6 +738,8 @@ pub struct ProvidersConfig {
     #[serde(default)]
     pub dashscope: ProviderConfig,
     #[serde(default)]
+    pub qwen_login: ProviderConfig,
+    #[serde(default)]
     pub vllm: ProviderConfig,
     #[serde(default)]
     pub gemini: ProviderConfig,
@@ -790,7 +792,7 @@ fn default_custom_provider_api_type() -> String {
 }
 
 impl ProvidersConfig {
-    pub const BUILTIN_PROVIDER_IDS: [&'static str; 13] = [
+    pub const BUILTIN_PROVIDER_IDS: [&'static str; 14] = [
         "anthropic",
         "openai",
         "openrouter",
@@ -798,6 +800,7 @@ impl ProvidersConfig {
         "groq",
         "zhipu",
         "dashscope",
+        "qwen-login",
         "vllm",
         "gemini",
         "moonshot",
@@ -819,6 +822,7 @@ impl ProvidersConfig {
             "groq" => Some(&self.groq),
             "zhipu" => Some(&self.zhipu),
             "dashscope" => Some(&self.dashscope),
+            "qwen-login" => Some(&self.qwen_login),
             "vllm" => Some(&self.vllm),
             "gemini" => Some(&self.gemini),
             "moonshot" => Some(&self.moonshot),
@@ -838,6 +842,7 @@ impl ProvidersConfig {
             "groq" => Some(&mut self.groq),
             "zhipu" => Some(&mut self.zhipu),
             "dashscope" => Some(&mut self.dashscope),
+            "qwen-login" => Some(&mut self.qwen_login),
             "vllm" => Some(&mut self.vllm),
             "gemini" => Some(&mut self.gemini),
             "moonshot" => Some(&mut self.moonshot),

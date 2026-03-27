@@ -630,6 +630,7 @@ impl ConfigMigrator {
                 groq: self.convert_provider(&py.providers.groq),
                 zhipu: self.convert_provider(&py.providers.zhipu),
                 dashscope: self.convert_provider(&py.providers.dashscope),
+                qwen_login: ProviderConfig::default(),
                 vllm: self.convert_provider(&py.providers.vllm),
                 gemini: self.convert_provider(&py.providers.gemini),
                 moonshot: self.convert_provider(&py.providers.moonshot),

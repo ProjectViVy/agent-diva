@@ -5,6 +5,7 @@
 pub mod agent_loop;
 pub mod consolidation;
 pub mod context;
+pub mod diary;
 pub mod runtime_control;
 pub mod skills;
 pub mod subagent;

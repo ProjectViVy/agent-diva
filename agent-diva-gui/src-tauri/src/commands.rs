@@ -1,11 +1,14 @@
 use crate::app_state::AgentState;
 use crate::process_utils;
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
+use agent_diva_core::auth::ProviderAuthService;
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
-    CustomProviderUpsert, LiteLLMClient, Message, ProviderAccess, ProviderCatalogService,
-    ProviderModelCatalogView as SharedProviderModelCatalog, ProviderView as SharedProviderView,
+    backends::openai_codex::OpenAiCodexProvider, CustomProviderUpsert, LiteLLMClient, Message,
+    OpenAiCodexAuthHandler, OpenAiCodexBrowserSession, ProviderAccess, ProviderCatalogService,
+    ProviderLoginResult, ProviderModelCatalogView as SharedProviderModelCatalog, ProviderRegistry,
+    ProviderView as SharedProviderView, RuntimeBackend,
 };
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
@@ -29,6 +32,9 @@ struct GatewayProcess {
 
 static GATEWAY_PROCESS: Lazy<AsyncMutex<Option<GatewayProcess>>> =
     Lazy::new(|| AsyncMutex::new(None));
+static PENDING_PROVIDER_LOGINS: Lazy<
+    AsyncMutex<std::collections::HashMap<String, PendingProviderLogin>>,
+> = Lazy::new(|| AsyncMutex::new(std::collections::HashMap::new()));
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -47,12 +53,79 @@ pub struct ProviderSpec {
     pub display_name: String,
     pub api_type: String,
     pub source: String,
+    pub auth_mode: String,
+    pub login_supported: bool,
+    pub credential_store: String,
+    pub runtime_backend: String,
     pub configured: bool,
     pub ready: bool,
+    pub authenticated: bool,
+    pub active_profile: Option<String>,
+    pub expires_at: Option<String>,
+    pub profiles: Vec<ProviderAuthProfileDto>,
     pub default_api_base: String,
     pub default_model: Option<String>,
     pub models: Vec<String>,
     pub custom_models: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderAuthProfileDto {
+    pub id: String,
+    pub profile_name: String,
+    pub account_id: Option<String>,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderAuthStatusDto {
+    pub provider: String,
+    pub active_profile: Option<String>,
+    pub authenticated: bool,
+    pub expires_at: Option<String>,
+    pub profiles: Vec<ProviderAuthProfileDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderLoginModeDto {
+    Browser,
+    PasteRedirect,
+    DeviceCode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderLoginResponseDto {
+    pub status: String,
+    pub authorize_url: Option<String>,
+    pub result: Option<ProviderLoginResult>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingProviderLoginStatusDto {
+    pub provider: String,
+    pub profile: String,
+    pub status: String,
+    pub authorize_url: Option<String>,
+    pub message: Option<String>,
+    pub result: Option<ProviderLoginResult>,
+}
+
+#[derive(Debug, Clone)]
+struct PendingProviderLogin {
+    provider: String,
+    profile: String,
+    authorize_url: String,
+    session: OpenAiCodexBrowserSession,
+    status: PendingProviderLoginStatus,
+}
+
+#[derive(Debug, Clone)]
+enum PendingProviderLoginStatus {
+    Pending,
+    Completed(ProviderLoginResult),
+    Failed(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,16 +225,242 @@ pub struct WipeSummary {
 pub async fn get_providers(state: State<'_, AgentState>) -> Result<Vec<ProviderSpec>, String> {
     let views = state.get_provider_views().await?;
     let mut providers = Vec::with_capacity(views.len());
+    let auth_service = ProviderAuthService::new(config_loader().config_dir());
     for view in views {
         let models = state
             .get_provider_model_catalog(&view.id, false)
             .await
             .map(provider_models_from_catalog)
             .unwrap_or_default();
-        providers.push(provider_spec_from_view(view, models.0, models.1));
+        let auth_status = provider_auth_status_for(&auth_service, &view.id).await?;
+        providers.push(provider_spec_from_view(
+            view,
+            models.0,
+            models.1,
+            auth_status,
+        ));
     }
 
     Ok(providers)
+}
+
+#[tauri::command]
+pub async fn get_provider_auth_status(provider: String) -> Result<ProviderAuthStatusDto, String> {
+    let provider = provider.trim().to_string();
+    if provider.is_empty() {
+        return Err("provider must not be empty".to_string());
+    }
+    let auth = ProviderAuthService::new(config_loader().config_dir());
+    provider_auth_status_for(&auth, &provider).await
+}
+
+#[tauri::command]
+pub async fn list_provider_profiles(
+    provider: String,
+) -> Result<Vec<ProviderAuthProfileDto>, String> {
+    Ok(get_provider_auth_status(provider).await?.profiles)
+}
+
+#[tauri::command]
+pub async fn login_provider(
+    provider: String,
+    profile: String,
+    mode: ProviderLoginModeDto,
+    redirect_url: Option<String>,
+) -> Result<ProviderLoginResponseDto, String> {
+    let provider = provider.trim().to_string();
+    let profile = normalize_profile_name(profile);
+    if provider != "openai-codex" {
+        return Err(format!(
+            "Provider '{}' does not support GUI login",
+            provider
+        ));
+    }
+
+    match mode {
+        ProviderLoginModeDto::Browser => {
+            let handler = OpenAiCodexAuthHandler::default();
+            let session = handler.prepare_browser_login();
+            let authorize_url = session.authorize_url().to_string();
+            let key = provider_login_key(&provider, &profile);
+            {
+                let mut pending = PENDING_PROVIDER_LOGINS.lock().await;
+                pending.insert(
+                    key.clone(),
+                    PendingProviderLogin {
+                        provider: provider.clone(),
+                        profile: profile.clone(),
+                        authorize_url: authorize_url.clone(),
+                        session: session.clone(),
+                        status: PendingProviderLoginStatus::Pending,
+                    },
+                );
+            }
+
+            tauri::async_runtime::spawn(async move {
+                let auth_service = ProviderAuthService::new(config_loader().config_dir());
+                let outcome: anyhow::Result<ProviderLoginResult> = async {
+                    let code = handler
+                        .wait_for_browser_callback(&session, std::time::Duration::from_secs(180))
+                        .await?;
+                    handler
+                        .complete_browser_login_with_code(&auth_service, &profile, &session, &code)
+                        .await
+                }
+                .await;
+
+                let mut pending = PENDING_PROVIDER_LOGINS.lock().await;
+                if let Some(entry) = pending.get_mut(&key) {
+                    entry.status = match outcome {
+                        Ok(result) => PendingProviderLoginStatus::Completed(result),
+                        Err(error) => PendingProviderLoginStatus::Failed(error.to_string()),
+                    };
+                }
+            });
+
+            Ok(ProviderLoginResponseDto {
+                status: "authorization_required".to_string(),
+                authorize_url: Some(authorize_url),
+                result: None,
+                message: None,
+            })
+        }
+        ProviderLoginModeDto::PasteRedirect => {
+            let redirect_url = redirect_url
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| "redirect_url is required for paste_redirect".to_string())?;
+            let key = provider_login_key(&provider, &profile);
+            let pending_entry = {
+                let pending = PENDING_PROVIDER_LOGINS.lock().await;
+                pending.get(&key).cloned()
+            }
+            .ok_or_else(|| {
+                "No pending browser login found for this provider/profile".to_string()
+            })?;
+
+            let auth_service = ProviderAuthService::new(config_loader().config_dir());
+            let handler = OpenAiCodexAuthHandler::default();
+            let result: ProviderLoginResult = handler
+                .complete_browser_login(
+                    &auth_service,
+                    &profile,
+                    &pending_entry.session,
+                    &redirect_url,
+                )
+                .await
+                .map_err(|error| error.to_string())?;
+
+            let mut pending = PENDING_PROVIDER_LOGINS.lock().await;
+            if let Some(entry) = pending.get_mut(&key) {
+                entry.status = PendingProviderLoginStatus::Completed(result.clone());
+            }
+
+            Ok(ProviderLoginResponseDto {
+                status: "authenticated".to_string(),
+                authorize_url: Some(pending_entry.authorize_url),
+                result: Some(result),
+                message: None,
+            })
+        }
+        ProviderLoginModeDto::DeviceCode => {
+            Err("GUI device-code login is not implemented in this build".to_string())
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn get_provider_login_status(
+    provider: String,
+    profile: String,
+) -> Result<PendingProviderLoginStatusDto, String> {
+    let provider = provider.trim().to_string();
+    let profile = normalize_profile_name(profile);
+    let key = provider_login_key(&provider, &profile);
+    let pending = PENDING_PROVIDER_LOGINS.lock().await;
+    let Some(entry) = pending.get(&key) else {
+        return Ok(PendingProviderLoginStatusDto {
+            provider,
+            profile,
+            status: "not_found".to_string(),
+            authorize_url: None,
+            message: None,
+            result: None,
+        });
+    };
+
+    let (status, message, result) = match &entry.status {
+        PendingProviderLoginStatus::Pending => ("pending".to_string(), None, None),
+        PendingProviderLoginStatus::Completed(result) => {
+            ("completed".to_string(), None, Some(result.clone()))
+        }
+        PendingProviderLoginStatus::Failed(message) => {
+            ("failed".to_string(), Some(message.clone()), None)
+        }
+    };
+
+    Ok(PendingProviderLoginStatusDto {
+        provider: entry.provider.clone(),
+        profile: entry.profile.clone(),
+        status,
+        authorize_url: Some(entry.authorize_url.clone()),
+        message,
+        result,
+    })
+}
+
+#[tauri::command]
+pub async fn use_provider_profile(
+    provider: String,
+    profile: String,
+) -> Result<ProviderAuthStatusDto, String> {
+    let provider = provider.trim().to_string();
+    let profile = normalize_profile_name(profile);
+    let auth = ProviderAuthService::new(config_loader().config_dir());
+    auth.set_active_profile(&provider, &profile)
+        .await
+        .map_err(|error| error.to_string())?;
+    provider_auth_status_for(&auth, &provider).await
+}
+
+#[tauri::command]
+pub async fn refresh_provider_auth(
+    provider: String,
+    profile: Option<String>,
+) -> Result<ProviderAuthStatusDto, String> {
+    let provider = provider.trim().to_string();
+    let auth = ProviderAuthService::new(config_loader().config_dir());
+    match provider.as_str() {
+        "openai-codex" => {
+            auth.refresh_openai_codex_tokens(profile.as_deref())
+                .await
+                .map_err(|error| error.to_string())?;
+            provider_auth_status_for(&auth, &provider).await
+        }
+        _ => Err(format!("Provider '{}' does not support refresh", provider)),
+    }
+}
+
+#[tauri::command]
+pub async fn logout_provider(
+    provider: String,
+    profile: Option<String>,
+) -> Result<ProviderAuthStatusDto, String> {
+    let provider = provider.trim().to_string();
+    let auth = ProviderAuthService::new(config_loader().config_dir());
+    let requested = match profile {
+        Some(profile) if !profile.trim().is_empty() => profile.trim().to_string(),
+        _ => auth
+            .get_active_profile(&provider)
+            .await
+            .map_err(|error| error.to_string())?
+            .map(|profile| profile.profile_name)
+            .ok_or_else(|| format!("No active profile found for provider '{}'", provider))?,
+    };
+    auth.remove_profile(&provider, &requested)
+        .await
+        .map_err(|error| error.to_string())?;
+    provider_auth_status_for(&auth, &provider).await
 }
 
 #[tauri::command]
@@ -190,8 +489,15 @@ pub async fn create_custom_provider(
         .await
         .map(provider_models_from_catalog)
         .unwrap_or_default();
+    let auth = ProviderAuthService::new(config_loader().config_dir());
+    let auth_status = provider_auth_status_for(&auth, &view.id).await?;
 
-    Ok(provider_spec_from_view(view, models.0, models.1))
+    Ok(provider_spec_from_view(
+        view,
+        models.0,
+        models.1,
+        auth_status,
+    ))
 }
 
 #[tauri::command]
@@ -211,7 +517,9 @@ pub async fn add_provider_model(
     let provider_id = provider.trim().to_string();
     let model_id = model.trim().to_string();
     state.add_provider_model(&provider_id, &model_id).await?;
-    let updated = state.get_provider_model_catalog(&provider_id, false).await?;
+    let updated = state
+        .get_provider_model_catalog(&provider_id, false)
+        .await?;
     Ok(provider_model_catalog_dto(updated))
 }
 
@@ -224,7 +532,9 @@ pub async fn remove_provider_model(
     let provider_id = provider.trim().to_string();
     let model_id = model.trim().to_string();
     state.remove_provider_model(&provider_id, &model_id).await?;
-    let updated = state.get_provider_model_catalog(&provider_id, false).await?;
+    let updated = state
+        .get_provider_model_catalog(&provider_id, false)
+        .await?;
     Ok(provider_model_catalog_dto(updated))
 }
 
@@ -1083,25 +1393,31 @@ pub async fn test_provider_model(
 
     let loader = config_loader();
     let config = loader.load().unwrap_or_default();
-    let access = provider_access_for_test(&config, &provider, api_base, api_key);
-
-    let client = LiteLLMClient::new(
-        access.api_key,
-        access.api_base,
-        model.clone(),
-        (!access.extra_headers.is_empty()).then(|| {
-            access
-                .extra_headers
-                .into_iter()
-                .collect::<std::collections::HashMap<_, _>>()
-        }),
-        Some(provider.clone()),
-        config.agents.defaults.reasoning_effort.clone(),
-    );
-    let neuron = LlmNeuron::with_id(
-        Arc::new(client),
-        format!("provider-test:{provider}:{model}"),
-    );
+    let provider_impl: Arc<dyn agent_diva_providers::LLMProvider> =
+        match provider_runtime_backend(&provider) {
+            RuntimeBackend::OpenaiCodex => Arc::new(OpenAiCodexProvider::new(
+                ProviderAuthService::new(loader.config_dir()),
+                model.clone(),
+                None,
+            )),
+            RuntimeBackend::OpenaiCompatible => {
+                let access = provider_access_for_test(&config, &provider, api_base, api_key);
+                Arc::new(LiteLLMClient::new(
+                    access.api_key,
+                    access.api_base,
+                    model.clone(),
+                    (!access.extra_headers.is_empty()).then(|| {
+                        access
+                            .extra_headers
+                            .into_iter()
+                            .collect::<std::collections::HashMap<_, _>>()
+                    }),
+                    Some(provider.clone()),
+                    config.agents.defaults.reasoning_effort.clone(),
+                ))
+            }
+        };
+    let neuron = LlmNeuron::with_id(provider_impl, format!("provider-test:{provider}:{model}"));
     let request = NeuronRequest::new(
         vec![Message::user(
             "Reply with a short connectivity confirmation for this model test.",
@@ -1520,6 +1836,7 @@ fn provider_spec_from_view(
     view: SharedProviderView,
     models: Vec<String>,
     custom_models: Vec<String>,
+    auth_status: ProviderAuthStatusDto,
 ) -> ProviderSpec {
     ProviderSpec {
         name: view.id,
@@ -1529,13 +1846,87 @@ fn provider_spec_from_view(
             .ok()
             .and_then(|value| value.as_str().map(ToString::to_string))
             .unwrap_or_else(|| "builtin".to_string()),
+        auth_mode: view.auth_mode,
+        login_supported: view.login_supported,
+        credential_store: view.credential_store,
+        runtime_backend: view.runtime_backend,
         configured: view.configured,
         ready: view.ready,
+        authenticated: auth_status.authenticated,
+        active_profile: auth_status.active_profile,
+        expires_at: auth_status.expires_at,
+        profiles: auth_status.profiles,
         default_api_base: view.default_api_base.or(view.api_base).unwrap_or_default(),
         default_model: view.default_model,
         models,
         custom_models,
     }
+}
+
+fn provider_login_key(provider: &str, profile: &str) -> String {
+    format!("{provider}:{profile}")
+}
+
+fn normalize_profile_name(profile: String) -> String {
+    let trimmed = profile.trim();
+    if trimmed.is_empty() {
+        "default".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn provider_runtime_backend(provider: &str) -> RuntimeBackend {
+    ProviderRegistry::new()
+        .find_by_name(provider)
+        .map(|spec| spec.runtime_backend.clone())
+        .unwrap_or(RuntimeBackend::OpenaiCompatible)
+}
+
+async fn provider_auth_status_for(
+    auth_service: &ProviderAuthService,
+    provider: &str,
+) -> Result<ProviderAuthStatusDto, String> {
+    let data = auth_service
+        .load_profiles()
+        .await
+        .map_err(|error| error.to_string())?;
+    let active_profile_id = data.active_profiles.get(provider).cloned();
+    let profiles = data
+        .profiles
+        .values()
+        .filter(|profile| profile.provider == provider)
+        .map(|profile| ProviderAuthProfileDto {
+            id: profile.id.clone(),
+            profile_name: profile.profile_name.clone(),
+            account_id: profile.account_id.clone(),
+            is_active: active_profile_id.as_deref() == Some(profile.id.as_str()),
+        })
+        .collect::<Vec<_>>();
+    let active_profile = active_profile_id
+        .as_deref()
+        .and_then(|profile_id| data.profiles.get(profile_id))
+        .cloned()
+        .or_else(|| {
+            data.profiles
+                .values()
+                .find(|profile| profile.provider == provider && profile.profile_name == "default")
+                .cloned()
+        });
+
+    Ok(ProviderAuthStatusDto {
+        provider: provider.to_string(),
+        active_profile: active_profile
+            .as_ref()
+            .map(|profile| profile.profile_name.clone()),
+        authenticated: active_profile.is_some(),
+        expires_at: active_profile
+            .as_ref()
+            .and_then(|profile| profile.token_set.as_ref())
+            .and_then(|token_set| token_set.expires_at)
+            .map(|value| value.to_rfc3339()),
+        profiles,
+    })
 }
 
 fn expand_user_path(path: &str) -> PathBuf {

@@ -10,6 +10,7 @@ description = "Agent logic for agent-diva"
 
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.2.0" }
+agent-diva-memory = { path = "../agent-diva-memory", version = "0.1.0" }
 agent-diva-providers = { path = "../agent-diva-providers", version = "0.2.0" }
 agent-diva-tools = { path = "../agent-diva-tools", version = "0.2.0" }
 

@@ -64,7 +64,7 @@ fn build_local_cli_agent(
     let _ = ensure_workspace_templates(&workspace)?;
 
     let bus = MessageBus::new();
-    let provider = Arc::new(build_provider(&config, &selected_model)?);
+    let provider = build_provider(&config, runtime.config_dir(), &selected_model)?;
     let tool_config = ToolConfig {
         network: build_network_tool_config(&config),
         exec_timeout: config.tools.exec.timeout,

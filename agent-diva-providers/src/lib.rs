@@ -2,10 +2,12 @@
 //!
 //! This crate provides abstractions and implementations for various LLM providers.
 
+pub mod backends;
 pub mod base;
 pub mod catalog;
 pub mod discovery;
 pub mod litellm;
+pub mod provider_auth;
 pub mod registry;
 pub mod transcription;
 
@@ -18,10 +20,15 @@ pub use catalog::{
     ProviderModelSource, ProviderSource, ProviderView,
 };
 pub use discovery::{
-    fetch_provider_model_catalog, ModelCatalogSource, ProviderAccess, ProviderModelCatalog,
+    fetch_provider_model_catalog, resolve_openai_compatible_oauth_access, ModelCatalogSource,
+    ProviderAccess, ProviderModelCatalog,
 };
 pub use litellm::LiteLLMClient;
-pub use registry::{ProviderRegistry, ProviderSpec};
+pub use provider_auth::{
+    OpenAiCodexAuthHandler, OpenAiCodexBrowserSession, ProviderLoginMode, ProviderLoginRequest,
+    ProviderLoginResult, ProviderLoginService,
+};
+pub use registry::{AuthMode, CredentialStore, ProviderRegistry, ProviderSpec, RuntimeBackend};
 
 use async_trait::async_trait;
 use std::sync::{Arc, RwLock};

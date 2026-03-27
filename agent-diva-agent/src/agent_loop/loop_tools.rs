@@ -1,9 +1,11 @@
 use super::{AgentLoop, ToolConfig};
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
+use agent_diva_memory::WorkspaceMemoryService;
 use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
-    ToolError, ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
+    load_mcp_tools_sync, CronTool, DiaryListTool, DiaryReadTool, EditFileTool, ExecTool,
+    ListDirTool, MemoryRecallTool, ReadFileTool, SpawnTool, ToolError, ToolRegistry, WebFetchTool,
+    WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -38,6 +40,7 @@ impl AgentLoop {
         self.tools
             .register(Arc::new(EditFileTool::new(allowed_dir.clone())));
         self.tools.register(Arc::new(ListDirTool::new(allowed_dir)));
+        Self::register_memory_tools(&mut self.tools, self.memory_service.clone());
 
         // Register shell tool
         self.tools.register(Arc::new(ExecTool::with_config(
@@ -58,6 +61,15 @@ impl AgentLoop {
         if let Some(cron_service) = tool_config.cron_service {
             self.tools.register(Arc::new(CronTool::new(cron_service)));
         }
+    }
+
+    pub(super) fn register_memory_tools(
+        tools: &mut ToolRegistry,
+        service: Arc<WorkspaceMemoryService>,
+    ) {
+        tools.register(Arc::new(MemoryRecallTool::new(service.clone())));
+        tools.register(Arc::new(DiaryReadTool::new(service.clone())));
+        tools.register(Arc::new(DiaryListTool::new(service)));
     }
 
     pub(super) fn register_web_tools(tools: &mut ToolRegistry, network: &NetworkToolConfig) {

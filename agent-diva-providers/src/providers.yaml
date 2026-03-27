@@ -137,6 +137,36 @@
     - gpt-image-1
   model_overrides: []
 
+- name: openai-codex
+  api_type: openai
+  keywords:
+    - openai-codex
+    - openai_codex
+    - codex
+  env_key: ""
+  display_name: OpenAI Codex
+  default_model: gpt-5-codex
+  auth_mode: oauth
+  login_supported: true
+  credential_store: external_secure_store
+  runtime_backend: openai_codex
+  litellm_prefix: ""
+  skip_prefixes: []
+  env_extras: []
+  is_gateway: false
+  is_local: false
+  detect_by_key_prefix: ""
+  detect_by_base_keyword: ""
+  default_api_base: https://chatgpt.com/backend-api/codex
+  strip_model_prefix: false
+  models:
+    - gpt-5-codex
+    - gpt-5.1-codex
+    - gpt-5.1-codex-mini
+    - gpt-5.2-codex
+    - gpt-5.3-codex
+  model_overrides: []
+
 - name: deepseek
   api_type: openai
   keywords:

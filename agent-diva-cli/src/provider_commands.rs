@@ -1,7 +1,8 @@
-use crate::cli_runtime::{
-    print_json, provider_status_report, provider_statuses, set_provider_credentials, CliRuntime,
+use crate::cli_runtime::{current_provider_name, print_json, set_provider_credentials, CliRuntime};
+use agent_diva_core::auth::{ProviderAuthProfile, ProviderAuthService};
+use agent_diva_providers::{
+    ProviderCatalogService, ProviderLoginMode, ProviderLoginRequest, ProviderLoginService,
 };
-use agent_diva_providers::ProviderCatalogService;
 use anyhow::Result;
 use console::style;
 use serde::Serialize;
@@ -15,45 +16,78 @@ struct ProviderSetReport {
     api_base: Option<String>,
 }
 
-#[derive(Serialize)]
-struct ProviderLoginReport {
+#[derive(Debug, Clone, Serialize)]
+struct ProviderStatusEntry {
+    name: String,
     provider: String,
+    display_name: String,
+    current: bool,
+    auth_mode: String,
+    login_supported: bool,
+    credential_store: String,
+    runtime_backend: String,
+    configured: bool,
+    ready: bool,
+    default_model: Option<String>,
+    api_base: Option<String>,
+    active_profile: Option<String>,
+    authenticated: bool,
+    expires_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ProviderStatusReportPayload {
+    current_model: String,
+    current_provider: Option<String>,
+    providers: Vec<ProviderStatusEntry>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ProviderActionReport {
+    provider: String,
+    profile: Option<String>,
     status: String,
     message: String,
 }
 
 pub async fn run_provider_list(runtime: &CliRuntime, json: bool) -> Result<()> {
-    let config = runtime.load_config()?;
-    let providers = provider_statuses(&config);
-
+    let report = build_provider_status_payload(runtime, None).await?;
     if json {
-        return print_json(&providers);
+        return print_json(&report.providers);
     }
 
     println!("{}", style("Providers").bold().cyan());
     println!();
-    for provider in providers {
-        let status = if provider.ready {
+    for provider in report.providers {
+        let state = if provider.authenticated {
+            style("authenticated").green()
+        } else if provider.login_supported {
+            style("login required").yellow()
+        } else if provider.ready {
             style("configured").green()
         } else {
             style("missing config").yellow()
         };
         let active = if provider.current { " [active]" } else { "" };
-        let default_model = provider
-            .default_model
-            .as_deref()
-            .unwrap_or("<explicit --model required>");
-        println!("  {} ({}){}", provider.name, provider.display_name, active);
-        println!("    status: {}", status);
+        let default_model = provider.default_model.as_deref().unwrap_or("<none>");
+        println!(
+            "  {} ({}){}",
+            provider.provider, provider.display_name, active
+        );
+        println!("    status: {}", state);
+        println!("    auth mode: {}", provider.auth_mode);
         println!("    default model: {}", default_model);
     }
 
     Ok(())
 }
 
-pub async fn run_provider_status(runtime: &CliRuntime, json: bool) -> Result<()> {
-    let config = runtime.load_config()?;
-    let report = provider_status_report(&config);
+pub async fn run_provider_status(
+    runtime: &CliRuntime,
+    provider: Option<String>,
+    json: bool,
+) -> Result<()> {
+    let report = build_provider_status_payload(runtime, provider).await?;
 
     if json {
         return print_json(&report);
@@ -70,16 +104,27 @@ pub async fn run_provider_status(runtime: &CliRuntime, json: bool) -> Result<()>
     );
     println!();
     for provider in report.providers {
-        let status = if provider.ready {
+        let state = if provider.authenticated {
+            style("authenticated").green()
+        } else if provider.login_supported {
+            style("not authenticated").yellow()
+        } else if provider.ready {
             style("ready").green()
         } else {
-            style("missing fields").yellow()
+            style("missing config").yellow()
         };
-        println!("  {}: {}", provider.name, status);
-        if !provider.missing_fields.is_empty() {
-            println!("    missing: {}", provider.missing_fields.join(", "));
+        println!("  {}: {}", provider.provider, state);
+        println!("    auth mode: {}", provider.auth_mode);
+        println!("    login supported: {}", provider.login_supported);
+        println!("    credential store: {}", provider.credential_store);
+        println!("    runtime backend: {}", provider.runtime_backend);
+        if let Some(profile) = &provider.active_profile {
+            println!("    active profile: {}", profile);
         }
-        if let Some(default_model) = provider.default_model {
+        if let Some(expires_at) = &provider.expires_at {
+            println!("    expires at: {}", expires_at);
+        }
+        if let Some(default_model) = &provider.default_model {
             println!("    default model: {}", default_model);
         }
     }
@@ -152,25 +197,144 @@ pub async fn run_provider_set(
     Ok(())
 }
 
-pub async fn run_provider_login(provider: String, json: bool) -> Result<()> {
-    let report = ProviderLoginReport {
-        provider: provider.clone(),
-        status: "not_implemented".to_string(),
-        message: format!(
-            "provider login for '{}' is a placeholder in this build; implement OAuth/device flow per provider later",
-            provider
-        ),
+pub async fn run_provider_login(
+    runtime: &CliRuntime,
+    provider: String,
+    profile: String,
+    device_code: bool,
+    paste_code: Option<String>,
+    json: bool,
+) -> Result<()> {
+    let catalog = ProviderCatalogService::new();
+    let config = runtime.load_config()?;
+    let view = catalog
+        .get_provider_view(&config, &provider)
+        .ok_or_else(|| anyhow::anyhow!("Unknown provider '{}'", provider))?;
+    if !view.login_supported {
+        anyhow::bail!(
+            "Provider '{}' does not support login (auth_mode={})",
+            provider,
+            view.auth_mode
+        );
+    }
+
+    let mode = if device_code {
+        ProviderLoginMode::DeviceCode
+    } else if paste_code.is_some() {
+        ProviderLoginMode::PasteRedirect { input: paste_code }
+    } else {
+        ProviderLoginMode::Browser
+    };
+    let service = ProviderLoginService::new();
+    let auth = ProviderAuthService::new(runtime.config_dir());
+    let report = service
+        .login(
+            &auth,
+            ProviderLoginRequest {
+                provider: provider.clone(),
+                profile_name: profile.clone(),
+                mode,
+            },
+        )
+        .await?;
+
+    if json {
+        return print_json(&report);
+    }
+
+    println!("{}", style("Provider login completed.").green().bold());
+    println!("  Provider: {}", report.provider);
+    println!("  Profile: {}", report.profile_name);
+    if let Some(account_id) = report.account_id {
+        println!("  Account: {}", account_id);
+    }
+    Ok(())
+}
+
+pub async fn run_provider_logout(
+    runtime: &CliRuntime,
+    provider: String,
+    profile: Option<String>,
+    json: bool,
+) -> Result<()> {
+    let auth = ProviderAuthService::new(runtime.config_dir());
+    let selected_profile = select_profile_name(&auth, &provider, profile.as_deref()).await?;
+    let removed = auth.remove_profile(&provider, &selected_profile).await?;
+    let report = ProviderActionReport {
+        provider,
+        profile: Some(selected_profile),
+        status: if removed {
+            "logged_out".to_string()
+        } else {
+            "not_found".to_string()
+        },
+        message: if removed {
+            "Profile removed from auth store".to_string()
+        } else {
+            "Profile was not present in auth store".to_string()
+        },
     };
 
     if json {
         return print_json(&report);
     }
 
-    println!(
-        "{}",
-        style("Provider login not implemented.").yellow().bold()
-    );
+    println!("{}", style("Provider logout completed.").green().bold());
     println!("  {}", report.message);
+    Ok(())
+}
+
+pub async fn run_provider_use(
+    runtime: &CliRuntime,
+    provider: String,
+    profile: String,
+    json: bool,
+) -> Result<()> {
+    let auth = ProviderAuthService::new(runtime.config_dir());
+    let selected = auth.set_active_profile(&provider, &profile).await?;
+    let report = ProviderActionReport {
+        provider,
+        profile: Some(selected.clone()),
+        status: "active_profile_updated".to_string(),
+        message: format!("Active profile set to {}", selected),
+    };
+
+    if json {
+        return print_json(&report);
+    }
+
+    println!("{}", style("Provider profile selected.").green().bold());
+    println!("  {}", report.message);
+    Ok(())
+}
+
+pub async fn run_provider_refresh(
+    runtime: &CliRuntime,
+    provider: String,
+    profile: Option<String>,
+    json: bool,
+) -> Result<()> {
+    if provider != "openai-codex" {
+        anyhow::bail!(
+            "Provider '{}' does not support refresh in this build",
+            provider
+        );
+    }
+    let auth = ProviderAuthService::new(runtime.config_dir());
+    let refreshed = auth.refresh_openai_codex_tokens(profile.as_deref()).await?;
+    let report = ProviderActionReport {
+        provider,
+        profile: Some(refreshed.profile_name.clone()),
+        status: "refreshed".to_string(),
+        message: "OAuth token refreshed".to_string(),
+    };
+
+    if json {
+        return print_json(&report);
+    }
+
+    println!("{}", style("Provider token refreshed.").green().bold());
+    println!("  Profile: {}", refreshed.profile_name);
     Ok(())
 }
 
@@ -230,4 +394,88 @@ pub async fn run_provider_models(
     }
 
     Ok(())
+}
+
+async fn build_provider_status_payload(
+    runtime: &CliRuntime,
+    provider_filter: Option<String>,
+) -> Result<ProviderStatusReportPayload> {
+    let config = runtime.load_config()?;
+    let current_provider = current_provider_name(&config);
+    let auth = ProviderAuthService::new(runtime.config_dir());
+    let catalog = ProviderCatalogService::new();
+
+    let mut providers = Vec::new();
+    for view in catalog.list_provider_views(&config) {
+        if provider_filter
+            .as_ref()
+            .is_some_and(|expected| expected != &view.id)
+        {
+            continue;
+        }
+        let active_profile = auth.get_active_profile(&view.id).await?;
+        providers.push(build_provider_status_entry(
+            &view,
+            current_provider.as_deref() == Some(view.id.as_str()),
+            active_profile,
+        ));
+    }
+
+    if providers.is_empty() {
+        if let Some(provider) = provider_filter {
+            anyhow::bail!("Unknown provider '{}'", provider);
+        }
+    }
+
+    Ok(ProviderStatusReportPayload {
+        current_model: config.agents.defaults.model,
+        current_provider,
+        providers,
+    })
+}
+
+fn build_provider_status_entry(
+    view: &agent_diva_providers::ProviderView,
+    current: bool,
+    active_profile: Option<ProviderAuthProfile>,
+) -> ProviderStatusEntry {
+    let expires_at = active_profile
+        .as_ref()
+        .and_then(|profile| profile.token_set.as_ref())
+        .and_then(|tokens| tokens.expires_at)
+        .map(|value| value.to_rfc3339());
+    ProviderStatusEntry {
+        name: view.id.clone(),
+        provider: view.id.clone(),
+        display_name: view.display_name.clone(),
+        current,
+        auth_mode: view.auth_mode.clone(),
+        login_supported: view.login_supported,
+        credential_store: view.credential_store.clone(),
+        runtime_backend: view.runtime_backend.clone(),
+        configured: view.configured,
+        ready: view.ready,
+        default_model: view.default_model.clone(),
+        api_base: view.api_base.clone(),
+        active_profile: active_profile
+            .as_ref()
+            .map(|profile| profile.profile_name.clone()),
+        authenticated: active_profile.is_some(),
+        expires_at,
+    }
+}
+
+async fn select_profile_name(
+    auth: &ProviderAuthService,
+    provider: &str,
+    requested: Option<&str>,
+) -> Result<String> {
+    if let Some(requested) = requested {
+        return Ok(requested.to_string());
+    }
+    let active = auth
+        .get_active_profile(provider)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("No active profile found for provider '{}'", provider))?;
+    Ok(active.profile_name)
 }

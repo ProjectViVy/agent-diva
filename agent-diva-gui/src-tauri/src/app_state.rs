@@ -144,8 +144,13 @@ impl AgentState {
                 .unwrap_or("unknown error")
                 .to_string());
         }
-        serde_json::from_value(value.get("provider").cloned().unwrap_or(serde_json::Value::Null))
-            .map_err(|e| format!("Invalid provider payload: {}", e))
+        serde_json::from_value(
+            value
+                .get("provider")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+        )
+        .map_err(|e| format!("Invalid provider payload: {}", e))
     }
 
     pub async fn delete_custom_provider(&self, provider: &str) -> Result<(), String> {

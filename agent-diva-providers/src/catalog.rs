@@ -1,7 +1,9 @@
 use crate::discovery::{
     fetch_provider_model_catalog, ModelCatalogSource, ProviderAccess, ProviderModelCatalog,
 };
-use crate::registry::{ApiType, ProviderRegistry, ProviderSpec};
+use crate::registry::{
+    ApiType, AuthMode, CredentialStore, ProviderRegistry, ProviderSpec, RuntimeBackend,
+};
 use agent_diva_core::config::{Config, CustomProviderConfig, ProviderConfig, ProvidersConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -27,6 +29,10 @@ pub struct ProviderView {
     pub display_name: String,
     pub source: ProviderSource,
     pub api_type: String,
+    pub auth_mode: String,
+    pub login_supported: bool,
+    pub credential_store: String,
+    pub runtime_backend: String,
     pub default_model: Option<String>,
     pub default_api_base: Option<String>,
     pub api_base: Option<String>,
@@ -346,6 +352,10 @@ impl ProviderCatalogService {
             display_name: spec.label(),
             source: ProviderSource::Builtin,
             api_type: api_type_label(&spec.api_type),
+            auth_mode: auth_mode_label(&spec.auth_mode),
+            login_supported: spec.login_supported,
+            credential_store: credential_store_label(&spec.credential_store),
+            runtime_backend: runtime_backend_label(&spec.runtime_backend),
             default_model: spec.default_model().map(ToString::to_string),
             default_api_base: (!spec.default_api_base.trim().is_empty())
                 .then(|| spec.default_api_base.clone()),
@@ -372,6 +382,10 @@ impl ProviderCatalogService {
             },
             source: ProviderSource::Custom,
             api_type: provider.api_type.trim().to_lowercase(),
+            auth_mode: auth_mode_label(&AuthMode::ApiKey),
+            login_supported: false,
+            credential_store: credential_store_label(&CredentialStore::Config),
+            runtime_backend: runtime_backend_label(&RuntimeBackend::OpenaiCompatible),
             default_model: provider.default_model.clone(),
             default_api_base: provider.api_base.clone(),
             api_base: provider.api_base.clone(),
@@ -478,6 +492,32 @@ fn api_type_label(api_type: &ApiType) -> String {
     .to_string()
 }
 
+fn auth_mode_label(auth_mode: &AuthMode) -> String {
+    match auth_mode {
+        AuthMode::ApiKey => "api_key",
+        AuthMode::OAuth => "oauth",
+        AuthMode::Token => "token",
+        AuthMode::DeviceFlow => "device_flow",
+    }
+    .to_string()
+}
+
+fn credential_store_label(store: &CredentialStore) -> String {
+    match store {
+        CredentialStore::Config => "config",
+        CredentialStore::ExternalSecureStore => "external_secure_store",
+    }
+    .to_string()
+}
+
+fn runtime_backend_label(backend: &RuntimeBackend) -> String {
+    match backend {
+        RuntimeBackend::OpenaiCompatible => "openai_compatible",
+        RuntimeBackend::OpenaiCodex => "openai_codex",
+    }
+    .to_string()
+}
+
 fn model_catalog_source_label(source: &ModelCatalogSource) -> &'static str {
     match source {
         ModelCatalogSource::Runtime => "runtime",
@@ -525,6 +565,10 @@ fn custom_provider_spec(provider_id: &str, provider: &CustomProviderConfig) -> P
             provider.display_name.clone()
         },
         default_model: provider.default_model.clone(),
+        auth_mode: AuthMode::ApiKey,
+        login_supported: false,
+        credential_store: CredentialStore::Config,
+        runtime_backend: RuntimeBackend::OpenaiCompatible,
         litellm_prefix: String::new(),
         skip_prefixes: vec![],
         env_extras: vec![],

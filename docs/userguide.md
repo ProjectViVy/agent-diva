@@ -396,15 +396,23 @@ agent-diva provider set \
 ### 11.6 Provider 登录
 
 ```bash
-agent-diva provider login openai
-agent-diva provider login openai --json
+agent-diva provider login openai-codex
+agent-diva provider login openai-codex --device-code
+agent-diva provider login openai-codex --paste-code 'http://localhost:1455/auth/callback?code=...&state=...'
+agent-diva provider status --json
+agent-diva provider use openai-codex --profile work
+agent-diva provider refresh openai-codex --profile work
+agent-diva provider logout openai-codex --profile work
 ```
 
 当前状态：
 
-- 这是稳定占位接口
-- 当前会返回 `not_implemented`
-- 未来可扩展为 OAuth / device flow
+- `openai-codex` 已接入真实 OAuth 登录闭环
+- CLI 支持浏览器 PKCE、paste redirect fallback、device-code 登录
+- OAuth 凭据不写入 `config.json`，而是存放在独立 auth store 中
+- `provider status` / `use` / `refresh` / `logout` 已接入同一套 provider auth service
+- GUI provider 设置页已支持 `openai-codex` 的状态展示、浏览器登录、redirect 回填、profile 切换、refresh 和 logout
+- GUI device-code 登录当前尚未实现
 
 ## 12. Channel 管理
 
@@ -709,4 +717,3 @@ agent-diva cron list --all
 - 命令契约: `commands/commands.md`
 - 开发文档: `docs/dev/development.md`
 - 架构文档: `docs/dev/architecture.md`
-

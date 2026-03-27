@@ -3,6 +3,7 @@
 //! This crate provides the foundational types, traits, and utilities
 //! used by all other agent-diva components.
 
+pub mod auth;
 pub mod bus;
 pub mod config;
 pub mod cron;

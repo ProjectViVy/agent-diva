@@ -1,10 +1,12 @@
+use agent_diva_core::auth::ProviderAuthService;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersConfig};
 use agent_diva_core::cron::CronService;
 use agent_diva_core::utils::sync_workspace_templates;
 use agent_diva_providers::{
-    fetch_provider_model_catalog, LiteLLMClient, ProviderAccess, ProviderCatalogService,
-    ProviderModelCatalog, ProviderRegistry, ProviderSpec,
+    backends::openai_codex::OpenAiCodexProvider, fetch_provider_model_catalog, LLMProvider,
+    LiteLLMClient, ProviderAccess, ProviderCatalogService, ProviderModelCatalog, ProviderRegistry,
+    ProviderSpec, RuntimeBackend,
 };
 use anyhow::Result;
 use serde::Serialize;
@@ -315,7 +317,11 @@ pub fn session_channel_and_chat_id(session_key: &str) -> (&str, &str) {
     session_key.split_once(':').unwrap_or(("cli", session_key))
 }
 
-pub fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
+pub fn build_provider(
+    config: &Config,
+    config_dir: &Path,
+    model: &str,
+) -> Result<Arc<dyn LLMProvider>> {
     let catalog = ProviderCatalogService::new();
     let provider_name = resolve_provider_name_for_model(
         config,
@@ -337,14 +343,28 @@ pub fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
             .collect::<std::collections::HashMap<String, String>>()
     });
 
-    Ok(LiteLLMClient::new(
-        api_key,
-        api_base,
-        model.to_string(),
-        extra_headers,
-        Some(provider_name),
-        config.agents.defaults.reasoning_effort.clone(),
-    ))
+    let provider_spec = provider_registry()
+        .find_by_name(&provider_name)
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("No provider spec found for provider: {}", provider_name))?;
+
+    let provider: Arc<dyn LLMProvider> = match provider_spec.runtime_backend {
+        RuntimeBackend::OpenaiCodex => Arc::new(OpenAiCodexProvider::new(
+            ProviderAuthService::new(config_dir),
+            model.to_string(),
+            None,
+        )),
+        RuntimeBackend::OpenaiCompatible => Arc::new(LiteLLMClient::new(
+            api_key,
+            api_base,
+            model.to_string(),
+            extra_headers,
+            Some(provider_name),
+            config.agents.defaults.reasoning_effort.clone(),
+        )),
+    };
+
+    Ok(provider)
 }
 
 pub fn set_provider_credentials(

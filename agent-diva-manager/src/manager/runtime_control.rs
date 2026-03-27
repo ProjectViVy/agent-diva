@@ -7,7 +7,9 @@ use agent_diva_core::config::schema::{
     ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, MatrixConfig,
     QQConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
 };
-use agent_diva_providers::{LiteLLMClient, ProviderAccess, ProviderCatalogService};
+use agent_diva_providers::{
+    resolve_openai_compatible_oauth_access, LiteLLMClient, ProviderAccess, ProviderCatalogService,
+};
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, warn};
 
@@ -34,26 +36,21 @@ impl Manager {
         }
 
         tokio::spawn(async move {
-            loop {
-                match tokio::time::timeout(std::time::Duration::from_secs(60), event_rx.recv())
-                    .await
-                {
-                    Ok(Ok(bus_event)) => {
-                        if bus_event.channel == channel && bus_event.chat_id == chat_id {
-                            let event = bus_event.event;
-                            if event_tx.send(event.clone()).is_err() {
-                                break;
-                            }
-
-                            if matches!(
-                                event,
-                                AgentEvent::FinalResponse { .. } | AgentEvent::Error { .. }
-                            ) {
-                                break;
-                            }
-                        }
+            while let Ok(Ok(bus_event)) =
+                tokio::time::timeout(std::time::Duration::from_secs(60), event_rx.recv()).await
+            {
+                if bus_event.channel == channel && bus_event.chat_id == chat_id {
+                    let event = bus_event.event;
+                    if event_tx.send(event.clone()).is_err() {
+                        break;
                     }
-                    Ok(Err(_)) | Err(_) => break,
+
+                    if matches!(
+                        event,
+                        AgentEvent::FinalResponse { .. } | AgentEvent::Error { .. }
+                    ) {
+                        break;
+                    }
                 }
             }
         });
@@ -267,7 +264,7 @@ impl Manager {
             .save(&config)
             .map_err(|e| anyhow::anyhow!("Failed to save config: {}", e))?;
         info!("Configuration saved to disk");
-        self.hot_reload_provider(&config);
+        self.hot_reload_provider(&config).await;
 
         Ok(())
     }
@@ -432,7 +429,7 @@ impl Manager {
         }
     }
 
-    fn hot_reload_provider(&mut self, config: &Config) {
+    async fn hot_reload_provider(&mut self, config: &Config) {
         let model_to_use = config.agents.defaults.model.trim().to_string();
         if model_to_use.is_empty() {
             info!("Active model cleared; skipping provider hot reload");
@@ -460,6 +457,22 @@ impl Manager {
         let access = catalog
             .get_provider_access(config, &provider_id)
             .unwrap_or_else(|| ProviderAccess::from_config(None));
+        let access = match resolve_openai_compatible_oauth_access(
+            self.loader.config_dir(),
+            &provider_id,
+            access,
+        )
+        .await
+        {
+            Ok(access) => access,
+            Err(error) => {
+                warn!(
+                    "Failed to resolve OAuth access for provider {}: {}",
+                    provider_id, error
+                );
+                return;
+            }
+        };
         let extra_headers = (!access.extra_headers.is_empty()).then(|| {
             access
                 .extra_headers

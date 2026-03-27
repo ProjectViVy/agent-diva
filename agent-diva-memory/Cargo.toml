@@ -1,0 +1,22 @@
+[package]
+name = "agent-diva-memory"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80.0"
+authors = ["mastwet@UndefineFoundation"]
+license = "MIT"
+repository = "https://github.com/ProjectViVy/agent-diva"
+description = "Enhanced memory subsystem for agent-diva"
+
+[dependencies]
+agent-diva-core = { path = "../agent-diva-core", version = "0.2.0" }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
