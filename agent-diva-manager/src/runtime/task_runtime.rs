@@ -1,6 +1,7 @@
 use super::*;
 use crate::{run_server, AppState, Manager};
 use agent_diva_channels::neuro_link::OLV_AVATAR_CHAT_ID;
+use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{AgentEvent, OutboundMessage};
 
 pub(super) async fn start_runtime_tasks(
@@ -97,21 +98,7 @@ async fn subscribe_configured_outbound_channels(
 }
 
 fn configured_channels(config: &Config) -> Vec<String> {
-    [
-        ("telegram", config.channels.telegram.enabled),
-        ("discord", config.channels.discord.enabled),
-        ("whatsapp", config.channels.whatsapp.enabled),
-        ("feishu", config.channels.feishu.enabled),
-        ("dingtalk", config.channels.dingtalk.enabled),
-        ("email", config.channels.email.enabled),
-        ("slack", config.channels.slack.enabled),
-        ("qq", config.channels.qq.enabled),
-        ("matrix", config.channels.matrix.enabled),
-        ("neuro-link", config.channels.neuro_link.enabled),
-    ]
-    .into_iter()
-    .filter_map(|(channel_name, enabled)| enabled.then_some(channel_name.to_string()))
-    .collect()
+    ChannelManager::configured_channel_names(config)
 }
 
 fn spawn_outbound_dispatch(bus: MessageBus) -> JoinHandle<()> {
@@ -215,6 +202,15 @@ mod tests {
         config.channels.neuro_link.enabled = true;
         let channels = configured_channels(&config);
         assert!(channels.iter().any(|channel| channel == "neuro-link"));
+    }
+
+    #[test]
+    fn configured_channels_skips_invalid_enabled_channel() {
+        let mut config = Config::default();
+        config.channels.discord.enabled = true;
+
+        let channels = configured_channels(&config);
+        assert!(!channels.iter().any(|channel| channel == "discord"));
     }
 
     #[test]
