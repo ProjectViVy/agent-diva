@@ -116,6 +116,8 @@ interface RawProviderConfig {
 }
 
 const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
+const STARTUP_TASK_TIMEOUT_MS = 2500;
+const SESSION_LOAD_TIMEOUT_MS = 2000;
 const defaultChatDisplayPrefs: ChatDisplayPrefs = {
   autoExpandReasoning: true,
   autoExpandToolDetails: false,
@@ -244,6 +246,25 @@ function extractProviderConfigFromRaw(
   }
 
   return parsed.providers?.[provider] || parsed.providers?.custom_providers?.[provider];
+}
+
+function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    task.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 function extractChatId(sessionKey: string): string {
@@ -618,7 +639,11 @@ const clearMessages = () => {
 async function refreshSessions() {
   if (!isTauri()) return;
   try {
-    const fetched = await invoke<BackendSessionInfo[]>("get_sessions");
+    const fetched = await withTimeout(
+      invoke<BackendSessionInfo[]>("get_sessions"),
+      STARTUP_TASK_TIMEOUT_MS,
+      "get_sessions"
+    );
     if (fetched && Array.isArray(fetched)) {
       const mapped = fetched.map((session) => {
         const chatId = extractChatId(session.key);
@@ -681,7 +706,11 @@ async function loadSession(sessionKey: string): Promise<boolean> {
       sessionHistory = readSessionFromCache(chatId);
     }
     if (!sessionHistory) {
-      sessionHistory = await invoke<BackendSessionHistory | null>("get_session_history", { chatId: sessionKey });
+      sessionHistory = await withTimeout(
+        invoke<BackendSessionHistory | null>("get_session_history", { chatId: sessionKey }),
+        SESSION_LOAD_TIMEOUT_MS,
+        `get_session_history(${sessionKey})`
+      );
       if (sessionHistory && Array.isArray(sessionHistory.messages)) {
         writeSessionToCache(sessionHistory);
       }
@@ -916,37 +945,56 @@ onMounted(async () => {
 
   try {
     try {
-      await invoke("start_background_stream");
+      await withTimeout(
+        invoke("start_background_stream"),
+        STARTUP_TASK_TIMEOUT_MS,
+        "start_background_stream"
+      );
     } catch (e) {
       console.warn("Failed to start background stream:", e);
     }
 
     try {
-      const [runtimeConfig, rawConfig, status] = await Promise.all([
-        getRuntimeConfig(),
-        invoke<string>("load_config"),
-        getConfigStatus(),
+      const [runtimeConfig, rawConfig, status] = await Promise.allSettled([
+        withTimeout(getRuntimeConfig(), STARTUP_TASK_TIMEOUT_MS, "getRuntimeConfig"),
+        withTimeout(invoke<string>("load_config"), STARTUP_TASK_TIMEOUT_MS, "load_config"),
+        withTimeout(getConfigStatus(), STARTUP_TASK_TIMEOUT_MS, "getConfigStatus"),
       ]);
-      const parsed = JSON.parse(rawConfig) as {
+      if (
+        runtimeConfig.status !== 'fulfilled' ||
+        rawConfig.status !== 'fulfilled' ||
+        status.status !== 'fulfilled'
+      ) {
+        throw new Error(
+          [
+            runtimeConfig.status === 'rejected' ? `runtime=${runtimeConfig.reason}` : null,
+            rawConfig.status === 'rejected' ? `config=${rawConfig.reason}` : null,
+            status.status === 'rejected' ? `status=${status.reason}` : null,
+          ]
+            .filter(Boolean)
+            .join('; ')
+        );
+      }
+      const parsed = JSON.parse(rawConfig.value) as {
         agents?: { defaults?: { provider?: string | null; model?: string | null } };
         providers?: Record<string, RawProviderConfig> & {
           custom_providers?: Record<string, RawProviderConfig>;
         };
       };
       const provider =
-        runtimeConfig.provider ||
+        runtimeConfig.value.provider ||
         parsed.agents?.defaults?.provider ||
-        status.default_provider ||
+        status.value.default_provider ||
         config.value.provider;
       const providerConfig = extractProviderConfigFromRaw(parsed, provider);
       config.value = {
         provider,
-        apiBase: runtimeConfig.api_base || providerConfig?.api_base || config.value.apiBase,
+        apiBase: runtimeConfig.value.api_base || providerConfig?.api_base || config.value.apiBase,
         apiKey: providerConfig?.api_key || "",
         model:
-          runtimeConfig.model ||
+          runtimeConfig.value.model ||
           parsed.agents?.defaults?.model ||
-          status.default_model ||
+          status.value.default_model ||
           config.value.model,
       };
       syncCurrentConfigToSavedModels(config.value);
@@ -955,7 +1003,11 @@ onMounted(async () => {
     }
 
     try {
-      const fetchedTools = await invoke<typeof toolsConfig.value>("get_tools_config");
+      const fetchedTools = await withTimeout(
+        invoke<typeof toolsConfig.value>("get_tools_config"),
+        STARTUP_TASK_TIMEOUT_MS,
+        "get_tools_config"
+      );
       toolsConfig.value = fetchedTools;
     } catch (e) {
       console.warn("Failed to load tools config:", e);
