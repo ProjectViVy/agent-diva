@@ -2,6 +2,7 @@
 
 <img src="docs/resources/diva.png" align="right" width="500" />
 
+QQ GROUP:788599177
 ### The name "agent-diva"
 
 Inspired by [Vivy: Fluorite Eye's Song](https://en.wikipedia.org/wiki/Vivy:_Fluorite_Eye%27s_Song): **Agent** — the executor/tool before self-awareness; **Diva** — the diva at the center of the stage. Agent Diva is the foundational piece of Project Vivy, an experimental platform toward an AI operating system.

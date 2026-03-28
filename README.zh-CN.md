@@ -1,4 +1,4 @@
-# Agent Diva (Rust)
+# Agent Diva
 
 <img src="docs/resources/diva.png" align="right" width="600" />
 
