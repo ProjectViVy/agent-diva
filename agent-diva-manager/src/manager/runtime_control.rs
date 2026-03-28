@@ -34,26 +34,21 @@ impl Manager {
         }
 
         tokio::spawn(async move {
-            loop {
-                match tokio::time::timeout(std::time::Duration::from_secs(60), event_rx.recv())
-                    .await
-                {
-                    Ok(Ok(bus_event)) => {
-                        if bus_event.channel == channel && bus_event.chat_id == chat_id {
-                            let event = bus_event.event;
-                            if event_tx.send(event.clone()).is_err() {
-                                break;
-                            }
-
-                            if matches!(
-                                event,
-                                AgentEvent::FinalResponse { .. } | AgentEvent::Error { .. }
-                            ) {
-                                break;
-                            }
-                        }
+            while let Ok(Ok(bus_event)) =
+                tokio::time::timeout(std::time::Duration::from_secs(60), event_rx.recv()).await
+            {
+                if bus_event.channel == channel && bus_event.chat_id == chat_id {
+                    let event = bus_event.event;
+                    if event_tx.send(event.clone()).is_err() {
+                        break;
                     }
-                    Ok(Err(_)) | Err(_) => break,
+
+                    if matches!(
+                        event,
+                        AgentEvent::FinalResponse { .. } | AgentEvent::Error { .. }
+                    ) {
+                        break;
+                    }
                 }
             }
         });

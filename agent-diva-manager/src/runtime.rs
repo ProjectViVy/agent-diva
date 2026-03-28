@@ -60,6 +60,7 @@ struct GatewayTasks {
     channel_manager: Arc<ChannelManager>,
     server_shutdown_tx: broadcast::Sender<()>,
     inbound_bridge_handle: JoinHandle<()>,
+    neuro_link_bridge_handle: Option<JoinHandle<()>>,
     outbound_dispatch_handle: JoinHandle<()>,
     channel_handle: JoinHandle<()>,
     agent_handle: JoinHandle<()>,

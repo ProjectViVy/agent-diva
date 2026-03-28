@@ -30,6 +30,11 @@ pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_complet
     tasks.inbound_bridge_handle.abort();
     let _ = tasks.inbound_bridge_handle.await;
 
+    if let Some(handle) = tasks.neuro_link_bridge_handle {
+        handle.abort();
+        let _ = handle.await;
+    }
+
     tasks.outbound_dispatch_handle.abort();
     let _ = tasks.outbound_dispatch_handle.await;
 

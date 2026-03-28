@@ -21,6 +21,9 @@ use agent_diva_core::config::NeuroLinkConfig;
 
 use crate::base::{ChannelError, ChannelHandler, Result};
 
+pub const OLV_AVATAR_CHAT_ID: &str = "__olv_avatar__";
+pub const OLV_AVATAR_ROLE: &str = "avatar";
+
 //  Wire protocol types
 
 /// Incoming message from a pipe client.
@@ -36,6 +39,19 @@ struct PipeMsg {
     meta: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct PipeRegister {
+    #[allow(dead_code)]
+    pipe: String,
+    sender: String,
+    chat: String,
+    #[serde(default)]
+    role: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    meta: HashMap<String, serde_json::Value>,
+}
+
 /// Outgoing frame (delta or reply) to a pipe client.
 #[derive(Debug, Clone, Serialize)]
 struct PipeFrame {
@@ -44,6 +60,8 @@ struct PipeFrame {
     reply_to: String,
     chat: String,
     content: String,
+    #[serde(skip_serializing_if = "HashMap::is_empty", default)]
+    meta: HashMap<String, serde_json::Value>,
 }
 
 // Type alias for the server-side WS sink.
@@ -176,10 +194,55 @@ impl NeuroLinkHandler {
                 _ => continue,
             };
 
-            let msg: PipeMsg = match serde_json::from_str(&text) {
-                Ok(m) => m,
+            let raw: serde_json::Value = match serde_json::from_str(&text) {
+                Ok(value) => value,
                 Err(e) => {
                     warn!("neuro-link: bad JSON: {}", e);
+                    continue;
+                }
+            };
+            let pipe = raw
+                .get("pipe")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
+
+            if pipe == "register" {
+                let registration: PipeRegister = match serde_json::from_value(raw) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        warn!("neuro-link: bad register frame: {}", e);
+                        continue;
+                    }
+                };
+
+                if !allow_from.is_empty() && !allow_from.contains(&registration.sender) {
+                    warn!(
+                        "neuro-link: sender {} not in allow_from",
+                        registration.sender
+                    );
+                    continue;
+                }
+
+                if connection_chat.is_none() {
+                    connection_chat = Some(registration.chat.clone());
+                    let mut map = clients.write().await;
+                    if let Some(sink) = write.write().await.take() {
+                        map.insert(registration.chat.clone(), sink);
+                    }
+                    info!(
+                        "neuro-link: registered client sender={} chat={} role={}",
+                        registration.sender,
+                        registration.chat,
+                        registration.role.as_deref().unwrap_or("unknown"),
+                    );
+                }
+                continue;
+            }
+
+            let msg: PipeMsg = match serde_json::from_value(raw) {
+                Ok(m) => m,
+                Err(e) => {
+                    warn!("neuro-link: bad msg frame: {}", e);
                     continue;
                 }
             };
@@ -287,12 +350,19 @@ impl ChannelHandler for NeuroLinkHandler {
     }
 
     async fn send(&self, msg: OutboundMessage) -> Result<()> {
+        let pipe = msg
+            .metadata
+            .get("neuro_link_pipe")
+            .and_then(|value| value.as_str())
+            .unwrap_or("reply")
+            .to_string();
         let frame = PipeFrame {
-            pipe: "reply".to_string(),
+            pipe,
             id: uuid_v4(),
             reply_to: msg.reply_to.clone().unwrap_or_default(),
             chat: msg.chat_id.clone(),
             content: msg.content.clone(),
+            meta: msg.metadata.clone(),
         };
         let payload = serde_json::to_string(&frame)
             .map_err(|e| ChannelError::SendError(format!("serialize: {}", e)))?;
@@ -346,6 +416,7 @@ pub async fn send_delta(
         reply_to: reply_to.to_string(),
         chat: chat_id.to_string(),
         content: content.to_string(),
+        meta: HashMap::new(),
     };
     let payload = serde_json::to_string(&frame)
         .map_err(|e| ChannelError::SendError(format!("serialize: {}", e)))?;
@@ -415,10 +486,25 @@ mod tests {
             reply_to: "a1".to_string(),
             chat: "c1".to_string(),
             content: "hello".to_string(),
+            meta: HashMap::new(),
         };
         let json = serde_json::to_string(&frame).unwrap();
         assert!(json.contains(r#""pipe":"reply""#));
         assert!(json.contains(r#""reply_to":"a1""#));
+    }
+
+    #[test]
+    fn test_pipe_register_deserialize() {
+        let raw = r#"{"pipe":"register","sender":"olv-avatar","chat":"__olv_avatar__","role":"avatar","meta":{"client":"olv"}}"#;
+        let msg: PipeRegister = serde_json::from_str(raw).unwrap();
+        assert_eq!(msg.pipe, "register");
+        assert_eq!(msg.sender, "olv-avatar");
+        assert_eq!(msg.chat, OLV_AVATAR_CHAT_ID);
+        assert_eq!(msg.role.as_deref(), Some(OLV_AVATAR_ROLE));
+        assert_eq!(
+            msg.meta.get("client").and_then(|value| value.as_str()),
+            Some("olv")
+        );
     }
 
     #[tokio::test]

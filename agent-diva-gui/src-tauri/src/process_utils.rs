@@ -50,7 +50,7 @@ pub fn is_port_3000_occupied() -> bool {
 
 #[cfg(target_os = "windows")]
 fn detect_port_windows() -> bool {
-    let output = Command::new("netstat").args(&["-ano"]).output();
+    let output = Command::new("netstat").args(["-ano"]).output();
 
     match output {
         Ok(output) => {
@@ -117,7 +117,7 @@ fn find_gateway_processes_windows() -> Vec<u32> {
 
     // Try to find agent-diva.exe processes
     let output = Command::new("tasklist")
-        .args(&["/FI", "IMAGENAME eq agent-diva.exe", "/FO", "CSV", "/NH"])
+        .args(["/FI", "IMAGENAME eq agent-diva.exe", "/FO", "CSV", "/NH"])
         .output();
 
     if let Ok(output) = output {
@@ -197,7 +197,7 @@ pub fn terminate_process(pid: u32) -> Result<(), String> {
 #[cfg(target_os = "windows")]
 fn terminate_process_windows(pid: u32) -> Result<(), String> {
     let output = Command::new("taskkill")
-        .args(&["/F", "/PID", &pid.to_string()])
+        .args(["/F", "/PID", &pid.to_string()])
         .output()
         .map_err(|e| format!("Failed to execute taskkill: {}", e))?;
 
@@ -241,7 +241,7 @@ pub fn find_process_on_port_3000() -> Option<u32> {
 
 #[cfg(target_os = "windows")]
 fn find_process_on_port_windows() -> Option<u32> {
-    let output = Command::new("netstat").args(&["-ano"]).output().ok()?;
+    let output = Command::new("netstat").args(["-ano"]).output().ok()?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in stdout.lines() {
