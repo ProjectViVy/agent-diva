@@ -392,6 +392,8 @@ export default {
   },
   channels: {
     channels: 'Channels',
+    activate: 'Activate',
+    deactivate: 'Deactivate',
     enabled: 'Enabled',
     disabled: 'Disabled',
     status: 'Status',

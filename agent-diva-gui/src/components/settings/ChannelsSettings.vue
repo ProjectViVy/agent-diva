@@ -30,9 +30,9 @@ const channelStatusMap = computed(() => {
 });
 
 const toggleChannelEnabled = (channelName: string) => {
-    if (channels.value[channelName]) {
-        channels.value[channelName].enabled = !channels.value[channelName].enabled;
-    }
+  if (channels.value[channelName]) {
+    channels.value[channelName].enabled = !channels.value[channelName].enabled;
+  }
 };
 
 const scheduleAutoSave = (channelName: string) => {
@@ -81,25 +81,43 @@ watch(
     <!-- Sidebar: List of Channels -->
     <div class="w-1/3 min-w-[200px] min-h-0 border-r border-gray-100 flex flex-col bg-gray-50/30">
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
-         <button
+         <div
             v-for="(config, name) in channels"
             :key="name"
             @click="selectedChannel = name"
+            @keydown.enter="selectedChannel = name"
+            @keydown.space.prevent="selectedChannel = name"
+            role="button"
+            tabindex="0"
             class="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between group"
             :class="selectedChannel === name ? 'bg-white shadow-sm border-l-4 border-pink-500 text-pink-700' : 'hover:bg-gray-100 text-gray-600 border-l-4 border-transparent'"
          >
-            <div class="flex items-center">
-               <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3" :class="selectedChannel === name ? 'bg-pink-100 text-pink-600' : 'bg-gray-200 text-gray-500'">
+            <div class="flex min-w-0 items-center">
+               <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3 shrink-0" :class="selectedChannel === name ? 'bg-pink-100 text-pink-600' : 'bg-gray-200 text-gray-500'">
                   <MessageSquare :size="16" />
                </div>
-               <div>
-                  <div class="font-medium capitalize">{{ name }}</div>
+               <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <div class="font-medium capitalize truncate">{{ name }}</div>
+                    <button
+                      type="button"
+                      class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors"
+                      :class="
+                        config.enabled
+                          ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          : 'bg-pink-100 text-pink-700 hover:bg-pink-200'
+                      "
+                      @click.stop="toggleChannelEnabled(name)"
+                    >
+                      {{ config.enabled ? t('channels.deactivate') : t('channels.activate') }}
+                    </button>
+                  </div>
                   <div class="text-[10px] uppercase tracking-wider opacity-70" :class="config.enabled ? 'text-green-600' : 'text-gray-400'">
                       {{ !config.enabled ? t('channels.disabled') : (channelStatusMap.get(name)?.ready ? t('channels.ready') : t('channels.needsSetup')) }}
                   </div>
                </div>
             </div>
-         </button>
+         </div>
       </div>
     </div>
 
@@ -115,13 +133,12 @@ watch(
                     <h3 class="text-xl font-bold text-gray-800 capitalize">{{ selectedChannel }}</h3>
                     <div class="flex items-center space-x-2 mt-1">
                         <span class="text-sm text-gray-500">{{ t('channels.status') }}:</span>
-                        <button 
-                            @click="toggleChannelEnabled(selectedChannel)"
-                            class="px-2 py-0.5 rounded-full text-xs font-bold transition-colors"
+                        <span
+                            class="px-2 py-0.5 rounded-full text-xs font-bold"
                             :class="channels[selectedChannel].enabled ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'"
                         >
                             {{ channels[selectedChannel].enabled ? t('channels.enabled') : t('channels.disabled') }}
-                        </button>
+                        </span>
                     </div>
                 </div>
             </div>

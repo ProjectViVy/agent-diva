@@ -235,6 +235,12 @@ zhPatched.providers.testSuccessWithLatency =
 zhPatched.providers.testFailed =
   zhPatched.providers?.testFailed || '杩炴帴澶辫触';
 
+zhPatched.channels = {
+  ...(zhPatched.channels || {}),
+  activate: zhPatched.channels?.activate || '激活',
+  deactivate: zhPatched.channels?.deactivate || '取消激活',
+};
+
 const i18n = createI18n({
   legacy: false,
   locale: savedLocale,

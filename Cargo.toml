@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.4.1"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 rust-version = "1.80.0"
 
