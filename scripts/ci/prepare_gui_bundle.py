@@ -90,6 +90,13 @@ def build_manifest(
     }
 
 
+def assert_required_cli_staged(cli_path: Path) -> None:
+    if not cli_path.exists():
+        raise FileNotFoundError(
+            f"required staged CLI runtime missing after copy: {cli_path}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Stage CLI/service binaries into Tauri bundle resources."
@@ -165,6 +172,7 @@ def main() -> int:
 
     staged_cli_path = staged_bin_root / target_os / cli_source.name
     copy_file(cli_source, staged_cli_path)
+    assert_required_cli_staged(staged_cli_path)
 
     if service_source:
         staged_service_path = staged_bin_root / target_os / service_source.name
@@ -200,8 +208,8 @@ def main() -> int:
         "\n".join(
             [
                 "These binaries are staged for Tauri installer packaging.",
-                "agent-diva(.exe) is required for local gateway control.",
-                "agent-diva-service(.exe) is optional until the Windows service crate lands.",
+                "agent-diva(.exe) is required because the GUI manages the local gateway runtime.",
+                "agent-diva-service(.exe) is an optional advanced component for Windows service mode.",
             ]
         )
         + "\n",

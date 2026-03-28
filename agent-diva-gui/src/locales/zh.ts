@@ -124,6 +124,10 @@ export default {
     autoExpandToolDetails: '自动展开工具详情',
     autoExpandRawMeta: '自动展开结构化元数据',
     serviceTitle: '服务管理',
+    gatewayRuntimeTitle: 'Gateway 运行时',
+    gatewayRuntimeDesc: 'GUI 默认会安装并管理内置的本地 Gateway 运行时。',
+    serviceAdvancedNote:
+      'Windows 服务模式属于高级可选能力，用于后台常驻或开机自启；普通桌面使用不需要额外安装服务。',
     runtimeLabel: '运行模式',
     platformLabel: '平台',
     runtimeBundled: '已打包应用',

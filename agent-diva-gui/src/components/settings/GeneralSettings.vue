@@ -204,12 +204,16 @@ async function runFullWipe() {
       <div class="flex items-center gap-2 px-1">
         <ServerCog :size="16" class="text-violet-500" />
         <div>
-          <h4 class="text-sm font-semibold text-gray-800">{{ t('general.serviceTitle') }}</h4>
-          <p class="text-xs text-gray-500">{{ t('console.gatewayDesc') }}</p>
+          <h4 class="text-sm font-semibold text-gray-800">{{ t('general.gatewayRuntimeTitle') }}</h4>
+          <p class="text-xs text-gray-500">{{ t('general.gatewayRuntimeDesc') }}</p>
         </div>
       </div>
 
       <GatewayControlPanel />
+
+      <p class="px-1 text-xs text-gray-500 leading-relaxed">
+        {{ t('general.serviceAdvancedNote') }}
+      </p>
     </div>
 
     <div class="rounded-xl border-2 border-red-200 bg-red-50/80 p-4 space-y-4">

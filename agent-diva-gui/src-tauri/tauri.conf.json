@@ -59,8 +59,7 @@
       },
       "nsis": {
         "installMode": "both",
-        "displayLanguageSelector": true,
-        "installerHooks": "./windows/hooks.nsh"
+        "displayLanguageSelector": true
       }
     }
   }

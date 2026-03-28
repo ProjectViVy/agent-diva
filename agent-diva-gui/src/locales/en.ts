@@ -132,6 +132,10 @@ export default {
     autoExpandToolDetails: 'Auto expand tool details',
     autoExpandRawMeta: 'Auto expand structured metadata',
     serviceTitle: 'Service Management',
+    gatewayRuntimeTitle: 'Gateway Runtime',
+    gatewayRuntimeDesc: 'The GUI installs and manages the bundled local gateway runtime by default.',
+    serviceAdvancedNote:
+      'Windows Service mode is an advanced optional setup for background auto-start. Normal desktop use does not require installing the service.',
     runtimeLabel: 'Runtime',
     platformLabel: 'Platform',
     runtimeBundled: 'Bundled app',

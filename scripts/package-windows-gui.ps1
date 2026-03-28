@@ -115,6 +115,30 @@ function Ensure-NsisPrecache {
     Write-Host "NSIS ready at $dest"
 }
 
+function Assert-GuiBundlePrepared {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $GuiRoot
+    )
+
+    $manifestPath = Join-Path $GuiRoot "src-tauri\resources\manifests\gui-bundle-manifest.json"
+    if (-not (Test-Path -LiteralPath $manifestPath)) {
+        throw "GUI bundle manifest missing after bundle:prepare: $manifestPath"
+    }
+
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $stagedCli = $manifest.binaries.cli.staged
+    if ([string]::IsNullOrWhiteSpace($stagedCli)) {
+        throw "GUI bundle manifest does not contain binaries.cli.staged"
+    }
+
+    if (-not (Test-Path -LiteralPath $stagedCli)) {
+        throw "Required staged gateway runtime missing: $stagedCli"
+    }
+
+    Write-Host "Verified staged gateway runtime: $stagedCli"
+}
+
 Write-Host "Repository root: $RepoRoot"
 
 Assert-Command cargo
@@ -146,6 +170,9 @@ try {
             pnpm run bundle:prepare
             if ($LASTEXITCODE -ne 0) { throw "bundle:prepare failed with exit code $LASTEXITCODE" }
         }
+
+        Write-Step "Verifying staged GUI runtime"
+        Assert-GuiBundlePrepared -GuiRoot $GuiRoot
 
         if (-not $SkipNsisPrecache) {
             Ensure-NsisPrecache
