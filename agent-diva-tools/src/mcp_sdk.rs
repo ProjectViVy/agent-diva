@@ -170,7 +170,7 @@ impl McpClientWrapper {
             capabilities: ClientCapabilities::default(),
             client_info: Implementation {
                 name: "agent-diva".into(),
-                version: "0.2.0".into(),
+                version: "0.4.0".into(),
                 title: Some("Agent Diva MCP Client".into()),
                 description: Some("Agent Diva MCP Client using rust-mcp-sdk".into()),
                 icons: vec![],

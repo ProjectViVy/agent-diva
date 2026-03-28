@@ -82,11 +82,9 @@ pub async fn get_provider_models_handler(
     let (tx, rx) = oneshot::channel();
     if let Err(e) = state
         .api_tx
-        .send(ManagerCommand::Provider(ProviderCommand::GetProviderModels(
-            name.clone(),
-            query.runtime,
-            tx,
-        )))
+        .send(ManagerCommand::Provider(
+            ProviderCommand::GetProviderModels(name.clone(), query.runtime, tx),
+        ))
         .await
     {
         tracing::error!("Failed to send GetProviderModels request: {}", e);
@@ -148,11 +146,9 @@ pub async fn delete_provider_model_handler(
     let (tx, rx) = oneshot::channel();
     if let Err(e) = state
         .api_tx
-        .send(ManagerCommand::Provider(ProviderCommand::DeleteProviderModel(
-            name,
-            model_id,
-            tx,
-        )))
+        .send(ManagerCommand::Provider(
+            ProviderCommand::DeleteProviderModel(name, model_id, tx),
+        ))
         .await
     {
         tracing::error!("Failed to send DeleteProviderModel request: {}", e);
@@ -173,8 +169,7 @@ pub async fn create_provider_handler(
     if let Err(e) = state
         .api_tx
         .send(ManagerCommand::Provider(ProviderCommand::CreateProvider(
-            payload,
-            tx,
+            payload, tx,
         )))
         .await
     {
@@ -197,9 +192,7 @@ pub async fn update_provider_handler(
     if let Err(e) = state
         .api_tx
         .send(ManagerCommand::Provider(ProviderCommand::UpdateProvider(
-            name,
-            payload,
-            tx,
+            name, payload, tx,
         )))
         .await
     {
@@ -221,8 +214,7 @@ pub async fn delete_provider_handler(
     if let Err(e) = state
         .api_tx
         .send(ManagerCommand::Provider(ProviderCommand::DeleteProvider(
-            name,
-            tx,
+            name, tx,
         )))
         .await
     {

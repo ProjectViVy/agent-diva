@@ -211,7 +211,9 @@ pub async fn add_provider_model(
     let provider_id = provider.trim().to_string();
     let model_id = model.trim().to_string();
     state.add_provider_model(&provider_id, &model_id).await?;
-    let updated = state.get_provider_model_catalog(&provider_id, false).await?;
+    let updated = state
+        .get_provider_model_catalog(&provider_id, false)
+        .await?;
     Ok(provider_model_catalog_dto(updated))
 }
 
@@ -224,7 +226,9 @@ pub async fn remove_provider_model(
     let provider_id = provider.trim().to_string();
     let model_id = model.trim().to_string();
     state.remove_provider_model(&provider_id, &model_id).await?;
-    let updated = state.get_provider_model_catalog(&provider_id, false).await?;
+    let updated = state
+        .get_provider_model_catalog(&provider_id, false)
+        .await?;
     Ok(provider_model_catalog_dto(updated))
 }
 

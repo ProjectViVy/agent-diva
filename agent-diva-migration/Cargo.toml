@@ -1,8 +1,8 @@
 [package]
 name = "agent-diva-migration"
-version = "0.2.0"
+version = "0.4.0"
 edition = "2021"
-authors = ["mastwet@UndefineFoundation"]
+authors = ["mastwet (projectViVY Team, undefine foundation)"]
 license = "MIT"
 repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Migration tool for agent-diva"

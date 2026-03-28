@@ -1,8 +1,8 @@
 [package]
 name = "agent-diva-service"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
-authors = ["mastwet@UndefineFoundation"]
+authors = ["mastwet (projectViVY Team, undefine foundation)"]
 license = "MIT"
 description = "Windows service companion for agent-diva"
 

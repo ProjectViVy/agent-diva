@@ -1,8 +1,8 @@
 ﻿[package]
 name = "agent-diva-neuron"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
-authors = ["mastwet@UndefineFoundation"]
+authors = ["mastwet (projectViVY Team, undefine foundation)"]
 license = "MIT"
 repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Single-turn neuron node abstraction for agent-diva"

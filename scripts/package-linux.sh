@@ -6,7 +6,7 @@
 
 set -e
 
-VERSION="0.2.0"
+VERSION="0.4.0"
 PACKAGE_NAME="agent-diva-${VERSION}-linux-x86_64"
 DIST_DIR="dist"
 

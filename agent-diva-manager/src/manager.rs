@@ -352,7 +352,8 @@ impl Manager {
                 self.handle_add_provider_model(name, model, reply).await;
             }
             ProviderCommand::DeleteProviderModel(name, model_id, reply) => {
-                self.handle_delete_provider_model(name, model_id, reply).await;
+                self.handle_delete_provider_model(name, model_id, reply)
+                    .await;
             }
             ProviderCommand::CreateProvider(payload, reply) => {
                 self.handle_create_provider(payload, reply).await;

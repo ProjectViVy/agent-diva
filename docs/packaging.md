@@ -32,8 +32,8 @@
 
 **方式1: 推送标签**
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 **方式2: 手动触发**
@@ -104,9 +104,9 @@ lipo -create \
 
 # 创建 DMG
 create-dmg \
-    --volname "Agent Diva 0.2.0" \
+    --volname "Agent Diva 0.4.0" \
     --app-drop-link 400 200 \
-    "dist/agent-diva-0.2.0-macos.dmg" \
+    "dist/agent-diva-0.4.0-macos.dmg" \
     target/universal/release/
 ```
 
@@ -116,7 +116,7 @@ create-dmg \
 2. 打开终端，进入挂载目录
 3. 运行安装脚本:
 ```bash
-cd /Volumes/Agent\ Diva\ 0.2.0
+cd /Volumes/Agent\ Diva\ 0.4.0
 ./install.sh
 ```
 
@@ -180,7 +180,7 @@ cargo install cargo-deb
 # 在项目根目录执行
 cargo deb -p agent-diva-cli
 
-# 输出文件: target/debian/agent-diva-cli_0.2.0_amd64.deb
+# 输出文件: target/debian/agent-diva-cli_0.4.0_amd64.deb
 ```
 
 ### 配置说明
@@ -202,10 +202,10 @@ assets = [
 
 ```bash
 # 安装
-sudo dpkg -i agent-diva-cli_0.2.0_amd64.deb
+sudo dpkg -i agent-diva-cli_0.4.0_amd64.deb
 
 # 或使用 apt (自动处理依赖)
-sudo apt install ./agent-diva-cli_0.2.0_amd64.deb
+sudo apt install ./agent-diva-cli_0.4.0_amd64.deb
 
 # 卸载
 sudo apt remove agent-diva

@@ -52,7 +52,7 @@ use agent_diva_tools::wtf;
 #[derive(Parser)]
 #[command(name = "agent-diva")]
 #[command(about = "A lightweight personal AI assistant framework")]
-#[command(version = "0.2.0")]
+#[command(version = "0.4.0")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -1180,7 +1180,7 @@ async fn run_status(runtime: &CliRuntime, json: bool) -> Result<()> {
     let doctor = doctor_report(runtime, &config);
 
     println!("{}", style("Agent Diva Status").bold().cyan());
-    println!("Version: 0.2.0 (Rust)\n");
+    println!("Version: 0.4.0 (Rust)\n");
     println!("{}", style("Paths:").bold());
     println!("  Config: {}", report.config.config_path);
     println!("  Runtime root: {}", report.config.runtime_dir);

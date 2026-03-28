@@ -288,7 +288,7 @@ impl DingTalkHandler {
                     topic: "/v1.0/im/bot/messages/get".to_string(),
                 },
             ],
-            user_agent: "agent-diva/0.2.0".to_string(),
+            user_agent: "agent-diva/0.4.0".to_string(),
         };
 
         let response = self
