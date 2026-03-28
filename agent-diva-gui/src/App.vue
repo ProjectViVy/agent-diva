@@ -5,6 +5,7 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import NormalMode from "./components/NormalMode.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
+import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
 import { getConfigStatus, getRuntimeConfig } from "./api/desktop";
 import {
@@ -817,11 +818,7 @@ async function saveConfig(newConfig: typeof config.value) {
 
     if (!isTauri()) {
         console.warn('Running in browser, mocking saveConfig');
-        messages.value.push({ 
-            role: 'system', 
-            content: "[Mock] " + t('app.configUpdated'), 
-            timestamp: Date.now() 
-        });
+        showAppToast("保存成功");
         return;
     }
 
@@ -840,13 +837,10 @@ async function saveConfig(newConfig: typeof config.value) {
       model: runtimeConfig.model || newConfig.model,
     };
     
-    messages.value.push({ 
-      role: 'system', 
-      content: t('app.configUpdated'), 
-      timestamp: Date.now() 
-    });
+    showAppToast("保存成功");
   } catch (error) {
     await appAlert(t('app.configUpdateError', { error }));
+    throw error;
   }
 }
 
@@ -854,11 +848,7 @@ async function saveToolsConfig(newToolsConfig: typeof toolsConfig.value) {
   try {
     toolsConfig.value = JSON.parse(JSON.stringify(newToolsConfig));
     if (!isTauri()) {
-      messages.value.push({
-        role: 'system',
-        content: "[Mock] " + t('app.configUpdated'),
-        timestamp: Date.now()
-      });
+      showAppToast("保存成功");
       return;
     }
 
@@ -866,13 +856,30 @@ async function saveToolsConfig(newToolsConfig: typeof toolsConfig.value) {
       tools: newToolsConfig
     });
 
-    messages.value.push({
-      role: 'system',
-      content: t('app.configUpdated'),
-      timestamp: Date.now()
-    });
+    showAppToast("保存成功");
   } catch (error) {
     await appAlert(t('app.configUpdateError', { error }));
+    throw error;
+  }
+}
+
+async function saveChannelConfig(channelName: string, channelConfig: Record<string, unknown>) {
+  try {
+    if (!isTauri()) {
+      showAppToast("保存成功");
+      return;
+    }
+
+    await invoke('update_channel', {
+      name: channelName,
+      enabled: Boolean(channelConfig.enabled),
+      config: channelConfig,
+    });
+
+    showAppToast("保存成功");
+  } catch (error) {
+    await appAlert(t('app.configUpdateError', { error }));
+    throw error;
   }
 }
 
@@ -1281,11 +1288,12 @@ onUnmounted(() => {
       :saved-models="savedModels"
       :sessions="sessions"
       :chat-display-prefs="chatDisplayPrefs"
+      :save-config-action="saveConfig"
+      :save-tools-config-action="saveToolsConfig"
+      :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
       @clear="clearMessages"
       @stop="stopMessage"
-      @save-config="saveConfig"
-      @save-tools-config="saveToolsConfig"
       @update-saved-models="updateSavedModels"
       @save-chat-display-prefs="updateChatDisplayPrefs"
       @load-session="loadSession"

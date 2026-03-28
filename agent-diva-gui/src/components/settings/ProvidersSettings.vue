@@ -65,16 +65,22 @@ const props = defineProps<{
     model: string;
   };
   savedModels?: SavedModel[];
+  saveConfigAction: (config: {
+    provider: string;
+    apiBase: string;
+    apiKey: string;
+    model: string;
+  }) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
-  (e: 'save', config: typeof props.config): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
 }>();
 
 const providers = ref<ProviderSpec[]>([]);
 const statusReport = ref<ConfigStatusReport | null>(null);
 const localConfig = ref({ ...props.config });
+const localSavedModels = ref<SavedModel[]>(JSON.parse(JSON.stringify(props.savedModels || [])));
 const selectedProvider = ref<ProviderSpec | null>(null);
 const searchTerm = ref('');
 const modelSearchTerm = ref('');
@@ -89,6 +95,9 @@ const isRefreshing = ref(false);
 const runtimeCatalogs = ref<Record<string, ProviderModelCatalog>>({});
 const modelTestStatuses = ref<Record<string, ModelTestStatus>>({});
 const modelTestTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const isSavingConfig = ref(false);
+const lastSavedConfigSnapshot = ref(JSON.stringify(props.config));
+const lastSavedModelsSnapshot = ref(JSON.stringify(props.savedModels || []));
 const newProviderForm = ref<NewProviderForm>({
   id: '',
   displayName: '',
@@ -113,9 +122,14 @@ const dedupeProviders = (items: ProviderSpec[]) => {
   return Array.from(seen.values());
 };
 
-const buildProviderStateFromProps = () => {
-  if (props.savedModels) {
-    props.savedModels.forEach((model) => {
+const cloneSavedModels = (models: SavedModel[]) => JSON.parse(JSON.stringify(models)) as SavedModel[];
+
+const buildProviderStateFromDraft = () => {
+  providerApiKeys.value = {};
+  providerApiBases.value = {};
+
+  if (localSavedModels.value) {
+    localSavedModels.value.forEach((model) => {
       if (model.apiKey) {
         providerApiKeys.value[model.provider] = model.apiKey;
       }
@@ -125,12 +139,12 @@ const buildProviderStateFromProps = () => {
     });
   }
 
-  if (props.config.provider) {
-    if (props.config.apiKey) {
-      providerApiKeys.value[props.config.provider] = props.config.apiKey;
+  if (localConfig.value.provider) {
+    if (localConfig.value.apiKey) {
+      providerApiKeys.value[localConfig.value.provider] = localConfig.value.apiKey;
     }
-    if (props.config.apiBase) {
-      providerApiBases.value[props.config.provider] = props.config.apiBase;
+    if (localConfig.value.apiBase) {
+      providerApiBases.value[localConfig.value.provider] = localConfig.value.apiBase;
     }
   }
 };
@@ -145,7 +159,7 @@ const refreshProviderState = async () => {
   try {
     providers.value = dedupeProviders(await invoke('get_providers'));
     statusReport.value = await getConfigStatus();
-    buildProviderStateFromProps();
+    buildProviderStateFromDraft();
 
     if (providers.value.length > 0) {
       let found = providers.value.find(p => p.name === localConfig.value.provider);
@@ -194,9 +208,12 @@ const filteredProviders = computed(() => {
   );
 });
 
-const emitConfigSave = () => {
-  emit('save', { ...localConfig.value });
-};
+const currentConfigSnapshot = computed(() => JSON.stringify(localConfig.value));
+const currentSavedModelsSnapshot = computed(() => JSON.stringify(localSavedModels.value));
+const isDirty = computed(() =>
+  currentConfigSnapshot.value !== lastSavedConfigSnapshot.value ||
+  currentSavedModelsSnapshot.value !== lastSavedModelsSnapshot.value
+);
 
 const buildSavedModelEntry = (provider: ProviderSpec, modelName: string): SavedModel => {
   const trimmedModelName = modelName.trim();
@@ -213,10 +230,10 @@ const buildSavedModelEntry = (provider: ProviderSpec, modelName: string): SavedM
 };
 
 const upsertSavedModel = (entry: SavedModel) => {
-  const existingIndex = props.savedModels?.findIndex(
+  const existingIndex = localSavedModels.value.findIndex(
     (model) => model.provider === entry.provider && model.model === entry.model
-  ) ?? -1;
-  const newSavedModels = [...(props.savedModels || [])];
+  );
+  const newSavedModels = cloneSavedModels(localSavedModels.value);
 
   if (existingIndex >= 0) {
     newSavedModels.splice(existingIndex, 1, {
@@ -227,7 +244,7 @@ const upsertSavedModel = (entry: SavedModel) => {
     newSavedModels.push(entry);
   }
 
-  emit('update-saved-models', newSavedModels);
+  localSavedModels.value = newSavedModels;
 };
 
 const providerModels = computed(() => {
@@ -318,7 +335,6 @@ const createProvider = async () => {
     localConfig.value.apiKey = apiKey;
 
     upsertSavedModel(buildSavedModelEntry(createdProvider, defaultModel));
-    emitConfigSave();
     statusReport.value = await getConfigStatus();
     closeCreateProviderDialog();
   } catch (error) {
@@ -380,10 +396,7 @@ const requestDeleteCustomProvider = async (provider: ProviderSpec) => {
     delete nextCat[id];
     runtimeCatalogs.value = nextCat;
 
-    emit(
-      'update-saved-models',
-      (props.savedModels || []).filter((m) => m.provider !== id),
-    );
+    localSavedModels.value = localSavedModels.value.filter((m) => m.provider !== id);
 
     await refreshProviderState();
 
@@ -395,7 +408,6 @@ const requestDeleteCustomProvider = async (provider: ProviderSpec) => {
         localConfig.value.apiBase =
           providerApiBases.value[next.name] || next.default_api_base;
         localConfig.value.apiKey = providerApiKeys.value[next.name] || '';
-        emitConfigSave();
       }
     }
   } catch (error) {
@@ -415,7 +427,7 @@ const selectProvider = async (provider: ProviderSpec) => {
 };
 
 const isModelSaved = (providerName: string, modelName: string) => {
-  return props.savedModels?.some(m => m.provider === providerName && m.model === modelName) ?? false;
+  return localSavedModels.value.some(m => m.provider === providerName && m.model === modelName);
 };
 
 const isModelDeletable = (provider: ProviderSpec, modelName: string) => {
@@ -562,7 +574,6 @@ const toggleModel = (modelName: string) => {
   localConfig.value.apiKey = entry.apiKey;
 
   upsertSavedModel(entry);
-  emitConfigSave();
 };
 
 const removeCurrentModel = () => {
@@ -570,11 +581,11 @@ const removeCurrentModel = () => {
   const modelName = localConfig.value.model?.trim();
   if (!providerName || !modelName) return;
 
-  const newSavedModels = (props.savedModels || []).filter(
+  const newSavedModels = localSavedModels.value.filter(
     (savedModel) => !(savedModel.provider === providerName && savedModel.model === modelName)
   );
 
-  emit('update-saved-models', newSavedModels);
+  localSavedModels.value = newSavedModels;
 };
 
 const addManualModel = async () => {
@@ -607,7 +618,6 @@ const addManualModel = async () => {
     localConfig.value.apiKey = entry.apiKey;
 
     upsertSavedModel(entry);
-    emitConfigSave();
     closeManualModelDialog();
   } catch (error) {
     console.error('Failed to add manual model:', error);
@@ -646,11 +656,11 @@ const deleteProviderModel = async (modelName: string) => {
         : item
     );
 
-    const newSavedModels = (props.savedModels || []).filter(
+    const newSavedModels = localSavedModels.value.filter(
       (savedModel) => !(savedModel.provider === provider.name && savedModel.model === trimmedModelName)
     );
-    if (newSavedModels.length !== (props.savedModels || []).length) {
-      emit('update-saved-models', newSavedModels);
+    if (newSavedModels.length !== localSavedModels.value.length) {
+      localSavedModels.value = newSavedModels;
     }
 
     if (
@@ -665,7 +675,6 @@ const deleteProviderModel = async (modelName: string) => {
           providerApiBases.value[provider.name] || provider.default_api_base;
         localConfig.value.apiKey = providerApiKeys.value[provider.name] || '';
       }
-      emitConfigSave();
     }
   } catch (error) {
     console.error('Failed to delete provider model:', error);
@@ -678,18 +687,15 @@ const updateProviderKey = (key: string) => {
   providerApiKeys.value[providerName] = key;
   localConfig.value.apiKey = key;
   
-  if (props.savedModels) {
-    const newModels = props.savedModels.map(m => {
-      if (m.provider === providerName) {
-        return { ...m, apiKey: key };
-      }
-      return m;
-    });
-    if (JSON.stringify(newModels) !== JSON.stringify(props.savedModels)) {
-        emit('update-saved-models', newModels);
+  const newModels = localSavedModels.value.map(m => {
+    if (m.provider === providerName) {
+      return { ...m, apiKey: key };
     }
+    return m;
+  });
+  if (JSON.stringify(newModels) !== JSON.stringify(localSavedModels.value)) {
+    localSavedModels.value = newModels;
   }
-  emitConfigSave();
 };
 
 const updateProviderApiBase = (apiBase: string) => {
@@ -699,25 +705,42 @@ const updateProviderApiBase = (apiBase: string) => {
   providerApiBases.value[providerName] = normalized;
   localConfig.value.apiBase = normalized;
 
-  if (props.savedModels) {
-    const newModels = props.savedModels.map((model) => {
-      if (model.provider === providerName) {
-        return { ...model, apiBase: normalized };
-      }
-      return model;
-    });
-    if (JSON.stringify(newModels) !== JSON.stringify(props.savedModels)) {
-      emit('update-saved-models', newModels);
+  const newModels = localSavedModels.value.map((model) => {
+    if (model.provider === providerName) {
+      return { ...model, apiBase: normalized };
     }
+    return model;
+  });
+  if (JSON.stringify(newModels) !== JSON.stringify(localSavedModels.value)) {
+    localSavedModels.value = newModels;
   }
+};
 
-  emitConfigSave();
+const saveProviderConfig = async () => {
+  if (isSavingConfig.value || !isDirty.value) return;
+  isSavingConfig.value = true;
+  try {
+    await props.saveConfigAction({ ...localConfig.value });
+    emit('update-saved-models', cloneSavedModels(localSavedModels.value));
+    lastSavedConfigSnapshot.value = JSON.stringify(localConfig.value);
+    lastSavedModelsSnapshot.value = JSON.stringify(localSavedModels.value);
+    statusReport.value = await getConfigStatus();
+  } finally {
+    isSavingConfig.value = false;
+  }
 };
 
 watch(() => props.config, async (newVal) => {
   localConfig.value = { ...newVal };
-  buildProviderStateFromProps();
+  lastSavedConfigSnapshot.value = JSON.stringify(newVal);
+  buildProviderStateFromDraft();
   await refreshProviderState();
+}, { deep: true });
+
+watch(() => props.savedModels, (newVal) => {
+  localSavedModels.value = cloneSavedModels(newVal || []);
+  lastSavedModelsSnapshot.value = JSON.stringify(newVal || []);
+  buildProviderStateFromDraft();
 }, { deep: true });
 </script>
 
@@ -807,14 +830,25 @@ watch(() => props.config, async (newVal) => {
                     <p class="text-sm text-gray-500">{{ selectedProvider.default_api_base || t('providers.customApi') }}</p>
                 </div>
             </div>
-            <div
-              v-if="statusReport"
-              class="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
-              :class="doctorTone"
-            >
-              <ShieldCheck v-if="statusReport.doctor.ready" :size="14" />
-              <ShieldAlert v-else :size="14" />
-              <span>{{ statusReport.doctor.ready ? t('providers.healthReady') : t('providers.healthAttention') }}</span>
+            <div class="flex items-center gap-3">
+              <div
+                v-if="statusReport"
+                class="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
+                :class="doctorTone"
+              >
+                <ShieldCheck v-if="statusReport.doctor.ready" :size="14" />
+                <ShieldAlert v-else :size="14" />
+                <span>{{ statusReport.doctor.ready ? t('providers.healthReady') : t('providers.healthAttention') }}</span>
+              </div>
+              <button
+                type="button"
+                class="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                :disabled="isSavingConfig || !isDirty"
+                @click="saveProviderConfig"
+              >
+                <LoaderCircle v-if="isSavingConfig" :size="16" class="animate-spin" />
+                <span>{{ isSavingConfig ? t('console.saving') : t('console.saveConfig') }}</span>
+              </button>
             </div>
         </div>
 

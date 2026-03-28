@@ -28,6 +28,27 @@ interface ChatDisplayPrefs {
   showRawMetaByDefault: boolean;
 }
 
+interface AppConfigShape {
+  provider: string;
+  apiBase: string;
+  apiKey: string;
+  model: string;
+}
+
+interface ToolsConfigShape {
+  web: {
+    search: {
+      provider: string;
+      enabled: boolean;
+      api_key: string;
+      max_results: number;
+    };
+    fetch: {
+      enabled: boolean;
+    };
+  };
+}
+
 type SettingsSubview =
   | 'dashboard'
   | 'general'
@@ -40,33 +61,17 @@ type SettingsSubview =
   | 'about';
 
 const props = defineProps<{
-  config: {
-    provider: string;
-    apiBase: string;
-    apiKey: string;
-    model: string;
-  };
-  toolsConfig: {
-    web: {
-      search: {
-        provider: string;
-        enabled: boolean;
-        api_key: string;
-        max_results: number;
-      };
-      fetch: {
-        enabled: boolean;
-      };
-    };
-  };
+  config: AppConfigShape;
+  toolsConfig: ToolsConfigShape;
   savedModels?: SavedModel[];
   chatDisplayPrefs: ChatDisplayPrefs;
   initialView?: SettingsSubview;
+  saveConfigAction: (config: AppConfigShape) => Promise<void>;
+  saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
+  saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
-  (e: 'save', config: typeof props.config): void;
-  (e: 'save-tools-config', tools: typeof props.toolsConfig): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
 }>();
@@ -152,18 +157,19 @@ watch(
               v-else-if="currentView === 'providers'"
               :config="config"
               :saved-models="savedModels"
-              @save="(c) => emit('save', c)"
+              :save-config-action="saveConfigAction"
               @update-saved-models="(m) => emit('update-saved-models', m)"
             />
             
             <ChannelsSettings 
               v-else-if="currentView === 'channels'"
+              :save-channel-config-action="saveChannelConfigAction"
             />
 
             <NetworkSettings
               v-else-if="currentView === 'network'"
               :tools-config="toolsConfig"
-              @save-tools-config="(t) => emit('save-tools-config', t)"
+              :save-tools-config-action="saveToolsConfigAction"
             />
             
             <LanguageSettings 
