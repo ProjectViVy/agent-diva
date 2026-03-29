@@ -1,6 +1,8 @@
 # Justfile for Agent Diva
 
-set shell := ["powershell.exe", "-c"]
+# CI/Linux/macOS 使用 bash；Windows 本地开发使用 PowerShell（避免在 ubuntu-latest 上找不到 powershell.exe）
+set shell := ["bash", "-cu"]
+set windows-shell := ["powershell.exe", "-NoProfile", "-c"]
 
 # Default recipe - show help
 default:
