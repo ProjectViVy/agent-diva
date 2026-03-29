@@ -87,7 +87,7 @@ const saveCurrentChannel = async () => {
             @keydown.space.prevent="selectedChannel = name"
             role="button"
             tabindex="0"
-            class="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between group"
+            class="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center group"
             :class="selectedChannel === name ? 'bg-white shadow-sm border-l-4 border-pink-500 text-pink-700' : 'hover:bg-gray-100 text-gray-600 border-l-4 border-transparent'"
          >
             <div class="flex min-w-0 items-center">
@@ -95,24 +95,7 @@ const saveCurrentChannel = async () => {
                   <MessageSquare :size="16" />
                </div>
                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <div class="font-medium capitalize truncate">{{ name }}</div>
-                    <button
-                      type="button"
-                      role="switch"
-                      :aria-checked="config.enabled"
-                      :aria-label="config.enabled ? t('channels.enabled') : t('channels.disabled')"
-                      :title="config.enabled ? t('channels.enabled') : t('channels.disabled')"
-                      class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors"
-                      :class="config.enabled ? 'bg-emerald-500' : 'bg-gray-300'"
-                      @click.stop="toggleChannelEnabled(name)"
-                    >
-                      <span
-                        class="inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
-                        :class="config.enabled ? 'translate-x-5' : 'translate-x-0.5'"
-                      />
-                    </button>
-                  </div>
+                  <div class="font-medium capitalize truncate">{{ name }}</div>
                   <div class="text-[10px] uppercase tracking-wider opacity-70" :class="config.enabled ? 'text-green-600' : 'text-gray-400'">
                       {{ !config.enabled ? t('channels.disabled') : (channelStatusMap.get(name)?.ready ? t('channels.ready') : t('channels.needsSetup')) }}
                   </div>
@@ -131,7 +114,7 @@ const saveCurrentChannel = async () => {
             </div>
             <div>
               <h3 class="text-xl font-bold text-gray-800 capitalize">{{ selectedChannel }}</h3>
-              <div class="flex items-center space-x-2 mt-1">
+              <div class="flex flex-wrap items-center gap-2 mt-1">
                 <span class="text-sm text-gray-500">{{ t('channels.status') }}:</span>
                 <span
                   class="px-2 py-0.5 rounded-full text-xs font-bold"
@@ -139,12 +122,31 @@ const saveCurrentChannel = async () => {
                 >
                   {{ selectedChannelDraft.enabled ? t('channels.enabled') : t('channels.disabled') }}
                 </span>
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="selectedChannelDraft.enabled"
+                  :aria-label="selectedChannelDraft.enabled ? t('channels.enabled') : t('channels.disabled')"
+                  :title="selectedChannelDraft.enabled ? t('channels.enabled') : t('channels.disabled')"
+                  class="relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full px-px transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-500"
+                  :class="
+                    selectedChannelDraft.enabled
+                      ? 'bg-gradient-to-r from-pink-500 to-purple-600'
+                      : 'bg-gray-300'
+                  "
+                  @click.stop="toggleChannelEnabled(selectedChannel)"
+                >
+                  <span
+                    class="inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform"
+                    :class="selectedChannelDraft.enabled ? 'translate-x-4' : 'translate-x-0.5'"
+                  />
+                </button>
               </div>
             </div>
           </div>
           <button
             type="button"
-            class="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-emerald-300"
+            class="btn-save-config inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
             :disabled="isInitializing || isSaving || !isDirty"
             @click="saveCurrentChannel"
           >

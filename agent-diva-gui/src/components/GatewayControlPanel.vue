@@ -233,7 +233,7 @@ onMounted(async () => {
             {{ t('console.reloadConfig') }}
           </button>
           <button
-            class="px-3 py-2 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+            class="btn-save-config-sm"
             :disabled="configBusy"
             @click="persistConfig"
           >

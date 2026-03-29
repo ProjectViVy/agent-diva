@@ -126,7 +126,7 @@ const openBochaGuide = () => {
       </div>
       <button
         type="button"
-        class="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-emerald-300"
+        class="btn-save-config inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
         :disabled="isSaving || !isDirty"
         @click="saveConfig"
       >
