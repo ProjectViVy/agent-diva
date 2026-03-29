@@ -1,7 +1,5 @@
 use clap::Parser;
-use std::path::{Path, PathBuf};
-
-const SERVICE_NAME: &str = "AgentDivaGateway";
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "agent-diva-service")]
@@ -14,13 +12,6 @@ struct Cli {
     /// Run the service companion in console mode for local validation.
     #[arg(long)]
     console: bool,
-}
-
-fn sibling_cli_path(current_exe: &Path) -> PathBuf {
-    current_exe
-        .parent()
-        .map(|dir| dir.join("agent-diva.exe"))
-        .unwrap_or_else(|| PathBuf::from("agent-diva.exe"))
 }
 
 #[cfg(not(windows))]
@@ -37,11 +28,11 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(windows)]
 mod windows_impl {
-    use super::{sibling_cli_path, Cli, SERVICE_NAME};
+    use super::Cli;
     use anyhow::{Context, Result};
     use clap::Parser;
     use std::ffi::OsString;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::process::{Child, Command, Stdio};
     use std::sync::mpsc;
     use std::time::Duration;
@@ -53,6 +44,15 @@ mod windows_impl {
     };
     use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
     use windows_service::service_dispatcher;
+
+    const SERVICE_NAME: &str = "AgentDivaGateway";
+
+    fn sibling_cli_path(current_exe: &Path) -> PathBuf {
+        current_exe
+            .parent()
+            .map(|dir| dir.join("agent-diva.exe"))
+            .unwrap_or_else(|| PathBuf::from("agent-diva.exe"))
+    }
 
     define_windows_service!(ffi_service_main, service_main);
 
