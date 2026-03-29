@@ -109,9 +109,9 @@ cross-linux-x86_64:
 cross-linux-arm64:
     cross build --release --target aarch64-unknown-linux-gnu -p agent-diva-cli
 
-# Trigger GitHub Actions build (requires gh CLI)
+# Trigger GitHub Actions CI (desktop GUI 三平台构建；打 v*.*.* tag 时同一次运行会发 Release)
 trigger-build:
-    gh workflow run build-release.yml
+    gh workflow run CI
 
 # Windows GUI 安装包（NSIS + MSI）：一键 cargo release、bundle:prepare、tauri build
 package-windows-gui:

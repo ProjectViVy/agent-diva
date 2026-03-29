@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, develop]
     tags:
@@ -148,66 +149,6 @@ jobs:
           path: agent-diva-gui/src-tauri/target/release/bundle/**
           if-no-files-found: error
 
-  headless-build:
-    name: Headless Build (${{ matrix.os_tag }})
-    needs: rust-check
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            os_tag: linux
-            binary_path: target/release/agent-diva
-          - os: windows-latest
-            os_tag: windows
-            binary_path: target/release/agent-diva.exe
-          - os: macos-latest
-            os_tag: macos
-            binary_path: target/release/agent-diva
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build headless binary
-        run: cargo build -p agent-diva-cli --release
-
-      - name: Read CLI version
-        id: cli_version
-        shell: bash
-        run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import pathlib
-          import tomllib
-
-          cargo_toml = pathlib.Path("agent-diva-cli/Cargo.toml")
-          data = tomllib.loads(cargo_toml.read_text(encoding="utf-8"))
-          print(f"version={data['package']['version']}")
-          PY
-
-      - name: Package headless bundle
-        shell: bash
-        run: |
-          python scripts/ci/package_headless.py \
-            --binary "${{ matrix.binary_path }}" \
-            --version "${{ steps.cli_version.outputs.version }}" \
-            --os "${{ matrix.os_tag }}" \
-            --arch "${{ runner.arch }}" \
-            --output-dir dist \
-            --readme docs/app-building/headless-bundle-quickstart.md
-
-      - name: Upload headless artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-diva-headless-${{ matrix.os_tag }}-${{ runner.arch }}-${{ github.sha }}
-          path: dist/*
-          if-no-files-found: error
-
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
@@ -230,14 +171,14 @@ jobs:
           fail_ci_if_error: false
 
   release:
-    name: Release (tag)
-    needs: [gui-build, headless-build]
+    name: Desktop release (tag)
+    needs: [gui-build]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download artifacts
+      - name: Download GUI artifacts (Linux, Windows, macOS)
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
@@ -246,3 +187,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ./artifacts/**/*
+          generate_release_notes: true
