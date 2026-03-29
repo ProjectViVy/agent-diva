@@ -171,15 +171,25 @@ jobs:
         working-directory: agent-diva-gui
         run: pnpm tauri build
 
-      # GUI crate is a root workspace member: Cargo writes to repo-root target/, not
-      # agent-diva-gui/src-tauri/target/. Include both globs for isolated/out-of-workspace builds.
+      # 只上传最终安装包。Tauri bundle 目录下还有 AppImage 的 AppDir、linuxdeploy 拷贝的 .so、
+      # deb 中间文件等；若用 bundle/** 整棵上传再在 release 里 ./artifacts/**/*，会把数百个无关文件挂到 Release。
       - name: Upload GUI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agent-diva-gui-${{ matrix.os_tag }}-${{ runner.arch }}-${{ github.sha }}
           path: |
-            target/release/bundle/**
-            agent-diva-gui/src-tauri/target/release/bundle/**
+            target/release/bundle/**/*.AppImage
+            target/release/bundle/**/*.appimage
+            target/release/bundle/**/*.deb
+            target/release/bundle/**/*.dmg
+            target/release/bundle/**/*.msi
+            target/release/bundle/**/*.exe
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.AppImage
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.appimage
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.deb
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.dmg
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.msi
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.exe
           if-no-files-found: error
 
   coverage:
@@ -232,5 +242,12 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./artifacts/**/*
+          # 与 upload-artifact 一致：仅安装包，避免把 AppDir / GTK 依赖等中间产物当作 Release 资源
+          files: |
+            ./artifacts/**/*.AppImage
+            ./artifacts/**/*.appimage
+            ./artifacts/**/*.deb
+            ./artifacts/**/*.dmg
+            ./artifacts/**/*.msi
+            ./artifacts/**/*.exe
           generate_release_notes: true
