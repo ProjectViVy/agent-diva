@@ -1,7 +1,7 @@
 # Clippy configuration
 
 # Lint levels
-msrv = "1.70.0"
+msrv = "1.80.0"
 
 # Cognitive complexity
 cognitive-complexity-threshold = 25

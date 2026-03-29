@@ -358,7 +358,7 @@ impl CronService {
             Err("job cancelled before start".to_string())
         } else if let Some(callback) = &self.on_job {
             match (callback)(job.clone(), cancel_token.clone()).await {
-                Some(response) if cancel_token.is_cancelled() => Err("job cancelled".to_string()),
+                Some(_) if cancel_token.is_cancelled() => Err("job cancelled".to_string()),
                 Some(response) if response.to_ascii_lowercase().starts_with("error") => {
                     Err(response)
                 }
@@ -748,7 +748,7 @@ impl CronServiceHandle {
             Err("job cancelled before start".to_string())
         } else if let Some(callback) = &self.on_job {
             match (callback)(job.clone(), cancel_token.clone()).await {
-                Some(response) if cancel_token.is_cancelled() => Err("job cancelled".to_string()),
+                Some(_) if cancel_token.is_cancelled() => Err("job cancelled".to_string()),
                 Some(response) if response.to_ascii_lowercase().starts_with("error") => {
                     Err(response)
                 }
