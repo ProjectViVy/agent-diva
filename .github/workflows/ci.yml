@@ -2,6 +2,17 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run cargo test --all (slow; off by default for push/PR)"
+        required: false
+        default: false
+        type: boolean
+      run_coverage:
+        description: "Run tarpaulin + Codecov (implies full tests)"
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main, develop]
     tags:
@@ -71,11 +82,15 @@ jobs:
       - name: Install just
         run: cargo install just --locked
 
-      - name: Run workspace validation
+      - name: Format, clippy, and build
         run: |
           just fmt-check
           just check
-          just test
+          just build
+
+      - name: Run tests
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_tests == 'true'
+        run: just test
 
       - name: Validate Windows service CLI (dry run)
         if: runner.os == 'Windows'
@@ -156,15 +171,20 @@ jobs:
         working-directory: agent-diva-gui
         run: pnpm tauri build
 
+      # GUI crate is a root workspace member: Cargo writes to repo-root target/, not
+      # agent-diva-gui/src-tauri/target/. Include both globs for isolated/out-of-workspace builds.
       - name: Upload GUI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agent-diva-gui-${{ matrix.os_tag }}-${{ runner.arch }}-${{ github.sha }}
-          path: agent-diva-gui/src-tauri/target/release/bundle/**
+          path: |
+            target/release/bundle/**
+            agent-diva-gui/src-tauri/target/release/bundle/**
           if-no-files-found: error
 
   coverage:
     name: Code Coverage
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_coverage == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
