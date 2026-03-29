@@ -1,11 +1,6 @@
 use anyhow::Result;
 use clap::Subcommand;
-use serde::Serialize;
-use std::path::{Path, PathBuf};
-
-const SERVICE_NAME: &str = "AgentDivaGateway";
-const SERVICE_DISPLAY_NAME: &str = "Agent Diva Gateway Service";
-const SERVICE_DESCRIPTION: &str = "Runs Agent Diva gateway as a background Windows service.";
+use std::path::PathBuf;
 
 #[derive(Subcommand, Debug, Clone)]
 #[command(rename_all = "kebab-case")]
@@ -54,14 +49,6 @@ pub enum ServiceCommands {
     },
 }
 
-#[derive(Debug, Serialize)]
-struct ServiceStatusOutput {
-    installed: bool,
-    running: bool,
-    state: String,
-    executable_path: Option<String>,
-}
-
 pub async fn run_service_command(
     config_dir: Option<&PathBuf>,
     command: ServiceCommands,
@@ -79,29 +66,39 @@ pub async fn run_service_command(
     }
 }
 
-fn sibling_service_binary(current_exe: &Path) -> PathBuf {
-    current_exe
-        .parent()
-        .map(|dir| dir.join("agent-diva-service.exe"))
-        .unwrap_or_else(|| PathBuf::from("agent-diva-service.exe"))
-}
-
 #[cfg(windows)]
 mod windows_impl {
-    use super::{
-        sibling_service_binary, ServiceCommands, ServiceStatusOutput, SERVICE_DESCRIPTION,
-        SERVICE_DISPLAY_NAME, SERVICE_NAME,
-    };
+    use super::ServiceCommands;
     use anyhow::{Context, Result};
     use console::style;
+    use serde::Serialize;
     use std::ffi::{OsStr, OsString};
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::{Duration, Instant};
     use windows_service::service::{
         ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceState,
         ServiceType,
     };
     use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
+
+    const SERVICE_NAME: &str = "AgentDivaGateway";
+    const SERVICE_DISPLAY_NAME: &str = "Agent Diva Gateway Service";
+    const SERVICE_DESCRIPTION: &str = "Runs Agent Diva gateway as a background Windows service.";
+
+    #[derive(Debug, Serialize)]
+    struct ServiceStatusOutput {
+        installed: bool,
+        running: bool,
+        state: String,
+        executable_path: Option<String>,
+    }
+
+    fn sibling_service_binary(current_exe: &Path) -> PathBuf {
+        current_exe
+            .parent()
+            .map(|dir| dir.join("agent-diva-service.exe"))
+            .unwrap_or_else(|| PathBuf::from("agent-diva-service.exe"))
+    }
 
     pub fn run_service_command(
         config_dir: Option<&PathBuf>,

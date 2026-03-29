@@ -72,7 +72,7 @@ fn detect_port_windows() -> bool {
 #[cfg(not(target_os = "windows"))]
 fn detect_port_unix() -> bool {
     // Try lsof first (more reliable)
-    let lsof_output = Command::new("lsof").args(&["-i", ":3000"]).output();
+    let lsof_output = Command::new("lsof").args(["-i", ":3000"]).output();
 
     if let Ok(output) = lsof_output {
         if !output.stdout.is_empty() {
@@ -82,7 +82,7 @@ fn detect_port_unix() -> bool {
     }
 
     // Fallback to netstat
-    let netstat_output = Command::new("netstat").args(&["-tuln"]).output();
+    let netstat_output = Command::new("netstat").args(["-tuln"]).output();
 
     match netstat_output {
         Ok(output) => {
@@ -145,7 +145,7 @@ fn find_gateway_processes_unix() -> Vec<u32> {
 
     // Try pgrep first (more reliable)
     let pgrep_output = Command::new("pgrep")
-        .args(&["-f", "agent-diva.*gateway"])
+        .args(["-f", "agent-diva.*gateway"])
         .output();
 
     if let Ok(output) = pgrep_output {
@@ -159,7 +159,7 @@ fn find_gateway_processes_unix() -> Vec<u32> {
 
     // Fallback to ps if pgrep didn't find anything
     if pids.is_empty() {
-        let ps_output = Command::new("ps").args(&["aux"]).output();
+        let ps_output = Command::new("ps").args(["aux"]).output();
 
         if let Ok(output) = ps_output {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -213,7 +213,7 @@ fn terminate_process_windows(pid: u32) -> Result<(), String> {
 #[cfg(not(target_os = "windows"))]
 fn terminate_process_unix(pid: u32) -> Result<(), String> {
     let output = Command::new("kill")
-        .args(&["-9", &pid.to_string()])
+        .args(["-9", &pid.to_string()])
         .output()
         .map_err(|e| format!("Failed to execute kill: {}", e))?;
 
@@ -263,7 +263,7 @@ fn find_process_on_port_windows() -> Option<u32> {
 fn find_process_on_port_unix() -> Option<u32> {
     // Try lsof first
     let output = Command::new("lsof")
-        .args(&["-i", ":3000", "-t"])
+        .args(["-i", ":3000", "-t"])
         .output()
         .ok()?;
 

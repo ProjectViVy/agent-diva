@@ -17,12 +17,11 @@
 
 | 平台 | 包格式 | 推荐方案 |
 |------|--------|----------|
-| Linux x86_64 | .deb, .tar.gz | GitHub Actions / cargo-deb |
-| Linux ARM64 | .tar.gz | GitHub Actions / cross |
-| Windows x86_64 | .zip, .msi | GitHub Actions |
-| macOS x86_64 | .tar.gz, .dmg | GitHub Actions / 本地构建 |
-| macOS ARM64 | .tar.gz, .dmg | GitHub Actions / 本地构建 |
-| macOS Universal | .tar.gz, .dmg | GitHub Actions / 本地构建 |
+| Linux x86_64 | AppImage / .deb（Tauri bundle） | GitHub Actions `CI`（`gui-build`） / 本地 `pnpm tauri build` |
+| Windows x86_64 | .msi / .exe（Tauri bundle） | 同上 |
+| macOS（Apple Silicon） | .dmg / .app（Tauri bundle） | 同上 |
+
+无头 CLI 的 `.deb` / 交叉编译 tarball 等请用本地 `just` / `cargo`（见下文）；CI 不再构建此类产物。
 
 ---
 
@@ -30,32 +29,27 @@
 
 ### 触发方式
 
-**方式1: 推送标签**
+**方式 1：推送语义化标签（发布到 GitHub Releases）**
+
+仅当 tag 匹配 `v*.*.*` 且变更命中 workflow 的 `paths` 过滤时，会跑完整 CI；成功后在同一运行中创建 **Desktop release**，附件为 Linux / Windows / macOS 的 Tauri 安装包。
+
 ```bash
 git tag v0.4.0
 git push origin v0.4.0
 ```
 
-**方式2: 手动触发**
-```bash
-# 使用 gh CLI
-gh workflow run build-release.yml
+**方式 2：手动跑 CI（构建 artifact，不发 Release）**
 
-# 或在 GitHub 页面 Actions -> Build Release Packages -> Run workflow
+```bash
+gh workflow run CI
+# 或 GitHub → Actions → CI → Run workflow
 ```
 
 ### 构建产物
 
-构建完成后，在 Actions 页面可以下载以下产物：
+在对应 workflow run 的 **Artifacts** 中下载（名称形如 `agent-diva-gui-<linux|windows|macos>-<arch>-<sha>`），内容为 `agent-diva-gui/src-tauri/target/release/bundle/**` 下的安装包（各平台格式由 Tauri 配置决定）。
 
-| 产物名 | 说明 |
-|--------|------|
-| `agent-diva-linux-deb` | Debian/Ubuntu 安装包 |
-| `agent-diva-linux-x86_64` | Linux x86_64 二进制 |
-| `agent-diva-linux-arm64` | Linux ARM64 二进制 |
-| `agent-diva-windows-x86_64` | Windows 可执行文件 |
-| `agent-diva-macos-universal` | macOS 通用二进制 |
-| `agent-diva-macos-dmg` | macOS DMG 安装包 |
+推送 `v*.*.*` 标签且 `release` job 执行时，同一批安装包也会上传到 **GitHub Releases**。
 
 ---
 
@@ -293,7 +287,7 @@ just trigger-build      # 触发 GitHub Actions 构建
 agent-diva/
 ├── .github/
 │   └── workflows/
-│       └── build-release.yml    # GitHub Actions 构建配置
+│       └── ci.yml               # CI + 桌面三平台 Tauri 构建；tag 时发 Release
 ├── agent-diva-cli/
 │   └── Cargo.toml               # 包含 cargo-deb 配置
 ├── contrib/
