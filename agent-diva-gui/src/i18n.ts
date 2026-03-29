@@ -12,6 +12,8 @@ zhPatched.settings = {
   network: zhPatched.settings?.network || '网络',
   skills: zhPatched.settings?.skills || '技能',
   mcp: zhPatched.settings?.mcp || 'MCP',
+  showApiKey: zhPatched.providers?.showApiKey || '显示 API Key',
+  hideApiKey: zhPatched.providers?.hideApiKey || '隐藏 API Key',
 };
 
 zhPatched.dashboard = {
@@ -223,6 +225,11 @@ zhPatched.providers = {
   removeCurrentModel: zhPatched.providers?.removeCurrentModel || '删除当前模型',
   refreshModels: zhPatched.providers?.refreshModels || '刷新模型列表',
 };
+
+zhPatched.providers.showApiKey =
+  zhPatched.providers?.showApiKey || '显示 API Key';
+zhPatched.providers.hideApiKey =
+  zhPatched.providers?.hideApiKey || '隐藏 API Key';
 
 zhPatched.providers.testConnection =
   zhPatched.providers?.testConnection || '娴嬭瘯杩炴帴';

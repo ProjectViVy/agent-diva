@@ -99,15 +99,18 @@ const saveCurrentChannel = async () => {
                     <div class="font-medium capitalize truncate">{{ name }}</div>
                     <button
                       type="button"
-                      class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors"
-                      :class="
-                        config.enabled
-                          ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          : 'bg-pink-100 text-pink-700 hover:bg-pink-200'
-                      "
+                      role="switch"
+                      :aria-checked="config.enabled"
+                      :aria-label="config.enabled ? t('channels.enabled') : t('channels.disabled')"
+                      :title="config.enabled ? t('channels.enabled') : t('channels.disabled')"
+                      class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors"
+                      :class="config.enabled ? 'bg-emerald-500' : 'bg-gray-300'"
                       @click.stop="toggleChannelEnabled(name)"
                     >
-                      {{ config.enabled ? t('channels.deactivate') : t('channels.activate') }}
+                      <span
+                        class="inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                        :class="config.enabled ? 'translate-x-5' : 'translate-x-0.5'"
+                      />
                     </button>
                   </div>
                   <div class="text-[10px] uppercase tracking-wider opacity-70" :class="config.enabled ? 'text-green-600' : 'text-gray-400'">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert } from 'lucide-vue-next';
+import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import {
   type ConfigStatusReport,
@@ -41,6 +41,12 @@ interface SavedModel {
   displayName: string;
 }
 
+interface ProviderConfigEntry {
+  apiKey: string;
+  apiBase: string;
+  source: 'providers' | 'custom_providers';
+}
+
 interface NewProviderForm {
   id: string;
   displayName: string;
@@ -64,6 +70,7 @@ const props = defineProps<{
     apiKey: string;
     model: string;
   };
+  providerConfigs?: Record<string, ProviderConfigEntry>;
   savedModels?: SavedModel[];
   saveConfigAction: (config: {
     provider: string;
@@ -91,6 +98,7 @@ const isSavingProvider = ref(false);
 const isDeletingCustomProvider = ref<string | null>(null);
 const providerApiKeys = ref<Record<string, string>>({});
 const providerApiBases = ref<Record<string, string>>({});
+const providerApiKeyVisibility = ref<Record<string, boolean>>({});
 const isRefreshing = ref(false);
 const runtimeCatalogs = ref<Record<string, ProviderModelCatalog>>({});
 const modelTestStatuses = ref<Record<string, ModelTestStatus>>({});
@@ -105,6 +113,7 @@ const newProviderForm = ref<NewProviderForm>({
   apiKey: '',
   defaultModel: '',
 });
+const isCreateProviderApiKeyVisible = ref(false);
 
 const dedupeProviders = (items: ProviderSpec[]) => {
   const seen = new Map<string, ProviderSpec>();
@@ -128,6 +137,15 @@ const buildProviderStateFromDraft = () => {
   providerApiKeys.value = {};
   providerApiBases.value = {};
 
+  Object.entries(props.providerConfigs || {}).forEach(([providerName, entry]) => {
+    if (entry.apiKey) {
+      providerApiKeys.value[providerName] = entry.apiKey;
+    }
+    if (entry.apiBase) {
+      providerApiBases.value[providerName] = entry.apiBase;
+    }
+  });
+
   if (localSavedModels.value) {
     localSavedModels.value.forEach((model) => {
       if (model.apiKey) {
@@ -147,6 +165,16 @@ const buildProviderStateFromDraft = () => {
       providerApiBases.value[localConfig.value.provider] = localConfig.value.apiBase;
     }
   }
+};
+
+const isProviderApiKeyVisible = (providerName: string) =>
+  providerApiKeyVisibility.value[providerName] ?? false;
+
+const toggleProviderApiKeyVisibility = (providerName: string) => {
+  providerApiKeyVisibility.value = {
+    ...providerApiKeyVisibility.value,
+    [providerName]: !isProviderApiKeyVisible(providerName),
+  };
 };
 
 const providerModelsFor = (provider: ProviderSpec | null) => {
@@ -297,6 +325,7 @@ const openCreateProviderDialog = () => {
 const closeCreateProviderDialog = () => {
   isCreateProviderDialogOpen.value = false;
   isSavingProvider.value = false;
+  isCreateProviderApiKeyVisible.value = false;
   resetNewProviderForm();
 };
 
@@ -737,6 +766,10 @@ watch(() => props.config, async (newVal) => {
   await refreshProviderState();
 }, { deep: true });
 
+watch(() => props.providerConfigs, () => {
+  buildProviderStateFromDraft();
+}, { deep: true });
+
 watch(() => props.savedModels, (newVal) => {
   localSavedModels.value = cloneSavedModels(newVal || []);
   lastSavedModelsSnapshot.value = JSON.stringify(newVal || []);
@@ -896,15 +929,26 @@ watch(() => props.savedModels, (newVal) => {
            </div>
            
            <!-- API Key -->
-            <div class="space-y-1">
+           <div class="space-y-1">
              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiKey') }}</label>
-             <input 
-               :value="providerApiKeys[selectedProvider.name]"
-               @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
-               type="password" 
-               :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
-               class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" 
-             />
+             <div class="relative">
+               <input 
+                 :value="providerApiKeys[selectedProvider.name]"
+                 @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
+                 :type="isProviderApiKeyVisible(selectedProvider.name) ? 'text' : 'password'"
+                 :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
+                 class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-11 font-mono text-sm outline-none transition-all focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20" 
+               />
+               <button
+                 type="button"
+                 class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg text-gray-400 transition hover:text-gray-600"
+                 :title="isProviderApiKeyVisible(selectedProvider.name) ? t('providers.hideApiKey') : t('providers.showApiKey')"
+                 @click="toggleProviderApiKeyVisibility(selectedProvider.name)"
+               >
+                 <EyeOff v-if="isProviderApiKeyVisible(selectedProvider.name)" :size="16" />
+                 <Eye v-else :size="16" />
+               </button>
+             </div>
            </div>
            
            <!-- API Base -->
@@ -1110,12 +1154,23 @@ watch(() => props.savedModels, (newVal) => {
             </label>
             <label class="space-y-1 md:col-span-2">
               <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.apiKey') }}</div>
-              <input
-                v-model="newProviderForm.apiKey"
-                type="password"
-                :placeholder="t('providers.enterApiKey')"
-                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
-              />
+              <div class="relative">
+                <input
+                  v-model="newProviderForm.apiKey"
+                  :type="isCreateProviderApiKeyVisible ? 'text' : 'password'"
+                  :placeholder="t('providers.enterApiKey')"
+                  class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-11 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+                />
+                <button
+                  type="button"
+                  class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg text-gray-400 transition hover:text-gray-600"
+                  :title="isCreateProviderApiKeyVisible ? t('providers.hideApiKey') : t('providers.showApiKey')"
+                  @click="isCreateProviderApiKeyVisible = !isCreateProviderApiKeyVisible"
+                >
+                  <EyeOff v-if="isCreateProviderApiKeyVisible" :size="16" />
+                  <Eye v-else :size="16" />
+                </button>
+              </div>
             </label>
             <label class="space-y-1 md:col-span-2">
               <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.defaultModel') }}</div>

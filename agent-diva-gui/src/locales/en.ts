@@ -292,6 +292,8 @@ export default {
     connectConfig: 'Connection Config',
     apiKey: 'API Key',
     enterApiKey: 'Enter API Key...',
+    showApiKey: 'Show API Key',
+    hideApiKey: 'Hide API Key',
     apiBaseUrl: 'API Base URL',
     customApi: 'Custom API Address',
     placeholderLocalCustom: 'Local/Custom',

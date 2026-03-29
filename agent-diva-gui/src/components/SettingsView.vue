@@ -35,6 +35,12 @@ interface AppConfigShape {
   model: string;
 }
 
+interface ProviderConfigEntry {
+  apiKey: string;
+  apiBase: string;
+  source: 'providers' | 'custom_providers';
+}
+
 interface ToolsConfigShape {
   web: {
     search: {
@@ -62,6 +68,7 @@ type SettingsSubview =
 
 const props = defineProps<{
   config: AppConfigShape;
+  providerConfigs?: Record<string, ProviderConfigEntry>;
   toolsConfig: ToolsConfigShape;
   savedModels?: SavedModel[];
   chatDisplayPrefs: ChatDisplayPrefs;
@@ -156,6 +163,7 @@ watch(
             <ProvidersSettings 
               v-else-if="currentView === 'providers'"
               :config="config"
+              :provider-configs="providerConfigs"
               :saved-models="savedModels"
               :save-config-action="saveConfigAction"
               @update-saved-models="(m) => emit('update-saved-models', m)"

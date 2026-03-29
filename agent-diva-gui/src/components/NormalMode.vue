@@ -68,6 +68,12 @@ interface AppConfigShape {
   model: string;
 }
 
+interface ProviderConfigEntry {
+  apiKey: string;
+  apiBase: string;
+  source: 'providers' | 'custom_providers';
+}
+
 interface ToolsConfigShape {
   web: {
     search: {
@@ -88,6 +94,7 @@ interface Props {
   connectionStatus?: 'connected' | 'error' | 'connecting';
   currentEmotion?: string;
   config?: AppConfigShape;
+  providerConfigs?: Record<string, ProviderConfigEntry>;
   toolsConfig?: ToolsConfigShape;
   savedModels?: SavedModel[];
   sessions?: { session_key: string; chat_id: string; snippet: string; timestamp: number }[];
@@ -592,6 +599,7 @@ defineExpose({
           <SettingsView
             v-if="config && toolsConfig"
             :config="config"
+            :provider-configs="providerConfigs"
             :tools-config="toolsConfig"
             :saved-models="savedModels"
             :chat-display-prefs="chatDisplayPrefs"
