@@ -142,11 +142,20 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use tower::util::ServiceExt;
 
-    use crate::state::AppState;
+    use crate::state::{AppState, ManagerCommand};
 
     #[tokio::test]
     async fn build_app_keeps_health_and_skills_routes_without_overlap() {
-        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let (api_tx, mut api_rx) = tokio::sync::mpsc::channel(1);
+        // get_skills_handler sends GetSkills on api_tx and awaits a oneshot reply; without a
+        // consumer the request would hang forever.
+        tokio::spawn(async move {
+            while let Some(cmd) = api_rx.recv().await {
+                if let ManagerCommand::GetSkills(tx) = cmd {
+                    let _ = tx.send(Ok(vec![]));
+                }
+            }
+        });
         let state = AppState {
             api_tx,
             bus: agent_diva_core::bus::MessageBus::new(),
