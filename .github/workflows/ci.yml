@@ -32,8 +32,10 @@ env:
   NODE_VERSION: '20'
   PNPM_VERSION: '9'
 
+# 显式声明后，未列出的权限为 none。上传/下载 artifact 需要 actions: write/read。
 permissions:
-  contents: write
+  contents: read
+  actions: write
 
 jobs:
   rust-check:
@@ -175,6 +177,8 @@ jobs:
     needs: [gui-build]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
