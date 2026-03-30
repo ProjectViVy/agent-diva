@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "agent-diva-core",
+    "agent-diva-swarm",
     "agent-diva-agent",
     "agent-diva-neuron",
     "agent-diva-providers",

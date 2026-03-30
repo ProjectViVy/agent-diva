@@ -1,0 +1,19 @@
+[package]
+name = "agent-diva-swarm"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.80.0"
+authors = ["mastwet (projectViVY Team, undefine foundation)"]
+license = "MIT"
+repository = "https://github.com/ProjectViVy/agent-diva"
+description = "Swarm orchestration for agent-diva (no agent-diva-meta per ADR-A)"
+
+[dependencies]
+agent-diva-core = { path = "../agent-diva-core" }
+
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
