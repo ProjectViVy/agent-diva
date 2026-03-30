@@ -807,16 +807,9 @@ async fn run_gateway(runtime: &CliRuntime) -> Result<()> {
     println!("Model: {}", config.agents.defaults.model);
     println!("Workspace: {}", workspace.display());
     println!(
-        "\n{}",
-        style("Gateway is running. Press Ctrl+C to stop.").green()
-    );
-    println!(
         "{}",
-        style(format!(
-            "API Server running on http://localhost:{}",
-            DEFAULT_GATEWAY_PORT
-        ))
-        .green()
+        style("Bootstrapping (agent, optional MCP servers, channels, HTTP API) — please wait…",)
+            .yellow()
     );
 
     let result = run_local_gateway(build_gateway_runtime_config(runtime, config, workspace)).await;
