@@ -345,23 +345,44 @@ const saveCurrentChannel = async () => {
           </div>
 
           <div v-else-if="selectedChannel === 'qq'" class="space-y-4">
+            <p class="text-xs text-gray-500">{{ t('channels.qqBotHint') }}</p>
+            <div class="space-y-1">
+              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.appId') }}</label>
+              <input
+                v-model="draftChannels.qq.app_id"
+                class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                :placeholder="t('channels.placeholders.qqAppId')"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.qqBotSecret') }}</label>
+              <input
+                v-model="draftChannels.qq.secret"
+                type="password"
+                class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                :placeholder="t('channels.placeholders.qqSecret')"
+              />
+            </div>
+          </div>
+
+          <div v-else-if="selectedChannel === 'neuro-link'" class="space-y-4">
+            <p class="text-xs text-gray-500">{{ t('channels.neuroLinkHint') }}</p>
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-1">
-                <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.appId') }}</label>
-                <input v-model.number="draftChannels.qq.app_id" type="number" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.listenHost') }}</label>
+                <input
+                  v-model="draftChannels['neuro-link'].host"
+                  class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                />
               </div>
               <div class="space-y-1">
                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.listenPort') }}</label>
-                <input v-model.number="draftChannels.qq.listen_port" type="number" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                <input
+                  v-model.number="draftChannels['neuro-link'].port"
+                  type="number"
+                  class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                />
               </div>
-            </div>
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.listenHost') }}</label>
-              <input v-model="draftChannels.qq.listen_host" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
-            </div>
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.verificationToken') }}</label>
-              <input v-model="draftChannels.qq.verification_token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
             </div>
           </div>
 

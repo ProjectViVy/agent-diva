@@ -434,6 +434,9 @@ export default {
     saveFailed: 'Save Failed',
     listenHost: 'Listen Host',
     listenPort: 'Listen Port',
+    qqBotHint: 'QQ OpenAPI bot: use App ID and client secret from the QQ bot console (not a local listen address).',
+    qqBotSecret: 'Bot client secret',
+    neuroLinkHint: 'Neuro-link exposes a local WebSocket server for external clients; bind host and port here.',
     server: 'Server',
     port: 'Port',
     nickname: 'Nickname',
@@ -464,6 +467,8 @@ export default {
       smtpHost: 'smtp.example.com',
       smtpSameAsImap: 'Leave empty if same as IMAP',
       senderAddress: 'Optional: Sender address',
+      qqAppId: 'QQ bot App ID',
+      qqSecret: 'QQ bot client secret',
     },
   },
   about: {

@@ -293,6 +293,9 @@ export default {
     saveFailed: '保存失败',
     listenHost: '监听地址',
     listenPort: '监听端口',
+    qqBotHint: 'QQ 开放平台机器人：填写控制台中的 App ID 与 client secret（非本机监听地址）。',
+    qqBotSecret: '机器人 client secret',
+    neuroLinkHint: 'Neuro-link 在本机提供 WebSocket 服务供外部客户端接入，在此配置绑定地址与端口。',
     server: '服务器',
     port: '端口',
     nickname: '昵称',
@@ -323,6 +326,8 @@ export default {
       smtpHost: 'smtp.example.com',
       smtpSameAsImap: '如与 IMAP 相同则留空',
       senderAddress: '可选：发件人地址',
+      qqAppId: 'QQ 机器人 App ID',
+      qqSecret: 'QQ 机器人 client secret',
     },
   },
   welcome: {
