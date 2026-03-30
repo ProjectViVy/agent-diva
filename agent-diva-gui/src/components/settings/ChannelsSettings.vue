@@ -20,9 +20,23 @@ const isSaving = ref(false);
 
 const cloneValue = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
+function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
+  if (!d || typeof d !== 'object') return;
+  if (!Array.isArray(d.allow_from)) d.allow_from = [];
+  if (d.gateway_url === undefined || d.gateway_url === '') {
+    d.gateway_url = 'wss://gateway.discord.gg/?v=10&encoding=json';
+  }
+  if (d.intents === undefined || d.intents === null) d.intents = 37377;
+  if (d.guild_id === undefined) d.guild_id = null;
+  if (d.mention_only === undefined) d.mention_only = false;
+  if (d.listen_to_bots === undefined) d.listen_to_bots = false;
+  if (!Array.isArray(d.group_reply_allowed_sender_ids)) d.group_reply_allowed_sender_ids = [];
+}
+
 async function loadChannels() {
   try {
     const fetchedChannels = await invoke<Record<string, any>>('get_channels');
+    normalizeDiscordConfig(fetchedChannels.discord);
     draftChannels.value = cloneValue(fetchedChannels);
     savedChannels.value = cloneValue(fetchedChannels);
     channelStatuses.value = (await getConfigStatus()).channels;
@@ -59,6 +73,35 @@ const toggleChannelEnabled = (channelName: string) => {
     draftChannels.value[channelName].enabled = !draftChannels.value[channelName].enabled;
   }
 };
+
+function splitIdList(text: string): string[] {
+  return text
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function discordAllowFromText(): string {
+  const d = draftChannels.value.discord;
+  if (!d?.allow_from?.length) return '';
+  return d.allow_from.join('\n');
+}
+
+function setDiscordAllowFrom(text: string) {
+  if (!draftChannels.value.discord) return;
+  draftChannels.value.discord.allow_from = splitIdList(text);
+}
+
+function discordGroupBypassText(): string {
+  const d = draftChannels.value.discord;
+  if (!d?.group_reply_allowed_sender_ids?.length) return '';
+  return d.group_reply_allowed_sender_ids.join('\n');
+}
+
+function setDiscordGroupBypass(text: string) {
+  if (!draftChannels.value.discord) return;
+  draftChannels.value.discord.group_reply_allowed_sender_ids = splitIdList(text);
+}
 
 const saveCurrentChannel = async () => {
   if (!selectedChannel.value || !selectedChannelDraft.value || isSaving.value || !isDirty.value) return;
@@ -183,6 +226,88 @@ const saveCurrentChannel = async () => {
               <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.botToken') }}</label>
               <input v-model="draftChannels.discord.token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" :placeholder="t('channels.placeholders.discordToken')" />
             </div>
+            <div class="space-y-1">
+              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.discordAllowFrom') }}</label>
+              <textarea
+                class="w-full min-h-[72px] px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                :value="discordAllowFromText()"
+                :placeholder="t('channels.placeholders.discordAllowFrom')"
+                @input="setDiscordAllowFrom(($event.target as HTMLTextAreaElement).value)"
+              />
+              <p class="text-[11px] text-gray-500">{{ t('channels.discordAllowFromHint') }}</p>
+            </div>
+            <div class="space-y-1">
+              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.discordGuildId') }}</label>
+              <input
+                class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                :value="draftChannels.discord.guild_id ?? ''"
+                :placeholder="t('channels.placeholders.discordGuildId')"
+                @input="
+                  draftChannels.discord.guild_id =
+                    ($event.target as HTMLInputElement).value.trim() || null
+                "
+              />
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gray-100 bg-white px-3 py-2">
+              <span class="text-xs font-medium text-gray-600">{{ t('channels.discordMentionOnly') }}</span>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="draftChannels.discord.mention_only"
+                class="relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full px-px transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-500"
+                :class="draftChannels.discord.mention_only ? 'bg-gradient-to-r from-pink-500 to-purple-600' : 'bg-gray-300'"
+                @click="draftChannels.discord.mention_only = !draftChannels.discord.mention_only"
+              >
+                <span
+                  class="inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform"
+                  :class="draftChannels.discord.mention_only ? 'translate-x-4' : 'translate-x-0.5'"
+                />
+              </button>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gray-100 bg-white px-3 py-2">
+              <span class="text-xs font-medium text-gray-600">{{ t('channels.discordListenToBots') }}</span>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="draftChannels.discord.listen_to_bots"
+                class="relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full px-px transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-500"
+                :class="draftChannels.discord.listen_to_bots ? 'bg-gradient-to-r from-pink-500 to-purple-600' : 'bg-gray-300'"
+                @click="draftChannels.discord.listen_to_bots = !draftChannels.discord.listen_to_bots"
+              >
+                <span
+                  class="inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform"
+                  :class="draftChannels.discord.listen_to_bots ? 'translate-x-4' : 'translate-x-0.5'"
+                />
+              </button>
+            </div>
+            <div class="space-y-1">
+              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.discordGroupBypass') }}</label>
+              <textarea
+                class="w-full min-h-[64px] px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                :value="discordGroupBypassText()"
+                :placeholder="t('channels.placeholders.discordGroupBypass')"
+                @input="setDiscordGroupBypass(($event.target as HTMLTextAreaElement).value)"
+              />
+              <p class="text-[11px] text-gray-500">{{ t('channels.discordGroupBypassHint') }}</p>
+            </div>
+            <details class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+              <summary class="cursor-pointer text-xs font-semibold text-gray-700">{{ t('channels.discordAdvanced') }}</summary>
+              <div class="mt-3 space-y-3 pt-1">
+                <div class="space-y-1">
+                  <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.discordGatewayUrl') }}</label>
+                  <input v-model="draftChannels.discord.gateway_url" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+                </div>
+                <div class="space-y-1">
+                  <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.discordIntents') }}</label>
+                  <input
+                    v-model.number="draftChannels.discord.intents"
+                    type="number"
+                    min="0"
+                    class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                  />
+                </div>
+              </div>
+            </details>
           </div>
 
           <div v-else-if="selectedChannel === 'whatsapp'" class="space-y-4">
