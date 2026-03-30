@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   checkHealth,
   getGatewayProcessStatus,
@@ -30,6 +30,12 @@ const logLines = ref<string[]>([]);
 const logLineCount = ref(200);
 const logsBusy = ref(false);
 const logsError = ref("");
+const logScrollRef = ref<HTMLDivElement | null>(null);
+/** When true, new log lines will scroll the view to the bottom (tail -f style). */
+const logPinnedToBottom = ref(true);
+
+const LOG_POLL_MS = 2000;
+const LOG_PIN_PX = 56;
 
 const lastConfigSavedLabel = computed(() => {
   if (!configSavedAt.value) {
@@ -114,8 +120,11 @@ const persistConfig = async () => {
   }
 };
 
-const refreshLogs = async () => {
-  logsBusy.value = true;
+const fetchLogLines = async (opts?: { withSpinner?: boolean }) => {
+  const withSpinner = opts?.withSpinner ?? false;
+  if (withSpinner) {
+    logsBusy.value = true;
+  }
   logsError.value = "";
   try {
     if (!isTauriRuntime()) {
@@ -126,12 +135,51 @@ const refreshLogs = async () => {
   } catch (error) {
     logsError.value = String(error);
   } finally {
-    logsBusy.value = false;
+    if (withSpinner) {
+      logsBusy.value = false;
+    }
   }
 };
 
+const refreshLogs = () => fetchLogLines({ withSpinner: true });
+
+const onLogScroll = () => {
+  const el = logScrollRef.value;
+  if (!el) {
+    return;
+  }
+  const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+  logPinnedToBottom.value = fromBottom <= LOG_PIN_PX;
+};
+
+watch(
+  logLines,
+  async () => {
+    await nextTick();
+    if (!logPinnedToBottom.value) {
+      return;
+    }
+    const el = logScrollRef.value;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  },
+  { deep: true },
+);
+
+let logPollId: ReturnType<typeof setInterval> | undefined;
+
 onMounted(async () => {
-  await Promise.all([refreshGatewayStatus(), reloadConfig(), refreshLogs()]);
+  await Promise.all([refreshGatewayStatus(), reloadConfig(), fetchLogLines({ withSpinner: true })]);
+  logPollId = window.setInterval(() => {
+    void fetchLogLines();
+  }, LOG_POLL_MS);
+});
+
+onUnmounted(() => {
+  if (logPollId !== undefined) {
+    window.clearInterval(logPollId);
+  }
 });
 </script>
 
@@ -291,7 +339,11 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="rounded-xl border border-gray-200 bg-slate-950 text-slate-100 min-h-[220px] max-h-[420px] overflow-auto">
+      <div
+        ref="logScrollRef"
+        class="rounded-xl border border-gray-200 bg-slate-950 text-slate-100 min-h-[220px] max-h-[420px] overflow-auto"
+        @scroll.passive="onLogScroll"
+      >
         <div v-if="logLines.length === 0" class="px-4 py-6 text-sm text-slate-400">
           {{ t('console.noLogs') }}
         </div>

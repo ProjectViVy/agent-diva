@@ -11,8 +11,15 @@ pub struct AgentState {
 impl AgentState {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
-            api_base_url: "http://localhost:3000/api".to_string(),
+            // Local Manager only: never use the system HTTP proxy (common on Windows with VPN /
+            // corporate proxy). Proxying 127.0.0.1 often yields 502 Bad Gateway from the proxy.
+            client: reqwest::Client::builder()
+                .no_proxy()
+                .build()
+                .expect("reqwest client for local Manager API"),
+            // Must match `agent-diva-manager` bind (`127.0.0.1` only). Using `localhost` can
+            // resolve to `::1` first on Windows; nothing listens there → health checks stay offline.
+            api_base_url: "http://127.0.0.1:3000/api".to_string(),
         }
     }
 

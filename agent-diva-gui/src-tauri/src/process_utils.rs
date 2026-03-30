@@ -4,6 +4,25 @@
 use std::process::Command;
 use tracing::{debug, info, warn};
 
+/// `netstat`/`ss`-style lines may list `:30001`, which falsely matches a naive `:3000` substring check.
+fn line_has_exact_port_suffix(line: &str, port: u16) -> bool {
+    let suffix = format!(":{port}");
+    let mut search_from = 0;
+    while let Some(rel_idx) = line[search_from..].find(&suffix) {
+        let abs = search_from + rel_idx;
+        let after = abs + suffix.len();
+        let next_is_digit = line
+            .get(after..)
+            .and_then(|s| s.chars().next())
+            .is_some_and(|c| c.is_ascii_digit());
+        if !next_is_digit {
+            return true;
+        }
+        search_from = abs + suffix.len();
+    }
+    false
+}
+
 /// Cleans up orphan agent-diva gateway processes
 pub fn cleanup_orphan_gateway_processes() -> Result<usize, String> {
     info!("Scanning for orphan agent-diva gateway processes...");
@@ -56,7 +75,7 @@ fn detect_port_windows() -> bool {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let occupied = stdout.lines().any(|line| {
-                line.contains(":3000")
+                line_has_exact_port_suffix(line, 3000)
                     && (line.contains("LISTENING") || line.contains("ESTABLISHED"))
             });
             debug!("Port 3000 occupied (Windows): {}", occupied);
@@ -87,7 +106,9 @@ fn detect_port_unix() -> bool {
     match netstat_output {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            let occupied = stdout.lines().any(|line| line.contains(":3000"));
+            let occupied = stdout
+                .lines()
+                .any(|line| line_has_exact_port_suffix(line, 3000));
             debug!("Port 3000 occupied (netstat): {}", occupied);
             occupied
         }
@@ -245,7 +266,9 @@ fn find_process_on_port_windows() -> Option<u32> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in stdout.lines() {
-        if line.contains(":3000") && (line.contains("LISTENING") || line.contains("ESTABLISHED")) {
+        if line_has_exact_port_suffix(line, 3000)
+            && (line.contains("LISTENING") || line.contains("ESTABLISHED"))
+        {
             // Extract PID from the last column
             let parts: Vec<&str> = line.split_whitespace().collect();
             if let Some(pid_str) = parts.last() {
@@ -283,6 +306,30 @@ fn find_process_on_port_unix() -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn line_has_exact_port_3000_netstat_windows() {
+        assert!(line_has_exact_port_suffix(
+            "  TCP    127.0.0.1:3000         0.0.0.0:0              LISTENING       1234",
+            3000
+        ));
+    }
+
+    #[test]
+    fn line_rejects_30001_as_3000() {
+        assert!(!line_has_exact_port_suffix(
+            "  TCP    0.0.0.0:30001          0.0.0.0:0              LISTENING       9999",
+            3000
+        ));
+    }
+
+    #[test]
+    fn line_rejects_30000_as_3000() {
+        assert!(!line_has_exact_port_suffix(
+            "  TCP    0.0.0.0:30000         0.0.0.0:0              LISTENING       8888",
+            3000
+        ));
+    }
 
     #[test]
     fn test_port_detection() {
