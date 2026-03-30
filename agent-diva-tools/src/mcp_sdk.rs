@@ -191,12 +191,17 @@ impl McpClientWrapper {
             message_observer: None,
         });
 
-        // Start the client
-        client
-            .clone()
-            .start()
-            .await
-            .map_err(|e| McpError::Sdk(e.to_string()))?;
+        // Handshake/start can hang on dead SSE URLs or stuck child processes; `list_tools`
+        // already has a timeout, but we never reach it if `start` never completes.
+        let start_timeout_secs = tool_timeout.max(10).min(120);
+        let start_timeout = Duration::from_secs(start_timeout_secs);
+        tokio::time::timeout(start_timeout, {
+            let client = client.clone();
+            async move { client.start().await }
+        })
+        .await
+        .map_err(|_| McpError::Timeout)?
+        .map_err(|e| McpError::Sdk(e.to_string()))?;
 
         Ok(Self {
             server_name: server_name.to_string(),
