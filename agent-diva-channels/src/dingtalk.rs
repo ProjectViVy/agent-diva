@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::VecDeque;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
@@ -154,7 +155,7 @@ struct TextContent {
 pub struct DingTalkHandler {
     config: DingTalkConfig,
     base: BaseChannel,
-    running: Arc<RwLock<bool>>,
+    running: Arc<AtomicBool>,
     processed_ids: Arc<RwLock<VecDeque<String>>>,
     http_client: reqwest::Client,
     token: Arc<RwLock<Option<String>>>,
@@ -175,7 +176,7 @@ impl DingTalkHandler {
         Self {
             config,
             base,
-            running: Arc::new(RwLock::new(false)),
+            running: Arc::new(AtomicBool::new(false)),
             processed_ids: Arc::new(RwLock::new(VecDeque::with_capacity(1000))),
             http_client: create_http_client().expect("Failed to build HTTP client"),
             token: Arc::new(RwLock::new(None)),
@@ -783,7 +784,7 @@ impl ChannelHandler for DingTalkHandler {
     }
 
     fn is_running(&self) -> bool {
-        *self.running.blocking_read()
+        self.running.load(Ordering::Acquire)
     }
 
     async fn start(&mut self) -> Result<()> {
@@ -799,7 +800,7 @@ impl ChannelHandler for DingTalkHandler {
         let (endpoint, ticket) = self.register_stream_connection().await?;
         info!("DingTalk Stream endpoint obtained: {}", endpoint);
 
-        *self.running.write().await = true;
+        self.running.store(true, Ordering::Release);
 
         // Start WebSocket connection
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
@@ -817,7 +818,7 @@ impl ChannelHandler for DingTalkHandler {
     }
 
     async fn stop(&mut self) -> Result<()> {
-        *self.running.write().await = false;
+        self.running.store(false, Ordering::Release);
 
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(()).await;
@@ -828,7 +829,7 @@ impl ChannelHandler for DingTalkHandler {
     }
 
     async fn send(&self, msg: OutboundMessage) -> Result<()> {
-        if !*self.running.read().await {
+        if !self.running.load(Ordering::Acquire) {
             return Err(ChannelError::NotRunning(
                 "DingTalk channel not running".to_string(),
             ));

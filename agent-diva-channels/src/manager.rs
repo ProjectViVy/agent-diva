@@ -605,10 +605,11 @@ impl ChannelManager {
         if failed_channels.is_empty() {
             Ok(())
         } else {
-            Err(ChannelError::Error(format!(
-                "Failed to start channel(s): {}",
-                failed_channels.join(", ")
-            )))
+            tracing::warn!(
+                "One or more channels failed to start (others keep running): {}",
+                failed_channels.join("; ")
+            );
+            Ok(())
         }
     }
 

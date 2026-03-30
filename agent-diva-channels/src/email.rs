@@ -8,6 +8,7 @@ use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::EmailConfig;
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::task::JoinHandle;
@@ -30,7 +31,7 @@ struct EmailMessage {
 pub struct EmailHandler {
     config: EmailConfig,
     base: BaseChannel,
-    running: Arc<RwLock<bool>>,
+    running: Arc<AtomicBool>,
     poll_task: Arc<Mutex<Option<JoinHandle<()>>>>,
     processed_uids: Arc<RwLock<HashSet<String>>>,
     last_subjects: Arc<RwLock<HashMap<String, String>>>,
@@ -47,7 +48,7 @@ impl EmailHandler {
         Self {
             config,
             base,
-            running: Arc::new(RwLock::new(false)),
+            running: Arc::new(AtomicBool::new(false)),
             poll_task: Arc::new(Mutex::new(None)),
             processed_uids: Arc::new(RwLock::new(HashSet::new())),
             last_subjects: Arc::new(RwLock::new(HashMap::new())),
@@ -421,7 +422,7 @@ impl ChannelHandler for EmailHandler {
     }
 
     fn is_running(&self) -> bool {
-        *self.running.blocking_read()
+        self.running.load(Ordering::Acquire)
     }
 
     async fn start(&mut self) -> Result<()> {
@@ -447,7 +448,7 @@ impl ChannelHandler for EmailHandler {
             ChannelError::NotConfigured("Inbound message sender not set".to_string())
         })?;
 
-        *self.running.write().await = true;
+        self.running.store(true, Ordering::Release);
         info!("Starting Email channel (IMAP polling mode)...");
 
         // Spawn IMAP polling task
@@ -461,7 +462,7 @@ impl ChannelHandler for EmailHandler {
         let poll_task = tokio::spawn(async move {
             let poll_seconds = config.poll_interval_seconds.max(5);
 
-            while *running.read().await {
+            while running.load(Ordering::Acquire) {
                 // Use spawn_blocking for the blocking IMAP operations
                 let cfg = config.clone();
                 let processed = processed_uids.read().await.clone();
@@ -557,7 +558,7 @@ impl ChannelHandler for EmailHandler {
     }
 
     async fn stop(&mut self) -> Result<()> {
-        *self.running.write().await = false;
+        self.running.store(false, Ordering::Release);
 
         let mut task = self.poll_task.lock().await;
         if let Some(handle) = task.take() {

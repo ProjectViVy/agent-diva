@@ -23,6 +23,7 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
@@ -115,7 +116,7 @@ struct MessageInfo {
 pub struct FeishuHandler {
     config: FeishuConfig,
     base: BaseChannel,
-    running: Arc<RwLock<bool>>,
+    running: Arc<AtomicBool>,
     processed_ids: Arc<RwLock<VecDeque<String>>>,
     http_client: reqwest::Client,
     token: Arc<RwLock<Option<String>>>,
@@ -133,7 +134,7 @@ impl FeishuHandler {
         Self {
             config,
             base,
-            running: Arc::new(RwLock::new(false)),
+            running: Arc::new(AtomicBool::new(false)),
             processed_ids: Arc::new(RwLock::new(VecDeque::with_capacity(1000))),
             http_client: reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))
@@ -608,7 +609,7 @@ impl ChannelHandler for FeishuHandler {
     }
 
     fn is_running(&self) -> bool {
-        *self.running.blocking_read()
+        self.running.load(Ordering::Acquire)
     }
 
     async fn start(&mut self) -> Result<()> {
@@ -627,7 +628,7 @@ impl ChannelHandler for FeishuHandler {
         let ws_url = self.get_websocket_url().await?;
         info!("Feishu WebSocket URL obtained");
 
-        *self.running.write().await = true;
+        self.running.store(true, Ordering::Release);
 
         // Start WebSocket connection
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
@@ -645,7 +646,7 @@ impl ChannelHandler for FeishuHandler {
     }
 
     async fn stop(&mut self) -> Result<()> {
-        *self.running.write().await = false;
+        self.running.store(false, Ordering::Release);
 
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(()).await;
@@ -656,7 +657,7 @@ impl ChannelHandler for FeishuHandler {
     }
 
     async fn send(&self, msg: OutboundMessage) -> Result<()> {
-        if !*self.running.read().await {
+        if !self.running.load(Ordering::Acquire) {
             return Err(ChannelError::NotRunning(
                 "Feishu channel not running".to_string(),
             ));
