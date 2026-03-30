@@ -3,6 +3,11 @@
 //! Skills are markdown files (SKILL.md) that teach the agent how to use
 //! specific tools or perform certain tasks. They contain YAML frontmatter
 //! with metadata and markdown content with instructions.
+//!
+//! **Capability manifest v0 (FR11)** is separate JSON validated in [`crate::capability`]:
+//! it declares package-level capability **entries** (`id`, optional `priority`, etc.), while this
+//! loader scans **per-skill** `SKILL.md` directories. The two can be composed by upper layers;
+//! do not conflate manifest paths with `skills/` directory layout.
 
 use regex::Regex;
 use serde_json::Value;
