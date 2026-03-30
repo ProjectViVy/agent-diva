@@ -5,6 +5,7 @@
 pub mod base;
 pub mod catalog;
 pub mod discovery;
+mod http_util;
 pub mod litellm;
 pub mod registry;
 pub mod transcription;
