@@ -63,6 +63,9 @@ console = "0.15"
 dialoguer = "0.11"
 indicatif = "0.17"
 
+# Text encoding (Windows shell pipe decoding)
+encoding_rs = "0.8"
+
 # Utilities
 uuid = { version = "1.6", features = ["v4", "serde"] }
 regex = "1.10"
