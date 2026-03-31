@@ -167,13 +167,14 @@ watch(
   { deep: true },
 );
 
-let logPollId: ReturnType<typeof setInterval> | undefined;
+/** DOM timer handle is a number; Node's typings alias `setInterval` to `Timeout` — keep explicit `number` for vue-tsc. */
+let logPollId: number | undefined;
 
 onMounted(async () => {
   await Promise.all([refreshGatewayStatus(), reloadConfig(), fetchLogLines({ withSpinner: true })]);
   logPollId = window.setInterval(() => {
     void fetchLogLines();
-  }, LOG_POLL_MS);
+  }, LOG_POLL_MS) as number;
 });
 
 onUnmounted(() => {
