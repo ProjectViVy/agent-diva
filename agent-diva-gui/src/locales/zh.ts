@@ -62,9 +62,40 @@ export default {
     rawMeta: '结构化元数据',
     viewRawMeta: '查看原始元数据',
     hideRawMeta: '收起原始元数据',
+    /** Story 4.1：单一对外 Person 叙事（FR8） */
+    primaryPersonNarrativeAria: '与 Diva 的主对话',
+    mainTranscriptAria: '消息记录 — 单一助手线程',
+    mainComposerAria: '主对话输入区',
     prefAutoReasoning: '自动展开思考',
     prefAutoTool: '自动展开工具详情',
     prefAutoRawMeta: '自动展开元数据',
+    /** 皮层开时：本则消息显式走蜂群深度编排（多角色序曲 + 主代理综合） */
+    explicitSwarmDepth: '本则蜂群深度编排',
+  },
+  processFeedback: {
+    statusRunning: '进行中',
+    statusDone: '已结束',
+    statusCapped: '已触顶',
+    expand: '展开过程',
+    collapse: '收起过程',
+    summaryTool: '工具：{tool}',
+    stepToolStart: '开始 {name}',
+    stepToolEnd: '结束 {name}',
+    stepFinished: '完成（{reason}）',
+    stepCapped: '内部轮次触顶（budgetExceeded）',
+    cappedSystemNotice:
+      '蜂群内部轮次已达上限，本次编排已停止。{detail} 可尝试关闭大脑皮层简化任务后重试，或缩小单次任务范围。',
+  },
+  cortex: {
+    layerLabel: '蜂群层（大脑皮层）',
+    stateOn: '已开启',
+    stateOff: '已关闭',
+    loadingState: '加载中…',
+    loadFailedShort: '无法加载状态',
+    retryLoad: '重试',
+    toggleSyncFailed:
+      '皮层开关未能同步，已保持原状态。请检查网络或网关后重试。',
+    toggleSyncFailedCodeRejected: '同步被拒绝，开关未改变。',
   },
   settings: {
     title: '设置',
@@ -74,6 +105,7 @@ export default {
     channels: '频道',
     network: '网络',
     language: '语言',
+    advanced: '高级',
     about: '关于',
     save: '保存',
     delete: '删除',
@@ -85,6 +117,21 @@ export default {
     apiBase: 'API Base',
     provider: '提供商',
     actions: '操作',
+    capabilityManifest: {
+      sectionTitle: '能力包（v0 manifest）',
+      sectionHint: '与 SKILL.md 技能包不同：此处为 JSON 能力声明（FR10/FR11），校验由本机运行时完成。',
+      jsonLabel: '能力 manifest（JSON）',
+      placeholder: '{"schema_version":"0","capabilities":[...]}',
+      fileLevelTitle: '整份文件/解析',
+      fieldLevelTitle: '字段级问题',
+      saveValidate: '保存并校验',
+      saving: '校验中…',
+      loadExample: '填入示例',
+      registeredTitle: '已登记能力（{count} 条）',
+      emptyRegistry: '当前没有已登记的能力条目；校验通过后将在此列出 id。',
+      previewOnly: '浏览器预览模式下无法调用 Tauri 校验，请在桌面应用中操作。',
+      unknownFailure: '校验未通过，但未返回结构化错误。',
+    },
   },
   language: {
     title: '语言设置',
@@ -99,6 +146,8 @@ export default {
   dashboard: {
     general: '通用',
     generalDesc: '常用偏好与聊天行为设置',
+    advanced: '高级',
+    advancedDesc: '开发者向运行遥测与实验开关（FR22）',
     providers: '供应商',
     providersDesc: '配置 AI 模型供应商和 API 密钥',
     channels: '频道',
@@ -115,6 +164,81 @@ export default {
     console: '中控台',
     neuro: '神经系统',
     comingSoon: '敬请期待',
+  },
+  neuro: {
+    viewTitle: '神经系统',
+    backToChat: '返回聊天',
+    brainOverviewAria: '大脑架构概览',
+    brainOverviewHint:
+      '以下为 DIVA 大脑架构示意图（左右分区对应不同职能域），不表示实时运行状态。使用键盘 ← → 可切换焦点分区。',
+    dismissHint: '知道了',
+    regionCortexHub: '皮层中枢',
+    regionCortexHubDesc: '推理、编排与上下文整合（示意）',
+    regionMotorBridge: '表达与执行通道',
+    regionMotorBridgeDesc: '对外输出、工具与动作路径（示意）',
+    detailPanelSubtitle: '当前选中分区的连接与活动（与聊天区同一皮层状态源）',
+    detailLoading: '正在加载快照…',
+    detailStubExplainer:
+      '过程事件流尚未接入本视图。上方角标标明非实时数据——此处不会用假列表冒充实时连接。',
+    detailDegradedExplainer:
+      '大脑皮层已关闭（简化路径），不发射蜂群过程事件；展示与聊天区皮层开关保持一致。',
+    dataPhase: {
+      live: '实时',
+      stub: '非实时流',
+      degraded: '皮层关闭',
+    },
+    /** FR7 / UX-IMPL-3：模板化排障（不堆砌原始日志） */
+    troubleshoot: {
+      errorTitle: '详情面板未能加载',
+      errorBody:
+        '神经系统快照加载失败。请在设置中检查网关或网络，或重试、先关闭大脑皮层再试——完整细节仅输出在开发者控制台。',
+      emptyNoSnapshotTitle: '暂无快照',
+      emptyNoSnapshotBody:
+        '请返回聊天或等待连接就绪；在快照可用之前本区域保持空白说明。',
+      emptyNoRowsTitle: '本侧暂无活动行',
+      emptyStubRowsBody:
+        '事件流尚未处于 live（见上方阶段角标）。可返回聊天或等待下次任务——此处不会用假列表冒充实时连接。',
+      emptyDegradedRowsBody:
+        '大脑皮层已关闭，不展示蜂群过程事件行，与聊天区开关同源。可在聊天中调整皮层或打开设置后重试。',
+      idleTitle: '当前无近期活动',
+      idleBody:
+        '流已为实时，但本侧暂时没有新记录。请在聊天中继续或发起任务以产生活动。',
+      actionRetry: '重新加载',
+      actionBackToChat: '返回聊天',
+      actionOpenSettings: '网络与抓取',
+      actionDisableCortex: '关闭大脑皮层',
+    },
+    /** FR16：愿景文案；不得暗示已交付或纳入 MVP 验收 */
+    vision: {
+      badge: '愿景 · 后续 · 非 MVP 验收',
+      title: '游戏化总控台与多角色忙碌示意',
+      subtitle: '仅作产品路线图占位，不属于当前版本对 FR5–FR7、FR15 的验收范围。',
+      body:
+        '《头脑特工队》式总控、游戏化中控台等属于后续愿景探索。MVP 默认主路径为上方大脑分区视图；无需展开或阅读本段即可完成核心浏览。',
+    },
+  },
+  advanced: {
+    title: '高级 / 开发者',
+    intro:
+      '以下选项默认关闭；开启后可在此查看上次运行的遥测摘要（FR22）。内容不会写入聊天转写。',
+    featureRunTelemetry: '显示运行遥测（开发者）',
+    featureRunTelemetryHint:
+      '展示上次完成 turn 的主循环迭代、可选蜂群序曲 LLM 次数与 swarm_phase_changed 计数（FR22）；需桌面 Tauri 与网关。',
+    runTelemetryPanelTitle: '上次运行的遥测',
+    refresh: '刷新',
+    runTelemetryAria: '运行遥测摘要',
+    runTelemetryEmpty: '尚无遥测记录，请先完成一次聊天。',
+    runTelemetryLoading: '加载中…',
+    runTelemetryLine: '主循环 {mainLoop} · 序曲 LLM {prelude} · 相位 {phases}',
+    runTelemetryLineConvergencePart: ' · 收敛 {n} 轮',
+    runTelemetrySchema: '协议版本 {v}',
+    runTelemetrySteps: '主循环迭代（不含序曲 LLM）：{n}',
+    runTelemetryPrelude: '序曲 LLM 次数（仅 FullSwarm）：{n}',
+    runTelemetryPhases: '相位计数（swarm_phase_changed 发射次数）：{n}',
+    runTelemetryConvergence: '全蜂群收敛轮次：{n}',
+    runTelemetryOverBudget: '已超过建议迭代预算（琥珀提示，不阻断）。',
+    runTelemetryWithinBudget: '未触顶迭代上限。',
+    nfrNote: '遥测仅经 SSE 侧道与 invoke；默认不会并入主聊天记录（NFR-R2）。',
   },
   general: {
     title: '通用',

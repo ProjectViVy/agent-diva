@@ -529,6 +529,7 @@ impl ChannelHandler for EmailHandler {
                                 timestamp: chrono::Utc::now(),
                                 media: Vec::new(),
                                 metadata,
+                                person_seam: None,
                             };
 
                             if let Err(e) = inbound_tx.send(inbound).await {

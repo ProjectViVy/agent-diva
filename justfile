@@ -29,6 +29,10 @@ test:
 check:
     cargo clippy --all -- -D warnings
 
+# ADR-A：agent-diva-swarm 依赖树不得包含 agent-diva-meta（Story 5.4）
+check-swarm-no-meta:
+    python scripts/ci/check_swarm_no_meta.py
+
 # Format code
 fmt:
     cargo fmt --all

@@ -2,7 +2,9 @@ mod companion_admin;
 mod provider_admin;
 mod runtime_control;
 
+use agent_diva_agent::capability::PlaceholderCapabilityRegistry;
 use agent_diva_agent::runtime_control::RuntimeControlCommand;
+use agent_diva_agent::swarm_doctor::swarm_cortex_doctor_for_gateway;
 use agent_diva_agent::tool_config::network::{
     NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
 };
@@ -11,7 +13,7 @@ use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
 use agent_diva_providers::{DynamicProvider, ProviderCatalogService, ProviderRegistry};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
@@ -30,6 +32,8 @@ pub struct Manager {
     channel_manager: Option<Arc<ChannelManager>>,
     runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
     cron_service: Arc<CronService>,
+    capability_registry: Arc<PlaceholderCapabilityRegistry>,
+    capability_manifest_bootstrap_error: Arc<Mutex<Option<String>>>,
 }
 
 enum ProviderConfigTarget<'a> {
@@ -67,6 +71,8 @@ impl Manager {
         channel_manager: Option<Arc<ChannelManager>>,
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
         cron_service: Arc<CronService>,
+        capability_registry: Arc<PlaceholderCapabilityRegistry>,
+        capability_manifest_bootstrap_error: Arc<Mutex<Option<String>>>,
     ) -> Self {
         Self {
             api_rx,
@@ -81,7 +87,32 @@ impl Manager {
             channel_manager,
             runtime_control_tx,
             cron_service,
+            capability_registry,
+            capability_manifest_bootstrap_error,
         }
+    }
+
+    fn handle_get_swarm_cortex_doctor(
+        &self,
+        reply: tokio::sync::oneshot::Sender<Result<agent_diva_agent::swarm_doctor::SwarmCortexDoctorV1, String>>,
+    ) {
+        let bootstrap_note = self
+            .capability_manifest_bootstrap_error
+            .lock()
+            .expect("bootstrap error mutex poisoned")
+            .clone();
+        let res = self
+            .loader
+            .load()
+            .map_err(|e| e.to_string())
+            .map(|cfg| {
+                swarm_cortex_doctor_for_gateway(
+                    &cfg,
+                    self.capability_registry.as_ref(),
+                    bootstrap_note.as_deref(),
+                )
+            });
+        let _ = reply.send(res);
     }
 
     fn provider_name_for_model(preferred_provider: Option<&str>, model: &str) -> Option<String> {
@@ -329,6 +360,15 @@ impl Manager {
                         }
                         ManagerCommand::UpdateChannel(update) => {
                             self.handle_update_channel(update).await;
+                        }
+                        ManagerCommand::GetCortex(reply) => {
+                            self.handle_get_cortex(reply).await;
+                        }
+                        ManagerCommand::SetCortex(enabled, reply) => {
+                            self.handle_set_cortex(enabled, reply).await;
+                        }
+                        ManagerCommand::GetSwarmCortexDoctor(reply) => {
+                            self.handle_get_swarm_cortex_doctor(reply);
                         }
                     }
                 }

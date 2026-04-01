@@ -7,6 +7,17 @@ export default {
   theme: {
     extend: {
       colors: {
+        /** UX-IMPL-5：过程条弱对比附属色（可在组件内配合 CSS 变量使用） */
+        'process-muted': {
+          DEFAULT: 'rgb(148 163 184)',
+          fg: 'rgb(71 85 105)',
+          bg: 'rgb(248 250 252 / 0.92)',
+          border: 'rgb(203 213 225 / 0.6)',
+        },
+        neuro: {
+          synaptic: 'rgb(100 116 139)',
+          pulse: 'rgb(244 114 182 / 0.35)',
+        },
         yandere: {
           50: '#fff0f5',
           100: '#ffe3ee',

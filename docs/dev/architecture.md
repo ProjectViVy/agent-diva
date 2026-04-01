@@ -1,4 +1,4 @@
-﻿# Architecture Overview
+# Architecture Overview
 
 This document provides an overview of the agent-diva architecture.
 
@@ -42,6 +42,48 @@ This document provides an overview of the agent-diva architecture.
 │  • vLLM (local)  • AiHubMix                                  │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+## Three layers of “subagent” (do not conflate)
+
+Agent-Diva and this monorepo use the word **subagent** in three **separate** places. New contributors should treat them as different concepts; runtime behavior is **only** Layer A.
+
+| Layer | Where it lives | Role |
+|-------|----------------|------|
+| **A — Runtime (Rust)** | `agent-diva-agent` (`SubagentManager`), `agent-diva-tools` (`spawn`) | Background Tokio tasks with a tool subset and their own context; results return to the main agent loop. This is the only layer that affects shipped product behavior. |
+| **B — IDE named agents** | Workspace `.cursor/agents/*.md` | Research / workflow prompts for **developers** in Cursor. Not loaded by the Rust runtime; analogous to external “IDE workers,” not in-process Voices. |
+| **C — BMAD / skill packs** | e.g. `.cursor/skills/**`, pack `agents/*.md` or `openai.yaml` | Workflow agents inside tooling; **Person** has no runtime dependency on them. Future GUI “capability packs” would map here conceptually, not 1:1 to prompts. |
+
+```mermaid
+flowchart TB
+  subgraph Runtime["Layer A — Runtime (Rust)"]
+    direction TB
+    SM["SubagentManager + spawn tool"]
+    SM --> BUS["Message bus / main loop"]
+  end
+  subgraph CursorAgents["Layer B — .cursor/agents"]
+    direction TB
+    IDE["Named IDE subagents (docs & research)"]
+  end
+  subgraph BMadSkills["Layer C — BMAD / skills"]
+    direction TB
+    PKG["Pack-embedded agents & metadata"]
+  end
+  USER((User-facing agent))
+  DEV((Maintainer tooling))
+  Runtime -.->|product runtime| USER
+  CursorAgents -.->|engineering only| DEV
+  BMadSkills -.->|engineering only| DEV
+```
+
+**Canonical detail and migration notes:** [`subagent-to-swarm-migration-inventory.md`](../../../_bmad-output/planning-artifacts/subagent-to-swarm-migration-inventory.md) (SWARM-MIG-03). For swarm-specific design (SteeringLease, capabilities), see `agent-diva-swarm/docs/`.
+
+### `spawn` (Layer A) vs FullSwarm / PRD Swarm P0
+
+- **`spawn` tool + `SubagentManager`:** Today this is the **only** shipped path that runs an extra LLM loop in the background with a **fixed tool subset**. It is **not** the same as the in-crate **FullSwarm** orchestration path (`agent-diva-swarm`: cortex on, prelude, convergence, doctor registry wiring). Cross-process “swarm” product behavior for **v1.0.0 P0** is defined in the PRD; use that as the authority when reasoning about scope.
+
+- **Capability alignment (SWARM-MIG-01 / Story 6.5):** Subagent tools are catalogued with stable **`tool.subagent.*` ids**, LLM `tool_name`, and **risk tier placeholders** in `agent-diva-agent::subagent_tool_capabilities`. The same catalog is echoed under **`subagent_tools`** in `SwarmCortexDoctorV1` (diagnostics / `GET /api/diagnostics/swarm-doctor`) so operators can inspect ids without reading Rust. Workspace **`capability-manifest.json`** remains the **package-level** manifest (FR10/FR11); it does not replace the built-in subagent tool table.
+
+- **PRD cross-reference:** [`prd.md`](../../../_bmad-output/planning-artifacts/prd.md) — Swarm-class P0 items and release criteria (see also Epic 5/6 in [`epics.md`](../../../_bmad-output/planning-artifacts/epics.md)).
 
 ## Crate Responsibilities
 

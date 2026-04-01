@@ -61,6 +61,26 @@ impl AgentLoop {
                 }
                 let _ = reply_tx.send(result);
             }
+            RuntimeControlCommand::GetCortexState { reply_tx } => {
+                let out = match &self.process_event_pipeline {
+                    Some(p) => Ok(p.cortex_runtime().snapshot()),
+                    None => Err("cortex process pipeline not configured".to_string()),
+                };
+                let _ = reply_tx.send(out);
+            }
+            RuntimeControlCommand::SetCortexEnabled {
+                enabled,
+                reply_tx,
+            } => {
+                let out = match &self.process_event_pipeline {
+                    Some(p) => {
+                        p.cortex_runtime().set_enabled(enabled);
+                        Ok(())
+                    }
+                    None => Err("cortex process pipeline not configured".to_string()),
+                };
+                let _ = reply_tx.send(out);
+            }
         }
     }
 

@@ -88,6 +88,9 @@ jobs:
           just check
           just build
 
+      - name: ADR-A — swarm crate must not depend on meta (cargo tree)
+        run: just check-swarm-no-meta
+
       - name: Run tests
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_tests == 'true'
         run: just test

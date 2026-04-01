@@ -18,6 +18,8 @@ use agent_diva_providers::{
     DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess, ProviderCatalogService,
     ProviderRegistry,
 };
+use agent_diva_agent::capability::PlaceholderCapabilityRegistry;
+use agent_diva_swarm::CortexRuntime;
 use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -39,6 +41,7 @@ pub struct GatewayRuntimeConfig {
 struct GatewayBootstrap {
     config: Config,
     loader: ConfigLoader,
+    workspace: PathBuf,
     port: u16,
     bus: MessageBus,
     cron_service: Arc<CronService>,
@@ -47,6 +50,8 @@ struct GatewayBootstrap {
     provider_api_key: Option<String>,
     provider_api_base: Option<String>,
     agent: AgentLoop,
+    capability_registry: Arc<PlaceholderCapabilityRegistry>,
+    capability_manifest_bootstrap_error: std::sync::Arc<std::sync::Mutex<Option<String>>>,
 }
 
 struct ChannelBootstrap {
@@ -276,6 +281,7 @@ fn build_agent_loop(
         },
     };
 
+    let cortex = Arc::new(CortexRuntime::new());
     AgentLoop::with_tools(
         bus,
         agent_provider,
@@ -285,6 +291,7 @@ fn build_agent_loop(
         tool_config,
         Some(runtime_control_rx),
     )
+    .with_swarm_process_bus_publishing(cortex)
 }
 
 fn resolve_provider_credentials(config: &Config) -> Result<(Option<String>, Option<String>)> {

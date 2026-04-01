@@ -15,6 +15,7 @@
 //! **Construction:** For untrusted input, use [`validate::parse_and_validate_manifest_from_str`] (or `from_bytes` / `from_path`). `Deserialize` on [`ValidatedManifest`] is for symmetry and trusted snapshots only; it skips v0 rules.
 
 pub mod error;
+pub mod persist;
 pub mod registry;
 pub mod validate;
 
@@ -23,6 +24,10 @@ pub use error::{
     CapabilityManifestErrors,
 };
 pub use registry::{PlaceholderCapabilityRegistry, RegistrySummary};
+pub use persist::{
+    load_capability_manifest_into_registry, persist_capability_manifest_json,
+    workspace_capability_manifest_path, WORKSPACE_CAPABILITY_MANIFEST_REL,
+};
 pub use validate::{
     parse_and_validate_manifest_from_bytes, parse_and_validate_manifest_from_path,
     parse_and_validate_manifest_from_str, ValidatedCapability, ValidatedManifest,

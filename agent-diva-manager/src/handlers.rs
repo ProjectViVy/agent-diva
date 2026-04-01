@@ -6,11 +6,15 @@ pub use provider_companion::{
     get_providers_handler, resolve_provider_handler, update_provider_handler,
 };
 
+use agent_diva_agent::capability::{
+    parse_and_validate_manifest_from_str, persist_capability_manifest_json,
+};
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::InboundMessage;
 use agent_diva_core::config::schema::ChannelsConfig;
 use axum::{
     extract::{Multipart, Path, Query, State},
+    http::StatusCode,
     response::sse::{Event, Sse},
     Json,
 };
@@ -31,6 +35,9 @@ pub struct ChatRequest {
     pub message: String,
     pub channel: Option<String>,
     pub chat_id: Option<String>,
+    /// GUI / API：本则消息显式请求完整蜂群编排（与 FR19 显式深度选择一致）。
+    #[serde(default)]
+    pub explicit_full_swarm: Option<bool>,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -77,7 +84,10 @@ pub async fn chat_handler(
 
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
-    let msg = InboundMessage::new(channel, "user", chat_id, payload.message);
+    let mut msg = InboundMessage::new(channel, "user", chat_id, payload.message);
+    if payload.explicit_full_swarm == Some(true) {
+        msg = msg.with_metadata("explicit_full_swarm", true);
+    }
 
     let req = ApiRequest { msg, event_tx };
 
@@ -99,6 +109,17 @@ pub async fn chat_handler(
                     });
                     Event::default().event("tool_delta").data(data.to_string())
                 }
+                AgentEvent::RunTelemetry(snap) => match serde_json::to_string(&snap) {
+                    Ok(json) => Event::default().event("run_telemetry").data(json),
+                    Err(e) => {
+                        tracing::warn!("run_telemetry serialize failed: {}", e);
+                        Event::default().comment("run_telemetry_omitted")
+                    }
+                },
+                AgentEvent::SwarmProcessBatch { events } => {
+                    let data = serde_json::json!({ "events": events });
+                    Event::default().event("swarm_process").data(data.to_string())
+                },
                 AgentEvent::FinalResponse { content } => {
                     Event::default().event("final").data(content)
                 }
@@ -379,6 +400,142 @@ pub async fn update_config_handler(
     }
 
     Json(serde_json::json!({ "status": "ok" }))
+}
+
+/// GET `/api/swarm/cortex` — gateway 内与 `ProcessEventPipeline` 绑定的皮层快照（Story 6.4）。
+pub async fn get_swarm_cortex_handler(
+    State(state): State<AppState>,
+) -> Result<Json<agent_diva_swarm::CortexState>, StatusCode> {
+    let (tx, rx) = oneshot::channel();
+    state
+        .api_tx
+        .send(ManagerCommand::GetCortex(tx))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to send GetCortex: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    match rx.await {
+        Ok(Ok(s)) => Ok(Json(s)),
+        Ok(Err(e)) => {
+            tracing::warn!(%e, "GetCortex rejected");
+            Err(StatusCode::SERVICE_UNAVAILABLE)
+        }
+        Err(e) => {
+            tracing::error!("GetCortex oneshot dropped: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SwarmCortexSetBody {
+    pub enabled: bool,
+}
+
+/// POST `/api/swarm/cortex` — 设置 gateway 皮层开关；响应为更新后快照。
+pub async fn set_swarm_cortex_handler(
+    State(state): State<AppState>,
+    Json(body): Json<SwarmCortexSetBody>,
+) -> Result<Json<agent_diva_swarm::CortexState>, StatusCode> {
+    let (tx, rx) = oneshot::channel();
+    state
+        .api_tx
+        .send(ManagerCommand::SetCortex(body.enabled, tx))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to send SetCortex: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    match rx.await {
+        Ok(Ok(())) => {
+            let (tx2, rx2) = oneshot::channel();
+            state
+                .api_tx
+                .send(ManagerCommand::GetCortex(tx2))
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            match rx2.await {
+                Ok(Ok(s)) => Ok(Json(s)),
+                Ok(Err(_)) => Err(StatusCode::SERVICE_UNAVAILABLE),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+        Ok(Err(e)) => {
+            tracing::warn!(%e, "SetCortex rejected");
+            Err(StatusCode::SERVICE_UNAVAILABLE)
+        }
+        Err(e) => {
+            tracing::error!("SetCortex oneshot dropped: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// GET `/api/diagnostics/swarm-doctor` — 与 gateway 进程内 `PlaceholderCapabilityRegistry` 一致的 capability 摘要（Story 6.3，NFR-R2）。
+pub async fn get_swarm_cortex_doctor_handler(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::GetSwarmCortexDoctor(tx))
+        .await
+    {
+        tracing::error!("Failed to send GetSwarmCortexDoctor: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(block)) => Json(serde_json::json!({ "status": "ok", "swarm_cortex": block })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": format!("reply dropped: {}", e) })),
+    }
+}
+
+/// POST `/api/capabilities/manifest` — 校验并替换 registry，并写入 workspace 同源 JSON（Story 6.3）。
+pub async fn post_capability_manifest_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let raw = match serde_json::to_string(&payload) {
+        Ok(s) => s,
+        Err(e) => {
+            return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+        }
+    };
+    match parse_and_validate_manifest_from_str(raw.trim()) {
+        Ok(manifest) => {
+            if let Err(e) =
+                persist_capability_manifest_json(&state.gateway_workspace, raw.trim())
+            {
+                return Json(serde_json::json!({
+                    "status": "error",
+                    "message": format!("failed to persist capability manifest to workspace: {e}"),
+                }));
+            }
+            match state.capability_registry.replace_with_manifest(manifest) {
+                Ok(()) => {
+                    *state
+                        .capability_manifest_bootstrap_error
+                        .lock()
+                        .expect("bootstrap error mutex poisoned") = None;
+                    Json(serde_json::json!({
+                        "status": "ok",
+                        "summary": state.capability_registry.summary(),
+                    }))
+                }
+                Err(e) => Json(serde_json::json!({
+                    "status": "error",
+                    "errors": e.errors,
+                    "message": "registry replace failed after workspace file was written; restart gateway to reconcile",
+                })),
+            }
+        }
+        Err(e) => Json(serde_json::json!({
+            "status": "error",
+            "errors": e.errors,
+        })),
+    }
 }
 
 pub async fn get_channels_handler(State(state): State<AppState>) -> Json<ChannelsConfig> {

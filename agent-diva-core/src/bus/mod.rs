@@ -5,6 +5,10 @@
 
 pub mod events;
 pub mod queue;
+pub mod run_telemetry;
 
 pub use events::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
+pub use run_telemetry::{
+    RunTelemetrySnapshotV0, RUN_TELEMETRY_SCHEMA_VERSION_V0, RUN_TELEMETRY_SCHEMA_VERSION_V1,
+};
 pub use queue::MessageBus;

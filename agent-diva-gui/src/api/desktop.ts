@@ -173,3 +173,36 @@ export const uploadSkill = (fileName: string, bytes: number[]) =>
 
 export const deleteSkill = (name: string) =>
   invoke<void>("delete_skill", { name });
+
+/** Mirrors `agent_diva_agent::capability::CapabilityErrorLocationKind` (serde snake_case). */
+export type CapabilityErrorLocationKind = "file" | "field";
+
+export interface CapabilityManifestErrorDto {
+  code: string;
+  severity?: string | null;
+  message: string;
+  location_kind: CapabilityErrorLocationKind;
+  path?: string | null;
+}
+
+export interface RegistrySummaryDto {
+  count: number;
+  ids: string[];
+}
+
+/** Structured result — does not throw on validation failure; check `ok`. */
+export interface CapabilityManifestSubmitResult {
+  ok: boolean;
+  summary?: RegistrySummaryDto | null;
+  errors?: CapabilityManifestErrorDto[] | null;
+  /** Load/persist failure (e.g. could not write workspace manifest). */
+  message?: string | null;
+}
+
+export const submitCapabilityManifestJson = (json: string) =>
+  invoke<CapabilityManifestSubmitResult>("submit_capability_manifest_json", {
+    json,
+  });
+
+export const getCapabilityRegistrySummary = () =>
+  invoke<RegistrySummaryDto>("get_capability_registry_summary");

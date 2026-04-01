@@ -86,6 +86,69 @@ fn config_show_json_redacts_secrets() {
 }
 
 #[test]
+fn config_doctor_json_swarm_includes_versioned_swarm_cortex_block() {
+    let temp = tempdir().unwrap();
+    let config_path = write_config(temp.path(), true);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "config",
+            "doctor",
+            "--json",
+            "--swarm",
+        ])
+        .output()
+        .expect("failed to run config doctor --json --swarm");
+
+    assert!(output.status.success(), "{:?}", output);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let value: Value = serde_json::from_str(stdout.trim()).unwrap();
+    let sc = &value["swarm_cortex"];
+    assert_eq!(sc["schema_version"], 2);
+    assert_eq!(sc["channel"], "cli_diagnostics");
+    assert_eq!(sc["capabilities"]["source"], "unavailable");
+    assert_eq!(sc["cortex"]["state"], "n/a");
+    assert!(sc["cortex"]["gateway_bind"].as_str().unwrap().contains(':'));
+    assert_eq!(sc["subagent_tools"]["catalog_version"], 1);
+    assert_eq!(sc["subagent_tools"]["entries"].as_array().unwrap().len(), 6);
+}
+
+#[test]
+fn config_doctor_swarm_uses_workspace_capability_manifest_file() {
+    let temp = tempdir().unwrap();
+    let config_path = write_config(temp.path(), true);
+    let workspace = temp.path().join("workspace");
+    let ad = workspace.join(".agent-diva");
+    fs::create_dir_all(&ad).unwrap();
+    fs::write(
+        ad.join("capability-manifest.json"),
+        r#"{"schema_version":"0","capabilities":[{"id":"cli-cap","name":"C"}]}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "config",
+            "doctor",
+            "--json",
+            "--swarm",
+        ])
+        .output()
+        .expect("failed to run config doctor --json --swarm");
+
+    assert!(output.status.success(), "{:?}", output);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let value: Value = serde_json::from_str(stdout.trim()).unwrap();
+    let sc = &value["swarm_cortex"];
+    assert_eq!(sc["capabilities"]["source"], "process_registry");
+    assert_eq!(sc["capabilities"]["count"], 1);
+}
+
+#[test]
 fn config_doctor_returns_warning_exit_code_for_missing_provider_key() {
     let temp = tempdir().unwrap();
     let config_path = write_config(temp.path(), false);

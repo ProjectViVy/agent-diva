@@ -4,6 +4,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use super::run_telemetry::RunTelemetrySnapshotV0;
+use crate::person_seam::PersonSeamVisibility;
+
 /// Streaming events emitted by the agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AgentEvent {
@@ -35,6 +38,12 @@ pub enum AgentEvent {
     FinalResponse {
         content: String,
     },
+    /// 蜂群过程事件批（`ProcessEventV0` JSON，camelCase + `name` snake_case），Story 2.3；与主流式 **分轨**。
+    SwarmProcessBatch {
+        events: Vec<serde_json::Value>,
+    },
+    /// FR22：开发者向运行遥测，**不得**拼入用户 transcript（NFR-R2）。
+    RunTelemetry(RunTelemetrySnapshotV0),
     Error {
         message: String,
     },
@@ -65,6 +74,9 @@ pub struct InboundMessage {
     pub media: Vec<String>,
     /// Channel-specific metadata
     pub metadata: HashMap<String, serde_json::Value>,
+    /// Story 6.6 / SWARM-MIG-02: internal subagent payload vs user-visible turn. `None` = person-visible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub person_seam: Option<PersonSeamVisibility>,
 }
 
 impl InboundMessage {
@@ -83,7 +95,14 @@ impl InboundMessage {
             timestamp: Utc::now(),
             media: Vec::new(),
             metadata: HashMap::new(),
+            person_seam: None,
         }
+    }
+
+    /// Mark how this inbound message participates in the Person / user-visible transcript.
+    pub fn with_person_seam(mut self, seam: PersonSeamVisibility) -> Self {
+        self.person_seam = Some(seam);
+        self
     }
 
     /// Get the unique session key for this message

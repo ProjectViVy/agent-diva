@@ -14,6 +14,10 @@
 //!
 //! [`CORTEX_DEFAULT_ENABLED`] 冻结为 **`true`**：与 PRD 主路径叙事一致（蜂群层默认可用，用户可显式关闭进入简化路径，FR3）。
 //! 若产品变更默认，须同步修改该常量、本段说明与单元测试。
+//!
+//! # 锁中毒
+//!
+//! `RwLock` 在持有者 panic 后可能 **中毒**；当前实现通过 `into_inner()` 恢复读写并先打 **`tracing::error!`**（target：`agent_diva_swarm::cortex`），便于运维过滤。状态在极端情况下可能与预期不一致，应以日志为信号排查根因 panic。
 
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
@@ -90,13 +94,25 @@ impl CortexRuntime {
 
     /// 设置开/关（内部与测试可见；对外 Tauri 在 Story 1.3 接线）。
     pub fn set_enabled(&self, enabled: bool) {
-        let mut guard = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.inner.write().unwrap_or_else(|e| {
+            tracing::error!(
+                target: "agent_diva_swarm::cortex",
+                "CortexRuntime write lock poisoned; recovering with into_inner — state may be inconsistent after a panicking holder"
+            );
+            e.into_inner()
+        });
         guard.enabled = enabled;
     }
 
-    /// 切换开/关并返回切换后的快照。
+    /// 切换开/关并返回切换后的快照（**单元测试 / 内部**；桌面壳须先经 gateway 同步钩再调用 [`set_enabled`](Self::set_enabled)，见 `agent-diva-gui` `cortex_sync` / Story 2.2）。
     pub fn toggle(&self) -> CortexState {
-        let mut guard = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.inner.write().unwrap_or_else(|e| {
+            tracing::error!(
+                target: "agent_diva_swarm::cortex",
+                "CortexRuntime write lock poisoned; recovering with into_inner — state may be inconsistent after a panicking holder"
+            );
+            e.into_inner()
+        });
         guard.enabled = !guard.enabled;
         guard.clone()
     }
@@ -104,7 +120,13 @@ impl CortexRuntime {
     fn read_state(&self) -> CortexState {
         self.inner
             .read()
-            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or_else(|e| {
+                tracing::error!(
+                    target: "agent_diva_swarm::cortex",
+                    "CortexRuntime read lock poisoned; recovering with into_inner — snapshot may be inconsistent after a panicking holder"
+                );
+                e.into_inner()
+            })
             .clone()
     }
 }

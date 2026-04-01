@@ -1,7 +1,8 @@
 //! Light 路径 **墙钟超时** 与 **内部步数上限**（FR19 / ADR-E）。
 //!
-//! 默认值在此 **单点** 定义；gateway 或 agent 循环在 [`crate::ExecutionTier::Light`] 下应遵守并在触顶时返回
-//! [`LightPathStopReason`]（可机读、可对用户说明）。具体 enforcement 可在后续 story 接入运行时。
+//! 默认值在此 **单点** 定义；[`ExecutionTier::Light`] 下由 `agent-diva-agent` 的 **AgentLoop** 主循环在每步与流式
+//! 轮询处对照本模块常量 enforcement，触顶时通过 [`format_light_path_stop_for_user`] 返回可对用户说明的文案（含稳定
+//! [`LightPathStopReason::machine_code`]）。
 
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +37,26 @@ impl LightPathStopReason {
     }
 }
 
+/// 轻量路径 **触顶/超时** 时对用户可见的英文说明（含稳定 `code:` 行，供 UI/契约解析）。
+#[must_use]
+pub fn format_light_path_stop_for_user(reason: LightPathStopReason) -> String {
+    let code = reason.machine_code();
+    match reason {
+        LightPathStopReason::Completed => {
+            debug_assert!(false, "format_light_path_stop_for_user(Completed) is unexpected");
+            "Light path completed.".to_string()
+        }
+        LightPathStopReason::WallClockTimeout { elapsed_ms } => format!(
+            "This light-path turn stopped: wall-clock budget exceeded after {} ms (code: {}).",
+            elapsed_ms, code
+        ),
+        LightPathStopReason::InternalStepLimit { steps_used } => format!(
+            "This light-path turn stopped: internal step limit reached ({} steps, code: {}).",
+            steps_used, code
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -47,5 +68,19 @@ mod tests {
         let back: LightPathStopReason = serde_json::from_str(&j).expect("de");
         assert_eq!(r, back);
         assert_eq!(back.machine_code(), "light_path.wall_clock_timeout");
+    }
+
+    #[test]
+    fn user_message_includes_machine_codes() {
+        let wall = format_light_path_stop_for_user(LightPathStopReason::WallClockTimeout {
+            elapsed_ms: 120_000,
+        });
+        assert!(wall.contains("light_path.wall_clock_timeout"));
+
+        let steps = format_light_path_stop_for_user(LightPathStopReason::InternalStepLimit {
+            steps_used: LIGHT_PATH_MAX_INTERNAL_STEPS,
+        });
+        assert!(steps.contains("light_path.internal_step_limit"));
+        assert!(steps.contains(&LIGHT_PATH_MAX_INTERNAL_STEPS.to_string()));
     }
 }

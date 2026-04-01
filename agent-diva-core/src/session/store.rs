@@ -3,6 +3,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::person_seam::PersonSeamVisibility;
+
 /// A conversation session
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
@@ -46,6 +48,7 @@ impl Session {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            person_seam: None,
         });
         self.updated_at = Utc::now();
     }
@@ -64,7 +67,10 @@ impl Session {
         let start = unconsolidated.len().saturating_sub(max_messages);
         let mut sliced: Vec<ChatMessage> = unconsolidated[start..]
             .iter()
-            .filter(|m| matches!(m.role.as_str(), "user" | "assistant" | "tool"))
+            .filter(|m| {
+                matches!(m.role.as_str(), "user" | "assistant" | "tool")
+                    && m.person_seam != Some(PersonSeamVisibility::Internal)
+            })
             .cloned()
             .collect();
         // Drop leading non-user messages to avoid orphaned tool results
@@ -106,6 +112,9 @@ pub struct ChatMessage {
     /// Optional structured thinking blocks (provider-specific)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub thinking_blocks: Option<Vec<serde_json::Value>>,
+    /// Subagent / swarm internal payload vs user-visible turn (Story 6.6). `None` = person-visible.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub person_seam: Option<PersonSeamVisibility>,
 }
 
 impl ChatMessage {
@@ -120,6 +129,7 @@ impl ChatMessage {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            person_seam: None,
         }
     }
 
@@ -140,6 +150,7 @@ impl ChatMessage {
             name,
             reasoning_content: None,
             thinking_blocks: None,
+            person_seam: None,
         }
     }
 
@@ -155,6 +166,7 @@ impl ChatMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::person_seam::PersonSeamVisibility;
 
     #[test]
     fn test_session_creation() {
@@ -183,5 +195,20 @@ mod tests {
 
         let history = session.get_history(50);
         assert_eq!(history.len(), 50);
+    }
+
+    #[test]
+    fn test_get_history_excludes_internal_person_seam() {
+        let mut session = Session::new("test");
+        session.add_message("user", "hello");
+        let mut internal = ChatMessage::new("user", "[Subagent raw dump]");
+        internal.person_seam = Some(PersonSeamVisibility::Internal);
+        session.add_full_message(internal);
+        session.add_message("assistant", "Hi!");
+
+        let history = session.get_history(10);
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].content, "hello");
+        assert_eq!(history[1].content, "Hi!");
     }
 }

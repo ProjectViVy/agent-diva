@@ -1,6 +1,9 @@
 //! Agent loop: the core processing engine
 
 use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
+use agent_diva_swarm::{
+    CortexRuntime, ProcessEventBatchSink, ProcessEventPipeline, ProcessEventThrottleConfig,
+};
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
@@ -10,9 +13,10 @@ use agent_diva_tools::{
     load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
     ToolError, ToolRegistry, WriteFileTool,
 };
+use crate::swarm_process_bus::BusSwarmProcessSink;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
@@ -104,6 +108,10 @@ pub struct AgentLoop {
     notify_on_soul_change: bool,
     soul_governance: SoulGovernanceSettings,
     soul_change_turns: VecDeque<Instant>,
+    /// 可选：FR2 过程事件单一出口（皮层门控 + 节流）；`None` 时不发射。
+    process_event_pipeline: Option<Arc<ProcessEventPipeline>>,
+    /// 与 [`BusSwarmProcessSink`] 共用：当前 inbound turn 的 `(channel, chat_id)`，供过程批路由到正确会话。
+    swarm_process_route: Arc<Mutex<Option<(String, String)>>>,
 }
 
 impl AgentLoop {
@@ -147,6 +155,8 @@ impl AgentLoop {
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
             soul_change_turns: VecDeque::new(),
+            process_event_pipeline: None,
+            swarm_process_route: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -236,7 +246,32 @@ impl AgentLoop {
             notify_on_soul_change: tool_config.notify_on_soul_change,
             soul_governance: tool_config.soul_governance,
             soul_change_turns: VecDeque::new(),
+            process_event_pipeline: None,
+            swarm_process_route: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// 接入过程事件管道（Story 1.5）；与 `CortexRuntime` 共用同一 `Arc` 真相源，由调用方构造 [`ProcessEventPipeline`]。
+    #[must_use]
+    pub fn with_process_event_pipeline(mut self, pipeline: Arc<ProcessEventPipeline>) -> Self {
+        self.process_event_pipeline = Some(pipeline);
+        self
+    }
+
+    /// Gateway / 桌面壳：过程事件经 bus → SSE `swarm_process`，与 token 流分轨（Story 2.3）。
+    #[must_use]
+    pub fn with_swarm_process_bus_publishing(mut self, cortex: Arc<CortexRuntime>) -> Self {
+        let sink: Arc<dyn ProcessEventBatchSink> = Arc::new(BusSwarmProcessSink::new(
+            self.bus.clone(),
+            self.swarm_process_route.clone(),
+        ));
+        let pipe = Arc::new(ProcessEventPipeline::new(
+            cortex,
+            sink,
+            ProcessEventThrottleConfig::default(),
+        ));
+        self.process_event_pipeline = Some(pipe);
+        self
     }
 
     /// Run the agent loop, processing messages from the bus
@@ -399,10 +434,17 @@ impl AgentLoop {
 mod tests {
     use super::*;
     use agent_diva_providers::{
-        LLMResponse, LiteLLMClient, Message, ProviderError, ProviderEventStream, ProviderResult,
+        LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
+        ProviderResult, ToolCallRequest,
+    };
+    use agent_diva_swarm::{
+        recorder_sink, CortexRuntime, ProcessEventNameV0, ProcessEventPipeline,
+        ProcessEventThrottleConfig, LIGHT_PATH_MAX_INTERNAL_STEPS,
     };
     use async_trait::async_trait;
     use futures::stream;
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::time::{timeout, Duration};
 
     struct FailingStreamProvider;
@@ -438,6 +480,225 @@ mod tests {
         fn get_default_model(&self) -> String {
             "test-model".to_string()
         }
+    }
+
+    /// 两轮流式：首轮返回 `read_file`，次轮返回纯文本（皮层开时过程事件须到达探针）。
+    struct TwoTurnToolThenTextProvider {
+        calls: AtomicUsize,
+        absolute_file_path: PathBuf,
+    }
+
+    #[async_trait]
+    impl LLMProvider for TwoTurnToolThenTextProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError("use chat_stream".to_string()))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            let response = if n == 0 {
+                let mut args = HashMap::new();
+                args.insert(
+                    "path".to_string(),
+                    serde_json::Value::String(
+                        self.absolute_file_path.to_string_lossy().into_owned(),
+                    ),
+                );
+                LLMResponse {
+                    content: None,
+                    tool_calls: vec![ToolCallRequest {
+                        id: "call_proc_ev_1".to_string(),
+                        call_type: "function".to_string(),
+                        name: "read_file".to_string(),
+                        arguments: args,
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            } else {
+                LLMResponse {
+                    content: Some("ok".to_string()),
+                    tool_calls: vec![],
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            };
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "stub".to_string()
+        }
+    }
+
+    /// Story 6.2：每轮仅返回 `read_file`，用于在 Light 路径上耗尽内部步数预算。
+    struct AlwaysReadFileToolProvider {
+        absolute_file_path: PathBuf,
+    }
+
+    #[async_trait]
+    impl LLMProvider for AlwaysReadFileToolProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError("use chat_stream".to_string()))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let mut args = HashMap::new();
+            args.insert(
+                "path".to_string(),
+                serde_json::Value::String(
+                    self.absolute_file_path
+                        .to_string_lossy()
+                        .into_owned(),
+                ),
+            );
+            let response = LLMResponse {
+                content: None,
+                tool_calls: vec![ToolCallRequest {
+                    id: "call_read_always".to_string(),
+                    call_type: "function".to_string(),
+                    name: "read_file".to_string(),
+                    arguments: args,
+                }],
+                finish_reason: "tool_calls".to_string(),
+                usage: HashMap::new(),
+                reasoning_content: None,
+            };
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "stub".to_string()
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn light_path_internal_step_cap_returns_user_message() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let hello = workspace.join("hello.txt");
+        std::fs::write(&hello, b"x").unwrap();
+
+        let bus = MessageBus::new();
+        let provider = Arc::new(AlwaysReadFileToolProvider {
+            absolute_file_path: hello,
+        });
+
+        let cortex = Arc::new(CortexRuntime::new());
+        let (_rec, sink) = recorder_sink();
+        let pipe = Arc::new(ProcessEventPipeline::new(
+            cortex,
+            sink,
+            ProcessEventThrottleConfig::default(),
+        ));
+
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(500),
+            ToolConfig::default(),
+            None,
+        )
+        .with_process_event_pipeline(pipe);
+
+        let msg = InboundMessage::new("test", "u1", "c1", "什么是 session？");
+        let out = agent.process_inbound_message(msg, None).await.unwrap();
+        let body = out.expect("expected outbound after light path cap").content;
+        assert!(
+            body.contains("light_path.internal_step_limit"),
+            "expected light path step-cap user message; got {:?}",
+            body.chars().take(240).collect::<String>()
+        );
+        assert!(
+            body.contains(&LIGHT_PATH_MAX_INTERNAL_STEPS.to_string()),
+            "message should mention step limit constant"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn process_events_whitelist_reaches_sink_when_cortex_on_and_tool_runs() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let hello = workspace.join("hello.txt");
+        std::fs::write(&hello, b"hey").unwrap();
+
+        let bus = MessageBus::new();
+        let provider = Arc::new(TwoTurnToolThenTextProvider {
+            calls: AtomicUsize::new(0),
+            absolute_file_path: hello,
+        });
+
+        let cortex = Arc::new(CortexRuntime::new());
+        let (rec, sink) = recorder_sink();
+        let pipe = Arc::new(ProcessEventPipeline::new(
+            cortex,
+            sink,
+            ProcessEventThrottleConfig::default(),
+        ));
+
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(8),
+            ToolConfig::default(),
+            None,
+        )
+        .with_process_event_pipeline(pipe);
+
+        let msg = InboundMessage::new("test", "u1", "c1", "read please");
+        let out = agent.process_inbound_message(msg, None).await.unwrap();
+        assert!(out.is_some());
+
+        let seen = rec.snapshot();
+        let has_whitelist = seen.iter().any(|e| {
+            matches!(
+                e.name,
+                ProcessEventNameV0::ToolCallStarted | ProcessEventNameV0::ToolCallFinished
+            )
+        });
+        assert!(
+            has_whitelist,
+            "expected tool process events, got {:?}",
+            seen
+        );
     }
 
     #[tokio::test]

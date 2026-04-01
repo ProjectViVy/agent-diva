@@ -11,15 +11,12 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use agent_diva_core::bus::{InboundMessage, MessageBus};
+use agent_diva_core::PersonSeamVisibility;
 use agent_diva_core::utils::truncate;
 use agent_diva_providers::base::{LLMProvider, Message};
 use agent_diva_tools::registry::ToolRegistry;
-use agent_diva_tools::{
-    filesystem::{ListDirTool, ReadFileTool, WriteFileTool},
-    shell::ExecTool,
-    web::{WebFetchTool, WebSearchTool},
-};
 
+use crate::subagent_tool_capabilities::build_subagent_tool_registry;
 use crate::tool_config::network::NetworkToolConfig;
 
 /// Subagent manager for background task execution.
@@ -214,28 +211,9 @@ impl SubagentManager {
         _exec_timeout: u64,
         restrict_to_workspace: bool,
     ) -> Result<String> {
-        // Build subagent tools (no message tool, no spawn tool)
-        let mut tools = ToolRegistry::new();
-        let allowed_dir = if restrict_to_workspace {
-            Some(workspace.to_path_buf())
-        } else {
-            None
-        };
-
-        tools.register(Arc::new(ReadFileTool::new(allowed_dir.clone())));
-        tools.register(Arc::new(WriteFileTool::new(allowed_dir.clone())));
-        tools.register(Arc::new(ListDirTool::new(allowed_dir)));
-        tools.register(Arc::new(ExecTool::new()));
-        if network_config.web.search.enabled {
-            tools.register(Arc::new(WebSearchTool::with_provider_and_max_results(
-                network_config.web.search.provider.clone(),
-                network_config.web.search.api_key.clone(),
-                network_config.web.search.normalized_max_results(),
-            )));
-        }
-        if network_config.web.fetch.enabled {
-            tools.register(Arc::new(WebFetchTool::new()));
-        }
+        // Build subagent tools from capability catalog (no message tool, no spawn tool).
+        let tools: ToolRegistry =
+            build_subagent_tool_registry(workspace, network_config, restrict_to_workspace);
 
         // Build messages with subagent-specific prompt
         let system_prompt = Self::build_subagent_prompt(task, workspace);
@@ -320,7 +298,8 @@ impl SubagentManager {
 
         // Inject as system message to trigger main agent
         // Use the origin channel/chat_id directly so the response routes back correctly
-        let msg = InboundMessage::new(origin_channel, "subagent", origin_chat_id, announce_content);
+        let msg = InboundMessage::new(origin_channel, "subagent", origin_chat_id, announce_content)
+            .with_person_seam(PersonSeamVisibility::Internal);
 
         if let Err(e) = bus.publish_inbound(msg) {
             error!("Failed to announce subagent result: {}", e);

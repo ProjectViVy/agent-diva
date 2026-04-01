@@ -1,6 +1,7 @@
 //! Memory consolidation: summarizes old conversation history into long-term memory
 
 use agent_diva_core::memory::MemoryManager;
+use agent_diva_core::person_seam::PersonSeamVisibility;
 use agent_diva_core::session::Session;
 use agent_diva_providers::{LLMProvider, Message};
 use std::sync::Arc;
@@ -78,6 +79,9 @@ pub async fn consolidate(
     let old_messages = &session.messages[consolidated..consolidate_end];
     let mut conversation = String::new();
     for msg in old_messages {
+        if msg.person_seam == Some(PersonSeamVisibility::Internal) {
+            continue;
+        }
         let content = if msg.content.chars().count() > 500 {
             format!("{}...", msg.content.chars().take(500).collect::<String>())
         } else {

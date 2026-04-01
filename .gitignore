@@ -1,5 +1,7 @@
 # Rust
 /target
+# Story-scoped cargo --target-dir (local only; do not commit)
+/target-story*/
 # Accidental cargo message-mode output at repo root
 /build_utf8.json
 **/*.rs.bk

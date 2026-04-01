@@ -1,8 +1,12 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod app_state;
+mod capability_commands;
 mod commands;
+mod cortex_sync;
 mod process_utils;
 
+use agent_diva_agent::capability::PlaceholderCapabilityRegistry;
+use agent_diva_core::bus::RunTelemetrySnapshotV0;
 use app_state::AgentState;
 use std::sync::{Arc, Mutex};
 use tauri::async_runtime::spawn;
@@ -49,6 +53,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AgentState::new())
+        .manage(Arc::new(Mutex::new(None::<RunTelemetrySnapshotV0>)))
+        .manage(Arc::new(agent_diva_swarm::CortexRuntime::new()))
+        .manage(Arc::new(PlaceholderCapabilityRegistry::new()))
         .manage(Arc::new(Mutex::new(SplashState {
             frontend_done: false,
             backend_done: false,
@@ -181,11 +188,18 @@ pub fn run() {
             commands::save_config,
             commands::tail_logs,
             commands::get_runtime_info,
+            commands::get_cortex_state,
+            commands::get_neuro_overview_snapshot,
+            commands::get_run_telemetry_snapshot,
+            commands::set_cortex_enabled,
+            commands::toggle_cortex,
             commands::get_service_status,
             commands::install_service,
             commands::uninstall_service,
             commands::start_service,
-            commands::stop_service
+            commands::stop_service,
+            capability_commands::submit_capability_manifest_json,
+            capability_commands::get_capability_registry_summary
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

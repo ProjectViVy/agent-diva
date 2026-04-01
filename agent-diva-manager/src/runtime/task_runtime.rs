@@ -11,6 +11,7 @@ pub(super) async fn start_runtime_tasks(
     let GatewayBootstrap {
         config,
         loader,
+        workspace,
         port,
         bus,
         cron_service,
@@ -19,6 +20,8 @@ pub(super) async fn start_runtime_tasks(
         provider_api_key,
         provider_api_base,
         agent,
+        capability_registry,
+        capability_manifest_bootstrap_error,
     } = bootstrap;
     let ChannelBootstrap {
         channel_manager,
@@ -45,6 +48,8 @@ pub(super) async fn start_runtime_tasks(
         Some(channel_manager.clone()),
         Some(runtime_control_tx),
         Arc::clone(&cron_service),
+        capability_registry.clone(),
+        capability_manifest_bootstrap_error.clone(),
     );
     let api_tx_keepalive = api_tx.clone();
 
@@ -57,6 +62,9 @@ pub(super) async fn start_runtime_tasks(
         AppState {
             api_tx,
             bus: bus.clone(),
+            capability_registry,
+            gateway_workspace: workspace,
+            capability_manifest_bootstrap_error,
         },
     );
 

@@ -62,9 +62,25 @@ export default {
     rawMeta: 'Structured Metadata',
     viewRawMeta: 'View Raw Metadata',
     hideRawMeta: 'Hide Raw Metadata',
+    /** Story 4.1: single visible Person narrative (FR8); not multiple peer assistants */
+    primaryPersonNarrativeAria: 'Primary conversation with Diva',
+    mainTranscriptAria: 'Message history — single assistant thread',
+    mainComposerAria: 'Message input for the primary conversation',
     prefAutoReasoning: 'Auto Reasoning',
     prefAutoTool: 'Auto Tool Details',
     prefAutoRawMeta: 'Auto Raw Metadata',
+    explicitSwarmDepth: 'Deep swarm turn (this message)',
+  },
+  cortex: {
+    layerLabel: 'Swarm layer',
+    stateOn: 'On',
+    stateOff: 'Off',
+    loadingState: 'Loading…',
+    loadFailedShort: 'Could not load state',
+    retryLoad: 'Retry',
+    toggleSyncFailed:
+      'Could not sync the cortex toggle; the previous state was kept. Check the network or gateway and try again.',
+    toggleSyncFailedCodeRejected: 'Sync was rejected; the toggle was not changed.',
   },
   settings: {
     title: 'Settings',
@@ -76,6 +92,7 @@ export default {
     channels: 'Channels',
     network: 'Network',
     language: 'Language',
+    advanced: 'Advanced',
     about: 'About',
     save: 'Save',
     delete: 'Delete',
@@ -87,6 +104,22 @@ export default {
     apiBase: 'API Base',
     provider: 'Provider',
     actions: 'Actions',
+    capabilityManifest: {
+      sectionTitle: 'Capability package (v0 manifest)',
+      sectionHint:
+        'Separate from SKILL.md trees: JSON capability declaration (FR10/FR11), validated locally.',
+      jsonLabel: 'Capability manifest (JSON)',
+      placeholder: '{"schema_version":"0","capabilities":[...]}',
+      fileLevelTitle: 'File / parse',
+      fieldLevelTitle: 'Field-level issues',
+      saveValidate: 'Save & validate',
+      saving: 'Validating…',
+      loadExample: 'Insert example',
+      registeredTitle: 'Registered capabilities ({count})',
+      emptyRegistry: 'No entries yet; capability ids will appear here after a successful validation.',
+      previewOnly: 'Browser preview cannot call Tauri validation; use the desktop app.',
+      unknownFailure: 'Validation failed without structured errors.',
+    },
   },
   language: {
     title: 'Language Settings',
@@ -113,6 +146,8 @@ export default {
     networkDesc: 'Configure web search and fetch tools',
     language: 'Language',
     languageDesc: 'Change interface language',
+    advanced: 'Advanced',
+    advancedDesc: 'Developer run telemetry & experimental toggles (FR22)',
     about: 'About',
     aboutDesc: 'Project information and version',
   },
@@ -123,6 +158,82 @@ export default {
     console: 'Console',
     neuro: 'Neuro',
     comingSoon: 'Coming soon',
+  },
+  neuro: {
+    viewTitle: 'Nervous system',
+    backToChat: 'Back to chat',
+    brainOverviewAria: 'Brain architecture overview',
+    brainOverviewHint:
+      'Schematic of DIVA brain regions (left/right functional domains), not live runtime status. Use ← → to move focus between regions.',
+    dismissHint: 'Got it',
+    regionCortexHub: 'Cortex hub',
+    regionCortexHubDesc: 'Reasoning, orchestration, and context (schematic)',
+    regionMotorBridge: 'Expression & execution bridge',
+    regionMotorBridgeDesc: 'Outward output, tools, and action paths (schematic)',
+    detailPanelSubtitle: 'Connection & activity for the selected region (same cortex source as chat)',
+    detailLoading: 'Loading snapshot…',
+    detailStubExplainer:
+      'Process-event stream is not attached to this view yet. The badge above marks non-live data — this is not a live connection list.',
+    detailDegradedExplainer:
+      'Cortex layer is off (simplified path). Swarm process events are not emitted; details stay aligned with the chat cortex toggle.',
+    dataPhase: {
+      live: 'Live',
+      stub: 'No live stream',
+      degraded: 'Cortex off',
+    },
+    /** FR7 / UX-IMPL-3: templated troubleshooting (no raw log walls) */
+    troubleshoot: {
+      errorTitle: 'Could not load this panel',
+      errorBody:
+        'The nervous-system snapshot failed to load. Check Gateway or network in settings, retry, or turn cortex off and try again — details stay in the developer console only.',
+      emptyNoSnapshotTitle: 'No snapshot yet',
+      emptyNoSnapshotBody:
+        'Go back to chat or wait until the connection is ready; this view stays empty until a snapshot exists.',
+      emptyNoRowsTitle: 'No activity rows here',
+      emptyStubRowsBody:
+        'The stream is not live yet (see the phase badge above). Return to chat or wait for the next task — we do not fake a connection list.',
+      emptyDegradedRowsBody:
+        'Cortex is off, so swarm process events are not shown here — same source as the chat toggle. Adjust cortex from chat or open settings, then retry.',
+      idleTitle: 'No recent activity',
+      idleBody:
+        'The stream is live, but nothing is recorded for this side right now. Continue from chat to drive new activity.',
+      actionRetry: 'Retry load',
+      actionBackToChat: 'Back to chat',
+      actionOpenSettings: 'Network & fetch',
+      actionDisableCortex: 'Turn cortex off',
+    },
+    /** FR16: vision-only copy; must never imply shipped or MVP-acceptance scope */
+    vision: {
+      badge: 'Vision · later · not MVP acceptance',
+      title: 'Gamified console & multi-character “busy” states',
+      subtitle:
+        'Product roadmap placeholder only — not part of current release acceptance (FR5–FR7, FR15).',
+      body:
+        'Inside-Out–style dashboards and playful control surfaces are future exploration. The default nervous-system path is BrainOverview above; you can skip this section entirely.',
+    },
+  },
+  advanced: {
+    title: 'Advanced / developer',
+    intro:
+      'These options stay off by default. When enabled, you can inspect the last run telemetry summary (FR22). Nothing here is written into the chat transcript.',
+    featureRunTelemetry: 'Show run telemetry (developer)',
+    featureRunTelemetryHint:
+      'Shows main-loop iterations, optional swarm prelude LLM calls, and swarm_phase_changed counts from the last turn (FR22); requires desktop Tauri and Gateway.',
+    runTelemetryPanelTitle: 'Last run telemetry',
+    refresh: 'Refresh',
+    runTelemetryAria: 'Run telemetry summary',
+    runTelemetryEmpty: 'No telemetry yet — complete a chat turn first.',
+    runTelemetryLoading: 'Loading…',
+    runTelemetryLine: 'Main loop {mainLoop} · prelude LLM {prelude} · phases {phases}',
+    runTelemetryLineConvergencePart: ' · convergence {n}',
+    runTelemetrySchema: 'Schema version {v}',
+    runTelemetrySteps: 'Main loop iterations (excludes prelude LLM): {n}',
+    runTelemetryPrelude: 'Prelude LLM calls (FullSwarm only): {n}',
+    runTelemetryPhases: 'Phase count (swarm_phase_changed emits): {n}',
+    runTelemetryConvergence: 'Full-swarm convergence rounds: {n}',
+    runTelemetryOverBudget: 'Exceeded suggested iteration budget (amber notice, non-blocking).',
+    runTelemetryWithinBudget: 'Did not hit the iteration cap.',
+    nfrNote: 'Telemetry uses SSE side channel + invoke only; it is not merged into the main transcript by default (NFR-R2).',
   },
   general: {
     title: 'General',

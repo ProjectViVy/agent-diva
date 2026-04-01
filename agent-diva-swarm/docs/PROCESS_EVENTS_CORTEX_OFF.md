@@ -7,7 +7,8 @@
 当 `CortexRuntime::snapshot().enabled == false` 时：
 
 - `ProcessEventPipeline::try_emit` **直接返回**，不向缓冲或下游发送任何 v0 过程事件。
-- `flush_pending` 在皮层关时 **不向下游投递**（缓冲在关期间本应为空）。
+- `flush_pending` 在皮层关时 **不向下游投递**。
+- **从开到关的过渡：** 管道会 **丢弃** 此前在皮层 **开** 时积在缓冲内、尚未下发的条目，避免用户关皮层后再次打开时误 flush 出「关皮层窗口内不应视为有效」的积压（见 `process_events::tests::pending_discarded_when_cortex_turns_off_before_reenable`）。
 
 ## 订阅方说明
 

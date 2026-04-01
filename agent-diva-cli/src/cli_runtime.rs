@@ -1,3 +1,5 @@
+use agent_diva_agent::swarm_doctor::swarm_cortex_doctor_section_for_diagnostics;
+pub use agent_diva_agent::swarm_doctor::SwarmCortexDoctorV1;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersConfig};
 use agent_diva_core::cron::CronService;
@@ -62,6 +64,8 @@ pub struct DoctorReport {
     pub warnings: Vec<String>,
     pub provider: Option<String>,
     pub channels: Vec<ChannelStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub swarm_cortex: Option<SwarmCortexDoctorV1>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -103,6 +107,8 @@ pub struct StatusDoctorSummary {
     pub ready: bool,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub swarm_cortex: Option<SwarmCortexDoctorV1>,
 }
 
 pub fn expand_tilde(path: &str) -> PathBuf {
@@ -688,7 +694,11 @@ pub fn channel_statuses(config: &Config) -> Vec<ChannelStatus> {
     ]
 }
 
-pub fn doctor_report(runtime: &CliRuntime, config: &Config) -> DoctorReport {
+pub fn doctor_report(
+    runtime: &CliRuntime,
+    config: &Config,
+    include_swarm_cortex: bool,
+) -> DoctorReport {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
 
@@ -744,6 +754,11 @@ pub fn doctor_report(runtime: &CliRuntime, config: &Config) -> DoctorReport {
         }
     }
 
+    let workspace = runtime.effective_workspace(config);
+    let swarm_cortex = include_swarm_cortex.then(|| {
+        swarm_cortex_doctor_section_for_diagnostics(config, None, Some(&workspace))
+    });
+
     DoctorReport {
         valid: errors.is_empty(),
         ready: errors.is_empty() && warnings.is_empty(),
@@ -751,12 +766,16 @@ pub fn doctor_report(runtime: &CliRuntime, config: &Config) -> DoctorReport {
         warnings,
         provider: active_provider,
         channels,
+        swarm_cortex,
     }
 }
 
-pub async fn collect_status_report(runtime: &CliRuntime) -> Result<StatusReport> {
+pub async fn collect_status_report(
+    runtime: &CliRuntime,
+    include_swarm_cortex: bool,
+) -> Result<StatusReport> {
     let config = runtime.load_config()?;
-    let doctor = doctor_report(runtime, &config);
+    let doctor = doctor_report(runtime, &config, include_swarm_cortex);
     let cron_store = runtime.cron_store_path();
     let cron_jobs = if cron_store.exists() {
         let service = Arc::new(CronService::new(cron_store.clone(), None));
@@ -789,6 +808,8 @@ pub async fn collect_status_report(runtime: &CliRuntime) -> Result<StatusReport>
             ready: doctor.ready,
             errors: doctor.errors,
             warnings: doctor.warnings,
+            swarm_cortex: doctor.swarm_cortex.clone(),
         },
     })
 }
+

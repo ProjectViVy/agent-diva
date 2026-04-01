@@ -3,6 +3,7 @@ import { WandSparkles } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 import SkillManagementCard from './SkillManagementCard.vue';
+import CapabilityManifestPanel from './CapabilityManifestPanel.vue';
 
 const { t } = useI18n();
 </script>
@@ -20,6 +21,8 @@ const { t } = useI18n();
     </div>
 
     <SkillManagementCard />
+
+    <CapabilityManifestPanel />
   </div>
 </template>
 

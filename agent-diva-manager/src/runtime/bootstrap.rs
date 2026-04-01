@@ -1,4 +1,8 @@
 use super::*;
+use agent_diva_agent::capability::{
+    load_capability_manifest_into_registry, PlaceholderCapabilityRegistry,
+};
+use std::sync::{Arc, Mutex};
 
 pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<GatewayBootstrap> {
     let GatewayRuntimeConfig {
@@ -8,6 +12,14 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         cron_store,
         port,
     } = runtime;
+
+    let capability_registry = Arc::new(PlaceholderCapabilityRegistry::new());
+    let capability_manifest_bootstrap_error = Arc::new(Mutex::new(None));
+    if let Err(e) = load_capability_manifest_into_registry(&workspace, capability_registry.as_ref()) {
+        tracing::warn!("workspace capability manifest not loaded: {e}");
+        *capability_manifest_bootstrap_error.lock().expect("bootstrap error mutex poisoned") =
+            Some(e);
+    }
 
     let bus = MessageBus::new();
     let cron_service = start_cron_service(cron_store, bus.clone()).await;
@@ -29,6 +41,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     Ok(GatewayBootstrap {
         config,
         loader,
+        workspace,
         port,
         bus,
         cron_service,
@@ -37,6 +50,8 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         provider_api_key,
         provider_api_base,
         agent,
+        capability_registry,
+        capability_manifest_bootstrap_error,
     })
 }
 

@@ -11,6 +11,7 @@ use agent_diva_cli::cli_runtime::{
     available_provider_names, build_provider, channel_statuses, collect_status_report,
     current_provider_name, default_model_from_registry, doctor_report, ensure_workspace_templates,
     fetch_provider_models, print_json, redacted_config_value, set_provider_credentials, CliRuntime,
+    SwarmCortexDoctorV1,
 };
 use agent_diva_cli::provider_commands::{
     run_provider_list, run_provider_login, run_provider_models, run_provider_set,
@@ -309,6 +310,9 @@ struct StatusArgs {
     /// Output structured JSON
     #[arg(long)]
     json: bool,
+    /// Include swarm / cortex / capability diagnostics (developer-facing; CLI or status JSON only — not user chat transcripts, NFR-R2).
+    #[arg(long, visible_alias = "cortex")]
+    swarm: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -458,7 +462,7 @@ async fn main() -> Result<()> {
             if !structured_output {
                 info!("Showing status");
             }
-            run_status(&runtime, args.json).await?;
+            run_status(&runtime, args.json, args.swarm).await?;
         }
         Commands::Channels { command } => match command {
             ChannelCommands::Login { channel } => {
@@ -502,7 +506,9 @@ async fn main() -> Result<()> {
             ConfigCommands::Init(args) => run_onboard(&runtime, args).await?,
             ConfigCommands::Refresh => run_config_refresh(&runtime).await?,
             ConfigCommands::Validate(args) => run_config_validate(&runtime, args.json).await?,
-            ConfigCommands::Doctor(args) => run_config_doctor(&runtime, args.json).await?,
+            ConfigCommands::Doctor(args) => {
+                run_config_doctor(&runtime, args.json, args.swarm).await?
+            }
             ConfigCommands::Show { format } => run_config_show(&runtime, format).await?,
         },
         Commands::Service { command } => {
@@ -954,6 +960,20 @@ impl TuiApp {
                     format!("{} {} [{}] {}", prefix, name, call_id, result),
                 );
             }
+            AgentEvent::RunTelemetry(snap) => {
+                self.assistant_line = None;
+                self.add_line(
+                    TimelineKind::System,
+                    format!(
+                        "[run_telemetry] mainLoop={} preludeLlm={} phases={} convergence={:?} overBudget={:?}",
+                        snap.internal_step_count,
+                        snap.prelude_llm_calls,
+                        snap.phase_count,
+                        snap.full_swarm_convergence_rounds,
+                        snap.over_suggested_budget
+                    ),
+                );
+            }
             AgentEvent::FinalResponse { .. } => {
                 self.pending = false;
                 self.assistant_line = None;
@@ -1168,16 +1188,56 @@ async fn run_tui(
     Ok(())
 }
 
+fn print_swarm_cortex_doctor_human(block: &SwarmCortexDoctorV1) {
+    println!();
+    println!(
+        "{}",
+        style("Swarm / cortex diagnostics (developer — not user transcript)").bold()
+    );
+    println!(
+        "  Capabilities: source={} count={}",
+        block.capabilities.source, block.capabilities.count
+    );
+    if !block.capabilities.ids_preview.is_empty() {
+        println!(
+            "  Ids (preview): {}",
+            block.capabilities.ids_preview.join(", ")
+        );
+    }
+    if !block.capabilities.note.is_empty() {
+        println!("  Note: {}", block.capabilities.note);
+    }
+    println!(
+        "  Subagent tools (Layer A catalog, v{}): {} entries",
+        block.subagent_tools.catalog_version,
+        block.subagent_tools.entries.len()
+    );
+    for e in &block.subagent_tools.entries {
+        let gate = if e.availability_note.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", e.availability_note)
+        };
+        println!(
+            "    - {} → {} (risk={}){}",
+            e.capability_id, e.tool_name, e.risk_tier, gate
+        );
+    }
+    println!("  Cortex state: {}", block.cortex.state);
+    println!("  Gateway bind (config): {}", block.cortex.gateway_bind);
+    println!("  Cortex note: {}", block.cortex.note);
+}
+
 /// Show system status
-async fn run_status(runtime: &CliRuntime, json: bool) -> Result<()> {
-    let report = collect_status_report(runtime).await?;
+async fn run_status(runtime: &CliRuntime, json: bool, swarm: bool) -> Result<()> {
+    let report = collect_status_report(runtime, swarm).await?;
 
     if json {
         return print_json(&report);
     }
 
     let config = runtime.load_config()?;
-    let doctor = doctor_report(runtime, &config);
+    let doctor = doctor_report(runtime, &config, swarm);
 
     println!("{}", style("Agent Diva Status").bold().cyan());
     println!("Version: 0.4.0 (Rust)\n");
@@ -1246,6 +1306,12 @@ async fn run_status(runtime: &CliRuntime, json: bool) -> Result<()> {
         println!("\n{}", style("Warnings:").bold().yellow());
         for warning in doctor.warnings {
             println!("  - {}", warning);
+        }
+    }
+
+    if swarm {
+        if let Some(ref block) = doctor.swarm_cortex {
+            print_swarm_cortex_doctor_human(block);
         }
     }
 
@@ -1376,9 +1442,9 @@ async fn run_config_validate(runtime: &CliRuntime, json: bool) -> Result<()> {
     Ok(())
 }
 
-async fn run_config_doctor(runtime: &CliRuntime, json: bool) -> Result<()> {
+async fn run_config_doctor(runtime: &CliRuntime, json: bool, swarm: bool) -> Result<()> {
     let config = runtime.load_config()?;
-    let report = doctor_report(runtime, &config);
+    let report = doctor_report(runtime, &config, swarm);
 
     if json {
         print_json(&report)?;
@@ -1400,6 +1466,9 @@ async fn run_config_doctor(runtime: &CliRuntime, json: bool) -> Result<()> {
             for warning in &report.warnings {
                 println!("  - {}", warning);
             }
+        }
+        if let Some(ref block) = report.swarm_cortex {
+            print_swarm_cortex_doctor_human(block);
         }
     }
 

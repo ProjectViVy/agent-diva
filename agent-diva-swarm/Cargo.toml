@@ -12,8 +12,11 @@ description = "Swarm orchestration for agent-diva (no agent-diva-meta per ADR-A)
 agent-diva-core = { path = "../agent-diva-core" }
 
 serde = { workspace = true }
+serde_yaml = { workspace = true }
 thiserror = { workspace = true }
+toml = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+tempfile = { workspace = true }

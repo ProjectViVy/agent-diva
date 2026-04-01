@@ -8,17 +8,19 @@
   - `agent-diva [--config <config.json> | --config-dir <dir>] config path [--json]`
   - `agent-diva [--config <config.json> | --config-dir <dir>] config refresh`
   - `agent-diva [--config <config.json> | --config-dir <dir>] config validate [--json]`
-  - `agent-diva [--config <config.json> | --config-dir <dir>] config doctor [--json]`
+  - `agent-diva [--config <config.json> | --config-dir <dir>] config doctor [--json] [--swarm|--cortex]`
   - `agent-diva [--config <config.json> | --config-dir <dir>] config show --format <pretty|json>`
 - Output / expected behavior:
   - `path`: print resolved config/runtime/workspace paths.
   - `refresh`: preserve existing values, fill defaults, sync workspace templates.
   - `validate`: run schema + semantic validation only.
   - `doctor`: run validation plus readiness checks, using exit code `1` for invalid config and `2` for warnings/readiness failures.
+  - `doctor --swarm` (alias `--cortex`): append the **developer-only** swarm/cortex/capability diagnostic block (JSON key `swarm_cortex` when combined with `--json`). This output is for CLI / structured status only (**not** the user chat transcript; see NFR-R2). Without `--swarm`, behavior matches previous releases.
   - `show`: print effective config with secrets redacted.
 - Examples:
   - `agent-diva config path`
   - `agent-diva --config ~/.agent-diva/config.json config doctor --json`
+  - `agent-diva --config ~/.agent-diva/config.json config doctor --json --swarm` (machine-readable `swarm_cortex` subtree, `schema_version: 2`; includes `subagent_tools` catalog)
   - `agent-diva --config ~/.agent-diva/config.json config show --format json`
 - Boundary conditions:
   - `--config` and `--config-dir` are mutually exclusive.
@@ -82,6 +84,11 @@
   - `chat` does not replace `tui`; it is the lightweight interactive path.
   - `/stop` targets the current session key.
   - `--workspace` only overrides the current process runtime; it does not rewrite config unless another command saves it.
+
+### `agent-diva status`
+- Purpose: Print instance paths, providers, channels, and health summary (same config resolution as other commands).
+- Input format: `agent-diva [--config <config.json> | --config-dir <dir>] [--workspace <dir>] status [--json] [--swarm|--cortex]`
+- `--swarm` / `--cortex`: same **developer-only** `swarm_cortex` block as `config doctor --swarm`, embedded under `doctor` in `--json` output. Not written to chat transcripts (NFR-R2).
 
 ## Meta Commands
 

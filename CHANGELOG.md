@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- **V1.0.0 发布门禁（Story 6.7）：** 产品向 **1.0.0** 双轨 P0 机械核对表定稿于仓库 `../_bmad-output/planning-artifacts/release-checklist-v1.0.0.md`（与 `../_bmad-output/planning-artifacts/prd.md` 互链）。**发版前**须在该表中完成勾选并对齐此处版本记录与根 `Cargo.toml` `workspace.package.version`。
+
 ### Added
+- **Swarm / FR2（Story 1.5）:** `agent-diva-swarm` `process_events` — versioned whitelist DTOs (`ProcessEventV0`, `swarm_phase_changed` / `tool_call_started` / `tool_call_finished`), `ProcessEventPipeline` with cortex gate and throttle (default 100ms / batch 32; tool milestones flush immediately). `AgentLoop::with_process_event_pipeline` wires emits on iteration and tool boundaries; docs in `agent-diva-swarm/docs/process-events-v0.md` and `PROCESS_EVENTS_CORTEX_OFF.md`; contract cross-link in root `docs/swarm-cortex-contract-v0.md`.
+- **Swarm / GUI（FR13–FR14）:** Documented cortex sync contract v0 in `docs/swarm-cortex-contract-v0.md`; Tauri commands `get_cortex_state`, `set_cortex_enabled`, `toggle_cortex` delegate to `agent-diva-swarm` `CortexRuntime` with `cortex_toggled` event payload (`schemaVersion` = v0). `CortexState` JSON uses camelCase wire fields; `CortexSyncDto` type alias added for the stable DTO name.
 - **GUI**: Enhanced `agent-diva-gui` with complete model and channel configuration capabilities.
 - **Manager**: Added `agent-diva-manager` to simplify configuration management.
 - **Reasoning Streaming**: Added real-time streaming of reasoning content (`ReasoningDelta`) from compatible models (e.g., DeepSeek Reasoner) to the GUI.
@@ -24,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Thinking Config**: Added `agents.defaults.reasoning_effort` (low/medium/high) and provider passthrough for thinking-capable models.
 
 ### Fixed
+- **GUI / FR13（code review 1.3）:** `docs/swarm-cortex-contract-v0.md` 补全 `get_neuro_overview_snapshot` 与 `NeuroOverviewSnapshotV0` 白名单；`cortex_toggled` 的 `emit` 失败时记录 `tracing::warn`；皮层同步钩相关测试使用 `serial_test` 避免 `AGENT_DIVA_TEST_CORTEX_SYNC_FAIL` 并行竞态。
 - **Dependency**: Resolved duplicate import errors for `LiteLLMClient` and `ProviderRegistry`.
 - **Concurrency**: Fixed issue where the Manager would take ownership of the AgentLoop, preventing it from running.
 - **Manager**: Fixed "channel closed" error during configuration update by implementing **Hot Reloading** for LLM providers instead of restarting the gateway.

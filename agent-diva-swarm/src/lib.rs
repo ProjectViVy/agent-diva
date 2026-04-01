@@ -8,12 +8,18 @@
 //! this crate **must not** depend on `agent-diva-meta` (Meta is composed only at
 //! runtime / gateway layers).
 
+mod convergence;
 mod cortex;
 mod execution_tier;
+mod handoff_checkpoint;
 mod light_intent_rules;
 mod light_path_limits;
 mod minimal_turn;
+mod neuro_overview;
+mod orchestration_port;
+mod prelude_config;
 mod process_events;
+mod run_telemetry;
 
 use serde::{Deserialize, Serialize};
 
@@ -25,20 +31,44 @@ pub use cortex::{
 pub use execution_tier::{
     resolve_execution_tier, would_enter_full_swarm_topology, ExecutionTier,
 };
+pub use handoff_checkpoint::{
+    SwarmHandoffCheckpointV0, HANDOFF_CHECKPOINT_PREVIEW_MAX_CHARS,
+    HANDOFF_CHECKPOINT_SCHEMA_VERSION_V0,
+};
 pub use light_intent_rules::{
     is_explicit_skill_style_input, is_light_intent, is_short_qa, SHORT_QA_MAX_SCALARS,
 };
 pub use light_path_limits::{
-    LightPathStopReason, LIGHT_PATH_MAX_INTERNAL_STEPS, LIGHT_PATH_MAX_WALL_MS,
+    format_light_path_stop_for_user, LightPathStopReason, LIGHT_PATH_MAX_INTERNAL_STEPS,
+    LIGHT_PATH_MAX_WALL_MS,
+};
+pub use convergence::{
+    default_full_swarm_stub_is_done, execute_full_swarm_convergence_loop, ConvergencePolicy,
+    DEFAULT_MAX_INTERNAL_ROUNDS, UNBOUNDED_CONVERGENCE_ITERATION_FUSE,
 };
 pub use minimal_turn::{
-    run_minimal_turn_headless, CortexExecutionLayer, MinimalTurnTrace,
+    run_minimal_turn_headless, run_minimal_turn_headless_with_full_swarm_events,
+    CortexExecutionLayer, MinimalTurnTrace,
+};
+pub use neuro_overview::{
+    build_neuro_overview_snapshot_v0, NeuroActivityRowV0, NeuroDataPhase, NeuroOverviewSnapshotV0,
+    NEURO_OVERVIEW_SCHEMA_VERSION_V0,
+};
+pub use orchestration_port::{
+    BuiltinSwarmOrchestrationPort, SwarmOrchestrationInputV0, SwarmOrchestrationOutcome,
+    SwarmOrchestrationPort, DEFAULT_SWARM_ORCHESTRATION_PORT,
+};
+pub use prelude_config::{
+    load_swarm_prelude_config_from_workspace, PreludeInputSource, SwarmPreludeConfig,
+    SwarmPreludeMergePhase, SwarmPreludeRole, SWARM_PRELUDE_FILE_TOML, SWARM_PRELUDE_FILE_YAML,
+    SWARM_PRELUDE_FILE_YML,
 };
 pub use process_events::{
-    recorder_sink, ProcessEventBatchSink, ProcessEventNameV0, ProcessEventPipeline,
-    ProcessEventRecorder, ProcessEventThrottleConfig, ProcessEventV0,
-    PROCESS_EVENT_SCHEMA_VERSION_V0,
+    recorder_sink, sanitize_tool_summary_for_process_event, ProcessEventBatchSink,
+    ProcessEventNameV0, ProcessEventPipeline, ProcessEventRecorder, ProcessEventThrottleConfig,
+    ProcessEventV0, SwarmRunStopReason, PROCESS_EVENT_SCHEMA_VERSION_V0,
 };
+pub use run_telemetry::run_telemetry_from_minimal_turn_trace;
 
 /// Crate version string from `CARGO_PKG_VERSION`.
 #[must_use]

@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted } from 'vue';
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
 import { useI18n } from 'vue-i18n';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { getCortexState, type CortexState } from '../api/cortex';
+import { isTauriRuntime } from '../api/desktop';
+import type { ProcessEventWire } from '../types/swarmProcess';
+import CortexToggle from './CortexToggle.vue';
+import ProcessFeedbackStrip from './swarm/ProcessFeedbackStrip.vue';
 
 const { t } = useI18n();
 
@@ -92,15 +98,19 @@ const renderRawMeta = (msg: Message) => {
   }
 };
 
-const props = defineProps<{
-  messages: Message[];
-  isTyping: boolean;
-  themeMode?: string;
-  historyPrefs?: HistoryPrefs;
-}>();
+const props = withDefaults(
+  defineProps<{
+    messages: Message[];
+    isTyping: boolean;
+    themeMode?: string;
+    historyPrefs?: HistoryPrefs;
+    swarmProcessEvents?: ProcessEventWire[];
+  }>(),
+  { swarmProcessEvents: () => [] }
+);
 
 const emit = defineEmits<{
-  (e: 'send', content: string): void;
+  (e: 'send', content: string, explicitFullSwarm?: boolean): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
 }>();
@@ -108,6 +118,11 @@ const emit = defineEmits<{
 const input = ref('');
 const messagesEndRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
+/** 成功 `getCortexState` 前为 false，避免 invoke 失败时误显「皮层开」（Story 6.4）。 */
+const cortexLayerOn = ref(false);
+/** 与 FR19 一致：显式请求本则消息走完整蜂群编排（短输入也可）。 */
+const explicitSwarmDepth = ref(false);
+let unlistenCortex: UnlistenFn | null = null;
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -126,7 +141,7 @@ const sakura = [
 
 const scrollToBottom = () => {
   nextTick(() => {
-    messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.value?.scrollIntoView?.({ behavior: 'smooth' });
   });
 };
 
@@ -153,14 +168,54 @@ watch(() => props.messages, (newMessages, oldMessages) => {
   scrollToBottom();
 }, { deep: true });
 
-onMounted(() => {
+async function syncCortexLayerFromBackend() {
+  if (!isTauriRuntime()) return;
+  try {
+    const snap = await getCortexState();
+    cortexLayerOn.value = snap.enabled;
+  } catch {
+    /* keep previous */
+  }
+}
+
+function onDocumentVisibility() {
+  if (document.visibilityState === 'visible') {
+    void syncCortexLayerFromBackend();
+  }
+}
+
+onMounted(async () => {
   scrollToBottom();
   inputRef.value?.focus();
+  if (isTauriRuntime()) {
+    try {
+      const snap = await getCortexState();
+      cortexLayerOn.value = snap.enabled;
+    } catch {
+      /* 保持 false：未知态不冒充皮层已开 */
+    }
+    try {
+      unlistenCortex = await listen<CortexState>('cortex_toggled', (ev) => {
+        cortexLayerOn.value = ev.payload.enabled;
+      });
+    } catch (e) {
+      console.warn('[ChatView] cortex_toggled listen failed', e);
+    }
+    document.addEventListener('visibilitychange', onDocumentVisibility);
+  }
+});
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onDocumentVisibility);
+  if (unlistenCortex) {
+    unlistenCortex();
+    unlistenCortex = null;
+  }
 });
 
 const handleSend = () => {
   if (!input.value.trim() || props.isTyping) return;
-  emit('send', input.value);
+  emit('send', input.value, explicitSwarmDepth.value);
   input.value = '';
 };
 
@@ -201,7 +256,13 @@ const getEmotionEmoji = (emotion?: string) => {
 </script>
 
 <template>
-  <div class="chat-shell flex flex-col h-full relative overflow-hidden" :class="`theme-${themeMode || 'love'}`">
+  <!-- Story 4.1 FR8/FR9: 唯一用户可见「主 Person 对话壳」；自动化用 data-testid 计数 ≤1 -->
+  <div
+    class="chat-shell flex flex-col h-full relative overflow-hidden"
+    :class="`theme-${themeMode || 'love'}`"
+    data-testid="person-agent-conversation-stream"
+    :aria-label="t('chat.primaryPersonNarrativeAria')"
+  >
     <!-- Sakura Effect -->
     <div v-if="themeMode === 'love'" class="chat-sakura">
       <span
@@ -219,8 +280,37 @@ const getEmotionEmoji = (emotion?: string) => {
       />
     </div>
 
+    <div
+      v-if="isTauriRuntime()"
+      class="chat-cortex-bar z-10 flex flex-wrap items-center justify-end gap-3 border-b border-gray-100/80 bg-white/70 backdrop-blur-sm px-4 py-2"
+    >
+      <label
+        v-if="cortexLayerOn"
+        class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 select-none"
+      >
+        <input
+          v-model="explicitSwarmDepth"
+          type="checkbox"
+          class="rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+        />
+        <span>{{ t('chat.explicitSwarmDepth') }}</span>
+      </label>
+      <CortexToggle />
+    </div>
+
+    <ProcessFeedbackStrip
+      v-if="isTauriRuntime()"
+      :show="cortexLayerOn"
+      :events="props.swarmProcessEvents"
+    />
+
     <!-- Messages List -->
-    <div class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
+    <div
+      class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10"
+      data-testid="person-main-transcript"
+      role="log"
+      :aria-label="t('chat.mainTranscriptAria')"
+    >
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
         <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
           💕
@@ -231,10 +321,28 @@ const getEmotionEmoji = (emotion?: string) => {
       <div
         v-for="(msg, index) in messages"
         :key="index"
-        class="flex mb-4"
-        :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
+        class="mb-4 flex"
+        :class="
+          msg.role === 'system'
+            ? 'w-full justify-center'
+            : msg.role === 'user'
+              ? 'justify-end'
+              : 'justify-start'
+        "
       >
-        <div class="flex max-w-[80%] items-start space-x-2" :class="msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'">
+        <div
+          v-if="msg.role === 'system'"
+          class="max-w-[92%] w-full rounded-lg border border-amber-200/90 bg-amber-50/95 px-3 py-2 text-xs text-amber-950 shadow-sm"
+          role="status"
+          data-testid="chat-system-message"
+        >
+          {{ msg.content }}
+        </div>
+        <div
+          v-else
+          class="flex max-w-[80%] items-start space-x-2"
+          :class="msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'"
+        >
           <!-- Avatar -->
           <div
             v-if="msg.role !== 'user' && msg.role !== 'tool'"
@@ -416,7 +524,11 @@ const getEmotionEmoji = (emotion?: string) => {
     </div>
 
     <!-- Input Area -->
-    <div class="chat-input-bar border-t p-4 z-20">
+    <div
+      class="chat-input-bar border-t p-4 z-20"
+      data-testid="person-main-composer"
+      :aria-label="t('chat.mainComposerAria')"
+    >
       <div class="flex items-center space-x-3 bg-white rounded-xl border border-gray-200 px-2 py-2 shadow-sm focus-within:ring-2 focus-within:ring-pink-500/20 focus-within:border-pink-500 transition-all">
         <button
           @click="handleClear"

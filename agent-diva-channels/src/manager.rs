@@ -169,12 +169,12 @@ impl ChannelManager {
         .collect()
     }
 
-    fn log_skipped_channel(config: &Config, name: &str) {
+    fn log_skipped_channel(config: &Config, name: &str) -> bool {
         let Some(validation) = Self::channel_validation(config, name) else {
-            return;
+            return false;
         };
         if !validation.enabled || validation.missing_fields.is_empty() {
-            return;
+            return false;
         }
 
         tracing::warn!(
@@ -182,6 +182,7 @@ impl ChannelManager {
             name,
             validation.missing_fields.join(", ")
         );
+        true
     }
 
     async fn start_handler(name: &str, handler: &ChannelHandlerPtr) -> Result<()> {
@@ -675,9 +676,8 @@ impl ChannelManager {
 
             handlers.insert(name.to_string(), handler);
             tracing::info!("{} channel updated and started", name);
-        } else {
-            Self::log_skipped_channel(&new_config, name);
-            tracing::info!("{} channel disabled or invalid config", name);
+        } else if !Self::log_skipped_channel(&new_config, name) {
+            tracing::info!("{} channel disabled or not configured for start", name);
         }
 
         Ok(())

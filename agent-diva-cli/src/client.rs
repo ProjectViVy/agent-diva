@@ -1,4 +1,5 @@
 use agent_diva_agent::AgentEvent;
+use agent_diva_core::bus::RunTelemetrySnapshotV0;
 use anyhow::Result;
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
@@ -70,6 +71,12 @@ impl ApiClient {
                 Ok(event) => match event.event.as_str() {
                     "delta" => {
                         let _ = event_tx.send(AgentEvent::AssistantDelta { text: event.data });
+                    }
+                    "run_telemetry" => {
+                        if let Ok(snap) = serde_json::from_str::<RunTelemetrySnapshotV0>(&event.data)
+                        {
+                            let _ = event_tx.send(AgentEvent::RunTelemetry(snap));
+                        }
                     }
                     "final" => {
                         let _ = event_tx.send(AgentEvent::FinalResponse {

@@ -1,5 +1,10 @@
+use agent_diva_agent::capability::PlaceholderCapabilityRegistry;
+use agent_diva_agent::swarm_doctor::SwarmCortexDoctorV1;
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use agent_diva_swarm::CortexState;
 use agent_diva_core::config::schema::{
     ChannelsConfig, MCPServerConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
 };
@@ -16,6 +21,10 @@ use crate::skill_service::SkillDto;
 pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
     pub bus: MessageBus,
+    pub capability_registry: Arc<PlaceholderCapabilityRegistry>,
+    pub gateway_workspace: PathBuf,
+    /// Set when workspace manifest exists but failed load/validation at gateway bootstrap; cleared after successful `POST /api/capabilities/manifest`.
+    pub capability_manifest_bootstrap_error: Arc<Mutex<Option<String>>>,
 }
 
 pub enum ProviderCommand {
@@ -94,8 +103,13 @@ pub enum ManagerCommand {
         String,
         oneshot::Sender<Result<agent_diva_core::cron::CronRunSnapshot, String>>,
     ),
+    /// Story 6.4：与 gateway AgentLoop 内皮层真相源对齐（HTTP `/api/swarm/cortex`）。
+    GetCortex(oneshot::Sender<Result<CortexState, String>>),
+    SetCortex(bool, oneshot::Sender<Result<(), String>>),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),
+    /// Swarm/capability doctor block (Story 6.3); NFR-R2 diagnostics only.
+    GetSwarmCortexDoctor(oneshot::Sender<Result<SwarmCortexDoctorV1, String>>),
 }
 
 pub struct ApiRequest {

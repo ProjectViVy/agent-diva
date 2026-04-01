@@ -59,6 +59,28 @@ impl PlaceholderCapabilityRegistry {
         Ok(())
     }
 
+    /// Replace the entire registry with `manifest` under a **single** write lock.
+    ///
+    /// On error (e.g. poisoned lock), existing entries are left unchanged.
+    pub fn replace_with_manifest(
+        &self,
+        manifest: ValidatedManifest,
+    ) -> Result<(), CapabilityManifestErrors> {
+        let new_map: HashMap<String, ValidatedCapability> = manifest
+            .capabilities
+            .into_iter()
+            .map(|cap| (cap.id.clone(), cap))
+            .collect();
+        let mut map = self.inner.write().map_err(|_| {
+            CapabilityManifestErrors::new(vec![CapabilityManifestError::file(
+                codes::REGISTRY_LOCK_POISONED,
+                "capability registry lock poisoned",
+            )])
+        })?;
+        *map = new_map;
+        Ok(())
+    }
+
     pub fn len(&self) -> usize {
         self.inner.read().map(|m| m.len()).unwrap_or(0)
     }
@@ -133,5 +155,26 @@ mod tests {
         let m2 = parse_and_validate_manifest_from_str(r#"{"capabilities":[{"id":"a"}]}"#).unwrap();
         let err = reg.register(m2).unwrap_err();
         assert!(err.errors.iter().any(|e| e.code == codes::DUPLICATE_ID));
+    }
+
+    #[test]
+    fn replace_with_manifest_swaps_contents_atomically() {
+        let reg = PlaceholderCapabilityRegistry::new();
+        let m1 = parse_and_validate_manifest_from_str(
+            r#"{"schema_version":"0","capabilities":[{"id":"a","name":"A"},{"id":"b","name":"B"}]}"#,
+        )
+        .unwrap();
+        reg.register(m1).unwrap();
+        assert_eq!(reg.len(), 2);
+
+        let m2 = parse_and_validate_manifest_from_str(
+            r#"{"schema_version":"0","capabilities":[{"id":"c","name":"C"}]}"#,
+        )
+        .unwrap();
+        reg.replace_with_manifest(m2).unwrap();
+        assert_eq!(reg.len(), 1);
+        assert!(reg.get("a").is_none());
+        assert!(reg.get("b").is_none());
+        assert_eq!(reg.get("c").unwrap().name.as_deref(), Some("C"));
     }
 }

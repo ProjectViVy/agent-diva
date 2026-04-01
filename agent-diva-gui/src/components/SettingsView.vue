@@ -10,6 +10,7 @@ import ChannelsSettings from './settings/ChannelsSettings.vue';
 import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
+import AdvancedSettings from './settings/AdvancedSettings.vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -64,6 +65,7 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
+  | 'advanced'
   | 'about';
 
 const props = defineProps<{
@@ -95,6 +97,7 @@ const pageTitle = computed(() => {
     channels: t('settings.channels'),
     network: t('settings.network'),
     language: t('settings.language'),
+    advanced: t('settings.advanced'),
     about: t('settings.about')
   };
   return titles[currentView.value] || t('settings.title');
@@ -183,6 +186,8 @@ watch(
             <LanguageSettings 
               v-else-if="currentView === 'language'"
             />
+
+            <AdvancedSettings v-else-if="currentView === 'advanced'" />
             
             <AboutSettings 
               v-else-if="currentView === 'about'"

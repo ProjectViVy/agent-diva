@@ -100,6 +100,50 @@ impl Manager {
         let _ = reply.send(response);
     }
 
+    pub(super) async fn handle_get_cortex(
+        &self,
+        reply: oneshot::Sender<Result<agent_diva_swarm::CortexState, String>>,
+    ) {
+        let response = self
+            .with_runtime_control(
+                |tx| async move {
+                    let (reply_tx, reply_rx) = oneshot::channel();
+                    tx.send(RuntimeControlCommand::GetCortexState { reply_tx })
+                        .map_err(|e| format!("failed to send GetCortexState: {}", e))?;
+                    reply_rx
+                        .await
+                        .map_err(|e| format!("failed to receive cortex state: {}", e))?
+                },
+                "runtime control channel is not initialized",
+            )
+            .await;
+        let _ = reply.send(response);
+    }
+
+    pub(super) async fn handle_set_cortex(
+        &self,
+        enabled: bool,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
+        let response = self
+            .with_runtime_control(
+                |tx| async move {
+                    let (reply_tx, reply_rx) = oneshot::channel();
+                    tx.send(RuntimeControlCommand::SetCortexEnabled {
+                        enabled,
+                        reply_tx,
+                    })
+                    .map_err(|e| format!("failed to send SetCortexEnabled: {}", e))?;
+                    reply_rx
+                        .await
+                        .map_err(|e| format!("failed to receive set cortex result: {}", e))?
+                },
+                "runtime control channel is not initialized",
+            )
+            .await;
+        let _ = reply.send(response);
+    }
+
     pub(super) async fn handle_get_session_history(
         &self,
         session_key: String,

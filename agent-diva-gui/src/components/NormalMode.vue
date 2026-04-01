@@ -14,9 +14,11 @@ import {
 import ChatView from './ChatView.vue';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
+import NervousSystemView from './neuro/NervousSystemView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
+import type { ProcessEventWire } from '../types/swarmProcess';
 
 const { t } = useI18n();
 
@@ -50,6 +52,7 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
+  | 'advanced'
   | 'about';
 
 interface SavedModel {
@@ -90,6 +93,7 @@ interface ToolsConfigShape {
 
 interface Props {
   messages: Message[];
+  swarmProcessEvents?: ProcessEventWire[];
   isTyping: boolean;
   connectionStatus?: 'connected' | 'error' | 'connecting';
   currentEmotion?: string;
@@ -107,7 +111,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string): void;
+  (e: 'send', content: string, explicitFullSwarm?: boolean): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'toggle-sidebar'): void;
@@ -316,7 +320,11 @@ defineExpose({
 </script>
 
 <template>
-  <div class="app-shell w-full h-full flex flex-col overflow-hidden rounded-none relative" :class="`theme-${themeMode}`">
+  <div
+    class="app-shell w-full h-full flex flex-col overflow-hidden rounded-none relative"
+    :class="`theme-${themeMode}`"
+    data-testid="user-visible-app-root"
+  >
     <div v-if="themeMode === 'love'" class="love-hearts">
       <span
         v-for="(h, i) in hearts"
@@ -576,6 +584,12 @@ defineExpose({
       <div v-if="activeMenu === 'cron'" class="h-full">
         <CronTaskManagementView />
       </div>
+      <div v-else-if="activeMenu === 'neuro'" class="h-full min-h-0">
+        <NervousSystemView
+          @back="navigateTo('chat')"
+          @open-settings="navigateTo('settings', 'network')"
+        />
+      </div>
       <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
         <!-- 这个是作者要求不要修改，未经允许禁止往这里面添加东西（未来这里面要放swarm系统的可视化） -->
         <div class="text-gray-500 text-lg font-semibold tracking-wide">
@@ -587,10 +601,11 @@ defineExpose({
         <div v-if="activeTab === 'chat'" class="h-full">
           <ChatView
             :messages="messages"
+            :swarm-process-events="swarmProcessEvents"
             :is-typing="isTyping"
             :theme-mode="themeMode"
             :history-prefs="chatDisplayPrefs"
-            @send="(content) => emit('send', content)"
+            @send="(content, ex) => emit('send', content, ex)"
             @clear="emit('clear')"
             @stop="emit('stop')"
           />

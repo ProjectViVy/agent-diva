@@ -14,6 +14,7 @@ import {
   SESSION_CACHE_PREFIX,
   WELCOME_STORAGE_KEY,
 } from "./utils/localStorageAgentDiva";
+import { parseProcessEventWire, type ProcessEventWire } from "./types/swarmProcess";
 
 const { t } = useI18n();
 
@@ -58,6 +59,11 @@ interface StreamToolStartPayload extends ToolStartPayload {
 
 interface StreamToolFinishPayload extends ToolFinishPayload {
   request_id: string;
+}
+
+interface SwarmProcessBatchPayload {
+  request_id: string;
+  events: unknown[];
 }
 
 interface SavedModel {
@@ -154,6 +160,9 @@ const currentChannel = ref('gui');
 const currentChatId = ref(generateChatId());
 const currentSessionKey = ref(`gui:${currentChatId.value}`);
 const activeStreamRequestId = ref<string | null>(null);
+const swarmProcessEvents = ref<ProcessEventWire[]>([]);
+/** 同一 `streamRequestId` 仅插入一条 capped 系统说明（多批 `swarm_process` 去重）。 */
+const cappedSystemNoticePushedForRequestId = ref<string | null>(null);
 const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
 
 // Config state
@@ -572,7 +581,7 @@ function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
   };
 }
 
-async function sendMessage(content: string) {
+async function sendMessage(content: string, explicitFullSwarm = false) {
   if (!content.trim() || isTyping.value) return;
   if (content.trim() === '/stop') {
     await stopMessage();
@@ -596,7 +605,9 @@ async function sendMessage(content: string) {
   closeStreamingPlaceholder(true);
   const streamRequestId = generateStreamRequestId();
   activeStreamRequestId.value = streamRequestId;
-  
+  swarmProcessEvents.value = [];
+  cappedSystemNoticePushedForRequestId.value = null;
+
   // Create a placeholder for the agent response
   messages.value.push({ 
     role: 'agent', 
@@ -625,6 +636,7 @@ async function sendMessage(content: string) {
       message: content,
       channel: currentChannel.value,
       chatId: currentChatId.value,
+      explicitFullSwarm,
       streamRequestId,
     });
   } catch (error) {
@@ -697,6 +709,8 @@ const clearMessages = () => {
   currentChatId.value = generateChatId();
   currentSessionKey.value = `gui:${currentChatId.value}`;
   activeStreamRequestId.value = null;
+  swarmProcessEvents.value = [];
+  cappedSystemNoticePushedForRequestId.value = null;
   isTyping.value = false;
   messages.value = [
     {
@@ -1122,6 +1136,34 @@ onMounted(async () => {
       clearInterval(healthInterval);
     });
 
+    unlisteners.push(await listen<SwarmProcessBatchPayload>("swarm-process-batch", (event) => {
+      if (event.payload.request_id !== activeStreamRequestId.value) {
+        return;
+      }
+      const parsed: ProcessEventWire[] = [];
+      for (const raw of event.payload.events) {
+        const ev = parseProcessEventWire(raw);
+        if (ev) parsed.push(ev);
+      }
+      if (parsed.length === 0) return;
+      swarmProcessEvents.value = [...swarmProcessEvents.value, ...parsed];
+
+      const capped = parsed.find((e) => e.name === "swarm_run_capped");
+      if (
+        capped &&
+        cappedSystemNoticePushedForRequestId.value !== event.payload.request_id
+      ) {
+        cappedSystemNoticePushedForRequestId.value = event.payload.request_id;
+        messages.value.push({
+          role: "system",
+          content: t("processFeedback.cappedSystemNotice", {
+            detail: capped.message ? `（${capped.message}）` : "",
+          }),
+          timestamp: Date.now(),
+        });
+      }
+    }));
+
     // Listen for streaming text delta
       unlisteners.push(await listen<StreamTextPayload>("agent-response-delta", (event) => {
       if (event.payload.request_id !== activeStreamRequestId.value) {
@@ -1361,6 +1403,7 @@ onUnmounted(() => {
     <NormalMode
       ref="normalModeRef"
       :messages="messages"
+      :swarm-process-events="swarmProcessEvents"
       :is-typing="isTyping"
       :connection-status="connectionStatus"
       :current-emotion="currentEmotion"
@@ -1373,7 +1416,7 @@ onUnmounted(() => {
       :save-config-action="saveConfig"
       :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"
-      @send="sendMessage"
+      @send="(c, ex) => sendMessage(c, ex)"
       @clear="clearMessages"
       @stop="stopMessage"
       @update-saved-models="updateSavedModels"

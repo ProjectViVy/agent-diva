@@ -1,6 +1,11 @@
 use crate::app_state::AgentState;
+use crate::cortex_sync;
 use crate::process_utils;
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
+use agent_diva_swarm::{
+    build_neuro_overview_snapshot_v0, CortexRuntime, CortexState, NeuroOverviewSnapshotV0,
+};
+use agent_diva_core::bus::RunTelemetrySnapshotV0;
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
@@ -14,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State, Window};
@@ -289,15 +294,29 @@ struct StreamToolFinishPayload {
     call_id: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct SwarmProcessSseBody {
+    events: Vec<serde_json::Value>,
+}
+
+#[derive(Serialize, Clone)]
+struct SwarmProcessBatchPayload {
+    request_id: String,
+    events: Vec<serde_json::Value>,
+}
+
 #[tauri::command]
 pub async fn send_message(
     message: String,
     channel: Option<String>,
     chat_id: Option<String>,
+    explicit_full_swarm: Option<bool>,
     stream_request_id: String,
     window: Window,
     state: State<'_, AgentState>,
+    run_telemetry_cache: State<'_, Arc<Mutex<Option<RunTelemetrySnapshotV0>>>>,
 ) -> Result<(), String> {
+    let run_telemetry_cache = run_telemetry_cache.inner().clone();
     info!("Sending message to API: {}", message);
 
     let client = &state.client;
@@ -308,7 +327,8 @@ pub async fn send_message(
         .json(&serde_json::json!({
             "message": message,
             "channel": channel,
-            "chat_id": chat_id
+            "chat_id": chat_id,
+            "explicit_full_swarm": explicit_full_swarm.unwrap_or(false)
         }))
         .send()
         .await
@@ -349,6 +369,25 @@ pub async fn send_message(
                                 StreamTextPayload {
                                     request_id: stream_request_id.clone(),
                                     data: data.delta,
+                                },
+                            );
+                        }
+                    }
+                    "run_telemetry" => {
+                        if let Ok(snap) = serde_json::from_str::<RunTelemetrySnapshotV0>(&event.data)
+                        {
+                            if let Ok(mut g) = run_telemetry_cache.lock() {
+                                *g = Some(snap);
+                            }
+                        }
+                    }
+                    "swarm_process" => {
+                        if let Ok(body) = serde_json::from_str::<SwarmProcessSseBody>(&event.data) {
+                            let _ = window.emit(
+                                "swarm-process-batch",
+                                SwarmProcessBatchPayload {
+                                    request_id: stream_request_id.clone(),
+                                    events: body.events,
                                 },
                             );
                         }
@@ -2064,6 +2103,160 @@ pub fn get_runtime_info(app: AppHandle) -> RuntimeInfo {
     runtime_info_from_app(&app)
 }
 
+/// 查询大脑皮层状态。网关健康时与 `GET /api/swarm/cortex` 对齐并回写本地 `Arc`；否则返回本地快照（Story 6.4）。
+#[tauri::command]
+pub async fn get_cortex_state(
+    state: State<'_, Arc<CortexRuntime>>,
+    agent: State<'_, AgentState>,
+) -> Result<CortexState, String> {
+    if let Some(remote) =
+        cortex_sync::try_pull_cortex_from_gateway(&agent.client, &agent.api_base_url).await
+    {
+        state.set_enabled(remote.enabled);
+        return Ok(state.snapshot());
+    }
+    Ok(state.snapshot())
+}
+
+/// FR22：返回 **最近一次** 聊天流中 `run_telemetry` SSE 的快照（设置 → 高级挂点；不写入 transcript）。
+#[tauri::command]
+pub fn get_run_telemetry_snapshot(
+    state: State<'_, Arc<Mutex<Option<RunTelemetrySnapshotV0>>>>,
+) -> Option<RunTelemetrySnapshotV0> {
+    state.lock().ok().and_then(|g| g.clone())
+}
+
+/// 神经系统总览快照：[`CortexState`] 与 [`get_cortex_state`] **同源**；活动行由过程事件切片推导。
+/// 当前桌面壳尚未挂载过程事件缓冲，事件切片固定为空 → `dataPhase` 为 `stub`（皮层开）或 `degraded`（皮层关），与 FR6 诚实标注一致。
+#[tauri::command]
+pub fn get_neuro_overview_snapshot(
+    state: State<'_, Arc<CortexRuntime>>,
+) -> Result<NeuroOverviewSnapshotV0, String> {
+    let cortex = state.snapshot();
+    // TODO: 与 gateway / AgentLoop 共用 `ProcessEventRecorder` 或等价缓冲后，传入 `snapshot()` 而非空切片。
+    Ok(build_neuro_overview_snapshot_v0(cortex, &[]))
+}
+
+/// 先经 gateway 同步钩，再写入本地真相源；失败时不改状态、不 emit（Story 2.2 / 6.4 / NFR-R1）。
+async fn apply_cortex_target_after_sync(
+    client: &reqwest::Client,
+    api_base: &str,
+    state: &Arc<CortexRuntime>,
+    target_enabled: bool,
+    op_label: &'static str,
+) -> Result<CortexState, String> {
+    cortex_sync::sync_cortex_before_gateway_commit(client, api_base, target_enabled, op_label)
+        .await?;
+    state.set_enabled(target_enabled);
+    Ok(state.snapshot())
+}
+
+/// 设置皮层开/关；成功后广播 `cortex_toggled`（payload 为 [`CortexState`]，含 `schemaVersion`）。
+#[tauri::command]
+pub async fn set_cortex_enabled(
+    enabled: bool,
+    app: AppHandle,
+    state: State<'_, Arc<CortexRuntime>>,
+    agent: State<'_, AgentState>,
+) -> Result<CortexState, String> {
+    let current = state.snapshot();
+    if current.enabled == enabled {
+        return Ok(current);
+    }
+    let snap = apply_cortex_target_after_sync(
+        &agent.client,
+        &agent.api_base_url,
+        &state,
+        enabled,
+        "set_cortex_enabled",
+    )
+    .await?;
+    if let Err(e) = app.emit("cortex_toggled", &snap) {
+        tracing::warn!(
+            target: "agent_diva_gui::cortex",
+            error = %e,
+            "failed to emit cortex_toggled after set_cortex_enabled"
+        );
+    }
+    Ok(snap)
+}
+
+/// 切换皮层开/关并广播 `cortex_toggled`。
+#[tauri::command]
+pub async fn toggle_cortex(
+    app: AppHandle,
+    state: State<'_, Arc<CortexRuntime>>,
+    agent: State<'_, AgentState>,
+) -> Result<CortexState, String> {
+    let before = state.snapshot();
+    let target = !before.enabled;
+    let snap = apply_cortex_target_after_sync(
+        &agent.client,
+        &agent.api_base_url,
+        &state,
+        target,
+        "toggle_cortex",
+    )
+    .await?;
+    if let Err(e) = app.emit("cortex_toggled", &snap) {
+        tracing::warn!(
+            target: "agent_diva_gui::cortex",
+            error = %e,
+            "failed to emit cortex_toggled after toggle_cortex"
+        );
+    }
+    Ok(snap)
+}
+
+#[cfg(test)]
+mod cortex_apply_tests {
+    use super::*;
+    use agent_diva_swarm::CortexRuntime;
+    use serial_test::serial;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    #[serial]
+    async fn sync_fail_leaves_runtime_unchanged() {
+        std::env::set_var("AGENT_DIVA_TEST_CORTEX_SYNC_FAIL", "1");
+        let client = reqwest::Client::new();
+        let rt = Arc::new(CortexRuntime::new());
+        let before = rt.snapshot();
+        let err = apply_cortex_target_after_sync(
+            &client,
+            "http://127.0.0.1:9/api",
+            &rt,
+            !before.enabled,
+            "toggle_cortex",
+        )
+        .await;
+        std::env::remove_var("AGENT_DIVA_TEST_CORTEX_SYNC_FAIL");
+        assert!(err.is_err());
+        assert_eq!(rt.snapshot(), before);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn sync_ok_updates_runtime_when_gateway_unreachable() {
+        std::env::remove_var("AGENT_DIVA_TEST_CORTEX_SYNC_FAIL");
+        let client = reqwest::Client::new();
+        let rt = Arc::new(CortexRuntime::new());
+        let before = rt.snapshot();
+        let target = !before.enabled;
+        let snap = apply_cortex_target_after_sync(
+            &client,
+            "http://127.0.0.1:9/api",
+            &rt,
+            target,
+            "toggle_cortex",
+        )
+        .await
+        .expect("ok");
+        assert_eq!(snap.enabled, target);
+        assert_eq!(rt.snapshot(), snap);
+    }
+}
+
 #[tauri::command]
 pub async fn get_service_status(app: AppHandle) -> Result<ServiceStatusPayload, String> {
     let info = ensure_bundled_runtime(&app)?;
@@ -2331,7 +2524,7 @@ pub async fn get_config(state: State<'_, AgentState>) -> Result<RuntimeConfigSna
 pub async fn get_config_status() -> Result<StatusReport, String> {
     let loader = config_loader();
     let runtime = cli_runtime_from_loader(&loader);
-    collect_status_report(&runtime)
+    collect_status_report(&runtime, false)
         .await
         .map_err(|e| format!("failed to collect config status: {}", e))
 }

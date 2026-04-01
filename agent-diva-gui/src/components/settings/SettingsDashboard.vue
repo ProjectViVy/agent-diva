@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Bot, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles } from 'lucide-vue-next';
+import { Bot, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Microscope } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'about'): void;
+  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'advanced' | 'about'): void;
 }>();
 
 const cards = computed(() => [
@@ -17,6 +17,7 @@ const cards = computed(() => [
   { id: 'channels', icon: MessageSquare, title: t('dashboard.channels'), desc: t('dashboard.channelsDesc'), color: 'text-pink-600', bg: 'bg-pink-100' },
   { id: 'network', icon: Search, title: t('dashboard.network'), desc: t('dashboard.networkDesc'), color: 'text-blue-600', bg: 'bg-blue-100' },
   { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc'), color: 'text-blue-600', bg: 'bg-blue-100' },
+  { id: 'advanced', icon: Microscope, title: t('dashboard.advanced'), desc: t('dashboard.advancedDesc'), color: 'text-orange-700', bg: 'bg-orange-100' },
   { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc'), color: 'text-green-600', bg: 'bg-green-100' },
 ]);
 </script>
