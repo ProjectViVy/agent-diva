@@ -1,0 +1,1062 @@
+﻿diff --git a/agent-diva-swarm/Cargo.toml b/agent-diva-swarm/Cargo.toml
+new file mode 100644
+index 0000000..8ed0c88
+--- /dev/null
++++ b/agent-diva-swarm/Cargo.toml
+@@ -0,0 +1,19 @@
++[package]
++name = "agent-diva-swarm"
++version = "0.4.0"
++edition = "2021"
++rust-version = "1.80.0"
++authors = ["mastwet (projectViVY Team, undefine foundation)"]
++license = "MIT"
++repository = "https://github.com/ProjectViVy/agent-diva"
++description = "Swarm orchestration for agent-diva (no agent-diva-meta per ADR-A)"
++
++[dependencies]
++agent-diva-core = { path = "../agent-diva-core" }
++
++serde = { workspace = true }
++thiserror = { workspace = true }
++tracing = { workspace = true }
++
++[dev-dependencies]
++serde_json = { workspace = true }
+diff --git a/agent-diva-swarm/README.md b/agent-diva-swarm/README.md
+new file mode 100644
+index 0000000..d3131a9
+--- /dev/null
++++ b/agent-diva-swarm/README.md
+@@ -0,0 +1,63 @@
++# agent-diva-swarm
++
++铚傜兢缂栨帓鐩稿叧 Rust crate锛屼綅浜?agent-diva workspace 鍐咃細`agent-diva/agent-diva-swarm/`锛堜笌 `_bmad-output/planning-artifacts/architecture.md` 涓?Project Structure 绀轰緥涓€鑷达級銆?+
++## 瑙勫垝涓庢灦鏋勶紙浠撳簱鏍圭浉瀵硅矾寰勶級
++
++- 浜у搧闇€姹傦細[`_bmad-output/planning-artifacts/prd.md`](../../_bmad-output/planning-artifacts/prd.md)
++- 鏋舵瀯璇存槑锛歔`_bmad-output/planning-artifacts/architecture.md`](../../_bmad-output/planning-artifacts/architecture.md)
++
++## ADR-A锛圫warm 涓?Meta 杈圭晫锛?+
++缂栨帓 swarm 瀹炵幇 **涓嶅緱** 渚濊禆 `agent-diva-meta`锛汳eta 浠呭湪 runtime / gateway 缁勫悎灞傝竟鐣岃Е鍙戙€傛湰 crate 鐨?`Cargo.toml` 涓?**涓嶅緱** 鍑虹幇 `agent-diva-meta`銆?+
++鍚庣画鑻ュ湪 CI 涓姞寮洪棬绂侊紝鍙 `agent-diva-swarm` 杩愯 `cargo tree -p agent-diva-swarm` 骞舵柇瑷€杈撳嚭涓笉鍖呭惈 `agent-diva-meta`锛堣剼鏈彲鏀惧湪 `agent-diva/scripts/` 鎴栧伐浣滃尯 `justfile` 涓紝鏈?story 涓嶅己鍒跺惎鐢級銆?+
++## 澶ц剳鐨眰锛圕ortex锛夌姸鎬併€佹寔涔呭寲涓?FR14
++
++- **鏉冨▉浣嶇疆锛?* `CortexState` / `CortexRuntime`锛坄src/cortex.rs`锛変负 **Rust 渚у崟涓€鐪熺浉婧?*锛涗笌 **FR14** 涓€鑷?鈥?GUI 涓嶉暱鏈熻嚜鎸佸彟涓€浠芥寔涔呮潈濞佺姸鎬侊紝浠呴€氳繃鍚庣画 gateway / Tauri 濂戠害娑堣垂锛堣 `architecture.md` 杩愯鏃剁湡鐩告簮锛夈€?+- **鎸佷箙鍖栬竟鐣岋紙褰撳墠锛夛細** **浠呰繘绋嬪唴鍐呭瓨**銆傝繘绋嬮€€鍑哄嵆涓㈠け锛?*鏈?*寮曞叆鏈壒鎬т笓鐢?DB銆傝嫢灏嗘潵闇€瑕佽法閲嶅惎鎭㈠锛岄』鍦?ADR/瀹炵幇璇存槑涓啓鏄庡苟娌跨敤鏃㈡湁閰嶇疆鎴栧瓨鍌ㄥ疄璺碉紙瀵归綈鏋舵瀯銆屼笉鏂板涓撶敤 DB銆嶏級銆?+- **榛樿鍊硷細** `enabled` 榛樿 **`true`**锛堝父閲?`CORTEX_DEFAULT_ENABLED`锛夛紝涓?PRD 涓昏矾寰勩€岃渹缇ゅ眰榛樿鍙敤銆佸彲鏄惧紡鍏抽棴銆嶄竴鑷达紱鍙樻洿椤诲悓姝ヤ唬鐮佹敞閲婁笌娴嬭瘯銆?+
++**GUI / Gateway 濂戠害 v0锛?* Tauri command 涓庝簨浠舵竻鍗曘€丣SON 褰㈢姸銆佺櫧鍚嶅崟涓庡彉鏇存祦绋嬭浠撳簱鏍?[`docs/swarm-cortex-contract-v0.md`](../../docs/swarm-cortex-contract-v0.md)锛圫tory 1.3锛夈€?+
++**Story 1.2 / 1.3 濂戠害鐗囨璺緞锛堟湰 story 鍩虹嚎锛夛細**
++
++| 鏁呬簨 | 璺緞 |
++|------|------|
++| 1.2 鐨眰鐘舵€佷笌鎸佷箙鍖?| 鏈枃妗ｄ笂涓€鑺?+ [`src/cortex.rs`](src/cortex.rs) |
++| 1.3 Gateway 鍚屾 DTO | [`docs/swarm-cortex-contract-v0.md`](../../docs/swarm-cortex-contract-v0.md) |
++
++## FR19锛堟墽琛屽垎灞?/ 杞婚噺璺緞锛孲tory 1.7锛?+
++- **杞婚噺鎰忓浘鍞竴鐪熺浉婧愶細** [`src/light_intent_rules.rs`](src/light_intent_rules.rs) 鈥?鏄惧紡 skill 椋庢牸涓庣煭闂瓟闃堝€硷紱瀹炵幇涓庢祴璇?**浠?* 閫氳繃 `is_light_intent` / `SHORT_QA_MAX_SCALARS` 绛夋湰妯″潡 API 寮曠敤銆?+- **Light vs FullSwarm 璺敱锛?* [`src/execution_tier.rs`](src/execution_tier.rs) 鈥?`resolve_execution_tier`锛涚毊灞?ON **涓嶅緱鍗曠嫭** 灏嗚交閲忕被鍗囦负 FullSwarm锛堥』鏄惧紡娣卞害閫夋嫨锛夈€?+- **杞婚噺璺緞涓婇檺涓庤Е椤跺師鍥狅細** [`src/light_path_limits.rs`](src/light_path_limits.rs) 鈥?`LIGHT_PATH_MAX_WALL_MS`銆乣LIGHT_PATH_MAX_INTERNAL_STEPS`銆乣LightPathStopReason`銆?+- **ADR 鍐荤粨鍏ュ彛锛?* [`docs/adr-e-fr19-execution-tier.md`](../../docs/adr-e-fr19-execution-tier.md)锛堝伐浣滃尯鏍?`docs/`锛夈€?+
++## 绠€鍖栨ā寮忥紙澶ц剳鐨眰鍏筹紝Story 1.4锛?+
++- 瀹炵幇鑰呰涔変笌 headless 鏂█鐧昏锛歔`docs/CORTEX_OFF_SIMPLIFIED_MODE.md`](docs/CORTEX_OFF_SIMPLIFIED_MODE.md)
++- 鏈€灏?turn 妗╋紙鏃?GUI锛夛細[`src/minimal_turn.rs`](src/minimal_turn.rs) 涓?`run_minimal_turn_headless(rt, user_text, explicit_full_swarm)`锛團R19 杞婚噺璺敱宸叉帴鍏ワ級
++
++## 杩囩▼浜嬩欢锛團R2 鍙戝皠渚э紝Story 1.5锛?+
++- **绫诲瀷涓庤妭娴侊細** [`src/process_events.rs`](src/process_events.rs) 鈥?`ProcessEventV0` / `ProcessEventPipeline`锛堢毊灞傞棬鎺?+ 鎵瑰鐞嗛粯璁?100ms / 32 鏉★紱宸ュ叿璧锋绔嬪嵆 flush锛夈€?+- **鐧藉悕鍗曚笌瀛楁锛?* [`docs/process-events-v0.md`](docs/process-events-v0.md)锛圢FR-I2锛夈€?+- **鐨眰鍏充笉鍙戝皠锛?* [`docs/PROCESS_EVENTS_CORTEX_OFF.md`](docs/PROCESS_EVENTS_CORTEX_OFF.md)銆?+- **Agent 鎺ョ嚎锛?* `agent-diva-agent` 鐨?`AgentLoop::with_process_event_pipeline` 鍦ㄨ凯浠ｄ笌宸ュ叿璺緞涓婅皟鐢?`try_emit`锛汿auri `emit` 閫傞厤鐣欏緟缃戝叧/GUI 缁勫悎灞傘€?+
++## 璁捐鏂囨。锛堝悓浠撳簱鍙︿竴鐩綍锛?+
++璇︾粏璁捐绋夸粛浣嶄簬 **`agent-diva-swarm/docs/`**锛堜笌 `agent-diva/agent-diva-swarm`  crate 鍚嶇О鍚屽墠缂€锛岀墿鐞嗚矾寰勪笉鍚岋紝閬垮厤娣锋穯锛夛細
++
++- [`agent-diva-swarm/docs/ARCHITECTURE_DESIGN.md`](../../agent-diva-swarm/docs/ARCHITECTURE_DESIGN.md)
++
++## 鏋勫缓
++
++鍦?`agent-diva` 鐩綍涓嬶細
++
++```bash
++cargo clippy -p agent-diva-swarm -- -D warnings
++cargo test -p agent-diva-swarm
++```
+diff --git a/agent-diva-swarm/docs/CORTEX_OFF_SIMPLIFIED_MODE.md b/agent-diva-swarm/docs/CORTEX_OFF_SIMPLIFIED_MODE.md
+new file mode 100644
+index 0000000..810359c
+--- /dev/null
++++ b/agent-diva-swarm/docs/CORTEX_OFF_SIMPLIFIED_MODE.md
+@@ -0,0 +1,62 @@
++# 绠€鍖栨ā寮忚涔夛紙澶ц剳鐨眰鍏?/ Cortex OFF锛?+
++**缁存姢鑰呰鏄庯細** 鏈枃妗ｇ櫥璁?**瀹炵幇鑰呭彲鏂█** 鐨勩€屽叧澶ц剳鐨眰銆嶈涓猴紝涓?**FR3**锛堝叧鏃惰涔夊彲娴嬶級銆?*FR12**锛堟棤 GUI 楠岃瘉锛夊強 **FR17**锛堢敤鎴峰悜璇存槑锛岃 `prd.md`锛変簰琛ワ細FR17 鍋忎骇鍝佽瑷€锛屾湰鏂囧亸 **headless 鏂█涓庝唬鐮佸垎鏀?*銆?+
++**鍓嶇疆濂戠害锛堥』涓€鑷达級锛?*
++
++- Story **1.2** 鐘舵€佹ā鍨嬨€侀粯璁ゅ€笺€佹寔涔呭寲杈圭晫锛歚agent-diva/agent-diva-swarm/src/cortex.rs` 涓?[`README.md`](../README.md)銆屽ぇ鑴戠毊灞傘€嶈妭銆?+- Story **1.3** Gateway / DTO v0锛氫粨搴撴牴 [`docs/swarm-cortex-contract-v0.md`](../../../docs/swarm-cortex-contract-v0.md)銆?+
++---
++
++## 1. 瀹氫箟鑼冨洿
++
++- **绠€鍖栨ā寮?* 鎸囷細**澶ц剳鐨眰涓哄叧锛圕ortex OFF锛宍CortexState.enabled == false`锛?* 鏃讹紝瀵?**鍗曟鐢ㄦ埛 turn** 鎵€閲囩敤鐨?**缂栨帓/鎵ц绛栫暐**锛堜笌銆屽紑銆嶈矾寰勭殑宸紓瑙佷笅鑺傞€愭潯锛夈€?+- **Story 1.7锛團R19锛夊凡鎺ュ叆锛?* `run_minimal_turn_headless` 鍦ㄧ毊灞?**寮€** 鏃舵寜 [`docs/adr-e-fr19-execution-tier.md`](../../../docs/adr-e-fr19-execution-tier.md) 鍖哄垎 **LightPath**锛堣交閲忚緭鍏ャ€佷笉杩涘叆澶?handoff 鍏ㄥ浘锛変笌 **FullSwarmOrchestration**銆?*涓嶅湪鏈枃鍐荤粨锛?* FR20 鏀舵暃绛栫暐锛圫tory 1.8锛夈€?+
++---
++
++## 2. 鏈€灏忚涔夋潯鐩紙褰撳墠瀹炵幇锛?+
++| 鏉＄洰 | 鍏筹紙OFF锛夋椂 | 鐞嗙敱锛堜竴鍙ワ級 |
++|------|-------------|--------------|
++| **澶氬弬涓庤€呰渹缇?* | **鍚?* 鈥?涓嶈繘鍏ュ畬鏁村浠ｇ悊 handoff/瀵瑰紙閾?| 涓?FR19 涓€鑷达紱鐨眰 **寮€** 鏃朵粎褰?**闈炶交閲?* 涓旀湭寮哄埗鍏跺畠绛栫暐鏃讹紝headless 妗╂爣璁?**FullSwarmOrchestration**锛涜交閲忚緭鍏ヨ蛋 **LightPath**锛堣 `minimal_turn` + `execution_tier`锛夈€?|
++| **杩囩▼浜嬩欢** | **鍚?* 鈥?鏈渶灏忚矾寰勪笉鍙戝皠涓棿杩囩▼绫讳簨浠惰鏁?| 鍏宠矾寰?`process_events_emitted == 0`锛涜闃呮柟鍦ㄧ畝鍖栨ā寮忎笅搴斾緷璧?**缁堟€?瀹屾垚淇″彿**锛堝悗缁€荤嚎鏁呬簨鎵╁睍锛夈€?|
++| **宸ュ叿璋冪敤** | **鏄紙鐩磋繛妗╋級** 鈥?鍏佽宸ュ叿/瀵硅瘽鏈€灏忚矾寰勶紱涓庛€屽紑銆嶅樊寮備负 **涓嶇粡鍏ㄨ渹缇ょ紪鎺掑眰** | 涓庛€屽紑銆嶇浉姣旓細涓嶅紑 `entered_multi_agent_handoff`銆?|
++| **榛樿涓庢寔涔呭寲** | 涓?1.2 涓€鑷达細榛樿 `enabled == true`锛堝紑锛夛紝杩涚▼鍐呭唴瀛?| 瑙?`cortex.rs` 涓?README锛屼笉寰椾笌姝ゆ枃妗ｇ煕鐩俱€?|
++
++---
++
++## 3. 涓?FR21 鐨勮竟鐣?+
++- **FR21锛團orceLight / 寮哄埗杞婚噺锛?* 涓?OFF **鍚堝苟鎴栫嫭绔?* 鐨勬渶缁?ADR 鐢?**Story 1.9** 灏佹銆?+- **褰撳墠瀹炵幇锛?* 浠呭瓨鍦?**澶ц剳鐨眰寮€/鍏?* 闂ㄦ帶锛?*鏈?* 鍗曠嫭瀹炵幇 ForceLight 鏍囧織浣嶃€傚湪鏈€灏?turn 璺敱涓紝**ForceLight 琛屼负瑙嗕负涓?OFF 鏆傚悓涔?*锛堝嵆鑻ュ皢鏉ヤ粎鏈?OFF锛屽垯杞婚噺璇夋眰璧板悓涓€绠€鍖栬矾寰勶紱1.9 鍚庡彲鎷嗗垎涓虹嫭绔嬪垎鏀級銆?+- 鑻ヤ唬鐮佽矾寰勪粎鍒ゆ柇 `enabled`锛屼笉寰楅潤榛樺亣璁?FR21 宸插悎骞讹紱浠ユ湰鏂囦笌 1.9 ADR 涓哄噯杩唬銆?+
++---
++
++## 4. 涓庢祴璇曠殑濂戠害
++
++### 鍙墽琛屾柇瑷€锛堟憳瑕侊級
++
++- **A1锛堝叧 鈥?涓嶈繘鍏ュ叏铚傜兢 handoff锛夛細** `CortexState::with_enabled(false)` 鏃讹紝`run_minimal_turn_headless(rt, text, false)` 杩斿洖鐨?`entered_multi_agent_handoff == false`銆?+- **A2锛堝叧 鈥?鏃犺繃绋嬩簨浠惰鏁帮級锛?* 鍚屼笂锛宍process_events_emitted == 0`銆?+- **A3锛堝紑/鍏冲彲鍖哄垎锛夛細** 浣跨敤 **闈炶交閲?* 闀胯緭鍏ワ紙瓒呰繃 `SHORT_QA_MAX_SCALARS`锛夋椂锛宍enabled == true` 涓?`false` 鏃?`CortexExecutionLayer` 涓嶅悓锛堝紑 鈫?FullSwarmOrchestration锛屽叧 鈫?Simplified锛夈€?+- **A4锛堥敊璇垎鏀彲妫€绱級锛?* 鑻ュ疄鐜伴敊璇湴鍦ㄥ叧璺緞杩涘叆 handoff锛屽け璐ユ柇瑷€椤诲惈 **銆屽ぇ鑴戠毊灞傘€?* 涓?**銆屽叧銆嶆垨銆屽紑銆?*锛堣娴嬭瘯鍚嶄笌 `assert!` 鏂囨锛夈€?+
++### 娴嬭瘯瀵圭収琛?+
++| 鏂囨。绔犺妭 | 鏂█鎽樿 | 娴嬭瘯妯″潡 / 鍑芥暟鍚?|
++|----------|----------|-------------------|
++| 搂2 澶氬弬涓庤€呰渹缇?| OFF 鈫?`!entered_multi_agent_handoff` | `cortex_off::cortex_off_minimal_turn_skips_full_swarm_handoff` |
++| 搂2 杩囩▼浜嬩欢 | OFF 鈫?`process_events_emitted == 0` | `cortex_off::cortex_off_minimal_turn_emits_no_process_events` |
++| 搂2 宸ュ叿/璺緞宸紓 | ON vs OFF 鈫?`layer` 涓嶅悓 | `cortex_off::cortex_on_and_off_minimal_turn_observable_layers_differ` |
++| 搂1 FR19 | 鐨眰 ON + 杞婚噺杈撳叆 鈫?`LightPath`銆乣!handoff` | `cortex_off::cortex_on_light_intent_minimal_turn_skips_full_swarm_handoff` |
++| 搂4 A4 / AC#4 | 鍏宠矾寰勮璧?handoff 鏃?panic 娑堟伅鍙?grep | `cortex_off::cortex_off_wrong_branch_panics_with_cortex_keywords`锛坄#[should_panic]` + `buggy_always_swarm` 妯℃嫙閿欒瀹炵幇锛?|
++
++---
++
++## 5. 涓?`prd.md` 鐨勬寚鍚戝叧绯?+
++- **FR3锛?* 鍏虫ā寮忎笅鍙祴琛屼负浠ユ湰鏂?**搂2 + 搂4** 涓哄噯锛涙祴璇曠敤 `// doc-ref:` 鎸囧悜鏈枃浠躲€?+- **FR17锛?* 鐢ㄦ埛鍙鏂囨涓庡紩瀵煎湪 PRD/UX锛涘疄鐜版柇瑷€浠ユ湰鏂囦负鍑嗐€?diff --git a/agent-diva-swarm/docs/PROCESS_EVENTS_CORTEX_OFF.md b/agent-diva-swarm/docs/PROCESS_EVENTS_CORTEX_OFF.md
+new file mode 100644
+index 0000000..b89c80b
+--- /dev/null
++++ b/agent-diva-swarm/docs/PROCESS_EVENTS_CORTEX_OFF.md
+@@ -0,0 +1,20 @@
++# 鐨眰鍏筹紙OFF锛夋椂鐨勮繃绋嬩簨浠惰涓?+
++**涓?Story 1.4 瀵归綈锛?* 銆婄畝鍖栨ā寮忚涔夈€嬫寮忔枃妗ｈ鍒掑湪 **`CORTEX_OFF_SIMPLIFIED_MODE.md`**锛堟垨 Epic 1.4 鐧昏鐨勭瓑浠疯矾寰勶級涓淮鎶わ紱鏈枃妗ｈ鏄?**杩囩▼浜嬩欢锛團R2 鍙戝皠渚э級** 鍦ㄧ毊灞傚叧鏃剁殑 **瀹炵幇琛屼负**锛岄伩鍏嶄笌 FR3 鍐茬獊銆?+
++## 琛屼负锛堝綋鍓嶅疄鐜帮級
++
++褰?`CortexRuntime::snapshot().enabled == false` 鏃讹細
++
++- `ProcessEventPipeline::try_emit` **鐩存帴杩斿洖**锛屼笉鍚戠紦鍐叉垨涓嬫父鍙戦€佷换浣?v0 杩囩▼浜嬩欢銆?+- `flush_pending` 鍦ㄧ毊灞傚叧鏃?**涓嶅悜涓嬫父鎶曢€?*锛堢紦鍐插湪鍏虫湡闂存湰搴斾负绌猴級銆?+
++## 璁㈤槄鏂硅鏄?+
++- GUI / 缃戝叧閫傞厤灞傚湪鐨眰鍏虫椂搴?**涓嶄緷璧?* `swarm_phase_changed` / `tool_call_started` / `tool_call_finished` 浣滀负鍞竴杩涘害淇″彿锛涘彲渚濊禆鏃㈡湁 **鏈€缁堝搷搴?*銆?*閿欒浜嬩欢** 鎴?**1.4 鏂囨。** 涓櫥璁扮殑鏇夸唬淇″彿銆?+
++## 浜ゅ弶寮曠敤
++
++- Story **1.4** 鏃犲ご娴嬭瘯涓庣畝鍖栬涔夛細`1-4-cortex-off-headless-tests` 瀹炵幇宸ヤ欢銆? 
++- 杩囩▼浜嬩欢鐧藉悕鍗曚笌杞借嵎锛?*[`process-events-v0.md`](./process-events-v0.md)**銆? 
++- 鐨眰鐪熺浉婧愪笌 Tauri 鍛戒护锛?*[`docs/swarm-cortex-contract-v0.md`](../../../docs/swarm-cortex-contract-v0.md)**锛堜粨搴撴牴 `docs/`锛夈€?diff --git a/agent-diva-swarm/docs/process-events-v0.md b/agent-diva-swarm/docs/process-events-v0.md
+new file mode 100644
+index 0000000..d17f618
+--- /dev/null
++++ b/agent-diva-swarm/docs/process-events-v0.md
+@@ -0,0 +1,48 @@
++# 杩囩▼浜嬩欢鐧藉悕鍗?v0锛團R2 / NFR-I2锛?+
++**鑼冨洿锛?* Rust 渚у彲璁㈤槄鐨?**鏈€灏忚繃绋嬩簨浠?* DTO锛屼笌 `ProcessEventV0` / `ProcessEventNameV0`锛坄src/process_events.rs`锛変竴鑷淬€侴UI 缁?Tauri 绛夐€傞厤灞傛秷璐规椂椤讳粎渚濊禆鏈竻鍗曞瓧娈碉紝绂佹銆岄€氱敤 JSON blob銆嶅紡鏃犻檺鑶ㄨ儉銆?+
++**鐗堟湰锛?* `schemaVersion`锛圝SON **camelCase**锛変笌鐨眰濂戠害鐩稿悓璇箟锛泇0 鍥哄畾涓?**`0`**銆傛柊澧炰簨浠跺悕鎴栧瓧娈甸』 bump 鐗堟湰鎴栫粡 ADR銆?+
++## 鐧藉悕鍗曚簨浠跺悕锛坵ire锛歚snake_case`锛?+
++| `name` | 鍚箟 |
++|--------|------|
++| `swarm_phase_changed` | 鎵ц闃舵鎺ㄨ繘锛堝綋鍓嶅疄鐜帮細Agent 杩唬寮€濮嬶級銆?|
++| `tool_call_started` | 宸ュ叿璋冪敤寮€濮嬶紙浠呮憳瑕佺骇 `message`锛屽畬鏁村弬鏁板湪浼氳瘽/鎬荤嚎锛夈€?|
++| `tool_call_finished` | 宸ュ叿璋冪敤缁撴潫锛堟憳瑕佺骇缁撴灉棰勮锛屽ぇ鍧楀唴瀹逛笉杩涘叆浜嬩欢浣擄級銆?|
++
++> **棰勭暀锛?* Story 1.8 绛夊彲鎵╁睍 `swarm_run_finished` 绛夌粓灞€浜嬩欢锛涙湰 v0 涓嶅疄鐜般€?+
++## 杞借嵎瀛楁锛坄ProcessEventV0`锛?+
++| 瀛楁锛坈amelCase锛?| 绫诲瀷 | 璇存槑 |
++|-------------------|------|------|
++| `schemaVersion` | `u32` | 濂戠害鐗堟湰锛寁0 = `0`銆?|
++| `name` | 涓婅〃鏋氫妇 | 浜嬩欢绉嶇被銆?|
++| `message` | `string` | 鐭彞銆侀瑙堢骇璇存槑銆?|
++| `phaseId` | `string?` | 闃舵鐩稿叧 id锛堝 `agent_iteration_1`锛夈€?|
++| `correlationId` | `string?` | 涓庡伐鍏疯皟鐢ㄧ瓑鍏宠仈锛堝 LLM `call_id`锛夈€?|
++| `toolName` | `string?` | 宸ュ叿鍚嶏紙宸ュ叿绫讳簨浠讹級銆?|
++
++## 鍗曚竴鍑哄彛涓庢帴绾?+
++- **鍙戝皠閫昏緫锛?* `agent-diva-agent` 鐨?`AgentLoop` 鍦ㄨ凯浠ｅ紑濮嬩笌宸ュ叿璧锋澶勮皟鐢?`ProcessEventPipeline::try_emit`锛堣 Story 1.5 瀹炵幇锛夈€?+- **闂ㄦ帶锛?* 绠￠亾鎸佹湁 `Arc<CortexRuntime>`锛?*鐨眰鍏?* 鏃朵笉鍙戝皠锛堣 [`PROCESS_EVENTS_CORTEX_OFF.md`](./PROCESS_EVENTS_CORTEX_OFF.md)锛夈€?+
++## 鑺傛祦锛圢FR-P2锛?+
++榛樿閰嶇疆瑙?`ProcessEventThrottleConfig::default()`锛?+
++- **`swarm_phase_changed`锛?* 鍚堝苟绐楀彛 **100ms** 鎴栫紦鍐?**32** 鏉★紙鍏堣揪鑰咃級瑙﹀彂涓€鎵?`deliver_batch`銆?+- **`tool_call_started` / `tool_call_finished`锛?* 姣忔鍏ョ紦鍐插悗 **绔嬪嵆 flush** 褰撳墠鏁存壒锛岄伩鍏嶅伐鍏烽噷绋嬬闀挎椂闂村欢杩熴€?+
++Turn 缁撴潫鏃堕€氳繃 `ProcessEventPipeline::flush_pending`锛堢敱 `AgentLoop` 鍐?`Drop` 瀹堝崼瑙﹀彂锛夊埛鍑烘湭杈炬椂闂寸獥鐨?phase 浜嬩欢銆?+
++Tauri `emit` 绛夐噸閫昏緫椤诲湪 **闈?UI 闃诲** 涓婁笅鏂囨墽琛岋紙涓?`architecture.md` NFR-P1/P2 涓€鑷达級銆?+
++## 鐩稿叧鏂囨。
++
++- [`../README.md`](../README.md) 鈥?铚傜兢 crate 鎬昏  
++- [`../../../docs/swarm-cortex-contract-v0.md`](../../../docs/swarm-cortex-contract-v0.md) 鈥?鐨眰 command / `cortex_toggled`  
++- [`./PROCESS_EVENTS_CORTEX_OFF.md`](./PROCESS_EVENTS_CORTEX_OFF.md) 鈥?鐨眰鍏充笌杩囩▼浜嬩欢  
+diff --git a/agent-diva-swarm/src/cortex.rs b/agent-diva-swarm/src/cortex.rs
+new file mode 100644
+index 0000000..6e523ec
+--- /dev/null
++++ b/agent-diva-swarm/src/cortex.rs
+@@ -0,0 +1,138 @@
++//! 澶ц剳鐨眰锛圕ortex锛夎繍琛屾椂鐘舵€侊細杩涚▼鍐呭崟涓€鐪熺浉婧愶紙Epic 1 Story 1.2锛夈€?+//!
++//! # 鎸佷箙鍖栬竟鐣?+//!
++//! 褰撳墠瀹炵幇浠呭湪 **杩涚▼鍐呭唴瀛?*锛圼`CortexRuntime`] 鍐?`std::sync::RwLock`锛夈€?*涓?*寮曞叆鏈壒鎬т笓鐢ㄦ暟鎹簱銆?+//! 鑻ュ悗缁渶瑕佽法閲嶅惎鎭㈠锛屽簲娌跨敤 `architecture.md` 鏁版嵁鏋舵瀯锛堟棦鏈夐厤缃?瀛樺偍瀹炶返锛夛紝骞跺湪璇ュ鍗曠偣璇存槑銆?+//!
++//! # FR14锛堝崟涓€鐪熺浉婧愶級
++//!
++//! [`CortexState`] / [`CortexRuntime`] 涓?Rust 渚ф潈濞佸壇鏈惤鐐癸紱**Vue 鍓嶇涓嶅緱鍙︾珛闀挎湡鎸佷箙鍖栫殑绗簩鐪熺浉婧?*銆?+//! GUI 浠呴€氳繃鍚庣画 gateway / Tauri 濂戠害锛圫tory 1.3+锛夎鍙栦笌瑙﹀彂銆?+//!
++//! # 榛樿鍊?+//!
++//! [`CORTEX_DEFAULT_ENABLED`] 鍐荤粨涓?**`true`**锛氫笌 PRD 涓昏矾寰勫彊浜嬩竴鑷达紙铚傜兢灞傞粯璁ゅ彲鐢紝鐢ㄦ埛鍙樉寮忓叧闂繘鍏ョ畝鍖栬矾寰勶紝FR3锛夈€?+//! 鑻ヤ骇鍝佸彉鏇撮粯璁わ紝椤诲悓姝ヤ慨鏀硅甯搁噺銆佹湰娈佃鏄庝笌鍗曞厓娴嬭瘯銆?+
++use serde::{Deserialize, Serialize};
++use std::sync::RwLock;
++
++/// Serde / 绾垮崗璁ā寮忕増鏈紙`architecture.md` Pattern Examples锛涗笌 NFR-I1 婕旇繘璺緞涓€鑷达紝褰撳墠鍥哄畾 v0锛夈€?+pub const CORTEX_STATE_SCHEMA_VERSION_V0: u32 = 0;
++
++/// [`CortexState::enabled`] 鐨勯粯璁ゅ€硷紙鍗曠偣鍐荤粨锛屼緵瀹炵幇涓庢祴璇曞紩鐢級銆?+pub const CORTEX_DEFAULT_ENABLED: bool = true;
++
++/// 涓庢灦鏋勭ず渚嬪榻愮殑鍙簭鍒楀寲蹇収锛汭PC / JSON 涓?GUI 鍏辩敤銆?*绾挎牸寮?* 瀛楁鍚嶄负 **camelCase**锛坄enabled`, `schemaVersion`锛夛紝鍏ㄩ摼璺粺涓€銆?+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
++#[serde(default, rename_all = "camelCase")]
++pub struct CortexState {
++    pub enabled: bool,
++    pub schema_version: u32,
++}
++
++/// 瀵瑰绋冲畾濂戠害鐨勫埆鍚嶏紙Story 1.3锛夛細涓?[`CortexState`] 鍚屼竴绫诲瀷銆?+pub type CortexSyncDto = CortexState;
++
++impl Default for CortexState {
++    fn default() -> Self {
++        Self {
++            enabled: CORTEX_DEFAULT_ENABLED,
++            schema_version: CORTEX_STATE_SCHEMA_VERSION_V0,
++        }
++    }
++}
++
++impl CortexState {
++    /// 鏋勯€犳寚瀹氬紑鍏崇姸鎬侊紝妯″紡鐗堟湰鍥哄畾涓?[`CORTEX_STATE_SCHEMA_VERSION_V0`]銆?+    #[must_use]
++    pub fn with_enabled(enabled: bool) -> Self {
++        Self {
++            enabled,
++            schema_version: CORTEX_STATE_SCHEMA_VERSION_V0,
++        }
++    }
++}
++
++/// 浼氳瘽 / 杩涚▼杈圭晫鍐呯殑鏉冨▉鎸佹湁鑰咃細鍚屽疄渚嬩笂鏌ヨ涓庡啓鍏ヤ竴鑷淬€?+#[derive(Debug)]
++pub struct CortexRuntime {
++    inner: RwLock<CortexState>,
++}
++
++impl Default for CortexRuntime {
++    fn default() -> Self {
++        Self::new()
++    }
++}
++
++impl CortexRuntime {
++    #[must_use]
++    pub fn new() -> Self {
++        Self {
++            inner: RwLock::new(CortexState::default()),
++        }
++    }
++
++    #[must_use]
++    pub fn from_state(initial: CortexState) -> Self {
++        Self {
++            inner: RwLock::new(initial),
++        }
++    }
++
++    /// 鏌ヨ褰撳墠鏉冨▉鐘舵€侊紙涓庡悓瀹炰緥鍐呮渶杩戜竴娆″啓鍏ヤ竴鑷达級銆?+    #[must_use]
++    pub fn snapshot(&self) -> CortexState {
++        self.read_state()
++    }
++
++    /// 璁剧疆寮€/鍏筹紙鍐呴儴涓庢祴璇曞彲瑙侊紱瀵瑰 Tauri 鍦?Story 1.3 鎺ョ嚎锛夈€?+    pub fn set_enabled(&self, enabled: bool) {
++        let mut guard = self.inner.write().unwrap_or_else(|e| e.into_inner());
++        guard.enabled = enabled;
++    }
++
++    /// 鍒囨崲寮€/鍏冲苟杩斿洖鍒囨崲鍚庣殑蹇収銆?+    pub fn toggle(&self) -> CortexState {
++        let mut guard = self.inner.write().unwrap_or_else(|e| e.into_inner());
++        guard.enabled = !guard.enabled;
++        guard.clone()
++    }
++
++    fn read_state(&self) -> CortexState {
++        self.inner
++            .read()
++            .unwrap_or_else(|e| e.into_inner())
++            .clone()
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn default_toggle_query_matches_session() {
++        let rt = CortexRuntime::new();
++        assert_eq!(rt.snapshot(), CortexState::default());
++        assert!(rt.snapshot().enabled);
++        assert_eq!(rt.snapshot().schema_version, CORTEX_STATE_SCHEMA_VERSION_V0);
++
++        rt.set_enabled(false);
++        assert!(!rt.snapshot().enabled);
++
++        let after_toggle = rt.toggle();
++        assert!(after_toggle.enabled);
++        assert_eq!(rt.snapshot(), after_toggle);
++    }
++
++    #[test]
++    fn serde_json_round_trip() {
++        let s = CortexState::default();
++        let json = serde_json::to_string(&s).expect("serialize");
++        let back: CortexState = serde_json::from_str(&json).expect("deserialize");
++        assert_eq!(s, back);
++    }
++}
+diff --git a/agent-diva-swarm/src/execution_tier.rs b/agent-diva-swarm/src/execution_tier.rs
+new file mode 100644
+index 0000000..b9092b2
+--- /dev/null
++++ b/agent-diva-swarm/src/execution_tier.rs
+@@ -0,0 +1,94 @@
++//! ADR-E锛歚ExecutionTier`锛圠ight vs FullSwarm锛夎矾鐢卞叆鍙ｏ紙Story 1.7 / FR19锛夈€?+//!
++//! **鍒ゅ畾杞婚噺绫?* 浠呭厑璁歌皟鐢?[`crate::light_intent_rules`]锛屼笉寰楅噸澶嶅疄鐜伴槇鍊笺€?+//!
++//! # FR19 鏍稿績璇箟
++//!
++//! - 鏃?**鏄惧紡**銆屾繁搴?/ 鍏ㄨ渹缇ゃ€嶉€夋嫨鏃讹紝**涓嶅緱** 浠呭洜 **澶ц剳鐨眰 ON** 灏?**杞婚噺绫?* 杈撳叆鍗囩骇涓?[`ExecutionTier::FullSwarm`]銆?+
++use crate::light_intent_rules::is_light_intent;
++
++/// 鎵ц鍒嗗眰锛氳交閲忕煭璺緞 vs 瀹屾暣澶氬弬涓庤€呰渹缇ょ紪鎺掋€?+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum ExecutionTier {
++    /// 鍙畬鎴愮煭璺緞锛堟樉寮?skill銆佺煭闂瓟绛夛級銆?+    Light,
++    /// 澶氬弬涓庤€?handoff / 瀵瑰紙鍥剧骇缂栨帓銆?+    FullSwarm,
++}
++
++/// 姣忔鐢ㄦ埛 turn 鍦ㄧ紪鎺掑叆鍙ｈ皟鐢細鏍规嵁鎰忓浘鍒嗙被銆佺毊灞傚紑鍏充笌鏄惧紡娣卞害閫夋嫨鍐冲畾鍒嗗眰銆?+///
++/// `explicit_full_swarm` 鏉ヨ嚜 **鐢ㄦ埛鎴栬缃樉寮忛€夋嫨**锛堥潪鏈嚱鏁颁粠姝ｆ枃鐚滄祴锛夛紝涓?epics 琛ㄨ堪涓€鑷淬€?+#[must_use]
++pub fn resolve_execution_tier(
++    user_text: &str,
++    cortex_enabled: bool,
++    explicit_full_swarm: bool,
++) -> ExecutionTier {
++    if explicit_full_swarm {
++        return ExecutionTier::FullSwarm;
++    }
++    if is_light_intent(user_text) {
++        return ExecutionTier::Light;
++    }
++    if cortex_enabled {
++        ExecutionTier::FullSwarm
++    } else {
++        ExecutionTier::Light
++    }
++}
++
++/// 鏄惁灏嗘瀯閫?/ 杩涘叆 FullSwarm 鎷撴墤锛堟棤 GUI 娴嬭瘯涓?gateway 瑙傛祴鐐瑰彲鐢ㄦ甯冨皵锛夈€?+#[must_use]
++pub fn would_enter_full_swarm_topology(
++    user_text: &str,
++    cortex_enabled: bool,
++    explicit_full_swarm: bool,
++) -> bool {
++    matches!(
++        resolve_execution_tier(user_text, cortex_enabled, explicit_full_swarm),
++        ExecutionTier::FullSwarm
++    )
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    /// PRD **鏃呯▼浜?* / AC#3锛氱毊灞?ON + 杞婚噺杈撳叆 鈫?浠?**涓?* 鍚叏鍥俱€?+    #[test]
++    fn journey_five_cortex_on_light_qa_no_full_swarm() {
++        let text = "浠€涔堟槸 session锛?;
++        assert!(
++            !would_enter_full_swarm_topology(text, true, false),
++            "杞婚噺鐭棶绛?+ 鐨眰 ON 涓嶅緱杩涘叆 FullSwarm"
++        );
++        assert_eq!(
++            resolve_execution_tier(text, true, false),
++            ExecutionTier::Light
++        );
++    }
++
++    #[test]
++    fn journey_five_cortex_on_slash_skill_no_full_swarm() {
++        assert!(!would_enter_full_swarm_topology("/help", true, false));
++    }
++
++    #[test]
++    fn explicit_full_swarm_forces_topology_even_if_short() {
++        assert!(would_enter_full_swarm_topology("hi", true, true));
++    }
++
++    #[test]
++    fn long_non_light_cortex_on_enters_full_swarm() {
++        let long = "x".repeat(crate::light_intent_rules::SHORT_QA_MAX_SCALARS + 1);
++        assert!(would_enter_full_swarm_topology(&long, true, false));
++    }
++
++    #[test]
++    fn long_text_cortex_off_stays_light() {
++        let long = "x".repeat(400);
++        assert!(!would_enter_full_swarm_topology(&long, false, false));
++    }
++}
+diff --git a/agent-diva-swarm/src/lib.rs b/agent-diva-swarm/src/lib.rs
+new file mode 100644
+index 0000000..01c6a1d
+--- /dev/null
++++ b/agent-diva-swarm/src/lib.rs
+@@ -0,0 +1,76 @@
++//! Swarm orchestration crate for agent-diva.
++//!
++//! **Scope (this crate):** multi-agent / handoff orchestration boundaries; **澶ц剳鐨眰鐘舵€?*
++//! 鐨?Rust 鏉冨▉妯″瀷瑙?[`cortex`]锛堣繘绋嬪唴鍐呭瓨銆丗R14 鍗曚竴鐪熺浉婧?鈥?璇﹁璇ユā鍧楁枃妗ｏ級銆侴ateway 鍚屾涓?+//! Tauri 濂戠害鍦?Epic 1 鍚庣画鏁呬簨涓ˉ榻愩€?+//!
++//! **Dependencies:** uses [`agent_diva_core`] for shared types and errors. Per **ADR-A**,
++//! this crate **must not** depend on `agent-diva-meta` (Meta is composed only at
++//! runtime / gateway layers).
++
++mod cortex;
++mod execution_tier;
++mod light_intent_rules;
++mod light_path_limits;
++mod minimal_turn;
++mod process_events;
++
++use serde::{Deserialize, Serialize};
++
++pub use agent_diva_core::Result as CoreResult;
++pub use cortex::{
++    CortexRuntime, CortexState, CortexSyncDto, CORTEX_DEFAULT_ENABLED,
++    CORTEX_STATE_SCHEMA_VERSION_V0,
++};
++pub use execution_tier::{
++    resolve_execution_tier, would_enter_full_swarm_topology, ExecutionTier,
++};
++pub use light_intent_rules::{
++    is_explicit_skill_style_input, is_light_intent, is_short_qa, SHORT_QA_MAX_SCALARS,
++};
++pub use light_path_limits::{
++    LightPathStopReason, LIGHT_PATH_MAX_INTERNAL_STEPS, LIGHT_PATH_MAX_WALL_MS,
++};
++pub use minimal_turn::{
++    run_minimal_turn_headless, CortexExecutionLayer, MinimalTurnTrace,
++};
++pub use process_events::{
++    recorder_sink, ProcessEventBatchSink, ProcessEventNameV0, ProcessEventPipeline,
++    ProcessEventRecorder, ProcessEventThrottleConfig, ProcessEventV0,
++    PROCESS_EVENT_SCHEMA_VERSION_V0,
++};
++
++/// Crate version string from `CARGO_PKG_VERSION`.
++#[must_use]
++pub fn crate_version() -> &'static str {
++    tracing::trace!("agent-diva-swarm crate_version");
++    env!("CARGO_PKG_VERSION")
++}
++
++/// Placeholder marker for serde / wire boundaries to be filled by later stories.
++#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
++pub struct SwarmBoundaryMarker;
++
++/// Minimal error type so `thiserror` stays exercised in CI (`clippy -D warnings`).
++#[derive(Debug, thiserror::Error)]
++pub enum SwarmError {
++    /// Reserved for future swarm-specific failures.
++    #[error("swarm placeholder error")]
++    Placeholder,
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn smoke_crate_version() {
++        assert!(!crate_version().is_empty());
++    }
++
++    #[test]
++    fn smoke_core_result_ok() {
++        let r: CoreResult<()> = Ok(());
++        assert!(r.is_ok());
++    }
++}
+diff --git a/agent-diva-swarm/src/light_intent_rules.rs b/agent-diva-swarm/src/light_intent_rules.rs
+new file mode 100644
+index 0000000..1fb535f
+--- /dev/null
++++ b/agent-diva-swarm/src/light_intent_rules.rs
+@@ -0,0 +1,61 @@
++//! FR19 杞婚噺鎰忓浘鍒ゅ畾 鈥?**鍞竴鐪熺浉婧?*锛圫tory 1.7 / ADR-E锛夈€?+//!
++//! # 缁存姢绾﹀畾
++//!
++//! - **鎵€鏈?*銆岃交閲忕被銆嶅惎鍙戝紡椤诲湪鏈枃浠惰凯浠ｏ紱**绂佹**鍦ㄥ叾瀹冩ā鍧楀鍒堕槇鍊兼垨妯″紡锛屼互鍏嶄笌娴嬭瘯銆佹枃妗ｆ紓绉汇€?+//! - 鍙樻洿鏃跺悓姝?[`crate::light_path_limits`] 鏂囨。娉ㄩ噴銆乕`docs/adr-e-fr19-execution-tier.md`](../../../docs/adr-e-fr19-execution-tier.md) 涓?`execution_tier` 鏃?GUI 娴嬭瘯銆?+//!
++//! # 瑙勫垯娓呭崟锛坴0锛屽彲杩唬锛?+//!
++//! 1. **鏄惧紡 skill / 鍛戒护寮忚皟鐢?*锛歵rim 鍚庝互 **`/`** 寮€澶达紙slash command锛夛紝鎴?trim 鍚庝互 **`bmad-` / `BMAD-`** 寮€澶达紙BMAD 绛夊伐浣滄祦鍓嶇紑锛夈€?+//! 2. **鐭棶绛?*锛歎nicode 鏍囬噺涓暟锛圼`str::chars`]锛岄潪瀛楄妭闀垮害锛夆墹 [`SHORT_QA_MAX_SCALARS`]銆?+//!
++//! 涓嶆弧瓒充互涓婁换涓€鑰?**涓?* 鑷姩瑙嗕负杞婚噺锛涙槸鍚﹁繘鍏?[`crate::ExecutionTier::FullSwarm`] 鐢?[`crate::resolve_execution_tier`] 缁撳悎鐨眰寮€鍏充笌鏄惧紡娣卞害閫夋嫨鍐冲畾銆?+
++/// 鐭棶绛旈槇鍊硷細鏍囬噺涓暟涓婇檺锛堜笌 PRD銆岀煭闂瓟銆嶄竴鑷达紝鍙湪鏈枃浠跺崟鐐硅皟鍙傦級銆?+pub const SHORT_QA_MAX_SCALARS: usize = 256;
++
++#[must_use]
++pub fn is_explicit_skill_style_input(text: &str) -> bool {
++    let t = text.trim_start();
++    let lower = t.to_ascii_lowercase();
++    lower.starts_with('/') || lower.starts_with("bmad-")
++}
++
++#[must_use]
++pub fn is_short_qa(text: &str) -> bool {
++    text.trim().chars().count() <= SHORT_QA_MAX_SCALARS
++}
++
++/// 鐢ㄦ埛杈撳叆鏄惁钀藉湪 **杞婚噺绫?*锛團R19锛夛細鏄惧紡 skill 椋庢牸 **鎴?* 鐭棶绛斻€?+#[must_use]
++pub fn is_light_intent(user_text: &str) -> bool {
++    is_explicit_skill_style_input(user_text) || is_short_qa(user_text)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn slash_prefix_is_light() {
++        assert!(is_light_intent("  /skill run"));
++    }
++
++    #[test]
++    fn bmad_prefix_is_light() {
++        assert!(is_light_intent("bmad-dev-story x"));
++    }
++
++    #[test]
++    fn short_chinese_question_is_light() {
++        assert!(is_light_intent("浠€涔堟槸 session锛?));
++    }
++
++    #[test]
++    fn over_limit_is_not_short_qa_alone() {
++        let s = "x".repeat(SHORT_QA_MAX_SCALARS + 1);
++        assert!(!is_short_qa(&s));
++        assert!(!is_light_intent(&s));
++    }
++}
+diff --git a/agent-diva-swarm/src/light_path_limits.rs b/agent-diva-swarm/src/light_path_limits.rs
+new file mode 100644
+index 0000000..da05b28
+--- /dev/null
++++ b/agent-diva-swarm/src/light_path_limits.rs
+@@ -0,0 +1,51 @@
++//! Light 璺緞 **澧欓挓瓒呮椂** 涓?**鍐呴儴姝ユ暟涓婇檺**锛團R19 / ADR-E锛夈€?+//!
++//! 榛樿鍊煎湪姝?**鍗曠偣** 瀹氫箟锛沢ateway 鎴?agent 寰幆鍦?[`crate::ExecutionTier::Light`] 涓嬪簲閬靛畧骞跺湪瑙﹂《鏃惰繑鍥?+//! [`LightPathStopReason`]锛堝彲鏈鸿銆佸彲瀵圭敤鎴疯鏄庯級銆傚叿浣?enforcement 鍙湪鍚庣画 story 鎺ュ叆杩愯鏃躲€?+
++use serde::{Deserialize, Serialize};
++
++/// 杞婚噺璺緞榛樿澧欓挓涓婇檺锛堟绉掞級銆傜淮鎶よ€呰皟鍙備粎鏀规澶勫苟鏇存柊
++/// [`docs/adr-e-fr19-execution-tier.md`](../../../docs/adr-e-fr19-execution-tier.md)銆?+pub const LIGHT_PATH_MAX_WALL_MS: u64 = 120_000;
++
++/// 杞婚噺璺緞榛樿鍐呴儴姝ユ暟涓婇檺锛堜緥濡?LLM+宸ュ叿杞璁℃暟锛岃涔夌敱鎺ュ叆鏂瑰畾涔夛級銆?+pub const LIGHT_PATH_MAX_INTERNAL_STEPS: u32 = 64;
++
++/// 杞婚噺璺緞缁撴潫鍘熷洜锛堟垚鍔熸垨澶辫触绫昏Е椤讹級銆?+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
++#[serde(rename_all = "camelCase")]
++pub enum LightPathStopReason {
++    /// 姝ｅ父瀹屾垚锛堟棤瑙﹂《锛夈€?+    Completed,
++    /// 瓒呰繃澧欓挓棰勭畻銆?+    WallClockTimeout { elapsed_ms: u64 },
++    /// 瓒呰繃鍐呴儴姝ユ暟涓婇檺銆?+    InternalStepLimit { steps_used: u32 },
++}
++
++impl LightPathStopReason {
++    /// 渚涙棩蹇楁垨瀵圭敤鎴风畝杩扮殑鍥哄畾鑻辨枃鐮侊紙绋冲畾濂戠害锛夛紱UI 鍙啀鏄犲皠鏂囨銆?+    #[must_use]
++    pub fn machine_code(&self) -> &'static str {
++        match self {
++            Self::Completed => "light_path.completed",
++            Self::WallClockTimeout { .. } => "light_path.wall_clock_timeout",
++            Self::InternalStepLimit { .. } => "light_path.internal_step_limit",
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn serde_round_trip_timeout() {
++        let r = LightPathStopReason::WallClockTimeout { elapsed_ms: 99 };
++        let j = serde_json::to_string(&r).expect("ser");
++        let back: LightPathStopReason = serde_json::from_str(&j).expect("de");
++        assert_eq!(r, back);
++        assert_eq!(back.machine_code(), "light_path.wall_clock_timeout");
++    }
++}
+diff --git a/agent-diva-swarm/src/minimal_turn.rs b/agent-diva-swarm/src/minimal_turn.rs
+new file mode 100644
+index 0000000..0a7b838
+--- /dev/null
++++ b/agent-diva-swarm/src/minimal_turn.rs
+@@ -0,0 +1,144 @@
++//! 鏈€灏忕敤鎴?turn 璺緞锛坔eadless锛孲tory 1.4 + FR19 Story 1.7锛夛細涓?**澶ц剳鐨眰寮€/鍏?* 鍙?**鎵ц鍒嗗眰** 瀵归綈鐨勫彲娴嬫々銆?+//!
++//! 涓嶅彂璧风綉缁滆姹傘€佷笉渚濊禆 GUI銆傝涔夌櫥璁拌 `docs/CORTEX_OFF_SIMPLIFIED_MODE.md`銆傝交閲忚矾鐢辫鍒欒 [`crate::light_intent_rules`]銆?+
++use crate::{resolve_execution_tier, CortexRuntime, ExecutionTier};
++
++/// 鍗曟鏈€灏?turn 鍦ㄧ紪鎺掑眰鐨勫綊绫伙紙寮€/鍏宠矾寰勯』鍙尯鍒嗭紝渚?headless 鏂█锛夈€?+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum CortexExecutionLayer {
++    /// 澶ц剳鐨眰鍏筹細绠€鍖栬矾寰勶紝涓嶈繘鍏ュ叏铚傜兢 handoff銆?+    Simplified,
++    /// 澶ц剳鐨眰寮€涓?**FR19 杞婚噺璺緞**锛氫笉杩涘叆澶氬弬涓庤€?handoff 鍏ㄥ浘銆?+    LightPath,
++    /// 澶ц剳鐨眰寮€涓?**闈炶交閲?*锛堟垨鏄惧紡鍏ㄨ渹缇わ級锛氬叏铚傜兢缂栨帓妗╋紙澶氫唬鐞?handoff 鍗犱綅锛夈€?+    FullSwarmOrchestration,
++}
++
++/// 鍙娴嬭建杩癸紙鍥哄畾妗╋紝鏃犵綉缁滐級銆?+#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct MinimalTurnTrace {
++    pub layer: CortexExecutionLayer,
++    /// 绠€鍖栨ā寮忎笅涓棿銆岃繃绋嬬被銆嶄簨浠惰鏁帮紙褰撳墠 OFF 璺緞涓?0锛夈€?+    pub process_events_emitted: u32,
++    /// 鏄惁杩涘叆澶氫唬鐞?handoff 閾撅紙OFF 蹇呴』涓?false锛夈€?+    pub entered_multi_agent_handoff: bool,
++}
++
++/// 鎵ц涓?GUI/缃戠粶鏃犲叧鐨勬渶灏?turn锛岃鍙?[`CortexRuntime`] 鐪熺浉婧愩€?+///
++/// `explicit_full_swarm` 琛ㄧず鐢ㄦ埛/璁剧疆 **鏄惧紡** 閫夋嫨娣卞害缂栨帓锛沗false` 鏃舵寜 FR19 涓?[`resolve_execution_tier`] 璺敱銆?+#[must_use]
++pub fn run_minimal_turn_headless(
++    rt: &CortexRuntime,
++    user_text: &str,
++    explicit_full_swarm: bool,
++) -> MinimalTurnTrace {
++    let enabled = rt.snapshot().enabled;
++    if !enabled {
++        return MinimalTurnTrace {
++            layer: CortexExecutionLayer::Simplified,
++            process_events_emitted: 0,
++            entered_multi_agent_handoff: false,
++        };
++    }
++    match resolve_execution_tier(user_text, true, explicit_full_swarm) {
++        ExecutionTier::Light => MinimalTurnTrace {
++            layer: CortexExecutionLayer::LightPath,
++            process_events_emitted: 0,
++            entered_multi_agent_handoff: false,
++        },
++        ExecutionTier::FullSwarm => MinimalTurnTrace {
++            layer: CortexExecutionLayer::FullSwarmOrchestration,
++            process_events_emitted: 1,
++            entered_multi_agent_handoff: true,
++        },
++    }
++}
++
++#[cfg(test)]
++mod cortex_off_tests {
++    use super::*;
++    use crate::{CortexRuntime, CortexState};
++
++    /// doc-ref: agent-diva-swarm/docs/CORTEX_OFF_SIMPLIFIED_MODE.md 搂2 澶氬弬涓庤€呰渹缇?+    #[test]
++    fn cortex_off_minimal_turn_skips_full_swarm_handoff() {
++        let rt = CortexRuntime::from_state(CortexState::with_enabled(false));
++        let trace = run_minimal_turn_headless(&rt, "hello", false);
++        assert_eq!(trace.layer, CortexExecutionLayer::Simplified);
++        assert!(
++            !trace.entered_multi_agent_handoff,
++            "澶ц剳鐨眰涓恒€屽叧銆嶆椂涓嶅簲杩涘叆鍏ㄨ渹缇?handoff锛涜嫢鏈柇瑷€澶辫触锛岃妫€鏌ュぇ鑴戠毊灞傚紑/鍏冲垎鏀槸鍚﹂鍊掋€俥ntered_multi_agent_handoff={}",
++            trace.entered_multi_agent_handoff
++        );
++    }
++
++    /// doc-ref: agent-diva-swarm/docs/CORTEX_OFF_SIMPLIFIED_MODE.md 搂2 杩囩▼浜嬩欢
++    #[test]
++    fn cortex_off_minimal_turn_emits_no_process_events() {
++        let rt = CortexRuntime::from_state(CortexState::with_enabled(false));
++        let trace = run_minimal_turn_headless(&rt, "ping", false);
++        assert_eq!(
++            trace.process_events_emitted, 0,
++            "澶ц剳鐨眰鍏宠矾寰勪笉搴斿彂灏勪腑闂磋繃绋嬩簨浠惰鏁帮紙绠€鍖栨ā寮忥級锛沺rocess_events_emitted={}",
++            trace.process_events_emitted
++        );
++    }
++
++    /// doc-ref: agent-diva-swarm/docs/CORTEX_OFF_SIMPLIFIED_MODE.md 搂2 / 搂4 A3 鈥?浣跨敤 **闈炶交閲?* 闀挎枃鏈娇鐨眰寮€杩涘叆 FullSwarm锛屼笌鍏宠矾寰勫尯鍒嗐€?+    #[test]
++    fn cortex_on_and_off_minimal_turn_observable_layers_differ() {
++        let on_rt = CortexRuntime::from_state(CortexState::with_enabled(true));
++        let off_rt = CortexRuntime::from_state(CortexState::with_enabled(false));
++        let long = "x".repeat(crate::light_intent_rules::SHORT_QA_MAX_SCALARS + 1);
++        let on_t = run_minimal_turn_headless(&on_rt, &long, false);
++        let off_t = run_minimal_turn_headless(&off_rt, &long, false);
++        assert_ne!(
++            on_t.layer,
++            off_t.layer,
++            "澶ц剳鐨眰銆屽紑銆嶄笌銆屽叧銆嶅簲瀵瑰簲涓嶅悓鎵ц灞傦紱鑻ョ浉鍚屽垯寮€/鍏冲垎鏀彲鑳芥湭瀹炵幇"
++        );
++        assert_eq!(on_t.layer, CortexExecutionLayer::FullSwarmOrchestration);
++        assert_eq!(off_t.layer, CortexExecutionLayer::Simplified);
++    }
++
++    /// FR19 / 鏃呯▼浜旓細鐨眰 ON + 杞婚噺杈撳叆 鈫?鏈€灏?turn **涓?* 杩涘叆澶?handoff 鍏ㄥ浘銆?+    #[test]
++    fn cortex_on_light_intent_minimal_turn_skips_full_swarm_handoff() {
++        let rt = CortexRuntime::from_state(CortexState::with_enabled(true));
++        let trace = run_minimal_turn_headless(&rt, "浠€涔堟槸 session锛?, false);
++        assert_eq!(trace.layer, CortexExecutionLayer::LightPath);
++        assert!(
++            !trace.entered_multi_agent_handoff,
++            "杞婚噺璺緞涓嶅緱杩涘叆鍏ㄥ浘 handoff锛沞ntered_multi_agent_handoff={}",
++            trace.entered_multi_agent_handoff
++        );
++    }
++
++    /// 妯℃嫙瀹炵幇閿欒锛氭棤瑙嗙毊灞傚叧鐘舵€侊紝浠嶈蛋鍏ㄨ渹缇わ紙浠呮祴璇曟ā鍧楀唴锛岀敤浜?AC#4 鍙绱㈠け璐ユ枃妗堬級銆?+    fn buggy_always_swarm(_rt: &CortexRuntime, _user_text: &str) -> MinimalTurnTrace {
++        MinimalTurnTrace {
++            layer: CortexExecutionLayer::FullSwarmOrchestration,
++            process_events_emitted: 1,
++            entered_multi_agent_handoff: true,
++        }
++    }
++
++
++    fn assert_cortex_off_forbids_handoff_for_doc(trace: &MinimalTurnTrace) {
++        assert!(
++            !trace.entered_multi_agent_handoff,
++            "銆愬ぇ鑴戠毊灞傚叧璺緞閿欒銆戞湡鏈涘ぇ鑴戠毊灞備负銆屽叧銆嶆椂涓嶈繘鍏ュ叏铚傜兢锛涘綋鍓嶉敊璇湴璧颁簡銆屽紑銆嶈矾寰勮涓猴紙entered_multi_agent_handoff=true锛夈€傝瀵圭収 CORTEX_OFF_SIMPLIFIED_MODE.md 淇澶ц剳鐨眰寮€/鍏冲垎鏀€?
++        );
++    }
++
++    /// doc-ref: agent-diva-swarm/docs/CORTEX_OFF_SIMPLIFIED_MODE.md 搂4 A4 鈥?妯℃嫙璧伴敊鍒嗘敮鏃?panic 鏂囨椤诲惈銆屽ぇ鑴戠毊灞傘€嶃€屽叧/寮€銆嶄緵 CI grep
++    #[test]
++    #[should_panic(expected = "澶ц剳鐨眰")]
++    fn cortex_off_wrong_branch_panics_with_cortex_keywords() {
++        let rt = CortexRuntime::from_state(CortexState::with_enabled(false));
++        let trace = buggy_always_swarm(&rt, "x");
++        assert_cortex_off_forbids_handoff_for_doc(&trace);
++    }
++}
+diff --git a/agent-diva-swarm/src/process_events.rs b/agent-diva-swarm/src/process_events.rs
+new file mode 100644
+index 0000000..3681e21
+--- /dev/null
++++ b/agent-diva-swarm/src/process_events.rs
+@@ -0,0 +1,360 @@
++//! 鏈€灏忚繃绋嬩簨浠讹紙FR2 鍙戝皠渚э紝Story 1.5锛夛細鐧藉悕鍗?DTO銆佺毊灞傞棬鎺т笌鑺傛祦/鎵瑰鐞嗗嚭鍙ｃ€?+//!
++//! # 榛樿鑺傛祦绛栫暐锛圢FR-P2锛?+//!
++//! - **`swarm_phase_changed`**锛氳繘鍏?**鎵瑰鐞嗙紦鍐?*锛涘湪 **100ms** 鍚堝苟绐楀彛鍐呮垨杈惧埌 **`max_batch`锛堥粯璁?32锛?* 鏉℃椂 **鏁存壒** 涓嬪彂鍒颁笅娓搞€?+//! - **`tool_call_started` / `tool_call_finished`**锛?*绔嬪嵆闅忓綋鍓嶇紦鍐蹭竴骞?flush**锛岄伩鍏嶅伐鍏烽噷绋嬬琚暱鏃堕棿寤惰繜锛涗粛涓嶉樆濉炶皟鐢ㄦ柟锛堜粎鎸侀攣鎺ㄩ€佸悜閲忥級銆?+//!
++//! 鐑矾寰勫彧鍋?`Mutex` 淇濇姢涓?`Vec` 鎺ㄩ€侊紱涓嬫父 `deliver_batch` 椤讳繚鎸佽交閲忥紙渚嬪 channel `try_send` 鎴栬拷鍔犻槦鍒楋級銆俆auri `emit` 搴斿湪寮傛绾跨▼璋冪敤锛岄伩鍏嶉暱鏃堕棿鍗?UI 绾跨▼锛圢FR-P1/P2锛夈€?+
++use crate::CortexRuntime;
++use serde::{Deserialize, Serialize};
++use std::fmt;
++use std::sync::{Arc, Mutex};
++use std::time::{Duration, Instant};
++
++/// 涓?`CortexState` / 1.3 濂戠害涓€鑷寸殑 schema 鐗堟湰瀛楁璇箟锛坴0 = 0锛夈€?+pub const PROCESS_EVENT_SCHEMA_VERSION_V0: u32 = 0;
++
++/// v0 鐧藉悕鍗曚簨浠跺悕锛坵ire锛歚snake_case`锛孨FR-I2锛夈€?+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
++#[serde(rename_all = "snake_case")]
++pub enum ProcessEventNameV0 {
++    /// 鎵ц闃舵鎺ㄨ繘锛堝 agent 杩唬绱㈠紩锛夈€?+    SwarmPhaseChanged,
++    /// 宸ュ叿寮€濮嬫墽琛岋紙杞借嵎浠呭惈鎽樿涓?id锛屼笉鍚畬鏁村弬鏁?缁撴灉锛夈€?+    ToolCallStarted,
++    /// 宸ュ叿缁撴潫锛堟垚鍔熸垨閿欒鎽樿鐢?`message` 鎵胯浇锛屽ぇ鍧楃粨鏋滅暀鍦ㄤ細璇?鎬荤嚎锛夈€?+    ToolCallFinished,
++}
++
++/// 鍗曚竴杩囩▼浜嬩欢 DTO锛坴0锛夈€傚瓧娈典繚鎸佸皬鑰岀ǔ瀹氾紱鎵╁睍椤?bump `schema_version` 鎴栫粡 ADR銆?+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
++#[serde(rename_all = "camelCase")]
++pub struct ProcessEventV0 {
++    pub schema_version: u32,
++    pub name: ProcessEventNameV0,
++    /// 浜哄彲璇荤煭鍙ワ紙棰勮绾э紝闈炲畬鏁村伐鍏?I/O锛夈€?+    pub message: String,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub phase_id: Option<String>,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub correlation_id: Option<String>,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub tool_name: Option<String>,
++}
++
++impl ProcessEventV0 {
++    #[must_use]
++    pub fn swarm_phase_changed(phase_id: impl Into<String>, message: impl Into<String>) -> Self {
++        Self {
++            schema_version: PROCESS_EVENT_SCHEMA_VERSION_V0,
++            name: ProcessEventNameV0::SwarmPhaseChanged,
++            message: message.into(),
++            phase_id: Some(phase_id.into()),
++            correlation_id: None,
++            tool_name: None,
++        }
++    }
++
++    #[must_use]
++    pub fn tool_call_started(
++        tool_name: impl Into<String>,
++        message: impl Into<String>,
++        correlation_id: impl Into<String>,
++    ) -> Self {
++        let t = tool_name.into();
++        Self {
++            schema_version: PROCESS_EVENT_SCHEMA_VERSION_V0,
++            name: ProcessEventNameV0::ToolCallStarted,
++            message: message.into(),
++            phase_id: None,
++            correlation_id: Some(correlation_id.into()),
++            tool_name: Some(t),
++        }
++    }
++
++    #[must_use]
++    pub fn tool_call_finished(
++        tool_name: impl Into<String>,
++        message: impl Into<String>,
++        correlation_id: impl Into<String>,
++    ) -> Self {
++        let t = tool_name.into();
++        Self {
++            schema_version: PROCESS_EVENT_SCHEMA_VERSION_V0,
++            name: ProcessEventNameV0::ToolCallFinished,
++            message: message.into(),
++            phase_id: None,
++            correlation_id: Some(correlation_id.into()),
++            tool_name: Some(t),
++        }
++    }
++}
++
++/// 鎵瑰鐞嗕笅鍙戠洰鏍囷紙鍗曚竴鍑哄彛鍚庣殑璁㈤槄绔€傞厤灞傚疄鐜版 trait锛氬 GUI channel銆佹祴璇曟帰閽堬級銆?+pub trait ProcessEventBatchSink: Send + Sync {
++    fn deliver_batch(&self, batch: Vec<ProcessEventV0>);
++}
++
++/// 鑺傛祦涓庢壒澶勭悊閰嶇疆銆?+#[derive(Debug, Clone)]
++pub struct ProcessEventThrottleConfig {
++    /// `swarm_phase_changed` 绛夊彲鍚堝苟浜嬩欢鐨勬渶闀跨瓑寰呯獥鍙ｃ€?+    pub flush_interval: Duration,
++    /// 浠讳竴鏃跺埢缂撳啿鍐呮渶澶ф潯鏁帮紱瓒呭嚭鍒欏己鍒?flush銆?+    pub max_batch: usize,
++}
++
++impl Default for ProcessEventThrottleConfig {
++    fn default() -> Self {
++        Self {
++            flush_interval: Duration::from_millis(100),
++            max_batch: 32,
++        }
++    }
++}
++
++#[derive(Debug)]
++struct ThrottleState {
++    pending: Vec<ProcessEventV0>,
++    last_flush: Instant,
++    config: ProcessEventThrottleConfig,
++}
++
++impl ThrottleState {
++    fn new(config: ProcessEventThrottleConfig) -> Self {
++        Self {
++            pending: Vec::new(),
++            last_flush: Instant::now(),
++            config,
++        }
++    }
++
++    fn should_flush_after_push(&self, last_event: &ProcessEventV0) -> bool {
++        if self.pending.len() >= self.config.max_batch {
++            return true;
++        }
++        match last_event.name {
++            ProcessEventNameV0::ToolCallStarted | ProcessEventNameV0::ToolCallFinished => true,
++            ProcessEventNameV0::SwarmPhaseChanged => {
++                self.last_flush.elapsed() >= self.config.flush_interval
++            }
++        }
++    }
++
++    fn drain(&mut self) -> Vec<ProcessEventV0> {
++        self.last_flush = Instant::now();
++        std::mem::take(&mut self.pending)
++    }
++}
++
++/// **鐨眰 ON** 鏃跺悜鑺傛祦灞備緵绋匡紱**鐨眰 OFF** 鏃朵涪寮冿紙涓?Story 1.4 绠€鍖栬涔変竴鑷达紝瑙?`docs/PROCESS_EVENTS_CORTEX_OFF.md`锛夈€?+pub struct ProcessEventPipeline {
++    cortex: Arc<CortexRuntime>,
++    state: Mutex<ThrottleState>,
++    sink: Arc<dyn ProcessEventBatchSink>,
++}
++
++impl fmt::Debug for ProcessEventPipeline {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.debug_struct("ProcessEventPipeline")
++            .field("cortex_enabled", &self.cortex.snapshot().enabled)
++            .field("sink", &"<dyn ProcessEventBatchSink>")
++            .finish_non_exhaustive()
++    }
++}
++
++impl ProcessEventPipeline {
++    #[must_use]
++    pub fn new(
++        cortex: Arc<CortexRuntime>,
++        sink: Arc<dyn ProcessEventBatchSink>,
++        config: ProcessEventThrottleConfig,
++    ) -> Self {
++        Self {
++            cortex,
++            state: Mutex::new(ThrottleState::new(config)),
++            sink,
++        }
++    }
++
++    /// 灏濊瘯鍙戝皠涓€鏉′簨浠讹細鐨眰鍏冲垯涓?no-op锛涘惁鍒欏叆缂撳啿骞舵寜绛栫暐鍙兘绔嬪嵆 flush銆?+    pub fn try_emit(&self, event: ProcessEventV0) {
++        if !self.cortex.snapshot().enabled {
++            return;
++        }
++        let mut guard = self.state.lock().unwrap_or_else(|e| e.into_inner());
++        guard.pending.push(event);
++        let last = guard.pending.last().expect("just pushed");
++        let flush = guard.should_flush_after_push(last);
++        if flush {
++            let batch = guard.drain();
++            drop(guard);
++            if !batch.is_empty() {
++                self.sink.deliver_batch(batch);
++            }
++        }
++    }
++
++    /// 灏嗗綋鍓嶇紦鍐插叏閮ㄤ笅鍙戯紙娴嬭瘯鎴?turn 缁撴潫鏃惰皟鐢紝閬垮厤鎸傝捣鏈揪鏃堕棿绐楃殑 phase 浜嬩欢锛夈€?+    pub fn flush_pending(&self) {
++        if !self.cortex.snapshot().enabled {
++            return;
++        }
++        let batch = {
++            let mut guard = self.state.lock().unwrap_or_else(|e| e.into_inner());
++            guard.drain()
++        };
++        if !batch.is_empty() {
++            self.sink.deliver_batch(batch);
++        }
++    }
++}
++
++/// 娴嬭瘯涓庨泦鎴愮敤鐨勫唴瀛樻帰閽堛€?+#[derive(Debug, Default, Clone)]
++pub struct ProcessEventRecorder {
++    inner: Arc<Mutex<Vec<ProcessEventV0>>>,
++}
++
++impl ProcessEventRecorder {
++    #[must_use]
++    pub fn new() -> Self {
++        Self {
++            inner: Arc::new(Mutex::new(Vec::new())),
++        }
++    }
++
++    pub fn snapshot(&self) -> Vec<ProcessEventV0> {
++        self.inner
++            .lock()
++            .unwrap_or_else(|e| e.into_inner())
++            .clone()
++    }
++
++    pub fn batch_count(&self) -> usize {
++        self.inner
++            .lock()
++            .unwrap_or_else(|e| e.into_inner())
++            .len()
++    }
++}
++
++impl ProcessEventBatchSink for ProcessEventRecorder {
++    fn deliver_batch(&self, batch: Vec<ProcessEventV0>) {
++        self.inner
++            .lock()
++            .unwrap_or_else(|e| e.into_inner())
++            .extend(batch);
++    }
++}
++
++/// 灏?[`ProcessEventRecorder`] 鍖呮垚 [`ProcessEventBatchSink`] 鐨?`Arc`銆?+#[must_use]
++pub fn recorder_sink() -> (Arc<ProcessEventRecorder>, Arc<dyn ProcessEventBatchSink>) {
++    let r = Arc::new(ProcessEventRecorder::new());
++    let sink: Arc<dyn ProcessEventBatchSink> = r.clone();
++    (r, sink)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::CortexState;
++
++    struct CountingSink {
++        batches: Mutex<Vec<usize>>,
++    }
++
++    impl ProcessEventBatchSink for CountingSink {
++        fn deliver_batch(&self, batch: Vec<ProcessEventV0>) {
++            self.batches
++                .lock()
++                .unwrap_or_else(|e| e.into_inner())
++                .push(batch.len());
++        }
++    }
++
++    #[test]
++    fn cortex_off_drops_events() {
++        let cortex = Arc::new(CortexRuntime::from_state(CortexState::with_enabled(false)));
++        let (rec, sink) = recorder_sink();
++        let pipe = ProcessEventPipeline::new(
++            cortex,
++            sink,
++            ProcessEventThrottleConfig {
++                flush_interval: Duration::from_secs(60),
++                max_batch: 100,
++            },
++        );
++        pipe.try_emit(ProcessEventV0::swarm_phase_changed("p1", "x"));
++        pipe.flush_pending();
++        assert_eq!(rec.batch_count(), 0);
++    }
++
++    #[test]
++    fn high_frequency_phase_merged_until_interval_or_max_batch() {
++        let cortex = Arc::new(CortexRuntime::new());
++        let counting = Arc::new(CountingSink {
++            batches: Mutex::new(Vec::new()),
++        });
++        let sink: Arc<dyn ProcessEventBatchSink> = counting.clone();
++        let pipe = ProcessEventPipeline::new(
++            cortex,
++            sink,
++            ProcessEventThrottleConfig {
++                flush_interval: Duration::from_secs(10),
++                max_batch: 5,
++            },
++        );
++        for i in 0..12 {
++            pipe.try_emit(ProcessEventV0::swarm_phase_changed(
++                format!("i{i}"),
++                "phase",
++            ));
++        }
++        pipe.flush_pending();
++        let sizes = counting
++            .batches
++            .lock()
++            .unwrap_or_else(|e| e.into_inner())
++            .clone();
++        assert_eq!(
++            sizes.iter().sum::<usize>(),
++            12,
++            "all events delivered: {:?}",
++            sizes
++        );
++        assert!(sizes.iter().all(|&n| n <= 5));
++    }
++
++    #[test]
++    fn tool_events_trigger_immediate_flush_per_push() {
++        let cortex = Arc::new(CortexRuntime::new());
++        let rec = Arc::new(ProcessEventRecorder::new());
++        let sink: Arc<dyn ProcessEventBatchSink> = rec.clone();
++        let pipe = ProcessEventPipeline::new(
++            cortex,
++            sink,
++            ProcessEventThrottleConfig {
++                flush_interval: Duration::from_secs(60),
++                max_batch: 100,
++            },
++        );
++        pipe.try_emit(ProcessEventV0::tool_call_started(
++            "read_file",
++            "start",
++            "c1",
++        ));
++        assert!(!rec.snapshot().is_empty());
++        pipe.try_emit(ProcessEventV0::tool_call_finished(
++            "read_file",
++            "done",
++            "c1",
++        ));
++        let names: Vec<_> = rec.snapshot().iter().map(|e| e.name).collect();
++        assert!(names.contains(&ProcessEventNameV0::ToolCallStarted));
++        assert!(names.contains(&ProcessEventNameV0::ToolCallFinished));
++    }
++}

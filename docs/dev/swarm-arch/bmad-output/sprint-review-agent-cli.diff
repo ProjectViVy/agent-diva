@@ -1,0 +1,733 @@
+﻿diff --git a/agent-diva-agent/Cargo.toml b/agent-diva-agent/Cargo.toml
+index 321fff3..73eb50c 100644
+--- a/agent-diva-agent/Cargo.toml
++++ b/agent-diva-agent/Cargo.toml
+@@ -11,6 +11,7 @@ description = "Agent logic for agent-diva"
+ [dependencies]
+ agent-diva-core = { path = "../agent-diva-core", version = "0.4.0" }
+ agent-diva-providers = { path = "../agent-diva-providers", version = "0.4.0" }
++agent-diva-swarm = { path = "../agent-diva-swarm", version = "0.4.0" }
+ agent-diva-tools = { path = "../agent-diva-tools", version = "0.4.0" }
+ 
+ # Async runtime
+diff --git a/agent-diva-agent/src/agent_loop.rs b/agent-diva-agent/src/agent_loop.rs
+index 55dd11d..48d4bec 100644
+--- a/agent-diva-agent/src/agent_loop.rs
++++ b/agent-diva-agent/src/agent_loop.rs
+@@ -1,6 +1,7 @@
+ //! Agent loop: the core processing engine
+ 
+ use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
++use agent_diva_swarm::ProcessEventPipeline;
+ use agent_diva_core::config::MCPServerConfig;
+ use agent_diva_core::cron::CronService;
+ use agent_diva_core::error_context::ErrorContext;
+@@ -104,6 +105,8 @@ pub struct AgentLoop {
+     notify_on_soul_change: bool,
+     soul_governance: SoulGovernanceSettings,
+     soul_change_turns: VecDeque<Instant>,
++    /// 鍙€夛細FR2 杩囩▼浜嬩欢鍗曚竴鍑哄彛锛堢毊灞傞棬鎺?+ 鑺傛祦锛夛紱`None` 鏃朵笉鍙戝皠銆?+    process_event_pipeline: Option<Arc<ProcessEventPipeline>>,
+ }
+ 
+ impl AgentLoop {
+@@ -147,6 +150,7 @@ impl AgentLoop {
+             notify_on_soul_change: true,
+             soul_governance: SoulGovernanceSettings::default(),
+             soul_change_turns: VecDeque::new(),
++            process_event_pipeline: None,
+         }
+     }
+ 
+@@ -236,9 +240,17 @@ impl AgentLoop {
+             notify_on_soul_change: tool_config.notify_on_soul_change,
+             soul_governance: tool_config.soul_governance,
+             soul_change_turns: VecDeque::new(),
++            process_event_pipeline: None,
+         }
+     }
+ 
++    /// 鎺ュ叆杩囩▼浜嬩欢绠￠亾锛圫tory 1.5锛夛紱涓?`CortexRuntime` 鍏辩敤鍚屼竴 `Arc` 鐪熺浉婧愶紝鐢辫皟鐢ㄦ柟鏋勯€?[`ProcessEventPipeline`]銆?+    #[must_use]
++    pub fn with_process_event_pipeline(mut self, pipeline: Arc<ProcessEventPipeline>) -> Self {
++        self.process_event_pipeline = Some(pipeline);
++        self
++    }
++
+     /// Run the agent loop, processing messages from the bus
+     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+         info!("Agent loop started");
+@@ -399,10 +411,17 @@ impl AgentLoop {
+ mod tests {
+     use super::*;
+     use agent_diva_providers::{
+-        LLMResponse, LiteLLMClient, Message, ProviderError, ProviderEventStream, ProviderResult,
++        LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
++        ProviderResult, ToolCallRequest,
++    };
++    use agent_diva_swarm::{
++        recorder_sink, CortexRuntime, ProcessEventNameV0, ProcessEventPipeline,
++        ProcessEventThrottleConfig,
+     };
+     use async_trait::async_trait;
+     use futures::stream;
++    use std::collections::HashMap;
++    use std::sync::atomic::{AtomicUsize, Ordering};
+     use tokio::time::{timeout, Duration};
+ 
+     struct FailingStreamProvider;
+@@ -440,6 +459,123 @@ mod tests {
+         }
+     }
+ 
++    /// 涓よ疆娴佸紡锛氶杞繑鍥?`read_file`锛屾杞繑鍥炵函鏂囨湰锛堢毊灞傚紑鏃惰繃绋嬩簨浠堕』鍒拌揪鎺㈤拡锛夈€?+    struct TwoTurnToolThenTextProvider {
++        calls: AtomicUsize,
++        absolute_file_path: PathBuf,
++    }
++
++    #[async_trait]
++    impl LLMProvider for TwoTurnToolThenTextProvider {
++        async fn chat(
++            &self,
++            _messages: Vec<Message>,
++            _tools: Option<Vec<serde_json::Value>>,
++            _model: Option<String>,
++            _max_tokens: i32,
++            _temperature: f64,
++        ) -> ProviderResult<LLMResponse> {
++            Err(ProviderError::ApiError("use chat_stream".to_string()))
++        }
++
++        async fn chat_stream(
++            &self,
++            _messages: Vec<Message>,
++            _tools: Option<Vec<serde_json::Value>>,
++            _model: Option<String>,
++            _max_tokens: i32,
++            _temperature: f64,
++        ) -> ProviderResult<ProviderEventStream> {
++            let n = self.calls.fetch_add(1, Ordering::SeqCst);
++            let response = if n == 0 {
++                let mut args = HashMap::new();
++                args.insert(
++                    "path".to_string(),
++                    serde_json::Value::String(
++                        self.absolute_file_path.to_string_lossy().into_owned(),
++                    ),
++                );
++                LLMResponse {
++                    content: None,
++                    tool_calls: vec![ToolCallRequest {
++                        id: "call_proc_ev_1".to_string(),
++                        call_type: "function".to_string(),
++                        name: "read_file".to_string(),
++                        arguments: args,
++                    }],
++                    finish_reason: "tool_calls".to_string(),
++                    usage: HashMap::new(),
++                    reasoning_content: None,
++                }
++            } else {
++                LLMResponse {
++                    content: Some("ok".to_string()),
++                    tool_calls: vec![],
++                    finish_reason: "stop".to_string(),
++                    usage: HashMap::new(),
++                    reasoning_content: None,
++                }
++            };
++            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
++                response,
++            ))])))
++        }
++
++        fn get_default_model(&self) -> String {
++            "stub".to_string()
++        }
++    }
++
++    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++    async fn process_events_whitelist_reaches_sink_when_cortex_on_and_tool_runs() {
++        let temp_dir = tempfile::tempdir().unwrap();
++        let workspace = temp_dir.path().to_path_buf();
++        let hello = workspace.join("hello.txt");
++        std::fs::write(&hello, b"hey").unwrap();
++
++        let bus = MessageBus::new();
++        let provider = Arc::new(TwoTurnToolThenTextProvider {
++            calls: AtomicUsize::new(0),
++            absolute_file_path: hello,
++        });
++
++        let cortex = Arc::new(CortexRuntime::new());
++        let (rec, sink) = recorder_sink();
++        let pipe = Arc::new(ProcessEventPipeline::new(
++            cortex,
++            sink,
++            ProcessEventThrottleConfig::default(),
++        ));
++
++        let mut agent = AgentLoop::with_tools(
++            bus,
++            provider,
++            workspace,
++            None,
++            Some(8),
++            ToolConfig::default(),
++            None,
++        )
++        .with_process_event_pipeline(pipe);
++
++        let msg = InboundMessage::new("test", "u1", "c1", "read please");
++        let out = agent.process_inbound_message(msg, None).await.unwrap();
++        assert!(out.is_some());
++
++        let seen = rec.snapshot();
++        let has_whitelist = seen.iter().any(|e| {
++            matches!(
++                e.name,
++                ProcessEventNameV0::ToolCallStarted | ProcessEventNameV0::ToolCallFinished
++            )
++        });
++        assert!(
++            has_whitelist,
++            "expected tool process events, got {:?}",
++            seen
++        );
++    }
++
+     #[tokio::test]
+     async fn test_agent_loop_creation() {
+         let bus = MessageBus::new();
+diff --git a/agent-diva-agent/src/agent_loop/loop_turn.rs b/agent-diva-agent/src/agent_loop/loop_turn.rs
+index a181ce8..dce0947 100644
+--- a/agent-diva-agent/src/agent_loop/loop_turn.rs
++++ b/agent-diva-agent/src/agent_loop/loop_turn.rs
+@@ -1,6 +1,7 @@
+ use super::AgentLoop;
+ use crate::consolidation;
+ use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
++use agent_diva_swarm::ProcessEventV0;
+ use agent_diva_core::session::ChatMessage;
+ use agent_diva_core::soul::SoulStateStore;
+ use agent_diva_providers::{LLMResponse, LLMStreamEvent};
+@@ -11,6 +12,18 @@ use std::time::Duration;
+ use tokio::sync::mpsc;
+ use tracing::{debug, error, info, trace, warn};
+ 
++struct ProcessEventFlushGuard {
++    pipe: Option<std::sync::Arc<agent_diva_swarm::ProcessEventPipeline>>,
++}
++
++impl Drop for ProcessEventFlushGuard {
++    fn drop(&mut self) {
++        if let Some(p) = self.pipe.take() {
++            p.flush_pending();
++        }
++    }
++}
++
+ impl AgentLoop {
+     pub(super) async fn process_inbound_message_inner(
+         &mut self,
+@@ -18,6 +31,10 @@ impl AgentLoop {
+         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+         trace_id: String,
+     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
++        let _process_event_flush = ProcessEventFlushGuard {
++            pipe: self.process_event_pipeline.clone(),
++        };
++
+         trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
+ 
+         // Use the default model from the current provider
+@@ -88,6 +105,13 @@ impl AgentLoop {
+                 .bus
+                 .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+ 
++            if let Some(pip) = &self.process_event_pipeline {
++                pip.try_emit(ProcessEventV0::swarm_phase_changed(
++                    format!("agent_iteration_{iteration}"),
++                    format!("Agent iteration {iteration}/{}", self.max_iterations),
++                ));
++            }
++
+             // Call LLM (streaming when provider supports it)
+             // For cron-triggered turns, keep normal tools available but hide cron tool
+             // to prevent recursive schedule creation loops.
+@@ -250,6 +274,14 @@ impl AgentLoop {
+                         .bus
+                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+ 
++                    if let Some(pip) = &self.process_event_pipeline {
++                        pip.try_emit(ProcessEventV0::tool_call_started(
++                            tool_call.name.clone(),
++                            preview.clone(),
++                            tool_call.id.clone(),
++                        ));
++                    }
++
+                     let result = match serde_json::to_value(&tool_call.arguments) {
+                         Ok(mut params_value) => {
+                             if tool_call.name == "cron" {
+@@ -313,6 +345,23 @@ impl AgentLoop {
+                     let _ = self
+                         .bus
+                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
++
++                    if let Some(pip) = &self.process_event_pipeline {
++                        let summary = if result.len() > 120 {
++                            format!(
++                                "{}...",
++                                result.chars().take(120).collect::<String>()
++                            )
++                        } else {
++                            result.clone()
++                        };
++                        pip.try_emit(ProcessEventV0::tool_call_finished(
++                            tool_call.name.clone(),
++                            summary,
++                            tool_call.id.clone(),
++                        ));
++                    }
++
+                     self.context.add_tool_result(
+                         &mut messages,
+                         tool_call.id.clone(),
+diff --git a/agent-diva-agent/src/lib.rs b/agent-diva-agent/src/lib.rs
+index f325f2d..5dfa374 100644
+--- a/agent-diva-agent/src/lib.rs
++++ b/agent-diva-agent/src/lib.rs
+@@ -3,6 +3,7 @@
+ //! This crate provides the agent loop, context building, and skill loading.
+ 
+ pub mod agent_loop;
++pub mod capability;
+ pub mod consolidation;
+ pub mod context;
+ pub mod runtime_control;
+diff --git a/agent-diva-agent/src/skills.rs b/agent-diva-agent/src/skills.rs
+index 7bfcd44..c904a13 100644
+--- a/agent-diva-agent/src/skills.rs
++++ b/agent-diva-agent/src/skills.rs
+@@ -3,6 +3,11 @@
+ //! Skills are markdown files (SKILL.md) that teach the agent how to use
+ //! specific tools or perform certain tasks. They contain YAML frontmatter
+ //! with metadata and markdown content with instructions.
++//!
++//! **Capability manifest v0 (FR11)** is separate JSON validated in [`crate::capability`]:
++//! it declares package-level capability **entries** (`id`, optional `priority`, etc.), while this
++//! loader scans **per-skill** `SKILL.md` directories. The two can be composed by upper layers;
++//! do not conflate manifest paths with `skills/` directory layout.
+ 
+ use regex::Regex;
+ use serde_json::Value;
+diff --git a/agent-diva-channels/src/manager.rs b/agent-diva-channels/src/manager.rs
+index 0920294..e224bb7 100644
+--- a/agent-diva-channels/src/manager.rs
++++ b/agent-diva-channels/src/manager.rs
+@@ -169,12 +169,12 @@ impl ChannelManager {
+         .collect()
+     }
+ 
+-    fn log_skipped_channel(config: &Config, name: &str) {
++    fn log_skipped_channel(config: &Config, name: &str) -> bool {
+         let Some(validation) = Self::channel_validation(config, name) else {
+-            return;
++            return false;
+         };
+         if !validation.enabled || validation.missing_fields.is_empty() {
+-            return;
++            return false;
+         }
+ 
+         tracing::warn!(
+@@ -182,6 +182,7 @@ impl ChannelManager {
+             name,
+             validation.missing_fields.join(", ")
+         );
++        true
+     }
+ 
+     async fn start_handler(name: &str, handler: &ChannelHandlerPtr) -> Result<()> {
+@@ -675,9 +676,8 @@ impl ChannelManager {
+ 
+             handlers.insert(name.to_string(), handler);
+             tracing::info!("{} channel updated and started", name);
+-        } else {
+-            Self::log_skipped_channel(&new_config, name);
+-            tracing::info!("{} channel disabled or invalid config", name);
++        } else if !Self::log_skipped_channel(&new_config, name) {
++            tracing::info!("{} channel disabled or not configured for start", name);
+         }
+ 
+         Ok(())
+diff --git a/agent-diva-cli/src/cli_runtime.rs b/agent-diva-cli/src/cli_runtime.rs
+index fd9e956..9fe940d 100644
+--- a/agent-diva-cli/src/cli_runtime.rs
++++ b/agent-diva-cli/src/cli_runtime.rs
+@@ -1,3 +1,4 @@
++use agent_diva_agent::capability::PlaceholderCapabilityRegistry;
+ use agent_diva_core::config::validate::validate_config;
+ use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersConfig};
+ use agent_diva_core::cron::CronService;
+@@ -54,6 +55,38 @@ pub struct ChannelStatus {
+     pub notes: Vec<String>,
+ }
+ 
++/// Swarm / cortex / capability diagnostics for `config doctor --swarm` and `status --json --swarm`.
++///
++/// **NFR-R2:** For CLI and structured status only 鈥?not part of the user chat transcript.
++#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
++pub struct SwarmCortexDoctorV1 {
++    /// Bump when adding/removing JSON fields for GUI whitelist contracts (NFR-I2).
++    pub schema_version: u32,
++    /// Explicit channel tag so consumers never treat this subtree as end-user message content.
++    pub channel: &'static str,
++    pub capabilities: CapabilityDoctorSummary,
++    pub cortex: CortexDoctorSummary,
++}
++
++#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
++pub struct CapabilityDoctorSummary {
++    /// `process_registry` when a registry reference was supplied; `unavailable` for standalone CLI.
++    pub source: String,
++    pub count: usize,
++    #[serde(skip_serializing_if = "Vec::is_empty")]
++    pub ids_preview: Vec<String>,
++    #[serde(skip_serializing_if = "String::is_empty")]
++    pub note: String,
++}
++
++#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
++pub struct CortexDoctorSummary {
++    /// Config-level cortex toggle is not in schema yet (Epic 1); gateway bind is the stable hook today.
++    pub state: String,
++    pub note: String,
++    pub gateway_bind: String,
++}
++
+ #[derive(Clone, Debug, Serialize)]
+ pub struct DoctorReport {
+     pub valid: bool,
+@@ -62,6 +95,8 @@ pub struct DoctorReport {
+     pub warnings: Vec<String>,
+     pub provider: Option<String>,
+     pub channels: Vec<ChannelStatus>,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub swarm_cortex: Option<SwarmCortexDoctorV1>,
+ }
+ 
+ #[derive(Clone, Debug, Serialize)]
+@@ -103,6 +138,8 @@ pub struct StatusDoctorSummary {
+     pub ready: bool,
+     pub errors: Vec<String>,
+     pub warnings: Vec<String>,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub swarm_cortex: Option<SwarmCortexDoctorV1>,
+ }
+ 
+ pub fn expand_tilde(path: &str) -> PathBuf {
+@@ -688,7 +725,52 @@ pub fn channel_statuses(config: &Config) -> Vec<ChannelStatus> {
+     ]
+ }
+ 
+-pub fn doctor_report(runtime: &CliRuntime, config: &Config) -> DoctorReport {
++const SWARM_DOCTOR_ID_PREVIEW: usize = 12;
++
++/// Build the versioned swarm/cortex/capability block. Pass `registry` when running inside a process
++/// that holds the gateway's [`PlaceholderCapabilityRegistry`]; standalone CLI uses `None` (count `n/a` path).
++pub fn swarm_cortex_doctor_section(
++    config: &Config,
++    registry: Option<&PlaceholderCapabilityRegistry>,
++) -> SwarmCortexDoctorV1 {
++    let capabilities = if let Some(reg) = registry {
++        let s = reg.summary();
++        let ids_preview: Vec<String> = s.ids.into_iter().take(SWARM_DOCTOR_ID_PREVIEW).collect();
++        CapabilityDoctorSummary {
++            source: "process_registry".to_string(),
++            count: s.count,
++            ids_preview,
++            note: String::new(),
++        }
++    } else {
++        CapabilityDoctorSummary {
++            source: "unavailable".to_string(),
++            count: 0,
++            ids_preview: vec![],
++            note: "No in-process capability registry in this CLI invocation; live counts require a gateway or embedded registry handle. See architecture.md (capabilities / doctor hook).".to_string(),
++        }
++    };
++
++    let gateway_bind = format!("{}:{}", config.gateway.host, config.gateway.port);
++    let cortex = CortexDoctorSummary {
++        state: "n/a".to_string(),
++        note: "Cortex on/off is not yet a config field; use gateway process + Epic 1 contracts when wired. This line is CLI/status diagnostics only (NFR-R2).".to_string(),
++        gateway_bind,
++    };
++
++    SwarmCortexDoctorV1 {
++        schema_version: 1,
++        channel: "cli_diagnostics",
++        capabilities,
++        cortex,
++    }
++}
++
++pub fn doctor_report(
++    runtime: &CliRuntime,
++    config: &Config,
++    include_swarm_cortex: bool,
++) -> DoctorReport {
+     let mut errors = Vec::new();
+     let mut warnings = Vec::new();
+ 
+@@ -744,6 +826,8 @@ pub fn doctor_report(runtime: &CliRuntime, config: &Config) -> DoctorReport {
+         }
+     }
+ 
++    let swarm_cortex = include_swarm_cortex.then(|| swarm_cortex_doctor_section(config, None));
++
+     DoctorReport {
+         valid: errors.is_empty(),
+         ready: errors.is_empty() && warnings.is_empty(),
+@@ -751,12 +835,16 @@ pub fn doctor_report(runtime: &CliRuntime, config: &Config) -> DoctorReport {
+         warnings,
+         provider: active_provider,
+         channels,
++        swarm_cortex,
+     }
+ }
+ 
+-pub async fn collect_status_report(runtime: &CliRuntime) -> Result<StatusReport> {
++pub async fn collect_status_report(
++    runtime: &CliRuntime,
++    include_swarm_cortex: bool,
++) -> Result<StatusReport> {
+     let config = runtime.load_config()?;
+-    let doctor = doctor_report(runtime, &config);
++    let doctor = doctor_report(runtime, &config, include_swarm_cortex);
+     let cron_store = runtime.cron_store_path();
+     let cron_jobs = if cron_store.exists() {
+         let service = Arc::new(CronService::new(cron_store.clone(), None));
+@@ -789,6 +877,42 @@ pub async fn collect_status_report(runtime: &CliRuntime) -> Result<StatusReport>
+             ready: doctor.ready,
+             errors: doctor.errors,
+             warnings: doctor.warnings,
++            swarm_cortex: doctor.swarm_cortex.clone(),
+         },
+     })
+ }
++
++#[cfg(test)]
++mod swarm_doctor_tests {
++    use super::*;
++    use agent_diva_agent::capability::parse_and_validate_manifest_from_str;
++
++    #[test]
++    fn swarm_section_unavailable_without_registry() {
++        let cfg = Config::default();
++        let s = swarm_cortex_doctor_section(&cfg, None);
++        assert_eq!(s.schema_version, 1);
++        assert_eq!(s.channel, "cli_diagnostics");
++        assert_eq!(s.capabilities.source, "unavailable");
++        assert_eq!(s.capabilities.count, 0);
++        assert!(!s.capabilities.note.is_empty());
++        assert_eq!(s.cortex.state, "n/a");
++        assert!(s.cortex.gateway_bind.contains(':'));
++    }
++
++    #[test]
++    fn swarm_section_uses_registry_when_provided() {
++        let cfg = Config::default();
++        let reg = PlaceholderCapabilityRegistry::new();
++        let m = parse_and_validate_manifest_from_str(
++            r#"{"schema_version":"0","capabilities":[{"id":"cap-a","name":"A"}]}"#,
++        )
++        .unwrap();
++        reg.register(m).unwrap();
++        let s = swarm_cortex_doctor_section(&cfg, Some(&reg));
++        assert_eq!(s.capabilities.source, "process_registry");
++        assert_eq!(s.capabilities.count, 1);
++        assert_eq!(s.capabilities.ids_preview, vec!["cap-a".to_string()]);
++        assert!(s.capabilities.note.is_empty());
++    }
++}
+diff --git a/agent-diva-cli/src/main.rs b/agent-diva-cli/src/main.rs
+index 262d452..1c89925 100644
+--- a/agent-diva-cli/src/main.rs
++++ b/agent-diva-cli/src/main.rs
+@@ -309,6 +309,9 @@ struct StatusArgs {
+     /// Output structured JSON
+     #[arg(long)]
+     json: bool,
++    /// Include swarm / cortex / capability diagnostics (developer-facing; CLI or status JSON only 鈥?not user chat transcripts, NFR-R2).
++    #[arg(long, visible_alias = "cortex")]
++    swarm: bool,
+ }
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+@@ -458,7 +461,7 @@ async fn main() -> Result<()> {
+             if !structured_output {
+                 info!("Showing status");
+             }
+-            run_status(&runtime, args.json).await?;
++            run_status(&runtime, args.json, args.swarm).await?;
+         }
+         Commands::Channels { command } => match command {
+             ChannelCommands::Login { channel } => {
+@@ -502,7 +505,9 @@ async fn main() -> Result<()> {
+             ConfigCommands::Init(args) => run_onboard(&runtime, args).await?,
+             ConfigCommands::Refresh => run_config_refresh(&runtime).await?,
+             ConfigCommands::Validate(args) => run_config_validate(&runtime, args.json).await?,
+-            ConfigCommands::Doctor(args) => run_config_doctor(&runtime, args.json).await?,
++            ConfigCommands::Doctor(args) => {
++                run_config_doctor(&runtime, args.json, args.swarm).await?
++            }
+             ConfigCommands::Show { format } => run_config_show(&runtime, format).await?,
+         },
+         Commands::Service { command } => {
+@@ -1169,15 +1174,15 @@ async fn run_tui(
+ }
+ 
+ /// Show system status
+-async fn run_status(runtime: &CliRuntime, json: bool) -> Result<()> {
+-    let report = collect_status_report(runtime).await?;
++async fn run_status(runtime: &CliRuntime, json: bool, swarm: bool) -> Result<()> {
++    let report = collect_status_report(runtime, swarm).await?;
+ 
+     if json {
+         return print_json(&report);
+     }
+ 
+     let config = runtime.load_config()?;
+-    let doctor = doctor_report(runtime, &config);
++    let doctor = doctor_report(runtime, &config, swarm);
+ 
+     println!("{}", style("Agent Diva Status").bold().cyan());
+     println!("Version: 0.4.0 (Rust)\n");
+@@ -1249,6 +1254,32 @@ async fn run_status(runtime: &CliRuntime, json: bool) -> Result<()> {
+         }
+     }
+ 
++    if swarm {
++        if let Some(ref block) = doctor.swarm_cortex {
++            println!();
++            println!(
++                "{}",
++                style("Swarm / cortex diagnostics (developer 鈥?not user transcript)").bold()
++            );
++            println!(
++                "  Capabilities: source={} count={}",
++                block.capabilities.source, block.capabilities.count
++            );
++            if !block.capabilities.ids_preview.is_empty() {
++                println!(
++                    "  Ids (preview): {}",
++                    block.capabilities.ids_preview.join(", ")
++                );
++            }
++            if !block.capabilities.note.is_empty() {
++                println!("  Note: {}", block.capabilities.note);
++            }
++            println!("  Cortex state: {}", block.cortex.state);
++            println!("  Gateway bind (config): {}", block.cortex.gateway_bind);
++            println!("  Cortex note: {}", block.cortex.note);
++        }
++    }
++
+     Ok(())
+ }
+ 
+@@ -1376,9 +1407,9 @@ async fn run_config_validate(runtime: &CliRuntime, json: bool) -> Result<()> {
+     Ok(())
+ }
+ 
+-async fn run_config_doctor(runtime: &CliRuntime, json: bool) -> Result<()> {
++async fn run_config_doctor(runtime: &CliRuntime, json: bool, swarm: bool) -> Result<()> {
+     let config = runtime.load_config()?;
+-    let report = doctor_report(runtime, &config);
++    let report = doctor_report(runtime, &config, swarm);
+ 
+     if json {
+         print_json(&report)?;
+@@ -1401,6 +1432,29 @@ async fn run_config_doctor(runtime: &CliRuntime, json: bool) -> Result<()> {
+                 println!("  - {}", warning);
+             }
+         }
++        if let Some(ref block) = report.swarm_cortex {
++            println!();
++            println!(
++                "{}",
++                style("Swarm / cortex diagnostics (developer 鈥?not user transcript)").bold()
++            );
++            println!(
++                "  Capabilities: source={} count={}",
++                block.capabilities.source, block.capabilities.count
++            );
++            if !block.capabilities.ids_preview.is_empty() {
++                println!(
++                    "  Ids (preview): {}",
++                    block.capabilities.ids_preview.join(", ")
++                );
++            }
++            if !block.capabilities.note.is_empty() {
++                println!("  Note: {}", block.capabilities.note);
++            }
++            println!("  Cortex state: {}", block.cortex.state);
++            println!("  Gateway bind (config): {}", block.cortex.gateway_bind);
++            println!("  Cortex note: {}", block.cortex.note);
++        }
+     }
+ 
+     if !report.valid {
+diff --git a/agent-diva-cli/tests/config_commands.rs b/agent-diva-cli/tests/config_commands.rs
+index 49640c6..442988c 100644
+--- a/agent-diva-cli/tests/config_commands.rs
++++ b/agent-diva-cli/tests/config_commands.rs
+@@ -85,6 +85,34 @@ fn config_show_json_redacts_secrets() {
+     assert_eq!(value["providers"]["openai"]["api_key"], "***REDACTED***");
+ }
+ 
++#[test]
++fn config_doctor_json_swarm_includes_versioned_swarm_cortex_block() {
++    let temp = tempdir().unwrap();
++    let config_path = write_config(temp.path(), true);
++
++    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
++        .args([
++            "--config",
++            config_path.to_str().unwrap(),
++            "config",
++            "doctor",
++            "--json",
++            "--swarm",
++        ])
++        .output()
++        .expect("failed to run config doctor --json --swarm");
++
++    assert!(output.status.success(), "{:?}", output);
++    let stdout = String::from_utf8(output.stdout).unwrap();
++    let value: Value = serde_json::from_str(stdout.trim()).unwrap();
++    let sc = &value["swarm_cortex"];
++    assert_eq!(sc["schema_version"], 1);
++    assert_eq!(sc["channel"], "cli_diagnostics");
++    assert_eq!(sc["capabilities"]["source"], "unavailable");
++    assert_eq!(sc["cortex"]["state"], "n/a");
++    assert!(sc["cortex"]["gateway_bind"].as_str().unwrap().contains(':'));
++}
++
+ #[test]
+ fn config_doctor_returns_warning_exit_code_for_missing_provider_key() {
+     let temp = tempdir().unwrap();
+diff --git a/agent-diva-core/src/config/validate.rs b/agent-diva-core/src/config/validate.rs
+index 4434c49..8d81788 100644
+--- a/agent-diva-core/src/config/validate.rs
++++ b/agent-diva-core/src/config/validate.rs
+@@ -91,7 +91,7 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn test_validate_enabled_channel_requires_credentials() {
++    fn test_validate_allows_enabled_telegram_without_token() {
+         let mut config = Config::default();
+         config.channels.telegram.enabled = true;
+         config.providers.anthropic.api_key = "test-key".to_string();

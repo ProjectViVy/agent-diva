@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>newspace / DiVA — UX 设计方向线框（对比稿）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #181c27;
+      --border: #2a3142;
+      --text: #e8eaef;
+      --muted: #8b93a7;
+      --pink: #ec4899;
+      --pink-dim: #9d174d40;
+      --accent: #22d3ee;
+      --ok: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      flex: 1 1 200px;
+    }
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.75rem 1rem;
+      background: #12151c;
+      border-bottom: 1px solid var(--border);
+    }
+    .tabs button {
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.45rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .tabs button:hover { color: var(--text); border-color: #3d4659; }
+    .tabs button.active {
+      color: var(--text);
+      border-color: var(--pink);
+      background: var(--pink-dim);
+    }
+    main { padding: 1rem; max-width: 1200px; margin: 0 auto; }
+    .panel { display: none; animation: in 0.2s ease; }
+    .panel.active { display: block; }
+    @keyframes in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .mock {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--panel);
+      min-height: 420px;
+    }
+    .mock-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .tag {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.65rem;
+      color: var(--accent);
+    }
+    .wire {
+      padding: 1rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+    .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .cortex {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.75rem;
+    }
+    .cortex.on { border-color: var(--pink); color: var(--pink); }
+    .chat {
+      border: 1px dashed #3d4659;
+      border-radius: 8px;
+      min-height: 120px;
+      padding: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .process {
+      border-radius: 8px;
+      background: #1a1f2e;
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.65rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .process strong { color: #a5b4fc; font-weight: 600; }
+    .sidebar {
+      width: 52px;
+      background: #141821;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.5rem 0;
+      gap: 0.5rem;
+    }
+    .sb-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #252b3a;
+      border: 1px solid var(--border);
+    }
+    .sb-icon.hl { border-color: var(--pink); background: var(--pink-dim); }
+    .layout-split { display: grid; grid-template-columns: 52px 1fr; min-height: 320px; }
+    .brain {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      min-height: 200px;
+    }
+    @media (max-width: 640px) {
+      .brain { grid-template-columns: 1fr; }
+    }
+    .hemi {
+      border: 2px solid #3d4659;
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .hemi.sel { border-color: var(--pink); background: var(--pink-dim); color: var(--text); }
+    .edge {
+      stroke: #5b6578;
+      stroke-width: 2;
+      fill: none;
+    }
+    .note {
+      margin-top: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .thumb {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      font-size: 0.68rem;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .thumb:hover { border-color: var(--pink); color: var(--text); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>UX 设计方向 — 线框对比</h1>
+    <p>棕地延续现有粉强调 + Inter 工具感；以下为 <strong>6 个探索向</strong>，非最终实现。与 <code>ux-design-specification.md</code> 步骤 9 联动。</p>
+  </header>
+  <nav class="tabs" aria-label="方向切换">
+    <button type="button" class="active" data-panel="d1">1 基线</button>
+    <button type="button" data-panel="d2">2 过程条在输入上方</button>
+    <button type="button" data-panel="d3">3 过程条在消息流下方</button>
+    <button type="button" data-panel="d4">4 神经系统 · 双瓣</button>
+    <button type="button" data-panel="d5">5 神经系统 · 窄屏堆叠</button>
+    <button type="button" data-panel="d6">6 高密度事件流</button>
+  </nav>
+  <main>
+    <section id="d1" class="panel active">
+      <div class="mock">
+        <div class="mock-head"><span>方向 1 — 与现 GUI 对齐的基线</span><span class="tag">baseline</span></div>
+        <div class="wire">
+          <div class="row">
+            <span class="cortex on">🧠 大脑皮层 · 开</span>
+            <span style="font-size:0.75rem;color:var(--muted)">侧栏 · 聊天 · 设置</span>
+          </div>
+          <div class="chat">消息流区域 · 流式输出 …</div>
+          <div class="row" style="justify-content:flex-end">
+            <div style="flex:1;max-width:100%;height:36px;border:1px dashed #3d4659;border-radius:8px;display:flex;align-items:center;padding:0 0.5rem;font-size:0.75rem;color:var(--muted)">输入框</div>
+          </div>
+        </div>
+      </div>
+      <p class="note"><strong>评价：</strong>最低风险；新能力以增量组件挂在现有信息架构上。</p>
+    </section>
+
+    <section id="d2" class="panel">
+      <div class="mock">
+        <div class="mock-head"><span>方向 2 — 过程反馈紧贴输入上沿</span><span class="tag">process-above</span></div>
+        <div class="wire">
+          <div class="row"><span class="cortex on">🧠 开</span></div>
+          <div class="chat">消息流 …</div>
+          <div class="process"><strong>进行中</strong> · tool:read · 2/5 <span style="float:right;opacity:0.7">▼ 折叠</span></div>
+          <div class="row"><div style="flex:1;height:36px;border:1px dashed #3d4659;border-radius:8px"></div></div>
+        </div>
+      </div>
+      <p class="note"><strong>评价：</strong> eye 路径短；注意勿增高输入区导致小屏拥挤（NFR-P2）。</p>
+    </section>
+
+    <section id="d3" class="panel">
+      <div class="mock">
+        <div class="mock-head"><span>方向 3 — 过程条在流与输入之间</span><span class="tag">process-mid</span></div>
+        <div class="wire">
+          <div class="row"><span class="cortex on">🧠 开</span></div>
+          <div class="chat" style="min-height:100px">消息流 …</div>
+          <div class="process"><strong>阶段</strong> 推理 → 工具 → 合成</div>
+          <div class="row"><div style="flex:1;height:36px;border:1px dashed #3d4659;border-radius:8px"></div></div>
+        </div>
+      </div>
+      <p class="note"><strong>评价：</strong> 与「最后一条消息」语义近；折叠后应收成一条细轨。</p>
+    </section>
+
+    <section id="d4" class="panel">
+      <div class="mock">
+        <div class="mock-head"><span>方向 4 — 神经系统 MVP 双瓣大脑</span><span class="tag">neuro-split</span></div>
+        <div class="layout-split">
+          <div class="sidebar">
+            <div class="sb-icon"></div>
+            <div class="sb-icon hl" title="神经系统"></div>
+            <div class="sb-icon"></div>
+          </div>
+          <div class="wire" style="margin:0">
+            <div class="brain">
+              <div class="hemi sel">左脑区<br /><small>语义 / 产品定义</small></div>
+              <div class="hemi">右脑区<br /><small>执行 / 工具</small></div>
+            </div>
+            <svg viewBox="0 0 200 40" width="100%" height="40" style="margin-top:-0.5rem">
+              <path class="edge" d="M50 20 L100 20 L150 20" />
+            </svg>
+            <div class="process" style="min-height:72px"><strong>详情面板</strong> · 连接 / 活动列表（主从）</div>
+          </div>
+        </div>
+      </div>
+      <p class="note"><strong>评价：</strong> 对齐 PRD 分期首屏；连线可用 SVG + token <code>neuro-edge</code>。</p>
+    </section>
+
+    <section id="d5" class="panel">
+      <div class="mock">
+        <div class="mock-head"><span>方向 5 — 窄屏：大脑纵向堆叠 + 抽屉详情</span><span class="tag">neuro-stack</span></div>
+        <div class="wire">
+          <div class="brain" style="grid-template-columns:1fr">
+            <div class="hemi sel">左脑区（上）</div>
+            <div class="hemi">右脑区（下）</div>
+          </div>
+          <div class="process">↔ 详情抽屉（自底或自右滑出）</div>
+        </div>
+      </div>
+      <p class="note"><strong>评价：</strong> 满足响应式；实现成本略高于固定双列。</p>
+    </section>
+
+    <section id="d6" class="panel">
+      <div class="mock">
+        <div class="mock-head"><span>方向 6 — 高密度事件时间线（慎用）</span><span class="tag">dense-log</span></div>
+        <div class="wire">
+          <div class="row"><span class="cortex on">🧠 开</span></div>
+          <div class="chat" style="min-height:60px">消息 …</div>
+          <div class="process" style="font-family:JetBrains Mono,monospace;font-size:0.65rem;line-height:1.6">
+            10:42:01 swarm.phase=start<br />
+            10:42:02 tool.call fs.read<br />
+            10:42:03 blackboard.patch topic=x<br />
+            10:42:04 …
+          </div>
+          <div class="row"><div style="flex:1;height:36px;border:1px dashed #3d4659;border-radius:8px"></div></div>
+        </div>
+      </div>
+      <p class="note"><strong>评价：</strong> 开发者友好但噪声大；仅适合折叠面板或调试模式，默认不推荐 MVP。</p>
+    </section>
+
+    <div class="compare">
+      <div class="thumb" data-jump="d1">跳转 → 1 基线</div>
+      <div class="thumb" data-jump="d4">跳转 → 4 双瓣神经</div>
+      <div class="thumb" data-jump="d6">跳转 → 6 高密度</div>
+    </div>
+  </main>
+  <script>
+    document.querySelectorAll(".tabs button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById(btn.dataset.panel).classList.add("active");
+      });
+    });
+    document.querySelectorAll(".thumb[data-jump]").forEach((t) => {
+      t.addEventListener("click", () => {
+        const id = t.getAttribute("data-jump");
+        document.querySelector(`.tabs button[data-panel="${id}"]`)?.click();
+      });
+    });
+  </script>
+</body>
+</html>
