@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::utils::truncate;
+use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_providers::base::{LLMProvider, Message};
 use agent_diva_tools::registry::ToolRegistry;
 use agent_diva_tools::{
@@ -216,15 +217,20 @@ impl SubagentManager {
     ) -> Result<String> {
         // Build subagent tools (no message tool, no spawn tool)
         let mut tools = ToolRegistry::new();
-        let allowed_dir = if restrict_to_workspace {
-            Some(workspace.to_path_buf())
+        let security_config = if restrict_to_workspace {
+            SecurityConfig {
+                level: SecurityLevel::Standard,
+                workspace_only: true,
+                ..SecurityConfig::default()
+            }
         } else {
-            None
+            SecurityConfig::default()
         };
+        let security = Arc::new(SecurityPolicy::with_config(workspace.to_path_buf(), security_config));
 
-        tools.register(Arc::new(ReadFileTool::new(allowed_dir.clone())));
-        tools.register(Arc::new(WriteFileTool::new(allowed_dir.clone())));
-        tools.register(Arc::new(ListDirTool::new(allowed_dir)));
+        tools.register(Arc::new(ReadFileTool::new(security.clone())));
+        tools.register(Arc::new(WriteFileTool::new(security.clone())));
+        tools.register(Arc::new(ListDirTool::new(security)));
         tools.register(Arc::new(ExecTool::new()));
         if network_config.web.search.enabled {
             tools.register(Arc::new(WebSearchTool::with_provider_and_max_results(

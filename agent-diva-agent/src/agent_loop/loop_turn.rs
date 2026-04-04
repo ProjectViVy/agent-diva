@@ -3,13 +3,17 @@ use crate::consolidation;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
+use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::{LLMResponse, LLMStreamEvent};
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
+
+/// Max size for text attachments to inline (100KB)
+const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
 
 impl AgentLoop {
     pub(super) async fn process_inbound_message_inner(
@@ -33,19 +37,31 @@ impl AgentLoop {
             msg.channel, msg.sender_id, preview, model_to_use
         );
 
+        let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
+
+        // Process attachments: load text file contents and append to message
+        let message_content = if !msg.media.is_empty() {
+            match self.load_attachment_contents(&msg.media).await {
+                Ok(attachment_text) if !attachment_text.is_empty() => {
+                    format!("{}\n\n[Attachments]\n{}\n[/Attachments]", msg.content, attachment_text)
+                }
+                _ => msg.content.clone(),
+            }
+        } else {
+            msg.content.clone()
+        };
+
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         self.clear_session_cancellation(&session_key);
         let session = self.sessions.get_or_create(&session_key);
-
-        let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
 
         // Build initial messages
         let history = session.get_history(50); // Last 50 messages
         let history_len = history.len();
         let mut messages = self.context.build_messages(
             history,
-            msg.content.clone(),
+            message_content,
             Some(&msg.channel),
             Some(&msg.chat_id),
         );
@@ -432,6 +448,77 @@ impl AgentLoop {
             reasoning_content: final_reasoning,
             metadata: msg.metadata,
         }))
+    }
+
+    /// Load and format attachment contents for inclusion in the message.
+    /// Only text files under MAX_INLINE_ATTACHMENT_SIZE are inlined.
+    /// For other files, adds a placeholder telling AI to use read_file tool.
+    async fn load_attachment_contents(&self, file_ids: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+        // Use the same path as file_service.rs to ensure files are found
+        let storage_path = dirs::data_local_dir()
+            .map(|p| p.join("agent-diva").join("files"))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+        let storage_path_str = storage_path.display().to_string();
+        info!("Loading attachments from: {}", storage_path_str);
+        info!("File IDs to load: {:?}", file_ids);
+        let config = FileConfig::with_path(&storage_path);
+        let file_manager = FileManager::new(config).await?;
+        let mut parts = Vec::new();
+
+        for file_id in file_ids {
+            match file_manager.get(file_id).await {
+                Ok(handle) => {
+                    let size = handle.metadata.size;
+                    let mime_type = handle.metadata.mime_type.as_deref().unwrap_or("application/octet-stream");
+                    let is_text = mime_type.starts_with("text/")
+                        || mime_type == "application/json"
+                        || mime_type == "application/javascript"
+                        || mime_type == "application/typescript"
+                        || mime_type == "application/x-yaml"
+                        || mime_type == "application/xml";
+
+                    if is_text && size <= MAX_INLINE_ATTACHMENT_SIZE {
+                        match file_manager.read(&handle).await {
+                            Ok(bytes) => {
+                                match String::from_utf8(bytes) {
+                                    Ok(content) => {
+                                        parts.push(format!(
+                                            "--- {} ---\n{}\n---",
+                                            handle.metadata.name, content
+                                        ));
+                                    }
+                                    Err(_) => {
+                                        parts.push(format!(
+                                            "[File: {} ({} bytes, binary)]",
+                                            handle.metadata.name, size
+                                        ));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Failed to read file {}: {}", file_id, e);
+                                parts.push(format!(
+                                    "[File: {} (error reading: {})]",
+                                    handle.metadata.name, e
+                                ));
+                            }
+                        }
+                    } else {
+                        // Non-text or too large - tell AI to use tool
+                        parts.push(format!(
+                            "[File: {} ({} bytes, {}) - Use read_file tool to access]",
+                            handle.metadata.name, size, mime_type
+                        ));
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to get file handle for {}: {}. Storage path: {}", file_id, e, storage_path_str);
+                    parts.push(format!("[Attachment: {} (not found - {})]", file_id, e));
+                }
+            }
+        }
+
+        Ok(parts.join("\n\n"))
     }
 }
 

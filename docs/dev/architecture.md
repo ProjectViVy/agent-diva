@@ -158,6 +158,33 @@ Memory Manager
       └─► HISTORY.md (append-only memory history)
 ```
 
+### File Attachment Flow
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│  Frontend (GUI) │────►│  POST /api/upload │────►│  file_service.rs    │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+                                                          │
+                                                          ▼
+                                              ┌──────────────────────┐
+                                              │ %LOCALAPPDATA%/      │
+                                              │ agent-diva/files/    │
+                                              │ <sha256_hash>        │
+                                              └──────────────────────┘
+                                                          │
+┌─────────────────┐     ┌──────────────────┐             │
+│  LLM Provider   │◄────│  Agent Loop      │◄────────────┘
+└─────────────────┘     │  load_attachment │
+                        └──────────────────┘
+```
+
+The file system uses content-addressed storage:
+- **Upload**: Files stored with SHA256 hash as filename at `%LOCALAPPDATA%/agent-diva/files/`
+- **Read**: Agent loop retrieves content by hash from the same location
+- **Deduplication**: Same content = same hash = single storage
+
+**Critical**: Path calculation must be identical in both upload and read paths. See `dirs::data_local_dir()` usage in `file_service.rs`.
+
 ## Async Architecture
 
 Agent Diva uses Tokio as its async runtime with the following patterns:
@@ -203,3 +230,17 @@ Configuration is loaded from multiple sources (in order of precedence):
 - **Integration tests**: Cross-crate functionality
 - **Mocking**: External services mocked for tests
 - **CI/CD**: Automated testing on multiple platforms
+
+## Platform-Specific Considerations
+
+### Windows
+
+**HTTP Proxy Interference**: Windows systems with HTTP proxy configured (corporate environments, VPN tools) may intercept localhost requests. The GUI uses `reqwest::Client::builder().no_proxy()` to bypass system proxy for local Manager API calls.
+
+**File Paths**: Uses `dirs::data_local_dir()` which returns `%LOCALAPPDATA%` (typically `C:\Users\<user>\AppData\Local`). All components must use the same path calculation method.
+
+## Debugging Common Issues
+
+See [bug-fixing-lessons-learned.md](./bug-fixing-lessons-learned.md) for detailed troubleshooting of:
+- GUI connection issues (proxy interference)
+- File upload/read mismatches (path inconsistencies)

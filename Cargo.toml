@@ -7,6 +7,7 @@ members = [
     "agent-diva-providers",
     "agent-diva-channels",
     "agent-diva-tools",
+    "agent-diva-files",
     "agent-diva-cli",
     "agent-diva-service",
     "agent-diva-migration",
@@ -20,7 +21,7 @@ rust-version = "1.80.0"
 
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process"] }
+tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process", "io-util"] }
 futures = "0.3"
 async-trait = "0.1"
 tokio-util = "0.7"
@@ -69,6 +70,12 @@ once_cell = "1.19"
 bytes = "1.5"
 which = "6.0"
 windows-service = "0.7"
+
+# File management
+agent-diva-files = { path = "agent-diva-files" }
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite", "migrate", "chrono"] }
 
 # Testing
 mockito = "1.2"

@@ -6,6 +6,7 @@
 - [architecture.md](./architecture.md) - high-level crate and data-flow overview
 - [migration.md](./migration.md) - Python to Rust migration
 - [nano-runtime-packaging-plan.md](./nano-runtime-packaging-plan.md) - current-state plan for the nano line, shared runtime boundaries, and packaging strategy
+- [bug-fixing-lessons-learned.md](./bug-fixing-lessons-learned.md) - detailed case studies of complex bugs and their solutions
 
 ## Archived material (`archive/`)
 

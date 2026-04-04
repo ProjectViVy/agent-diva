@@ -6,7 +6,7 @@ import NormalMode from "./components/NormalMode.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { useI18n } from "vue-i18n";
-import { getConfigStatus, getRuntimeConfig } from "./api/desktop";
+import { getConfigStatus, getRuntimeConfig, type FileAttachmentDto } from "./api/desktop";
 import {
   HISTORY_PREFS_KEY,
   SAVED_MODELS_KEY,
@@ -31,6 +31,7 @@ interface Message {
   toolCallId?: string;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
+  attachments?: string[];
 }
 
 interface ToolStartPayload {
@@ -495,8 +496,8 @@ function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
   };
 }
 
-async function sendMessage(content: string) {
-  if (!content.trim() || isTyping.value) return;
+async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
+  if ((!content.trim() && !attachments?.length) || isTyping.value) return;
   if (content.trim() === '/stop') {
     await stopMessage();
     return;
@@ -507,24 +508,27 @@ async function sendMessage(content: string) {
       apiKey: config.value.apiKey ? `${config.value.apiKey.substring(0, 8)}...` : 'undefined'
   });
 
-  const userMsg: Message = { 
-    role: 'user', 
-    content: content, 
-    timestamp: Date.now() 
+  const attachmentFileIds = attachments?.map(a => a.file_id);
+
+  const userMsg: Message = {
+    role: 'user',
+    content: content,
+    timestamp: Date.now(),
+    attachments: attachmentFileIds
   };
   messages.value.push(userMsg);
-  
+
   isTyping.value = true;
   suppressNextStopError.value = false;
   closeStreamingPlaceholder(true);
   const streamRequestId = generateStreamRequestId();
   activeStreamRequestId.value = streamRequestId;
-  
+
   // Create a placeholder for the agent response
-  messages.value.push({ 
-    role: 'agent', 
-    content: '', 
-    isStreaming: true, 
+  messages.value.push({
+    role: 'agent',
+    content: '',
+    isStreaming: true,
     timestamp: Date.now(),
     emotion: currentEmotion.value
   });
@@ -548,6 +552,7 @@ async function sendMessage(content: string) {
       message: content,
       channel: currentChannel.value,
       chatId: currentChatId.value,
+      attachments: attachmentFileIds,
       streamRequestId,
     });
   } catch (error) {

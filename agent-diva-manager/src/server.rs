@@ -18,7 +18,7 @@ use crate::handlers::{
     resolve_provider_handler, run_cron_job_handler, set_cron_job_enabled_handler,
     set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler, update_channel_handler,
     update_config_handler, update_cron_job_handler, update_mcp_handler, update_provider_handler,
-    update_tools_handler, upload_skill_handler,
+    update_tools_handler, upload_file_handler, upload_skill_handler,
 };
 use crate::state::AppState;
 
@@ -83,6 +83,7 @@ fn runtime_routes() -> Router<AppState> {
             get(get_skills_handler).post(upload_skill_handler),
         )
         .route("/api/skills/:name", delete(delete_skill_handler))
+        .route("/api/files/upload", post(upload_file_handler))
         .route("/api/mcps", get(get_mcps_handler).post(create_mcp_handler))
         .route(
             "/api/mcps/:name",

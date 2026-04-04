@@ -10,6 +10,7 @@ description = "Built-in tools for agent-diva"
 
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.4.0" }
+agent-diva-files = { path = "../agent-diva-files", version = "0.4.0" }
 
 # Async runtime
 tokio = { workspace = true }
@@ -37,6 +38,9 @@ tracing = { workspace = true }
 
 # Utilities
 which = { workspace = true }
+anyhow = { workspace = true }
+mime_guess = "2.0"
+dirs = { workspace = true }
 
 # MCP SDK from crates.io
 rust-mcp-sdk = { version = "0.9", default-features = false, features = ["client", "stdio", "sse", "streamable-http"] }

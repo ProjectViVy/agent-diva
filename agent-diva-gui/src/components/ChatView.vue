@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain, Paperclip, X } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
 import { useI18n } from 'vue-i18n';
+import { uploadFile, type FileAttachmentDto } from '../api/desktop';
 
 const { t } = useI18n();
 
@@ -100,7 +101,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[]): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
 }>();
@@ -108,6 +109,9 @@ const emit = defineEmits<{
 const input = ref('');
 const messagesEndRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const attachments = ref<FileAttachmentDto[]>([]);
+const uploading = ref(false);
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -158,10 +162,43 @@ onMounted(() => {
   inputRef.value?.focus();
 });
 
+const handleFileSelect = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+  if (!files || files.length === 0) return;
+
+  uploading.value = true;
+  try {
+    for (const file of files) {
+      const bytes = await file.arrayBuffer();
+      const byteArray = Array.from(new Uint8Array(bytes));
+      const attachment = await uploadFile(file.name, byteArray, 'gui');
+      attachments.value.push(attachment);
+    }
+  } catch (error) {
+    console.error('Failed to upload file:', error);
+  } finally {
+    uploading.value = false;
+    if (fileInputRef.value) {
+      fileInputRef.value.value = '';
+    }
+  }
+};
+
+const handleRemoveAttachment = (index: number) => {
+  attachments.value.splice(index, 1);
+};
+
 const handleSend = () => {
-  if (!input.value.trim() || props.isTyping) return;
-  emit('send', input.value);
+  if (props.isTyping) return;
+  const hasContent = input.value.trim() || attachments.value.length > 0;
+  if (!hasContent) return;
+
+  const currentAttachments = [...attachments.value];
+  const message = input.value.trim() || (attachments.value.length > 0 ? '[文件]' : '');
+  emit('send', message, currentAttachments);
   input.value = '';
+  attachments.value = [];
 };
 
 const handleClear = async () => {
@@ -417,6 +454,30 @@ const getEmotionEmoji = (emotion?: string) => {
 
     <!-- Input Area -->
     <div class="chat-input-bar border-t p-4 z-20">
+      <input
+        type="file"
+        ref="fileInputRef"
+        @change="handleFileSelect"
+        class="hidden"
+        multiple
+      />
+      <!-- Attachment Preview -->
+      <div v-if="attachments.length > 0" class="mb-2 flex flex-wrap gap-2">
+        <div
+          v-for="(attachment, index) in attachments"
+          :key="attachment.file_id"
+          class="flex items-center gap-1 bg-gray-100 rounded-lg px-2 py-1 text-xs"
+        >
+          <Paperclip :size="12" class="text-gray-500" />
+          <span class="text-gray-700 truncate max-w-[100px]">{{ attachment.filename }}</span>
+          <button
+            @click="handleRemoveAttachment(index)"
+            class="text-gray-400 hover:text-red-500"
+          >
+            <X :size="12" />
+          </button>
+        </div>
+      </div>
       <div class="flex items-center space-x-3 bg-white rounded-xl border border-gray-200 px-2 py-2 shadow-sm focus-within:ring-2 focus-within:ring-pink-500/20 focus-within:border-pink-500 transition-all">
         <button
           @click="handleClear"
@@ -425,7 +486,16 @@ const getEmotionEmoji = (emotion?: string) => {
         >
           <Plus :size="20" />
         </button>
-        
+        <button
+          @click="fileInputRef?.click()"
+          :disabled="uploading"
+          class="p-2 text-gray-400 hover:text-pink-500 hover:bg-pink-50 rounded-lg transition-all flex-shrink-0"
+          :title="uploading ? t('chat.uploading') : t('chat.attachFile')"
+        >
+          <Loader2 v-if="uploading" :size="20" class="animate-spin" />
+          <Paperclip v-else :size="20" />
+        </button>
+
         <div class="flex-1 relative flex items-center">
           <textarea
             ref="inputRef"
@@ -449,9 +519,9 @@ const getEmotionEmoji = (emotion?: string) => {
         </button>
         <button
           @click="handleSend"
-          :disabled="!input.trim() || isTyping"
+          :disabled="(!input.trim() && !attachments.length) || isTyping"
           class="p-2 rounded-lg transition-all flex items-center justify-center flex-shrink-0"
-          :class="!input.trim() || isTyping ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-md shadow-pink-500/20 hover:shadow-lg hover:scale-105 active:scale-95'"
+          :class="(!input.trim() && !attachments.length) || isTyping ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-md shadow-pink-500/20 hover:shadow-lg hover:scale-105 active:scale-95'"
         >
           <Send :size="18" />
         </button>

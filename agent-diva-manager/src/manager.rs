@@ -321,6 +321,9 @@ impl Manager {
                         ManagerCommand::DeleteSkill(name, reply) => {
                             self.handle_delete_skill(name, reply);
                         }
+                        ManagerCommand::UploadFile(request, reply) => {
+                            self.handle_upload_file(request, reply).await;
+                        }
                         ManagerCommand::Provider(command) => {
                             self.handle_provider_command(command).await;
                         }

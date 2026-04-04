@@ -41,6 +41,10 @@ cron = { workspace = true }
 uuid = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
+parking_lot = "0.12"
+
+# File management
+agent-diva-files = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

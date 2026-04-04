@@ -10,6 +10,7 @@ description = "Agent logic for agent-diva"
 
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.4.0" }
+agent-diva-files = { path = "../agent-diva-files", version = "0.4.0" }
 agent-diva-providers = { path = "../agent-diva-providers", version = "0.4.0" }
 agent-diva-tools = { path = "../agent-diva-tools", version = "0.4.0" }
 
@@ -36,6 +37,7 @@ chrono = { workspace = true }
 regex = { workspace = true }
 uuid = { workspace = true }
 which = { workspace = true }
+dirs = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

@@ -21,9 +21,10 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::state::{
-    ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, ManagerCommand,
-    McpRefreshRequest, RunCronJobRequest, SetCronJobEnabledRequest, SetMcpEnabledRequest,
-    SkillUploadRequest, StopChatRequest, ToolsConfigResponse, ToolsConfigUpdate,
+    ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, FileUploadRequest,
+    ManagerCommand, McpRefreshRequest, RunCronJobRequest, SetCronJobEnabledRequest,
+    SetMcpEnabledRequest, SkillUploadRequest, StopChatRequest, ToolsConfigResponse,
+    ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -31,6 +32,7 @@ pub struct ChatRequest {
     pub message: String,
     pub channel: Option<String>,
     pub chat_id: Option<String>,
+    pub attachments: Option<Vec<String>>,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -77,7 +79,12 @@ pub async fn chat_handler(
 
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
-    let msg = InboundMessage::new(channel, "user", chat_id, payload.message);
+    let mut msg = InboundMessage::new(channel, "user", chat_id, payload.message);
+    if let Some(attachments) = payload.attachments {
+        for attachment in attachments {
+            msg = msg.with_media(attachment);
+        }
+    }
 
     let req = ApiRequest { msg, event_tx };
 
@@ -586,6 +593,86 @@ pub async fn upload_skill_handler(
     }
     match rx.await {
         Ok(Ok(skill)) => Json(serde_json::json!({ "status": "ok", "skill": skill })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+pub async fn upload_file_handler(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> Json<serde_json::Value> {
+    let mut file_name: Option<String> = None;
+    let mut bytes: Option<Vec<u8>> = None;
+    let mut channel: Option<String> = None;
+    let mut message_id: Option<String> = None;
+
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(field)) => field,
+            Ok(None) => break,
+            Err(e) => {
+                return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+            }
+        };
+        let name = field.name().map(ToString::to_string);
+        match name.as_deref() {
+            Some("file") => {
+                file_name = field.file_name().map(ToString::to_string);
+                match field.bytes().await {
+                    Ok(body) => bytes = Some(body.to_vec()),
+                    Err(e) => {
+                        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+                    }
+                }
+            }
+            Some("channel") => {
+                match field.text().await {
+                    Ok(text) => channel = Some(text),
+                    Err(e) => {
+                        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+                    }
+                }
+            }
+            Some("message_id") => {
+                match field.text().await {
+                    Ok(text) => message_id = Some(text),
+                    Err(_) => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let Some(file_name) = file_name else {
+        return Json(serde_json::json!({ "status": "error", "message": "missing file upload" }));
+    };
+    let Some(bytes) = bytes else {
+        return Json(serde_json::json!({ "status": "error", "message": "missing file body" }));
+    };
+    let Some(channel) = channel else {
+        return Json(serde_json::json!({ "status": "error", "message": "missing channel" }));
+    };
+
+    let (tx, rx) = oneshot::channel();
+    let request = FileUploadRequest {
+        file_name,
+        bytes,
+        channel,
+        message_id: message_id.clone(),
+    };
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UploadFile(request, tx))
+        .await
+    {
+        tracing::error!("Failed to send UploadFile request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+    match rx.await {
+        Ok(Ok(attachment)) => {
+            Json(serde_json::json!({ "status": "ok", "attachment": attachment }))
+        }
         Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
         Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
     }

@@ -1,9 +1,10 @@
 use super::{AgentLoop, ToolConfig};
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
+use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
-    ToolError, ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
+    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadAttachmentTool,
+    ReadFileTool, SpawnTool, ToolError, ToolRegistry, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,19 +26,27 @@ impl AgentLoop {
             },
         )));
 
-        // Register file system tools
-        let allowed_dir = if tool_config.restrict_to_workspace {
-            Some(self.workspace.clone())
+        // Register file system tools with SecurityPolicy
+        let security_config = if tool_config.restrict_to_workspace {
+            SecurityConfig {
+                level: SecurityLevel::Standard,
+                workspace_only: true,
+                ..SecurityConfig::default()
+            }
         } else {
-            None
+            SecurityConfig::default()
         };
+        let security = Arc::new(SecurityPolicy::with_config(self.workspace.clone(), security_config));
         self.tools
-            .register(Arc::new(ReadFileTool::new(allowed_dir.clone())));
+            .register(Arc::new(ReadFileTool::new(security.clone())));
         self.tools
-            .register(Arc::new(WriteFileTool::new(allowed_dir.clone())));
+            .register(Arc::new(WriteFileTool::new(security.clone())));
         self.tools
-            .register(Arc::new(EditFileTool::new(allowed_dir.clone())));
-        self.tools.register(Arc::new(ListDirTool::new(allowed_dir)));
+            .register(Arc::new(EditFileTool::new(security.clone())));
+        self.tools.register(Arc::new(ListDirTool::new(security)));
+
+        // Register attachment read tool
+        self.tools.register(Arc::new(ReadAttachmentTool::new()));
 
         // Register shell tool
         self.tools.register(Arc::new(ExecTool::with_config(

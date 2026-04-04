@@ -17,6 +17,18 @@ export interface SkillDto {
   can_delete: boolean;
 }
 
+export interface FileAttachmentDto {
+  file_id: string;
+  filename: string;
+  size: number;
+  mime_type?: string | null;
+  channel: string;
+  message_id?: string | null;
+  uploaded_by?: string | null;
+  stored_at: string;
+  ref_count: number;
+}
+
 export interface McpConnectionStatusDto {
   state: 'connected' | 'degraded' | 'disabled' | 'invalid' | string;
   connected: boolean;
@@ -170,6 +182,9 @@ export const refreshMcpStatus = (name: string) =>
 
 export const uploadSkill = (fileName: string, bytes: number[]) =>
   invoke<SkillDto>("upload_skill", { fileName, bytes });
+
+export const uploadFile = (fileName: string, bytes: number[], channel: string, messageId?: string) =>
+  invoke<FileAttachmentDto>("upload_file", { fileName, bytes, channel, messageId });
 
 export const deleteSkill = (name: string) =>
   invoke<void>("delete_skill", { name });

@@ -94,6 +94,10 @@ pub enum ManagerCommand {
         String,
         oneshot::Sender<Result<agent_diva_core::cron::CronRunSnapshot, String>>,
     ),
+    UploadFile(
+        FileUploadRequest,
+        oneshot::Sender<Result<agent_diva_core::attachment::FileAttachment, String>>,
+    ),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),
 }
@@ -154,6 +158,14 @@ pub struct ConfigResponse {
 pub struct SkillUploadRequest {
     pub file_name: String,
     pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FileUploadRequest {
+    pub file_name: String,
+    pub bytes: Vec<u8>,
+    pub channel: String,
+    pub message_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
