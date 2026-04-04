@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineExpose, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
   Check,
