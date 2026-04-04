@@ -101,25 +101,28 @@ impl Tool for ReadFileTool {
             return Ok(format!("Error: {}", e.user_message()));
         }
 
-        // Read file content
-        let content = match tokio::fs::read_to_string(&resolved_path).await {
-            Ok(c) => c,
-            Err(e) => {
-                // Try binary fallback for non-UTF8 files
-                match tokio::fs::read(&resolved_path).await {
-                    Ok(bytes) => {
-                        let lossy = String::from_utf8_lossy(&bytes);
-                        lossy.into_owned()
-                    }
-                    Err(_) => return Ok(format!("Error reading file: {}", e)),
-                }
-            }
-        };
-
-        // Apply offset/limit
+        // Read file content with memory-efficient approach
         let processed = if offset.is_some() || limit.is_some() {
-            apply_offset_limit(&content, offset, limit)
+            // Use streaming read for large files when offset/limit is specified
+            match read_file_with_offset_limit(&resolved_path, offset, limit).await {
+                Ok(content) => content,
+                Err(e) => return Ok(format!("Error reading file: {}", e)),
+            }
         } else {
+            // Read entire file for small files or when no offset/limit specified
+            let content = match tokio::fs::read_to_string(&resolved_path).await {
+                Ok(c) => c,
+                Err(e) => {
+                    // Try binary fallback for non-UTF8 files
+                    match tokio::fs::read(&resolved_path).await {
+                        Ok(bytes) => {
+                            let lossy = String::from_utf8_lossy(&bytes);
+                            lossy.into_owned()
+                        }
+                        Err(_) => return Ok(format!("Error reading file: {}", e)),
+                    }
+                }
+            };
             content
         };
 
@@ -670,4 +673,45 @@ mod tests {
 
         assert!(result.contains("read-only") || result.contains("Read-only"));
     }
+}
+
+/// Read file with offset and limit using streaming for memory efficiency
+async fn read_file_with_offset_limit(
+    path: &std::path::Path,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> std::io::Result<String> {
+    use tokio::io::AsyncBufReadExt;
+    
+    let file = tokio::fs::File::open(path).await?;
+    let reader = tokio::io::BufReader::new(file);
+    let mut lines = reader.lines();
+    
+    let start = offset.map(|o| o.saturating_sub(1)).unwrap_or(0);
+    let max_lines = limit.unwrap_or(usize::MAX);
+    let mut result = Vec::new();
+    let mut line_num = 0;
+    
+    while let Some(line) = lines.next_line().await? {
+        line_num += 1;
+        if line_num <= start {
+            continue;
+        }
+        if result.len() >= max_lines {
+            break;
+        }
+        result.push(format!("{}: {}", line_num, line));
+    }
+    
+    let total = line_num;
+    let end = (start + result.len()).min(total);
+    
+    let content = result.join("\n");
+    let summary = if start > 0 || end < total {
+        format!("\n[Lines {}-{} of {}]", start + 1, end, total)
+    } else {
+        format!("\n[{} lines total]", total)
+    };
+    
+    Ok(format!("{}{}", content, summary))
 }

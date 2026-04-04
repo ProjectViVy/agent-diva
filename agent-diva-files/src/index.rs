@@ -70,12 +70,21 @@ impl SqliteIndex {
         .await?;
 
         // Migration: Add deleted_at column if not exists (for existing databases)
-        let _ = sqlx::query("ALTER TABLE files ADD COLUMN deleted_at TEXT")
-            .execute(&self.pool)
-            .await;
-        let _ = sqlx::query("ALTER TABLE files ADD COLUMN deleted_by TEXT")
-            .execute(&self.pool)
-            .await;
+        let columns: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_table_info('files')")
+            .fetch_all(&self.pool)
+            .await
+            .unwrap_or_default();
+        
+        if !columns.contains(&"deleted_at".to_string()) {
+            let _ = sqlx::query("ALTER TABLE files ADD COLUMN deleted_at TEXT")
+                .execute(&self.pool)
+                .await;
+        }
+        if !columns.contains(&"deleted_by".to_string()) {
+            let _ = sqlx::query("ALTER TABLE files ADD COLUMN deleted_by TEXT")
+                .execute(&self.pool)
+                .await;
+        }
 
         tracing::info!("SQLite index initialized at {:?}", self.db_path);
         Ok(())
@@ -238,7 +247,9 @@ impl SqliteIndex {
                 size = excluded.size,
                 ref_count = excluded.ref_count,
                 last_accessed_at = excluded.last_accessed_at,
-                metadata_json = excluded.metadata_json
+                metadata_json = excluded.metadata_json,
+                deleted_at = NULL,
+                deleted_by = NULL
             "#,
         )
         .bind(&entry.id)
