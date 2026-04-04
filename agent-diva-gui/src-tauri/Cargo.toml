@@ -13,8 +13,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
+tauri-plugin-store = "2"
 agent-diva-core = { path = "../../agent-diva-core" }
 # GUI currently depends on CLI only for local runtime/status helpers. Manager
 # companion/runtime APIs are consumed over HTTP from the Tauri bridge.

@@ -18,6 +18,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State, Window};
+use tauri_plugin_store::StoreExt;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, error, info, warn};
@@ -2585,4 +2586,37 @@ pub fn tail_logs(lines: usize) -> Result<Vec<String>, String> {
         all_lines = all_lines.split_off(all_lines.len().saturating_sub(keep));
     }
     Ok(all_lines)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GuiPrefs {
+    pub close_to_tray: bool,
+}
+
+#[tauri::command]
+pub fn get_gui_prefs(app: AppHandle) -> Result<GuiPrefs, String> {
+    let store = app
+        .store("settings.json")
+        .map_err(|e| format!("Failed to get store: {}", e))?;
+
+    let close_to_tray = store
+        .get("closeToTray")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    Ok(GuiPrefs { close_to_tray })
+}
+
+#[tauri::command]
+pub fn set_gui_prefs(app: AppHandle, prefs: GuiPrefs) -> Result<(), String> {
+    let store = app
+        .store("settings.json")
+        .map_err(|e| format!("Failed to get store: {}", e))?;
+
+    store.set("closeToTray", serde_json::json!(prefs.close_to_tray));
+    store
+        .save()
+        .map_err(|e| format!("Failed to save store: {}", e))?;
+
+    Ok(())
 }

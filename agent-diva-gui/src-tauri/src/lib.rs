@@ -2,6 +2,7 @@
 mod app_state;
 mod commands;
 mod process_utils;
+mod tray;
 
 use app_state::AgentState;
 use std::sync::{Arc, Mutex};
@@ -48,6 +49,7 @@ fn set_splash_complete(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .manage(AgentState::new())
         .manage(Arc::new(Mutex::new(SplashState {
             frontend_done: false,
@@ -109,24 +111,40 @@ pub fn run() {
                     }
                 }
             });
+
+            // Initialize system tray
+            if let Err(e) = tray::init_tray(app.handle()) {
+                tracing::warn!("Failed to initialize system tray: {}", e);
+            } else {
+                tracing::info!("System tray initialized successfully");
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Handle window close events to cleanup gateway process
-            if should_manage_gateway_lifecycle()
-                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
-            {
+            // Handle window close events based on tray setting
+            if let tauri::WindowEvent::CloseRequested { api, .. } = &event {
                 let window_label = window.label();
                 if window_label == "main" {
-                    tracing::info!("Main window closing, cleaning up gateway process...");
-                    // Spawn async task to stop gateway
-                    tauri::async_runtime::spawn(async move {
-                        if let Err(e) = commands::stop_gateway().await {
-                            tracing::error!("Failed to stop gateway on exit: {}", e);
-                        } else {
-                            tracing::info!("Gateway process stopped successfully on exit");
-                        }
-                    });
+                    // Check if we should hide to tray instead of closing
+                    if tray::handle_window_close(window.app_handle()) {
+                        // Prevent window close, it was already hidden by handle_window_close
+                        api.prevent_close();
+                        tracing::info!("Window hidden to system tray");
+                        return;
+                    }
+
+                    // Normal close - cleanup gateway if needed
+                    if should_manage_gateway_lifecycle() {
+                        tracing::info!("Main window closing, cleaning up gateway process...");
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(e) = commands::stop_gateway().await {
+                                tracing::error!("Failed to stop gateway on exit: {}", e);
+                            } else {
+                                tracing::info!("Gateway process stopped successfully on exit");
+                            }
+                        });
+                    }
                 }
             }
         })
@@ -185,7 +203,9 @@ pub fn run() {
             commands::install_service,
             commands::uninstall_service,
             commands::start_service,
-            commands::stop_service
+            commands::stop_service,
+            commands::get_gui_prefs,
+            commands::set_gui_prefs
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

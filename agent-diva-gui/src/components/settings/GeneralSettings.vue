@@ -3,8 +3,8 @@ import { ref, watch, onMounted, computed } from 'vue';
 import { SlidersHorizontal, MessageSquareText, ServerCog, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap, AlertTriangle } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import GatewayControlPanel from '../GatewayControlPanel.vue';
-import { getConfigStatus, startGateway, wipeLocalData, type ConfigStatusReport } from '../../api/desktop';
-import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES } from '../../utils/localStorageAgentDiva';
+import { getConfigStatus, startGateway, wipeLocalData, getGuiPrefs, setGuiPrefs, type ConfigStatusReport } from '../../api/desktop';
+import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES, GUI_PREFS_KEY, defaultGuiPrefs, type GuiPrefs } from '../../utils/localStorageAgentDiva';
 
 const { t } = useI18n();
 
@@ -23,6 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const localPrefs = ref<ChatDisplayPrefs>({ ...props.chatDisplayPrefs });
+const guiPrefs = ref<GuiPrefs>({ ...defaultGuiPrefs });
 const statusReport = ref<ConfigStatusReport | null>(null);
 const cacheCleared = ref(false);
 const preserveLocaleOnWipe = ref(false);
@@ -47,6 +48,24 @@ onMounted(async () => {
     statusReport.value = await getConfigStatus();
   } catch (error) {
     console.error('Failed to load config status:', error);
+  }
+
+  // Load GUI preferences
+  try {
+    const stored = localStorage.getItem(GUI_PREFS_KEY);
+    if (stored) {
+      guiPrefs.value = { ...defaultGuiPrefs, ...JSON.parse(stored) };
+    }
+  } catch (error) {
+    console.error('Failed to load GUI preferences from localStorage:', error);
+  }
+
+  // Also try to load from backend store
+  try {
+    const backendPrefs = await getGuiPrefs();
+    guiPrefs.value.closeToTray = backendPrefs.close_to_tray;
+  } catch (error) {
+    console.warn('Failed to load GUI preferences from backend:', error);
   }
 });
 
@@ -80,6 +99,22 @@ function clearUiCache() {
   window.setTimeout(() => {
     cacheCleared.value = false;
   }, 2500);
+}
+
+async function saveGuiPrefs() {
+  // Save to localStorage for frontend use
+  try {
+    localStorage.setItem(GUI_PREFS_KEY, JSON.stringify(guiPrefs.value));
+  } catch (error) {
+    console.error('Failed to save GUI preferences to localStorage:', error);
+  }
+
+  // Save to backend store for window close behavior
+  try {
+    await setGuiPrefs({ close_to_tray: guiPrefs.value.closeToTray });
+  } catch (error) {
+    console.error('Failed to save GUI preferences to backend:', error);
+  }
 }
 
 async function runFullWipe() {
@@ -135,6 +170,28 @@ async function runFullWipe() {
         <label class="text-sm text-gray-700 flex items-center space-x-2">
           <input type="checkbox" v-model="localPrefs.showRawMetaByDefault" @change="emitPrefs" />
           <span>{{ t('general.autoExpandRawMeta') }}</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="bg-white border border-gray-100 rounded-xl p-4 space-y-4">
+      <div class="flex items-center space-x-2 text-gray-700">
+        <SlidersHorizontal :size="16" class="text-violet-500" />
+        <span class="text-sm font-semibold">{{ t('general.behaviorTitle') }}</span>
+      </div>
+
+      <div class="space-y-3 pl-1">
+        <label class="text-sm text-gray-700 flex items-start space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            v-model="guiPrefs.closeToTray"
+            @change="saveGuiPrefs"
+            class="mt-0.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+          />
+          <div class="flex flex-col">
+            <span>{{ t('general.closeToTray') }}</span>
+            <span class="text-xs text-gray-400">{{ t('general.closeToTrayDesc') }}</span>
+          </div>
         </label>
       </div>
     </div>
