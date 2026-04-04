@@ -33,10 +33,16 @@ function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
   if (!Array.isArray(d.group_reply_allowed_sender_ids)) d.group_reply_allowed_sender_ids = [];
 }
 
+function normalizeFeishuConfig(f: Record<string, unknown> | undefined) {
+  if (!f || typeof f !== 'object') return;
+  if (!Array.isArray(f.allow_from)) f.allow_from = [];
+}
+
 async function loadChannels() {
   try {
     const fetchedChannels = await invoke<Record<string, any>>('get_channels');
     normalizeDiscordConfig(fetchedChannels.discord);
+    normalizeFeishuConfig(fetchedChannels.feishu);
     draftChannels.value = cloneValue(fetchedChannels);
     savedChannels.value = cloneValue(fetchedChannels);
     channelStatuses.value = (await getConfigStatus()).channels;
@@ -101,6 +107,17 @@ function discordGroupBypassText(): string {
 function setDiscordGroupBypass(text: string) {
   if (!draftChannels.value.discord) return;
   draftChannels.value.discord.group_reply_allowed_sender_ids = splitIdList(text);
+}
+
+function feishuAllowFromText(): string {
+  const f = draftChannels.value.feishu;
+  if (!f?.allow_from?.length) return '';
+  return f.allow_from.join('\n');
+}
+
+function setFeishuAllowFrom(text: string) {
+  if (!draftChannels.value.feishu) return;
+  draftChannels.value.feishu.allow_from = splitIdList(text);
 }
 
 const saveCurrentChannel = async () => {
@@ -329,6 +346,16 @@ const saveCurrentChannel = async () => {
             <div class="space-y-1">
               <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.verificationToken') }}</label>
               <input v-model="draftChannels.feishu.verification_token" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" />
+            </div>
+            <div class="space-y-1">
+              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('channels.allowFrom') }}</label>
+              <textarea
+                class="w-full min-h-[72px] px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm"
+                :value="feishuAllowFromText()"
+                :placeholder="t('channels.placeholders.allowFrom')"
+                @input="setFeishuAllowFrom(($event.target as HTMLTextAreaElement).value)"
+              />
+              <p class="text-[11px] text-gray-500">{{ t('channels.allowFromHint') }}</p>
             </div>
           </div>
 

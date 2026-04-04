@@ -298,6 +298,9 @@ pub struct FeishuConfig {
     pub verification_token: String,
     #[serde(default)]
     pub allow_from: Vec<String>,
+    /// Optional port for webhook mode (not used in WebSocket mode)
+    #[serde(default)]
+    pub port: Option<u16>,
 }
 
 /// DingTalk channel configuration

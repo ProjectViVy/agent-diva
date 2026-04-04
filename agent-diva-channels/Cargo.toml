@@ -57,6 +57,9 @@ html-escape = "0.2"
 # Feishu/Lark support
 # Using pure Rust implementation with tokio-tungstenite and reqwest
 # instead of open-lark SDK to maintain consistency with other channels
+prost = "0.13"
+prost-derive = "0.13"
+futures-util = "0.3"
 
 [dev-dependencies]
 tokio-test = { workspace = true }

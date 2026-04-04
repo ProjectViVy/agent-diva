@@ -328,6 +328,8 @@ export default {
     discordAdvanced: '高级：Gateway 与 Intents',
     discordGatewayUrl: 'Gateway WebSocket URL',
     discordIntents: 'Gateway Intents（整数）',
+    allowFrom: '允许的用户 ID',
+    allowFromHint: '每行一个用户 open_id；留空表示不限制。使用 * 表示允许所有人（生产环境请谨慎）。',
     placeholders: {
       telegramToken: '输入 Telegram 机器人令牌',
       discordToken: '输入 Discord 机器人令牌',
@@ -341,6 +343,7 @@ export default {
       senderAddress: '可选：发件人地址',
       qqAppId: 'QQ 机器人 App ID',
       qqSecret: 'QQ 机器人 client secret',
+      allowFrom: '每行一个用户 ID，或 *',
     },
   },
   welcome: {

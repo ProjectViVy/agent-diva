@@ -471,6 +471,8 @@ export default {
     discordAdvanced: 'Advanced: Gateway URL and intents',
     discordGatewayUrl: 'Gateway WebSocket URL',
     discordIntents: 'Gateway intents (integer)',
+    allowFrom: 'Allowed User IDs',
+    allowFromHint: 'One user open_id per line; leave empty for no restriction. Use * to allow everyone (use cautiously in production).',
     placeholders: {
       telegramToken: 'Enter Telegram Bot Token',
       discordToken: 'Enter Discord Bot Token',
@@ -482,8 +484,9 @@ export default {
       smtpHost: 'smtp.example.com',
       smtpSameAsImap: 'Leave empty if same as IMAP',
       senderAddress: 'Optional: Sender address',
-      qqAppId: 'QQ bot App ID',
-      qqSecret: 'QQ bot client secret',
+      qqAppId: 'QQ Bot App ID',
+      qqSecret: 'QQ Bot client secret',
+      allowFrom: 'One user ID per line, or *',
     },
   },
   about: {
