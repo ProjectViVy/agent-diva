@@ -23,6 +23,67 @@ fn line_has_exact_port_suffix(line: &str, port: u16) -> bool {
     false
 }
 
+/// Forcefully cleans up ALL agent-diva related processes using multiple methods
+pub async fn force_cleanup_all_gateway_processes() -> Result<usize, String> {
+    info!("Starting forceful cleanup of all agent-diva gateway processes...");
+    let mut terminated = 0;
+
+    // Method 1: Kill process on port 3000 directly
+    if let Some(pid) = find_process_on_port_3000() {
+        match terminate_process(pid) {
+            Ok(()) => {
+                info!("Terminated process {} occupying port 3000", pid);
+                terminated += 1;
+            }
+            Err(e) => {
+                warn!("Failed to terminate process {} on port 3000: {}", pid, e);
+            }
+        }
+    }
+
+    // Method 2: Kill known agent-diva gateway processes
+    for pid in find_gateway_processes() {
+        match terminate_process(pid) {
+            Ok(()) => {
+                info!("Terminated gateway process {}", pid);
+                terminated += 1;
+            }
+            Err(e) => {
+                warn!("Failed to terminate gateway process {}: {}", pid, e);
+            }
+        }
+    }
+
+    // Method 3: Try common agent-diva process names
+    let process_names = [
+        "agent-diva.exe",
+        "agent-diva-gui.exe",
+        "agent-diva",
+        "gateway.exe",
+    ];
+    for name in process_names {
+        if let Ok(pids) = find_processes_by_name(name).await {
+            for pid in pids {
+                match terminate_process(pid) {
+                    Ok(()) => {
+                        info!("Terminated {} process {}", name, pid);
+                        terminated += 1;
+                    }
+                    Err(e) => {
+                        debug!("Failed to terminate {} process {}: {}", name, pid, e);
+                    }
+                }
+            }
+        }
+    }
+
+    info!(
+        "Force cleanup completed: terminated {} processes total",
+        terminated
+    );
+    Ok(terminated)
+}
+
 /// Cleans up orphan agent-diva gateway processes
 pub fn cleanup_orphan_gateway_processes() -> Result<usize, String> {
     info!("Scanning for orphan agent-diva gateway processes...");
@@ -52,6 +113,33 @@ pub fn cleanup_orphan_gateway_processes() -> Result<usize, String> {
     }
 
     Ok(terminated_count)
+}
+
+/// Checks if a specific port is available for binding
+pub fn is_port_available(port: u16) -> bool {
+    match std::net::TcpListener::bind(format!("127.0.0.1:{port}")) {
+        Ok(_) => {
+            debug!("Port {} is available", port);
+            true
+        }
+        Err(e) => {
+            debug!("Port {} is not available: {}", port, e);
+            false
+        }
+    }
+}
+
+/// Finds the first available port in the given range
+pub fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
+    info!("Scanning for available ports in range {}-{}", start, end);
+    for port in start..=end {
+        if is_port_available(port) {
+            info!("Found available port: {}", port);
+            return Some(port);
+        }
+    }
+    warn!("No available ports found in range {}-{}", start, end);
+    None
 }
 
 /// Detects if port 3000 is occupied
@@ -245,6 +333,109 @@ fn terminate_process_unix(pid: u32) -> Result<(), String> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         Err(format!("Failed to terminate process {}: {}", pid, stderr))
     }
+}
+
+/// Finds all processes by name
+pub async fn find_processes_by_name(name: &str) -> Result<Vec<u32>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        find_processes_by_name_windows(name)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        find_processes_by_name_unix(name)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn find_processes_by_name_windows(name: &str) -> Result<Vec<u32>, String> {
+    let mut pids = Vec::new();
+    let output = Command::new("tasklist")
+        .args(["/FI", &format!("IMAGENAME eq {name}"), "/FO", "CSV", "/NH"])
+        .output()
+        .map_err(|e| format!("Failed to execute tasklist: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        if line.contains(name) || line.contains("agent-diva") {
+            // Parse CSV format: "name","pid","session","mem","status"
+            let parts: Vec<&str> = line.split(',').collect();
+            if parts.len() >= 2 {
+                if let Ok(pid) = parts[1].trim_matches('"').parse::<u32>() {
+                    pids.push(pid);
+                }
+            }
+        }
+    }
+
+    debug!(
+        "Found {} process(es) named '{}' on Windows",
+        pids.len(),
+        name
+    );
+    Ok(pids)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn find_processes_by_name_unix(name: &str) -> Result<Vec<u32>, String> {
+    let mut pids = Vec::new();
+    let pgrep_output = Command::new("pgrep")
+        .args(["-f", name])
+        .output()
+        .map_err(|e| format!("Failed to execute pgrep: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&pgrep_output.stdout);
+    for line in stdout.lines() {
+        if let Ok(pid) = line.trim().parse::<u32>() {
+            pids.push(pid);
+        }
+    }
+
+    debug!("Found {} process(es) named '{}' on Unix", pids.len(), name);
+    Ok(pids)
+}
+
+/// Waits for port 3000 to become available with exponential backoff
+pub async fn wait_for_port_available(max_attempts: u32, max_wait_ms: u64) -> Result<bool, String> {
+    let mut attempt = 0;
+    let mut total_waited = 0u64;
+    let base_delay_ms = 100u64;
+
+    while attempt < max_attempts {
+        if !is_port_3000_occupied() {
+            info!(
+                "Port 3000 became available after {} attempts ({} ms total)",
+                attempt, total_waited
+            );
+            return Ok(true);
+        }
+
+        let delay = base_delay_ms * (2u64.pow(attempt));
+        if total_waited + delay > max_wait_ms {
+            warn!(
+                "Timeout waiting for port 3000: exceeded max_wait_ms={}ms after {}ms",
+                max_wait_ms, total_waited
+            );
+            break;
+        }
+
+        debug!(
+            "Port 3000 still occupied, waiting {}ms (attempt {}/{})",
+            delay,
+            attempt + 1,
+            max_attempts
+        );
+        tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+        total_waited += delay;
+        attempt += 1;
+    }
+
+    warn!(
+        "Port 3000 still occupied after {} attempts and {}ms",
+        attempt, total_waited
+    );
+    Ok(false)
 }
 
 /// Finds the process ID occupying port 3000

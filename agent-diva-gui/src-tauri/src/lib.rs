@@ -77,11 +77,11 @@ pub fn run() {
 
                     tracing::info!("Auto-starting gateway...");
                     match commands::start_gateway(app_handle.clone(), None).await {
-                        Ok(()) => {
-                            tracing::info!("Gateway auto-started successfully");
+                        Ok(port) => {
+                            tracing::info!("Gateway auto-started successfully on port {}", port);
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to auto-start gateway: {}", e);
+                            tracing::error!("Failed to auto-start gateway: {}", e);
                         }
                     }
                 });

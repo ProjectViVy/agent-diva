@@ -20,7 +20,7 @@ use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State, Window};
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex as AsyncMutex;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 struct GatewayProcess {
     child: tokio::process::Child,
@@ -1468,6 +1468,45 @@ fn config_loader() -> ConfigLoader {
     }
 }
 
+/// Saves the gateway port to a configuration file
+fn save_gateway_port_config(port: u16) -> Result<(), String> {
+    let loader = config_loader();
+    let config_dir = loader.config_dir();
+    std::fs::create_dir_all(config_dir)
+        .map_err(|e| format!("Failed to create config directory: {}", e))?;
+
+    let port_file = config_dir.join("gateway.port");
+    std::fs::write(&port_file, port.to_string())
+        .map_err(|e| format!("Failed to write gateway port config: {}", e))?;
+
+    info!("Saved gateway port {} to {}", port, port_file.display());
+    Ok(())
+}
+
+/// Loads the gateway port from configuration file, defaults to 3000
+#[allow(dead_code)]
+fn load_gateway_port_config() -> u16 {
+    let loader = config_loader();
+    let port_file = loader.config_dir().join("gateway.port");
+
+    match std::fs::read_to_string(&port_file) {
+        Ok(content) => match content.trim().parse::<u16>() {
+            Ok(port) => {
+                debug!("Loaded gateway port {} from {}", port, port_file.display());
+                port
+            }
+            Err(e) => {
+                warn!("Invalid port in config file: {}. Using default 3000", e);
+                3000
+            }
+        },
+        Err(_) => {
+            debug!("Gateway port config file not found. Using default 3000");
+            3000
+        }
+    }
+}
+
 fn cli_runtime_from_loader(loader: &ConfigLoader) -> CliRuntime {
     CliRuntime::from_paths(
         Some(loader.config_path().to_path_buf()),
@@ -2157,49 +2196,64 @@ pub async fn get_gateway_process_status() -> GatewayProcessStatus {
 }
 
 #[tauri::command]
-pub async fn start_gateway(app: AppHandle, bin_path: Option<String>) -> Result<(), String> {
+#[allow(dead_code)]
+pub fn get_gateway_port() -> u16 {
+    load_gateway_port_config()
+}
+
+#[tauri::command]
+pub async fn start_gateway(app: AppHandle, bin_path: Option<String>) -> Result<u16, String> {
     let current_status = refresh_gateway_process_status().await;
     if current_status.running {
         return Err("gateway process is already running".to_string());
     }
 
-    // Check for port 3000 conflicts before starting
-    if process_utils::is_port_3000_occupied() {
-        info!("Port 3000 is occupied, checking for gateway processes...");
+    // Strategy 1: Try to use port 3000 directly
+    let port = if process_utils::is_port_3000_occupied() {
+        info!("Port 3000 is occupied, attempting mixed strategy...");
 
-        // Try to identify and terminate the occupying process if it's a gateway
-        let gateway_pids = process_utils::find_gateway_processes();
-        if !gateway_pids.is_empty() {
-            info!(
-                "Found {} gateway process(es) occupying port 3000, terminating...",
-                gateway_pids.len()
-            );
-            for pid in gateway_pids {
-                match process_utils::terminate_process(pid) {
-                    Ok(()) => info!("Terminated gateway process {}", pid),
-                    Err(e) => warn!("Failed to terminate gateway process {}: {}", pid, e),
+        // Strategy 2: Try to clean up and use port 3000
+        match process_utils::force_cleanup_all_gateway_processes().await {
+            Ok(count) => {
+                if count > 0 {
+                    info!("Forcefully terminated {} agent-diva process(es)", count);
+                } else {
+                    info!("No agent-diva processes found to terminate");
                 }
             }
-
-            // Wait a bit for port to be released
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-            // Check again
-            if process_utils::is_port_3000_occupied() {
-                return Err("Port 3000 is still occupied after cleanup. Please check for other processes using this port.".to_string());
-            }
-        } else {
-            // Port is occupied by a non-gateway process
-            if let Some(pid) = process_utils::find_process_on_port_3000() {
-                return Err(format!("Port 3000 is occupied by process {} (not agent-diva gateway). Please stop this process first.", pid));
-            } else {
-                return Err(
-                    "Port 3000 is occupied by an unknown process. Please free this port first."
-                        .to_string(),
-                );
+            Err(e) => {
+                warn!("Error during forceful cleanup: {}", e);
             }
         }
-    }
+
+        // Wait for port 3000 to become available
+        match process_utils::wait_for_port_available(5, 3000).await {
+            Ok(true) => {
+                info!("Port 3000 is now available, using it");
+                3000
+            }
+            Ok(false) => {
+                // Strategy 3: Fall back to dynamic port
+                info!("Port 3000 still occupied after cleanup, switching to dynamic port...");
+                match process_utils::find_first_available_port(3001, 3010) {
+                    Some(available_port) => {
+                        info!("Found available port: {}", available_port);
+                        available_port
+                    }
+                    None => {
+                        return Err("All ports in range 3001-3010 are unavailable".to_string());
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(format!("Error while waiting for port 3000: {}", e));
+            }
+        }
+    } else {
+        // Port 3000 is available, use it
+        info!("Port 3000 is available, using it");
+        3000
+    };
 
     let loader = config_loader();
     std::fs::create_dir_all(loader.config_dir()).map_err(|e| {
@@ -2236,7 +2290,14 @@ pub async fn start_gateway(app: AppHandle, bin_path: Option<String>) -> Result<(
         child,
         executable_path: executable.display().to_string(),
     });
-    Ok(())
+
+    // Save the port to config for frontend to use
+    if let Err(e) = save_gateway_port_config(port) {
+        warn!("Failed to save gateway port config: {}", e);
+    }
+
+    info!("Gateway process started successfully on port {}", port);
+    Ok(port)
 }
 
 #[tauri::command]
