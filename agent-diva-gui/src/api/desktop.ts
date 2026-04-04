@@ -188,3 +188,13 @@ export const uploadFile = (fileName: string, bytes: number[], channel: string, m
 
 export const deleteSkill = (name: string) =>
   invoke<void>("delete_skill", { name });
+
+export interface GuiPrefs {
+  close_to_tray: boolean;
+}
+
+export const getGuiPrefs = () =>
+  invoke<GuiPrefs>("get_gui_prefs");
+
+export const setGuiPrefs = (prefs: GuiPrefs) =>
+  invoke<void>("set_gui_prefs", { prefs });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineExpose, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
   Check,
@@ -15,6 +15,7 @@ import ChatView from './ChatView.vue';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
+import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
 import type { FileAttachmentDto } from '../api/desktop';
 
@@ -62,33 +63,47 @@ interface SavedModel {
   displayName: string;
 }
 
+interface AppConfigShape {
+  provider: string;
+  apiBase: string;
+  apiKey: string;
+  model: string;
+}
+
+interface ProviderConfigEntry {
+  apiKey: string;
+  apiBase: string;
+  source: 'providers' | 'custom_providers';
+}
+
+interface ToolsConfigShape {
+  web: {
+    search: {
+      provider: string;
+      enabled: boolean;
+      api_key: string;
+      max_results: number;
+    };
+    fetch: {
+      enabled: boolean;
+    };
+  };
+}
+
 interface Props {
   messages: Message[];
   isTyping: boolean;
   connectionStatus?: 'connected' | 'error' | 'connecting';
   currentEmotion?: string;
-  config?: {
-    provider: string;
-    apiBase: string;
-    apiKey: string;
-    model: string;
-  };
-  toolsConfig?: {
-    web: {
-      search: {
-        provider: string;
-        enabled: boolean;
-        api_key: string;
-        max_results: number;
-      };
-      fetch: {
-        enabled: boolean;
-      };
-    };
-  };
+  config?: AppConfigShape;
+  providerConfigs?: Record<string, ProviderConfigEntry>;
+  toolsConfig?: ToolsConfigShape;
   savedModels?: SavedModel[];
   sessions?: { session_key: string; chat_id: string; snippet: string; timestamp: number }[];
   chatDisplayPrefs: ChatDisplayPrefs;
+  saveConfigAction: (config: AppConfigShape) => Promise<void>;
+  saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
+  saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
 }
 
 const props = defineProps<Props>();
@@ -98,8 +113,6 @@ const emit = defineEmits<{
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'toggle-sidebar'): void;
-  (e: 'save-config', config: { provider: string; apiBase: string; apiKey: string; model: string }): void;
-  (e: 'save-tools-config', tools: NonNullable<typeof props.toolsConfig>): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
   (e: 'load-session', sessionKey: string): void;
@@ -130,32 +143,40 @@ const handleUpdateSavedModels = (models: SavedModel[]) => {
   emit('update-saved-models', models);
 };
 
-const selectSavedModel = (model: SavedModel) => {
-  emit('save-config', {
-    provider: model.provider,
-    apiBase: model.apiBase,
-    apiKey: model.apiKey,
-    model: model.model,
-  });
+const selectSavedModel = async (model: SavedModel) => {
+  try {
+    await props.saveConfigAction({
+      provider: model.provider,
+      apiBase: model.apiBase,
+      apiKey: model.apiKey,
+      model: model.model,
+    });
+  } catch (_) {
+    return;
+  }
   isModelDropdownOpen.value = false;
 };
 
 const isSavedModelSelected = (model: SavedModel) =>
   props.config?.provider === model.provider && props.config?.model === model.model;
 
-const removeSavedModel = (model: SavedModel, event: MouseEvent) => {
+const removeSavedModel = async (model: SavedModel, event: MouseEvent) => {
   event.stopPropagation();
 
   const nextModels = (props.savedModels || []).filter((entry) => entry.id !== model.id);
   emit('update-saved-models', nextModels);
 
   if (isSavedModelSelected(model)) {
-    emit('save-config', {
-      provider: '',
-      apiBase: '',
-      apiKey: '',
-      model: '',
-    });
+    try {
+      await props.saveConfigAction({
+        provider: '',
+        apiBase: '',
+        apiKey: '',
+        model: '',
+      });
+    } catch (_) {
+      return;
+    }
   }
 };
 
@@ -580,12 +601,14 @@ defineExpose({
           <SettingsView
             v-if="config && toolsConfig"
             :config="config"
+            :provider-configs="providerConfigs"
             :tools-config="toolsConfig"
             :saved-models="savedModels"
             :chat-display-prefs="chatDisplayPrefs"
             :initial-view="settingsInitialView"
-            @save="(newConfig) => emit('save-config', newConfig)"
-            @save-tools-config="(tools) => emit('save-tools-config', tools)"
+            :save-config-action="saveConfigAction"
+            :save-tools-config-action="saveToolsConfigAction"
+            :save-channel-config-action="saveChannelConfigAction"
             @update-saved-models="handleUpdateSavedModels"
             @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
           />
@@ -597,6 +620,7 @@ defineExpose({
     </main>
 
     <AppDialogLayer :theme-mode="themeMode" />
+    <AppToastLayer />
   </div>
 </template>
 

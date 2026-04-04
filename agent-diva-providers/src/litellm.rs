@@ -15,6 +15,7 @@ use crate::base::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
     ProviderResult, ToolCallRequest,
 };
+use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
 
 /// LiteLLM API request format
@@ -215,10 +216,7 @@ impl LiteLLMClient {
             provider_name.is_some() && selected_provider.is_none() && !api_base.trim().is_empty();
 
         Self {
-            client: Client::builder()
-                .http1_only() // Force HTTP/1.1 to avoid issues with some local servers
-                .timeout(std::time::Duration::from_secs(300)) // 5 minutes timeout for reasoning models
-                .build()
+            client: build_api_http_client(&api_base, std::time::Duration::from_secs(300))
                 .unwrap_or_else(|_| Client::new()),
             api_base,
             api_key,
@@ -928,6 +926,7 @@ impl LLMProvider for LiteLLMClient {
                 .body(body_json.clone())
                 .header("Content-Type", "application/json"),
         );
+
         let response = req_builder.send().await?;
 
         if !response.status().is_success() {

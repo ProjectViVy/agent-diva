@@ -15,7 +15,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.4.1"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 rust-version = "1.80.0"
 
@@ -37,7 +37,7 @@ thiserror = "1.0"
 
 # Logging and tracing
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "local-time"] }
 tracing-appender = "0.2"
 
 # Configuration
@@ -52,7 +52,9 @@ cron = "0.12"
 tokio-cron-scheduler = "0.10"
 
 # HTTP and WebSocket
-reqwest = { version = "0.11", features = ["json", "socks", "multipart", "blocking"] }
+# rustls-tls: Windows Schannel often fails TLS handshake to some APIs (e.g. api.deepseek.com);
+# rustls matches behavior on macOS/Linux and avoids native-tls/Schannel for HTTPS.
+reqwest = { version = "0.11", default-features = false, features = ["json", "socks", "multipart", "blocking", "rustls-tls", "stream"] }
 tokio-tungstenite = "0.21"
 http = "1.0"
 
@@ -61,6 +63,9 @@ clap = { version = "4.4", features = ["derive"] }
 console = "0.15"
 dialoguer = "0.11"
 indicatif = "0.17"
+
+# Text encoding (Windows shell pipe decoding)
+encoding_rs = "0.8"
 
 # Utilities
 uuid = { version = "1.6", features = ["v4", "serde"] }

@@ -1,34 +1,33 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Globe } from 'lucide-vue-next';
+import { Globe, LoaderCircle } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { openExternalUrl } from '../../utils/openExternal';
+
+interface ToolsConfigShape {
+  web: {
+    search: {
+      provider: string;
+      enabled: boolean;
+      api_key: string;
+      max_results: number;
+    };
+    fetch: {
+      enabled: boolean;
+    };
+  };
+}
 
 const { t } = useI18n();
 
 const props = defineProps<{
-  toolsConfig: {
-    web: {
-      search: {
-        provider: string;
-        enabled: boolean;
-        api_key: string;
-        max_results: number;
-      };
-      fetch: {
-        enabled: boolean;
-      };
-    };
-  };
+  toolsConfig: ToolsConfigShape;
+  saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
 }>();
 
-const emit = defineEmits<{
-  (e: 'save-tools-config', tools: typeof props.toolsConfig): void;
-}>();
-
-const localConfig = ref(JSON.parse(JSON.stringify(props.toolsConfig)));
-const isSyncingFromProps = ref(false);
-const skipNextAutoSave = ref(false);
+const localConfig = ref<ToolsConfigShape>(JSON.parse(JSON.stringify(props.toolsConfig)));
+const lastSavedSnapshot = ref(JSON.stringify(props.toolsConfig));
+const isSaving = ref(false);
 const bochaApiKeyGuideUrl = 'https://aq6ky2b8nql.feishu.cn/wiki/HmtOw1z6vik14Fkdu5uc9VaInBb';
 
 const isExtendedSearchProvider = (provider: string) =>
@@ -37,16 +36,14 @@ const isExtendedSearchProvider = (provider: string) =>
 watch(
   () => props.toolsConfig,
   (val) => {
-    isSyncingFromProps.value = true;
-    skipNextAutoSave.value = true;
     localConfig.value = JSON.parse(JSON.stringify(val));
-    isSyncingFromProps.value = false;
+    lastSavedSnapshot.value = JSON.stringify(val);
   },
   { deep: true }
 );
 
-const sanitizeLocalConfig = () => {
-  const sanitized = JSON.parse(JSON.stringify(localConfig.value));
+const sanitizeConfig = (source: ToolsConfigShape): ToolsConfigShape => {
+  const sanitized = JSON.parse(JSON.stringify(source)) as ToolsConfigShape;
   const provider = sanitized.web.search.provider;
   const maxLimit = isExtendedSearchProvider(provider) ? 50 : 10;
   sanitized.web.search.max_results = Math.min(
@@ -56,21 +53,15 @@ const sanitizeLocalConfig = () => {
   return sanitized;
 };
 
-const autoSave = () => {
-  const sanitized = sanitizeLocalConfig();
+const syncSanitizedMaxResults = () => {
+  const sanitized = sanitizeConfig(localConfig.value);
   if (sanitized.web.search.max_results !== localConfig.value.web.search.max_results) {
     localConfig.value.web.search.max_results = sanitized.web.search.max_results;
   }
-  emit('save-tools-config', sanitized);
 };
 
-const clampMaxResults = () => {
-  const maxLimit = isExtendedSearchProvider(localConfig.value.web.search.provider) ? 50 : 10;
-  localConfig.value.web.search.max_results = Math.min(
-    maxLimit,
-    Math.max(1, Number(localConfig.value.web.search.max_results) || 5)
-  );
-};
+const currentSnapshot = computed(() => JSON.stringify(sanitizeConfig(localConfig.value)));
+const isDirty = computed(() => currentSnapshot.value !== lastSavedSnapshot.value);
 
 const maxResultsLimit = computed(() =>
   isExtendedSearchProvider(localConfig.value.web.search.provider) ? 50 : 10
@@ -98,21 +89,23 @@ const apiKeyPlaceholder = computed(() =>
 
 watch(
   () => localConfig.value.web.search.provider,
-  clampMaxResults
+  () => {
+    syncSanitizedMaxResults();
+  }
 );
 
-watch(
-  localConfig,
-  () => {
-    if (skipNextAutoSave.value) {
-      skipNextAutoSave.value = false;
-      return;
-    }
-    if (isSyncingFromProps.value) return;
-    autoSave();
-  },
-  { deep: true }
-);
+const saveConfig = async () => {
+  if (isSaving.value || !isDirty.value) return;
+  isSaving.value = true;
+  try {
+    const sanitized = sanitizeConfig(localConfig.value);
+    localConfig.value = JSON.parse(JSON.stringify(sanitized));
+    await props.saveToolsConfigAction(sanitized);
+    lastSavedSnapshot.value = JSON.stringify(sanitized);
+  } finally {
+    isSaving.value = false;
+  }
+};
 
 const openBochaGuide = () => {
   void openExternalUrl(bochaApiKeyGuideUrl);
@@ -121,14 +114,25 @@ const openBochaGuide = () => {
 
 <template>
   <div class="p-6 space-y-6 fade-in">
-    <div class="flex items-center space-x-3">
-      <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
-        <Globe :size="20" />
+    <div class="flex items-start justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+          <Globe :size="20" />
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-gray-800">{{ t('network.title') }}</h3>
+          <p class="text-sm text-gray-500">{{ t('network.desc') }}</p>
+        </div>
       </div>
-      <div>
-        <h3 class="text-lg font-bold text-gray-800">{{ t('network.title') }}</h3>
-        <p class="text-sm text-gray-500">{{ t('network.desc') }}</p>
-      </div>
+      <button
+        type="button"
+        class="btn-save-config inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
+        :disabled="isSaving || !isDirty"
+        @click="saveConfig"
+      >
+        <LoaderCircle v-if="isSaving" :size="16" class="animate-spin" />
+        <span>{{ isSaving ? t('console.saving') : t('console.saveConfig') }}</span>
+      </button>
     </div>
 
     <div class="bg-white border border-gray-100 rounded-xl p-4 space-y-4">
@@ -171,7 +175,6 @@ const openBochaGuide = () => {
         </label>
       </div>
     </div>
-
   </div>
 </template>
 

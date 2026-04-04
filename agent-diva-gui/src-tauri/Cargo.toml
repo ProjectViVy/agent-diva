@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-gui"
-version = "0.4.0"
+version = "0.4.1"
 description = "A Tauri App for Agent Diva"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 edition = "2021"
@@ -13,8 +13,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
+tauri-plugin-store = "2"
 agent-diva-core = { path = "../../agent-diva-core" }
 # GUI currently depends on CLI only for local runtime/status helpers. Manager
 # companion/runtime APIs are consumed over HTTP from the Tauri bridge.
@@ -26,7 +27,7 @@ serde_json = "1"
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-reqwest = { version = "0.11", features = ["json", "stream", "multipart"] }
+reqwest = { workspace = true }
 futures = "0.3"
 eventsource-stream = "0.2"
 once_cell = { workspace = true }

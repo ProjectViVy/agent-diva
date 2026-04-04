@@ -9,13 +9,15 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
         "title": "Agent Diva",
         "width": 800,
         "height": 600,
-        "visible": false
+        "visible": true,
+        "center": true
       },
       {
         "label": "splashscreen",
@@ -28,6 +30,10 @@
         "center": true
       }
     ],
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    },
     "security": {
       "csp": null
     }

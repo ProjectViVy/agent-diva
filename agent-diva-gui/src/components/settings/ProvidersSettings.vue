@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert } from 'lucide-vue-next';
+import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import {
   type ConfigStatusReport,
@@ -41,6 +41,12 @@ interface SavedModel {
   displayName: string;
 }
 
+interface ProviderConfigEntry {
+  apiKey: string;
+  apiBase: string;
+  source: 'providers' | 'custom_providers';
+}
+
 interface NewProviderForm {
   id: string;
   displayName: string;
@@ -64,17 +70,24 @@ const props = defineProps<{
     apiKey: string;
     model: string;
   };
+  providerConfigs?: Record<string, ProviderConfigEntry>;
   savedModels?: SavedModel[];
+  saveConfigAction: (config: {
+    provider: string;
+    apiBase: string;
+    apiKey: string;
+    model: string;
+  }) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
-  (e: 'save', config: typeof props.config): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
 }>();
 
 const providers = ref<ProviderSpec[]>([]);
 const statusReport = ref<ConfigStatusReport | null>(null);
 const localConfig = ref({ ...props.config });
+const localSavedModels = ref<SavedModel[]>(JSON.parse(JSON.stringify(props.savedModels || [])));
 const selectedProvider = ref<ProviderSpec | null>(null);
 const searchTerm = ref('');
 const modelSearchTerm = ref('');
@@ -85,10 +98,14 @@ const isSavingProvider = ref(false);
 const isDeletingCustomProvider = ref<string | null>(null);
 const providerApiKeys = ref<Record<string, string>>({});
 const providerApiBases = ref<Record<string, string>>({});
+const providerApiKeyVisibility = ref<Record<string, boolean>>({});
 const isRefreshing = ref(false);
 const runtimeCatalogs = ref<Record<string, ProviderModelCatalog>>({});
 const modelTestStatuses = ref<Record<string, ModelTestStatus>>({});
 const modelTestTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const isSavingConfig = ref(false);
+const lastSavedConfigSnapshot = ref(JSON.stringify(props.config));
+const lastSavedModelsSnapshot = ref(JSON.stringify(props.savedModels || []));
 const newProviderForm = ref<NewProviderForm>({
   id: '',
   displayName: '',
@@ -96,6 +113,7 @@ const newProviderForm = ref<NewProviderForm>({
   apiKey: '',
   defaultModel: '',
 });
+const isCreateProviderApiKeyVisible = ref(false);
 
 const dedupeProviders = (items: ProviderSpec[]) => {
   const seen = new Map<string, ProviderSpec>();
@@ -113,9 +131,23 @@ const dedupeProviders = (items: ProviderSpec[]) => {
   return Array.from(seen.values());
 };
 
-const buildProviderStateFromProps = () => {
-  if (props.savedModels) {
-    props.savedModels.forEach((model) => {
+const cloneSavedModels = (models: SavedModel[]) => JSON.parse(JSON.stringify(models)) as SavedModel[];
+
+const buildProviderStateFromDraft = () => {
+  providerApiKeys.value = {};
+  providerApiBases.value = {};
+
+  Object.entries(props.providerConfigs || {}).forEach(([providerName, entry]) => {
+    if (entry.apiKey) {
+      providerApiKeys.value[providerName] = entry.apiKey;
+    }
+    if (entry.apiBase) {
+      providerApiBases.value[providerName] = entry.apiBase;
+    }
+  });
+
+  if (localSavedModels.value) {
+    localSavedModels.value.forEach((model) => {
       if (model.apiKey) {
         providerApiKeys.value[model.provider] = model.apiKey;
       }
@@ -125,14 +157,24 @@ const buildProviderStateFromProps = () => {
     });
   }
 
-  if (props.config.provider) {
-    if (props.config.apiKey) {
-      providerApiKeys.value[props.config.provider] = props.config.apiKey;
+  if (localConfig.value.provider) {
+    if (localConfig.value.apiKey) {
+      providerApiKeys.value[localConfig.value.provider] = localConfig.value.apiKey;
     }
-    if (props.config.apiBase) {
-      providerApiBases.value[props.config.provider] = props.config.apiBase;
+    if (localConfig.value.apiBase) {
+      providerApiBases.value[localConfig.value.provider] = localConfig.value.apiBase;
     }
   }
+};
+
+const isProviderApiKeyVisible = (providerName: string) =>
+  providerApiKeyVisibility.value[providerName] ?? false;
+
+const toggleProviderApiKeyVisibility = (providerName: string) => {
+  providerApiKeyVisibility.value = {
+    ...providerApiKeyVisibility.value,
+    [providerName]: !isProviderApiKeyVisible(providerName),
+  };
 };
 
 const providerModelsFor = (provider: ProviderSpec | null) => {
@@ -145,7 +187,7 @@ const refreshProviderState = async () => {
   try {
     providers.value = dedupeProviders(await invoke('get_providers'));
     statusReport.value = await getConfigStatus();
-    buildProviderStateFromProps();
+    buildProviderStateFromDraft();
 
     if (providers.value.length > 0) {
       let found = providers.value.find(p => p.name === localConfig.value.provider);
@@ -194,9 +236,12 @@ const filteredProviders = computed(() => {
   );
 });
 
-const emitConfigSave = () => {
-  emit('save', { ...localConfig.value });
-};
+const currentConfigSnapshot = computed(() => JSON.stringify(localConfig.value));
+const currentSavedModelsSnapshot = computed(() => JSON.stringify(localSavedModels.value));
+const isDirty = computed(() =>
+  currentConfigSnapshot.value !== lastSavedConfigSnapshot.value ||
+  currentSavedModelsSnapshot.value !== lastSavedModelsSnapshot.value
+);
 
 const buildSavedModelEntry = (provider: ProviderSpec, modelName: string): SavedModel => {
   const trimmedModelName = modelName.trim();
@@ -213,10 +258,10 @@ const buildSavedModelEntry = (provider: ProviderSpec, modelName: string): SavedM
 };
 
 const upsertSavedModel = (entry: SavedModel) => {
-  const existingIndex = props.savedModels?.findIndex(
+  const existingIndex = localSavedModels.value.findIndex(
     (model) => model.provider === entry.provider && model.model === entry.model
-  ) ?? -1;
-  const newSavedModels = [...(props.savedModels || [])];
+  );
+  const newSavedModels = cloneSavedModels(localSavedModels.value);
 
   if (existingIndex >= 0) {
     newSavedModels.splice(existingIndex, 1, {
@@ -227,7 +272,7 @@ const upsertSavedModel = (entry: SavedModel) => {
     newSavedModels.push(entry);
   }
 
-  emit('update-saved-models', newSavedModels);
+  localSavedModels.value = newSavedModels;
 };
 
 const providerModels = computed(() => {
@@ -280,6 +325,7 @@ const openCreateProviderDialog = () => {
 const closeCreateProviderDialog = () => {
   isCreateProviderDialogOpen.value = false;
   isSavingProvider.value = false;
+  isCreateProviderApiKeyVisible.value = false;
   resetNewProviderForm();
 };
 
@@ -318,7 +364,6 @@ const createProvider = async () => {
     localConfig.value.apiKey = apiKey;
 
     upsertSavedModel(buildSavedModelEntry(createdProvider, defaultModel));
-    emitConfigSave();
     statusReport.value = await getConfigStatus();
     closeCreateProviderDialog();
   } catch (error) {
@@ -380,10 +425,7 @@ const requestDeleteCustomProvider = async (provider: ProviderSpec) => {
     delete nextCat[id];
     runtimeCatalogs.value = nextCat;
 
-    emit(
-      'update-saved-models',
-      (props.savedModels || []).filter((m) => m.provider !== id),
-    );
+    localSavedModels.value = localSavedModels.value.filter((m) => m.provider !== id);
 
     await refreshProviderState();
 
@@ -395,7 +437,6 @@ const requestDeleteCustomProvider = async (provider: ProviderSpec) => {
         localConfig.value.apiBase =
           providerApiBases.value[next.name] || next.default_api_base;
         localConfig.value.apiKey = providerApiKeys.value[next.name] || '';
-        emitConfigSave();
       }
     }
   } catch (error) {
@@ -415,7 +456,7 @@ const selectProvider = async (provider: ProviderSpec) => {
 };
 
 const isModelSaved = (providerName: string, modelName: string) => {
-  return props.savedModels?.some(m => m.provider === providerName && m.model === modelName) ?? false;
+  return localSavedModels.value.some(m => m.provider === providerName && m.model === modelName);
 };
 
 const isModelDeletable = (provider: ProviderSpec, modelName: string) => {
@@ -562,7 +603,6 @@ const toggleModel = (modelName: string) => {
   localConfig.value.apiKey = entry.apiKey;
 
   upsertSavedModel(entry);
-  emitConfigSave();
 };
 
 const removeCurrentModel = () => {
@@ -570,11 +610,11 @@ const removeCurrentModel = () => {
   const modelName = localConfig.value.model?.trim();
   if (!providerName || !modelName) return;
 
-  const newSavedModels = (props.savedModels || []).filter(
+  const newSavedModels = localSavedModels.value.filter(
     (savedModel) => !(savedModel.provider === providerName && savedModel.model === modelName)
   );
 
-  emit('update-saved-models', newSavedModels);
+  localSavedModels.value = newSavedModels;
 };
 
 const addManualModel = async () => {
@@ -607,7 +647,6 @@ const addManualModel = async () => {
     localConfig.value.apiKey = entry.apiKey;
 
     upsertSavedModel(entry);
-    emitConfigSave();
     closeManualModelDialog();
   } catch (error) {
     console.error('Failed to add manual model:', error);
@@ -646,11 +685,11 @@ const deleteProviderModel = async (modelName: string) => {
         : item
     );
 
-    const newSavedModels = (props.savedModels || []).filter(
+    const newSavedModels = localSavedModels.value.filter(
       (savedModel) => !(savedModel.provider === provider.name && savedModel.model === trimmedModelName)
     );
-    if (newSavedModels.length !== (props.savedModels || []).length) {
-      emit('update-saved-models', newSavedModels);
+    if (newSavedModels.length !== localSavedModels.value.length) {
+      localSavedModels.value = newSavedModels;
     }
 
     if (
@@ -665,7 +704,6 @@ const deleteProviderModel = async (modelName: string) => {
           providerApiBases.value[provider.name] || provider.default_api_base;
         localConfig.value.apiKey = providerApiKeys.value[provider.name] || '';
       }
-      emitConfigSave();
     }
   } catch (error) {
     console.error('Failed to delete provider model:', error);
@@ -678,18 +716,15 @@ const updateProviderKey = (key: string) => {
   providerApiKeys.value[providerName] = key;
   localConfig.value.apiKey = key;
   
-  if (props.savedModels) {
-    const newModels = props.savedModels.map(m => {
-      if (m.provider === providerName) {
-        return { ...m, apiKey: key };
-      }
-      return m;
-    });
-    if (JSON.stringify(newModels) !== JSON.stringify(props.savedModels)) {
-        emit('update-saved-models', newModels);
+  const newModels = localSavedModels.value.map(m => {
+    if (m.provider === providerName) {
+      return { ...m, apiKey: key };
     }
+    return m;
+  });
+  if (JSON.stringify(newModels) !== JSON.stringify(localSavedModels.value)) {
+    localSavedModels.value = newModels;
   }
-  emitConfigSave();
 };
 
 const updateProviderApiBase = (apiBase: string) => {
@@ -699,25 +734,46 @@ const updateProviderApiBase = (apiBase: string) => {
   providerApiBases.value[providerName] = normalized;
   localConfig.value.apiBase = normalized;
 
-  if (props.savedModels) {
-    const newModels = props.savedModels.map((model) => {
-      if (model.provider === providerName) {
-        return { ...model, apiBase: normalized };
-      }
-      return model;
-    });
-    if (JSON.stringify(newModels) !== JSON.stringify(props.savedModels)) {
-      emit('update-saved-models', newModels);
+  const newModels = localSavedModels.value.map((model) => {
+    if (model.provider === providerName) {
+      return { ...model, apiBase: normalized };
     }
+    return model;
+  });
+  if (JSON.stringify(newModels) !== JSON.stringify(localSavedModels.value)) {
+    localSavedModels.value = newModels;
   }
+};
 
-  emitConfigSave();
+const saveProviderConfig = async () => {
+  if (isSavingConfig.value || !isDirty.value) return;
+  isSavingConfig.value = true;
+  try {
+    await props.saveConfigAction({ ...localConfig.value });
+    emit('update-saved-models', cloneSavedModels(localSavedModels.value));
+    lastSavedConfigSnapshot.value = JSON.stringify(localConfig.value);
+    lastSavedModelsSnapshot.value = JSON.stringify(localSavedModels.value);
+    statusReport.value = await getConfigStatus();
+  } finally {
+    isSavingConfig.value = false;
+  }
 };
 
 watch(() => props.config, async (newVal) => {
   localConfig.value = { ...newVal };
-  buildProviderStateFromProps();
+  lastSavedConfigSnapshot.value = JSON.stringify(newVal);
+  buildProviderStateFromDraft();
   await refreshProviderState();
+}, { deep: true });
+
+watch(() => props.providerConfigs, () => {
+  buildProviderStateFromDraft();
+}, { deep: true });
+
+watch(() => props.savedModels, (newVal) => {
+  localSavedModels.value = cloneSavedModels(newVal || []);
+  lastSavedModelsSnapshot.value = JSON.stringify(newVal || []);
+  buildProviderStateFromDraft();
 }, { deep: true });
 </script>
 
@@ -807,14 +863,25 @@ watch(() => props.config, async (newVal) => {
                     <p class="text-sm text-gray-500">{{ selectedProvider.default_api_base || t('providers.customApi') }}</p>
                 </div>
             </div>
-            <div
-              v-if="statusReport"
-              class="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
-              :class="doctorTone"
-            >
-              <ShieldCheck v-if="statusReport.doctor.ready" :size="14" />
-              <ShieldAlert v-else :size="14" />
-              <span>{{ statusReport.doctor.ready ? t('providers.healthReady') : t('providers.healthAttention') }}</span>
+            <div class="flex items-center gap-3">
+              <div
+                v-if="statusReport"
+                class="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
+                :class="doctorTone"
+              >
+                <ShieldCheck v-if="statusReport.doctor.ready" :size="14" />
+                <ShieldAlert v-else :size="14" />
+                <span>{{ statusReport.doctor.ready ? t('providers.healthReady') : t('providers.healthAttention') }}</span>
+              </div>
+              <button
+                type="button"
+                class="btn-save-config inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
+                :disabled="isSavingConfig || !isDirty"
+                @click="saveProviderConfig"
+              >
+                <LoaderCircle v-if="isSavingConfig" :size="16" class="animate-spin" />
+                <span>{{ isSavingConfig ? t('console.saving') : t('console.saveConfig') }}</span>
+              </button>
             </div>
         </div>
 
@@ -862,15 +929,26 @@ watch(() => props.config, async (newVal) => {
            </div>
            
            <!-- API Key -->
-            <div class="space-y-1">
+           <div class="space-y-1">
              <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiKey') }}</label>
-             <input 
-               :value="providerApiKeys[selectedProvider.name]"
-               @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
-               type="password" 
-               :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
-               class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" 
-             />
+             <div class="relative">
+               <input 
+                 :value="providerApiKeys[selectedProvider.name]"
+                 @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
+                 :type="isProviderApiKeyVisible(selectedProvider.name) ? 'text' : 'password'"
+                 :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
+                 class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-11 font-mono text-sm outline-none transition-all focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20" 
+               />
+               <button
+                 type="button"
+                 class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg text-gray-400 transition hover:text-gray-600"
+                 :title="isProviderApiKeyVisible(selectedProvider.name) ? t('providers.hideApiKey') : t('providers.showApiKey')"
+                 @click="toggleProviderApiKeyVisibility(selectedProvider.name)"
+               >
+                 <EyeOff v-if="isProviderApiKeyVisible(selectedProvider.name)" :size="16" />
+                 <Eye v-else :size="16" />
+               </button>
+             </div>
            </div>
            
            <!-- API Base -->
@@ -1076,12 +1154,23 @@ watch(() => props.config, async (newVal) => {
             </label>
             <label class="space-y-1 md:col-span-2">
               <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.apiKey') }}</div>
-              <input
-                v-model="newProviderForm.apiKey"
-                type="password"
-                :placeholder="t('providers.enterApiKey')"
-                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
-              />
+              <div class="relative">
+                <input
+                  v-model="newProviderForm.apiKey"
+                  :type="isCreateProviderApiKeyVisible ? 'text' : 'password'"
+                  :placeholder="t('providers.enterApiKey')"
+                  class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-11 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+                />
+                <button
+                  type="button"
+                  class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg text-gray-400 transition hover:text-gray-600"
+                  :title="isCreateProviderApiKeyVisible ? t('providers.hideApiKey') : t('providers.showApiKey')"
+                  @click="isCreateProviderApiKeyVisible = !isCreateProviderApiKeyVisible"
+                >
+                  <EyeOff v-if="isCreateProviderApiKeyVisible" :size="16" />
+                  <Eye v-else :size="16" />
+                </button>
+              </div>
             </label>
             <label class="space-y-1 md:col-span-2">
               <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.defaultModel') }}</div>

@@ -1,7 +1,8 @@
 use std::path::Path;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
-    fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer, Registry,
+    fmt, fmt::time::LocalTime, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
+    Registry,
 };
 
 use crate::config::schema::LoggingConfig;
@@ -51,10 +52,12 @@ pub fn init_logging_with_terminal_output(
     // But since is_json is runtime, we can't easily change the Layer type in the subscriber type chain
     // without boxing.
 
+    // RFC 3339 in the process local timezone (e.g. `+08:00`), not UTC `Z`.
     let stdout_layer = enable_terminal_output.then(|| {
         if is_json {
             fmt::layer()
                 .json()
+                .with_timer(LocalTime::rfc_3339())
                 .with_target(true)
                 .with_thread_ids(true)
                 .with_file(true)
@@ -62,6 +65,7 @@ pub fn init_logging_with_terminal_output(
                 .boxed()
         } else {
             fmt::layer()
+                .with_timer(LocalTime::rfc_3339())
                 .with_target(true)
                 .with_thread_ids(true)
                 .with_file(true)
@@ -75,6 +79,7 @@ pub fn init_logging_with_terminal_output(
         fmt::layer()
             .json()
             .with_writer(non_blocking)
+            .with_timer(LocalTime::rfc_3339())
             .with_target(true)
             .with_thread_ids(true)
             .with_file(true)
@@ -84,6 +89,7 @@ pub fn init_logging_with_terminal_output(
     } else {
         fmt::layer()
             .with_writer(non_blocking)
+            .with_timer(LocalTime::rfc_3339())
             .with_ansi(false)
             .with_target(true)
             .with_thread_ids(true)

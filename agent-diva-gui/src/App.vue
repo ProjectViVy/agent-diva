@@ -5,6 +5,7 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import NormalMode from "./components/NormalMode.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
+import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
 import { getConfigStatus, getRuntimeConfig, type FileAttachmentDto } from "./api/desktop";
 import {
@@ -116,6 +117,19 @@ interface RawProviderConfig {
   api_base?: string | null;
 }
 
+interface RawConfigShape {
+  agents?: { defaults?: { provider?: string | null; model?: string | null } };
+  providers?: Record<string, RawProviderConfig> & {
+    custom_providers?: Record<string, RawProviderConfig>;
+  };
+}
+
+interface ProviderConfigEntry {
+  apiKey: string;
+  apiBase: string;
+  source: 'providers' | 'custom_providers';
+}
+
 const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
 const STARTUP_TASK_TIMEOUT_MS = 2500;
 const SESSION_LOAD_TIMEOUT_MS = 2000;
@@ -166,6 +180,7 @@ const toolsConfig = ref({
 });
 
 const savedModels = ref<SavedModel[]>([]);
+const providerConfigs = ref<Record<string, ProviderConfigEntry>>({});
 const sessions = ref<SessionInfo[]>([]);
 const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
 
@@ -234,12 +249,38 @@ function syncCurrentConfigToSavedModels(currentConfig: typeof config.value) {
   }
 }
 
-function extractProviderConfigFromRaw(
-  parsed: {
-    providers?: Record<string, RawProviderConfig> & {
-      custom_providers?: Record<string, RawProviderConfig>;
+function extractProviderConfigsFromRaw(parsed: RawConfigShape): Record<string, ProviderConfigEntry> {
+  const configMap: Record<string, ProviderConfigEntry> = {};
+
+  const builtins = (parsed.providers || {}) as Record<string, RawProviderConfig>;
+  for (const [name, raw] of Object.entries(builtins)) {
+    if (name === 'custom_providers' || !raw || typeof raw !== 'object') {
+      continue;
+    }
+    configMap[name] = {
+      apiKey: raw.api_key || '',
+      apiBase: raw.api_base || '',
+      source: 'providers',
     };
-  },
+  }
+
+  const customProviders = parsed.providers?.custom_providers || {};
+  for (const [name, raw] of Object.entries(customProviders)) {
+    if (!raw || typeof raw !== 'object') {
+      continue;
+    }
+    configMap[name] = {
+      apiKey: raw.api_key || '',
+      apiBase: raw.api_base || '',
+      source: 'custom_providers',
+    };
+  }
+
+  return configMap;
+}
+
+function extractProviderConfigFromRaw(
+  parsed: RawConfigShape,
   provider?: string | null
 ): RawProviderConfig | undefined {
   if (!provider) {
@@ -247,6 +288,42 @@ function extractProviderConfigFromRaw(
   }
 
   return parsed.providers?.[provider] || parsed.providers?.custom_providers?.[provider];
+}
+
+function patchProviderConfigInRaw(parsed: RawConfigShape, nextConfig: typeof config.value) {
+  const provider = nextConfig.provider?.trim();
+  if (!provider) {
+    return;
+  }
+
+  if (!parsed.agents) {
+    parsed.agents = {};
+  }
+  if (!parsed.agents.defaults) {
+    parsed.agents.defaults = {};
+  }
+  parsed.agents.defaults.provider = provider;
+  parsed.agents.defaults.model = nextConfig.model?.trim() || null;
+
+  if (!parsed.providers) {
+    parsed.providers = {};
+  }
+
+  const currentMap = extractProviderConfigsFromRaw(parsed);
+  const source =
+    currentMap[provider]?.source ||
+    (parsed.providers.custom_providers?.[provider] ? 'custom_providers' : 'providers');
+  const container =
+    source === 'custom_providers'
+      ? (parsed.providers.custom_providers ||= {})
+      : parsed.providers;
+
+  const existing = container[provider] || {};
+  container[provider] = {
+    ...existing,
+    api_key: nextConfig.apiKey?.trim() || undefined,
+    api_base: nextConfig.apiBase?.trim() || null,
+  };
 }
 
 function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -822,13 +899,17 @@ async function saveConfig(newConfig: typeof config.value) {
 
     if (!isTauri()) {
         console.warn('Running in browser, mocking saveConfig');
-        messages.value.push({ 
-            role: 'system', 
-            content: "[Mock] " + t('app.configUpdated'), 
-            timestamp: Date.now() 
-        });
+        showAppToast("保存成功");
         return;
     }
+
+    const rawConfig = await invoke<string>('load_config');
+    const parsed = JSON.parse(rawConfig) as RawConfigShape;
+    patchProviderConfigInRaw(parsed, newConfig);
+
+    await invoke('save_config', {
+      raw: JSON.stringify(parsed, null, 2),
+    });
 
     await invoke("update_config", {
       apiBase: newConfig.apiBase || null,
@@ -838,6 +919,7 @@ async function saveConfig(newConfig: typeof config.value) {
     });
 
     const runtimeConfig = await getRuntimeConfig();
+    providerConfigs.value = extractProviderConfigsFromRaw(parsed);
     config.value = {
       provider: runtimeConfig.provider || newConfig.provider,
       apiBase: runtimeConfig.api_base || newConfig.apiBase,
@@ -845,13 +927,10 @@ async function saveConfig(newConfig: typeof config.value) {
       model: runtimeConfig.model || newConfig.model,
     };
     
-    messages.value.push({ 
-      role: 'system', 
-      content: t('app.configUpdated'), 
-      timestamp: Date.now() 
-    });
+    showAppToast("保存成功");
   } catch (error) {
     await appAlert(t('app.configUpdateError', { error }));
+    throw error;
   }
 }
 
@@ -859,11 +938,7 @@ async function saveToolsConfig(newToolsConfig: typeof toolsConfig.value) {
   try {
     toolsConfig.value = JSON.parse(JSON.stringify(newToolsConfig));
     if (!isTauri()) {
-      messages.value.push({
-        role: 'system',
-        content: "[Mock] " + t('app.configUpdated'),
-        timestamp: Date.now()
-      });
+      showAppToast("保存成功");
       return;
     }
 
@@ -871,13 +946,30 @@ async function saveToolsConfig(newToolsConfig: typeof toolsConfig.value) {
       tools: newToolsConfig
     });
 
-    messages.value.push({
-      role: 'system',
-      content: t('app.configUpdated'),
-      timestamp: Date.now()
-    });
+    showAppToast("保存成功");
   } catch (error) {
     await appAlert(t('app.configUpdateError', { error }));
+    throw error;
+  }
+}
+
+async function saveChannelConfig(channelName: string, channelConfig: Record<string, unknown>) {
+  try {
+    if (!isTauri()) {
+      showAppToast("保存成功");
+      return;
+    }
+
+    await invoke('update_channel', {
+      name: channelName,
+      enabled: Boolean(channelConfig.enabled),
+      config: channelConfig,
+    });
+
+    showAppToast("保存成功");
+  } catch (error) {
+    await appAlert(t('app.configUpdateError', { error }));
+    throw error;
   }
 }
 
@@ -980,18 +1072,14 @@ onMounted(async () => {
             .join('; ')
         );
       }
-      const parsed = JSON.parse(rawConfig.value) as {
-        agents?: { defaults?: { provider?: string | null; model?: string | null } };
-        providers?: Record<string, RawProviderConfig> & {
-          custom_providers?: Record<string, RawProviderConfig>;
-        };
-      };
+      const parsed = JSON.parse(rawConfig.value) as RawConfigShape;
       const provider =
         runtimeConfig.value.provider ||
         parsed.agents?.defaults?.provider ||
         status.value.default_provider ||
         config.value.provider;
       const providerConfig = extractProviderConfigFromRaw(parsed, provider);
+      providerConfigs.value = extractProviderConfigsFromRaw(parsed);
       config.value = {
         provider,
         apiBase: runtimeConfig.value.api_base || providerConfig?.api_base || config.value.apiBase,
@@ -1282,15 +1370,17 @@ onUnmounted(() => {
       :connection-status="connectionStatus"
       :current-emotion="currentEmotion"
       :config="config"
+      :provider-configs="providerConfigs"
       :tools-config="toolsConfig"
       :saved-models="savedModels"
       :sessions="sessions"
       :chat-display-prefs="chatDisplayPrefs"
+      :save-config-action="saveConfig"
+      :save-tools-config-action="saveToolsConfig"
+      :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
       @clear="clearMessages"
       @stop="stopMessage"
-      @save-config="saveConfig"
-      @save-tools-config="saveToolsConfig"
       @update-saved-models="updateSavedModels"
       @save-chat-display-prefs="updateChatDisplayPrefs"
       @load-session="loadSession"

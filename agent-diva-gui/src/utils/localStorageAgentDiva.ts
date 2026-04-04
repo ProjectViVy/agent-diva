@@ -7,6 +7,15 @@ export const HISTORY_PREFS_KEY = "agent-diva-history-prefs";
 export const SESSION_CACHE_PREFIX = "agent-diva-session-cache:";
 export const SAVED_MODELS_KEY = "agent-diva-saved-models";
 export const LOCALE_STORAGE_KEY = "agent-diva-locale";
+export const GUI_PREFS_KEY = "agent-diva-gui-prefs";
+
+export interface GuiPrefs {
+  closeToTray: boolean;
+}
+
+export const defaultGuiPrefs: GuiPrefs = {
+  closeToTray: false,
+};
 
 export const UI_CACHE_KEYS = [SAVED_MODELS_KEY, HISTORY_PREFS_KEY] as const;
 export const UI_CACHE_PREFIXES = [SESSION_CACHE_PREFIX] as const;

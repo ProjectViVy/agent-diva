@@ -220,6 +220,18 @@ pub struct DiscordConfig {
     pub gateway_url: String,
     #[serde(default = "default_discord_intents")]
     pub intents: u64,
+    /// When set, only guild messages from this server are handled (DMs are still allowed).
+    #[serde(default)]
+    pub guild_id: Option<String>,
+    /// In guild channels, require @mention of the bot (unless sender is in `group_reply_allowed_sender_ids`).
+    #[serde(default)]
+    pub mention_only: bool,
+    /// When true, process messages from other bots.
+    #[serde(default)]
+    pub listen_to_bots: bool,
+    /// User IDs that may trigger the bot in guild channels without @mention when `mention_only` is true.
+    #[serde(default)]
+    pub group_reply_allowed_sender_ids: Vec<String>,
 }
 
 fn default_discord_gateway() -> String {
@@ -238,6 +250,10 @@ impl Default for DiscordConfig {
             allow_from: Vec::new(),
             gateway_url: default_discord_gateway(),
             intents: default_discord_intents(),
+            guild_id: None,
+            mention_only: false,
+            listen_to_bots: false,
+            group_reply_allowed_sender_ids: Vec::new(),
         }
     }
 }
@@ -282,6 +298,9 @@ pub struct FeishuConfig {
     pub verification_token: String,
     #[serde(default)]
     pub allow_from: Vec<String>,
+    /// Optional port for webhook mode (not used in WebSocket mode)
+    #[serde(default)]
+    pub port: Option<u16>,
 }
 
 /// DingTalk channel configuration

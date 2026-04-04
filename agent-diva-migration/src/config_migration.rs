@@ -549,6 +549,7 @@ impl ConfigMigrator {
                     allow_from: py.channels.discord.allow_from,
                     gateway_url: py.channels.discord.gateway_url,
                     intents: py.channels.discord.intents,
+                    ..Default::default()
                 },
                 whatsapp: WhatsAppConfig {
                     enabled: py.channels.whatsapp.enabled,
@@ -562,6 +563,7 @@ impl ConfigMigrator {
                     encrypt_key: py.channels.feishu.encrypt_key,
                     verification_token: py.channels.feishu.verification_token,
                     allow_from: py.channels.feishu.allow_from,
+                    port: None,
                 },
                 dingtalk: DingTalkConfig {
                     enabled: py.channels.dingtalk.enabled,

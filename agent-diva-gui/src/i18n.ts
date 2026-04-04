@@ -12,6 +12,8 @@ zhPatched.settings = {
   network: zhPatched.settings?.network || '网络',
   skills: zhPatched.settings?.skills || '技能',
   mcp: zhPatched.settings?.mcp || 'MCP',
+  showApiKey: zhPatched.providers?.showApiKey || '显示 API Key',
+  hideApiKey: zhPatched.providers?.hideApiKey || '隐藏 API Key',
 };
 
 zhPatched.dashboard = {
@@ -224,6 +226,11 @@ zhPatched.providers = {
   refreshModels: zhPatched.providers?.refreshModels || '刷新模型列表',
 };
 
+zhPatched.providers.showApiKey =
+  zhPatched.providers?.showApiKey || '显示 API Key';
+zhPatched.providers.hideApiKey =
+  zhPatched.providers?.hideApiKey || '隐藏 API Key';
+
 zhPatched.providers.testConnection =
   zhPatched.providers?.testConnection || '娴嬭瘯杩炴帴';
 zhPatched.providers.testingConnection =
@@ -234,6 +241,12 @@ zhPatched.providers.testSuccessWithLatency =
   zhPatched.providers?.testSuccessWithLatency || '姝ｅ父 {ms}ms';
 zhPatched.providers.testFailed =
   zhPatched.providers?.testFailed || '杩炴帴澶辫触';
+
+zhPatched.channels = {
+  ...(zhPatched.channels || {}),
+  activate: zhPatched.channels?.activate || '激活',
+  deactivate: zhPatched.channels?.deactivate || '取消激活',
+};
 
 const i18n = createI18n({
   legacy: false,

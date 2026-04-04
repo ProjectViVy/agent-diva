@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
@@ -18,7 +19,7 @@ use uuid::Uuid;
 pub struct MatrixHandler {
     config: MatrixConfig,
     base: BaseChannel,
-    running: Arc<RwLock<bool>>,
+    running: Arc<AtomicBool>,
     processed_ids: Arc<RwLock<VecDeque<String>>>,
     since_token: Arc<RwLock<Option<String>>>,
     client: reqwest::Client,
@@ -37,7 +38,7 @@ impl MatrixHandler {
                 true, // deny_by_default = true
             ),
             config,
-            running: Arc::new(RwLock::new(false)),
+            running: Arc::new(AtomicBool::new(false)),
             processed_ids: Arc::new(RwLock::new(VecDeque::with_capacity(2000))),
             since_token: Arc::new(RwLock::new(None)),
             client: reqwest::Client::builder()
@@ -438,15 +439,15 @@ impl ChannelHandler for MatrixHandler {
     }
 
     fn is_running(&self) -> bool {
-        *self.running.blocking_read()
+        self.running.load(Ordering::Acquire)
     }
 
     async fn start(&mut self) -> Result<()> {
         self.validate_config()?;
-        if *self.running.read().await {
+        if self.running.load(Ordering::Acquire) {
             return Ok(());
         }
-        *self.running.write().await = true;
+        self.running.store(true, Ordering::Release);
 
         if !self.config.e2ee_enabled {
             warn!("Matrix E2EE disabled; encrypted room payloads may be skipped.");
@@ -490,7 +491,7 @@ impl ChannelHandler for MatrixHandler {
                     }
                 }
             }
-            *handler.running.write().await = false;
+            handler.running.store(false, Ordering::Release);
             info!("Matrix sync loop stopped");
         }));
 
@@ -499,7 +500,7 @@ impl ChannelHandler for MatrixHandler {
     }
 
     async fn stop(&mut self) -> Result<()> {
-        *self.running.write().await = false;
+        self.running.store(false, Ordering::Release);
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(()).await;
         }
@@ -515,7 +516,7 @@ impl ChannelHandler for MatrixHandler {
     }
 
     async fn send(&self, msg: OutboundMessage) -> Result<()> {
-        if !*self.running.read().await {
+        if !self.running.load(Ordering::Acquire) {
             return Err(ChannelError::NotRunning(
                 "Matrix channel not running".to_string(),
             ));

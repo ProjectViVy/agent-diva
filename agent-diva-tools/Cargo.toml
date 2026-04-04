@@ -27,6 +27,9 @@ thiserror = { workspace = true }
 # Regex
 regex = { workspace = true }
 
+# Windows console / PowerShell pipe encoding (GBK vs UTF-8)
+encoding_rs = { workspace = true }
+
 # Time and date
 chrono = { workspace = true }
 

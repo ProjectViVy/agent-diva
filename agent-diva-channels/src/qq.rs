@@ -15,10 +15,11 @@ use agent_diva_core::bus::OutboundMessage;
 use agent_diva_core::config::schema::QQConfig;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use reqwest::Client as HttpClient;
+use reqwest_qq::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
@@ -167,7 +168,7 @@ struct C2CAuthor {
 pub struct QQHandler {
     config: QQConfig,
     base: BaseChannel,
-    running: Arc<RwLock<bool>>,
+    running: Arc<AtomicBool>,
     processed_ids: Arc<RwLock<VecDeque<String>>>,
     http_client: HttpClient,
     token: Arc<RwLock<Token>>,
@@ -185,7 +186,7 @@ impl QQHandler {
         Self {
             config,
             base,
-            running: Arc::new(RwLock::new(false)),
+            running: Arc::new(AtomicBool::new(false)),
             processed_ids: Arc::new(RwLock::new(VecDeque::with_capacity(1000))),
             http_client: HttpClient::builder()
                 .timeout(Duration::from_secs(30))
@@ -520,7 +521,7 @@ impl ChannelHandler for QQHandler {
     }
 
     fn is_running(&self) -> bool {
-        *self.running.blocking_read()
+        self.running.load(Ordering::Acquire)
     }
 
     async fn start(&mut self) -> Result<()> {
@@ -542,7 +543,7 @@ impl ChannelHandler for QQHandler {
         let gateway = self.get_gateway().await?;
         info!("QQ Gateway URL: {}", gateway.url);
 
-        *self.running.write().await = true;
+        self.running.store(true, Ordering::Release);
 
         // Start WebSocket connection
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
@@ -560,7 +561,7 @@ impl ChannelHandler for QQHandler {
     }
 
     async fn stop(&mut self) -> Result<()> {
-        *self.running.write().await = false;
+        self.running.store(false, Ordering::Release);
 
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(()).await;
@@ -571,7 +572,7 @@ impl ChannelHandler for QQHandler {
     }
 
     async fn send(&self, msg: OutboundMessage) -> Result<()> {
-        if !*self.running.read().await {
+        if !self.running.load(Ordering::Acquire) {
             return Err(ChannelError::NotRunning(
                 "QQ channel not running".to_string(),
             ));

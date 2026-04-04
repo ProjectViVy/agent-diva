@@ -173,10 +173,15 @@ fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
 }
 
 pub async fn run_local_gateway(runtime: GatewayRuntimeConfig) -> Result<()> {
+    let port = runtime.port;
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
     let channel_bootstrap =
         bootstrap::bootstrap_channel_runtime(&bootstrap.config, bootstrap.bus.clone()).await;
     let mut tasks = task_runtime::start_runtime_tasks(bootstrap, channel_bootstrap).await;
+    tracing::info!(
+        "Gateway ready; HTTP API at http://127.0.0.1:{} (Ctrl+C to stop)",
+        port
+    );
     let manager_handle_completed = shutdown::wait_for_shutdown(&mut tasks).await;
     shutdown::shutdown_runtime(tasks, manager_handle_completed).await;
     Ok(())

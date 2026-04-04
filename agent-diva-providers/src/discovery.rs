@@ -1,6 +1,6 @@
 use crate::registry::{ApiType, ProviderSpec};
 use agent_diva_core::config::ProviderConfig;
-use reqwest::{Client, StatusCode};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::time::Duration;
@@ -187,9 +187,7 @@ async fn fetch_openai_compatible_models(
             provider_identity(spec)
         )
     })?;
-    let client = Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
+    let client = crate::http_util::build_api_http_client(api_base, Duration::from_secs(15))
         .map_err(|error| format!("failed to create HTTP client: {error}"))?;
     let url = format!("{api_base}/models");
 

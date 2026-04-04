@@ -11,6 +11,40 @@ use tokio::process::Command;
 use tokio::time::timeout;
 use tracing::{debug, info};
 
+/// Decode bytes captured from a child process pipe.
+/// On Windows, PowerShell and cmd often emit system ANSI (e.g. GBK on zh-CN); treating that as
+/// UTF-8 produces U+FFFD garbage and can break downstream LLM JSON. Prefer strict UTF-8, then
+/// GB18030 when it yields fewer replacement characters than UTF-8 lossy decoding.
+fn decode_shell_pipe_bytes(bytes: &[u8]) -> String {
+    if bytes.is_empty() {
+        return String::new();
+    }
+    #[cfg(windows)]
+    {
+        if std::str::from_utf8(bytes).is_ok() {
+            return String::from_utf8_lossy(bytes).into_owned();
+        }
+        let (gb, _) = encoding_rs::GB18030.decode_without_bom_handling(bytes);
+        let lossy_utf8 = String::from_utf8_lossy(bytes);
+        let ffd_count = |s: &str| s.chars().filter(|&c| c == '\u{FFFD}').count();
+        if ffd_count(gb.as_ref()) <= ffd_count(&lossy_utf8) {
+            gb.into_owned()
+        } else {
+            lossy_utf8.into_owned()
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
+#[cfg(windows)]
+const POWERSHELL_UTF8_OUTPUT_PREFIX: &str = concat!(
+    "$OutputEncoding = [Console]::OutputEncoding = ",
+    "[System.Text.UTF8Encoding]::new($false); ",
+);
+
 /// Shell execution tool
 pub struct ExecTool {
     timeout_secs: u64,
@@ -193,6 +227,9 @@ impl ExecTool {
             ("sh", vec!["-c"])
         };
 
+        #[cfg(windows)]
+        let command = format!("{}{}", POWERSHELL_UTF8_OUTPUT_PREFIX, command);
+
         let mut cmd = Command::new(shell);
         for arg in args {
             cmd.arg(arg);
@@ -226,10 +263,12 @@ impl ExecTool {
 
         let mut result_parts = Vec::new();
 
+        let stdout_s = decode_shell_pipe_bytes(&output.stdout);
+        let stderr_s = decode_shell_pipe_bytes(&output.stderr);
+
         // Stdout - sanitize to remove control characters and ANSI sequences
         if !output.stdout.is_empty() {
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            let stdout = sanitize_for_json(&stdout);
+            let stdout = sanitize_for_json(&stdout_s);
             if !stdout.is_empty() {
                 result_parts.push(stdout);
             }
@@ -237,8 +276,7 @@ impl ExecTool {
 
         // Stderr - sanitize to remove control characters and ANSI sequences
         if !output.stderr.is_empty() {
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            let stderr = sanitize_for_json(&stderr);
+            let stderr = sanitize_for_json(&stderr_s);
             if !stderr.trim().is_empty() {
                 result_parts.push(format!("STDERR:\n{}", stderr));
             }
@@ -381,5 +419,20 @@ mod tests {
         let input = "\x1b[1;34;47mcolored\x1b[0m text";
         let output = sanitize_for_json(input);
         assert_eq!(output, "colored text");
+    }
+
+    /// PowerShell on zh-CN Windows often writes GB18030 to stderr pipes; decoding as UTF-8 yields U+FFFD.
+    #[cfg(windows)]
+    #[test]
+    fn decode_shell_pipe_bytes_handles_gb18030_powershell_stderr() {
+        let text = "所在位置 行:1 字符: 10\r\n+ cd foo && bar";
+        let (bytes, _, _) = encoding_rs::GB18030.encode(text);
+        let decoded = super::decode_shell_pipe_bytes(bytes.as_ref());
+        assert!(
+            !decoded.contains('\u{FFFD}'),
+            "expected no replacement chars, got: {:?}",
+            decoded
+        );
+        assert_eq!(decoded, text);
     }
 }

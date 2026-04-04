@@ -1,6 +1,18 @@
 name: CI
 
 on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run cargo test --all (slow; off by default for push/PR)"
+        required: false
+        default: false
+        type: boolean
+      run_coverage:
+        description: "Run tarpaulin + Codecov (implies full tests)"
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main, develop]
     tags:
@@ -31,8 +43,10 @@ env:
   NODE_VERSION: '20'
   PNPM_VERSION: '9'
 
+# 显式声明后，未列出的权限为 none。上传/下载 artifact 需要 actions: write/read。
 permissions:
-  contents: write
+  contents: read
+  actions: write
 
 jobs:
   rust-check:
@@ -50,17 +64,33 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      # workspace 含 agent-diva-gui/src-tauri（Tauri）；clippy/test --all 会编 glib-sys，需与 gui-build 一致的 pkg-config 依赖
+      - name: Install Linux Tauri/GTK build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
       - name: Install just
         run: cargo install just --locked
 
-      - name: Run workspace validation
+      - name: Format, clippy, and build
         run: |
           just fmt-check
           just check
-          just test
+          just build
+
+      - name: Run tests
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_tests == 'true'
+        run: just test
 
       - name: Validate Windows service CLI (dry run)
         if: runner.os == 'Windows'
@@ -141,81 +171,46 @@ jobs:
         working-directory: agent-diva-gui
         run: pnpm tauri build
 
+      # 只上传最终安装包。Tauri bundle 目录下还有 AppImage 的 AppDir、linuxdeploy 拷贝的 .so、
+      # deb 中间文件等；若用 bundle/** 整棵上传再在 release 里 ./artifacts/**/*，会把数百个无关文件挂到 Release。
       - name: Upload GUI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agent-diva-gui-${{ matrix.os_tag }}-${{ runner.arch }}-${{ github.sha }}
-          path: agent-diva-gui/src-tauri/target/release/bundle/**
-          if-no-files-found: error
-
-  headless-build:
-    name: Headless Build (${{ matrix.os_tag }})
-    needs: rust-check
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            os_tag: linux
-            binary_path: target/release/agent-diva
-          - os: windows-latest
-            os_tag: windows
-            binary_path: target/release/agent-diva.exe
-          - os: macos-latest
-            os_tag: macos
-            binary_path: target/release/agent-diva
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build headless binary
-        run: cargo build -p agent-diva-cli --release
-
-      - name: Read CLI version
-        id: cli_version
-        shell: bash
-        run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import pathlib
-          import tomllib
-
-          cargo_toml = pathlib.Path("agent-diva-cli/Cargo.toml")
-          data = tomllib.loads(cargo_toml.read_text(encoding="utf-8"))
-          print(f"version={data['package']['version']}")
-          PY
-
-      - name: Package headless bundle
-        shell: bash
-        run: |
-          python scripts/ci/package_headless.py \
-            --binary "${{ matrix.binary_path }}" \
-            --version "${{ steps.cli_version.outputs.version }}" \
-            --os "${{ matrix.os_tag }}" \
-            --arch "${{ runner.arch }}" \
-            --output-dir dist \
-            --readme docs/app-building/headless-bundle-quickstart.md
-
-      - name: Upload headless artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-diva-headless-${{ matrix.os_tag }}-${{ runner.arch }}-${{ github.sha }}
-          path: dist/*
+          path: |
+            target/release/bundle/**/*.AppImage
+            target/release/bundle/**/*.appimage
+            target/release/bundle/**/*.deb
+            target/release/bundle/**/*.dmg
+            target/release/bundle/**/*.msi
+            target/release/bundle/**/*.exe
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.AppImage
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.appimage
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.deb
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.dmg
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.msi
+            agent-diva-gui/src-tauri/target/release/bundle/**/*.exe
           if-no-files-found: error
 
   coverage:
     name: Code Coverage
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_coverage == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux Tauri/GTK build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin
@@ -230,14 +225,16 @@ jobs:
           fail_ci_if_error: false
 
   release:
-    name: Release (tag)
-    needs: [gui-build, headless-build]
+    name: Desktop release (tag)
+    needs: [gui-build]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download artifacts
+      - name: Download GUI artifacts (Linux, Windows, macOS)
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
@@ -245,4 +242,12 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./artifacts/**/*
+          # 与 upload-artifact 一致：仅安装包，避免把 AppDir / GTK 依赖等中间产物当作 Release 资源
+          files: |
+            ./artifacts/**/*.AppImage
+            ./artifacts/**/*.appimage
+            ./artifacts/**/*.deb
+            ./artifacts/**/*.dmg
+            ./artifacts/**/*.msi
+            ./artifacts/**/*.exe
+          generate_release_notes: true

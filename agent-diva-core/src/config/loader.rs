@@ -390,6 +390,31 @@ mod tests {
     }
 
     #[test]
+    fn test_load_allows_invalid_enabled_channel_config() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        let config_path = temp_dir.path().join("config.json");
+        std::fs::write(
+            &config_path,
+            r#"{
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": ""
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let config = loader.load().unwrap();
+        assert!(config.channels.discord.enabled);
+        assert!(config.channels.discord.token.is_empty());
+    }
+
+    #[test]
     fn test_load_supports_mcp_servers_camel_case() {
         let _lock = lock_env();
         let temp_dir = TempDir::new().unwrap();
