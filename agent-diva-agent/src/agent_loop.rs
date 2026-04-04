@@ -106,7 +106,7 @@ pub struct AgentLoop {
     notify_on_soul_change: bool,
     soul_governance: SoulGovernanceSettings,
     soul_change_turns: VecDeque<Instant>,
-    file_manager: FileManager,
+    file_manager: Arc<FileManager>,
 }
 
 impl AgentLoop {
@@ -139,7 +139,7 @@ impl AgentLoop {
             .map(|p| p.join("agent-diva").join("files"))
             .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
         let file_config = FileConfig::with_path(&storage_path);
-        let file_manager = FileManager::new(file_config).await?;
+        let file_manager = Arc::new(FileManager::new(file_config).await?);
 
         Ok(Self {
             bus,
@@ -161,6 +161,11 @@ impl AgentLoop {
         })
     }
 
+    /// Get the file manager
+    pub fn file_manager(&self) -> Arc<FileManager> {
+        self.file_manager.clone()
+    }
+
     /// Create a new agent loop with tool configuration
     pub async fn with_tools(
         bus: MessageBus,
@@ -170,6 +175,7 @@ impl AgentLoop {
         max_iterations: Option<usize>,
         tool_config: ToolConfig,
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+        file_manager: Arc<FileManager>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
@@ -235,13 +241,6 @@ impl AgentLoop {
         if let Some(cron_service) = tool_config.cron_service.clone() {
             tools.register(Arc::new(CronTool::new(cron_service)));
         }
-
-        // Initialize file manager for attachment handling
-        let storage_path = dirs::data_local_dir()
-            .map(|p| p.join("agent-diva").join("files"))
-            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
-        let file_config = FileConfig::with_path(&storage_path);
-        let file_manager = FileManager::new(file_config).await?;
 
         Ok(Self {
             bus,

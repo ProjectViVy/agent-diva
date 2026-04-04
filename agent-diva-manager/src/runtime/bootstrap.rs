@@ -15,6 +15,12 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         &config,
         &config.agents.defaults.model,
     )?)));
+
+    // Initialize shared FileManager for attachment handling
+    let storage_path = default_data_dir_or_fallback();
+    let file_config = FileConfig::with_path(&storage_path);
+    let file_manager = Arc::new(FileManager::new(file_config).await?);
+
     let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
     let agent = build_agent_loop(
         &config,
@@ -23,6 +29,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         workspace.clone(),
         runtime_control_rx,
         Arc::clone(&cron_service),
+        Arc::clone(&file_manager),
     )
     .await?;
     let (provider_api_key, provider_api_base) = resolve_provider_credentials(&config)?;
@@ -38,6 +45,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         provider_api_key,
         provider_api_base,
         agent,
+        file_manager,
     })
 }
 

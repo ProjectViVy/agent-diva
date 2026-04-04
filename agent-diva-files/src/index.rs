@@ -72,8 +72,7 @@ impl SqliteIndex {
         // Migration: Add deleted_at column if not exists (for existing databases)
         let columns: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_table_info('files')")
             .fetch_all(&self.pool)
-            .await
-            .unwrap_or_default();
+            .await?;
         
         if !columns.contains(&"deleted_at".to_string()) {
             let _ = sqlx::query("ALTER TABLE files ADD COLUMN deleted_at TEXT")

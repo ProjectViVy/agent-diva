@@ -45,8 +45,10 @@ impl AgentLoop {
             .register(Arc::new(EditFileTool::new(security.clone())));
         self.tools.register(Arc::new(ListDirTool::new(security)));
 
-        // Register attachment read tool
-        self.tools.register(Arc::new(ReadAttachmentTool::new()));
+        // Register attachment read tool with shared FileManager
+        self.tools.register(Arc::new(ReadAttachmentTool::new(
+            self.file_manager.clone()
+        )));
 
         // Register shell tool
         self.tools.register(Arc::new(ExecTool::with_config(

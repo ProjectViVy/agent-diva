@@ -14,6 +14,7 @@ use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
+use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
     DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess, ProviderCatalogService,
     ProviderRegistry,
@@ -47,6 +48,7 @@ struct GatewayBootstrap {
     provider_api_key: Option<String>,
     provider_api_base: Option<String>,
     agent: AgentLoop,
+    file_manager: Arc<FileManager>,
 }
 
 struct ChannelBootstrap {
@@ -260,6 +262,7 @@ async fn build_agent_loop(
     workspace: PathBuf,
     runtime_control_rx: mpsc::UnboundedReceiver<RuntimeControlCommand>,
     cron_service: Arc<CronService>,
+    file_manager: Arc<FileManager>,
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let tool_config = ToolConfig {
@@ -289,6 +292,7 @@ async fn build_agent_loop(
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
         Some(runtime_control_rx),
+        file_manager,
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))

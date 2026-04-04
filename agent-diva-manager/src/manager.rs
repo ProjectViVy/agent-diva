@@ -10,6 +10,7 @@ use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
+use agent_diva_files::FileManager;
 use agent_diva_providers::{DynamicProvider, ProviderCatalogService, ProviderRegistry};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -30,6 +31,7 @@ pub struct Manager {
     channel_manager: Option<Arc<ChannelManager>>,
     runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
     cron_service: Arc<CronService>,
+    file_manager: Arc<FileManager>,
 }
 
 enum ProviderConfigTarget<'a> {
@@ -67,6 +69,7 @@ impl Manager {
         channel_manager: Option<Arc<ChannelManager>>,
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
         cron_service: Arc<CronService>,
+        file_manager: Arc<FileManager>,
     ) -> Self {
         Self {
             api_rx,
@@ -81,6 +84,7 @@ impl Manager {
             channel_manager,
             runtime_control_tx,
             cron_service,
+            file_manager,
         }
     }
 

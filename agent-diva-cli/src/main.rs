@@ -20,6 +20,7 @@ use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::{CronSchedule, CronService};
+use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use console::style;
@@ -994,6 +995,14 @@ async fn run_tui(
     };
 
     let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
+
+    // Initialize shared FileManager for attachment handling
+    let storage_path = dirs::data_local_dir()
+        .map(|p| p.join("agent-diva").join("files"))
+        .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+    let file_config = FileConfig::with_path(&storage_path);
+    let file_manager = Arc::new(FileManager::new(file_config).await?);
+
     let mut agent = AgentLoop::with_tools(
         bus,
         provider,
@@ -1002,6 +1011,7 @@ async fn run_tui(
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
         Some(runtime_control_rx),
+        file_manager,
     )
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;

@@ -88,6 +88,7 @@ dependencies = [
  "agent-diva-agent",
  "agent-diva-channels",
  "agent-diva-core",
+ "agent-diva-files",
  "agent-diva-manager",
  "agent-diva-providers",
  "agent-diva-tools",

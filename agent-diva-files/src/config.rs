@@ -214,3 +214,27 @@ fn default_cleanup_interval() -> u64 {
 fn default_true() -> bool {
     true
 }
+
+/// Get the default data directory path for agent-diva files
+///
+/// Uses the system's local data directory (e.g., %LOCALAPPDATA% on Windows,
+/// ~/Library/Application Support on macOS, ~/.local/share on Linux)
+/// and appends "agent-diva/files".
+///
+/// # Returns
+/// * `Some(PathBuf)` - The default data directory path
+/// * `None` - If the local data directory cannot be determined
+pub fn default_data_dir() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|base| base.join("agent-diva").join("files"))
+}
+
+/// Get the default data directory path or fall back to a path in the home directory
+///
+/// This is a convenience function that never fails - if the system data directory
+/// cannot be determined, it falls back to ~/.agent-diva/files
+pub fn default_data_dir_or_fallback() -> PathBuf {
+    default_data_dir()
+        .unwrap_or_else(|| dirs::home_dir()
+            .map(|h| h.join(".agent-diva").join("files"))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva/files")))
+}

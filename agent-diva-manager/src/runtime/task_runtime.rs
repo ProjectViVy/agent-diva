@@ -19,6 +19,7 @@ pub(super) async fn start_runtime_tasks(
         provider_api_key,
         provider_api_base,
         agent,
+        file_manager,
     } = bootstrap;
     let ChannelBootstrap {
         channel_manager,
@@ -45,6 +46,7 @@ pub(super) async fn start_runtime_tasks(
         Some(channel_manager.clone()),
         Some(runtime_control_tx),
         Arc::clone(&cron_service),
+        file_manager,
     );
     let api_tx_keepalive = api_tx.clone();
 

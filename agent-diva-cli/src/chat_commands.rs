@@ -14,6 +14,7 @@ use agent_diva_agent::{
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
+use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use console::style;
 use dialoguer::Input;
@@ -91,6 +92,13 @@ async fn build_local_cli_agent(
         (None, None)
     };
 
+    // Initialize shared FileManager for attachment handling
+    let storage_path = dirs::data_local_dir()
+        .map(|p| p.join("agent-diva").join("files"))
+        .unwrap_or_else(|| std::path::PathBuf::from(".agent-diva/files"));
+    let file_config = FileConfig::with_path(&storage_path);
+    let file_manager = Arc::new(FileManager::new(file_config).await?);
+
     let agent = AgentLoop::with_tools(
         bus,
         provider,
@@ -99,6 +107,7 @@ async fn build_local_cli_agent(
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
         runtime_control_rx,
+        file_manager,
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
