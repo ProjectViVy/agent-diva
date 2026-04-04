@@ -3,7 +3,6 @@ use crate::consolidation;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
-use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::{LLMResponse, LLMStreamEvent};
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
@@ -454,19 +453,15 @@ impl AgentLoop {
     /// Only text files under MAX_INLINE_ATTACHMENT_SIZE are inlined.
     /// For other files, adds a placeholder telling AI to use read_file tool.
     async fn load_attachment_contents(&self, file_ids: &[String]) -> Result<String, Box<dyn std::error::Error>> {
-        // Use the same path as file_service.rs to ensure files are found
         let storage_path = dirs::data_local_dir()
             .map(|p| p.join("agent-diva").join("files"))
             .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
-        let storage_path_str = storage_path.display().to_string();
-        info!("Loading attachments from: {}", storage_path_str);
+        info!("Loading attachments from: {}", storage_path.display());
         info!("File IDs to load: {:?}", file_ids);
-        let config = FileConfig::with_path(&storage_path);
-        let file_manager = FileManager::new(config).await?;
         let mut parts = Vec::new();
 
         for file_id in file_ids {
-            match file_manager.get(file_id).await {
+            match self.file_manager.get(file_id).await {
                 Ok(handle) => {
                     let size = handle.metadata.size;
                     let mime_type = handle.metadata.mime_type.as_deref().unwrap_or("application/octet-stream");
@@ -478,7 +473,7 @@ impl AgentLoop {
                         || mime_type == "application/xml";
 
                     if is_text && size <= MAX_INLINE_ATTACHMENT_SIZE {
-                        match file_manager.read(&handle).await {
+                        match self.file_manager.read(&handle).await {
                             Ok(bytes) => {
                                 match String::from_utf8(bytes) {
                                     Ok(content) => {
@@ -512,7 +507,7 @@ impl AgentLoop {
                     }
                 }
                 Err(e) => {
-                    warn!("Failed to get file handle for {}: {}. Storage path: {}", file_id, e, storage_path_str);
+                    warn!("Failed to get file handle for {}: {}. Storage path: {}", file_id, e, storage_path.display());
                     parts.push(format!("[Attachment: {} (not found - {})]", file_id, e));
                 }
             }

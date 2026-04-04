@@ -1002,7 +1002,9 @@ async fn run_tui(
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
         Some(runtime_control_rx),
-    );
+    )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
 
     let current_session = session.unwrap_or_else(|| "cli:tui".to_string());
     let (request_tx, mut request_rx) = mpsc::unbounded_channel::<(String, String)>();

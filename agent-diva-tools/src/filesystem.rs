@@ -42,7 +42,7 @@ impl Tool for ReadFileTool {
     }
 
     fn description(&self) -> &str {
-        "Read the contents of a file at the given path. Supports offset and limit for large files."
+        "读取指定路径文件的内容。支持通过偏移量和行数限制读取大文件。"
     }
 
     fn parameters(&self) -> Value {
@@ -51,15 +51,15 @@ impl Tool for ReadFileTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The file path to read (relative to workspace)"
+                    "description": "要读取的文件路径（相对于工作区）"
                 },
                 "offset": {
                     "type": "integer",
-                    "description": "Line number to start reading from (1-based)"
+                    "description": "开始读取的行号（从1开始）"
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of lines to read"
+                    "description": "最多读取的行数"
                 }
             },
             "required": ["path"]
@@ -200,7 +200,7 @@ impl Tool for WriteFileTool {
     }
 
     fn description(&self) -> &str {
-        "Write content to a file at the given path. Creates parent directories if needed."
+        "将内容写入指定路径的文件。如需要会自动创建父目录。"
     }
 
     fn parameters(&self) -> Value {
@@ -209,11 +209,11 @@ impl Tool for WriteFileTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The file path to write to (relative to workspace)"
+                    "description": "要写入的文件路径（相对于工作区）"
                 },
                 "content": {
                     "type": "string",
-                    "description": "The content to write"
+                    "description": "要写入的内容"
                 }
             },
             "required": ["path", "content"]
@@ -316,7 +316,7 @@ impl Tool for EditFileTool {
     }
 
     fn description(&self) -> &str {
-        "Edit a file by replacing old_text with new_text. The old_text must exist exactly in the file."
+        "编辑文件，将 old_text 替换为 new_text。old_text 必须完全匹配文件中存在的文本。"
     }
 
     fn parameters(&self) -> Value {
@@ -325,15 +325,15 @@ impl Tool for EditFileTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The file path to edit (relative to workspace)"
+                    "description": "要编辑的文件路径（相对于工作区）"
                 },
                 "old_text": {
                     "type": "string",
-                    "description": "The exact text to find and replace"
+                    "description": "要查找并替换的精确文本"
                 },
                 "new_text": {
                     "type": "string",
-                    "description": "The text to replace with"
+                    "description": "用于替换的新文本"
                 }
             },
             "required": ["path", "old_text", "new_text"]
@@ -439,7 +439,7 @@ impl Tool for ListDirTool {
     }
 
     fn description(&self) -> &str {
-        "List the contents of a directory."
+        "列出目录中的内容。"
     }
 
     fn parameters(&self) -> Value {
@@ -448,7 +448,7 @@ impl Tool for ListDirTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The directory path to list (relative to workspace)"
+                    "description": "要列出的目录路径（相对于工作区）"
                 }
             },
             "required": ["path"]

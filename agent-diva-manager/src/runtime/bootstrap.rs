@@ -23,7 +23,8 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         workspace.clone(),
         runtime_control_rx,
         Arc::clone(&cron_service),
-    );
+    )
+    .await?;
     let (provider_api_key, provider_api_base) = resolve_provider_credentials(&config)?;
 
     Ok(GatewayBootstrap {

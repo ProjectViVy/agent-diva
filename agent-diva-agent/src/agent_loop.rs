@@ -6,6 +6,7 @@ use agent_diva_core::cron::CronService;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::session::SessionManager;
+use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
 use agent_diva_tools::{
     load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
@@ -105,17 +106,18 @@ pub struct AgentLoop {
     notify_on_soul_change: bool,
     soul_governance: SoulGovernanceSettings,
     soul_change_turns: VecDeque<Instant>,
+    file_manager: FileManager,
 }
 
 impl AgentLoop {
     /// Create a new agent loop
-    pub fn new(
+    pub async fn new(
         bus: MessageBus,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
         model: Option<String>,
         max_iterations: Option<usize>,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(SoulContextSettings::default());
@@ -132,7 +134,14 @@ impl AgentLoop {
             false,
         ));
 
-        Self {
+        // Initialize file manager for attachment handling
+        let storage_path = dirs::data_local_dir()
+            .map(|p| p.join("agent-diva").join("files"))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+        let file_config = FileConfig::with_path(&storage_path);
+        let file_manager = FileManager::new(file_config).await?;
+
+        Ok(Self {
             bus,
             provider,
             workspace,
@@ -148,11 +157,12 @@ impl AgentLoop {
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
             soul_change_turns: VecDeque::new(),
-        }
+            file_manager,
+        })
     }
 
     /// Create a new agent loop with tool configuration
-    pub fn with_tools(
+    pub async fn with_tools(
         bus: MessageBus,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
@@ -160,7 +170,7 @@ impl AgentLoop {
         max_iterations: Option<usize>,
         tool_config: ToolConfig,
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(tool_config.soul_context.clone());
@@ -226,7 +236,14 @@ impl AgentLoop {
             tools.register(Arc::new(CronTool::new(cron_service)));
         }
 
-        Self {
+        // Initialize file manager for attachment handling
+        let storage_path = dirs::data_local_dir()
+            .map(|p| p.join("agent-diva").join("files"))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+        let file_config = FileConfig::with_path(&storage_path);
+        let file_manager = FileManager::new(file_config).await?;
+
+        Ok(Self {
             bus,
             provider,
             workspace,
@@ -242,7 +259,8 @@ impl AgentLoop {
             notify_on_soul_change: tool_config.notify_on_soul_change,
             soul_governance: tool_config.soul_governance,
             soul_change_turns: VecDeque::new(),
-        }
+            file_manager,
+        })
     }
 
     /// Run the agent loop, processing messages from the bus

@@ -245,7 +245,6 @@ impl FileManager {
     pub async fn clone_ref(&self, handle: &FileHandle) -> Result<FileHandle> {
         if let Some(new_count) = self.index.update_ref_count(&handle.id, 1).await? {
             let cloned = handle.clone();
-            cloned.increment_ref();
 
             debug!(
                 "Cloned file {} reference, new count: {}",

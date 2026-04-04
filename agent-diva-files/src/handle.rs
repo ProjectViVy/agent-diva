@@ -74,22 +74,6 @@ impl FileHandle {
         self.ref_count.load(Ordering::SeqCst)
     }
 
-    /// Increment reference count (returns new count)
-    pub fn increment_ref(&self) -> usize {
-        self.ref_count.fetch_add(1, Ordering::SeqCst) + 1
-    }
-
-    /// Decrement reference count (returns new count)
-    pub fn decrement_ref(&self) -> usize {
-        let prev = self.ref_count.fetch_sub(1, Ordering::SeqCst);
-        if prev == 0 {
-            self.ref_count.store(0, Ordering::SeqCst);
-            0
-        } else {
-            prev - 1
-        }
-    }
-
     /// Check if this is the last reference
     pub fn is_last_ref(&self) -> bool {
         self.ref_count() <= 1
@@ -230,27 +214,8 @@ mod tests {
         assert_eq!(handle.ref_count(), 1); // Original unchanged
         assert_eq!(cloned.ref_count(), 1); // Clone starts at 1
 
-        // Increment cloned
-        cloned.increment_ref();
-        assert_eq!(cloned.ref_count(), 2);
-        assert_eq!(handle.ref_count(), 1); // Original still unchanged
-    }
-
-    #[test]
-    fn test_is_last_ref() {
-        let handle = FileHandle::new(
-            "abc123".to_string(),
-            PathBuf::from("data/ab/c123"),
-            create_test_metadata(),
-        );
-
-        assert!(handle.is_last_ref());
-
-        handle.increment_ref();
-        assert!(!handle.is_last_ref());
-
-        handle.decrement_ref();
-        assert!(handle.is_last_ref());
+        // Note: Reference counting should be managed through FileManager
+        // FileHandle.ref_count is for informational purposes only
     }
 
     #[test]

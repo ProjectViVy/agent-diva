@@ -253,14 +253,14 @@ fn build_cron_callback(bus: MessageBus) -> JobCallback {
     )
 }
 
-fn build_agent_loop(
+async fn build_agent_loop(
     config: &Config,
     bus: MessageBus,
     dynamic_provider: Arc<DynamicProvider>,
     workspace: PathBuf,
     runtime_control_rx: mpsc::UnboundedReceiver<RuntimeControlCommand>,
     cron_service: Arc<CronService>,
-) -> AgentLoop {
+) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let tool_config = ToolConfig {
         network: build_network_tool_config(config),
@@ -290,6 +290,8 @@ fn build_agent_loop(
         tool_config,
         Some(runtime_control_rx),
     )
+    .await
+    .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))
 }
 
 fn resolve_provider_credentials(config: &Config) -> Result<(Option<String>, Option<String>)> {
