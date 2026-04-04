@@ -13,6 +13,7 @@ pub mod logging;
 pub mod memory;
 pub mod session;
 pub mod soul;
+pub mod usage;
 pub mod utils;
 
 pub use error::{Error, Result};

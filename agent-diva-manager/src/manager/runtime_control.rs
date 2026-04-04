@@ -579,3 +579,78 @@ impl_channel_toggle!(
     QQConfig,
     MatrixConfig,
 );
+
+// Token usage statistics handlers
+impl Manager {
+    pub(super) fn handle_get_token_usage_total(
+        &self,
+        _range: agent_diva_core::usage::TimeRange,
+        reply: oneshot::Sender<Result<agent_diva_core::usage::UsageTotal, String>>,
+    ) {
+        // TODO: Integrate with UsageQueryService when available
+        // For now return empty stats as the service is not yet initialized
+        let _ = reply.send(Ok(agent_diva_core::usage::UsageTotal {
+            total_input: 0,
+            total_output: 0,
+            total_tokens: 0,
+            total_cache_creation: 0,
+            total_cache_read: 0,
+            request_count: 0,
+            total_cost: 0.0,
+        }));
+    }
+
+    pub(super) fn handle_get_token_usage_summary(
+        &self,
+        _range: agent_diva_core::usage::TimeRange,
+        _group_by: agent_diva_core::usage::GroupBy,
+        reply: oneshot::Sender<Result<Vec<agent_diva_core::usage::UsageSummary>, String>>,
+    ) {
+        // TODO: Integrate with UsageQueryService when available
+        let _ = reply.send(Ok(Vec::new()));
+    }
+
+    pub(super) fn handle_get_token_usage_timeline(
+        &self,
+        _range: agent_diva_core::usage::TimeRange,
+        _interval: agent_diva_core::usage::TimeInterval,
+        reply: oneshot::Sender<Result<Vec<agent_diva_core::usage::types::TimelinePoint>, String>>,
+    ) {
+        // TODO: Integrate with UsageQueryService when available
+        let _ = reply.send(Ok(Vec::new()));
+    }
+
+    pub(super) fn handle_get_token_usage_sessions(
+        &self,
+        _range: agent_diva_core::usage::TimeRange,
+        _limit: u64,
+        reply: oneshot::Sender<Result<Vec<agent_diva_core::usage::SessionUsage>, String>>,
+    ) {
+        // TODO: Integrate with UsageQueryService when available
+        let _ = reply.send(Ok(Vec::new()));
+    }
+
+    pub(super) fn handle_get_token_usage_models(
+        &self,
+        _range: agent_diva_core::usage::TimeRange,
+        reply: oneshot::Sender<Result<Vec<(String, f64)>, String>>,
+    ) {
+        // TODO: Integrate with UsageQueryService when available
+        let _ = reply.send(Ok(Vec::new()));
+    }
+
+    pub(super) fn handle_get_token_usage_realtime(
+        &self,
+        reply: oneshot::Sender<Result<agent_diva_core::usage::writer::InMemoryStats, String>>,
+    ) {
+        // TODO: Integrate with InMemoryAggregator when available
+        // For now return empty real-time stats
+        let _ = reply.send(Ok(agent_diva_core::usage::writer::InMemoryStats {
+            total_tokens: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            request_count: 0,
+            total_cost: 0.0,
+        }));
+    }
+}

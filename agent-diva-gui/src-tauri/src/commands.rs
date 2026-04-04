@@ -2525,3 +2525,168 @@ pub fn tail_logs(lines: usize) -> Result<Vec<String>, String> {
     }
     Ok(all_lines)
 }
+
+// ============================================================
+// Token Usage Statistics Commands
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenUsageTotal {
+    pub total_input: i64,
+    pub total_output: i64,
+    pub total_tokens: i64,
+    pub total_cache_creation: i64,
+    pub total_cache_read: i64,
+    pub request_count: u64,
+    pub total_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenUsageSummary {
+    pub group_key: String,
+    pub total_input: i64,
+    pub total_output: i64,
+    pub total_tokens: i64,
+    pub total_cache_creation: i64,
+    pub total_cache_read: i64,
+    pub request_count: u64,
+    pub total_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenTimelinePoint {
+    pub time_bucket: String,
+    pub total_input: i64,
+    pub total_output: i64,
+    pub total_tokens: i64,
+    pub request_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenSessionUsage {
+    pub session_id: String,
+    pub total_input: i64,
+    pub total_output: i64,
+    pub total_tokens: i64,
+    pub request_count: u64,
+    pub total_cost: f64,
+    pub primary_model: String,
+    pub channel: Option<String>,
+    pub last_activity: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenModelDistribution {
+    pub model: String,
+    pub percentage: f64,
+    pub total_tokens: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenInMemoryStats {
+    pub total_tokens: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub request_count: u64,
+    pub total_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ApiResponse<T> {
+    status: String,
+    data: Option<T>,
+    message: Option<String>,
+}
+
+async fn fetch_token_stats<T: serde::de::DeserializeOwned>(
+    state: &AgentState,
+    endpoint: &str,
+) -> Result<T, String> {
+    let url = format!("{}{}", state.api_base_url, endpoint);
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch token stats: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let api_response: ApiResponse<T> = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid response payload: {}", e))?;
+
+    if api_response.status != "ok" {
+        return Err(api_response
+            .message
+            .unwrap_or_else(|| "Unknown error".to_string()));
+    }
+
+    api_response
+        .data
+        .ok_or_else(|| "No data in response".to_string())
+}
+
+#[tauri::command]
+pub async fn get_token_usage_total(
+    state: State<'_, AgentState>,
+    period: String,
+) -> Result<TokenUsageTotal, String> {
+    let endpoint = format!("/stats/tokens/total?period={}", period);
+    fetch_token_stats(&state, &endpoint).await
+}
+
+#[tauri::command]
+pub async fn get_token_usage_summary(
+    state: State<'_, AgentState>,
+    period: String,
+    group_by: String,
+) -> Result<Vec<TokenUsageSummary>, String> {
+    let endpoint = format!(
+        "/stats/tokens/summary?period={}&group_by={}",
+        period, group_by
+    );
+    fetch_token_stats(&state, &endpoint).await
+}
+
+#[tauri::command]
+pub async fn get_token_usage_timeline(
+    state: State<'_, AgentState>,
+    period: String,
+    interval: Option<String>,
+) -> Result<Vec<TokenTimelinePoint>, String> {
+    let endpoint = match interval {
+        Some(int) => format!("/stats/tokens/timeline?period={}&interval={}", period, int),
+        None => format!("/stats/tokens/timeline?period={}", period),
+    };
+    fetch_token_stats(&state, &endpoint).await
+}
+
+#[tauri::command]
+pub async fn get_token_usage_sessions(
+    state: State<'_, AgentState>,
+    period: String,
+    limit: u64,
+) -> Result<Vec<TokenSessionUsage>, String> {
+    let endpoint = format!("/stats/tokens/sessions?period={}&limit={}", period, limit);
+    fetch_token_stats(&state, &endpoint).await
+}
+
+#[tauri::command]
+pub async fn get_token_usage_models(
+    state: State<'_, AgentState>,
+    period: String,
+) -> Result<Vec<TokenModelDistribution>, String> {
+    let endpoint = format!("/stats/tokens/models?period={}", period);
+    fetch_token_stats(&state, &endpoint).await
+}
+
+#[tauri::command]
+pub async fn get_token_usage_realtime(
+    state: State<'_, AgentState>,
+) -> Result<TokenInMemoryStats, String> {
+    fetch_token_stats(&state, "/stats/tokens/realtime").await
+}

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
 import { useI18n } from 'vue-i18n';
+import ConversationSidebar from './ConversationSidebar.vue';
 
 const { t } = useI18n();
 
@@ -92,22 +93,57 @@ const renderRawMeta = (msg: Message) => {
   }
 };
 
+interface Session {
+  session_key: string;
+  chat_id: string;
+  snippet: string;
+  timestamp: number;
+  title?: string;
+  pinned?: boolean;
+  status?: 'idle' | 'running' | 'completed' | 'error';
+  agent_icon?: string;
+  agent_name?: string;
+}
+
 const props = defineProps<{
   messages: Message[];
   isTyping: boolean;
   themeMode?: string;
   historyPrefs?: HistoryPrefs;
+  sessions?: Session[];
+  activeSessionKey?: string;
 }>();
 
 const emit = defineEmits<{
   (e: 'send', content: string): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
+  (e: 'select-session', sessionKey: string): void;
+  (e: 'delete-session', sessionKey: string): void;
+  (e: 'new-session'): void;
+  (e: 'toggle-pin', sessionKey: string): void;
+  (e: 'rename-session', sessionKey: string, title: string): void;
 }>();
 
 const input = ref('');
 const messagesEndRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
+const inputHeight = ref(24); // 动态输入框高度
+
+// 右侧会话侧边栏状态
+const convSidebarOpen = ref(false);
+const convSidebarRef = ref<InstanceType<typeof ConversationSidebar> | null>(null);
+
+// 输入区域状态
+const showModeMenu = ref(false);
+const showPermissionMenu = ref(false);
+const execMode = ref<'agent' | 'plan' | 'ask'>('agent');
+const permissionMode = ref<'cautious' | 'smart' | 'trusted'>('smart');
+// const showAttachments = ref(false); // 预留
+const isRecording = ref(false);
+// const recordingDuration = ref(0); // 预留
+const showDeepThinking = ref(false);
+// const thinkingDepth = ref<'low' | 'medium' | 'high'>('medium'); // 预留
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -162,6 +198,9 @@ const handleSend = () => {
   if (!input.value.trim() || props.isTyping) return;
   emit('send', input.value);
   input.value = '';
+  nextTick(() => {
+    adjustInputHeight();
+  });
 };
 
 const handleClear = async () => {
@@ -186,6 +225,41 @@ const handleKeyDown = (e: KeyboardEvent) => {
   }
 };
 
+// 自动调整输入框高度
+const adjustInputHeight = () => {
+  if (inputRef.value) {
+    inputRef.value.style.height = 'auto';
+    const newHeight = Math.min(inputRef.value.scrollHeight, 120);
+    inputRef.value.style.height = `${newHeight}px`;
+    inputHeight.value = newHeight;
+  }
+};
+
+// 获取动态 placeholder
+const getPlaceholder = computed(() => {
+  if (execMode.value === 'plan') {
+    return t('chat.planMode') + ' · ' + t('chat.placeholder');
+  }
+  if (execMode.value === 'ask') {
+    return t('chat.askMode');
+  }
+  return t('chat.placeholder');
+});
+
+// 模式菜单选项
+const modeOptions = [
+  { value: 'agent', label: 'chat.agentMode', icon: Zap, desc: 'chat.agentModeDesc' },
+  { value: 'plan', label: 'chat.planMode', icon: Settings2, desc: 'chat.planModeDesc' },
+  { value: 'ask', label: 'chat.askMode', icon: Brain, desc: 'chat.askModeDesc' },
+];
+
+// 权限模式选项
+const permissionOptions = [
+  { value: 'cautious', label: 'chat.permissionCautious', icon: Shield, desc: 'chat.permissionCautiousDesc' },
+  { value: 'smart', label: 'chat.permissionSmart', icon: Sparkles, desc: 'chat.permissionSmartDesc' },
+  { value: 'trusted', label: 'chat.permissionTrusted', icon: CheckCircle, desc: 'chat.permissionTrustedDesc' },
+];
+
 const getEmotionEmoji = (emotion?: string) => {
   const emotions: Record<string, string> = {
     happy: '😊',
@@ -198,29 +272,56 @@ const getEmotionEmoji = (emotion?: string) => {
   };
   return emotions[emotion || 'normal'] || '🙂';
 };
+
+// 消息操作：复制
+const copyMessage = async (content: string) => {
+  try {
+    await navigator.clipboard.writeText(content);
+  } catch (err) {
+    console.error('Failed to copy message:', err);
+  }
+};
+
+// 格式化时间戳
+const formatTime = (timestamp?: number) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 </script>
 
 <template>
-  <div class="chat-shell flex flex-col h-full relative overflow-hidden" :class="`theme-${themeMode || 'love'}`">
-    <!-- Sakura Effect -->
-    <div v-if="themeMode === 'love'" class="chat-sakura">
-      <span
-        v-for="(s, i) in sakura"
-        :key="i"
-        class="sakura-petal"
-        :style="{
-          left: s.left,
-          top: s.top,
-          width: `${s.size}px`,
-          height: `${s.size}px`,
-          opacity: s.opacity,
-          animationDelay: `${s.delay}s`,
-        }"
-      />
-    </div>
+  <div class="chat-shell flex flex-row h-full relative overflow-hidden" :class="[`theme-${themeMode || 'love'}`, { 'conv-sidebar-open': convSidebarOpen }]">
+    <!-- Main Chat Area -->
+    <div class="chat-main flex flex-col flex-1 min-w-0">
+      <!-- Sidebar Toggle Button (top-right of chat area) -->
+      <button
+        @click="convSidebarOpen = !convSidebarOpen"
+        class="conv-sidebar-toggle"
+        :title="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
+      >
+        <Clock v-if="convSidebarOpen" :size="18" />
+        <Clock v-else :size="18" />
+      </button>
 
-    <!-- Messages List -->
-    <div class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
+      <!-- Sakura Effect -->
+      <div v-if="themeMode === 'love'" class="chat-sakura">
+        <span
+          v-for="(s, i) in sakura"
+          :key="i"
+          class="sakura-petal"
+          :style="{
+            left: s.left,
+            top: s.top,
+            width: `${s.size}px`,
+            height: `${s.size}px`,
+            opacity: s.opacity,
+            animationDelay: `${s.delay}s`,
+          }"
+        />
+      </div>
+
+      <!-- Messages List -->
+      <div class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
         <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
           💕
@@ -234,7 +335,7 @@ const getEmotionEmoji = (emotion?: string) => {
         class="flex mb-4"
         :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
       >
-        <div class="flex max-w-[80%] items-start space-x-2" :class="msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'">
+        <div class="flex max-w-[85%] items-start space-x-2" :class="msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'">
           <!-- Avatar -->
           <div
             v-if="msg.role !== 'user' && msg.role !== 'tool'"
@@ -345,33 +446,33 @@ const getEmotionEmoji = (emotion?: string) => {
             <!-- Normal Message -->
             <div
               v-else
-              class="chat-bubble relative px-3 py-2 rounded-md text-sm leading-relaxed shadow-sm break-words"
+              class="chat-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words"
               :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
             >
-              <!-- Tail -->
-              <div
-                class="absolute top-3 w-0 h-0 border-solid border-4"
-                :class="msg.role === 'user' ? 'chat-bubble-tail-user' : 'chat-bubble-tail-assistant'"
-              />
-
-              <!-- Reasoning Block -->
-              <div v-if="msg.reasoning" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
+              <!-- Reasoning Block - OpenAkita 折叠卡片样式 -->
+              <div v-if="msg.reasoning" class="reasoning-card mb-3">
                  <!-- Header -->
                  <div 
                     @click="toggleReasoning(index)"
-                    class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-black/5 transition-colors select-none"
+                    class="reasoning-header"
                  >
-                    <div class="flex items-center space-x-2 text-xs">
-                       <Brain :size="14" :class="msg.isThinking ? 'animate-pulse text-pink-500' : 'text-gray-400'" />
-                       <span :class="msg.isThinking ? 'text-pink-600 font-medium' : 'text-gray-500'">
-                          {{ msg.isThinking ? t('chat.thinking') : t('chat.thoughtProcess') }}
+                    <div class="reasoning-header-left">
+                       <ChevronRight :size="12" class="reasoning-chevron" :class="{ expanded: expandedReasoning[index] }" />
+                       <Brain :size="14" :class="msg.isThinking ? 'thinking-active' : 'thinking-inactive'" />
+                       <span class="reasoning-label">
+                          <template v-if="msg.isThinking">
+                             <Loader2 :size="12" class="animate-spin" />
+                             {{ t('chat.reasoningProcessing') }}
+                          </template>
+                          <template v-else>
+                             {{ t('chat.reasoningThought', { time: 'X.X' }) }}
+                          </template>
                        </span>
                     </div>
-                    <component :is="expandedReasoning[index] ? ChevronDown : ChevronRight" :size="14" class="text-gray-400" />
                  </div>
                  
                  <!-- Content -->
-                 <div v-if="expandedReasoning[index]" class="px-3 py-2 border-t border-gray-100/50 bg-gray-50/30 text-xs text-gray-600">
+                 <div v-if="expandedReasoning[index]" class="reasoning-content">
                     <div class="markdown-body" v-html="md.render(msg.reasoning)"></div>
                  </div>
               </div>
@@ -395,15 +496,70 @@ const getEmotionEmoji = (emotion?: string) => {
                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s" />
                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
               </div>
-              <div v-else class="markdown-body" v-html="md.render(msg.content)"></div>
+              <div v-else>
+                <div class="markdown-body" v-html="md.render(msg.content)"></div>
+                <!-- 流式光标：内容存在且正在流式输出时显示 -->
+                <span v-if="msg.content && msg.role === 'agent' && msg.isStreaming" class="streaming-cursor"></span>
+              </div>
             </div>
-            
-            <!-- Timestamp -->
-            <span
-              class="text-[10px] text-gray-400 mt-1"
-              :class="msg.role === 'user' ? 'text-right' : 'text-left'"
+
+            <!-- Message Actions: 时间戳 + 操作按钮 -->
+            <div
+              v-if="msg.role !== 'tool'"
+              class="msg-actions"
+              :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
             >
-              {{ msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '' }}
+              <span class="text-[10px] text-gray-400">{{ formatTime(msg.timestamp) }}</span>
+              <!-- 复制按钮（启用） -->
+              <button
+                class="msg-action-btn"
+                @click="copyMessage(msg.content)"
+                :title="t('chat.copy')"
+              >
+                <Copy :size="12" />
+              </button>
+              <!-- 编辑按钮（用户消息，disabled占位） -->
+              <button
+                v-if="msg.role === 'user'"
+                class="msg-action-btn"
+                disabled
+                :title="t('chat.edit') + ' (' + t('chat.pending') + ')'"
+              >
+                <Edit :size="12" />
+              </button>
+              <!-- 重生成按钮（助手消息，disabled占位） -->
+              <button
+                v-if="msg.role === 'agent'"
+                class="msg-action-btn"
+                disabled
+                :title="t('chat.regenerate') + ' (' + t('chat.pending') + ')'"
+              >
+                <RefreshCw :size="12" />
+              </button>
+              <!-- 回退按钮（disabled占位） -->
+              <button
+                class="msg-action-btn"
+                disabled
+                :title="t('chat.rewind') + ' (' + t('chat.pending') + ')'"
+              >
+                <Rewind :size="12" />
+              </button>
+              <!-- 分叉按钮（disabled占位） -->
+              <button
+                class="msg-action-btn"
+                disabled
+                :title="t('chat.fork') + ' (' + t('chat.pending') + ')'"
+              >
+                <GitFork :size="12" />
+              </button>
+            </div>
+
+            <!-- Tool消息时间戳 -->
+            <span
+              v-else
+              class="text-[10px] text-gray-400 mt-1 text-left"
+            >
+              {{ formatTime(msg.timestamp) }}
             </span>
           </div>
         </div>
@@ -415,52 +571,214 @@ const getEmotionEmoji = (emotion?: string) => {
       <div ref="messagesEndRef" />
     </div>
 
-    <!-- Input Area -->
-    <div class="chat-input-bar border-t p-4 z-20">
-      <div class="flex items-center space-x-3 bg-white rounded-xl border border-gray-200 px-2 py-2 shadow-sm focus-within:ring-2 focus-within:ring-pink-500/20 focus-within:border-pink-500 transition-all">
-        <button
-          @click="handleClear"
-          class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-          :title="t('chat.newSession')"
-        >
-          <Plus :size="20" />
-        </button>
-        
-        <div class="flex-1 relative flex items-center">
+    <!-- Input Area - Cursor/OpenAkita 风格 -->
+    <div class="chat-input-bar border-t z-20">
+      <div class="chat-input-container">
+        <!-- 顶部工具栏 -->
+        <div class="chat-input-toolbar">
+          <!-- 执行模式选择 -->
+          <div class="relative">
+            <button 
+              @click="showModeMenu = !showModeMenu"
+              class="toolbar-btn mode-selector"
+            >
+              <Zap v-if="execMode === 'agent'" :size="14" />
+              <Settings2 v-else-if="execMode === 'plan'" :size="14" />
+              <Brain v-else :size="14" />
+              <span>{{ t(execMode === 'agent' ? 'chat.agentMode' : execMode === 'plan' ? 'chat.planMode' : 'chat.askMode') }}</span>
+              <ChevronDown :size="12" />
+            </button>
+            <!-- 模式下拉菜单 -->
+            <div v-if="showModeMenu" class="mode-menu">
+              <div 
+                v-for="mode in modeOptions" 
+                :key="mode.value"
+                @click="execMode = mode.value as any; showModeMenu = false"
+                class="mode-menu-item"
+                :class="{ active: execMode === mode.value }"
+              >
+                <component :is="mode.icon" :size="16" />
+                <div class="mode-menu-text">
+                  <div class="mode-label">{{ t(mode.label) }}</div>
+                  <div class="mode-desc">{{ t(mode.desc) }}</div>
+                </div>
+                <CheckCircle2 v-if="execMode === mode.value" :size="14" />
+              </div>
+            </div>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <!-- 附件按钮 -->
+          <button class="toolbar-btn" :title="t('chat.attachment')">
+            <Paperclip :size="14" />
+          </button>
+
+          <!-- 语音按钮 -->
+          <button 
+            class="toolbar-btn" 
+            :class="{ recording: isRecording }"
+            :title="t('chat.voice')"
+            @click="isRecording = !isRecording"
+          >
+            <Mic :size="14" />
+          </button>
+
+          <!-- 深度思考按钮 -->
+          <button 
+            class="toolbar-btn"
+            :class="{ active: showDeepThinking }"
+            :title="t('chat.deepThinking')"
+            @click="showDeepThinking = !showDeepThinking"
+          >
+            <Brain :size="14" />
+          </button>
+
+          <!-- 权限模式选择 -->
+          <div class="relative">
+            <button 
+              @click="showPermissionMenu = !showPermissionMenu"
+              class="toolbar-btn permission-btn"
+            >
+              <component :is="permissionOptions.find(p => p.value === permissionMode)?.icon || Sparkles" :size="14" />
+              <span>{{ t(permissionOptions.find(p => p.value === permissionMode)?.label || 'chat.permissionSmart') }}</span>
+              <ChevronDown :size="12" />
+            </button>
+            <!-- 权限模式下拉菜单 -->
+            <div v-if="showPermissionMenu" class="mode-menu">
+              <div 
+                v-for="perm in permissionOptions" 
+                :key="perm.value"
+                @click="permissionMode = perm.value as any; showPermissionMenu = false"
+                class="mode-menu-item"
+                :class="{ active: permissionMode === perm.value }"
+              >
+                <component :is="perm.icon" :size="16" />
+                <div class="mode-menu-text">
+                  <div class="mode-label">{{ t(perm.label) }}</div>
+                  <div class="mode-desc">{{ t(perm.desc) }}</div>
+                </div>
+                <CheckCircle v-if="permissionMode === perm.value" :size="14" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 主输入区 -->
+        <div class="chat-input-main">
           <textarea
             ref="inputRef"
             v-model="input"
+            @input="adjustInputHeight"
             @keydown="handleKeyDown"
-            :placeholder="t('chat.placeholder')"
-            class="w-full bg-transparent text-sm resize-none focus:outline-none placeholder-gray-400 py-2 max-h-[120px]"
+            :placeholder="getPlaceholder"
+            class="chat-textarea"
             rows="1"
-            style="min-height: 24px;"
           />
         </div>
-        
-        <button
-          @click="handleStop"
-          :disabled="!isTyping"
-          class="p-2 rounded-lg transition-all flex items-center justify-center flex-shrink-0"
-          :class="!isTyping ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-md shadow-red-500/20 hover:bg-red-600 hover:shadow-lg hover:scale-105 active:scale-95'"
-          :title="t('chat.stopGeneration')"
-        >
-          <Square :size="18" />
-        </button>
-        <button
-          @click="handleSend"
-          :disabled="!input.trim() || isTyping"
-          class="p-2 rounded-lg transition-all flex items-center justify-center flex-shrink-0"
-          :class="!input.trim() || isTyping ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-md shadow-pink-500/20 hover:shadow-lg hover:scale-105 active:scale-95'"
-        >
-          <Send :size="18" />
-        </button>
+
+        <!-- 底部操作栏 -->
+        <div class="chat-input-footer">
+          <!-- 上下文使用指示器 -->
+          <div class="context-usage">
+            <svg class="context-ring" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+              <circle cx="12" cy="12" r="9" fill="none" stroke="var(--brand, #ec4899)" stroke-width="2" stroke-dasharray="56.5" stroke-dashoffset="28.25" stroke-linecap="round" transform="rotate(-90 12 12)"/>
+            </svg>
+            <span class="context-text">50%</span>
+          </div>
+
+          <!-- 右侧按钮组 -->
+          <div class="footer-actions">
+            <!-- 新建会话按钮 -->
+            <button
+              @click="handleClear"
+              class="input-action-btn left"
+              :title="t('chat.newSession')"
+            >
+              <Plus :size="18" />
+            </button>
+
+            <!-- 发送/停止按钮 -->
+            <button
+              v-if="isTyping"
+              @click="handleStop"
+              class="input-action-btn send stop-btn"
+              :title="t('chat.stop')"
+            >
+              <Square :size="18" />
+            </button>
+            <button
+              v-else
+              @click="handleSend"
+              :disabled="!input.trim()"
+              class="input-action-btn send"
+              :class="{ disabled: !input.trim() }"
+              :title="t('chat.send')"
+            >
+              <Send :size="18" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
+    </div> <!-- End chat-main -->
+
+    <!-- Conversation Sidebar (Right Panel) -->
+    <ConversationSidebar
+      v-if="convSidebarOpen"
+      ref="convSidebarRef"
+      :sessions="sessions || []"
+      :active-session-key="activeSessionKey || ''"
+      :theme-mode="themeMode || 'love'"
+      @select="(key) => emit('select-session', key)"
+      @delete="(key) => emit('delete-session', key)"
+      @new="emit('new-session')"
+      @toggle-pin="(key) => emit('toggle-pin', key)"
+      @rename="(key, title) => emit('rename-session', key, title)"
+      @close="convSidebarOpen = false"
+      class="conv-sidebar-wrapper"
+    />
   </div>
 </template>
 
 <style scoped>
+/* Sidebar Toggle Button */
+.conv-sidebar-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 50;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e5e7eb);
+  background: var(--panel-solid, #ffffff);
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* When sidebar is open, move toggle button to the left edge of sidebar */
+.conv-sidebar-open .conv-sidebar-toggle {
+  right: 292px; /* 280px sidebar + 12px gap */
+}
+
+.conv-sidebar-toggle:hover {
+  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+  color: var(--text, #111827);
+  border-color: var(--brand, #ec4899);
+}
+
+/* Conversation Sidebar Wrapper */
+.conv-sidebar-wrapper {
+  flex-shrink: 0;
+  height: 100%;
+}
+
 /* Scoped styles if needed, but we rely on global tailwind classes mostly */
 :deep(.markdown-body) {
   font-size: 0.875rem;

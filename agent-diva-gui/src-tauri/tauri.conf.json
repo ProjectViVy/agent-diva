@@ -13,8 +13,10 @@
       {
         "label": "main",
         "title": "Agent Diva",
-        "width": 800,
-        "height": 600,
+        "width": 1024,
+        "height": 768,
+        "minWidth": 640,
+        "minHeight": 480,
         "visible": false
       },
       {

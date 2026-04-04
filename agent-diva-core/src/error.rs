@@ -48,6 +48,10 @@ pub enum Error {
     /// Internal errors
     #[error("Internal error: {0}")]
     Internal(String),
+
+    /// Database errors
+    #[error("Database error: {0}")]
+    Database(String),
 }
 
 /// A specialized Result type for agent-diva operations
@@ -62,5 +66,11 @@ impl From<serde_json::Error> for Error {
 impl From<config::ConfigError> for Error {
     fn from(e: config::ConfigError) -> Self {
         Error::Config(e.to_string())
+    }
+}
+
+impl From<rusqlite::Error> for Error {
+    fn from(e: rusqlite::Error) -> Self {
+        Error::Database(e.to_string())
     }
 }

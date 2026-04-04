@@ -5,6 +5,7 @@ pub mod runtime;
 pub mod server;
 pub mod skill_service;
 pub mod state;
+pub mod token_stats;
 
 pub use manager::Manager;
 pub use runtime::{run_local_gateway, GatewayRuntimeConfig, DEFAULT_GATEWAY_PORT};

@@ -185,7 +185,13 @@ pub fn run() {
             commands::install_service,
             commands::uninstall_service,
             commands::start_service,
-            commands::stop_service
+            commands::stop_service,
+            commands::get_token_usage_total,
+            commands::get_token_usage_summary,
+            commands::get_token_usage_timeline,
+            commands::get_token_usage_sessions,
+            commands::get_token_usage_models,
+            commands::get_token_usage_realtime
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

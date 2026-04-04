@@ -16,6 +16,11 @@ zhPatched.settings = {
   hideApiKey: zhPatched.providers?.hideApiKey || '隐藏 API Key',
 };
 
+zhPatched.nav = {
+  ...(zhPatched.nav || {}),
+  toolsGroup: zhPatched.nav?.toolsGroup || '工具管理',
+};
+
 zhPatched.dashboard = {
   ...(zhPatched.dashboard || {}),
   skills: zhPatched.dashboard?.skills || '技能',
@@ -57,6 +62,44 @@ zhPatched.general = {
   skillUnavailableHint:
     zhPatched.general?.skillUnavailableHint || '该技能已被发现，但当前缺少运行依赖，暂不可用。',
   skillsZipOnly: zhPatched.general?.skillsZipOnly || '仅支持上传 .zip 技能包。',
+  // Marketplace tabs
+  skillsTabInstalled: zhPatched.general?.skillsTabInstalled || '已安装',
+  skillsTabMarketplace: zhPatched.general?.skillsTabMarketplace || '技能市场',
+  searchInstalled: zhPatched.general?.searchInstalled || '搜索已安装技能...',
+  searchMarketplace: zhPatched.general?.searchMarketplace || '搜索技能市场...',
+  loadingMarketplace: zhPatched.general?.loadingMarketplace || '正在加载技能市场...',
+  emptyMarketplace: zhPatched.general?.emptyMarketplace || '暂无可用技能',
+  marketplaceUnavailable: zhPatched.general?.marketplaceUnavailable || '技能市场暂不可用',
+  marketplaceUnavailableDesc: zhPatched.general?.marketplaceUnavailableDesc || '请检查网络连接后重试',
+  noSearchResults: zhPatched.general?.noSearchResults || '没有找到匹配的技能',
+  retry: zhPatched.general?.retry || '重试',
+  // Install actions
+  install: zhPatched.general?.install || '安装',
+  installing: zhPatched.general?.installing || '安装中...',
+  installed: zhPatched.general?.installed || '已安装',
+  installFailed: zhPatched.general?.installFailed || '安装失败：{error}',
+  installSuccess: zhPatched.general?.installSuccess || '技能 {name} 安装成功',
+  // Trust levels
+  trustOfficial: zhPatched.general?.trustOfficial || '官方',
+  trustCertified: zhPatched.general?.trustCertified || '认证',
+  trustCommunity: zhPatched.general?.trustCommunity || '社区',
+  // Categories
+  allCategories: zhPatched.general?.allCategories || '全部分类',
+  allTrustLevels: zhPatched.general?.allTrustLevels || '全部等级',
+  categoryDevelopment: zhPatched.general?.categoryDevelopment || '开发工具',
+  categoryAutomation: zhPatched.general?.categoryAutomation || '自动化',
+  categoryProductivity: zhPatched.general?.categoryProductivity || '生产力',
+  categoryData: zhPatched.general?.categoryData || '数据分析',
+  categoryOther: zhPatched.general?.categoryOther || '其他',
+  // Sort options
+  sortInstalls: zhPatched.general?.sortInstalls || '安装量',
+  sortRating: zhPatched.general?.sortRating || '评分',
+  sortNewest: zhPatched.general?.sortNewest || '最新',
+  sortStars: zhPatched.general?.sortStars || '收藏数',
+  // Pagination
+  previousPage: zhPatched.general?.previousPage || '上一页',
+  nextPage: zhPatched.general?.nextPage || '下一页',
+  pageInfo: zhPatched.general?.pageInfo || '第 {current}/{total} 页',
 };
 
 zhPatched.network = {
@@ -246,6 +289,44 @@ zhPatched.channels = {
   ...(zhPatched.channels || {}),
   activate: zhPatched.channels?.activate || '激活',
   deactivate: zhPatched.channels?.deactivate || '取消激活',
+};
+
+zhPatched.tokenStats = {
+  ...(zhPatched.tokenStats || {}),
+  title: zhPatched.tokenStats?.title || 'Token 统计',
+  subtitle: zhPatched.tokenStats?.subtitle || '查看 Token 使用情况与费用分析',
+  totalTokens: zhPatched.tokenStats?.totalTokens || '总 Token',
+  inputTokens: zhPatched.tokenStats?.inputTokens || '输入',
+  outputTokens: zhPatched.tokenStats?.outputTokens || '输出',
+  estimatedCost: zhPatched.tokenStats?.estimatedCost || '预估费用',
+  usageRate: zhPatched.tokenStats?.usageRate || '使用率',
+  used: zhPatched.tokenStats?.used || '已使用',
+  budget: zhPatched.tokenStats?.budget || '预算',
+  modelDistribution: zhPatched.tokenStats?.modelDistribution || '模型分布',
+  usageTrend: zhPatched.tokenStats?.usageTrend || '使用趋势',
+  sessionBreakdown: zhPatched.tokenStats?.sessionBreakdown || '会话明细',
+  requests: zhPatched.tokenStats?.requests || '次请求',
+  viewDetails: zhPatched.tokenStats?.viewDetails || '查看详细统计',
+  export: zhPatched.tokenStats?.export || '导出',
+  noData: zhPatched.tokenStats?.noData || '暂无数据',
+  loading: zhPatched.tokenStats?.loading || '加载中...',
+  cacheTokens: zhPatched.tokenStats?.cacheTokens || '缓存 Token',
+  cacheCreation: zhPatched.tokenStats?.cacheCreation || '缓存创建',
+  cacheRead: zhPatched.tokenStats?.cacheRead || '缓存读取',
+  requestCount: zhPatched.tokenStats?.requestCount || '请求数',
+  costUnit: zhPatched.tokenStats?.costUnit || '美元',
+  session: zhPatched.tokenStats?.session || '会话',
+  model: zhPatched.tokenStats?.model || '模型',
+  endpoint: zhPatched.tokenStats?.endpoint || '端点',
+  channel: zhPatched.tokenStats?.channel || '频道',
+  period: zhPatched.tokenStats?.period || {
+    '1d': '1天',
+    '3d': '3天',
+    '1w': '1周',
+    '1m': '1月',
+    '6m': '6月',
+    '1y': '1年',
+  },
 };
 
 const i18n = createI18n({

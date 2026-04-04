@@ -116,17 +116,17 @@ const openBochaGuide = () => {
   <div class="p-6 space-y-6 fade-in">
     <div class="flex items-start justify-between gap-4">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+        <div class="settings-dashboard-icon">
           <Globe :size="20" />
         </div>
         <div>
-          <h3 class="text-lg font-bold text-gray-800">{{ t('network.title') }}</h3>
-          <p class="text-sm text-gray-500">{{ t('network.desc') }}</p>
+          <h3 class="settings-dashboard-title">{{ t('network.title') }}</h3>
+          <p class="settings-dashboard-desc">{{ t('network.desc') }}</p>
         </div>
       </div>
       <button
         type="button"
-        class="btn-save-config inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
+        class="btn-save-config settings-btn inline-flex min-w-[112px] items-center justify-center gap-2"
         :disabled="isSaving || !isDirty"
         @click="saveConfig"
       >
@@ -135,29 +135,30 @@ const openBochaGuide = () => {
       </button>
     </div>
 
-    <div class="bg-white border border-gray-100 rounded-xl p-4 space-y-4">
+    <div class="settings-section">
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1">
-          <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('network.provider') }}</label>
-          <select v-model="localConfig.web.search.provider" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm">
+          <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('network.provider') }}</label>
+          <select v-model="localConfig.web.search.provider" class="settings-input">
             <option value="bocha">{{ t('network.providerBocha') }}</option>
             <option value="brave">{{ t('network.providerBrave') }}</option>
             <option value="zhipu">{{ t('network.providerZhipu') }}</option>
           </select>
         </div>
         <div class="space-y-1">
-          <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('network.maxResults') }}</label>
-          <input v-model.number="localConfig.web.search.max_results" type="number" min="1" :max="maxResultsLimit" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm" />
+          <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('network.maxResults') }}</label>
+          <input v-model.number="localConfig.web.search.max_results" type="number" min="1" :max="maxResultsLimit" class="settings-input" />
         </div>
       </div>
 
       <div class="space-y-1">
-        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ apiKeyLabel }}</label>
-        <input v-model="localConfig.web.search.api_key" type="password" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg font-mono text-sm" :placeholder="apiKeyPlaceholder" />
+        <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ apiKeyLabel }}</label>
+        <input v-model="localConfig.web.search.api_key" type="password" class="settings-input font-mono" :placeholder="apiKeyPlaceholder" />
         <button
           v-if="isBochaProvider"
           type="button"
-          class="inline-flex text-sm text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline bg-transparent border-0 p-0 cursor-pointer text-left"
+          class="inline-flex text-sm hover:underline bg-transparent border-0 p-0 cursor-pointer text-left mt-1"
+          :style="{ color: 'var(--accent)' }"
           @click="openBochaGuide"
         >
           {{ t('network.apiKeyGuideBocha') }}
@@ -165,12 +166,12 @@ const openBochaGuide = () => {
       </div>
 
       <div class="flex space-x-6">
-        <label class="text-sm text-gray-600 flex items-center space-x-2">
-          <input type="checkbox" v-model="localConfig.web.search.enabled" />
+        <label class="settings-label flex items-center space-x-2 cursor-pointer">
+          <input type="checkbox" v-model="localConfig.web.search.enabled" class="settings-checkbox" />
           <span>{{ t('network.enableSearch') }}</span>
         </label>
-        <label class="text-sm text-gray-600 flex items-center space-x-2">
-          <input type="checkbox" v-model="localConfig.web.fetch.enabled" />
+        <label class="settings-label flex items-center space-x-2 cursor-pointer">
+          <input type="checkbox" v-model="localConfig.web.fetch.enabled" class="settings-checkbox" />
           <span>{{ t('network.enableFetch') }}</span>
         </label>
       </div>

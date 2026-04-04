@@ -1,23 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Bot, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles } from 'lucide-vue-next';
+import { Bot, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'about'): void;
+  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about'): void;
 }>();
 
 const cards = computed(() => [
-  { id: 'general', icon: SlidersHorizontal, title: t('dashboard.general'), desc: t('dashboard.generalDesc'), color: 'text-violet-600', bg: 'bg-violet-100' },
-  { id: 'mcp', icon: Bot, title: t('dashboard.mcp'), desc: t('dashboard.mcpDesc'), color: 'text-amber-700', bg: 'bg-amber-100' },
-  { id: 'skills', icon: WandSparkles, title: t('dashboard.skills'), desc: t('dashboard.skillsDesc'), color: 'text-cyan-600', bg: 'bg-cyan-100' },
-  { id: 'providers', icon: Server, title: t('dashboard.providers'), desc: t('dashboard.providersDesc'), color: 'text-purple-600', bg: 'bg-purple-100' },
-  { id: 'channels', icon: MessageSquare, title: t('dashboard.channels'), desc: t('dashboard.channelsDesc'), color: 'text-pink-600', bg: 'bg-pink-100' },
-  { id: 'network', icon: Search, title: t('dashboard.network'), desc: t('dashboard.networkDesc'), color: 'text-blue-600', bg: 'bg-blue-100' },
-  { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc'), color: 'text-blue-600', bg: 'bg-blue-100' },
-  { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc'), color: 'text-green-600', bg: 'bg-green-100' },
+  { id: 'general', icon: SlidersHorizontal, title: t('dashboard.general'), desc: t('dashboard.generalDesc') },
+  { id: 'mcp', icon: Bot, title: t('dashboard.mcp'), desc: t('dashboard.mcpDesc') },
+  { id: 'skills', icon: WandSparkles, title: t('dashboard.skills'), desc: t('dashboard.skillsDesc') },
+  { id: 'providers', icon: Server, title: t('dashboard.providers'), desc: t('dashboard.providersDesc') },
+  { id: 'channels', icon: MessageSquare, title: t('dashboard.channels'), desc: t('dashboard.channelsDesc') },
+  { id: 'network', icon: Search, title: t('dashboard.network'), desc: t('dashboard.networkDesc') },
+  { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc') },
+  { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc') },
+  { id: 'theme', icon: Palette, title: t('dashboard.theme'), desc: t('dashboard.themeDesc') },
 ]);
 </script>
 
@@ -27,13 +28,13 @@ const cards = computed(() => [
       v-for="card in cards"
       :key="card.id"
       @click="emit('navigate', card.id as any)"
-      class="flex flex-col items-start p-6 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md hover:border-pink-200 transition-all text-left group h-full"
+      class="settings-dashboard-card group flex flex-col items-start text-left h-full"
     >
-      <div class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform group-hover:scale-110" :class="[card.bg, card.color]">
+      <div class="settings-dashboard-icon">
         <component :is="card.icon" :size="24" />
       </div>
-      <h3 class="text-lg font-bold text-gray-800 mb-2">{{ card.title }}</h3>
-      <p class="text-sm text-gray-500">{{ card.desc }}</p>
+      <h3 class="settings-dashboard-title">{{ card.title }}</h3>
+      <p class="settings-dashboard-desc">{{ card.desc }}</p>
     </button>
   </div>
 </template>

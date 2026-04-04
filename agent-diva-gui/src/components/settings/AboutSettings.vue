@@ -11,26 +11,26 @@ const { t } = useI18n();
       <div class="w-24 h-24 bg-gradient-to-br from-pink-400 to-purple-500 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-pink-500/20 mx-auto mb-6 transform hover:rotate-6 transition-transform">
         <Heart :size="48" fill="currentColor" />
       </div>
-      <h2 class="text-3xl font-bold text-gray-800 mb-2">Agent Diva</h2>
-      <p class="text-gray-500 max-w-md mx-auto">{{ t('about.desc') }}</p>
+      <h2 class="text-3xl font-bold settings-label mb-2">Agent Diva</h2>
+      <p class="settings-muted max-w-md mx-auto">{{ t('about.desc') }}</p>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden text-left">
-      <div class="p-4 border-b border-gray-50 flex justify-between items-center hover:bg-gray-50 transition-colors">
-        <span class="text-gray-500">{{ t('about.version') }}</span>
-        <span class="font-mono text-gray-800 font-medium">0.4.0</span>
+    <div class="settings-section text-left">
+      <div class="p-4 border-b flex justify-between items-center hover:bg-[var(--nav-hover)] transition-colors" style="border-color: var(--line);">
+        <span class="settings-muted">{{ t('about.version') }}</span>
+        <span class="font-mono settings-label font-medium">0.4.0</span>
       </div>
-      <div class="p-4 border-b border-gray-50 flex justify-between items-center hover:bg-gray-50 transition-colors">
-        <span class="text-gray-500">{{ t('about.license') }}</span>
-        <span class="font-medium text-gray-800">MIT</span>
+      <div class="p-4 border-b flex justify-between items-center hover:bg-[var(--nav-hover)] transition-colors" style="border-color: var(--line);">
+        <span class="settings-muted">{{ t('about.license') }}</span>
+        <span class="font-medium settings-label">MIT</span>
       </div>
-      <div class="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
-        <span class="text-gray-500">{{ t('about.author') }}</span>
-        <span class="font-medium text-gray-800">mastwet / projectViVY / undefine foundation</span>
+      <div class="p-4 flex justify-between items-center hover:bg-[var(--nav-hover)] transition-colors">
+        <span class="settings-muted">{{ t('about.author') }}</span>
+        <span class="font-medium settings-label">mastwet / projectViVY / undefine foundation</span>
       </div>
     </div>
-    
-    <div class="mt-8 text-xs text-gray-400">
+
+    <div class="mt-8 text-xs settings-muted">
       Made with love by mastwet / projectViVY / undefine foundation
     </div>
   </div>

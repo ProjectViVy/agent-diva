@@ -330,6 +330,25 @@ impl Manager {
                         ManagerCommand::UpdateChannel(update) => {
                             self.handle_update_channel(update).await;
                         }
+                        // Token usage statistics handlers
+                        ManagerCommand::GetTokenUsageTotal(range, reply) => {
+                            self.handle_get_token_usage_total(range, reply);
+                        }
+                        ManagerCommand::GetTokenUsageSummary(range, group_by, reply) => {
+                            self.handle_get_token_usage_summary(range, group_by, reply);
+                        }
+                        ManagerCommand::GetTokenUsageTimeline(range, interval, reply) => {
+                            self.handle_get_token_usage_timeline(range, interval, reply);
+                        }
+                        ManagerCommand::GetTokenUsageSessions(range, limit, reply) => {
+                            self.handle_get_token_usage_sessions(range, limit, reply);
+                        }
+                        ManagerCommand::GetTokenUsageModels(range, reply) => {
+                            self.handle_get_token_usage_models(range, reply);
+                        }
+                        ManagerCommand::GetTokenUsageRealtime(reply) => {
+                            self.handle_get_token_usage_realtime(reply);
+                        }
                     }
                 }
             }

@@ -221,10 +221,10 @@ const currentProviderLabel = computed(() => {
 });
 
 const doctorTone = computed(() => {
-  if (!statusReport.value) return 'bg-gray-100 text-gray-600';
+  if (!statusReport.value) return 'text-muted';
   return statusReport.value.doctor.ready
-    ? 'bg-emerald-100 text-emerald-700'
-    : 'bg-amber-100 text-amber-700';
+    ? 'text-success'
+    : 'text-warning';
 });
 
 const filteredProviders = computed(() => {
@@ -519,9 +519,9 @@ const setModelTestStatus = (
 
 const testStatusTone = (providerName: string, modelName: string) => {
   const status = modelTestStatusFor(providerName, modelName);
-  if (status.state === 'success') return 'text-emerald-700 bg-emerald-50';
-  if (status.state === 'failed') return 'text-rose-700 bg-rose-50';
-  return 'text-gray-500';
+  if (status.state === 'success') return 'text-success';
+  if (status.state === 'failed') return 'text-danger';
+  return 'text-muted';
 };
 
 const testStatusLabel = (providerName: string, modelName: string) => {
@@ -780,17 +780,17 @@ watch(() => props.savedModels, (newVal) => {
 <template>
   <div class="flex h-full min-h-0 fade-in">
     <!-- Sidebar: List of Providers -->
-    <div class="w-1/3 min-w-[200px] min-h-0 border-r border-gray-100 flex flex-col bg-gray-50/30">
-      <div class="p-4 border-b border-gray-100">
+    <div class="providers-sidebar w-1/3 min-w-[200px] min-h-0 flex flex-col">
+      <div class="providers-sidebar-header">
         <div class="space-y-3">
-          <input 
-            v-model="searchTerm" 
-            :placeholder="t('providers.search')" 
-            class="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all"
+          <input
+            v-model="searchTerm"
+            :placeholder="t('providers.search')"
+            class="providers-input"
           />
           <button
             type="button"
-            class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-pink-300 bg-pink-50 px-4 py-2 text-sm font-semibold text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
+            class="providers-add-btn"
             @click="openCreateProviderDialog"
           >
             <Plus :size="14" />
@@ -798,13 +798,13 @@ watch(() => props.savedModels, (newVal) => {
           </button>
         </div>
       </div>
-      
-      <div class="flex-1 overflow-y-auto p-2 space-y-1">
+
+      <div class="providers-list">
           <div
             v-for="provider in filteredProviders"
             :key="provider.name"
-            class="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-stretch rounded-xl transition-all group"
-            :class="selectedProvider?.name === provider.name ? 'bg-white shadow-sm border-l-4 border-pink-500 text-pink-700' : 'hover:bg-gray-100 text-gray-600 border-l-4 border-transparent'"
+            class="providers-list-item"
+            :class="{ selected: selectedProvider?.name === provider.name }"
           >
             <button
               type="button"
@@ -812,16 +812,16 @@ watch(() => props.savedModels, (newVal) => {
               @click="selectProvider(provider)"
             >
               <div class="flex min-w-0 flex-1 items-center">
-                <div class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center mr-3" :class="selectedProvider?.name === provider.name ? 'bg-pink-100 text-pink-600' : 'bg-gray-200 text-gray-500'">
+                <div class="providers-item-icon" :class="{ selected: selectedProvider?.name === provider.name }">
                   <Server :size="16" />
                 </div>
                 <div class="min-w-0">
                   <div class="font-medium flex items-center gap-2">
                     <span class="truncate">{{ provider.display_name }}</span>
                   </div>
-                  <div class="text-[10px] uppercase tracking-wider opacity-70 flex flex-wrap items-center gap-1 text-blue-600">
+                  <div class="text-[10px] uppercase tracking-wider opacity-70 flex flex-wrap items-center gap-1 providers-tag api-type">
                     <span>{{ provider.api_type || t('providers.standardApi') }}</span>
-                    <span v-if="providerStatusMap.get(provider.name)?.current" class="text-pink-600">{{ t('providers.currentTag') }}</span>
+                    <span v-if="providerStatusMap.get(provider.name)?.current" class="providers-tag current">{{ t('providers.currentTag') }}</span>
                   </div>
                 </div>
               </div>
@@ -832,7 +832,7 @@ watch(() => props.savedModels, (newVal) => {
             >
               <button
                 type="button"
-                class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-gray-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                class="providers-delete-btn"
                 :title="t('providers.deleteProvider')"
                 :disabled="isDeletingCustomProvider === provider.name"
                 @click.stop="requestDeleteCustomProvider(provider)"
@@ -840,7 +840,7 @@ watch(() => props.savedModels, (newVal) => {
                 <LoaderCircle
                   v-if="isDeletingCustomProvider === provider.name"
                   :size="14"
-                  class="animate-spin text-rose-500"
+                  class="animate-spin"
                 />
                 <Trash2 v-else :size="14" />
               </button>
@@ -850,24 +850,24 @@ watch(() => props.savedModels, (newVal) => {
     </div>
 
     <!-- Main Area -->
-    <div class="flex-1 min-h-0 overflow-y-auto p-6 bg-white">
+    <div class="providers-main flex-1 min-h-0 overflow-y-auto p-6">
       <div v-if="selectedProvider" class="space-y-8">
         <!-- Header -->
         <div class="flex items-start justify-between gap-4">
             <div class="flex items-center space-x-4">
-                <div class="w-12 h-12 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-pink-500/30">
+                <div class="providers-header-icon">
                     <Server :size="24" />
                 </div>
                 <div>
-                    <h3 class="text-xl font-bold text-gray-800">{{ selectedProvider.display_name }}</h3>
-                    <p class="text-sm text-gray-500">{{ selectedProvider.default_api_base || t('providers.customApi') }}</p>
+                    <h3 class="text-xl font-bold settings-label">{{ selectedProvider.display_name }}</h3>
+                    <p class="text-sm settings-muted">{{ selectedProvider.default_api_base || t('providers.customApi') }}</p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
               <div
                 v-if="statusReport"
-                class="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
-                :class="doctorTone"
+                class="providers-status-badge"
+                :class="statusReport.doctor.ready ? 'ready' : 'warning'"
               >
                 <ShieldCheck v-if="statusReport.doctor.ready" :size="14" />
                 <ShieldAlert v-else :size="14" />
@@ -875,7 +875,7 @@ watch(() => props.savedModels, (newVal) => {
               </div>
               <button
                 type="button"
-                class="btn-save-config inline-flex min-w-[112px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
+                class="btn-save-config settings-btn"
                 :disabled="isSavingConfig || !isDirty"
                 @click="saveProviderConfig"
               >
@@ -889,59 +889,59 @@ watch(() => props.savedModels, (newVal) => {
           v-if="statusReport"
           class="grid grid-cols-1 md:grid-cols-2 gap-3"
         >
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
-            <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('providers.currentProvider') }}</div>
-            <div class="mt-1 text-sm font-semibold text-gray-800">{{ currentProviderLabel }}</div>
-            <div class="mt-1 text-xs text-gray-500">{{ statusReport.default_model }}</div>
+          <div class="providers-config-card">
+            <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.currentProvider') }}</div>
+            <div class="mt-1 text-sm font-semibold settings-label">{{ currentProviderLabel }}</div>
+            <div class="mt-1 text-xs settings-muted">{{ statusReport.default_model }}</div>
           </div>
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
-            <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('providers.resolvedWorkspace') }}</div>
-            <div class="mt-1 text-xs font-mono text-gray-700 break-all">{{ statusReport.config.workspace }}</div>
+          <div class="providers-config-card">
+            <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.resolvedWorkspace') }}</div>
+            <div class="mt-1 text-xs font-mono settings-label break-all">{{ statusReport.config.workspace }}</div>
           </div>
         </div>
 
         <!-- Configuration -->
-        <div class="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-           <h4 class="font-semibold text-gray-700 text-sm">{{ t('providers.connectConfig') }}</h4>
+        <div class="providers-config-card">
+           <h4 class="font-semibold settings-label text-sm mb-4">{{ t('providers.connectConfig') }}</h4>
 
            <div
              v-if="providerStatusMap.get(selectedProvider.name)"
-             class="grid grid-cols-1 md:grid-cols-3 gap-3"
+             class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4"
            >
-             <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">
-               <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('providers.readiness') }}</div>
-               <div class="mt-1 text-sm font-semibold" :class="providerStatusMap.get(selectedProvider.name)?.ready ? 'text-emerald-700' : 'text-amber-700'">
+             <div class="providers-config-card">
+               <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.readiness') }}</div>
+               <div class="mt-1 text-sm font-semibold" :class="providerStatusMap.get(selectedProvider.name)?.ready ? 'text-emerald-600' : 'text-amber-600'">
                  {{ providerStatusMap.get(selectedProvider.name)?.ready ? t('providers.ready') : t('providers.missingConfig') }}
                </div>
              </div>
-             <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">
-               <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('providers.currentModel') }}</div>
-               <div class="mt-1 text-sm font-semibold text-gray-800">
+             <div class="providers-config-card">
+               <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.currentModel') }}</div>
+               <div class="mt-1 text-sm font-semibold settings-label">
                  {{ providerStatusMap.get(selectedProvider.name)?.model || providerStatusMap.get(selectedProvider.name)?.default_model || '-' }}
                </div>
              </div>
-             <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">
-               <div class="text-[11px] uppercase tracking-wider text-gray-400">{{ t('providers.missingFields') }}</div>
-               <div class="mt-1 text-xs text-gray-600">
+             <div class="providers-config-card">
+               <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.missingFields') }}</div>
+               <div class="mt-1 text-xs settings-muted">
                  {{ providerStatusMap.get(selectedProvider.name)?.missing_fields.length ? providerStatusMap.get(selectedProvider.name)?.missing_fields.join(', ') : t('providers.none') }}
                </div>
             </div>
            </div>
-           
+
            <!-- API Key -->
            <div class="space-y-1">
-             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiKey') }}</label>
+             <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('providers.apiKey') }}</label>
              <div class="relative">
-               <input 
+               <input
                  :value="providerApiKeys[selectedProvider.name]"
                  @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
                  :type="isProviderApiKeyVisible(selectedProvider.name) ? 'text' : 'password'"
                  :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
-                 class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-11 font-mono text-sm outline-none transition-all focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20" 
+                 class="providers-input mono pr-11"
                />
                <button
                  type="button"
-                 class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg text-gray-400 transition hover:text-gray-600"
+                 class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg settings-muted transition"
                  :title="isProviderApiKeyVisible(selectedProvider.name) ? t('providers.hideApiKey') : t('providers.showApiKey')"
                  @click="toggleProviderApiKeyVisibility(selectedProvider.name)"
                >
@@ -950,15 +950,15 @@ watch(() => props.savedModels, (newVal) => {
                </button>
              </div>
            </div>
-           
+
            <!-- API Base -->
            <div class="space-y-1">
-             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">{{ t('providers.apiBaseUrl') }}</label>
-             <input 
+             <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('providers.apiBaseUrl') }}</label>
+             <input
                :value="providerApiBases[selectedProvider.name] || selectedProvider.default_api_base || ''"
                @input="e => updateProviderApiBase((e.target as HTMLInputElement).value)"
                :placeholder="selectedProvider.default_api_base || t('providers.placeholderLocalCustom')"
-               class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all font-mono text-sm" 
+               class="providers-input mono"
              />
            </div>
         </div>
@@ -966,7 +966,7 @@ watch(() => props.savedModels, (newVal) => {
         <!-- Model Selection -->
         <div class="space-y-4">
           <div class="flex items-center justify-between gap-3">
-            <h4 class="font-semibold text-gray-700 text-sm">
+            <h4 class="font-semibold settings-label text-sm">
               {{ t('providers.availableModels') }}
             </h4>
             <div class="flex items-center gap-2">
@@ -974,11 +974,11 @@ watch(() => props.savedModels, (newVal) => {
                 v-model="modelSearchTerm"
                 type="text"
                 :placeholder="t('providers.searchModelPlaceholder')"
-                class="h-8 w-52 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-700 outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+                class="providers-input h-8 w-52 text-xs"
               />
               <button
                 type="button"
-                class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                class="settings-btn settings-btn-secondary h-8 px-2"
                 :title="t('providers.manualModelTitle')"
                 @click="openManualModelDialog"
               >
@@ -986,7 +986,7 @@ watch(() => props.savedModels, (newVal) => {
               </button>
               <button
                 type="button"
-                class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                class="settings-btn settings-btn-secondary text-xs h-8"
                 :disabled="isRefreshing"
                 @click="refreshSelectedProviderModels"
               >
@@ -995,116 +995,116 @@ watch(() => props.savedModels, (newVal) => {
               </button>
             </div>
           </div>
-          <div class="flex items-center justify-between gap-3">
-            <div class="text-xs text-gray-500">
-              {{ t('providers.checkToAdd') }}
-            </div>
+          <div class="text-xs settings-muted">
+            {{ t('providers.checkToAdd') }}
           </div>
-          
+
           <div class="grid grid-cols-1 gap-2">
             <div
               v-for="model in providerModels"
               :key="model"
               @click="toggleModel(model)"
-              class="px-4 py-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer group"
-              :class="isModelSaved(selectedProvider.name, model) ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-pink-300 hover:bg-gray-50'"
+              class="providers-model-card"
+              :class="{ selected: isModelSaved(selectedProvider.name, model) }"
             >
-              <div class="flex items-center space-x-3">
-                  <div class="w-5 h-5 rounded border flex items-center justify-center transition-colors"
-                       :class="isModelSaved(selectedProvider.name, model) ? 'bg-pink-500 border-pink-500' : 'border-gray-300 bg-white'">
-                      <Check v-if="isModelSaved(selectedProvider.name, model)" :size="12" class="text-white" />
-                  </div>
-                  <span class="font-medium text-sm text-gray-700">{{ model }}</span>
-              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="providers-checkbox" :class="{ checked: isModelSaved(selectedProvider.name, model) }">
+                        <Check v-if="isModelSaved(selectedProvider.name, model)" :size="12" />
+                    </div>
+                    <span class="font-medium text-sm settings-label">{{ model }}</span>
+                </div>
 
-              <div class="flex items-center gap-2">
-                <span v-if="localConfig.model === model && localConfig.provider === selectedProvider.name" class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">
-                  {{ t('providers.currentTag') }}
-                </span>
-                <span
-                  v-if="testStatusLabel(selectedProvider.name, model)"
-                  class="max-w-56 truncate rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                  :class="testStatusTone(selectedProvider.name, model)"
-                  :title="modelTestStatusFor(selectedProvider.name, model).message"
-                >
-                  {{ testStatusLabel(selectedProvider.name, model) }}
-                </span>
-                <button
-                  type="button"
-                  class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-transparent text-gray-400 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600"
-                  :class="shouldShowTestAction(selectedProvider.name, model) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
-                  :disabled="modelTestStatusFor(selectedProvider.name, model).state === 'testing'"
-                  :title="t('providers.testConnection')"
-                  @click.stop="testModelConnection(model)"
-                >
-                  <LoaderCircle
-                    v-if="modelTestStatusFor(selectedProvider.name, model).state === 'testing'"
-                    :size="14"
-                    class="animate-spin"
-                  />
-                  <Check
-                    v-else-if="modelTestStatusFor(selectedProvider.name, model).state === 'success'"
-                    :size="14"
-                  />
-                  <CircleAlert
-                    v-else-if="modelTestStatusFor(selectedProvider.name, model).state === 'failed'"
-                    :size="14"
-                  />
-                  <PlugZap v-else :size="14" />
-                </button>
-                <button
-                  v-if="isModelDeletable(selectedProvider, model)"
-                  type="button"
-                  class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-transparent text-gray-400 opacity-0 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
-                  :title="t('providers.deleteModel')"
-                  @click.stop="deleteProviderModel(model)"
-                >
-                  <Trash2 :size="14" />
-                </button>
+                <div class="flex items-center gap-2">
+                  <span v-if="localConfig.model === model && localConfig.provider === selectedProvider.name" class="providers-tag current">
+                    {{ t('providers.currentTag') }}
+                  </span>
+                  <span
+                    v-if="testStatusLabel(selectedProvider.name, model)"
+                    class="max-w-56 truncate rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    :class="testStatusTone(selectedProvider.name, model)"
+                    :title="modelTestStatusFor(selectedProvider.name, model).message"
+                  >
+                    {{ testStatusLabel(selectedProvider.name, model) }}
+                  </span>
+                  <button
+                    type="button"
+                    class="settings-btn settings-btn-secondary h-7 w-7 !p-0"
+                    :class="shouldShowTestAction(selectedProvider.name, model) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+                    :disabled="modelTestStatusFor(selectedProvider.name, model).state === 'testing'"
+                    :title="t('providers.testConnection')"
+                    @click.stop="testModelConnection(model)"
+                  >
+                    <LoaderCircle
+                      v-if="modelTestStatusFor(selectedProvider.name, model).state === 'testing'"
+                      :size="14"
+                      class="animate-spin"
+                    />
+                    <Check
+                      v-else-if="modelTestStatusFor(selectedProvider.name, model).state === 'success'"
+                      :size="14"
+                    />
+                    <CircleAlert
+                      v-else-if="modelTestStatusFor(selectedProvider.name, model).state === 'failed'"
+                      :size="14"
+                    />
+                    <PlugZap v-else :size="14" />
+                  </button>
+                  <button
+                    v-if="isModelDeletable(selectedProvider, model)"
+                    type="button"
+                    class="providers-delete-btn"
+                    :title="t('providers.deleteModel')"
+                    @click.stop="deleteProviderModel(model)"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <div v-if="providerModels.length === 0" class="text-center py-8 text-gray-400 text-sm">
+          <div v-if="providerModels.length === 0" class="text-center py-8 settings-muted text-sm">
               {{ modelSearchTerm.trim() ? t('providers.noSearchResults') : t('providers.noModels') }}
           </div>
         </div>
       </div>
-      <div v-else class="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
+      <div v-else class="h-full flex flex-col items-center justify-center settings-muted space-y-4">
         <Cpu :size="48" class="opacity-20" />
         <p>{{ t('providers.selectProvider') }}</p>
       </div>
 
+      <!-- Manual Model Dialog -->
       <div
         v-if="selectedProvider && isManualModelDialogOpen"
-        class="fixed inset-0 z-40 flex items-center justify-center bg-gray-900/35 px-4"
+        class="providers-dialog-overlay"
         @click.self="closeManualModelDialog"
       >
-        <div class="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div class="providers-dialog max-w-md">
           <div>
-            <div class="text-base font-semibold text-gray-800">{{ t('providers.manualModelTitle') }}</div>
-            <div class="mt-1 text-sm text-gray-500">{{ t('providers.manualModelHint') }}</div>
+            <div class="text-base font-semibold settings-label">{{ t('providers.manualModelTitle') }}</div>
+            <div class="mt-1 text-sm settings-muted">{{ t('providers.manualModelHint') }}</div>
           </div>
           <div class="mt-4">
             <input
               v-model="manualModelName"
               type="text"
               :placeholder="t('providers.manualModelPlaceholder')"
-              class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+              class="providers-input"
               @keydown.enter.prevent="addManualModel"
             />
           </div>
           <div class="mt-5 flex justify-end gap-2">
             <button
               type="button"
-              class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              class="settings-btn settings-btn-secondary"
               @click="closeManualModelDialog"
             >
               {{ t('mcp.cancel') }}
             </button>
             <button
               type="button"
-              class="rounded-lg bg-pink-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:bg-pink-300"
+              class="settings-btn settings-btn-primary"
               :disabled="manualModelName.trim().length === 0"
               @click="addManualModel"
             >
@@ -1114,56 +1114,57 @@ watch(() => props.savedModels, (newVal) => {
         </div>
       </div>
 
+      <!-- Create Provider Dialog -->
       <div
         v-if="isCreateProviderDialogOpen"
-        class="fixed inset-0 z-40 flex items-center justify-center bg-gray-900/35 px-4"
+        class="providers-dialog-overlay"
         @click.self="closeCreateProviderDialog"
       >
-        <div class="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div class="providers-dialog max-w-lg">
           <div>
-            <div class="text-base font-semibold text-gray-800">{{ t('providers.createProviderTitle') }}</div>
-            <div class="mt-1 text-sm text-gray-500">{{ t('providers.createProviderHint') }}</div>
+            <div class="text-base font-semibold settings-label">{{ t('providers.createProviderTitle') }}</div>
+            <div class="mt-1 text-sm settings-muted">{{ t('providers.createProviderHint') }}</div>
           </div>
           <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <label class="space-y-1 md:col-span-1">
-              <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.providerId') }}</div>
+              <div class="text-xs font-medium uppercase tracking-wider settings-muted">{{ t('providers.providerId') }}</div>
               <input
                 v-model="newProviderForm.id"
                 type="text"
                 :placeholder="t('providers.providerIdPlaceholder')"
-                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+                class="providers-input"
               />
             </label>
             <label class="space-y-1 md:col-span-1">
-              <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.providerDisplayName') }}</div>
+              <div class="text-xs font-medium uppercase tracking-wider settings-muted">{{ t('providers.providerDisplayName') }}</div>
               <input
                 v-model="newProviderForm.displayName"
                 type="text"
                 :placeholder="t('providers.providerDisplayNamePlaceholder')"
-                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+                class="providers-input"
               />
             </label>
             <label class="space-y-1 md:col-span-2">
-              <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.apiBaseUrl') }}</div>
+              <div class="text-xs font-medium uppercase tracking-wider settings-muted">{{ t('providers.apiBaseUrl') }}</div>
               <input
                 v-model="newProviderForm.apiBase"
                 type="text"
                 :placeholder="t('providers.createProviderApiBasePlaceholder')"
-                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+                class="providers-input"
               />
             </label>
             <label class="space-y-1 md:col-span-2">
-              <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.apiKey') }}</div>
+              <div class="text-xs font-medium uppercase tracking-wider settings-muted">{{ t('providers.apiKey') }}</div>
               <div class="relative">
                 <input
                   v-model="newProviderForm.apiKey"
                   :type="isCreateProviderApiKeyVisible ? 'text' : 'password'"
                   :placeholder="t('providers.enterApiKey')"
-                  class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-11 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+                  class="providers-input pr-11"
                 />
                 <button
                   type="button"
-                  class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg text-gray-400 transition hover:text-gray-600"
+                  class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg settings-muted transition"
                   :title="isCreateProviderApiKeyVisible ? t('providers.hideApiKey') : t('providers.showApiKey')"
                   @click="isCreateProviderApiKeyVisible = !isCreateProviderApiKeyVisible"
                 >
@@ -1173,12 +1174,12 @@ watch(() => props.savedModels, (newVal) => {
               </div>
             </label>
             <label class="space-y-1 md:col-span-2">
-              <div class="text-xs font-medium uppercase tracking-wider text-gray-500">{{ t('providers.defaultModel') }}</div>
+              <div class="text-xs font-medium uppercase tracking-wider settings-muted">{{ t('providers.defaultModel') }}</div>
               <input
                 v-model="newProviderForm.defaultModel"
                 type="text"
                 :placeholder="t('providers.defaultModelPlaceholder')"
-                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20"
+                class="providers-input"
                 @keydown.enter.prevent="createProvider"
               />
             </label>
@@ -1186,14 +1187,14 @@ watch(() => props.savedModels, (newVal) => {
           <div class="mt-5 flex justify-end gap-2">
             <button
               type="button"
-              class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              class="settings-btn settings-btn-secondary"
               @click="closeCreateProviderDialog"
             >
               {{ t('mcp.cancel') }}
             </button>
             <button
               type="button"
-              class="rounded-lg bg-pink-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:bg-pink-300"
+              class="settings-btn settings-btn-primary"
               :disabled="isSavingProvider || !newProviderForm.id.trim() || !newProviderForm.displayName.trim() || !newProviderForm.apiBase.trim() || !newProviderForm.defaultModel.trim()"
               @click="createProvider"
             >

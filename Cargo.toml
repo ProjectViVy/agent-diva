@@ -75,6 +75,9 @@ bytes = "1.5"
 which = "6.0"
 windows-service = "0.7"
 
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+
 # Testing
 mockito = "1.2"
 wiremock = "0.6"

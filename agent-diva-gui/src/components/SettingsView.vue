@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { ChevronLeft } from 'lucide-vue-next';
+import { ChevronLeft, SlidersHorizontal, Bot, WandSparkles, Server, MessageSquare, Search, Globe, Info, Palette } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
 import SettingsDashboard from './settings/SettingsDashboard.vue';
 import GeneralSettings from './settings/GeneralSettings.vue';
 import McpSettings from './settings/McpSettings.vue';
@@ -10,7 +11,7 @@ import ChannelsSettings from './settings/ChannelsSettings.vue';
 import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
-import { useI18n } from 'vue-i18n';
+import ThemeSettings from './settings/ThemeSettings.vue';
 
 const { t } = useI18n();
 
@@ -64,7 +65,20 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
+  | 'theme'
   | 'about';
+
+const sectionConfig = computed(() => ({
+  general: { icon: SlidersHorizontal, title: t('dashboard.general') },
+  mcp: { icon: Bot, title: t('dashboard.mcp') },
+  skills: { icon: WandSparkles, title: t('dashboard.skills') },
+  providers: { icon: Server, title: t('dashboard.providers') },
+  channels: { icon: MessageSquare, title: t('dashboard.channels') },
+  network: { icon: Search, title: t('dashboard.network') },
+  language: { icon: Globe, title: t('dashboard.language') },
+  about: { icon: Info, title: t('dashboard.about') },
+  theme: { icon: Palette, title: t('dashboard.theme') },
+}));
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -72,6 +86,7 @@ const props = defineProps<{
   toolsConfig: ToolsConfigShape;
   savedModels?: SavedModel[];
   chatDisplayPrefs: ChatDisplayPrefs;
+  themeMode?: string;
   initialView?: SettingsSubview;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
   saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
@@ -81,24 +96,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update-saved-models', models: SavedModel[]): void;
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
+  (e: 'change-theme', theme: string): void;
 }>();
 
 const currentView = ref<SettingsSubview>(props.initialView || 'dashboard');
-
-const pageTitle = computed(() => {
-  if (currentView.value === 'dashboard') return t('settings.title');
-  const titles = {
-    general: t('settings.general'),
-    mcp: t('settings.mcp'),
-    skills: t('settings.skills'),
-    providers: t('settings.providers'),
-    channels: t('settings.channels'),
-    network: t('settings.network'),
-    language: t('settings.language'),
-    about: t('settings.about')
-  };
-  return titles[currentView.value] || t('settings.title');
-});
 
 const handleNavigate = (view: Exclude<SettingsSubview, 'dashboard'>) => {
   currentView.value = view;
@@ -107,6 +108,11 @@ const handleNavigate = (view: Exclude<SettingsSubview, 'dashboard'>) => {
 const goBack = () => {
   currentView.value = 'dashboard';
 };
+
+const currentSection = computed(() => {
+  if (currentView.value === 'dashboard') return null;
+  return sectionConfig.value[currentView.value as keyof typeof sectionConfig.value];
+});
 
 watch(
   () => props.initialView,
@@ -119,29 +125,31 @@ watch(
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col bg-white rounded-xl overflow-hidden min-w-[320px]">
-    <!-- Top Bar -->
-    <div class="p-6 border-b border-gray-100 flex justify-between items-center h-20">
-      <div class="flex items-center space-x-2">
-        <button 
-          v-if="currentView !== 'dashboard'"
-          @click="goBack"
-          class="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
-        >
-          <ChevronLeft :size="24" />
-        </button>
-        <h2 class="text-xl font-bold text-gray-800 flex items-center animate-in fade-in slide-in-from-left-2 duration-200" :key="pageTitle">
-          <span v-if="currentView === 'dashboard'" class="mr-2">⚙️</span>
-          {{ pageTitle }}
-        </h2>
+  <div class="settings-container h-full min-h-0 flex flex-col overflow-hidden">
+    <!-- Top Navigation Bar (only visible when not on dashboard) -->
+    <div
+      v-if="currentView !== 'dashboard' && currentSection"
+      class="settings-navbar px-4 py-3 flex items-center gap-3"
+    >
+      <button
+        @click="goBack"
+        class="settings-navbar-btn"
+      >
+        <ChevronLeft :size="20" />
+      </button>
+      <div class="settings-dashboard-icon !mb-0 !w-8 !h-8">
+        <component :is="currentSection.icon" :size="18" />
       </div>
+      <h2 class="settings-dashboard-title !text-base !mb-0">
+        {{ currentSection.title }}
+      </h2>
     </div>
-    
+
     <!-- Content Area -->
-    <div class="flex-1 min-h-0 overflow-hidden relative bg-gray-50/30">
+    <div class="flex-1 min-h-0 overflow-hidden settings-content">
        <Transition name="page" mode="out-in">
           <div :key="currentView" class="h-full min-h-0 w-full overflow-y-auto">
-            <SettingsDashboard 
+            <SettingsDashboard
               v-if="currentView === 'dashboard'"
               @navigate="handleNavigate"
             />
@@ -159,8 +167,8 @@ watch(
             <SkillsSettings
               v-else-if="currentView === 'skills'"
             />
-            
-            <ProvidersSettings 
+
+            <ProvidersSettings
               v-else-if="currentView === 'providers'"
               :config="config"
               :provider-configs="providerConfigs"
@@ -168,8 +176,8 @@ watch(
               :save-config-action="saveConfigAction"
               @update-saved-models="(m) => emit('update-saved-models', m)"
             />
-            
-            <ChannelsSettings 
+
+            <ChannelsSettings
               v-else-if="currentView === 'channels'"
               :save-channel-config-action="saveChannelConfigAction"
             />
@@ -179,13 +187,19 @@ watch(
               :tools-config="toolsConfig"
               :save-tools-config-action="saveToolsConfigAction"
             />
-            
-            <LanguageSettings 
+
+            <LanguageSettings
               v-else-if="currentView === 'language'"
             />
-            
-            <AboutSettings 
+
+            <AboutSettings
               v-else-if="currentView === 'about'"
+            />
+
+            <ThemeSettings
+              v-else-if="currentView === 'theme'"
+              :current-theme="themeMode || 'love'"
+              @change-theme="(theme) => emit('change-theme', theme)"
             />
           </div>
        </Transition>

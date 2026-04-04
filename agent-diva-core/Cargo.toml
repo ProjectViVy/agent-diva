@@ -37,10 +37,14 @@ chrono = { workspace = true }
 chrono-tz = { workspace = true }
 cron = { workspace = true }
 
+# Database
+rusqlite = { workspace = true }
+
 # Utilities
 uuid = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
+strum = { version = "0.26", features = ["derive"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

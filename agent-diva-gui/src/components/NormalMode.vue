@@ -1,19 +1,26 @@
 <script setup lang="ts">
-import { computed, defineExpose, onUnmounted, ref, watch } from 'vue';
+import { computed, defineExpose, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
+  Bot,
   Check,
+  ChevronDown,
   Heart,
-  History,
   Menu,
   MessageSquare,
   Server,
   Settings,
   Trash2,
+  WandSparkles,
+  Wrench,
+  Zap,
 } from 'lucide-vue-next';
 import ChatView from './ChatView.vue';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
+import ConsoleView from './ConsoleView.vue';
+import McpSettings from './settings/McpSettings.vue';
+import SkillsSettings from './settings/SkillsSettings.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
@@ -117,28 +124,39 @@ const emit = defineEmits<{
   (e: 'delete-session', sessionKey: string): void;
 }>();
 
-type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron';
+type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'console' | 'neuro' | 'cron' | null>(null);
+const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
+const sidebarCollapsed = ref(true);
+const sidebarAutoCollapsed = ref(false);
+const groups = ref({ capabilities: true, tools: true });
 const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
-const isHistoryDropdownOpen = ref(false);
+const activeSessionKey = ref('');
 
-const handleSessionSelect = (sessionKey: string) => {
-  emit('load-session', sessionKey);
-  isHistoryDropdownOpen.value = false;
-};
+// 收缩状态下的弹出菜单
+const collapsedPopup = ref<{ type: 'capabilities' | 'tools' | null; x: number; y: number }>({
+  type: null,
+  x: 0,
+  y: 0,
+});
 
-const handleDeleteSession = (sessionKey: string) => {
-  emit('delete-session', sessionKey);
-  isHistoryDropdownOpen.value = false;
+const handleClearSession = () => {
+  activeSessionKey.value = '';
+  emit('clear');
 };
 
 const handleUpdateSavedModels = (models: SavedModel[]) => {
   emit('update-saved-models', models);
+};
+
+const handleChangeTheme = (theme: string) => {
+  themeMode.value = theme;
+  // 应用主题到 document.documentElement
+  document.documentElement.setAttribute('data-theme', theme);
 };
 
 const selectSavedModel = async (model: SavedModel) => {
@@ -186,16 +204,48 @@ const currentProviderLabel = computed(() => {
 const closeSidebar = () => {
   sidebarOpen.value = false;
   isModelDropdownOpen.value = false;
-  isHistoryDropdownOpen.value = false;
 };
 
 const toggleSidebar = () => {
-  sidebarOpen.value = !sidebarOpen.value;
-  // Full-viewport z-[90] scrims for model/history menus live in the header; clear them
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  sidebarAutoCollapsed.value = false;
+  // Full-viewport z-[90] scrims for model menus live in the header; clear them
   // when opening the drawer so they cannot block clicks on the main surface (e.g. settings).
   isModelDropdownOpen.value = false;
-  isHistoryDropdownOpen.value = false;
   emit('toggle-sidebar');
+};
+
+const toggleGroup = (groupName: keyof typeof groups.value) => {
+  groups.value[groupName] = !groups.value[groupName];
+};
+
+const handleCollapsedGroupClick = (type: 'capabilities' | 'tools', event: MouseEvent) => {
+  if (sidebarCollapsed.value) {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    collapsedPopup.value = {
+      type: collapsedPopup.value.type === type ? null : type,
+      x: rect.right + 8,
+      y: rect.top,
+    };
+  } else {
+    toggleGroup(type);
+  }
+};
+
+const closeCollapsedPopup = () => {
+  collapsedPopup.value.type = null;
+};
+
+const handleNavigateAndClose = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
+  navigateTo(section, settingsView);
+  closeCollapsedPopup();
+};
+
+const handleResize = () => {
+  sidebarAutoCollapsed.value = window.innerWidth < 768;
+  if (sidebarAutoCollapsed.value) {
+    sidebarCollapsed.value = true;
+  }
 };
 
 const onSidebarEscapeKey = (e: KeyboardEvent) => {
@@ -204,21 +254,26 @@ const onSidebarEscapeKey = (e: KeyboardEvent) => {
   }
 };
 
-watch(sidebarOpen, (open) => {
-  if (open) {
+watch(sidebarCollapsed, (collapsed) => {
+  if (!collapsed) {
     window.addEventListener('keydown', onSidebarEscapeKey);
   } else {
     window.removeEventListener('keydown', onSidebarEscapeKey);
   }
 });
 
+onMounted(() => {
+  handleResize();
+  window.addEventListener('resize', handleResize);
+});
+
 onUnmounted(() => {
   window.removeEventListener('keydown', onSidebarEscapeKey);
+  window.removeEventListener('resize', handleResize);
 });
 
 watch([activeTab, activeMenu], () => {
   isModelDropdownOpen.value = false;
-  isHistoryDropdownOpen.value = false;
 });
 
 const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
@@ -232,7 +287,9 @@ const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'da
     activeMenu.value = section;
   }
 
-  closeSidebar();
+  if (sidebarAutoCollapsed.value) {
+    sidebarCollapsed.value = true;
+  }
 };
 
 const openSettingsFromModelMenu = () => {
@@ -245,14 +302,6 @@ const isSectionActive = (section: SidebarSection) => {
   }
   return activeMenu.value === section;
 };
-
-const sidebarItemClass = (section: SidebarSection) =>
-  isSectionActive(section)
-    ? 'bg-pink-50 text-pink-700 border border-pink-100 shadow-sm'
-    : 'text-gray-700 hover:bg-gray-100 border border-transparent';
-
-const sidebarIconClass = (section: SidebarSection, activeClass: string) =>
-  isSectionActive(section) ? activeClass : 'text-gray-400';
 
 const hearts = [
   { left: '8%', top: '12%', size: 18, opacity: 0.35, delay: 0 },
@@ -274,7 +323,8 @@ const emotionConfig = computed(() => ({
   normal: { emoji: '\u{1F642}', label: t('emotion.normal') },
 }));
 
-const currentConfig = computed(() => {
+// @ts-ignore - reserved for future use
+const _currentConfig = computed(() => {
   const currentEmotion = props.currentEmotion || 'normal';
   if (currentEmotion in emotionConfig.value) {
     return emotionConfig.value[currentEmotion as keyof typeof emotionConfig.value];
@@ -294,17 +344,7 @@ const chatBadgeValue = computed(() => {
   return String(count);
 });
 
-const formatSessionTimestamp = (timestamp: number) => {
-  if (!Number.isFinite(timestamp) || timestamp <= 0) {
-    return t('chat.unknownTime');
-  }
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return t('chat.unknownTime');
-  }
-  return date.toLocaleString();
-};
-
+// Reserved for future use
 defineExpose({
   openSettingsTab(view: SettingsSubview) {
     navigateTo('settings', view);
@@ -316,7 +356,8 @@ defineExpose({
 </script>
 
 <template>
-  <div class="app-shell w-full h-full flex flex-col overflow-hidden rounded-none relative" :class="`theme-${themeMode}`">
+  <div class="app-shell" :class="{ 'sidebar-expanded': !sidebarCollapsed, [`theme-${themeMode}`]: true }">
+    <!-- Love主题背景装饰 -->
     <div v-if="themeMode === 'love'" class="love-hearts">
       <span
         v-for="(h, i) in hearts"
@@ -333,288 +374,316 @@ defineExpose({
       />
     </div>
 
-    <header class="app-titlebar h-12 flex items-center px-4 relative z-50 border-b drag-region">
-      <div class="flex items-center space-x-3">
-        <button
-          @click="toggleSidebar"
-          class="p-1.5 rounded-md transition-colors no-drag"
-          :class="sidebarOpen ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:bg-gray-200'"
-        >
-          <Menu :size="18" />
+    <!-- 常驻侧边栏 -->
+    <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+      <!-- Logo区域 -->
+      <div class="sidebar-header">
+        <div class="brand-logo">V</div>
+        <span v-if="!sidebarCollapsed" class="brand-text">DiVA</span>
+      </div>
+
+      <!-- Menu按钮（折叠控制） -->
+      <button @click="toggleSidebar" class="menu-toggle no-drag">
+        <Menu :size="18" />
+      </button>
+
+      <!-- 导航区域 -->
+      <nav class="sidebar-nav">
+        <!-- 主导航项 -->
+        <button class="nav-item" :class="{ active: isSectionActive('chat') }" @click="navigateTo('chat')">
+          <MessageSquare />
+          <span v-if="!sidebarCollapsed">{{ t('nav.chat') }}</span>
+          <span
+            v-if="!sidebarCollapsed && messages.length > 0"
+            class="ml-auto bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center leading-none"
+            :class="chatBadgeSizeClass"
+          >
+            {{ chatBadgeValue }}
+          </span>
+        </button>
+        <button class="nav-item" :class="{ active: isSectionActive('console') }" @click="navigateTo('console')">
+          <Server />
+          <span v-if="!sidebarCollapsed">{{ t('nav.console') }}</span>
         </button>
 
-        <div class="app-emotion w-8 h-8 rounded-full flex items-center justify-center text-lg shadow-sm border animate-pulse-slow">
-          {{ currentConfig.emoji }}
-        </div>
-
-        <div class="flex flex-col">
-          <h1 class="text-sm font-bold text-gray-800 leading-tight">DiVA</h1>
-          <div class="flex items-center space-x-1.5 text-[10px] text-gray-500 leading-tight">
-            <span class="app-badge px-1.5 rounded-full">
-              {{ currentConfig.label }}
-            </span>
-            <span class="flex items-center space-x-1">
-              <div
-                class="w-1.5 h-1.5 rounded-full"
-                :class="{
-                  'bg-green-500': connectionStatus === 'connected',
-                  'bg-red-500': connectionStatus === 'error',
-                  'bg-yellow-500 animate-pulse': connectionStatus === 'connecting',
-                }"
-              />
-              <span>
-                {{ connectionStatus === 'connected' ? t('app.online') : connectionStatus === 'error' ? t('app.offline') : t('app.connecting') }}
-              </span>
-            </span>
+        <!-- NavGroup: Capabilities -->
+        <div class="nav-group">
+          <div class="nav-group-header" @click.stop="handleCollapsedGroupClick('capabilities', $event)">
+            <Zap />
+            <span v-if="!sidebarCollapsed">{{ t('nav.capabilities') }}</span>
+            <div v-if="!sidebarCollapsed" class="nav-group-chevron">
+              <ChevronDown v-if="groups.capabilities" />
+              <ChevronDown v-else class="rotate-[-90deg]" />
+            </div>
+          </div>
+          <div v-show="!sidebarCollapsed && groups.capabilities" class="nav-group-items">
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('neuro') }" @click="handleNavigateAndClose('neuro')">
+              <Heart />
+              <span>{{ t('nav.neuro') }}</span>
+            </button>
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('cron') }" @click="handleNavigateAndClose('cron')">
+              <AlarmClock />
+              <span>{{ t('cron.title') }}</span>
+            </button>
           </div>
         </div>
 
-        <div class="relative no-drag ml-4 flex space-x-2">
+        <!-- NavGroup: Tools -->
+        <div class="nav-group">
+          <div class="nav-group-header" @click.stop="handleCollapsedGroupClick('tools', $event)">
+            <Wrench />
+            <span v-if="!sidebarCollapsed">{{ t('nav.toolsGroup') }}</span>
+            <div v-if="!sidebarCollapsed" class="nav-group-chevron">
+              <ChevronDown v-if="groups.tools" />
+              <ChevronDown v-else class="rotate-[-90deg]" />
+            </div>
+          </div>
+          <div v-show="!sidebarCollapsed && groups.tools" class="nav-group-items">
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('mcp') }" @click="handleNavigateAndClose('mcp')">
+              <Bot />
+              <span>{{ t('dashboard.mcp') }}</span>
+            </button>
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('skills') }" @click="handleNavigateAndClose('skills')">
+              <WandSparkles />
+              <span>{{ t('dashboard.skills') }}</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- 底部区域 -->
+      <div class="sidebar-footer">
+        <button class="nav-item" :class="{ active: isSectionActive('settings') }" @click="navigateTo('settings')">
+          <Settings />
+          <span v-if="!sidebarCollapsed">{{ t('nav.settings') }}</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 收缩状态下的弹出菜单 -->
+    <div
+      v-if="collapsedPopup.type && sidebarCollapsed"
+      class="fixed z-[200] min-w-[180px] bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden"
+      :style="{ left: `${collapsedPopup.x}px`, top: `${collapsedPopup.y}px` }"
+      @click.stop
+    >
+      <div class="py-1">
+        <!-- Capabilities 菜单 -->
+        <template v-if="collapsedPopup.type === 'capabilities'">
           <button
-            v-if="config"
-            @click="isModelDropdownOpen = !isModelDropdownOpen"
-            class="flex items-center space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg transition-all text-xs text-gray-600 hover:text-pink-600 shadow-sm group"
-            :title="t('app.switchModel')"
+            class="popup-menu-item"
+            :class="{ active: isSectionActive('neuro') }"
+            @click="handleNavigateAndClose('neuro')"
           >
-            <Server :size="12" class="text-gray-400 group-hover:text-pink-500" />
-            <div class="flex flex-col items-start leading-tight">
-              <span class="max-w-[100px] truncate font-medium">{{ config.model || t('app.switchModel') }}</span>
-              <span class="max-w-[100px] truncate text-[10px] text-gray-400">{{ currentProviderLabel }}</span>
-            </div>
+            <Heart class="popup-menu-icon" />
+            <span>{{ t('nav.neuro') }}</span>
           </button>
-
-          <div
-            v-if="isModelDropdownOpen"
-            class="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-[100] animate-in fade-in zoom-in duration-100"
+          <button
+            class="popup-menu-item"
+            :class="{ active: isSectionActive('cron') }"
+            @click="handleNavigateAndClose('cron')"
           >
-            <div class="py-1 max-h-60 overflow-y-auto">
-              <div v-if="savedModels && savedModels.length > 0">
-                <div
-                  v-for="model in savedModels"
-                  :key="model.id"
-                  @click="selectSavedModel(model)"
-                  class="w-full cursor-pointer px-3 py-2 text-left text-xs hover:bg-pink-50 flex items-center justify-between group"
-                  :class="isSavedModelSelected(model) ? 'text-pink-600 font-medium' : 'text-gray-600'"
-                >
-                  <span class="truncate">{{ model.displayName }}</span>
-                  <span class="ml-2 flex items-center gap-2">
-                    <Check v-if="isSavedModelSelected(model)" :size="12" class="text-pink-500" />
-                    <button
-                      type="button"
-                      class="rounded p-1 text-gray-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
-                      :title="t('providers.removeCurrentModel')"
-                      @click="removeSavedModel(model, $event)"
-                    >
-                      <Trash2 :size="12" />
-                    </button>
-                  </span>
-                </div>
-              </div>
-              <div v-else class="px-3 py-4 text-center text-gray-400 text-[10px]">
-                <div class="whitespace-pre-line">{{ t('chat.emptyModels') }}</div>
-              </div>
+            <AlarmClock class="popup-menu-icon" />
+            <span>{{ t('cron.title') }}</span>
+          </button>
+        </template>
+        <!-- Tools 菜单 -->
+        <template v-if="collapsedPopup.type === 'tools'">
+          <button
+            class="popup-menu-item"
+            :class="{ active: isSectionActive('mcp') }"
+            @click="handleNavigateAndClose('mcp')"
+          >
+            <Bot class="popup-menu-icon" />
+            <span>{{ t('dashboard.mcp') }}</span>
+          </button>
+          <button
+            class="popup-menu-item"
+            :class="{ active: isSectionActive('skills') }"
+            @click="handleNavigateAndClose('skills')"
+          >
+            <WandSparkles class="popup-menu-icon" />
+            <span>{{ t('dashboard.skills') }}</span>
+          </button>
+        </template>
+      </div>
+    </div>
+    <!-- 点击遮罩关闭弹出菜单 -->
+    <div v-if="collapsedPopup.type" class="fixed inset-0 z-[190]" @click="closeCollapsedPopup"></div>
 
-              <div class="border-t border-gray-100 mt-1 pt-1">
-                <button
-                  @click="openSettingsFromModelMenu"
-                  class="w-full text-left px-3 py-2 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-50 flex items-center"
-                >
-                  <Settings :size="12" class="mr-2" />
-                  {{ t('chat.manageModels') }}
-                </button>
+    <!-- 主内容区 -->
+    <main class="main-panel">
+      <!-- Topbar -->
+      <header class="topbar drag-region">
+        <div class="topbar-left no-drag">
+          <!-- DIVA 头像和状态 -->
+          <div class="topbar-identity">
+            <div class="topbar-avatar">
+              {{ emotionConfig[(props.currentEmotion || 'happy') as keyof typeof emotionConfig]?.emoji || '😊' }}
+            </div>
+            <div class="topbar-identity-info">
+              <div class="topbar-identity-name">
+                DIVA
+                <span class="topbar-emotion-label">{{ emotionConfig[(props.currentEmotion || 'happy') as keyof typeof emotionConfig]?.label || t('emotion.happy') }}</span>
+              </div>
+              <div class="topbar-status">
+                <div
+                  class="topbar-status-dot"
+                  :class="{
+                    'connected': connectionStatus === 'connected',
+                    'error': connectionStatus === 'error',
+                    'connecting': connectionStatus === 'connecting',
+                  }"
+                />
+                <span>
+                  {{ connectionStatus === 'connected' ? t('app.online') : connectionStatus === 'error' ? t('app.offline') : t('app.connecting') }}
+                </span>
               </div>
             </div>
           </div>
+        </div>
 
-          <div v-if="isModelDropdownOpen" class="fixed inset-0 z-[90]" @click="isModelDropdownOpen = false"></div>
-
-          <div class="relative no-drag">
+        <div class="topbar-right no-drag">
+          <!-- Model下拉 -->
+          <div class="relative">
             <button
-              @click="isHistoryDropdownOpen = !isHistoryDropdownOpen"
+              v-if="config"
+              @click="isModelDropdownOpen = !isModelDropdownOpen"
               class="flex items-center space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg transition-all text-xs text-gray-600 hover:text-pink-600 shadow-sm group"
-              :title="t('chat.historySessions')"
             >
-              <History :size="14" class="text-gray-400 group-hover:text-pink-500" />
+              <Server :size="12" class="text-gray-400 group-hover:text-pink-500" />
+              <div class="flex flex-col items-start leading-tight">
+                <span class="max-w-[100px] truncate font-medium">{{ config.model || t('app.switchModel') }}</span>
+                <span class="max-w-[100px] truncate text-[10px] text-gray-400">{{ currentProviderLabel }}</span>
+              </div>
             </button>
 
-            <div
-              v-if="isHistoryDropdownOpen"
-              class="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-[100] animate-in fade-in zoom-in duration-100"
-            >
-              <div class="py-1 max-h-80 overflow-y-auto">
-                <div v-if="sessions && sessions.length > 0">
+            <!-- Model下拉菜单内容 -->
+            <div v-if="isModelDropdownOpen" class="absolute top-full right-0 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-[100]">
+              <div class="py-1 max-h-60 overflow-y-auto">
+                <div v-if="savedModels && savedModels.length > 0">
                   <div
-                    v-for="session in sessions"
-                    :key="session.chat_id"
-                    role="button"
-                    tabindex="0"
-                    class="w-full text-left px-3 py-2 text-xs hover:bg-pink-50 flex items-center justify-between group text-gray-600 border-b border-gray-50 last:border-0 cursor-pointer"
-                    @click="handleSessionSelect(session.session_key)"
-                    @keydown.enter="handleSessionSelect(session.session_key)"
+                    v-for="model in savedModels"
+                    :key="model.id"
+                    @click="selectSavedModel(model)"
+                    class="w-full cursor-pointer px-3 py-2 text-left text-xs hover:bg-pink-50 flex items-center justify-between group"
+                    :class="isSavedModelSelected(model) ? 'text-pink-600 font-medium' : 'text-gray-600'"
                   >
-                    <div class="flex flex-col min-w-0 flex-1 pr-2">
-                      <span class="text-gray-400 text-[10px] mb-0.5">{{ formatSessionTimestamp(session.timestamp) }}</span>
-                      <span class="truncate block w-full text-gray-700">{{ session.snippet || '...' }}</span>
-                    </div>
-                    <button
-                      type="button"
-                      class="p-1 rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                      :title="t('chat.deleteSession')"
-                      @click.stop="handleDeleteSession(session.session_key)"
-                    >
-                      <Trash2 :size="14" />
-                    </button>
+                    <span class="truncate">{{ model.displayName }}</span>
+                    <span class="ml-2 flex items-center gap-2">
+                      <Check v-if="isSavedModelSelected(model)" :size="12" class="text-pink-500" />
+                      <button
+                        type="button"
+                        class="rounded p-1 text-gray-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
+                        @click="removeSavedModel(model, $event)"
+                      >
+                        <Trash2 :size="12" />
+                      </button>
+                    </span>
                   </div>
                 </div>
-                <div v-else class="px-3 py-4 text-center text-gray-400 text-xs">
-                  <div>{{ t('chat.noHistory') }}</div>
+                <div v-else class="px-3 py-4 text-center text-gray-400 text-[10px]">
+                  <div class="whitespace-pre-line">{{ t('chat.emptyModels') }}</div>
+                </div>
+                <div class="border-t border-gray-100 mt-1 pt-1">
+                  <button
+                    @click="openSettingsFromModelMenu"
+                    class="w-full text-left px-3 py-2 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-50 flex items-center"
+                  >
+                    <Settings :size="12" class="mr-2" />
+                    {{ t('chat.manageModels') }}
+                  </button>
                 </div>
               </div>
             </div>
-            <div v-if="isHistoryDropdownOpen" class="fixed inset-0 z-[90]" @click="isHistoryDropdownOpen = false"></div>
+            <div v-if="isModelDropdownOpen" class="fixed inset-0 z-[90]" @click="isModelDropdownOpen = false"></div>
+          </div>
+
+          
+        </div>
+      </header>
+
+      <!-- 内容区域 -->
+      <div class="content-area">
+        <!-- Console视图 -->
+        <div v-if="activeMenu === 'console'" class="h-full">
+          <ConsoleView />
+        </div>
+        <!-- Cron视图 -->
+        <div v-else-if="activeMenu === 'cron'" class="h-full">
+          <CronTaskManagementView />
+        </div>
+        <!-- MCP视图 -->
+        <div v-else-if="activeMenu === 'mcp'" class="h-full">
+          <div class="h-full min-h-0 flex flex-col subview-container">
+            <div class="flex-1 min-h-0 overflow-hidden">
+              <div class="h-full min-h-0 w-full overflow-y-auto p-6">
+                <McpSettings />
+              </div>
+            </div>
           </div>
         </div>
+        <!-- Skills视图 -->
+        <div v-else-if="activeMenu === 'skills'" class="h-full">
+          <div class="h-full min-h-0 flex flex-col subview-container">
+            <div class="flex-1 min-h-0 overflow-hidden">
+              <div class="h-full min-h-0 w-full overflow-y-auto p-6">
+                <SkillsSettings />
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 占位视图（neuro等） -->
+        <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
+          <!-- 这个是作者要求不要修改，未经允许禁止往这里面添加东西（未来这里面要放swarm系统的可视化） -->
+          <div class="text-gray-500 text-lg font-semibold tracking-wide">
+            {{ t('nav.comingSoon') }}
+          </div>
+        </div>
+
+        <!-- 聊天/设置视图 -->
+        <template v-else>
+          <div v-if="activeTab === 'chat'" class="h-full">
+            <ChatView
+              :messages="messages"
+              :is-typing="isTyping"
+              :theme-mode="themeMode"
+              :history-prefs="chatDisplayPrefs"
+              :sessions="sessions"
+              :active-session-key="activeSessionKey"
+              @send="(content) => emit('send', content)"
+              @clear="handleClearSession"
+              @stop="emit('stop')"
+              @select-session="(key) => emit('load-session', key)"
+              @delete-session="(key) => emit('delete-session', key)"
+              @new-session="handleClearSession"
+              @toggle-pin="(_key) => {}"
+              @rename-session="(_key, _title) => {}"
+            />
+          </div>
+          <div v-else class="h-full min-h-0">
+            <SettingsView
+              v-if="config && toolsConfig"
+              :config="config"
+              :provider-configs="providerConfigs"
+              :tools-config="toolsConfig"
+              :saved-models="savedModels"
+              :chat-display-prefs="chatDisplayPrefs"
+              :theme-mode="themeMode"
+              :initial-view="settingsInitialView"
+              :save-config-action="saveConfigAction"
+              :save-tools-config-action="saveToolsConfigAction"
+              :save-channel-config-action="saveChannelConfigAction"
+              @update-saved-models="handleUpdateSavedModels"
+              @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
+              @change-theme="handleChangeTheme"
+            />
+            <div v-else class="h-full flex items-center justify-center text-gray-500">
+              Loading configuration...
+            </div>
+          </div>
+        </template>
       </div>
-    </header>
-
-    <!-- z-[60] above titlebar (z-50): full-screen dim; backdrop closes on click (Escape also). -->
-    <div v-if="sidebarOpen" class="fixed inset-0 z-[60] pointer-events-none no-drag">
-      <div
-        class="absolute inset-0 z-0 bg-black/30 backdrop-blur-sm transition-opacity pointer-events-auto"
-        aria-hidden="true"
-        role="presentation"
-        @click="closeSidebar"
-      />
-
-      <aside
-        class="absolute inset-y-0 left-0 z-10 w-60 bg-white/95 border-r border-gray-200 shadow-xl flex flex-col py-4 px-3 space-y-3 pointer-events-auto"
-      >
-        <div class="flex items-center px-2 pb-1">
-          <div class="w-8 h-8 rounded-xl bg-pink-500 text-white flex items-center justify-center text-lg font-bold shadow-md mr-2">
-            V
-          </div>
-          <div class="flex flex-col">
-            <span class="text-sm font-semibold text-gray-800 leading-tight">DiVA</span>
-            <span class="text-[10px] text-gray-400 leading-tight">Project ViVY</span>
-          </div>
-        </div>
-
-        <div class="px-2 pt-1 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          {{ t('nav.section') }}
-        </div>
-
-        <button
-          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-all"
-          :class="sidebarItemClass('chat')"
-          @click="navigateTo('chat')"
-        >
-          <span class="flex items-center space-x-2 min-w-0 w-full">
-            <MessageSquare :size="16" :class="sidebarIconClass('chat', 'text-pink-500')" />
-            <span>{{ t('nav.chat') }}</span>
-            <span
-              v-if="messages.length > 0"
-              :class="[
-                'ml-auto bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center leading-none',
-                chatBadgeSizeClass,
-              ]"
-            >
-              {{ chatBadgeValue }}
-            </span>
-          </span>
-        </button>
-
-        <button
-          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-all"
-          :class="sidebarItemClass('settings')"
-          @click="navigateTo('settings')"
-        >
-          <span class="flex items-center space-x-2">
-            <Settings :size="16" :class="sidebarIconClass('settings', 'text-emerald-500')" />
-            <span>{{ t('nav.settings') }}</span>
-          </span>
-        </button>
-
-        <button
-          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-all"
-          :class="sidebarItemClass('console')"
-          @click="navigateTo('console')"
-        >
-          <span class="flex items-center space-x-2">
-            <Server :size="16" :class="sidebarIconClass('console', 'text-indigo-500')" />
-            <span>{{ t('nav.console') }}</span>
-          </span>
-        </button>
-
-        <button
-          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-all"
-          :class="sidebarItemClass('neuro')"
-          @click="navigateTo('neuro')"
-        >
-          <span class="flex items-center space-x-2">
-            <Heart :size="16" :class="sidebarIconClass('neuro', 'text-rose-500')" />
-            <span>{{ t('nav.neuro') }}</span>
-          </span>
-        </button>
-
-        <button
-          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-all"
-          :class="sidebarItemClass('cron')"
-          @click="navigateTo('cron')"
-        >
-          <span class="flex items-center space-x-2">
-            <AlarmClock :size="16" :class="sidebarIconClass('cron', 'text-emerald-500')" />
-            <span>{{ t('cron.title') }}</span>
-          </span>
-        </button>
-      </aside>
-    </div>
-
-    <main
-      class="flex-1 min-h-0 overflow-hidden relative z-10 transition-all duration-200"
-      :class="sidebarOpen ? 'filter blur-sm scale-[0.99]' : ''"
-    >
-      <div v-if="activeMenu === 'cron'" class="h-full">
-        <CronTaskManagementView />
-      </div>
-      <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
-        <!-- 这个是作者要求不要修改，未经允许禁止往这里面添加东西（未来这里面要放swarm系统的可视化） -->
-        <div class="text-gray-500 text-lg font-semibold tracking-wide">
-          {{ t('nav.comingSoon') }}
-        </div>
-      </div>
-
-      <template v-else>
-        <div v-if="activeTab === 'chat'" class="h-full">
-          <ChatView
-            :messages="messages"
-            :is-typing="isTyping"
-            :theme-mode="themeMode"
-            :history-prefs="chatDisplayPrefs"
-            @send="(content) => emit('send', content)"
-            @clear="emit('clear')"
-            @stop="emit('stop')"
-          />
-        </div>
-        <div v-else class="h-full min-h-0">
-          <SettingsView
-            v-if="config && toolsConfig"
-            :config="config"
-            :provider-configs="providerConfigs"
-            :tools-config="toolsConfig"
-            :saved-models="savedModels"
-            :chat-display-prefs="chatDisplayPrefs"
-            :initial-view="settingsInitialView"
-            :save-config-action="saveConfigAction"
-            :save-tools-config-action="saveToolsConfigAction"
-            :save-channel-config-action="saveChannelConfigAction"
-            @update-saved-models="handleUpdateSavedModels"
-            @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
-          />
-          <div v-else class="h-full flex items-center justify-center text-gray-500">
-            Loading configuration...
-          </div>
-        </div>
-      </template>
     </main>
 
     <AppDialogLayer :theme-mode="themeMode" />

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue';
-import { SlidersHorizontal, MessageSquareText, ServerCog, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap, AlertTriangle } from 'lucide-vue-next';
+import { SlidersHorizontal, MessageSquareText, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap, AlertTriangle } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
-import GatewayControlPanel from '../GatewayControlPanel.vue';
 import { getConfigStatus, startGateway, wipeLocalData, type ConfigStatusReport } from '../../api/desktop';
 import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES } from '../../utils/localStorageAgentDiva';
 
@@ -107,92 +106,96 @@ async function runFullWipe() {
 
 <template>
   <div class="p-6 space-y-6 fade-in">
+    <!-- Header -->
     <div class="flex items-center space-x-3">
-      <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center">
+      <div class="settings-dashboard-icon">
         <SlidersHorizontal :size="20" />
       </div>
       <div>
-        <h3 class="text-lg font-bold text-gray-800">{{ t('general.title') }}</h3>
-        <p class="text-sm text-gray-500">{{ t('general.desc') }}</p>
+        <h3 class="settings-dashboard-title">{{ t('general.title') }}</h3>
+        <p class="settings-dashboard-desc">{{ t('general.desc') }}</p>
       </div>
     </div>
 
-    <div class="bg-white border border-gray-100 rounded-xl p-4 space-y-4">
-      <div class="flex items-center space-x-2 text-gray-700">
-        <MessageSquareText :size="16" class="text-violet-500" />
-        <span class="text-sm font-semibold">{{ t('general.chatSettings') }}</span>
+    <!-- Chat Settings Card -->
+    <div class="settings-section">
+      <div class="settings-section-header">
+        <MessageSquareText :size="16" />
+        <span>{{ t('general.chatSettings') }}</span>
       </div>
 
       <div class="space-y-3 pl-1">
-        <label class="text-sm text-gray-700 flex items-center space-x-2">
-          <input type="checkbox" v-model="localPrefs.autoExpandReasoning" @change="emitPrefs" />
+        <label class="settings-label flex items-center space-x-2 cursor-pointer">
+          <input type="checkbox" v-model="localPrefs.autoExpandReasoning" @change="emitPrefs" class="settings-checkbox" />
           <span>{{ t('general.autoExpandReasoning') }}</span>
         </label>
-        <label class="text-sm text-gray-700 flex items-center space-x-2">
-          <input type="checkbox" v-model="localPrefs.autoExpandToolDetails" @change="emitPrefs" />
+        <label class="settings-label flex items-center space-x-2 cursor-pointer">
+          <input type="checkbox" v-model="localPrefs.autoExpandToolDetails" @change="emitPrefs" class="settings-checkbox" />
           <span>{{ t('general.autoExpandToolDetails') }}</span>
         </label>
-        <label class="text-sm text-gray-700 flex items-center space-x-2">
-          <input type="checkbox" v-model="localPrefs.showRawMetaByDefault" @change="emitPrefs" />
+        <label class="settings-label flex items-center space-x-2 cursor-pointer">
+          <input type="checkbox" v-model="localPrefs.showRawMetaByDefault" @change="emitPrefs" class="settings-checkbox" />
           <span>{{ t('general.autoExpandRawMeta') }}</span>
         </label>
       </div>
     </div>
 
-    <div class="bg-white border border-gray-100 rounded-xl p-4 space-y-4">
-      <div class="flex items-center space-x-2 text-gray-700">
-        <DatabaseZap :size="16" class="text-violet-500" />
-        <span class="text-sm font-semibold">{{ t('general.cacheTitle') }}</span>
+    <!-- Cache Settings Card -->
+    <div class="settings-section">
+      <div class="settings-section-header">
+        <DatabaseZap :size="16" />
+        <span>{{ t('general.cacheTitle') }}</span>
       </div>
 
-      <p class="text-sm text-gray-500">{{ t('general.cacheDesc') }}</p>
+      <p class="settings-muted mb-3">{{ t('general.cacheDesc') }}</p>
 
       <div class="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          class="inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
+          class="settings-btn settings-btn-secondary"
           @click="clearUiCache"
         >
           {{ t('general.clearCache') }}
         </button>
-        <span v-if="cacheCleared" class="text-sm text-emerald-600">
+        <span v-if="cacheCleared" class="settings-label text-emerald-600">
           {{ t('general.cacheCleared') }}
         </span>
       </div>
     </div>
 
-    <div v-if="statusReport" class="bg-white border border-gray-100 rounded-xl p-4 space-y-4">
-      <div class="flex items-center space-x-2 text-gray-700">
-        <FolderTree :size="16" class="text-violet-500" />
-        <span class="text-sm font-semibold">{{ t('general.runtimeStatus') }}</span>
+    <!-- Runtime Status Card -->
+    <div v-if="statusReport" class="settings-section">
+      <div class="settings-section-header">
+        <FolderTree :size="16" />
+        <span>{{ t('general.runtimeStatus') }}</span>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-          <div class="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-400">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div class="settings-code-block">
+          <div class="flex items-center gap-2 text-xs uppercase tracking-wider settings-muted mb-2">
             <ShieldCheck v-if="statusReport.doctor.ready" :size="14" />
             <ShieldAlert v-else :size="14" />
             <span>{{ t('general.doctorHealth') }}</span>
           </div>
-          <div class="mt-2 text-sm font-semibold" :class="statusReport.doctor.ready ? 'text-emerald-700' : 'text-amber-700'">
+          <div class="text-sm font-semibold" :class="statusReport.doctor.ready ? 'text-emerald-600' : 'text-amber-600'">
             {{ statusReport.doctor.ready ? t('general.healthReady') : t('general.healthAttention') }}
           </div>
         </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-          <div class="text-xs uppercase tracking-wider text-gray-400">{{ t('general.providersReady') }}</div>
-          <div class="mt-2 text-sm font-semibold text-gray-800">{{ readyProviders }} / {{ statusReport.providers.length }}</div>
-          <div class="mt-1 text-xs text-gray-500">{{ statusReport.default_provider || t('providers.unresolved') }}</div>
+        <div class="settings-code-block">
+          <div class="text-xs uppercase tracking-wider settings-muted mb-2">{{ t('general.providersReady') }}</div>
+          <div class="text-sm font-semibold settings-label">{{ readyProviders }} / {{ statusReport.providers.length }}</div>
+          <div class="text-xs settings-muted mt-1">{{ statusReport.default_provider || t('providers.unresolved') }}</div>
         </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-          <div class="text-xs uppercase tracking-wider text-gray-400">{{ t('general.channelsReady') }}</div>
-          <div class="mt-2 text-sm font-semibold text-gray-800">{{ readyChannels }} / {{ statusReport.channels.filter((item) => item.enabled).length }}</div>
-          <div class="mt-1 text-xs text-gray-500">{{ t('general.cronJobs', { count: statusReport.cron_jobs }) }}</div>
+        <div class="settings-code-block">
+          <div class="text-xs uppercase tracking-wider settings-muted mb-2">{{ t('general.channelsReady') }}</div>
+          <div class="text-sm font-semibold settings-label">{{ readyChannels }} / {{ statusReport.channels.filter((item) => item.enabled).length }}</div>
+          <div class="text-xs settings-muted mt-1">{{ t('general.cronJobs', { count: statusReport.cron_jobs }) }}</div>
         </div>
       </div>
 
       <div class="space-y-2">
-        <div class="text-xs uppercase tracking-wider text-gray-400">{{ t('general.resolvedPaths') }}</div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 space-y-2 text-xs font-mono text-gray-700">
+        <div class="text-xs uppercase tracking-wider settings-muted">{{ t('general.resolvedPaths') }}</div>
+        <div class="settings-code-block space-y-2">
           <div>{{ statusReport.config.config_path }}</div>
           <div>{{ statusReport.config.runtime_dir }}</div>
           <div>{{ statusReport.config.workspace }}</div>
@@ -200,53 +203,38 @@ async function runFullWipe() {
       </div>
     </div>
 
-    <div class="space-y-4">
-      <div class="flex items-center gap-2 px-1">
-        <ServerCog :size="16" class="text-violet-500" />
-        <div>
-          <h4 class="text-sm font-semibold text-gray-800">{{ t('general.gatewayRuntimeTitle') }}</h4>
-          <p class="text-xs text-gray-500">{{ t('general.gatewayRuntimeDesc') }}</p>
-        </div>
-      </div>
-
-      <GatewayControlPanel />
-
-      <p class="px-1 text-xs text-gray-500 leading-relaxed">
-        {{ t('general.serviceAdvancedNote') }}
-      </p>
-    </div>
-
-    <div class="rounded-xl border-2 border-red-200 bg-red-50/80 p-4 space-y-4">
-      <div class="flex items-center space-x-2 text-red-900">
+    <!-- Danger Zone -->
+    <div class="settings-danger-zone space-y-4">
+      <div class="settings-danger-title">
         <AlertTriangle :size="18" class="shrink-0" />
-        <span class="text-sm font-semibold">{{ t('general.dangerZoneTitle') }}</span>
+        <span>{{ t('general.dangerZoneTitle') }}</span>
       </div>
-      <p class="text-sm text-red-900/90 leading-relaxed">{{ t('general.dangerZoneDesc') }}</p>
-      <p class="text-xs text-red-800/80 leading-relaxed">{{ t('general.dangerServiceNote') }}</p>
+      <p class="settings-danger-text leading-relaxed">{{ t('general.dangerZoneDesc') }}</p>
+      <p class="text-xs settings-danger-text opacity-80 leading-relaxed">{{ t('general.dangerServiceNote') }}</p>
 
-      <div v-if="statusReport" class="rounded-lg border border-red-200 bg-white/90 px-3 py-2 space-y-1">
-        <div class="text-xs font-medium text-red-900/90">{{ t('general.dangerPathsHint') }}</div>
-        <div class="text-xs font-mono text-gray-800 break-all space-y-0.5">
+      <div v-if="statusReport" class="rounded-lg px-3 py-2 space-y-1" style="border: 1px solid var(--danger-bg); background: var(--danger-bg);">
+        <div class="text-xs font-medium settings-danger-text">{{ t('general.dangerPathsHint') }}</div>
+        <div class="text-xs font-mono settings-label break-all space-y-0.5">
           <div>{{ statusReport.config.config_path }}</div>
           <div>{{ statusReport.config.workspace }}</div>
           <div>{{ statusReport.config.runtime_dir }}</div>
         </div>
       </div>
 
-      <label class="flex items-center gap-2 text-sm text-red-950 cursor-pointer">
-        <input v-model="preserveLocaleOnWipe" type="checkbox" class="rounded border-red-300" />
+      <label class="flex items-center gap-2 settings-label cursor-pointer">
+        <input v-model="preserveLocaleOnWipe" type="checkbox" class="settings-checkbox" />
         <span>{{ t('general.dangerPreserveLocale') }}</span>
       </label>
 
       <div class="space-y-1">
-        <label class="text-xs font-medium text-red-900/90 block">
+        <label class="text-xs font-medium settings-danger-text block">
           {{ t('general.dangerConfirmPrompt', { word: dangerConfirmWord }) }}
         </label>
         <input
           v-model="dangerConfirmInput"
           type="text"
           autocomplete="off"
-          class="w-full max-w-md rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400/60"
+          class="settings-danger-input"
           :placeholder="dangerConfirmWord"
         />
       </div>
@@ -255,12 +243,12 @@ async function runFullWipe() {
         <button
           type="button"
           :disabled="!dangerConfirmOk || wiping"
-          class="inline-flex items-center rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+          class="settings-btn settings-btn-danger"
           @click="runFullWipe"
         >
           {{ wiping ? t('general.dangerWiping') : t('general.dangerWipe') }}
         </button>
-        <span v-if="wipeError" class="text-sm text-red-800">{{ t('general.dangerFailed', { error: wipeError }) }}</span>
+        <span v-if="wipeError" class="text-sm settings-danger-text">{{ t('general.dangerFailed', { error: wipeError }) }}</span>
       </div>
     </div>
   </div>

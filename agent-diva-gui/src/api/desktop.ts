@@ -173,3 +173,74 @@ export const uploadSkill = (fileName: string, bytes: number[]) =>
 
 export const deleteSkill = (name: string) =>
   invoke<void>("delete_skill", { name });
+
+// ============================================================
+// Marketplace API (skills.sh)
+// ============================================================
+
+export interface MarketplaceSkillEntry {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  category: string;
+  trustLevel: "official" | "certified" | "community";
+  installCount: number;
+  starCount: number;
+  author: string;
+  installUrl: string;
+  repoUrl?: string;
+}
+
+export interface MarketplaceSearchResult {
+  skills: MarketplaceSkillEntry[];
+  total: number;
+  page: number;
+  hasMore: boolean;
+}
+
+export interface MarketplaceSearchParams {
+  query?: string;
+  category?: string;
+  trustLevel?: string;
+  sort?: "installs" | "rating" | "newest" | "stars";
+  page?: number;
+  limit?: number;
+}
+
+const MARKETPLACE_BASE_URL = "https://skills.sh/api";
+
+export async function searchMarketplaceSkills(
+  params: MarketplaceSearchParams
+): Promise<MarketplaceSearchResult> {
+  const url = new URL(`${MARKETPLACE_BASE_URL}/search`);
+  if (params.query) url.searchParams.set("q", params.query);
+  if (params.category) url.searchParams.set("category", params.category);
+  if (params.trustLevel) url.searchParams.set("trustLevel", params.trustLevel);
+  if (params.sort) url.searchParams.set("sort", params.sort);
+  url.searchParams.set("page", String(params.page ?? 1));
+  url.searchParams.set("limit", String(params.limit ?? 20));
+
+  const response = await fetch(url.toString());
+  if (!response.ok)
+    throw new Error(`Marketplace search failed: ${response.status}`);
+  return response.json();
+}
+
+export async function installSkillFromUrl(
+  installUrl: string,
+  onProgress?: (status: string) => void
+): Promise<SkillDto> {
+  onProgress?.("downloading");
+  const response = await fetch(installUrl);
+  if (!response.ok)
+    throw new Error(`Failed to download skill: ${response.status}`);
+
+  const buffer = await response.arrayBuffer();
+  const bytes = Array.from(new Uint8Array(buffer));
+  const fileName = installUrl.split("/").pop() || "skill.zip";
+
+  onProgress?.("installing");
+  const result = await uploadSkill(fileName, bytes);
+  return result;
+}

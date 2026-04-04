@@ -21,6 +21,10 @@ use crate::handlers::{
     update_tools_handler, upload_skill_handler,
 };
 use crate::state::AppState;
+use crate::token_stats::{
+    get_token_usage_models, get_token_usage_realtime, get_token_usage_sessions,
+    get_token_usage_summary, get_token_usage_timeline, get_token_usage_total,
+};
 
 pub async fn run_server(
     state: AppState,
@@ -47,6 +51,7 @@ fn build_app(state: AppState) -> Router {
     Router::new()
         .merge(runtime_routes())
         .merge(provider_routes())
+        .merge(token_stats_routes())
         .merge(misc_routes())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -133,6 +138,16 @@ fn provider_routes() -> Router<AppState> {
 
 fn misc_routes() -> Router<AppState> {
     Router::new().route("/api/health", get(heartbeat_handler))
+}
+
+fn token_stats_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/stats/tokens/total", get(get_token_usage_total))
+        .route("/api/stats/tokens/summary", get(get_token_usage_summary))
+        .route("/api/stats/tokens/timeline", get(get_token_usage_timeline))
+        .route("/api/stats/tokens/sessions", get(get_token_usage_sessions))
+        .route("/api/stats/tokens/models", get(get_token_usage_models))
+        .route("/api/stats/tokens/realtime", get(get_token_usage_realtime))
 }
 
 #[cfg(test)]
