@@ -34,7 +34,9 @@ pub use backend::{BackendStats, LocalStorageBackend, StorageBackend};
 pub use channel::{ChannelFileInfo, ChannelManager, ChannelStats};
 
 /// 文件管理配置
-pub use config::{default_data_dir, default_data_dir_or_fallback, CleanupConfig, CleanupStrategy, FileConfig};
+pub use config::{
+    default_data_dir, default_data_dir_or_fallback, CleanupConfig, CleanupStrategy, FileConfig,
+};
 
 /// 文件句柄（用于引用存储的文件）
 pub use handle::FileHandle;

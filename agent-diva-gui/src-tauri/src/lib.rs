@@ -219,6 +219,9 @@ mod tests {
 
     #[test]
     fn gateway_lifecycle_is_always_enabled() {
-        assert!(should_manage_gateway_lifecycle(), "Gateway lifecycle should always be managed");
+        assert!(
+            should_manage_gateway_lifecycle(),
+            "Gateway lifecycle should always be managed"
+        );
     }
 }

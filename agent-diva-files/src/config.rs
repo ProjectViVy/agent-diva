@@ -233,8 +233,9 @@ pub fn default_data_dir() -> Option<PathBuf> {
 /// This is a convenience function that never fails - if the system data directory
 /// cannot be determined, it falls back to ~/.agent-diva/files
 pub fn default_data_dir_or_fallback() -> PathBuf {
-    default_data_dir()
-        .unwrap_or_else(|| dirs::home_dir()
+    default_data_dir().unwrap_or_else(|| {
+        dirs::home_dir()
             .map(|h| h.join(".agent-diva").join("files"))
-            .unwrap_or_else(|| PathBuf::from(".agent-diva/files")))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"))
+    })
 }

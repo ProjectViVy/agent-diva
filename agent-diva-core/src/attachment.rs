@@ -105,11 +105,7 @@ impl FileAttachment {
     /// let handle = manager.store(b"dummy content", metadata).await?;
     /// let attachment = FileAttachment::from_handle(handle, "telegram", Some("123456"));
     /// ```
-    pub fn from_handle(
-        handle: FileHandle,
-        channel: &str,
-        message_id: Option<&str>,
-    ) -> Self {
+    pub fn from_handle(handle: FileHandle, channel: &str, message_id: Option<&str>) -> Self {
         // Get values before consuming the handle
         let ref_count = handle.ref_count();
         let file_id = handle.id;
@@ -322,10 +318,7 @@ mod tests {
         assert_eq!(FileAttachment::format_size(1024 * 512), "512.0 KB");
         assert_eq!(FileAttachment::format_size(1024 * 1024), "1.0 MB");
         assert_eq!(FileAttachment::format_size(1024 * 1024 * 50), "50.0 MB");
-        assert_eq!(
-            FileAttachment::format_size(1024 * 1024 * 1024),
-            "1.0 GB"
-        );
+        assert_eq!(FileAttachment::format_size(1024 * 1024 * 1024), "1.0 GB");
     }
 
     #[test]

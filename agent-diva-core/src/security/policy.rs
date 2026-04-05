@@ -216,11 +216,11 @@ impl SecurityPolicy {
         }
 
         // Canonicalize parent after creation
-        let resolved_parent = tokio::fs::canonicalize(parent)
-            .await
-            .map_err(|e| SecurityError::InvalidPathFormat {
+        let resolved_parent = tokio::fs::canonicalize(parent).await.map_err(|e| {
+            SecurityError::InvalidPathFormat {
                 reason: format!("Failed to resolve parent directory: {}", e),
-            })?;
+            }
+        })?;
 
         // Validate resolved parent is within allowed workspace
         if self.config.workspace_only && !self.is_resolved_path_allowed(&resolved_parent) {
@@ -336,7 +336,8 @@ mod tests {
     #[test]
     fn test_read_only_mode() {
         let temp_dir = TempDir::new().unwrap();
-        let policy = SecurityPolicy::from_level(temp_dir.path().to_path_buf(), SecurityLevel::Paranoid);
+        let policy =
+            SecurityPolicy::from_level(temp_dir.path().to_path_buf(), SecurityLevel::Paranoid);
 
         assert!(policy.is_read_only());
         assert!(policy.can_act().is_err());

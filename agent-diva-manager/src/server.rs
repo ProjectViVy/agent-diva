@@ -84,7 +84,10 @@ fn runtime_routes() -> Router<AppState> {
             get(get_skills_handler).post(upload_skill_handler),
         )
         .route("/api/skills/:name", delete(delete_skill_handler))
-        .route("/api/files/upload", post(upload_file_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024))) // 50MB limit
+        .route(
+            "/api/files/upload",
+            post(upload_file_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
+        ) // 50MB limit
         .route("/api/mcps", get(get_mcps_handler).post(create_mcp_handler))
         .route(
             "/api/mcps/:name",

@@ -622,22 +622,23 @@ pub async fn upload_file_handler(
                 match field.bytes().await {
                     Ok(body) => bytes = Some(body.to_vec()),
                     Err(e) => {
-                        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+                        return Json(
+                            serde_json::json!({ "status": "error", "message": e.to_string() }),
+                        );
                     }
                 }
             }
-            Some("channel") => {
-                match field.text().await {
-                    Ok(text) => channel = Some(text),
-                    Err(e) => {
-                        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
-                    }
+            Some("channel") => match field.text().await {
+                Ok(text) => channel = Some(text),
+                Err(e) => {
+                    return Json(
+                        serde_json::json!({ "status": "error", "message": e.to_string() }),
+                    );
                 }
-            }
+            },
             Some("message_id") => {
-                match field.text().await {
-                    Ok(text) => message_id = Some(text),
-                    Err(_) => {}
+                if let Ok(text) = field.text().await {
+                    message_id = Some(text);
                 }
             }
             _ => {}
@@ -670,9 +671,7 @@ pub async fn upload_file_handler(
         return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
     }
     match rx.await {
-        Ok(Ok(attachment)) => {
-            Json(serde_json::json!({ "status": "ok", "attachment": attachment }))
-        }
+        Ok(Ok(attachment)) => Json(serde_json::json!({ "status": "ok", "attachment": attachment })),
         Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
         Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
     }

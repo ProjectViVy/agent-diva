@@ -3,8 +3,8 @@
 use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
-use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::error_context::ErrorContext;
+use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::session::SessionManager;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
@@ -167,6 +167,7 @@ impl AgentLoop {
     }
 
     /// Create a new agent loop with tool configuration
+    #[allow(clippy::too_many_arguments)]
     pub async fn with_tools(
         bus: MessageBus,
         provider: Arc<dyn LLMProvider>,
@@ -216,7 +217,10 @@ impl AgentLoop {
         } else {
             SecurityConfig::default()
         };
-        let security = Arc::new(SecurityPolicy::with_config(workspace.clone(), security_config));
+        let security = Arc::new(SecurityPolicy::with_config(
+            workspace.clone(),
+            security_config,
+        ));
         tools.register(Arc::new(ReadFileTool::new(security.clone())));
         tools.register(Arc::new(WriteFileTool::new(security.clone())));
         tools.register(Arc::new(EditFileTool::new(security.clone())));

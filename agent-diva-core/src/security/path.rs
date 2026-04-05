@@ -42,7 +42,9 @@ impl PathValidator {
         let normalized = path.to_lowercase().replace('\\', "/");
         for prefix in forbidden {
             let norm_prefix = prefix.to_lowercase().replace('\\', "/");
-            if normalized.starts_with(&norm_prefix) || normalized.contains(&format!("/{}", norm_prefix)) {
+            if normalized.starts_with(&norm_prefix)
+                || normalized.contains(&format!("/{}", norm_prefix))
+            {
                 return Some(prefix.clone());
             }
         }
@@ -82,10 +84,7 @@ impl PathValidator {
     }
 
     /// Validate that a path doesn't escape the workspace via symlinks
-    pub async fn validate_no_symlink_escape(
-        path: &Path,
-        workspace: &Path,
-    ) -> Result<(), String> {
+    pub async fn validate_no_symlink_escape(path: &Path, workspace: &Path) -> Result<(), String> {
         // Check if the path itself is a symlink
         if let Ok(meta) = tokio::fs::symlink_metadata(path).await {
             if meta.file_type().is_symlink() {
@@ -134,7 +133,9 @@ impl PathValidator {
     /// Check if an extension is in the forbidden list
     pub fn is_extension_forbidden(ext: &str, forbidden: &[String]) -> bool {
         let ext_lower = ext.to_lowercase().trim_start_matches('.').to_string();
-        forbidden.iter().any(|f| f.to_lowercase().trim_start_matches('.') == ext_lower)
+        forbidden
+            .iter()
+            .any(|f| f.to_lowercase().trim_start_matches('.') == ext_lower)
     }
 
     /// Sanitize a path component for safe use
@@ -167,9 +168,15 @@ mod tests {
 
     #[test]
     fn test_url_encoded_traversal() {
-        assert!(PathValidator::contains_url_encoded_traversal("..%2fetc/passwd"));
-        assert!(PathValidator::contains_url_encoded_traversal("%2f..%5cwindows"));
-        assert!(!PathValidator::contains_url_encoded_traversal("/path/to/file"));
+        assert!(PathValidator::contains_url_encoded_traversal(
+            "..%2fetc/passwd"
+        ));
+        assert!(PathValidator::contains_url_encoded_traversal(
+            "%2f..%5cwindows"
+        ));
+        assert!(!PathValidator::contains_url_encoded_traversal(
+            "/path/to/file"
+        ));
     }
 
     #[test]
@@ -182,15 +189,9 @@ mod tests {
     #[test]
     fn test_forbidden_prefix() {
         let forbidden = vec!["/etc".to_string(), "/root".to_string()];
-        assert!(
-            PathValidator::matches_forbidden_prefix("/etc/passwd", &forbidden).is_some()
-        );
-        assert!(
-            PathValidator::matches_forbidden_prefix("/root/.bashrc", &forbidden).is_some()
-        );
-        assert!(
-            PathValidator::matches_forbidden_prefix("/home/user/file", &forbidden).is_none()
-        );
+        assert!(PathValidator::matches_forbidden_prefix("/etc/passwd", &forbidden).is_some());
+        assert!(PathValidator::matches_forbidden_prefix("/root/.bashrc", &forbidden).is_some());
+        assert!(PathValidator::matches_forbidden_prefix("/home/user/file", &forbidden).is_none());
     }
 
     #[test]

@@ -128,7 +128,12 @@ impl Manager {
     ) {
         let file_service = crate::file_service::FileService::new(self.file_manager.clone());
         let result = file_service
-            .upload_file(&request.file_name, request.bytes, &request.channel, request.message_id.as_deref())
+            .upload_file(
+                &request.file_name,
+                request.bytes,
+                &request.channel,
+                request.message_id.as_deref(),
+            )
             .await
             .map_err(|e| e.to_string());
         let _ = reply.send(result);

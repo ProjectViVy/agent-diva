@@ -136,10 +136,7 @@ impl Tool for ReadAttachmentTool {
                      此文件无法作为文本显示。\
                      文件内容已存储，可以被其他工具处理\
                      或传输到外部服务。",
-                    file_id,
-                    handle.metadata.name,
-                    handle.metadata.size,
-                    mime_type
+                    file_id, handle.metadata.name, handle.metadata.size, mime_type
                 ))
             }
         }
@@ -199,7 +196,10 @@ mod tests {
 
         // For this test, we'll just verify the tool can handle file not found
         // The actual file reading is tested in FileManager tests
-        let result = tool.execute(json!({"file_id": "sha256:nonexistent"})).await.unwrap();
+        let result = tool
+            .execute(json!({"file_id": "sha256:nonexistent"}))
+            .await
+            .unwrap();
         assert!(result.contains("不存在") || result.contains("not found"));
     }
 }

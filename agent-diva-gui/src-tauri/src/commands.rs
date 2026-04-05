@@ -1363,7 +1363,13 @@ pub async fn upload_file(
     let channel_part = reqwest::multipart::Part::text(channel);
     // Use provided message_id or generate a temporary one for GUI uploads
     let message_id = message_id.unwrap_or_else(|| {
-        format!("gui_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis())
+        format!(
+            "gui_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+        )
     });
     let message_id_part = reqwest::multipart::Part::text(message_id);
     let form = reqwest::multipart::Form::new()

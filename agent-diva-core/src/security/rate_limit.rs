@@ -129,15 +129,28 @@ mod tests {
 
         // Record actions
         for i in 0..5 {
-            assert!(!tracker.is_rate_limited(5), "Should not be rate limited at action {}", i);
+            assert!(
+                !tracker.is_rate_limited(5),
+                "Should not be rate limited at action {}",
+                i
+            );
             tracker.record();
         }
 
         // After 5 records with limit of 5, should be rate limited
-        assert!(tracker.is_rate_limited(5), "Should be rate limited after 5 actions with limit of 5");
+        assert!(
+            tracker.is_rate_limited(5),
+            "Should be rate limited after 5 actions with limit of 5"
+        );
         assert_eq!(tracker.count(), 5, "Count should be 5");
-        assert!(!tracker.try_record(5), "Should not be able to record when rate limited");
-        assert!(tracker.try_record(6), "Should be able to record when limit is 6");
+        assert!(
+            !tracker.try_record(5),
+            "Should not be able to record when rate limited"
+        );
+        assert!(
+            tracker.try_record(6),
+            "Should be able to record when limit is 6"
+        );
     }
 
     #[test]
@@ -153,7 +166,15 @@ mod tests {
 
         // Recording on clone should not affect original
         cloned.record();
-        assert_eq!(cloned.count(), 3, "Cloned tracker should have 3 actions after record");
-        assert_eq!(tracker.count(), 2, "Original tracker should still have 2 actions");
+        assert_eq!(
+            cloned.count(),
+            3,
+            "Cloned tracker should have 3 actions after record"
+        );
+        assert_eq!(
+            tracker.count(),
+            2,
+            "Original tracker should still have 2 actions"
+        );
     }
 }

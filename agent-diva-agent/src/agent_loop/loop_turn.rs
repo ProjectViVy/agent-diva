@@ -42,7 +42,10 @@ impl AgentLoop {
         let message_content = if !msg.media.is_empty() {
             match self.load_attachment_contents(&msg.media).await {
                 Ok(attachment_text) if !attachment_text.is_empty() => {
-                    format!("{}\n\n[Attachments]\n{}\n[/Attachments]", msg.content, attachment_text)
+                    format!(
+                        "{}\n\n[Attachments]\n{}\n[/Attachments]",
+                        msg.content, attachment_text
+                    )
                 }
                 _ => msg.content.clone(),
             }
@@ -452,7 +455,10 @@ impl AgentLoop {
     /// Load and format attachment contents for inclusion in the message.
     /// Only text files under MAX_INLINE_ATTACHMENT_SIZE are inlined.
     /// For other files, adds a placeholder telling AI to use read_file tool.
-    async fn load_attachment_contents(&self, file_ids: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+    async fn load_attachment_contents(
+        &self,
+        file_ids: &[String],
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let storage_path = dirs::data_local_dir()
             .map(|p| p.join("agent-diva").join("files"))
             .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
@@ -464,7 +470,11 @@ impl AgentLoop {
             match self.file_manager.get(file_id).await {
                 Ok(handle) => {
                     let size = handle.metadata.size;
-                    let mime_type = handle.metadata.mime_type.as_deref().unwrap_or("application/octet-stream");
+                    let mime_type = handle
+                        .metadata
+                        .mime_type
+                        .as_deref()
+                        .unwrap_or("application/octet-stream");
                     let is_text = mime_type.starts_with("text/")
                         || mime_type == "application/json"
                         || mime_type == "application/javascript"
@@ -474,22 +484,20 @@ impl AgentLoop {
 
                     if is_text && size <= MAX_INLINE_ATTACHMENT_SIZE {
                         match self.file_manager.read(&handle).await {
-                            Ok(bytes) => {
-                                match String::from_utf8(bytes) {
-                                    Ok(content) => {
-                                        parts.push(format!(
-                                            "--- {} ---\n{}\n---",
-                                            handle.metadata.name, content
-                                        ));
-                                    }
-                                    Err(_) => {
-                                        parts.push(format!(
-                                            "[File: {} ({} bytes, binary)]",
-                                            handle.metadata.name, size
-                                        ));
-                                    }
+                            Ok(bytes) => match String::from_utf8(bytes) {
+                                Ok(content) => {
+                                    parts.push(format!(
+                                        "--- {} ---\n{}\n---",
+                                        handle.metadata.name, content
+                                    ));
                                 }
-                            }
+                                Err(_) => {
+                                    parts.push(format!(
+                                        "[File: {} ({} bytes, binary)]",
+                                        handle.metadata.name, size
+                                    ));
+                                }
+                            },
                             Err(e) => {
                                 warn!("Failed to read file {}: {}", file_id, e);
                                 parts.push(format!(
@@ -507,7 +515,12 @@ impl AgentLoop {
                     }
                 }
                 Err(e) => {
-                    warn!("Failed to get file handle for {}: {}. Storage path: {}", file_id, e, storage_path.display());
+                    warn!(
+                        "Failed to get file handle for {}: {}. Storage path: {}",
+                        file_id,
+                        e,
+                        storage_path.display()
+                    );
                     parts.push(format!("[Attachment: {} (not found - {})]", file_id, e));
                 }
             }

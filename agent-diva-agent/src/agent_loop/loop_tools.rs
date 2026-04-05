@@ -36,7 +36,10 @@ impl AgentLoop {
         } else {
             SecurityConfig::default()
         };
-        let security = Arc::new(SecurityPolicy::with_config(self.workspace.clone(), security_config));
+        let security = Arc::new(SecurityPolicy::with_config(
+            self.workspace.clone(),
+            security_config,
+        ));
         self.tools
             .register(Arc::new(ReadFileTool::new(security.clone())));
         self.tools
@@ -46,9 +49,8 @@ impl AgentLoop {
         self.tools.register(Arc::new(ListDirTool::new(security)));
 
         // Register attachment read tool with shared FileManager
-        self.tools.register(Arc::new(ReadAttachmentTool::new(
-            self.file_manager.clone()
-        )));
+        self.tools
+            .register(Arc::new(ReadAttachmentTool::new(self.file_manager.clone())));
 
         // Register shell tool
         self.tools.register(Arc::new(ExecTool::with_config(

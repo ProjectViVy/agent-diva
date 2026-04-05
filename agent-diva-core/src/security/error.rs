@@ -69,9 +69,7 @@ impl SecurityError {
             Self::ActionBudgetExhausted => {
                 "Action budget exhausted. Please try again later.".to_string()
             }
-            Self::ReadOnlyMode => {
-                "Write operations are disabled in read-only mode".to_string()
-            }
+            Self::ReadOnlyMode => "Write operations are disabled in read-only mode".to_string(),
             Self::SymlinkNotAllowed { path } => {
                 format!("Symbolic links are not allowed: {}", path.display())
             }
@@ -79,10 +77,7 @@ impl SecurityError {
                 format!("Invalid path: {}", reason)
             }
             Self::FileTooLarge { size, max_size } => {
-                format!(
-                    "File too large ({} bytes, max: {} bytes)",
-                    size, max_size
-                )
+                format!("File too large ({} bytes, max: {} bytes)", size, max_size)
             }
             Self::ForbiddenExtension { ext } => {
                 format!("Files with extension '{}' are not allowed", ext)
@@ -119,11 +114,7 @@ mod tests {
 
     #[test]
     fn test_is_retryable() {
-        assert!(SecurityError::RateLimitExceeded {
-            count: 1,
-            max: 0
-        }
-        .is_retryable());
+        assert!(SecurityError::RateLimitExceeded { count: 1, max: 0 }.is_retryable());
 
         assert!(!SecurityError::PathNotAllowed {
             path: "/test".to_string()

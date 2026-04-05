@@ -72,8 +72,14 @@ impl Tool for ReadFileTool {
             None => return Ok("Error: Missing 'path' parameter".to_string()),
         };
 
-        let offset = params.get("offset").and_then(|v| v.as_u64()).map(|v| v as usize);
-        let limit = params.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize);
+        let offset = params
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize);
+        let limit = params
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize);
 
         // Security checks
         if let Err(e) = self.security.try_record_action() {
@@ -136,40 +142,6 @@ impl Tool for ReadFileTool {
 
         Ok(result)
     }
-}
-
-/// Apply offset and limit to file content
-fn apply_offset_limit(content: &str, offset: Option<usize>, limit: Option<usize>) -> String {
-    let lines: Vec<&str> = content.lines().collect();
-    let total = lines.len();
-
-    let start = offset
-        .map(|o| o.saturating_sub(1).min(total))
-        .unwrap_or(0);
-
-    let end = match limit {
-        Some(l) => (start + l).min(total),
-        None => total,
-    };
-
-    if start >= end {
-        return format!("[No lines in range, file has {} lines]", total);
-    }
-
-    let numbered: String = lines[start..end]
-        .iter()
-        .enumerate()
-        .map(|(i, line)| format!("{}: {}", start + i + 1, line))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let summary = if start > 0 || end < total {
-        format!("\n[Lines {}-{} of {}]", start + 1, end, total)
-    } else {
-        format!("\n[{} lines total]", total)
-    };
-
-    format!("{}{}", numbered, summary)
 }
 
 /// Write file tool with security policy
@@ -388,7 +360,9 @@ impl Tool for EditFileTool {
 
         // Validate old_text exists
         if !content.contains(old_text) {
-            return Ok("Error: old_text not found in file. Make sure it matches exactly.".to_string());
+            return Ok(
+                "Error: old_text not found in file. Make sure it matches exactly.".to_string(),
+            );
         }
 
         // Count occurrences
@@ -542,7 +516,9 @@ mod tests {
     async fn test_read_file_with_offset_limit() {
         let (security, temp_dir) = create_test_security();
         let file_path = temp_dir.path().join("test.txt");
-        tokio::fs::write(&file_path, "line1\nline2\nline3\nline4\nline5").await.unwrap();
+        tokio::fs::write(&file_path, "line1\nline2\nline3\nline4\nline5")
+            .await
+            .unwrap();
 
         let tool = ReadFileTool::new(security);
         let params = json!({ "path": "test.txt", "offset": 2, "limit": 2 });
@@ -594,9 +570,15 @@ mod tests {
     #[tokio::test]
     async fn test_list_dir() {
         let (security, temp_dir) = create_test_security();
-        tokio::fs::write(temp_dir.path().join("file1.txt"), "").await.unwrap();
-        tokio::fs::write(temp_dir.path().join("file2.txt"), "").await.unwrap();
-        tokio::fs::create_dir(temp_dir.path().join("subdir")).await.unwrap();
+        tokio::fs::write(temp_dir.path().join("file1.txt"), "")
+            .await
+            .unwrap();
+        tokio::fs::write(temp_dir.path().join("file2.txt"), "")
+            .await
+            .unwrap();
+        tokio::fs::create_dir(temp_dir.path().join("subdir"))
+            .await
+            .unwrap();
 
         let tool = ListDirTool::new(security);
         let params = json!({ "path": "." });
@@ -613,7 +595,9 @@ mod tests {
 
         // Create a file outside temp_dir
         let outside_file = std::env::temp_dir().join("agent_diva_test_outside.txt");
-        tokio::fs::write(&outside_file, "Outside content").await.unwrap();
+        tokio::fs::write(&outside_file, "Outside content")
+            .await
+            .unwrap();
 
         let tool = ReadFileTool::new(security);
         let params = json!({ "path": "../agent_diva_test_outside.txt" });
@@ -638,9 +622,15 @@ mod tests {
         ));
 
         // Create test files
-        tokio::fs::write(temp_dir.path().join("file1.txt"), "content").await.unwrap();
-        tokio::fs::write(temp_dir.path().join("file2.txt"), "content").await.unwrap();
-        tokio::fs::write(temp_dir.path().join("file3.txt"), "content").await.unwrap();
+        tokio::fs::write(temp_dir.path().join("file1.txt"), "content")
+            .await
+            .unwrap();
+        tokio::fs::write(temp_dir.path().join("file2.txt"), "content")
+            .await
+            .unwrap();
+        tokio::fs::write(temp_dir.path().join("file3.txt"), "content")
+            .await
+            .unwrap();
 
         let tool = ReadFileTool::new(policy);
 
@@ -682,16 +672,16 @@ async fn read_file_with_offset_limit(
     limit: Option<usize>,
 ) -> std::io::Result<String> {
     use tokio::io::AsyncBufReadExt;
-    
+
     let file = tokio::fs::File::open(path).await?;
     let reader = tokio::io::BufReader::new(file);
     let mut lines = reader.lines();
-    
+
     let start = offset.map(|o| o.saturating_sub(1)).unwrap_or(0);
     let max_lines = limit.unwrap_or(usize::MAX);
     let mut result = Vec::new();
     let mut line_num = 0;
-    
+
     while let Some(line) = lines.next_line().await? {
         line_num += 1;
         if line_num <= start {
@@ -702,16 +692,16 @@ async fn read_file_with_offset_limit(
         }
         result.push(format!("{}: {}", line_num, line));
     }
-    
+
     let total = line_num;
     let end = (start + result.len()).min(total);
-    
+
     let content = result.join("\n");
     let summary = if start > 0 || end < total {
         format!("\n[Lines {}-{} of {}]", start + 1, end, total)
     } else {
         format!("\n[{} lines total]", total)
     };
-    
+
     Ok(format!("{}{}", content, summary))
 }
