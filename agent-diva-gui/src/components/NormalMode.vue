@@ -17,6 +17,7 @@ import CronTaskManagementView from './CronTaskManagementView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
+import type { FileAttachmentDto } from '../api/desktop';
 
 const { t } = useI18n();
 
@@ -33,6 +34,7 @@ interface Message {
   isStreaming?: boolean;
   timestamp?: number;
   emotion?: string;
+  attachments?: string[];
 }
 
 interface ChatDisplayPrefs {
@@ -107,7 +109,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[]): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'toggle-sidebar'): void;
@@ -590,7 +592,7 @@ defineExpose({
             :is-typing="isTyping"
             :theme-mode="themeMode"
             :history-prefs="chatDisplayPrefs"
-            @send="(content) => emit('send', content)"
+            @send="(content, attachments) => emit('send', content, attachments)"
             @clear="emit('clear')"
             @stop="emit('stop')"
           />

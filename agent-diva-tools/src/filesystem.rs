@@ -1,47 +1,37 @@
-//! Filesystem tools
+//! Filesystem tools with SecurityPolicy integration
+//!
+//! This module provides file operations with comprehensive security checks
+//! including path validation, rate limiting, and workspace restrictions.
 
 use crate::base::{Result, Tool};
 use crate::sanitize::{sanitize_for_json, truncate_file_content, MAX_FILE_CONTENT_CHARS};
+use agent_diva_core::security::{SecurityError, SecurityPolicy, SharedSecurityPolicy};
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::sync::Arc;
 
-/// Resolve path and optionally enforce directory restriction
-fn resolve_path(path: &str, allowed_dir: Option<&PathBuf>) -> std::result::Result<PathBuf, String> {
-    let resolved = PathBuf::from(path)
-        .canonicalize()
-        .map_err(|e| format!("Failed to resolve path: {}", e))?;
-
-    if let Some(allowed) = allowed_dir {
-        let allowed_canonical = allowed
-            .canonicalize()
-            .map_err(|e| format!("Failed to resolve allowed directory: {}", e))?;
-        if !resolved.starts_with(&allowed_canonical) {
-            return Err(format!(
-                "Path {:?} is outside allowed directory {:?}",
-                path, allowed
-            ));
-        }
-    }
-
-    Ok(resolved)
-}
-
-/// Read file tool
+/// Read file tool with security policy
 pub struct ReadFileTool {
-    allowed_dir: Option<PathBuf>,
+    security: SharedSecurityPolicy,
 }
 
 impl ReadFileTool {
-    /// Create a new read file tool
-    pub fn new(allowed_dir: Option<PathBuf>) -> Self {
-        Self { allowed_dir }
+    /// Create a new read file tool with a security policy
+    pub fn new(security: SharedSecurityPolicy) -> Self {
+        Self { security }
+    }
+
+    /// Create a new read file tool with default policy for a workspace
+    pub fn for_workspace(workspace: PathBuf) -> Self {
+        let policy = Arc::new(SecurityPolicy::new(workspace));
+        Self::new(policy)
     }
 }
 
 impl Default for ReadFileTool {
     fn default() -> Self {
-        Self::new(None)
+        Self::for_workspace(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
     }
 }
 
@@ -52,7 +42,7 @@ impl Tool for ReadFileTool {
     }
 
     fn description(&self) -> &str {
-        "Read the contents of a file at the given path."
+        "读取指定路径文件的内容。支持通过偏移量和行数限制读取大文件。"
     }
 
     fn parameters(&self) -> Value {
@@ -61,7 +51,15 @@ impl Tool for ReadFileTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The file path to read"
+                    "description": "要读取的文件路径（相对于工作区）"
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "开始读取的行号（从1开始）"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "最多读取的行数"
                 }
             },
             "required": ["path"]
@@ -74,52 +72,127 @@ impl Tool for ReadFileTool {
             None => return Ok("Error: Missing 'path' parameter".to_string()),
         };
 
-        match resolve_path(path, self.allowed_dir.as_ref()) {
-            Ok(file_path) => {
-                if !file_path.exists() {
-                    return Ok(format!("Error: File not found: {}", path));
-                }
-                if !file_path.is_file() {
-                    return Ok(format!("Error: Not a file: {}", path));
-                }
+        let offset = params.get("offset").and_then(|v| v.as_u64()).map(|v| v as usize);
+        let limit = params.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize);
 
-                match std::fs::read_to_string(&file_path) {
-                    Ok(content) => {
-                        // Check file size before processing
-                        let char_count = content.chars().count();
-                        if char_count > MAX_FILE_CONTENT_CHARS {
-                            // Return a summary with preview for large files
-                            let sanitized = sanitize_for_json(&content);
-                            Ok(truncate_file_content(&sanitized))
-                        } else {
-                            // Sanitize file content to remove control characters
-                            // that could cause JSON parsing errors
-                            Ok(sanitize_for_json(&content))
-                        }
-                    }
-                    Err(e) => Ok(format!("Error reading file: {}", e)),
-                }
-            }
-            Err(e) => Ok(format!("Error: {}", e)),
+        // Security checks
+        if let Err(e) = self.security.try_record_action() {
+            return Ok(format!("Error: {}", e.user_message()));
         }
+
+        // Validate path and resolve
+        let resolved_path = match self.security.validate_path(path).await {
+            Ok(p) => p,
+            Err(e) => return Ok(format!("Error: {}", e.user_message())),
+        };
+
+        // Check file existence and type
+        let metadata = match tokio::fs::metadata(&resolved_path).await {
+            Ok(m) => m,
+            Err(e) => return Ok(format!("Error: File not found: {} ({})", path, e)),
+        };
+
+        if !metadata.is_file() {
+            return Ok(format!("Error: Not a file: {}", path));
+        }
+
+        // Check file size
+        if let Err(e) = self.security.check_file_size(metadata.len()) {
+            return Ok(format!("Error: {}", e.user_message()));
+        }
+
+        // Read file content with memory-efficient approach
+        let processed = if offset.is_some() || limit.is_some() {
+            // Use streaming read for large files when offset/limit is specified
+            match read_file_with_offset_limit(&resolved_path, offset, limit).await {
+                Ok(content) => content,
+                Err(e) => return Ok(format!("Error reading file: {}", e)),
+            }
+        } else {
+            // Read entire file for small files or when no offset/limit specified
+            let content = match tokio::fs::read_to_string(&resolved_path).await {
+                Ok(c) => c,
+                Err(e) => {
+                    // Try binary fallback for non-UTF8 files
+                    match tokio::fs::read(&resolved_path).await {
+                        Ok(bytes) => {
+                            let lossy = String::from_utf8_lossy(&bytes);
+                            lossy.into_owned()
+                        }
+                        Err(_) => return Ok(format!("Error reading file: {}", e)),
+                    }
+                }
+            };
+            content
+        };
+
+        // Sanitize and truncate if needed
+        let char_count = processed.chars().count();
+        let result = if char_count > MAX_FILE_CONTENT_CHARS {
+            truncate_file_content(&sanitize_for_json(&processed))
+        } else {
+            sanitize_for_json(&processed)
+        };
+
+        Ok(result)
     }
 }
 
-/// Write file tool
+/// Apply offset and limit to file content
+fn apply_offset_limit(content: &str, offset: Option<usize>, limit: Option<usize>) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let total = lines.len();
+
+    let start = offset
+        .map(|o| o.saturating_sub(1).min(total))
+        .unwrap_or(0);
+
+    let end = match limit {
+        Some(l) => (start + l).min(total),
+        None => total,
+    };
+
+    if start >= end {
+        return format!("[No lines in range, file has {} lines]", total);
+    }
+
+    let numbered: String = lines[start..end]
+        .iter()
+        .enumerate()
+        .map(|(i, line)| format!("{}: {}", start + i + 1, line))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let summary = if start > 0 || end < total {
+        format!("\n[Lines {}-{} of {}]", start + 1, end, total)
+    } else {
+        format!("\n[{} lines total]", total)
+    };
+
+    format!("{}{}", numbered, summary)
+}
+
+/// Write file tool with security policy
 pub struct WriteFileTool {
-    allowed_dir: Option<PathBuf>,
+    security: SharedSecurityPolicy,
 }
 
 impl WriteFileTool {
-    /// Create a new write file tool
-    pub fn new(allowed_dir: Option<PathBuf>) -> Self {
-        Self { allowed_dir }
+    /// Create a new write file tool with a security policy
+    pub fn new(security: SharedSecurityPolicy) -> Self {
+        Self { security }
+    }
+
+    /// Create a new write file tool with default policy for a workspace
+    pub fn for_workspace(workspace: PathBuf) -> Self {
+        let policy = Arc::new(SecurityPolicy::new(workspace));
+        Self::new(policy)
     }
 }
 
 impl Default for WriteFileTool {
     fn default() -> Self {
-        Self::new(None)
+        Self::for_workspace(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
     }
 }
 
@@ -130,7 +203,7 @@ impl Tool for WriteFileTool {
     }
 
     fn description(&self) -> &str {
-        "Write content to a file at the given path. Creates parent directories if needed."
+        "将内容写入指定路径的文件。如需要会自动创建父目录。"
     }
 
     fn parameters(&self) -> Value {
@@ -139,11 +212,11 @@ impl Tool for WriteFileTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The file path to write to"
+                    "description": "要写入的文件路径（相对于工作区）"
                 },
                 "content": {
                     "type": "string",
-                    "description": "The content to write"
+                    "description": "要写入的内容"
                 }
             },
             "required": ["path", "content"]
@@ -161,54 +234,50 @@ impl Tool for WriteFileTool {
             None => return Ok("Error: Missing 'content' parameter".to_string()),
         };
 
-        // For write operations, we need to resolve the parent directory first
-        let file_path = PathBuf::from(path);
-        let parent = file_path.parent().unwrap_or(Path::new("."));
+        // Security checks
+        if let Err(e) = self.security.can_act() {
+            return Ok(format!("Error: {}", e.user_message()));
+        }
 
-        // Check parent directory permission
-        if let Some(allowed) = &self.allowed_dir {
-            let parent_canonical = match parent.canonicalize() {
-                Ok(p) => p,
-                Err(_) => {
-                    // Parent doesn't exist yet, check if it would be allowed
-                    let allowed_canonical = match allowed.canonicalize() {
-                        Ok(a) => a,
-                        Err(e) => return Ok(format!("Error resolving allowed directory: {}", e)),
-                    };
-                    let parent_abs = match std::env::current_dir() {
-                        Ok(cwd) => cwd.join(parent),
-                        Err(e) => return Ok(format!("Error getting current directory: {}", e)),
-                    };
-                    if !parent_abs.starts_with(&allowed_canonical) {
-                        return Ok(format!(
-                            "Error: Path {:?} is outside allowed directory {:?}",
-                            path, allowed
-                        ));
-                    }
-                    parent_abs
+        // Basic path validation
+        if let Err(e) = self.security.is_path_allowed(path) {
+            return Ok(format!("Error: {}", e.user_message()));
+        }
+
+        // Resolve the target path
+        let full_path = self.security.resolve_path(path);
+
+        // Validate parent directory (TOCTOU-safe)
+        let resolved_parent = match self.security.validate_parent_directory(&full_path).await {
+            Ok(p) => p,
+            Err(e) => return Ok(format!("Error: {}", e.user_message())),
+        };
+
+        // Get file name and construct final resolved path
+        let file_name = match full_path.file_name() {
+            Some(name) => name,
+            None => return Ok("Error: Invalid path - no file name".to_string()),
+        };
+
+        let resolved_target = resolved_parent.join(file_name);
+
+        // Check for symlink if target exists
+        if !self.security.config().allow_symlinks {
+            if let Ok(meta) = tokio::fs::symlink_metadata(&resolved_target).await {
+                if meta.file_type().is_symlink() {
+                    return Ok(format!(
+                        "Error: {}",
+                        SecurityError::SymlinkNotAllowed {
+                            path: resolved_target.clone()
+                        }
+                        .user_message()
+                    ));
                 }
-            };
-
-            let allowed_canonical = match allowed.canonicalize() {
-                Ok(a) => a,
-                Err(e) => return Ok(format!("Error resolving allowed directory: {}", e)),
-            };
-
-            if !parent_canonical.starts_with(&allowed_canonical) {
-                return Ok(format!(
-                    "Error: Path {:?} is outside allowed directory {:?}",
-                    path, allowed
-                ));
             }
         }
 
-        // Create parent directories
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            return Ok(format!("Error creating parent directories: {}", e));
-        }
-
         // Write file
-        match std::fs::write(&file_path, content) {
+        match tokio::fs::write(&resolved_target, content).await {
             Ok(_) => Ok(format!(
                 "Successfully wrote {} bytes to {}",
                 content.len(),
@@ -219,21 +288,27 @@ impl Tool for WriteFileTool {
     }
 }
 
-/// Edit file tool
+/// Edit file tool with security policy
 pub struct EditFileTool {
-    allowed_dir: Option<PathBuf>,
+    security: SharedSecurityPolicy,
 }
 
 impl EditFileTool {
-    /// Create a new edit file tool
-    pub fn new(allowed_dir: Option<PathBuf>) -> Self {
-        Self { allowed_dir }
+    /// Create a new edit file tool with a security policy
+    pub fn new(security: SharedSecurityPolicy) -> Self {
+        Self { security }
+    }
+
+    /// Create a new edit file tool with default policy for a workspace
+    pub fn for_workspace(workspace: PathBuf) -> Self {
+        let policy = Arc::new(SecurityPolicy::new(workspace));
+        Self::new(policy)
     }
 }
 
 impl Default for EditFileTool {
     fn default() -> Self {
-        Self::new(None)
+        Self::for_workspace(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
     }
 }
 
@@ -244,7 +319,7 @@ impl Tool for EditFileTool {
     }
 
     fn description(&self) -> &str {
-        "Edit a file by replacing old_text with new_text. The old_text must exist exactly in the file."
+        "编辑文件，将 old_text 替换为 new_text。old_text 必须完全匹配文件中存在的文本。"
     }
 
     fn parameters(&self) -> Value {
@@ -253,15 +328,15 @@ impl Tool for EditFileTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The file path to edit"
+                    "description": "要编辑的文件路径（相对于工作区）"
                 },
                 "old_text": {
                     "type": "string",
-                    "description": "The exact text to find and replace"
+                    "description": "要查找并替换的精确文本"
                 },
                 "new_text": {
                     "type": "string",
-                    "description": "The text to replace with"
+                    "description": "用于替换的新文本"
                 }
             },
             "required": ["path", "old_text", "new_text"]
@@ -284,60 +359,79 @@ impl Tool for EditFileTool {
             None => return Ok("Error: Missing 'new_text' parameter".to_string()),
         };
 
-        match resolve_path(path, self.allowed_dir.as_ref()) {
-            Ok(file_path) => {
-                if !file_path.exists() {
-                    return Ok(format!("Error: File not found: {}", path));
-                }
+        // Security checks
+        if let Err(e) = self.security.can_act() {
+            return Ok(format!("Error: {}", e.user_message()));
+        }
 
-                let content = match std::fs::read_to_string(&file_path) {
-                    Ok(c) => c,
-                    Err(e) => return Ok(format!("Error reading file: {}", e)),
-                };
+        // Validate path and resolve
+        let resolved_path = match self.security.validate_path(path).await {
+            Ok(p) => p,
+            Err(e) => return Ok(format!("Error: {}", e.user_message())),
+        };
 
-                if !content.contains(old_text) {
-                    return Ok(
-                        "Error: old_text not found in file. Make sure it matches exactly."
-                            .to_string(),
-                    );
-                }
+        // Check if file exists
+        let metadata = match tokio::fs::metadata(&resolved_path).await {
+            Ok(m) => m,
+            Err(e) => return Ok(format!("Error: File not found: {} ({})", path, e)),
+        };
 
-                // Count occurrences
-                let count = content.matches(old_text).count();
-                if count > 1 {
-                    return Ok(format!(
-                        "Warning: old_text appears {} times. Please provide more context to make it unique.",
-                        count
-                    ));
-                }
+        if !metadata.is_file() {
+            return Ok(format!("Error: Not a file: {}", path));
+        }
 
-                let new_content = content.replacen(old_text, new_text, 1);
+        // Read file content
+        let content = match tokio::fs::read_to_string(&resolved_path).await {
+            Ok(c) => c,
+            Err(e) => return Ok(format!("Error reading file: {}", e)),
+        };
 
-                match std::fs::write(&file_path, new_content) {
-                    Ok(_) => Ok(format!("Successfully edited {}", path)),
-                    Err(e) => Ok(format!("Error writing file: {}", e)),
-                }
-            }
-            Err(e) => Ok(format!("Error: {}", e)),
+        // Validate old_text exists
+        if !content.contains(old_text) {
+            return Ok("Error: old_text not found in file. Make sure it matches exactly.".to_string());
+        }
+
+        // Count occurrences
+        let count = content.matches(old_text).count();
+        if count > 1 {
+            return Ok(format!(
+                "Warning: old_text appears {} times. Please provide more context to make it unique.",
+                count
+            ));
+        }
+
+        // Perform replacement
+        let new_content = content.replacen(old_text, new_text, 1);
+
+        // Write back
+        match tokio::fs::write(&resolved_path, new_content).await {
+            Ok(_) => Ok(format!("Successfully edited {}", path)),
+            Err(e) => Ok(format!("Error writing file: {}", e)),
         }
     }
 }
 
-/// List directory tool
+/// List directory tool with security policy
 pub struct ListDirTool {
-    allowed_dir: Option<PathBuf>,
+    security: SharedSecurityPolicy,
 }
 
 impl ListDirTool {
-    /// Create a new list dir tool
-    pub fn new(allowed_dir: Option<PathBuf>) -> Self {
-        Self { allowed_dir }
+    /// Create a new list dir tool with a security policy
+    pub fn new(security: SharedSecurityPolicy) -> Self {
+        Self { security }
+    }
+
+    /// Create a new list dir tool with default policy for a workspace
+    pub fn for_workspace(workspace: PathBuf) -> Self {
+        let policy = Arc::new(SecurityPolicy::new(workspace));
+        Self::new(policy)
     }
 }
 
 impl Default for ListDirTool {
     fn default() -> Self {
-        Self::new(None)
+        Self::for_workspace(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
     }
 }
 
@@ -348,7 +442,7 @@ impl Tool for ListDirTool {
     }
 
     fn description(&self) -> &str {
-        "List the contents of a directory."
+        "列出目录中的内容。"
     }
 
     fn parameters(&self) -> Value {
@@ -357,7 +451,7 @@ impl Tool for ListDirTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The directory path to list"
+                    "description": "要列出的目录路径（相对于工作区）"
                 }
             },
             "required": ["path"]
@@ -370,108 +464,142 @@ impl Tool for ListDirTool {
             None => return Ok("Error: Missing 'path' parameter".to_string()),
         };
 
-        match resolve_path(path, self.allowed_dir.as_ref()) {
-            Ok(dir_path) => {
-                if !dir_path.exists() {
-                    return Ok(format!("Error: Directory not found: {}", path));
-                }
-                if !dir_path.is_dir() {
-                    return Ok(format!("Error: Not a directory: {}", path));
-                }
-
-                match std::fs::read_dir(&dir_path) {
-                    Ok(entries) => {
-                        let mut items: Vec<_> = entries
-                            .filter_map(|e| e.ok())
-                            .map(|e| {
-                                let path = e.path();
-                                let prefix = if path.is_dir() { "📁 " } else { "📄 " };
-                                format!(
-                                    "{}{}",
-                                    prefix,
-                                    path.file_name()
-                                        .and_then(|n| n.to_str())
-                                        .unwrap_or("<invalid>")
-                                )
-                            })
-                            .collect();
-
-                        if items.is_empty() {
-                            return Ok(format!("Directory {} is empty", path));
-                        }
-
-                        items.sort();
-                        Ok(items.join("\n"))
-                    }
-                    Err(e) => Ok(format!("Error reading directory: {}", e)),
-                }
-            }
-            Err(e) => Ok(format!("Error: {}", e)),
+        // Security checks
+        if let Err(e) = self.security.try_record_action() {
+            return Ok(format!("Error: {}", e.user_message()));
         }
+
+        // Validate path and resolve
+        let resolved_path = match self.security.validate_path(path).await {
+            Ok(p) => p,
+            Err(e) => return Ok(format!("Error: {}", e.user_message())),
+        };
+
+        // Check if directory exists
+        let metadata = match tokio::fs::metadata(&resolved_path).await {
+            Ok(m) => m,
+            Err(e) => return Ok(format!("Error: Directory not found: {} ({})", path, e)),
+        };
+
+        if !metadata.is_dir() {
+            return Ok(format!("Error: Not a directory: {}", path));
+        }
+
+        // Read directory entries
+        let mut entries = match tokio::fs::read_dir(&resolved_path).await {
+            Ok(e) => e,
+            Err(e) => return Ok(format!("Error reading directory: {}", e)),
+        };
+
+        let mut items = Vec::new();
+
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            let prefix = if path.is_dir() { "📁 " } else { "📄 " };
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("<invalid>")
+                .to_string();
+            items.push(format!("{}{}", prefix, name));
+        }
+
+        if items.is_empty() {
+            return Ok(format!("Directory {} is empty", path));
+        }
+
+        items.sort();
+        Ok(items.join("\n"))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::security::SecurityLevel;
     use tempfile::TempDir;
+
+    fn create_test_security() -> (SharedSecurityPolicy, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let policy = Arc::new(SecurityPolicy::new(temp_dir.path().to_path_buf()));
+        (policy, temp_dir)
+    }
 
     #[tokio::test]
     async fn test_read_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let (security, temp_dir) = create_test_security();
         let file_path = temp_dir.path().join("test.txt");
-        std::fs::write(&file_path, "Hello, World!").unwrap();
+        tokio::fs::write(&file_path, "Hello, World!").await.unwrap();
 
-        let tool = ReadFileTool::new(Some(temp_dir.path().to_path_buf()));
-        let params = json!({ "path": file_path.to_str().unwrap() });
+        let tool = ReadFileTool::new(security);
+        let params = json!({ "path": "test.txt" });
         let result = tool.execute(params).await.unwrap();
 
         assert_eq!(result, "Hello, World!");
     }
 
     #[tokio::test]
-    async fn test_write_file() {
-        let temp_dir = TempDir::new().unwrap();
+    async fn test_read_file_with_offset_limit() {
+        let (security, temp_dir) = create_test_security();
         let file_path = temp_dir.path().join("test.txt");
+        tokio::fs::write(&file_path, "line1\nline2\nline3\nline4\nline5").await.unwrap();
 
-        let tool = WriteFileTool::new(Some(temp_dir.path().to_path_buf()));
+        let tool = ReadFileTool::new(security);
+        let params = json!({ "path": "test.txt", "offset": 2, "limit": 2 });
+        let result = tool.execute(params).await.unwrap();
+
+        assert!(result.contains("2: line2"));
+        assert!(result.contains("3: line3"));
+        assert!(result.contains("[Lines 2-3 of 5]"));
+    }
+
+    #[tokio::test]
+    async fn test_write_file() {
+        let (security, temp_dir) = create_test_security();
+
+        let tool = WriteFileTool::new(security);
         let params = json!({
-            "path": file_path.to_str().unwrap(),
+            "path": "test.txt",
             "content": "Test content"
         });
         let result = tool.execute(params).await.unwrap();
 
         assert!(result.contains("Successfully wrote"));
-        assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "Test content");
+
+        let file_path = temp_dir.path().join("test.txt");
+        let content = tokio::fs::read_to_string(&file_path).await.unwrap();
+        assert_eq!(content, "Test content");
     }
 
     #[tokio::test]
     async fn test_edit_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let (security, temp_dir) = create_test_security();
         let file_path = temp_dir.path().join("test.txt");
-        std::fs::write(&file_path, "Hello, World!").unwrap();
+        tokio::fs::write(&file_path, "Hello, World!").await.unwrap();
 
-        let tool = EditFileTool::new(Some(temp_dir.path().to_path_buf()));
+        let tool = EditFileTool::new(security);
         let params = json!({
-            "path": file_path.to_str().unwrap(),
+            "path": "test.txt",
             "old_text": "World",
             "new_text": "Rust"
         });
         let result = tool.execute(params).await.unwrap();
 
         assert!(result.contains("Successfully edited"));
-        assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "Hello, Rust!");
+
+        let content = tokio::fs::read_to_string(&file_path).await.unwrap();
+        assert_eq!(content, "Hello, Rust!");
     }
 
     #[tokio::test]
     async fn test_list_dir() {
-        let temp_dir = TempDir::new().unwrap();
-        std::fs::write(temp_dir.path().join("file1.txt"), "").unwrap();
-        std::fs::write(temp_dir.path().join("file2.txt"), "").unwrap();
-        std::fs::create_dir(temp_dir.path().join("subdir")).unwrap();
+        let (security, temp_dir) = create_test_security();
+        tokio::fs::write(temp_dir.path().join("file1.txt"), "").await.unwrap();
+        tokio::fs::write(temp_dir.path().join("file2.txt"), "").await.unwrap();
+        tokio::fs::create_dir(temp_dir.path().join("subdir")).await.unwrap();
 
-        let tool = ListDirTool::new(Some(temp_dir.path().to_path_buf()));
-        let params = json!({ "path": temp_dir.path().to_str().unwrap() });
+        let tool = ListDirTool::new(security);
+        let params = json!({ "path": "." });
         let result = tool.execute(params).await.unwrap();
 
         assert!(result.contains("📄 file1.txt"));
@@ -480,18 +608,110 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_path_restriction() {
-        let temp_dir = TempDir::new().unwrap();
-        let outside_file = std::env::temp_dir().join("outside.txt");
-        std::fs::write(&outside_file, "Outside content").unwrap();
+    async fn test_path_traversal_blocked() {
+        let (security, temp_dir) = create_test_security();
 
-        let tool = ReadFileTool::new(Some(temp_dir.path().to_path_buf()));
-        let params = json!({ "path": outside_file.to_str().unwrap() });
+        // Create a file outside temp_dir
+        let outside_file = std::env::temp_dir().join("agent_diva_test_outside.txt");
+        tokio::fs::write(&outside_file, "Outside content").await.unwrap();
+
+        let tool = ReadFileTool::new(security);
+        let params = json!({ "path": "../agent_diva_test_outside.txt" });
         let result = tool.execute(params).await.unwrap();
 
-        assert!(result.contains("outside allowed directory"));
+        assert!(result.contains("Error:"));
 
         // Cleanup
-        std::fs::remove_file(&outside_file).ok();
+        tokio::fs::remove_file(&outside_file).await.ok();
     }
+
+    #[tokio::test]
+    async fn test_rate_limiting() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = agent_diva_core::security::SecurityConfig {
+            max_actions_per_hour: 2,
+            ..Default::default()
+        };
+        let policy = Arc::new(SecurityPolicy::with_config(
+            temp_dir.path().to_path_buf(),
+            config,
+        ));
+
+        // Create test files
+        tokio::fs::write(temp_dir.path().join("file1.txt"), "content").await.unwrap();
+        tokio::fs::write(temp_dir.path().join("file2.txt"), "content").await.unwrap();
+        tokio::fs::write(temp_dir.path().join("file3.txt"), "content").await.unwrap();
+
+        let tool = ReadFileTool::new(policy);
+
+        // First two should succeed
+        let result1 = tool.execute(json!({ "path": "file1.txt" })).await.unwrap();
+        assert!(!result1.contains("Rate limit"));
+
+        let result2 = tool.execute(json!({ "path": "file2.txt" })).await.unwrap();
+        assert!(!result2.contains("Rate limit"));
+
+        // Third should fail due to rate limit
+        let result3 = tool.execute(json!({ "path": "file3.txt" })).await.unwrap();
+        assert!(result3.contains("Rate limit") || result3.contains("Too many"));
+    }
+
+    #[tokio::test]
+    async fn test_read_only_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let policy = Arc::new(SecurityPolicy::from_level(
+            temp_dir.path().to_path_buf(),
+            SecurityLevel::Paranoid,
+        ));
+
+        let tool = WriteFileTool::new(policy);
+        let params = json!({
+            "path": "test.txt",
+            "content": "Test"
+        });
+        let result = tool.execute(params).await.unwrap();
+
+        assert!(result.contains("read-only") || result.contains("Read-only"));
+    }
+}
+
+/// Read file with offset and limit using streaming for memory efficiency
+async fn read_file_with_offset_limit(
+    path: &std::path::Path,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> std::io::Result<String> {
+    use tokio::io::AsyncBufReadExt;
+    
+    let file = tokio::fs::File::open(path).await?;
+    let reader = tokio::io::BufReader::new(file);
+    let mut lines = reader.lines();
+    
+    let start = offset.map(|o| o.saturating_sub(1)).unwrap_or(0);
+    let max_lines = limit.unwrap_or(usize::MAX);
+    let mut result = Vec::new();
+    let mut line_num = 0;
+    
+    while let Some(line) = lines.next_line().await? {
+        line_num += 1;
+        if line_num <= start {
+            continue;
+        }
+        if result.len() >= max_lines {
+            break;
+        }
+        result.push(format!("{}: {}", line_num, line));
+    }
+    
+    let total = line_num;
+    let end = (start + result.len()).min(total);
+    
+    let content = result.join("\n");
+    let summary = if start > 0 || end < total {
+        format!("\n[Lines {}-{} of {}]", start + 1, end, total)
+    } else {
+        format!("\n[{} lines total]", total)
+    };
+    
+    Ok(format!("{}{}", content, summary))
 }

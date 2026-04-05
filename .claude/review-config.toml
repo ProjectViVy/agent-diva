@@ -1,0 +1,40 @@
+# Claude Code 本地审查配置
+
+[review]
+# 是否阻止提交发现有 CRITICAL 问题
+block_on_critical = true
+# 是否阻止提交发现有 HIGH 问题
+block_on_high = false
+
+[patterns]
+# 自定义检查规则
+[[patterns.custom]]
+name = "静态 FILE_MANAGER 重复"
+pattern = "static FILE_MANAGER.*OnceCell"
+message = "多个静态 FileManager 实例会导致数据不一致"
+suggestion = "使用 Arc<FileManager> 共享单一实例"
+severity = "CRITICAL"
+
+[[patterns.custom]]
+name = "重复的存储路径计算"
+pattern = "dirs::data_local_dir.*agent-diva.*files"
+message = "存储路径计算逻辑重复"
+suggestion = "提取为共享辅助函数或配置方法"
+severity = "MEDIUM"
+
+[[patterns.custom]]
+name = "unwrap_or_default 隐藏错误"
+pattern = "\.unwrap_or_default\(\)"
+message = "unwrap_or_default 可能隐藏错误"
+suggestion = "显式处理错误或使用 ? 传播"
+severity = "MEDIUM"
+exclude_files = ["*.test.rs"]
+
+[exclude]
+# 排除的文件/目录
+paths = [
+    "target/",
+    ".git/",
+    "*.lock",
+    "test_data/",
+]

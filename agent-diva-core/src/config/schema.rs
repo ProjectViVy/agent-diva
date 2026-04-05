@@ -893,7 +893,7 @@ fn default_host() -> String {
     "0.0.0.0".to_string()
 }
 fn default_port() -> u16 {
-    18790
+    3000
 }
 
 impl Default for GatewayConfig {

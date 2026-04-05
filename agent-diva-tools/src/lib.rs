@@ -2,6 +2,7 @@
 //!
 //! This crate provides the tool registry and built-in tool implementations.
 
+pub mod attachment;
 pub mod base;
 pub mod cron;
 pub mod filesystem;
@@ -14,6 +15,7 @@ pub mod spawn;
 pub mod web;
 pub mod wtf;
 
+pub use attachment::ReadAttachmentTool;
 pub use base::{Tool, ToolError};
 pub use cron::CronTool;
 pub use filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};

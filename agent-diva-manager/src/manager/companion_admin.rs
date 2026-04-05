@@ -121,6 +121,19 @@ impl Manager {
         let _ = reply.send(result);
     }
 
+    pub(super) async fn handle_upload_file(
+        &self,
+        request: crate::state::FileUploadRequest,
+        reply: oneshot::Sender<Result<agent_diva_core::attachment::FileAttachment, String>>,
+    ) {
+        let file_service = crate::file_service::FileService::new(self.file_manager.clone());
+        let result = file_service
+            .upload_file(&request.file_name, request.bytes, &request.channel, request.message_id.as_deref())
+            .await
+            .map_err(|e| e.to_string());
+        let _ = reply.send(result);
+    }
+
     fn skill_service(&self) -> crate::skill_service::SkillService {
         crate::skill_service::SkillService::new(self.loader.clone())
     }

@@ -16,7 +16,8 @@ struct SplashState {
 }
 
 fn should_manage_gateway_lifecycle() -> bool {
-    !cfg!(debug_assertions)
+    // Always manage gateway lifecycle (both debug and release mode)
+    true
 }
 
 #[tauri::command]
@@ -177,6 +178,7 @@ pub fn run() {
             commands::set_mcp_enabled,
             commands::refresh_mcp_status,
             commands::upload_skill,
+            commands::upload_file,
             commands::delete_skill,
             commands::get_providers,
             commands::create_custom_provider,
@@ -216,7 +218,7 @@ mod tests {
     use super::should_manage_gateway_lifecycle;
 
     #[test]
-    fn gateway_lifecycle_is_disabled_in_debug_builds() {
-        assert_eq!(should_manage_gateway_lifecycle(), !cfg!(debug_assertions));
+    fn gateway_lifecycle_is_always_enabled() {
+        assert!(should_manage_gateway_lifecycle(), "Gateway lifecycle should always be managed");
     }
 }

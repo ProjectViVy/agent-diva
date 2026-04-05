@@ -62,6 +62,19 @@ Incoming messages flow: Channel Handler → Message Bus (inbound) → Agent Loop
 
 Sessions persist to JSONL files via the Session Manager. Long-term memory uses MEMORY.md and append-only HISTORY.md files.
 
+### File Attachment System
+
+The file attachment system uses content-addressed storage (SHA256 hash as filename) for automatic deduplication:
+
+```
+Upload: Frontend → POST /api/upload → file_service.rs → %LOCALAPPDATA%/agent-diva/files/<hash>
+Read:   Agent Loop → load_attachment_contents() → Same path → Included in LLM prompt
+```
+
+**Critical**: Both upload and read must use the same path calculation. See `dirs::data_local_dir()` usage in `file_service.rs` and `agent_loop/loop_turn.rs`.
+
+**Windows Note**: The GUI uses `reqwest` with `.no_proxy()` to prevent system proxy interference with localhost API calls.
+
 ### Key Traits
 
 - `Provider` trait in agent-diva-providers — implement to add a new LLM provider
@@ -87,3 +100,19 @@ Precedence: Environment variables (`AGENT_DIVA__*`) > config file > defaults.
 - For native provider OpenAI-compatible endpoints (example: DeepSeek `https://api.deepseek.com/v1`), keep raw model IDs unchanged (example: `deepseek-chat`).
 - Do **not** auto-prefix raw IDs into LiteLLM form (example: avoid rewriting to `deepseek/deepseek-chat`) when not using a gateway.
 - Apply `provider/model` prefix rewriting only for real LiteLLM-style gateways/aggregators.
+
+## Troubleshooting
+
+### GUI Shows "Offline" / "Bad Gateway"
+
+**Cause**: Windows system HTTP proxy intercepting localhost requests.
+
+**Fix**: Ensure `agent-diva-gui/src-tauri/src/app_state.rs` uses `.no_proxy()` on the reqwest client.
+
+### AI Cannot Read Uploaded Files
+
+**Cause**: Path mismatch between upload and read operations.
+
+**Fix**: Ensure both `file_service.rs` and `agent_loop/loop_turn.rs` use the same path calculation via `dirs::data_local_dir()`.
+
+See [docs/dev/bug-fixing-lessons-learned.md](./docs/dev/bug-fixing-lessons-learned.md) for detailed debugging guide.

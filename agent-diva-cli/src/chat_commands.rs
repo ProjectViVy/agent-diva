@@ -14,6 +14,7 @@ use agent_diva_agent::{
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
+use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use console::style;
 use dialoguer::Input;
@@ -48,7 +49,7 @@ pub fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
     }
 }
 
-fn build_local_cli_agent(
+async fn build_local_cli_agent(
     runtime: &CliRuntime,
     model: Option<String>,
     with_runtime_control: bool,
@@ -91,6 +92,13 @@ fn build_local_cli_agent(
         (None, None)
     };
 
+    // Initialize shared FileManager for attachment handling
+    let storage_path = dirs::data_local_dir()
+        .map(|p| p.join("agent-diva").join("files"))
+        .unwrap_or_else(|| std::path::PathBuf::from(".agent-diva/files"));
+    let file_config = FileConfig::with_path(&storage_path);
+    let file_manager = Arc::new(FileManager::new(file_config).await?);
+
     let agent = AgentLoop::with_tools(
         bus,
         provider,
@@ -99,7 +107,10 @@ fn build_local_cli_agent(
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
         runtime_control_rx,
-    );
+        file_manager,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
 
     Ok((config, selected_model, agent, runtime_control_tx))
 }
@@ -194,7 +205,7 @@ pub async fn run_agent(
     logs: bool,
 ) -> Result<()> {
     let (_config, _selected_model, mut agent, _runtime_control_tx) =
-        build_local_cli_agent(runtime, model, false)?;
+        build_local_cli_agent(runtime, model, false).await?;
 
     let session_key = session.unwrap_or_else(|| "cli:direct".to_string());
 
@@ -300,7 +311,7 @@ pub async fn run_chat(
     logs: bool,
 ) -> Result<()> {
     let (_config, selected_model, mut agent, runtime_control_tx) =
-        build_local_cli_agent(runtime, model, true)?;
+        build_local_cli_agent(runtime, model, true).await?;
     let mut current_session = session.unwrap_or_else(|| "cli:chat".to_string());
 
     println!("{}", style("Agent Diva Chat").bold().cyan());

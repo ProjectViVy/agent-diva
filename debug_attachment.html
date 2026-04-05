@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug File Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        #log { background: #f5f5f5; padding: 10px; white-space: pre-wrap; font-family: monospace; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Agent Diva File Upload Debugger</h1>
+
+    <div class="section">
+        <h2>Step 1: Upload File</h2>
+        <input type="file" id="fileInput">
+        <button onclick="uploadFile()">Upload</button>
+    </div>
+
+    <div class="section">
+        <h2>Step 2: Send Message with Attachment</h2>
+        <input type="text" id="fileIdInput" placeholder="Enter file_id from upload" style="width: 400px;">
+        <button onclick="sendMessage()">Send Message</button>
+    </div>
+
+    <div class="section">
+        <h2>Log</h2>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:3000/api';
+
+        function log(msg, isError = false) {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const className = isError ? 'error' : '';
+            logEl.innerHTML += `<div class="${className}">[${time}] ${msg}</div>`;
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files.length) {
+                log('Please select a file first', true);
+                return;
+            }
+
+            const file = fileInput.files[0];
+            log(`Uploading file: ${file.name} (${file.size} bytes)`);
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('channel', 'gui');
+            formData.append('message_id', 'debug_' + Date.now());
+
+            try {
+                const response = await fetch(`${API_BASE}/files/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                log(`Upload response: ${JSON.stringify(data, null, 2)}`);
+
+                if (data.status === 'ok' && data.attachment) {
+                    document.getElementById('fileIdInput').value = data.attachment.file_id;
+                    log(`<span class="success">Upload successful! File ID: ${data.attachment.file_id}</span>`);
+                } else {
+                    log(`Upload failed: ${data.message}`, true);
+                }
+            } catch (err) {
+                log(`Upload error: ${err.message}`, true);
+            }
+        }
+
+        async function sendMessage() {
+            const fileId = document.getElementById('fileIdInput').value.trim();
+            if (!fileId) {
+                log('Please enter a file_id', true);
+                return;
+            }
+
+            log(`Sending message with attachment: ${fileId}`);
+
+            const payload = {
+                message: '请总结这个文件的内容',
+                channel: 'gui',
+                chat_id: 'debug_chat',
+                attachments: [fileId]
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    log(`<span class="success">Message sent successfully!</span>`);
+                    log('Check gateway logs to see if AI reads the file');
+                } else {
+                    const text = await response.text();
+                    log(`Send failed: ${response.status} - ${text}`, true);
+                }
+            } catch (err) {
+                log(`Send error: ${err.message}`, true);
+            }
+        }
+    </script>
+</body>
+</html>

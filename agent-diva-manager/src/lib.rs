@@ -1,3 +1,4 @@
+pub mod file_service;
 pub mod handlers;
 pub mod manager;
 pub mod mcp_service;
