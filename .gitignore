@@ -126,3 +126,9 @@ logs/
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# OMC (oh-my-claudecode) session state
+.omc/
+
+# Temporary state files
+state/

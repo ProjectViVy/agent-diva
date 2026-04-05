@@ -1,0 +1,18 @@
+# UPSP-RS 设计文档目录
+
+本目录包含 UPSP-RS（Universal Persona Substrate Protocol - Rust 实现）的完整设计文档。
+
+所有文档已完成，共 2215 行。
+
+## 文档列表
+
+1. upsp-rs-architecture-design.md (1536 行) - 主文档
+2. README.md (102 行) - 索引文档
+3. executive-summary.md (285 行) - 执行摘要
+4. SUMMARY.md (292 行) - 总结报告
+
+## 状态
+
+✅ 设计阶段完成
+⏳ 等待开始实施 Phase 0（基础设施）
+
