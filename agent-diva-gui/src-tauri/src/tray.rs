@@ -1,9 +1,9 @@
-use std::path::PathBuf;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, Runtime,
 };
+use tauri_plugin_store::StoreExt;
 
 /// Initialize the system tray with menu items.
 pub fn init_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
@@ -50,29 +50,26 @@ pub fn init_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-/// Read close_to_tray setting from the settings.json file
-fn read_close_to_tray_from_file(app: &AppHandle<impl Runtime>) -> Option<bool> {
-    let config_dir = app.path().app_config_dir().ok()?;
-    let settings_path: PathBuf = config_dir.join("settings.json");
-
-    let content = std::fs::read_to_string(&settings_path).ok()?;
-    let json: serde_json::Value = serde_json::from_str(&content).ok()?;
-
-    json.get("closeToTray")?.as_bool()
+/// Read close_to_tray setting from the Tauri plugin store.
+fn read_close_to_tray(app: &AppHandle<impl Runtime>) -> bool {
+    match app.store("settings.json") {
+        Ok(store) => store
+            .get("closeToTray")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        Err(_) => false,
+    }
 }
 
 /// Handle window close event based on close_to_tray setting.
 /// Returns true if the app should hide (stay in tray), false if it should close.
 pub fn handle_window_close<R: Runtime>(app: &AppHandle<R>) -> bool {
-    // Try to read the close_to_tray setting from the file
-    if let Some(close_to_tray) = read_close_to_tray_from_file(app) {
-        if close_to_tray {
-            // Hide window instead of closing
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.hide();
-            }
-            return true;
+    if read_close_to_tray(app) {
+        // Hide window instead of closing
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.hide();
         }
+        return true;
     }
 
     // Default behavior: don't close to tray, allow normal exit

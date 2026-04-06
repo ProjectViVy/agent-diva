@@ -135,7 +135,9 @@ pub fn run() {
                         return;
                     }
 
-                    // Normal close - cleanup gateway if needed
+                    // Normal close - cleanup gateway and exit the process
+                    // (tray icon would otherwise keep the event loop alive)
+                    let app_handle = window.app_handle().clone();
                     if should_manage_gateway_lifecycle() {
                         tracing::info!("Main window closing, cleaning up gateway process...");
                         tauri::async_runtime::spawn(async move {
@@ -144,7 +146,10 @@ pub fn run() {
                             } else {
                                 tracing::info!("Gateway process stopped successfully on exit");
                             }
+                            app_handle.exit(0);
                         });
+                    } else {
+                        app_handle.exit(0);
                     }
                 }
             }
