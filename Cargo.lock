@@ -63,6 +63,7 @@ dependencies = [
  "mail-parser",
  "mime_guess",
  "native-tls",
+ "openssl",
  "prost",
  "prost-derive",
  "regex",
@@ -3391,13 +3392,14 @@ dependencies = [
  "httpdate",
  "idna",
  "mime",
- "native-tls",
  "nom 8.0.0",
  "percent-encoding",
  "quoted_printable",
+ "rustls 0.23.36",
  "socket2 0.6.2",
  "tokio",
  "url",
+ "webpki-roots 1.0.6",
 ]
 
 [[package]]
@@ -4205,6 +4207,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
+name = "openssl-src"
+version = "300.5.5+3.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f1787d533e03597a7934fd0a765f0d28e94ecc5fb7789f8053b1e699a56f709"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.111"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4212,6 +4223,7 @@ checksum = "82cab2d520aa75e3c58898289429321eb788c3106963d0dc886ec7a5f4adc321"
 dependencies = [
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -6193,10 +6205,11 @@ dependencies = [
  "indexmap 2.13.0",
  "log",
  "memchr",
- "native-tls",
  "once_cell",
  "paste",
  "percent-encoding",
+ "rustls 0.21.12",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "sha2",
@@ -6207,6 +6220,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
+ "webpki-roots 0.25.4",
 ]
 
 [[package]]

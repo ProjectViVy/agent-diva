@@ -34,8 +34,8 @@
 仅当 tag 匹配 `v*.*.*` 且变更命中 workflow 的 `paths` 过滤时，会跑完整 CI；成功后在同一运行中创建 **Desktop release**，附件为 Linux / Windows / macOS 的 Tauri 安装包。
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.4.9
+git push origin v0.4.9
 ```
 
 **方式 2：手动跑 CI（构建 artifact，不发 Release）**

@@ -50,7 +50,7 @@ base64 = "0.22"
 
 # Email support (using blocking I/O for simplicity)
 imap = "2.4"  # Blocking IMAP client (stable version)
-lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "native-tls"] }
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "rustls-tls"] }
 mail-parser = "0.9"
 html-escape = "0.2"
 
@@ -60,6 +60,9 @@ html-escape = "0.2"
 prost = "0.13"
 prost-derive = "0.13"
 futures-util = "0.3"
+
+[target.'cfg(not(windows))'.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
