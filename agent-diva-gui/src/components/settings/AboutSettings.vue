@@ -18,7 +18,7 @@ const { t } = useI18n();
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden text-left">
       <div class="p-4 border-b border-gray-50 flex justify-between items-center hover:bg-gray-50 transition-colors">
         <span class="text-gray-500">{{ t('about.version') }}</span>
-        <span class="font-mono text-gray-800 font-medium">0.4.0</span>
+        <span class="font-mono text-gray-800 font-medium">0.4.9</span>
       </div>
       <div class="p-4 border-b border-gray-50 flex justify-between items-center hover:bg-gray-50 transition-colors">
         <span class="text-gray-500">{{ t('about.license') }}</span>

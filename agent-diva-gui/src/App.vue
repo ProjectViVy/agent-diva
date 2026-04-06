@@ -1027,14 +1027,6 @@ async function checkHealth() {
 }
 
 onMounted(async () => {
-  const markSplashComplete = () => {
-    if (isTauri()) {
-      invoke('set_splash_complete', { task: 'frontend' }).catch((e) =>
-        console.warn('set_splash_complete failed:', e)
-      );
-    }
-  };
-
   if (!isTauri()) {
       console.log("Running in browser mode - Tauri listeners skipped");
       return;
@@ -1346,7 +1338,7 @@ onMounted(async () => {
   } catch (e) {
     console.error("App initialization error:", e);
   } finally {
-    markSplashComplete();
+    // 暂时停用启动动画流程，保留 splashscreen 页面文件以便后续恢复。
   }
 });
 

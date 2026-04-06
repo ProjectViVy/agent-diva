@@ -13,7 +13,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-VERSION="0.4.0"
+VERSION="0.4.9"
 DIST_DIR="dist"
 
 info() { echo -e "${BLUE}[INFO]${NC} $1"; }

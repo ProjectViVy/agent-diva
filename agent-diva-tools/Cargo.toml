@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-tools"
-version = "0.4.0"
+version = "0.4.9"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
@@ -9,8 +9,8 @@ repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Built-in tools for agent-diva"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.4.0" }
-agent-diva-files = { path = "../agent-diva-files", version = "0.4.0" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.4.9" }
+agent-diva-files = { path = "../agent-diva-files", version = "0.4.9" }
 
 # Async runtime
 tokio = { workspace = true }

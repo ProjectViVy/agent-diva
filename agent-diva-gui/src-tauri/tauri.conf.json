@@ -23,6 +23,7 @@
         "label": "splashscreen",
         "title": "Agent Diva",
         "url": "/splashscreen.html",
+        "visible": false,
         "width": 400,
         "height": 300,
         "resizable": false,
