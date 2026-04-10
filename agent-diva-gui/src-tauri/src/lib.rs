@@ -16,8 +16,9 @@ struct SplashState {
 }
 
 fn should_manage_gateway_lifecycle() -> bool {
-    // Always manage gateway lifecycle (both debug and release mode)
-    true
+    // Only manage gateway lifecycle in release mode
+    // In debug mode, developers should start the gateway manually for better control
+    !cfg!(debug_assertions)
 }
 
 #[tauri::command]
@@ -223,10 +224,19 @@ mod tests {
     use super::should_manage_gateway_lifecycle;
 
     #[test]
-    fn gateway_lifecycle_is_always_enabled() {
-        assert!(
-            should_manage_gateway_lifecycle(),
-            "Gateway lifecycle should always be managed"
-        );
+    fn gateway_lifecycle_is_disabled_in_debug_mode() {
+        // In debug mode, gateway lifecycle should be disabled
+        // In release mode, gateway lifecycle should be enabled
+        if cfg!(debug_assertions) {
+            assert!(
+                !should_manage_gateway_lifecycle(),
+                "Gateway lifecycle should be disabled in debug mode"
+            );
+        } else {
+            assert!(
+                should_manage_gateway_lifecycle(),
+                "Gateway lifecycle should be enabled in release mode"
+            );
+        }
     }
 }
