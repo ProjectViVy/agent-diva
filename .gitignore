@@ -2,6 +2,7 @@
 /target
 # Accidental cargo message-mode output at repo root
 /build_utf8.json
+/build.json
 **/*.rs.bk
 *.d
 *.rlib
@@ -22,7 +23,10 @@
 *.swo
 *~
 .claude/
-.qoder/
+# Qoder: ignore local state, but keep versioned skills.
+.qoder/*
+!.qoder/skills/
+!.qoder/skills/**
 .workspace/
 .kiro/
 *.sublime-*
@@ -30,6 +34,21 @@
 .project
 .classpath
 .settings/
+
+# AI/IDE tool caches: ignore local state, but keep versioned skills.
+.agent/*
+!.agent/skills/
+!.agent/skills/**
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+.codebuddy/
+.gemini/
+.iflow/
+.trae/
+.opencode/*
+!.opencode/skills/
+!.opencode/skills/**
 
 # JS/GUI
 **/node_modules/
@@ -87,6 +106,9 @@ Icon?
 Thumbs.db
 desktop.ini
 
+# Windows command redirect artifacts
+nul
+
 # Environment
 .env
 .env.local
@@ -100,12 +122,20 @@ desktop.ini
 *.profraw
 coverage/
 
+# Nested test workspaces (local experiments)
+tui-test/target/
+tui-test/Cargo.lock
+
 # Documentation build
 target/doc/
 
 # GUI bundle 构建产物（由 prepare_gui_bundle.py 生成）
 agent-diva-gui/src-tauri/resources/bin/
 agent-diva-gui/src-tauri/resources/manifests/
+
+# BMad Builder artifacts
+_bmad/
+_bmad-output/
 
 # Temporary files
 *.tmp
