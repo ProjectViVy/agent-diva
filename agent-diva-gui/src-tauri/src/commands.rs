@@ -1,5 +1,7 @@
 use crate::app_state::AgentState;
+use crate::gateway_status::GatewayStatus;
 use crate::process_utils;
+use crate::shutdown_manager::ShutdownManager;
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
@@ -9,7 +11,6 @@ use agent_diva_providers::{
 };
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -22,14 +23,6 @@ use tauri_plugin_store::StoreExt;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, error, info, warn};
-
-struct GatewayProcess {
-    child: tokio::process::Child,
-    executable_path: String,
-}
-
-static GATEWAY_PROCESS: Lazy<AsyncMutex<Option<GatewayProcess>>> =
-    Lazy::new(|| AsyncMutex::new(None));
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -320,7 +313,7 @@ pub async fn send_message(
     info!("Attachments: {:?}", attachments);
 
     let client = &state.client;
-    let url = format!("{}/chat", state.api_base_url);
+    let url = format!("{}/chat", state.api_base_url());
 
     let response = client
         .post(&url)
@@ -465,7 +458,7 @@ pub async fn stop_generation(
     chat_id: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<bool, String> {
-    let url = format!("{}/chat/stop", state.api_base_url);
+    let url = format!("{}/chat/stop", state.api_base_url());
     let payload = serde_json::json!({
         "channel": channel,
         "chat_id": chat_id
@@ -509,7 +502,7 @@ pub async fn reset_session(
     chat_id: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<bool, String> {
-    let url = format!("{}/sessions/reset", state.api_base_url);
+    let url = format!("{}/sessions/reset", state.api_base_url());
     let payload = serde_json::json!({
         "channel": channel,
         "chat_id": chat_id
@@ -548,7 +541,7 @@ pub async fn reset_session(
 pub async fn delete_session(chat_id: String, state: State<'_, AgentState>) -> Result<bool, String> {
     let id_encoded = urlencoding::encode(&chat_id);
     // Use POST /sessions/:id (same path as DELETE) - more reliable in some environments
-    let url = format!("{}/sessions/{}", state.api_base_url, id_encoded);
+    let url = format!("{}/sessions/{}", state.api_base_url(), id_encoded);
 
     let response = state
         .client
@@ -586,7 +579,7 @@ pub async fn delete_session(chat_id: String, state: State<'_, AgentState>) -> Re
 
 #[tauri::command]
 pub async fn get_sessions(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let url = format!("{}/sessions", state.api_base_url);
+    let url = format!("{}/sessions", state.api_base_url());
 
     let response = state
         .client
@@ -626,7 +619,7 @@ pub async fn get_session_history(
 ) -> Result<serde_json::Value, String> {
     // URL encode the chat_id in case it contains special characters like ':'
     let id_encoded = urlencoding::encode(&chat_id);
-    let url = format!("{}/sessions/{}", state.api_base_url, id_encoded);
+    let url = format!("{}/sessions/{}", state.api_base_url(), id_encoded);
 
     let response = state
         .client
@@ -666,7 +659,7 @@ pub async fn get_session_history(
 
 #[tauri::command]
 pub async fn get_cron_jobs(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let url = format!("{}/cron/jobs", state.api_base_url);
+    let url = format!("{}/cron/jobs", state.api_base_url());
     let response = state
         .client
         .get(&url)
@@ -704,7 +697,7 @@ pub async fn get_cron_job(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -739,7 +732,7 @@ pub async fn create_cron_job(
     payload: serde_json::Value,
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, String> {
-    let url = format!("{}/cron/jobs", state.api_base_url);
+    let url = format!("{}/cron/jobs", state.api_base_url());
     let response = state
         .client
         .post(&url)
@@ -776,7 +769,7 @@ pub async fn update_cron_job(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -815,7 +808,7 @@ pub async fn set_cron_job_enabled(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}/enable",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -854,7 +847,7 @@ pub async fn run_cron_job(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}/run",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -892,7 +885,7 @@ pub async fn stop_cron_job_run(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}/stop",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -926,7 +919,7 @@ pub async fn stop_cron_job_run(
 pub async fn delete_cron_job(job_id: String, state: State<'_, AgentState>) -> Result<(), String> {
     let url = format!(
         "{}/cron/jobs/{}",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -960,32 +953,66 @@ pub async fn delete_cron_job(job_id: String, state: State<'_, AgentState>) -> Re
 pub async fn start_background_stream(
     window: Window,
     state: State<'_, AgentState>,
+    shutdown_manager: State<'_, ShutdownManager>,
 ) -> Result<(), String> {
     let client = state.client.clone();
+    let cancel_token = shutdown_manager.cancel_token();
     let url = format!(
         "{}/events?channel=api&chat_prefix=cron:",
-        state.api_base_url
+        state.api_base_url()
     );
 
     tauri::async_runtime::spawn(async move {
         loop {
-            let response = match client.get(&url).send().await {
+            let response = tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    info!("Background stream cancelled before next connection attempt");
+                    break;
+                }
+                response = client.get(&url).send() => response,
+            };
+
+            let response = match response {
                 Ok(resp) => resp,
                 Err(e) => {
                     error!("Failed to connect background stream: {}", e);
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            info!("Background stream cancelled during reconnect backoff");
+                            break;
+                        }
+                        _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+                    }
                     continue;
                 }
             };
 
             if !response.status().is_success() {
                 error!("Background stream server error: {}", response.status());
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                tokio::select! {
+                    _ = cancel_token.cancelled() => {
+                        info!("Background stream cancelled after server error");
+                        break;
+                    }
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+                }
                 continue;
             }
 
             let mut stream = response.bytes_stream().eventsource();
-            while let Some(event) = stream.next().await {
+            loop {
+                let event = tokio::select! {
+                    _ = cancel_token.cancelled() => {
+                        info!("Background stream cancelled while reading events");
+                        return;
+                    }
+                    event = stream.next() => event,
+                };
+
+                let Some(event) = event else {
+                    break;
+                };
+
                 match event {
                     Ok(event) => match event.event.as_str() {
                         "final" => {
@@ -1007,8 +1034,16 @@ pub async fn start_background_stream(
                 }
             }
 
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    info!("Background stream cancelled before retry");
+                    break;
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+            }
         }
+
+        info!("Background stream task exited");
     });
 
     Ok(())
@@ -1016,7 +1051,7 @@ pub async fn start_background_stream(
 
 #[tauri::command]
 pub async fn check_health(state: State<'_, AgentState>) -> Result<bool, String> {
-    let url = format!("{}/health", state.api_base_url);
+    let url = format!("{}/health", state.api_base_url());
 
     let client = &state.client;
     let response = client
@@ -1167,7 +1202,7 @@ pub async fn create_mcp(
     payload: McpServerPayload,
     state: State<'_, AgentState>,
 ) -> Result<McpServerDto, String> {
-    let url = format!("{}/mcps", state.api_base_url);
+    let url = format!("{}/mcps", state.api_base_url());
     let response = state
         .client
         .post(&url)
@@ -1196,7 +1231,11 @@ pub async fn update_mcp(
     payload: McpServerPayload,
     state: State<'_, AgentState>,
 ) -> Result<McpServerDto, String> {
-    let url = format!("{}/mcps/{}", state.api_base_url, urlencoding::encode(&name));
+    let url = format!(
+        "{}/mcps/{}",
+        state.api_base_url(),
+        urlencoding::encode(&name)
+    );
     let response = state
         .client
         .put(&url)
@@ -1221,7 +1260,11 @@ pub async fn update_mcp(
 
 #[tauri::command]
 pub async fn delete_mcp(name: String, state: State<'_, AgentState>) -> Result<(), String> {
-    let url = format!("{}/mcps/{}", state.api_base_url, urlencoding::encode(&name));
+    let url = format!(
+        "{}/mcps/{}",
+        state.api_base_url(),
+        urlencoding::encode(&name)
+    );
     let response = state
         .client
         .delete(&url)
@@ -1250,7 +1293,7 @@ pub async fn set_mcp_enabled(
 ) -> Result<McpServerDto, String> {
     let url = format!(
         "{}/mcps/{}/enable",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&name)
     );
     let response = state
@@ -1282,7 +1325,7 @@ pub async fn refresh_mcp_status(
 ) -> Result<McpServerDto, String> {
     let url = format!(
         "{}/mcps/{}/refresh",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&name)
     );
     let response = state
@@ -1313,7 +1356,7 @@ pub async fn upload_skill(
     bytes: Vec<u8>,
     state: State<'_, AgentState>,
 ) -> Result<SkillDto, String> {
-    let url = format!("{}/skills", state.api_base_url);
+    let url = format!("{}/skills", state.api_base_url());
     let part = reqwest::multipart::Part::bytes(bytes)
         .file_name(file_name)
         .mime_str("application/zip")
@@ -1355,7 +1398,7 @@ pub async fn upload_file(
     message_id: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<FileAttachmentDto, String> {
-    let url = format!("{}/files/upload", state.api_base_url);
+    let url = format!("{}/files/upload", state.api_base_url());
     let file_part = reqwest::multipart::Part::bytes(bytes)
         .file_name(file_name)
         .mime_str("application/octet-stream")
@@ -1407,7 +1450,7 @@ pub async fn upload_file(
 #[tauri::command]
 pub async fn delete_skill(name: String, state: State<'_, AgentState>) -> Result<(), String> {
     let name = urlencoding::encode(&name);
-    let url = format!("{}/skills/{}", state.api_base_url, name);
+    let url = format!("{}/skills/{}", state.api_base_url(), name);
     let response = state
         .client
         .delete(&url)
@@ -1438,7 +1481,7 @@ pub async fn update_tools_config(
 
 #[tauri::command]
 pub async fn get_channels(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let url = format!("{}/channels", state.api_base_url);
+    let url = format!("{}/channels", state.api_base_url());
 
     let response = state
         .client
@@ -1467,7 +1510,7 @@ pub async fn update_channel(
     config: serde_json::Value,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
-    let url = format!("{}/channels", state.api_base_url);
+    let url = format!("{}/channels", state.api_base_url());
 
     let payload = serde_json::json!({
         "name": name,
@@ -1546,7 +1589,7 @@ fn config_loader() -> ConfigLoader {
 }
 
 /// Saves the gateway port to a configuration file
-fn save_gateway_port_config(port: u16) -> Result<(), String> {
+pub(crate) fn save_gateway_port_config(port: u16) -> Result<(), String> {
     let loader = config_loader();
     let config_dir = loader.config_dir();
     std::fs::create_dir_all(config_dir)
@@ -1558,6 +1601,26 @@ fn save_gateway_port_config(port: u16) -> Result<(), String> {
 
     info!("Saved gateway port {} to {}", port, port_file.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod gateway_status_tests {
+    use super::gateway_process_status_from_runtime;
+    use crate::gateway_status::GatewayStatus;
+
+    #[test]
+    fn gateway_process_status_uses_embedded_runtime_state() {
+        let status = GatewayStatus::new(3456);
+        let process_status = gateway_process_status_from_runtime(&status);
+
+        assert!(process_status.running);
+        assert_eq!(process_status.pid, None);
+        assert_eq!(process_status.executable_path, None);
+        assert_eq!(
+            process_status.details.as_deref(),
+            Some("Gateway: Running (port: 3456)")
+        );
+    }
 }
 
 /// Loads the gateway port from configuration file, defaults to 3000
@@ -2095,85 +2158,21 @@ fn latest_log_file(log_dir: &std::path::Path) -> Result<Option<PathBuf>, String>
     Ok(newest.map(|(_, path)| path))
 }
 
-fn resolved_cli_binary_for_launch(
-    app: &AppHandle,
-    bin_path: Option<String>,
-) -> Result<PathBuf, String> {
-    if let Some(bin_path) = bin_path {
-        let candidate = PathBuf::from(bin_path);
-        if candidate.exists() {
-            return Ok(candidate);
-        }
-        return Err(format!(
-            "gateway binary not found at {}",
-            candidate.display()
-        ));
-    }
-
-    resolve_cli_binary(app)
-}
-
-async fn refresh_gateway_process_status() -> GatewayProcessStatus {
-    let mut guard = GATEWAY_PROCESS.lock().await;
-    if let Some(process) = guard.as_mut() {
-        match process.child.try_wait() {
-            Ok(Some(status)) => {
-                let detail = format!("gateway process exited with status {status}");
-                *guard = None;
-                GatewayProcessStatus {
-                    running: false,
-                    pid: None,
-                    executable_path: None,
-                    details: Some(detail),
-                }
-            }
-            Ok(None) => GatewayProcessStatus {
-                running: true,
-                pid: process.child.id(),
-                executable_path: Some(process.executable_path.clone()),
-                details: Some("gateway process is running".to_string()),
-            },
-            Err(error) => GatewayProcessStatus {
-                running: false,
-                pid: None,
-                executable_path: Some(process.executable_path.clone()),
-                details: Some(format!("failed to inspect gateway process: {error}")),
-            },
-        }
-    } else {
-        // GATEWAY_PROCESS is empty, check port and system processes
-        let port_occupied = process_utils::is_port_3000_occupied();
-        let gateway_pids = process_utils::find_gateway_processes();
-
-        if port_occupied || !gateway_pids.is_empty() {
-            // Gateway is running but not managed by GUI
-            let mut details = String::from("gateway process detected but not managed by GUI");
-            if port_occupied {
-                details.push_str(" (port 3000 occupied)");
-            }
-            if !gateway_pids.is_empty() {
-                details.push_str(&format!(
-                    " (found {} gateway process(es))",
-                    gateway_pids.len()
-                ));
-            }
-
-            GatewayProcessStatus {
-                running: true,
-                pid: gateway_pids.first().copied(),
-                executable_path: None,
-                details: Some(details),
-            }
-        } else {
-            GatewayProcessStatus {
-                running: false,
-                pid: None,
-                executable_path: None,
-                details: Some("gateway process is not running".to_string()),
-            }
-        }
+pub fn gateway_process_status_from_runtime(status: &GatewayStatus) -> GatewayProcessStatus {
+    GatewayProcessStatus {
+        running: status.running,
+        pid: None,
+        executable_path: None,
+        details: Some(status.format_status()),
     }
 }
+
+const EMBEDDED_GATEWAY_AUTOMATIC_MESSAGE: &str =
+    "embedded mode: gateway starts automatically with app";
+const EMBEDDED_GATEWAY_COMPAT_STOP_MESSAGE: &str =
+    "embedded mode: stop_gateway is a compatibility no-op; quit the app or use tray Quit to stop the embedded gateway";
+const EMBEDDED_GATEWAY_COMPAT_UNINSTALL_MESSAGE: &str =
+    "embedded mode: uninstall_gateway is deprecated and only performs compatibility cleanup for stray legacy gateway processes";
 
 #[tauri::command]
 pub fn get_runtime_info(app: AppHandle) -> RuntimeInfo {
@@ -2268,8 +2267,18 @@ pub async fn stop_service(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn get_gateway_process_status() -> GatewayProcessStatus {
-    refresh_gateway_process_status().await
+pub async fn get_gateway_process_status(
+    state: State<'_, AsyncMutex<GatewayStatus>>,
+) -> Result<GatewayProcessStatus, String> {
+    let status = state.lock().await.clone();
+    Ok(gateway_process_status_from_runtime(&status))
+}
+
+#[tauri::command]
+pub async fn get_gateway_status(
+    state: State<'_, AsyncMutex<GatewayStatus>>,
+) -> Result<GatewayStatus, String> {
+    Ok(state.lock().await.clone())
 }
 
 #[tauri::command]
@@ -2279,161 +2288,40 @@ pub fn get_gateway_port() -> u16 {
 }
 
 #[tauri::command]
-pub async fn start_gateway(app: AppHandle, bin_path: Option<String>) -> Result<u16, String> {
-    let current_status = refresh_gateway_process_status().await;
-    if current_status.running {
-        return Err("gateway process is already running".to_string());
-    }
-
-    // Strategy 1: Try to use port 3000 directly
-    let port = if process_utils::is_port_3000_occupied() {
-        info!("Port 3000 is occupied, attempting mixed strategy...");
-
-        // Strategy 2: Try to clean up and use port 3000
-        match process_utils::force_cleanup_all_gateway_processes().await {
-            Ok(count) => {
-                if count > 0 {
-                    info!("Forcefully terminated {} agent-diva process(es)", count);
-                } else {
-                    info!("No agent-diva processes found to terminate");
-                }
-            }
-            Err(e) => {
-                warn!("Error during forceful cleanup: {}", e);
-            }
-        }
-
-        // Wait for port 3000 to become available
-        match process_utils::wait_for_port_available(5, 3000).await {
-            Ok(true) => {
-                info!("Port 3000 is now available, using it");
-                3000
-            }
-            Ok(false) => {
-                // Strategy 3: Fall back to dynamic port
-                info!("Port 3000 still occupied after cleanup, switching to dynamic port...");
-                match process_utils::find_first_available_port(3001, 3010) {
-                    Some(available_port) => {
-                        info!("Found available port: {}", available_port);
-                        available_port
-                    }
-                    None => {
-                        return Err("All ports in range 3001-3010 are unavailable".to_string());
-                    }
-                }
-            }
-            Err(e) => {
-                return Err(format!("Error while waiting for port 3000: {}", e));
-            }
-        }
-    } else {
-        // Port 3000 is available, use it
-        info!("Port 3000 is available, using it");
-        3000
-    };
-
-    let loader = config_loader();
-    std::fs::create_dir_all(loader.config_dir()).map_err(|e| {
-        format!(
-            "failed to create config directory {}: {}",
-            loader.config_dir().display(),
-            e
-        )
-    })?;
-
-    let executable = resolved_cli_binary_for_launch(&app, bin_path)?;
-    let mut command = TokioCommand::new(&executable);
-    configure_background_command(&mut command);
-    command
-        .arg("--config-dir")
-        .arg(loader.config_dir())
-        .arg("gateway")
-        .arg("run")
-        .current_dir(loader.config_dir())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    let child = command.spawn().map_err(|e| {
-        format!(
-            "failed to spawn gateway process {}: {}",
-            executable.display(),
-            e
-        )
-    })?;
-
-    let mut guard = GATEWAY_PROCESS.lock().await;
-    *guard = Some(GatewayProcess {
-        child,
-        executable_path: executable.display().to_string(),
-    });
-
-    // Save the port to config for frontend to use
-    if let Err(e) = save_gateway_port_config(port) {
-        warn!("Failed to save gateway port config: {}", e);
-    }
-
-    info!("Gateway process started successfully on port {}", port);
-    Ok(port)
+#[deprecated(note = "Embedded mode starts the gateway automatically; keep for compatibility only.")]
+pub async fn start_gateway(_app: AppHandle, _bin_path: Option<String>) -> Result<u16, String> {
+    warn!("start_gateway called through deprecated compatibility layer");
+    Err(EMBEDDED_GATEWAY_AUTOMATIC_MESSAGE.to_string())
 }
 
 #[tauri::command]
+#[deprecated(
+    note = "Embedded mode manages gateway shutdown with app lifecycle; keep for compatibility only."
+)]
 pub async fn stop_gateway() -> Result<(), String> {
-    let mut guard = GATEWAY_PROCESS.lock().await;
-    let Some(process) = guard.as_mut() else {
-        return Ok(());
-    };
-
-    process
-        .child
-        .kill()
-        .await
-        .map_err(|e| format!("failed to stop gateway process: {e}"))?;
-    *guard = None;
+    warn!("stop_gateway called through deprecated compatibility layer");
+    info!("{}", EMBEDDED_GATEWAY_COMPAT_STOP_MESSAGE);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn uninstall_gateway() -> Result<(), String> {
-    info!("Uninstalling gateway: terminating all gateway processes...");
+#[deprecated(
+    note = "Embedded mode uses in-process lifecycle management; keep only as a compatibility cleanup wrapper."
+)]
+pub async fn uninstall_gateway(app: AppHandle) -> Result<(), String> {
+    warn!("uninstall_gateway called through deprecated compatibility layer");
+    info!("{}", EMBEDDED_GATEWAY_COMPAT_UNINSTALL_MESSAGE);
 
-    // First, stop the managed gateway process
-    let _ = stop_gateway().await;
+    crate::shutdown_embedded_gateway(&app).await;
 
-    // Then, find and terminate all gateway processes in the system
-    let gateway_pids = process_utils::find_gateway_processes();
-    if gateway_pids.is_empty() {
-        info!("No gateway processes found to uninstall");
-        return Ok(());
-    }
-
-    info!(
-        "Found {} gateway process(es) to terminate",
-        gateway_pids.len()
-    );
-    let mut errors = Vec::new();
-
-    for pid in gateway_pids {
-        match process_utils::terminate_process(pid) {
-            Ok(()) => {
-                info!("Terminated gateway process {}", pid);
-            }
-            Err(e) => {
-                warn!("Failed to terminate gateway process {}: {}", pid, e);
-                errors.push(format!("PID {}: {}", pid, e));
-            }
-        }
-    }
-
-    if !errors.is_empty() {
-        return Err(format!(
-            "Failed to terminate some processes: {}",
-            errors.join(", ")
-        ));
-    }
-
-    info!("Gateway uninstalled successfully");
-    Ok(())
+    process_utils::cleanup_legacy_gateway_processes()
+        .map(|terminated| {
+            info!(
+                "Compatibility uninstall cleanup finished: terminated {} legacy gateway process(es)",
+                terminated
+            );
+        })
+        .map_err(|error| format!("{EMBEDDED_GATEWAY_COMPAT_UNINSTALL_MESSAGE}: {error}"))
 }
 
 #[tauri::command]
@@ -2447,7 +2335,7 @@ pub fn load_config() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn get_config(state: State<'_, AgentState>) -> Result<RuntimeConfigSnapshot, String> {
-    let url = format!("{}/config", state.api_base_url);
+    let url = format!("{}/config", state.api_base_url());
     let response = state
         .client
         .get(&url)
@@ -2609,21 +2497,21 @@ fn wipe_local_disk_blocking(
 /// Stops the gateway, terminates stray gateway processes, then deletes the config directory
 /// (and the workspace directory when it lies outside the config directory).
 #[tauri::command]
-pub async fn wipe_local_data() -> Result<WipeSummary, String> {
-    stop_gateway().await?;
+pub async fn wipe_local_data(app: AppHandle) -> Result<WipeSummary, String> {
+    crate::shutdown_embedded_gateway(&app).await;
 
-    let gateway_pids = process_utils::find_gateway_processes();
-    if !gateway_pids.is_empty() {
-        info!(
-            "wipe_local_data: terminating {} lingering gateway process(es)",
-            gateway_pids.len()
-        );
-    }
-    for pid in gateway_pids {
-        if let Err(e) = process_utils::terminate_process(pid) {
+    match process_utils::cleanup_legacy_gateway_processes() {
+        Ok(terminated) if terminated > 0 => {
+            info!(
+                "wipe_local_data: terminated {} lingering legacy gateway process(es)",
+                terminated
+            );
+        }
+        Ok(_) => {}
+        Err(error) => {
             warn!(
-                "wipe_local_data: failed to terminate gateway pid {}: {}",
-                pid, e
+                "wipe_local_data: best-effort legacy gateway cleanup failed: {}",
+                error
             );
         }
     }

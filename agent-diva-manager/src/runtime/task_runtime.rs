@@ -8,6 +8,39 @@ pub(super) async fn start_runtime_tasks(
     bootstrap: GatewayBootstrap,
     channel_bootstrap: ChannelBootstrap,
 ) -> GatewayTasks {
+    start_runtime_tasks_inner(bootstrap, channel_bootstrap, ServerRuntime::BoundPort).await
+}
+
+pub(super) async fn start_embedded_runtime_tasks(
+    bootstrap: GatewayBootstrap,
+    channel_bootstrap: ChannelBootstrap,
+    listener: tokio::net::TcpListener,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) -> GatewayTasks {
+    start_runtime_tasks_inner(
+        bootstrap,
+        channel_bootstrap,
+        ServerRuntime::Embedded {
+            listener,
+            shutdown_rx,
+        },
+    )
+    .await
+}
+
+enum ServerRuntime {
+    BoundPort,
+    Embedded {
+        listener: tokio::net::TcpListener,
+        shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    },
+}
+
+async fn start_runtime_tasks_inner(
+    bootstrap: GatewayBootstrap,
+    channel_bootstrap: ChannelBootstrap,
+    server_runtime: ServerRuntime,
+) -> GatewayTasks {
     let GatewayBootstrap {
         config,
         loader,
@@ -54,13 +87,26 @@ pub(super) async fn start_runtime_tasks(
     let channel_handle = spawn_channel_runtime(channel_manager.clone());
     let agent_handle = spawn_agent_runtime(agent);
     let manager_handle = spawn_manager_runtime(manager);
-    let (server_shutdown_tx, server_handle) = spawn_server_runtime(
-        port,
-        AppState {
-            api_tx,
-            bus: bus.clone(),
-        },
-    );
+    let (server_shutdown_tx, server_handle) = match server_runtime {
+        ServerRuntime::BoundPort => spawn_server_runtime(
+            port,
+            AppState {
+                api_tx,
+                bus: bus.clone(),
+            },
+        ),
+        ServerRuntime::Embedded {
+            listener,
+            shutdown_rx,
+        } => spawn_embedded_server_runtime(
+            AppState {
+                api_tx,
+                bus: bus.clone(),
+            },
+            listener,
+            shutdown_rx,
+        ),
+    };
 
     GatewayTasks {
         bus,
@@ -187,6 +233,21 @@ fn spawn_server_runtime(port: u16, state: AppState) -> (broadcast::Sender<()>, J
     let (server_shutdown_tx, server_shutdown_rx) = broadcast::channel(1);
     let server_handle = tokio::spawn(async move {
         if let Err(e) = run_server(state, port, server_shutdown_rx).await {
+            tracing::error!("API Server error: {}", e);
+        }
+    });
+    (server_shutdown_tx, server_handle)
+}
+
+fn spawn_embedded_server_runtime(
+    state: AppState,
+    listener: tokio::net::TcpListener,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) -> (broadcast::Sender<()>, JoinHandle<()>) {
+    let (server_shutdown_tx, _) = broadcast::channel(1);
+    let server_handle = tokio::spawn(async move {
+        if let Err(e) = crate::server::run_server_with_listener(state, listener, shutdown_rx).await
+        {
             tracing::error!("API Server error: {}", e);
         }
     });

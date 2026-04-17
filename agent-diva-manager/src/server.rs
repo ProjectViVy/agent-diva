@@ -4,7 +4,7 @@ use axum::{
     Router,
 };
 use std::net::SocketAddr;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
@@ -28,23 +28,51 @@ pub async fn run_server(
     port: u16,
     mut shutdown_rx: broadcast::Receiver<()>,
 ) -> anyhow::Result<()> {
-    let app = build_app(state);
-
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("Listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    run_server_with_listener_and_signal(state, listener, async move {
+        let _ = shutdown_rx.recv().await;
+        tracing::info!("Server shutting down signal received");
+    })
+    .await
+}
+
+pub async fn run_server_with_listener(
+    state: AppState,
+    listener: tokio::net::TcpListener,
+    mut shutdown_rx: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    let listen_addr = listener.local_addr()?;
+    tracing::info!("Listening on {}", listen_addr);
+
+    run_server_with_listener_and_signal(state, listener, async move {
+        let _ = shutdown_rx.wait_for(|value| *value).await;
+        tracing::info!("Server shutting down signal received");
+    })
+    .await
+}
+
+async fn run_server_with_listener_and_signal<F>(
+    state: AppState,
+    listener: tokio::net::TcpListener,
+    shutdown_signal: F,
+) -> anyhow::Result<()>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    let app = build_router(state);
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
-            let _ = shutdown_rx.recv().await;
-            tracing::info!("Server shutting down signal received");
+            shutdown_signal.await;
         })
         .await?;
-
     Ok(())
 }
 
-fn build_app(state: AppState) -> Router {
+/// Build the axum router with all manager HTTP routes.
+pub fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(runtime_routes())
         .merge(provider_routes())
@@ -142,7 +170,7 @@ fn misc_routes() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::build_app;
+    use super::build_router;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use tower::util::ServiceExt;
@@ -150,7 +178,7 @@ mod tests {
     use crate::state::{AppState, ManagerCommand};
 
     #[tokio::test]
-    async fn build_app_keeps_health_and_skills_routes_without_overlap() {
+    async fn build_router_keeps_health_and_skills_routes_without_overlap() {
         let (api_tx, mut api_rx) = tokio::sync::mpsc::channel(1);
         // get_skills_handler sends GetSkills on api_tx and awaits a oneshot reply; without a
         // consumer the request would hang forever.
@@ -166,7 +194,7 @@ mod tests {
             bus: agent_diva_core::bus::MessageBus::new(),
         };
 
-        let app = build_app(state.clone());
+        let app = build_router(state.clone());
 
         let health_response = app
             .clone()

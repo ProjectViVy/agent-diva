@@ -22,7 +22,7 @@ use agent_diva_providers::{
 use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, watch};
 use tokio::task::JoinHandle;
 use tracing::error;
 
@@ -35,6 +35,18 @@ pub struct GatewayRuntimeConfig {
     pub workspace: PathBuf,
     pub cron_store: PathBuf,
     pub port: u16,
+}
+
+pub struct EmbeddedGatewayRuntime {
+    tasks: Option<GatewayTasks>,
+}
+
+impl EmbeddedGatewayRuntime {
+    pub async fn shutdown(mut self) {
+        if let Some(tasks) = self.tasks.take() {
+            shutdown::shutdown_runtime(tasks, false).await;
+        }
+    }
 }
 
 struct GatewayBootstrap {
@@ -187,6 +199,24 @@ pub async fn run_local_gateway(runtime: GatewayRuntimeConfig) -> Result<()> {
     let manager_handle_completed = shutdown::wait_for_shutdown(&mut tasks).await;
     shutdown::shutdown_runtime(tasks, manager_handle_completed).await;
     Ok(())
+}
+
+pub async fn start_embedded_gateway_runtime(
+    runtime: GatewayRuntimeConfig,
+    listener: tokio::net::TcpListener,
+    shutdown_rx: watch::Receiver<bool>,
+) -> Result<EmbeddedGatewayRuntime> {
+    let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
+    let channel_bootstrap =
+        bootstrap::bootstrap_channel_runtime(&bootstrap.config, bootstrap.bus.clone()).await;
+    let tasks = task_runtime::start_embedded_runtime_tasks(
+        bootstrap,
+        channel_bootstrap,
+        listener,
+        shutdown_rx,
+    )
+    .await;
+    Ok(EmbeddedGatewayRuntime { tasks: Some(tasks) })
 }
 
 async fn start_cron_service(cron_store: PathBuf, bus: MessageBus) -> Arc<CronService> {

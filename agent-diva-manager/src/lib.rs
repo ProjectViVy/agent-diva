@@ -8,6 +8,9 @@ pub mod skill_service;
 pub mod state;
 
 pub use manager::Manager;
-pub use runtime::{run_local_gateway, GatewayRuntimeConfig, DEFAULT_GATEWAY_PORT};
-pub use server::run_server;
+pub use runtime::{
+    run_local_gateway, start_embedded_gateway_runtime, EmbeddedGatewayRuntime,
+    GatewayRuntimeConfig, DEFAULT_GATEWAY_PORT,
+};
+pub use server::{build_router, run_server, run_server_with_listener};
 pub use state::{ApiRequest, AppState, ManagerCommand};

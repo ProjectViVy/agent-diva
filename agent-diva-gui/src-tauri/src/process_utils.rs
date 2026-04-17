@@ -1,5 +1,10 @@
-// Cross-platform process detection utilities for Gateway process management
-// Supports Windows, macOS, and Linux
+//! Legacy external gateway cleanup helpers.
+//!
+//! The embedded gateway is now the primary runtime path for the GUI. This
+//! module remains only for debug-mode compatibility and best-effort cleanup of
+//! stray legacy gateway processes during destructive maintenance flows such as
+//! local data wipe.
+#![allow(dead_code)]
 
 use std::process::Command;
 use tracing::{debug, info, warn};
@@ -23,13 +28,43 @@ fn line_has_exact_port_suffix(line: &str, port: u16) -> bool {
     false
 }
 
-/// Forcefully cleans up ALL agent-diva related processes using multiple methods
+/// Best-effort cleanup for stray legacy gateway processes.
+pub fn cleanup_legacy_gateway_processes() -> Result<usize, String> {
+    info!("Cleaning up stray legacy agent-diva gateway processes...");
+    let mut terminated = 0usize;
+
+    for pid in find_gateway_processes() {
+        match terminate_process(pid) {
+            Ok(()) => {
+                info!("Terminated legacy gateway process {}", pid);
+                terminated += 1;
+            }
+            Err(e) => {
+                warn!("Failed to terminate legacy gateway process {}: {}", pid, e);
+            }
+        }
+    }
+
+    info!(
+        "Legacy gateway cleanup completed: terminated {} process(es)",
+        terminated
+    );
+    Ok(terminated)
+}
+
+/// Forcefully cleans up ALL agent-diva related processes using multiple methods.
+#[deprecated(
+    note = "Embedded gateway is the default runtime. Keep this only for debug compatibility or cleanup tooling."
+)]
 pub async fn force_cleanup_all_gateway_processes() -> Result<usize, String> {
+    warn!(
+        "force_cleanup_all_gateway_processes is deprecated; use embedded mode or cleanup_legacy_gateway_processes for maintenance flows"
+    );
     info!("Starting forceful cleanup of all agent-diva gateway processes...");
     let mut terminated = 0;
 
     // Method 1: Kill process on port 3000 directly
-    if let Some(pid) = find_process_on_port_3000() {
+    if let Some(pid) = find_process_on_port_windows_compat() {
         match terminate_process(pid) {
             Ok(()) => {
                 info!("Terminated process {} occupying port 3000", pid);
@@ -84,35 +119,15 @@ pub async fn force_cleanup_all_gateway_processes() -> Result<usize, String> {
     Ok(terminated)
 }
 
-/// Cleans up orphan agent-diva gateway processes
+/// Cleans up orphan agent-diva gateway processes.
+#[deprecated(
+    note = "Embedded gateway is the default runtime. Keep this only for debug compatibility or cleanup tooling."
+)]
 pub fn cleanup_orphan_gateway_processes() -> Result<usize, String> {
-    info!("Scanning for orphan agent-diva gateway processes...");
-    let pids = find_gateway_processes();
-
-    if pids.is_empty() {
-        info!("No orphan gateway processes found");
-        return Ok(0);
-    }
-
-    info!(
-        "Found {} orphan gateway process(es), terminating...",
-        pids.len()
+    warn!(
+        "cleanup_orphan_gateway_processes is deprecated; embedded mode does not require orphan-process cleanup during normal startup"
     );
-    let mut terminated_count = 0;
-
-    for pid in pids {
-        match terminate_process(pid) {
-            Ok(()) => {
-                info!("Terminated orphan gateway process {}", pid);
-                terminated_count += 1;
-            }
-            Err(e) => {
-                warn!("Failed to terminate orphan process {}: {}", pid, e);
-            }
-        }
-    }
-
-    Ok(terminated_count)
+    cleanup_legacy_gateway_processes()
 }
 
 /// Checks if a specific port is available for binding
@@ -129,8 +144,14 @@ pub fn is_port_available(port: u16) -> bool {
     }
 }
 
-/// Finds the first available port in the given range
+/// Finds the first available port in the given range.
+#[deprecated(
+    note = "Embedded gateway binds an ephemeral port automatically. This helper remains only for legacy external gateway workflows."
+)]
 pub fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
+    warn!(
+        "find_first_available_port is deprecated; embedded gateway uses OS-assigned ephemeral ports"
+    );
     info!("Scanning for available ports in range {}-{}", start, end);
     for port in start..=end {
         if is_port_available(port) {
@@ -142,8 +163,12 @@ pub fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
     None
 }
 
-/// Detects if port 3000 is occupied
+/// Detects if port 3000 is occupied.
+#[deprecated(
+    note = "Embedded gateway no longer depends on port 3000. This helper remains only for legacy external gateway workflows."
+)]
 pub fn is_port_3000_occupied() -> bool {
+    warn!("is_port_3000_occupied is deprecated; embedded gateway no longer relies on port 3000");
     #[cfg(target_os = "windows")]
     {
         detect_port_windows()
@@ -396,14 +421,20 @@ fn find_processes_by_name_unix(name: &str) -> Result<Vec<u32>, String> {
     Ok(pids)
 }
 
-/// Waits for port 3000 to become available with exponential backoff
+/// Waits for port 3000 to become available with exponential backoff.
+#[deprecated(
+    note = "Embedded gateway no longer waits on port 3000. This helper remains only for legacy external gateway workflows."
+)]
 pub async fn wait_for_port_available(max_attempts: u32, max_wait_ms: u64) -> Result<bool, String> {
+    warn!(
+        "wait_for_port_available is deprecated; embedded gateway startup no longer waits for port 3000"
+    );
     let mut attempt = 0;
     let mut total_waited = 0u64;
     let base_delay_ms = 100u64;
 
     while attempt < max_attempts {
-        if !is_port_3000_occupied() {
+        if !detect_port_3000_compat() {
             info!(
                 "Port 3000 became available after {} attempts ({} ms total)",
                 attempt, total_waited
@@ -438,8 +469,18 @@ pub async fn wait_for_port_available(max_attempts: u32, max_wait_ms: u64) -> Res
     Ok(false)
 }
 
-/// Finds the process ID occupying port 3000
+/// Finds the process ID occupying port 3000.
+#[deprecated(
+    note = "Embedded gateway no longer depends on port 3000. This helper remains only for legacy external gateway workflows."
+)]
 pub fn find_process_on_port_3000() -> Option<u32> {
+    warn!(
+        "find_process_on_port_3000 is deprecated; embedded gateway no longer relies on port 3000"
+    );
+    find_process_on_port_windows_compat()
+}
+
+fn find_process_on_port_windows_compat() -> Option<u32> {
     #[cfg(target_os = "windows")]
     {
         find_process_on_port_windows()
@@ -448,6 +489,18 @@ pub fn find_process_on_port_3000() -> Option<u32> {
     #[cfg(not(target_os = "windows"))]
     {
         find_process_on_port_unix()
+    }
+}
+
+fn detect_port_3000_compat() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        detect_port_windows()
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        detect_port_unix()
     }
 }
 
@@ -525,7 +578,7 @@ mod tests {
     #[test]
     fn test_port_detection() {
         // This test just ensures the functions don't panic
-        let _ = is_port_3000_occupied();
+        let _ = detect_port_3000_compat();
     }
 
     #[test]
