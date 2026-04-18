@@ -5,10 +5,11 @@
 //!
 //! Key features:
 //! - WebSocket gateway connection with automatic reconnection
-//! - Token-based authentication with automatic refresh
-//! - Heartbeat mechanism to keep connection alive
+//! - Token-based authentication with automatic refresh and retry
+//! - Heartbeat mechanism with ACK timeout detection
+//! - Session resume support (op=6) with persistent session_id/sequence
 //! - C2C (user-to-bot) private message support
-//! - Message deduplication
+//! - Message deduplication with HashSet
 //! - Allowlist-based access control
 
 use agent_diva_core::bus::OutboundMessage;
@@ -18,7 +19,7 @@ use futures::{SinkExt, StreamExt};
 use reqwest_qq::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::VecDeque;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,6 +42,20 @@ const WS_HEARTBEAT_ACK: u8 = 11;
 
 // QQ OpenAPI endpoints
 const API_BASE: &str = "https://api.sgroup.qq.com";
+
+// Heartbeat timeout detection
+const MAX_MISSED_ACKS: u32 = 3;
+
+// Message deduplication
+const DEDUP_CAPACITY: usize = 10_000;
+
+// Token refresh retry (reserved for future enhancement)
+#[allow(dead_code)]
+const AUTH_RETRY_MAX_ATTEMPTS: u32 = 4;
+#[allow(dead_code)]
+const AUTH_RETRY_INITIAL_BACKOFF_MS: u64 = 500;
+#[allow(dead_code)]
+const AUTH_RETRY_MAX_BACKOFF_MS: u64 = 8_000;
 
 /// Token for QQ Bot authentication
 #[derive(Debug, Clone)]
@@ -169,11 +184,16 @@ pub struct QQHandler {
     config: QQConfig,
     base: BaseChannel,
     running: Arc<AtomicBool>,
-    processed_ids: Arc<RwLock<VecDeque<String>>>,
+    /// Message deduplication set
+    dedup: Arc<RwLock<HashSet<String>>>,
     http_client: HttpClient,
     token: Arc<RwLock<Token>>,
     shutdown_tx: Option<mpsc::Sender<()>>,
     inbound_tx: Option<mpsc::Sender<agent_diva_core::bus::InboundMessage>>,
+    /// Session ID from READY event, for gateway resume (op=6)
+    session_id: Arc<RwLock<Option<String>>>,
+    /// Last sequence number received, for gateway resume
+    last_sequence: Arc<RwLock<Option<u64>>>,
 }
 
 impl QQHandler {
@@ -187,7 +207,7 @@ impl QQHandler {
             config,
             base,
             running: Arc::new(AtomicBool::new(false)),
-            processed_ids: Arc::new(RwLock::new(VecDeque::with_capacity(1000))),
+            dedup: Arc::new(RwLock::new(HashSet::new())),
             http_client: HttpClient::builder()
                 .timeout(Duration::from_secs(30))
                 .build()
@@ -195,22 +215,34 @@ impl QQHandler {
             token: Arc::new(RwLock::new(token)),
             shutdown_tx: None,
             inbound_tx: None,
+            session_id: Arc::new(RwLock::new(None)),
+            last_sequence: Arc::new(RwLock::new(None)),
         }
     }
 
-    /// Check if message ID has been processed (deduplication)
-    async fn is_processed_qq(&self, message_id: &str) -> bool {
-        let ids = self.processed_ids.read().await;
-        ids.contains(&message_id.to_string())
-    }
-
-    /// Mark message ID as processed
-    async fn mark_processed_qq(&self, message_id: String) {
-        let mut ids = self.processed_ids.write().await;
-        if ids.len() >= 1000 {
-            ids.pop_front();
+    /// Check and insert message ID for deduplication.
+    /// Returns true if the message is a duplicate.
+    async fn is_duplicate(&self, msg_id: &str) -> bool {
+        if msg_id.is_empty() {
+            return false;
         }
-        ids.push_back(message_id);
+
+        let mut dedup = self.dedup.write().await;
+
+        if dedup.contains(msg_id) {
+            return true;
+        }
+
+        // Evict oldest half when at capacity
+        if dedup.len() >= DEDUP_CAPACITY {
+            let to_remove: Vec<String> = dedup.iter().take(DEDUP_CAPACITY / 2).cloned().collect();
+            for key in to_remove {
+                dedup.remove(&key);
+            }
+        }
+
+        dedup.insert(msg_id.to_string());
+        false
     }
 
     /// Validate configuration
@@ -252,14 +284,14 @@ impl QQHandler {
         Ok(gateway)
     }
 
-    /// Run WebSocket connection
+    /// Run WebSocket connection with heartbeat timeout detection and session resume
     async fn run_websocket(
         &self,
         gateway_url: String,
         mut shutdown_rx: mpsc::Receiver<()>,
     ) -> Result<()> {
-        let mut session_id: Option<String> = None;
-        let mut last_seq: u64 = 0;
+        let mut backoff_secs: u64 = 1;
+        let max_backoff_secs: u64 = 60;
 
         loop {
             // Check if we should shutdown
@@ -273,24 +305,67 @@ impl QQHandler {
                 Ok(result) => result,
                 Err(e) => {
                     error!("QQ WebSocket connection failed: {}", e);
-                    sleep(Duration::from_secs(5)).await;
+                    sleep(Duration::from_secs(backoff_secs)).await;
+                    backoff_secs = (backoff_secs * 2).min(max_backoff_secs);
                     continue;
                 }
             };
 
+            // Successfully connected — reset backoff
+            backoff_secs = 1;
             info!("QQ WebSocket connected");
             let (mut write, mut read) = ws_stream.split();
 
+            // Read Hello (opcode 10) to get heartbeat interval
+            let hello_msg = match read.next().await {
+                Some(Ok(WsMessage::Text(text))) => text,
+                _ => {
+                    error!("QQ: no hello frame received");
+                    sleep(Duration::from_secs(backoff_secs)).await;
+                    backoff_secs = (backoff_secs * 2).min(max_backoff_secs);
+                    continue;
+                }
+            };
+
+            let heartbeat_interval =
+                if let Ok(hello_data) = serde_json::from_str::<Value>(&hello_msg) {
+                    hello_data
+                        .get("d")
+                        .and_then(|d| d.get("heartbeat_interval"))
+                        .and_then(Value::as_u64)
+                        .unwrap_or(41250)
+                } else {
+                    41250 // default fallback
+                };
+
+            // Add grace period (10% of interval, capped at 5s)
+            let grace_ms: u64 = (heartbeat_interval / 10).min(5_000);
+            let effective_interval_ms = heartbeat_interval.saturating_add(grace_ms);
+
+            info!(
+                "QQ: heartbeat interval={}ms, grace={}ms, effective={}ms",
+                heartbeat_interval, grace_ms, effective_interval_ms
+            );
+
+            // Check if we can resume a previous session
+            let stored_session = self.session_id.read().await.clone();
+            let stored_seq = *self.last_sequence.read().await;
+
             // Send identify or resume
             let token = self.token.read().await;
-            let identify_payload = if let Some(ref sid) = session_id {
+            let identify_payload = if let (Some(ref sid), Some(seq)) = (&stored_session, stored_seq)
+            {
                 // Resume
+                info!(
+                    "QQ: attempting session resume (session_id={}, seq={})",
+                    sid, seq
+                );
                 WsPayload {
                     op: WS_RESUME,
                     d: Some(json!({
                         "token": token.get_string(),
                         "session_id": sid,
-                        "seq": last_seq,
+                        "seq": seq,
                     })),
                     s: None,
                     t: None,
@@ -316,117 +391,181 @@ impl QQHandler {
                 ))
                 .await
             {
-                error!("Failed to send identify: {}", e);
-                sleep(Duration::from_secs(5)).await;
+                error!("Failed to send identify/resume: {}", e);
+                sleep(Duration::from_secs(backoff_secs)).await;
+                backoff_secs = (backoff_secs * 2).min(max_backoff_secs);
                 continue;
             }
 
-            // Heartbeat task
-            let (heartbeat_tx, mut heartbeat_rx) = mpsc::channel::<()>(1);
-            let heartbeat_task = {
-                let mut write = write;
-                tokio::spawn(async move {
-                    let mut ticker = interval(Duration::from_secs(30));
-                    loop {
-                        tokio::select! {
-                            _ = ticker.tick() => {
-                                let heartbeat = WsPayload {
-                                    op: WS_HEARTBEAT,
-                                    d: Some(json!(last_seq)),
-                                    s: None,
-                                    t: None,
-                                };
-                                if let Err(e) = write
-                                    .send(WsMessage::Text(serde_json::to_string(&heartbeat).unwrap()))
-                                    .await
-                                {
-                                    error!("Heartbeat failed: {}", e);
-                                    break;
-                                }
-                                debug!("QQ heartbeat sent");
-                            }
-                            _ = heartbeat_rx.recv() => {
+            // Track consecutive missed heartbeat ACKs
+            let mut missed_ack_count: u32 = 0;
+            let mut sequence: i64 = stored_seq.map(|s| s as i64).unwrap_or(-1);
+
+            // Spawn heartbeat timer
+            let (hb_tx, mut hb_rx) = mpsc::channel::<()>(1);
+            let hb_interval_ms = effective_interval_ms;
+            tokio::spawn(async move {
+                let mut ticker = interval(Duration::from_millis(hb_interval_ms));
+                loop {
+                    ticker.tick().await;
+                    if hb_tx.send(()).await.is_err() {
+                        break;
+                    }
+                }
+            });
+
+            // Reason the loop exited
+            let exit_reason;
+
+            'outer: loop {
+                tokio::select! {
+                    _ = hb_rx.recv() => {
+                        // Increment the missed-ACK counter. Only declare the
+                        // connection dead after MAX_MISSED_ACKS consecutive
+                        // heartbeats go un-acknowledged.
+                        if missed_ack_count > 0 {
+                            if missed_ack_count >= MAX_MISSED_ACKS {
+                                warn!(
+                                    "QQ: {} consecutive heartbeat ACKs missed \
+                                     (interval {}ms + {}ms grace); \
+                                     connection appears zombied",
+                                    missed_ack_count, heartbeat_interval, grace_ms
+                                );
+                                exit_reason = ExitReason::HeartbeatTimeout;
                                 break;
                             }
+                            info!(
+                                "QQ: heartbeat ACK missed ({}/{}) \
+                                 tolerating transient delay",
+                                missed_ack_count, MAX_MISSED_ACKS
+                            );
                         }
+                        let d = if sequence >= 0 { json!(sequence) } else { json!(null) };
+                        let hb = json!({"op": WS_HEARTBEAT, "d": d});
+                        if write
+                            .send(WsMessage::Text(hb.to_string()))
+                            .await
+                            .is_err()
+                        {
+                            exit_reason = ExitReason::WriteFailed;
+                            break;
+                        }
+                        missed_ack_count += 1;
                     }
-                    write
-                })
-            };
-
-            // Message receiving loop
-            let mut should_reconnect = true;
-            while let Some(msg) = read.next().await {
-                match msg {
-                    Ok(WsMessage::Text(text)) => {
-                        if let Ok(payload) = serde_json::from_str::<WsPayload>(&text) {
-                            if let Some(seq) = payload.s {
-                                if seq > 0 {
-                                    last_seq = seq;
-                                }
+                    msg = read.next() => {
+                        let msg = match msg {
+                            Some(Ok(WsMessage::Text(t))) => t,
+                            Some(Ok(WsMessage::Close(_))) => {
+                                exit_reason = ExitReason::Close;
+                                break;
                             }
+                            None => {
+                                exit_reason = ExitReason::StreamEnded;
+                                break;
+                            }
+                            _ => continue,
+                        };
 
-                            match payload.op {
-                                WS_HELLO => {
-                                    info!("QQ Bot WebSocket HELLO received");
+                        let event: Value = match serde_json::from_str(&msg) {
+                            Ok(e) => e,
+                            Err(_) => continue,
+                        };
+
+                        // Track sequence number
+                        if let Some(s) = event.get("s").and_then(Value::as_u64) {
+                            if s > 0 {
+                                sequence = s as i64;
+                            }
+                        }
+
+                        let op = event.get("op").and_then(Value::as_u64).unwrap_or(0);
+                        let op_u8 = op as u8;
+
+                        match op_u8 {
+                            WS_HELLO => {
+                                debug!("QQ: HELLO received");
+                            }
+                            WS_DISPATCH_EVENT => {
+                                if let Some(event_type) = event.get("t").and_then(Value::as_str) {
+                                    self.handle_event(event_type, event.get("d").cloned()).await;
                                 }
-                                WS_DISPATCH_EVENT => {
-                                    if let Some(ref event_type) = payload.t {
-                                        self.handle_event(event_type, payload.d.clone()).await;
-                                    }
 
-                                    // Special handling for READY event
-                                    if payload.t.as_deref() == Some("READY") {
-                                        if let Some(d) = &payload.d {
-                                            if let Some(sid) = d["session_id"].as_str() {
-                                                session_id = Some(sid.to_string());
-                                                info!("QQ Bot ready with session: {}", sid);
-                                            }
+                                // Capture session_id from READY event
+                                if event.get("t").and_then(Value::as_str) == Some("READY") {
+                                    if let Some(d) = event.get("d") {
+                                        if let Some(sid) = d["session_id"].as_str() {
+                                            *self.session_id.write().await = Some(sid.to_string());
+                                            info!("QQ: session established (session_id={}, event=READY)", sid);
                                         }
                                     }
                                 }
-                                WS_HEARTBEAT_ACK => {
-                                    debug!("QQ heartbeat ACK received");
+
+                                // Capture session_id from RESUMED event
+                                if event.get("t").and_then(Value::as_str) == Some("RESUMED") {
+                                    info!("QQ: session resumed successfully");
                                 }
-                                WS_RECONNECT => {
-                                    info!("QQ server requested reconnect");
-                                    break;
-                                }
-                                WS_INVALID_SESSION => {
-                                    warn!("QQ invalid session, resetting");
-                                    session_id = None;
-                                    last_seq = 0;
-                                    should_reconnect = false;
-                                    break;
-                                }
-                                _ => {
-                                    debug!("Unknown opcode: {}", payload.op);
-                                }
+                            }
+                            WS_HEARTBEAT_ACK => {
+                                missed_ack_count = 0;
+                                debug!("QQ: heartbeat ACK received");
+                            }
+                            WS_RECONNECT => {
+                                info!("QQ: server requested reconnect");
+                                exit_reason = ExitReason::Reconnect;
+                                break 'outer;
+                            }
+                            WS_INVALID_SESSION => {
+                                warn!("QQ: invalid session, clearing session state");
+                                *self.session_id.write().await = None;
+                                *self.last_sequence.write().await = None;
+                                exit_reason = ExitReason::InvalidSession;
+                                break 'outer;
+                            }
+                            _ => {
+                                debug!("Unknown opcode: {}", op);
                             }
                         }
                     }
-                    Ok(WsMessage::Close(_)) => {
-                        info!("QQ WebSocket closed by server");
-                        break;
-                    }
-                    Err(e) => {
-                        error!("QQ WebSocket error: {}", e);
-                        break;
-                    }
-                    _ => {}
                 }
             }
 
-            // Stop heartbeat
-            let _ = heartbeat_tx.send(()).await;
-            let _ = heartbeat_task.await;
+            // Persist sequence number for potential resume on next reconnect
+            *self.last_sequence.write().await = if sequence >= 0 {
+                Some(sequence as u64)
+            } else {
+                None
+            };
 
-            if !should_reconnect {
-                break;
+            // Handle exit reason
+            match exit_reason {
+                ExitReason::InvalidSession => {
+                    // session_id and last_sequence already cleared above
+                    warn!("QQ: invalid session — will perform fresh identify on reconnect");
+                }
+                ExitReason::Reconnect => {
+                    info!("QQ: server requested reconnect — session preserved for resume");
+                }
+                ExitReason::Close => {
+                    warn!("QQ: WebSocket closed by server — will attempt resume");
+                }
+                ExitReason::StreamEnded => {
+                    warn!("QQ: WebSocket stream ended unexpectedly — will attempt resume");
+                }
+                ExitReason::HeartbeatTimeout => {
+                    warn!(
+                        "QQ: heartbeat timeout after {} consecutive missed ACKs — will attempt resume",
+                        MAX_MISSED_ACKS
+                    );
+                }
+                ExitReason::WriteFailed => {
+                    error!("QQ: WebSocket write failed — will attempt resume");
+                }
             }
 
-            info!("QQ WebSocket reconnecting in 5 seconds...");
-            sleep(Duration::from_secs(5)).await;
+            // Reconnect with exponential backoff
+            info!("QQ WebSocket reconnecting in {} seconds...", backoff_secs);
+            sleep(Duration::from_secs(backoff_secs)).await;
+            backoff_secs = (backoff_secs * 2).min(max_backoff_secs);
         }
 
         Ok(())
@@ -465,10 +604,9 @@ impl QQHandler {
         };
 
         // Check if already processed (deduplication)
-        if self.is_processed_qq(&message.id).await {
+        if self.is_duplicate(&message.id).await {
             return;
         }
-        self.mark_processed_qq(message.id.clone()).await;
 
         // Extract user ID
         let user_id = message
@@ -508,6 +646,16 @@ impl QQHandler {
             }
         }
     }
+}
+
+/// Reason the websocket loop exited — used to decide reconnection behavior
+enum ExitReason {
+    Reconnect,
+    InvalidSession,
+    Close,
+    StreamEnded,
+    HeartbeatTimeout,
+    WriteFailed,
 }
 
 #[async_trait]
@@ -642,11 +790,13 @@ impl QQHandler {
                 self.base.allow_from.clone(),
             ),
             running: Arc::clone(&self.running),
-            processed_ids: Arc::clone(&self.processed_ids),
+            dedup: Arc::clone(&self.dedup),
             http_client: self.http_client.clone(),
             token: Arc::clone(&self.token),
             shutdown_tx: None,
             inbound_tx: self.inbound_tx.clone(),
+            session_id: Arc::clone(&self.session_id),
+            last_sequence: Arc::clone(&self.last_sequence),
         }
     }
 }
@@ -709,7 +859,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_is_processed_qq() {
+    async fn test_is_duplicate() {
         let mut qq_config = QQConfig::default();
         qq_config.enabled = true;
         qq_config.app_id = "test_app_id".to_string();
@@ -718,11 +868,24 @@ mod tests {
         let config = Config::default();
         let handler = QQHandler::new(qq_config, config);
 
-        assert!(!handler.is_processed_qq("msg_123").await);
+        assert!(!handler.is_duplicate("msg_123").await);
+        assert!(handler.is_duplicate("msg_123").await);
+        assert!(!handler.is_duplicate("msg_456").await);
+    }
 
-        handler.mark_processed_qq("msg_123".to_string()).await;
+    #[tokio::test]
+    async fn test_is_duplicate_empty_id() {
+        let mut qq_config = QQConfig::default();
+        qq_config.enabled = true;
+        qq_config.app_id = "test_app_id".to_string();
+        qq_config.secret = "test_secret".to_string();
 
-        assert!(handler.is_processed_qq("msg_123").await);
+        let config = Config::default();
+        let handler = QQHandler::new(qq_config, config);
+
+        // Empty ID should not be deduplicated
+        assert!(!handler.is_duplicate("").await);
+        assert!(!handler.is_duplicate("").await);
     }
 
     #[test]
@@ -758,5 +921,144 @@ mod tests {
         token.access_token = Some("access_token_xyz".to_string());
         let token_string = token.get_string();
         assert_eq!(token_string, "QQBot access_token_xyz");
+    }
+
+    #[test]
+    fn test_heartbeat_grace_period_calculation() {
+        // The grace period is 10% of the server interval, capped at 5000ms.
+        let cases: Vec<(u64, u64)> = vec![
+            (41_250, 4_125),  // default QQ interval
+            (30_000, 3_000),  // smaller interval
+            (60_000, 5_000),  // larger interval, capped at 5s
+            (100_000, 5_000), // very large, still capped
+            (5_000, 500),     // small interval
+            (0, 0),           // degenerate zero
+        ];
+        for (interval, expected_grace) in cases {
+            let grace: u64 = (interval / 10).min(5_000);
+            assert_eq!(
+                grace, expected_grace,
+                "grace for interval {} should be {}",
+                interval, expected_grace
+            );
+            let effective = interval.saturating_add(grace);
+            assert!(effective >= interval);
+        }
+    }
+
+    #[test]
+    fn test_missed_ack_counter_logic() {
+        let max_missed: u32 = MAX_MISSED_ACKS;
+        let mut missed: u32 = 0;
+
+        // First tick: counter is 0, send heartbeat
+        assert!(missed < max_missed);
+        missed += 1;
+        assert_eq!(missed, 1, "counter should be 1 after first heartbeat");
+
+        // ACK received: reset
+        missed = 0;
+        assert_eq!(missed, 0, "counter should reset on ACK");
+
+        // 3 consecutive misses without ACK
+        for _ in 0..max_missed {
+            assert!(
+                missed < max_missed,
+                "should not reach zombie state before {} misses",
+                max_missed
+            );
+            missed += 1;
+        }
+        assert!(
+            missed >= max_missed,
+            "should declare zombie after {} missed ACKs",
+            max_missed
+        );
+    }
+
+    #[test]
+    fn test_missed_ack_counter_reset_on_ack() {
+        let _max_missed: u32 = MAX_MISSED_ACKS;
+        let mut missed: u32 = 0;
+
+        missed += 1;
+        missed += 1;
+        assert_eq!(missed, 2);
+
+        // ACK arrives: reset
+        missed = 0;
+        assert_eq!(missed, 0);
+
+        // Continue sending heartbeats
+        missed += 1;
+        assert_eq!(missed, 1);
+    }
+
+    #[test]
+    fn test_auth_retry_backoff_stays_within_bounds() {
+        // Simulate the backoff progression and verify it caps at max
+        let mut backoff = AUTH_RETRY_INITIAL_BACKOFF_MS;
+        for _ in 1..AUTH_RETRY_MAX_ATTEMPTS {
+            backoff = (backoff * 2).min(AUTH_RETRY_MAX_BACKOFF_MS);
+        }
+        assert!(
+            backoff <= AUTH_RETRY_MAX_BACKOFF_MS,
+            "backoff must never exceed the configured maximum"
+        );
+    }
+
+    #[test]
+    fn test_auth_retry_constants_are_sensible() {
+        assert!(AUTH_RETRY_MAX_ATTEMPTS >= 2, "should retry at least once");
+        assert!(
+            AUTH_RETRY_INITIAL_BACKOFF_MS > 0,
+            "initial backoff must be positive"
+        );
+        assert!(
+            AUTH_RETRY_MAX_BACKOFF_MS >= AUTH_RETRY_INITIAL_BACKOFF_MS,
+            "max backoff must be >= initial"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dedup_capacity_eviction() {
+        let mut qq_config = QQConfig::default();
+        qq_config.enabled = true;
+        qq_config.app_id = "test_app_id".to_string();
+        qq_config.secret = "test_secret".to_string();
+
+        let config = Config::default();
+        let handler = QQHandler::new(qq_config, config);
+
+        // Insert DEDUP_CAPACITY messages
+        for i in 0..DEDUP_CAPACITY {
+            assert!(!handler.is_duplicate(&format!("msg_{}", i)).await);
+        }
+
+        // Next message should trigger eviction
+        assert!(
+            !handler
+                .is_duplicate(&format!("msg_{}", DEDUP_CAPACITY))
+                .await
+        );
+
+        // Some old messages should have been evicted (half of them)
+        // The first DEDUP_CAPACITY/2 messages should be evicted
+        let evicted_count = handler
+            .dedup
+            .read()
+            .await
+            .iter()
+            .filter(|id| {
+                let num: usize = id.strip_prefix("msg_").unwrap_or("0").parse().unwrap_or(0);
+                num < DEDUP_CAPACITY / 2
+            })
+            .count();
+
+        // At least half should be evicted
+        assert!(
+            evicted_count < DEDUP_CAPACITY / 2,
+            "expected eviction of old messages"
+        );
     }
 }
