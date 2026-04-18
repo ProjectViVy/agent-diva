@@ -405,21 +405,17 @@ async fn irc_register_and_loop<R: tokio::io::AsyncBufRead + Unpin>(
                 let payload = msg.params.first().map(|s| s.as_str()).unwrap_or("");
                 send_raw(writer, &format!("PONG :{}", payload)).await?;
             }
-            "CAP" => {
+            "CAP" if msg.params.len() >= 3 && msg.params[1] == "ACK" => {
                 // Handle SASL capability negotiation
-                if msg.params.len() >= 3 && msg.params[1] == "ACK" {
-                    let caps = &msg.params[2];
-                    if caps.contains("sasl") {
-                        send_raw(writer, "AUTHENTICATE PLAIN").await?;
-                    }
+                let caps = &msg.params[2];
+                if caps.contains("sasl") {
+                    send_raw(writer, "AUTHENTICATE PLAIN").await?;
                 }
             }
-            "AUTHENTICATE" => {
-                if msg.params.first().map(|s| s.as_str()) == Some("+") {
-                    if let Some(ref sasl_pass) = config.sasl_password {
-                        let encoded = encode_sasl_plain(user, sasl_pass);
-                        send_raw(writer, &format!("AUTHENTICATE {}", encoded)).await?;
-                    }
+            "AUTHENTICATE" if msg.params.first().map(|s| s.as_str()) == Some("+") => {
+                if let Some(ref sasl_pass) = config.sasl_password {
+                    let encoded = encode_sasl_plain(user, sasl_pass);
+                    send_raw(writer, &format!("AUTHENTICATE {}", encoded)).await?;
                 }
             }
             // SASL success

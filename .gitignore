@@ -11,44 +11,20 @@
 *.dll
 *.pdb
 
-# IDE
-# Cursor: ignore local IDE noise under repo root, but keep versioned skills.
-# (Debug logs like .cursor/debug-*.log are also matched by *.log below.)
-.cursor/*
-!.cursor/skills/
-!.cursor/skills/**
+# IDE & AI tool caches - all ignored by .*/ rule below
+# Only .git/ and .github/ are preserved
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
-.claude/
-# Qoder: ignore local state, but keep versioned skills.
-.qoder/*
-!.qoder/skills/
-!.qoder/skills/**
-.workspace/
-.kiro/
-*.sublime-*
-*.code-workspace
-.project
-.classpath
-.settings/
 
-# AI/IDE tool caches: ignore local state, but keep versioned skills.
-.agent/*
-!.agent/skills/
-!.agent/skills/**
-.agents/*
-!.agents/skills/
-!.agents/skills/**
-.codebuddy/
-.gemini/
-.iflow/
-.trae/
-.opencode/*
-!.opencode/skills/
-!.opencode/skills/**
+# Ignore all hidden directories (starting with .) except .git and .github
+.*/
+!/.git/
+!/.git/**
+!/.github/
+!/.github/**
+
+# Ignore all directories starting with _
+_*/
 
 # JS/GUI
 **/node_modules/
