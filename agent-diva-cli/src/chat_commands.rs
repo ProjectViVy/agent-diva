@@ -250,12 +250,10 @@ async fn run_remote_agent_turn(
                         }
                         final_response.push_str(&text);
                     }
-                    Some(AgentEvent::ReasoningDelta { text }) => {
-                        if logs {
-                            print!("{}", style(text).dim());
-                            use std::io::Write;
-                            let _ = std::io::stdout().flush();
-                        }
+                    Some(AgentEvent::ReasoningDelta { text }) if logs => {
+                        print!("{}", style(text).dim());
+                        use std::io::Write;
+                        let _ = std::io::stdout().flush();
                     }
                     Some(AgentEvent::ToolCallStarted { name, args_preview, .. }) if logs => {
                         println!("\n{}", style(format!("[tool:start] {} {}", name, args_preview)).yellow());
