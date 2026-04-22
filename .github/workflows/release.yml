@@ -120,29 +120,37 @@ jobs:
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
+      # Batch 1: core (no internal deps)
       - name: Publish agent-diva-core
         run: cargo publish --package agent-diva-core --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for agent-diva-core to be available
-        run: sleep 30
+        run: sleep 90
 
-      - name: Publish agent-diva-agent
-        run: cargo publish --package agent-diva-agent --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
+      # Batch 2: memory + providers (depend only on core)
+      - name: Publish agent-diva-memory
+        run: cargo publish --package agent-diva-memory --token ${{ secrets.CRATES_IO_TOKEN }}
 
       - name: Publish agent-diva-providers
         run: cargo publish --package agent-diva-providers --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
 
+      - name: Wait for batch 2 to be available
+        run: sleep 90
+
+      # Batch 3: channels (depends on core + providers)
       - name: Publish agent-diva-channels
         run: cargo publish --package agent-diva-channels --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
 
+      - name: Wait for batch 3 to be available
+        run: sleep 90
+
+      # Batch 4: tools (depends on core + memory)
       - name: Publish agent-diva-tools
         run: cargo publish --package agent-diva-tools --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
 
-      - name: Publish agent-diva-cli
-        run: cargo publish --package agent-diva-cli --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
+      - name: Wait for batch 4 to be available
+        run: sleep 90
+
+      # Batch 5: agent (depends on all above)
+      - name: Publish agent-diva-agent
+        run: cargo publish --package agent-diva-agent --token ${{ secrets.CRATES_IO_TOKEN }}

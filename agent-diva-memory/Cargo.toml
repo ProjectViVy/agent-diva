@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-memory"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["mastwet@UndefineFoundation"]
@@ -9,7 +9,7 @@ repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Enhanced memory subsystem for agent-diva"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.2.0" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.3.0" }
 
 async-trait = { workspace = true }
 serde = { workspace = true }

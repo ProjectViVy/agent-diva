@@ -18,6 +18,14 @@ members = [
 rust-version = "1.80.0"
 
 [workspace.dependencies]
+# Internal crates (version managed uniformly)
+agent-diva-core = { version = "0.3.0", path = "agent-diva-core" }
+agent-diva-memory = { version = "0.3.0", path = "agent-diva-memory" }
+agent-diva-providers = { version = "0.3.0", path = "agent-diva-providers" }
+agent-diva-channels = { version = "0.3.0", path = "agent-diva-channels" }
+agent-diva-tools = { version = "0.3.0", path = "agent-diva-tools" }
+agent-diva-agent = { version = "0.3.0", path = "agent-diva-agent" }
+
 # Async runtime
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process"] }
 futures = "0.3"
