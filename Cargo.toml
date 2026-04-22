@@ -77,7 +77,7 @@ which = "6.0"
 windows-service = "0.7"
 
 # File management
-agent-diva-files = { path = "agent-diva-files" }
+agent-diva-files = { version = "0.4.9", path = "agent-diva-files" }
 
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "migrate", "chrono"] }
