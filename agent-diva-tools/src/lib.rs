@@ -2,6 +2,7 @@
 //!
 //! This crate provides the tool registry and built-in tool implementations.
 
+#[cfg(feature = "files")]
 pub mod attachment;
 pub mod base;
 pub mod cron;
@@ -15,6 +16,7 @@ pub mod spawn;
 pub mod web;
 pub mod wtf;
 
+#[cfg(feature = "files")]
 pub use attachment::ReadAttachmentTool;
 pub use base::{Tool, ToolError};
 pub use cron::CronTool;

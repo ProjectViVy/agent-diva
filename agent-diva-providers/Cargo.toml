@@ -9,7 +9,7 @@ repository = "https://github.com/ProjectViVy/agent-diva"
 description = "LLM provider integrations for agent-diva"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.4.9" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.4.9", default-features = false }
 
 # Async runtime
 tokio = { workspace = true }

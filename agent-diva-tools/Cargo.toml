@@ -8,9 +8,13 @@ license = "MIT"
 repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Built-in tools for agent-diva"
 
+[features]
+default = ["files"]
+files = ["agent-diva-files", "agent-diva-core/files"]
+
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.4.9" }
-agent-diva-files = { path = "../agent-diva-files", version = "0.4.9" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.4.9", default-features = false }
+agent-diva-files = { path = "../agent-diva-files", version = "0.4.9", optional = true }
 
 # Async runtime
 tokio = { workspace = true }

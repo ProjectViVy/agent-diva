@@ -3,6 +3,7 @@
 //! This crate provides the foundational types, traits, and utilities
 //! used by all other agent-diva components.
 
+#[cfg(feature = "files")]
 pub mod attachment;
 pub mod bus;
 pub mod config;
@@ -17,5 +18,6 @@ pub mod session;
 pub mod soul;
 pub mod utils;
 
+#[cfg(feature = "files")]
 pub use attachment::FileAttachment;
 pub use error::{Error, Result};
