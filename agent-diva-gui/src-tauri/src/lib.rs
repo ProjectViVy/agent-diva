@@ -7,13 +7,19 @@ mod process_utils;
 mod shutdown_manager;
 mod tray;
 
+use agent_diva_core::config::schema::LoggingConfig;
+use agent_diva_core::config::ConfigLoader;
 use app_state::AgentState;
 use embedded_server::EmbeddedGatewayHandle;
 use gateway_status::GatewayStatus;
 use shutdown_manager::ShutdownManager;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use tokio::sync::Mutex as AsyncMutex;
+
+static LOGGING_INITIALIZED: OnceLock<()> = OnceLock::new();
 
 /// Tracks completion of frontend/backend setup for splash screen.
 struct SplashState {
@@ -29,8 +35,50 @@ fn should_manage_gateway_lifecycle() -> bool {
     !cfg!(debug_assertions)
 }
 
+fn config_loader() -> ConfigLoader {
+    match std::env::var("AGENT_DIVA_CONFIG_DIR") {
+        Ok(path) if !path.trim().is_empty() => ConfigLoader::with_dir(expand_user_path(&path)),
+        _ => ConfigLoader::new(),
+    }
+}
+
+fn expand_user_path(path: &str) -> PathBuf {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+fn resolve_configured_path(path: &str, config_dir: &Path) -> PathBuf {
+    let expanded = expand_user_path(path);
+    if expanded.is_absolute() {
+        expanded
+    } else {
+        config_dir.join(expanded)
+    }
+}
+
+fn resolve_logging_config(mut config: LoggingConfig, config_dir: &Path) -> LoggingConfig {
+    config.dir = resolve_configured_path(&config.dir, config_dir)
+        .to_string_lossy()
+        .to_string();
+    config
+}
+
+fn init_gui_logging() {
+    LOGGING_INITIALIZED.get_or_init(|| {
+        let loader = config_loader();
+        let config = loader.load().unwrap_or_default();
+        let logging = resolve_logging_config(config.logging, loader.config_dir());
+        let guard = agent_diva_core::logging::init_logging_with_terminal_output(&logging, false);
+        Box::leak(Box::new(guard));
+    });
+}
+
 fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRuntimeConfig {
-    let loader = agent_diva_core::config::ConfigLoader::new();
+    let loader = config_loader();
     let config = loader.load().unwrap_or_default();
     let runtime = agent_diva_cli::cli_runtime::CliRuntime::from_paths(
         None,
@@ -155,6 +203,8 @@ fn set_splash_complete(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    init_gui_logging();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -319,8 +369,13 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{close_action, should_manage_gateway_lifecycle, CloseAction, ExitTrigger};
+    use super::{
+        close_action, resolve_configured_path, resolve_logging_config,
+        should_manage_gateway_lifecycle, CloseAction, ExitTrigger,
+    };
     use crate::shutdown_manager::ShutdownManager;
+    use agent_diva_core::config::schema::LoggingConfig;
+    use tempfile::TempDir;
 
     #[test]
     fn gateway_lifecycle_is_disabled_in_debug_mode() {
@@ -369,5 +424,38 @@ mod tests {
 
         assert!(manager.begin_shutdown());
         assert!(!manager.begin_shutdown());
+    }
+
+    #[test]
+    fn relative_log_dir_resolves_under_config_dir() {
+        let config_dir = TempDir::new().unwrap();
+
+        let path = resolve_configured_path("logs", config_dir.path());
+
+        assert_eq!(path, config_dir.path().join("logs"));
+    }
+
+    #[test]
+    fn absolute_log_dir_is_preserved() {
+        let config_dir = TempDir::new().unwrap();
+        let absolute = config_dir.path().join("custom-logs");
+
+        let path = resolve_configured_path(&absolute.to_string_lossy(), config_dir.path());
+
+        assert_eq!(path, absolute);
+    }
+
+    #[test]
+    fn logging_config_uses_resolved_log_dir() {
+        let config_dir = TempDir::new().unwrap();
+        let mut logging = LoggingConfig::default();
+        logging.dir = "logs".to_string();
+
+        let resolved = resolve_logging_config(logging, config_dir.path());
+
+        assert_eq!(
+            resolved.dir,
+            config_dir.path().join("logs").to_string_lossy().to_string()
+        );
     }
 }
