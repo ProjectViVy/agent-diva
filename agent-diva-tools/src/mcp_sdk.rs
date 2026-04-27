@@ -3,9 +3,9 @@
 //! This module provides MCP tool integration using the official rust-mcp-sdk,
 //! similar to nanobot's MCP implementation pattern.
 
-use crate::base::{Tool, ToolError};
 use crate::sanitize::sanitize_for_json;
 use agent_diva_core::config::MCPServerConfig;
+use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use rust_mcp_sdk::{
     mcp_client::{client_runtime, ClientHandler, ClientRuntime, McpClientOptions},
@@ -170,7 +170,7 @@ impl McpClientWrapper {
             capabilities: ClientCapabilities::default(),
             client_info: Implementation {
                 name: "agent-diva".into(),
-                version: "0.4.9".into(),
+                version: "0.4.10".into(),
                 title: Some("Agent Diva MCP Client".into()),
                 description: Some("Agent Diva MCP Client using rust-mcp-sdk".into()),
                 icons: vec![],
@@ -370,7 +370,7 @@ impl Tool for McpSdkTool {
         self.parameters.clone()
     }
 
-    async fn execute(&self, args: Value) -> crate::base::Result<String> {
+    async fn execute(&self, args: Value) -> agent_diva_tooling::Result<String> {
         if !args.is_object() {
             return Err(ToolError::InvalidArguments(
                 "MCP tool arguments must be a JSON object".to_string(),

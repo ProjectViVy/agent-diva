@@ -11,17 +11,14 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use agent_diva_core::bus::{InboundMessage, MessageBus};
-use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::utils::truncate;
 use agent_diva_providers::base::{LLMProvider, Message};
-use agent_diva_tools::registry::ToolRegistry;
-use agent_diva_tools::{
-    filesystem::{ListDirTool, ReadFileTool, WriteFileTool},
-    shell::ExecTool,
-    web::{WebFetchTool, WebSearchTool},
-};
+use agent_diva_tooling::ToolRegistry;
 
+use crate::tool_assembly::ToolAssembly;
+use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
+use agent_diva_core::config::MCPServerConfig;
 
 /// Subagent manager for background task execution.
 ///
@@ -33,9 +30,11 @@ pub struct SubagentManager {
     workspace: PathBuf,
     bus: MessageBus,
     model: String,
+    builtin_tools: BuiltInToolsConfig,
     network_config: Arc<RwLock<NetworkToolConfig>>,
     exec_timeout: u64,
     restrict_to_workspace: bool,
+    mcp_servers: Arc<RwLock<HashMap<String, MCPServerConfig>>>,
     running_tasks: Arc<tokio::sync::Mutex<HashMap<String, JoinHandle<()>>>>,
 }
 
@@ -47,9 +46,11 @@ impl SubagentManager {
         workspace: PathBuf,
         bus: MessageBus,
         model: Option<String>,
+        builtin_tools: BuiltInToolsConfig,
         network_config: NetworkToolConfig,
         exec_timeout: Option<u64>,
         restrict_to_workspace: bool,
+        mcp_servers: HashMap<String, MCPServerConfig>,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let exec_timeout = exec_timeout.unwrap_or(30);
@@ -59,9 +60,11 @@ impl SubagentManager {
             workspace,
             bus,
             model,
+            builtin_tools,
             network_config: Arc::new(RwLock::new(network_config)),
             exec_timeout,
             restrict_to_workspace,
+            mcp_servers: Arc::new(RwLock::new(mcp_servers)),
             running_tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         }
     }
@@ -69,6 +72,11 @@ impl SubagentManager {
     pub async fn update_network_config(&self, network_config: NetworkToolConfig) {
         let mut guard = self.network_config.write().await;
         *guard = network_config;
+    }
+
+    pub async fn update_mcp_servers(&self, mcp_servers: HashMap<String, MCPServerConfig>) {
+        let mut guard = self.mcp_servers.write().await;
+        *guard = mcp_servers;
     }
 
     /// Spawn a subagent to execute a task in the background.
@@ -105,9 +113,11 @@ impl SubagentManager {
         let workspace = self.workspace.clone();
         let bus = self.bus.clone();
         let model = self.model.clone();
+        let builtin_tools = self.builtin_tools.clone();
         let network_config = self.network_config.read().await.clone();
         let exec_timeout = self.exec_timeout;
         let restrict_to_workspace = self.restrict_to_workspace;
+        let mcp_servers = self.mcp_servers.read().await.clone();
 
         let task_id_clone = task_id.clone();
         let display_label_clone = display_label.clone();
@@ -125,9 +135,11 @@ impl SubagentManager {
                 workspace,
                 bus.clone(),
                 model,
+                builtin_tools,
                 network_config,
                 exec_timeout,
                 restrict_to_workspace,
+                mcp_servers,
             )
             .await;
 
@@ -160,9 +172,11 @@ impl SubagentManager {
         workspace: PathBuf,
         bus: MessageBus,
         model: String,
+        builtin_tools: BuiltInToolsConfig,
         network_config: NetworkToolConfig,
         exec_timeout: u64,
         restrict_to_workspace: bool,
+        mcp_servers: HashMap<String, MCPServerConfig>,
     ) {
         info!("Subagent [{}] starting task: {}", task_id, label);
 
@@ -172,9 +186,11 @@ impl SubagentManager {
             &provider,
             &workspace,
             &model,
+            &builtin_tools,
             &network_config,
             exec_timeout,
             restrict_to_workspace,
+            &mcp_servers,
         )
         .await;
 
@@ -211,40 +227,19 @@ impl SubagentManager {
         provider: &Arc<dyn LLMProvider>,
         workspace: &Path,
         model: &str,
+        builtin_tools: &BuiltInToolsConfig,
         network_config: &NetworkToolConfig,
-        _exec_timeout: u64,
+        exec_timeout: u64,
         restrict_to_workspace: bool,
+        mcp_servers: &HashMap<String, MCPServerConfig>,
     ) -> Result<String> {
-        // Build subagent tools (no message tool, no spawn tool)
-        let mut tools = ToolRegistry::new();
-        let security_config = if restrict_to_workspace {
-            SecurityConfig {
-                level: SecurityLevel::Standard,
-                workspace_only: true,
-                ..SecurityConfig::default()
-            }
-        } else {
-            SecurityConfig::default()
-        };
-        let security = Arc::new(SecurityPolicy::with_config(
-            workspace.to_path_buf(),
-            security_config,
-        ));
-
-        tools.register(Arc::new(ReadFileTool::new(security.clone())));
-        tools.register(Arc::new(WriteFileTool::new(security.clone())));
-        tools.register(Arc::new(ListDirTool::new(security)));
-        tools.register(Arc::new(ExecTool::new()));
-        if network_config.web.search.enabled {
-            tools.register(Arc::new(WebSearchTool::with_provider_and_max_results(
-                network_config.web.search.provider.clone(),
-                network_config.web.search.api_key.clone(),
-                network_config.web.search.normalized_max_results(),
-            )));
-        }
-        if network_config.web.fetch.enabled {
-            tools.register(Arc::new(WebFetchTool::new()));
-        }
+        let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
+            .builtin(builtin_tools.clone())
+            .with_network_config(network_config.clone())
+            .with_exec_timeout(exec_timeout)
+            .restrict_to_workspace(restrict_to_workspace)
+            .mcp_servers(mcp_servers.clone())
+            .build_subagent_registry();
 
         // Build messages with subagent-specific prompt
         let system_prompt = Self::build_subagent_prompt(task, workspace);

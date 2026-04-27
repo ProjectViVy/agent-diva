@@ -119,6 +119,10 @@ trigger-build:
 package-windows-gui:
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows-gui.ps1
 
+# 不要改！手动测试用的。
+build-windows:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows-gui.ps1
+
 
 # ===== macOS 打包命令 (需要在 macOS 上运行) =====
 # 在 macOS 上使用: ./scripts/package-macos.sh

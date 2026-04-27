@@ -4,14 +4,10 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessa
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
-use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::session::SessionManager;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
-use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
-    ToolError, ToolRegistry, WriteFileTool,
-};
+use agent_diva_tooling::{ToolError, ToolRegistry};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -24,6 +20,8 @@ use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
 use crate::runtime_control::RuntimeControlCommand;
 use crate::subagent::SubagentManager;
+use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
+use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
 
 mod loop_runtime_control;
@@ -33,6 +31,8 @@ mod loop_turn;
 /// Configuration for tool setup
 #[derive(Clone)]
 pub struct ToolConfig {
+    /// Built-in tool toggles.
+    pub builtin: BuiltInToolsConfig,
     /// Network tool runtime config
     pub network: NetworkToolConfig,
     /// Shell execution timeout in seconds
@@ -54,6 +54,7 @@ pub struct ToolConfig {
 impl Default for ToolConfig {
     fn default() -> Self {
         Self {
+            builtin: BuiltInToolsConfig::default(),
             network: NetworkToolConfig::default(),
             exec_timeout: 60,
             restrict_to_workspace: false,
@@ -99,6 +100,7 @@ pub struct AgentLoop {
     memory_window: usize,
     context: ContextBuilder,
     sessions: SessionManager,
+    tool_config: ToolConfig,
     tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
@@ -107,6 +109,31 @@ pub struct AgentLoop {
     soul_governance: SoulGovernanceSettings,
     soul_change_turns: VecDeque<Instant>,
     file_manager: Arc<FileManager>,
+}
+
+pub struct AgentLoopToolSet {
+    pub registry: ToolRegistry,
+    pub config: ToolConfig,
+}
+
+struct SubagentManagerSpawner {
+    manager: Arc<SubagentManager>,
+}
+
+#[async_trait::async_trait]
+impl SubagentSpawner for SubagentManagerSpawner {
+    async fn spawn(
+        &self,
+        task: String,
+        label: Option<String>,
+        channel: String,
+        chat_id: String,
+    ) -> Result<String, ToolError> {
+        self.manager
+            .spawn(task, label, channel, chat_id)
+            .await
+            .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
+    }
 }
 
 impl AgentLoop {
@@ -129,9 +156,11 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
+            BuiltInToolsConfig::default().for_subagent(),
             NetworkToolConfig::default(),
             None,
             false,
+            HashMap::new(),
         ));
 
         // Initialize file manager for attachment handling
@@ -150,6 +179,7 @@ impl AgentLoop {
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
             sessions,
+            tool_config: ToolConfig::default(),
             tools,
             subagent_manager,
             runtime_control_rx: None,
@@ -182,69 +212,97 @@ impl AgentLoop {
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
-        let mut tools = ToolRegistry::new();
 
         let subagent_manager = Arc::new(SubagentManager::new(
             provider.clone(),
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
+            tool_config.builtin.for_subagent(),
             tool_config.network.clone(),
             Some(tool_config.exec_timeout),
             tool_config.restrict_to_workspace,
+            tool_config.mcp_servers.clone(),
         ));
 
-        // Register spawn tool
-        let sm = subagent_manager.clone();
-        tools.register(Arc::new(SpawnTool::new(
-            move |task, label, channel, chat_id| {
-                let sm = sm.clone();
-                async move {
-                    sm.spawn(task, label, channel, chat_id)
-                        .await
-                        .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
-                }
-            },
-        )));
+        let spawner = Arc::new(SubagentManagerSpawner {
+            manager: subagent_manager.clone(),
+        });
+        let tools = ToolAssembly::new(workspace.clone())
+            .builtin(tool_config.builtin.clone())
+            .with_network_config(tool_config.network.clone())
+            .with_exec_timeout(tool_config.exec_timeout)
+            .restrict_to_workspace(tool_config.restrict_to_workspace)
+            .mcp_servers(tool_config.mcp_servers.clone())
+            .with_subagent_spawner(spawner)
+            .with_file_manager(file_manager.clone())
+            .with_tools(Vec::new())
+            .build();
 
-        // Register file system tools with SecurityPolicy
-        let security_config = if tool_config.restrict_to_workspace {
-            SecurityConfig {
-                level: SecurityLevel::Standard,
-                workspace_only: true,
-                ..SecurityConfig::default()
-            }
-        } else {
-            SecurityConfig::default()
+        let mut agent = Self {
+            bus,
+            provider,
+            workspace,
+            model,
+            max_iterations: max_iterations.unwrap_or(20),
+            memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
+            context,
+            sessions,
+            tool_config: tool_config.clone(),
+            tools,
+            subagent_manager,
+            runtime_control_rx,
+            cancelled_sessions: HashSet::new(),
+            notify_on_soul_change: tool_config.notify_on_soul_change,
+            soul_governance: tool_config.soul_governance,
+            soul_change_turns: VecDeque::new(),
+            file_manager,
         };
-        let security = Arc::new(SecurityPolicy::with_config(
+
+        if let Some(cron_service) = agent.tool_config.cron_service.clone() {
+            agent.tools = ToolAssembly::new(agent.workspace.clone())
+                .builtin(agent.tool_config.builtin.clone())
+                .with_network_config(agent.tool_config.network.clone())
+                .with_exec_timeout(agent.tool_config.exec_timeout)
+                .restrict_to_workspace(agent.tool_config.restrict_to_workspace)
+                .mcp_servers(agent.tool_config.mcp_servers.clone())
+                .with_subagent_spawner(Arc::new(SubagentManagerSpawner {
+                    manager: agent.subagent_manager.clone(),
+                }))
+                .with_cron_service(cron_service)
+                .with_file_manager(agent.file_manager.clone())
+                .build();
+        }
+
+        Ok(agent)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn with_toolset(
+        bus: MessageBus,
+        provider: Arc<dyn LLMProvider>,
+        workspace: PathBuf,
+        model: Option<String>,
+        max_iterations: Option<usize>,
+        toolset: AgentLoopToolSet,
+        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+        file_manager: Arc<FileManager>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let model = model.unwrap_or_else(|| provider.get_default_model());
+        let mut context = ContextBuilder::with_skills(workspace.clone(), None);
+        context.set_soul_settings(toolset.config.soul_context.clone());
+        let sessions = SessionManager::new(workspace.clone());
+        let subagent_manager = Arc::new(SubagentManager::new(
+            provider.clone(),
             workspace.clone(),
-            security_config,
+            bus.clone(),
+            Some(model.clone()),
+            toolset.config.builtin.for_subagent(),
+            toolset.config.network.clone(),
+            Some(toolset.config.exec_timeout),
+            toolset.config.restrict_to_workspace,
+            toolset.config.mcp_servers.clone(),
         ));
-        tools.register(Arc::new(ReadFileTool::new(security.clone())));
-        tools.register(Arc::new(WriteFileTool::new(security.clone())));
-        tools.register(Arc::new(EditFileTool::new(security.clone())));
-        tools.register(Arc::new(ListDirTool::new(security)));
-
-        // Register shell tool
-        tools.register(Arc::new(ExecTool::with_config(
-            tool_config.exec_timeout,
-            Some(workspace.clone()),
-            tool_config.restrict_to_workspace,
-        )));
-
-        // Register web tools
-        Self::register_web_tools(&mut tools, &tool_config.network);
-
-        // Register MCP tools discovered from configured servers
-        for mcp_tool in load_mcp_tools_sync(&tool_config.mcp_servers) {
-            tools.register(mcp_tool);
-        }
-
-        // Register cron tool when scheduling is configured
-        if let Some(cron_service) = tool_config.cron_service.clone() {
-            tools.register(Arc::new(CronTool::new(cron_service)));
-        }
 
         Ok(Self {
             bus,
@@ -255,12 +313,13 @@ impl AgentLoop {
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
             sessions,
-            tools,
+            tool_config: toolset.config.clone(),
+            tools: toolset.registry,
             subagent_manager,
             runtime_control_rx,
             cancelled_sessions: HashSet::new(),
-            notify_on_soul_change: tool_config.notify_on_soul_change,
-            soul_governance: tool_config.soul_governance,
+            notify_on_soul_change: toolset.config.notify_on_soul_change,
+            soul_governance: toolset.config.soul_governance,
             soul_change_turns: VecDeque::new(),
             file_manager,
         })
@@ -472,7 +531,9 @@ mod tests {
         let bus = MessageBus::new();
         let provider = Arc::new(LiteLLMClient::default());
         let workspace = PathBuf::from("/tmp/test");
-        let agent = AgentLoop::new(bus, provider, workspace, None, None);
+        let agent = AgentLoop::new(bus, provider, workspace, None, None)
+            .await
+            .unwrap();
         assert_eq!(agent.max_iterations, 20);
     }
 
@@ -483,7 +544,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 
-        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1));
+        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
+            .await
+            .unwrap();
 
         // This will fail to connect to LLM, but tests the structure
         let result = agent
@@ -509,7 +572,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 
-        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1));
+        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1))
+            .await
+            .unwrap();
         let msg = InboundMessage::new("gui", "user", "chat-1", "Hello");
 
         agent.handle_inbound(msg).await;

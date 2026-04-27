@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-channels"
-version = "0.4.9"
+version = "0.4.10"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
@@ -9,8 +9,8 @@ repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Chat platform integrations for agent-diva"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.4.9" }
-agent-diva-providers = { path = "../agent-diva-providers", version = "0.4.9" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.4.10" }
+agent-diva-providers = { path = "../agent-diva-providers", version = "0.4.10" }
 
 # Async runtime
 tokio = { workspace = true }

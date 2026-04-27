@@ -3,24 +3,21 @@
 //! This crate provides the tool registry and built-in tool implementations.
 
 pub mod attachment;
-pub mod base;
 pub mod cron;
 pub mod filesystem;
 pub mod mcp_sdk;
 pub mod message;
-pub mod registry;
 pub mod sanitize;
 pub mod shell;
 pub mod spawn;
 pub mod web;
 pub mod wtf;
 
+pub use agent_diva_tooling::{Result, Tool, ToolError, ToolRegistry};
 pub use attachment::ReadAttachmentTool;
-pub use base::{Tool, ToolError};
 pub use cron::CronTool;
 pub use filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 pub use message::MessageTool;
-pub use registry::ToolRegistry;
 pub use sanitize::sanitize_for_json;
 pub use shell::ExecTool;
 pub use spawn::SpawnTool;

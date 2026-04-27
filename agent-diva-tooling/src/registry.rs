@@ -1,6 +1,6 @@
-//! Tool registry
+//! Tool registry.
 
-use super::base::Tool;
+use crate::Tool;
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -9,46 +9,46 @@ use tracing::{error, warn};
 
 const ERROR_HINT: &str = "\n\n[Analyze the error above and try a different approach.]";
 
-/// Registry of available tools
+/// Registry of available tools.
 pub struct ToolRegistry {
     tools: HashMap<String, Arc<dyn Tool>>,
 }
 
 impl ToolRegistry {
-    /// Create a new tool registry
+    /// Create a new tool registry.
     pub fn new() -> Self {
         Self {
             tools: HashMap::new(),
         }
     }
 
-    /// Register a tool
+    /// Register a tool.
     pub fn register(&mut self, tool: Arc<dyn Tool>) {
         let name = tool.name().to_string();
         self.tools.insert(name, tool);
     }
 
-    /// Unregister a tool by name
+    /// Unregister a tool by name.
     pub fn unregister(&mut self, name: &str) {
         self.tools.remove(name);
     }
 
-    /// Get a tool by name
+    /// Get a tool by name.
     pub fn get(&self, name: &str) -> Option<Arc<dyn Tool>> {
         self.tools.get(name).cloned()
     }
 
-    /// Check if a tool is registered
+    /// Check if a tool is registered.
     pub fn has(&self, name: &str) -> bool {
         self.tools.contains_key(name)
     }
 
-    /// Get all tool definitions in OpenAI format
+    /// Get all tool definitions in OpenAI format.
     pub fn get_definitions(&self) -> Vec<Value> {
         self.tools.values().map(|tool| tool.to_schema()).collect()
     }
 
-    /// Execute a tool by name with given parameters
+    /// Execute a tool by name with given parameters.
     pub async fn execute(&self, name: &str, params: Value) -> String {
         let tool = match self.tools.get(name) {
             Some(tool) => tool,
@@ -61,7 +61,6 @@ impl ToolRegistry {
             }
         };
 
-        // Validate parameters
         let errors = tool.validate_params(&params);
         if !errors.is_empty() {
             let params_str = serde_json::to_string(&params).unwrap_or_default();
@@ -87,11 +86,9 @@ impl ToolRegistry {
             );
         }
 
-        // Execute tool
         match tool.execute(params.clone()).await {
             Ok(result) => {
                 if result.starts_with("Error") {
-                    // Log tool execution error with context
                     let params_str = serde_json::to_string(&params).unwrap_or_default();
                     let ctx = ErrorContext::new("tool_execution", &result)
                         .with_content(&params_str)
@@ -123,17 +120,17 @@ impl ToolRegistry {
         }
     }
 
-    /// Get list of registered tool names
+    /// Get list of registered tool names.
     pub fn tool_names(&self) -> Vec<String> {
         self.tools.keys().cloned().collect()
     }
 
-    /// Get number of registered tools
+    /// Get number of registered tools.
     pub fn len(&self) -> usize {
         self.tools.len()
     }
 
-    /// Check if registry is empty
+    /// Check if registry is empty.
     pub fn is_empty(&self) -> bool {
         self.tools.is_empty()
     }
@@ -170,7 +167,7 @@ mod tests {
             })
         }
 
-        async fn execute(&self, _args: Value) -> super::super::base::Result<String> {
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
             Ok("mock result".to_string())
         }
     }

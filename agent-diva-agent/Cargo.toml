@@ -1,18 +1,20 @@
 [package]
 name = "agent-diva-agent"
-version = "0.4.9"
+version = "0.4.10"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 license = "MIT"
 repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Agent logic for agent-diva"
+readme = "README.md"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.4.9" }
-agent-diva-files = { path = "../agent-diva-files", version = "0.4.9" }
-agent-diva-providers = { path = "../agent-diva-providers", version = "0.4.9" }
-agent-diva-tools = { path = "../agent-diva-tools", version = "0.4.9" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.4.10" }
+agent-diva-files = { path = "../agent-diva-files", version = "0.4.10" }
+agent-diva-providers = { path = "../agent-diva-providers", version = "0.4.10" }
+agent-diva-tooling = { workspace = true }
+agent-diva-tools = { path = "../agent-diva-tools", version = "0.4.10" }
 
 # Async runtime
 tokio = { workspace = true }

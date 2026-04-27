@@ -1,7 +1,7 @@
 //! Cron tool for scheduling reminders and tasks
 
-use crate::base::{Tool, ToolError};
 use agent_diva_core::cron::{CronSchedule, CronService};
+use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -202,7 +202,7 @@ impl Tool for CronTool {
         })
     }
 
-    async fn execute(&self, args: Value) -> super::base::Result<String> {
+    async fn execute(&self, args: Value) -> agent_diva_tooling::Result<String> {
         if let (Some(channel), Some(chat_id)) = (
             args.get("context_channel").and_then(|v| v.as_str()),
             args.get("context_chat_id").and_then(|v| v.as_str()),

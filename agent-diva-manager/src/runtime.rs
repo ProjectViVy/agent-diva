@@ -7,7 +7,7 @@ use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
     runtime_control::RuntimeControlCommand, tool_config::network::NetworkToolConfig,
     tool_config::network::WebFetchRuntimeConfig, tool_config::network::WebRuntimeConfig,
-    tool_config::network::WebSearchRuntimeConfig, AgentLoop, ToolConfig,
+    tool_config::network::WebSearchRuntimeConfig, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
@@ -186,6 +186,19 @@ fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
     }
 }
 
+fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
+    BuiltInToolsConfig {
+        filesystem: config.tools.builtin.filesystem,
+        shell: config.tools.builtin.shell,
+        web_search: config.tools.builtin.web_search,
+        web_fetch: config.tools.builtin.web_fetch,
+        spawn: config.tools.builtin.spawn,
+        cron: config.tools.builtin.cron,
+        mcp: config.tools.builtin.mcp,
+        attachment: config.tools.builtin.attachment,
+    }
+}
+
 pub async fn run_local_gateway(runtime: GatewayRuntimeConfig) -> Result<()> {
     let port = runtime.port;
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
@@ -296,6 +309,7 @@ async fn build_agent_loop(
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let tool_config = ToolConfig {
+        builtin: build_builtin_tools_config(config),
         network: build_network_tool_config(config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,

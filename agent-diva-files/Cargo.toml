@@ -1,12 +1,13 @@
 [package]
 name = "agent-diva-files"
-version = "0.4.9"
+version = "0.4.10"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 license = "MIT"
 repository = "https://github.com/ProjectViVy/agent-diva"
 description = "File management system for agent-diva with deduplication and reference counting"
+readme = "README.md"
 
 [dependencies]
 # Workspace dependencies

@@ -9,7 +9,7 @@ use agent_diva_agent::{
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
-    AgentEvent, AgentLoop, ToolConfig,
+    AgentEvent, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
@@ -49,6 +49,19 @@ pub fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
     }
 }
 
+pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
+    BuiltInToolsConfig {
+        filesystem: config.tools.builtin.filesystem,
+        shell: config.tools.builtin.shell,
+        web_search: config.tools.builtin.web_search,
+        web_fetch: config.tools.builtin.web_fetch,
+        spawn: config.tools.builtin.spawn,
+        cron: config.tools.builtin.cron,
+        mcp: config.tools.builtin.mcp,
+        attachment: config.tools.builtin.attachment,
+    }
+}
+
 async fn build_local_cli_agent(
     runtime: &CliRuntime,
     model: Option<String>,
@@ -67,6 +80,7 @@ async fn build_local_cli_agent(
     let bus = MessageBus::new();
     let provider = Arc::new(build_provider(&config, &selected_model)?);
     let tool_config = ToolConfig {
+        builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,

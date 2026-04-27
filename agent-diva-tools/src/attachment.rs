@@ -1,7 +1,7 @@
 //! Attachment tools for reading files from content-addressed storage
 
-use crate::base::{Result, Tool};
 use agent_diva_files::FileManager;
+use agent_diva_tooling::{Result, Tool};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;

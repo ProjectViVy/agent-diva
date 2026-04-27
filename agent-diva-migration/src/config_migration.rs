@@ -645,6 +645,7 @@ impl ConfigMigrator {
                 port: py.gateway.port,
             },
             tools: ToolsConfig {
+                builtin: Default::default(),
                 web: WebToolsConfig {
                     search: WebSearchConfig {
                         provider: "bocha".to_string(),

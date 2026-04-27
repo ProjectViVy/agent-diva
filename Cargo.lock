@@ -21,11 +21,12 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-agent"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",
  "agent-diva-providers",
+ "agent-diva-tooling",
  "agent-diva-tools",
  "anyhow",
  "async-trait",
@@ -46,7 +47,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-channels"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-core",
  "agent-diva-providers",
@@ -84,7 +85,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-cli"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-agent",
  "agent-diva-channels",
@@ -117,7 +118,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-core"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-files",
  "async-trait",
@@ -146,7 +147,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-files"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "async-trait",
  "chrono",
@@ -166,7 +167,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-gui"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-cli",
  "agent-diva-core",
@@ -197,7 +198,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-manager"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-agent",
  "agent-diva-channels",
@@ -226,7 +227,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-migration"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-core",
  "anyhow",
@@ -244,7 +245,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-neuron"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-providers",
  "async-trait",
@@ -259,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-providers"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-core",
  "async-trait",
@@ -278,7 +279,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-service"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "anyhow",
  "clap",
@@ -288,11 +289,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "agent-diva-tooling"
+version = "0.4.10"
+dependencies = [
+ "agent-diva-core",
+ "async-trait",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "agent-diva-tools"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",
+ "agent-diva-tooling",
  "anyhow",
  "async-trait",
  "chrono",

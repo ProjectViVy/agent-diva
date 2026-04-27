@@ -1,0 +1,20 @@
+[package]
+name = "agent-diva-tooling"
+version = "0.4.10"
+edition = "2021"
+rust-version = "1.80.0"
+authors = ["mastwet (projectViVY Team, undefine foundation)"]
+license = "MIT"
+repository = "https://github.com/ProjectViVy/agent-diva"
+description = "Tool traits and registry primitives for agent-diva"
+readme = "README.md"
+
+[dependencies]
+agent-diva-core = { path = "../agent-diva-core", version = "0.4.10" }
+async-trait = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
