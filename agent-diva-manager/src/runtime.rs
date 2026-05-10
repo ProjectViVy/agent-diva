@@ -328,7 +328,41 @@ async fn build_agent_loop(
         },
     };
 
-    AgentLoop::with_tools(
+    // Memory provider wiring — Task 6 (Phase 4).
+    //
+    // Nano-style controlled harness: when a `.laputa` state directory
+    // exists in the workspace, the runtime is prepared to inject
+    // `LaputaMemoryProvider` as the active provider through
+    // `with_tools_and_memory_provider`.
+    //
+    // To activate Laputa-backed continuity:
+    //   1. Add `laputa-core` as a dependency of `agent-diva-manager`
+    //      (path = "../../../laputa-work/laputa-next/crates/laputa-core")
+    //   2. Uncomment the block below.
+    //
+    // ```rust,ignore
+    // let laputa_state_dir = workspace.join(".laputa");
+    // let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
+    //     if laputa_state_dir.is_dir() {
+    //         tracing::info!("Laputa state directory detected; injecting LaputaMemoryProvider");
+    //         Some(Arc::new(laputa_core::provider::LaputaMemoryProvider::new(
+    //             workspace.join(".laputa").join("mempalace.db"),
+    //         )))
+    //     } else {
+    //         None
+    //     };
+    // ```
+    let laputa_state_dir = workspace.join(".laputa");
+    if laputa_state_dir.is_dir() {
+        tracing::info!(
+            "Laputa state directory detected at {}, but LaputaMemoryProvider injection is deferred (nano-style controlled harness)",
+            laputa_state_dir.display()
+        );
+    }
+
+    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> = None;
+
+    AgentLoop::with_tools_and_memory_provider(
         bus,
         agent_provider,
         workspace,
@@ -337,6 +371,7 @@ async fn build_agent_loop(
         tool_config,
         Some(runtime_control_rx),
         file_manager,
+        memory_provider,
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))

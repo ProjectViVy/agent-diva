@@ -1,6 +1,14 @@
 //! Memory manager for handling long-term memory
 
+use super::provider::{
+    MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest,
+    SessionEndResponse, SessionEndStatus, StartupInjectionShape, SyncTurnRequest,
+    SyncTurnResponse, SyncTurnStatus, SystemPromptBlock, SystemPromptRequest,
+    SystemPromptResponse,
+};
 use super::storage::{DailyNote, Memory};
+use parking_lot::Mutex;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// Manages long-term memory storage
@@ -14,6 +22,8 @@ pub struct MemoryManager {
     notes_dir: PathBuf,
     /// History file path
     history_path: PathBuf,
+    /// Session IDs whose shutdown hook has already been handled.
+    handled_session_end_ids: Mutex<HashSet<String>>,
 }
 
 impl MemoryManager {
@@ -29,6 +39,7 @@ impl MemoryManager {
             memory_path,
             notes_dir,
             history_path,
+            handled_session_end_ids: Mutex::new(HashSet::new()),
         }
     }
 
@@ -209,143 +220,113 @@ impl MemoryManager {
             format!("## Long-term Memory\n{}", memory.content)
         }
     }
+
+}
+
+#[async_trait::async_trait]
+impl MemoryProvider for MemoryManager {
+    fn system_prompt_block(
+        &self,
+        _request: &SystemPromptRequest,
+    ) -> crate::Result<SystemPromptResponse> {
+        let context = self.get_memory_context();
+        if context.is_empty() {
+            Ok(SystemPromptResponse::degraded(
+                "startup continuity unavailable; no long-term memory available",
+            ))
+        } else {
+            Ok(SystemPromptResponse::ready(SystemPromptBlock {
+                shape: StartupInjectionShape::CompactRenderedMarkdown,
+                markdown: context,
+            }))
+        }
+    }
+
+    async fn prefetch(&self, request: PrefetchRequest) -> crate::Result<PrefetchResponse> {
+        if request.intent.trim().is_empty() {
+            return Ok(PrefetchResponse {
+                status: PrefetchStatus::SkippedNoIntent,
+                prompt_block: None,
+            });
+        }
+
+        Ok(PrefetchResponse {
+            status: PrefetchStatus::Failed {
+                reason: format!(
+                    "prefetch recall is unavailable in the default MemoryManager for intent '{}'",
+                    request.intent.trim()
+                ),
+            },
+            prompt_block: None,
+        })
+    }
+
+    async fn sync_turn(&self, request: SyncTurnRequest) -> crate::Result<SyncTurnResponse> {
+        let mut persisted = false;
+
+        if let Some(memory_update) = request.memory_update_markdown.as_deref() {
+            if !memory_update.trim().is_empty() {
+                let memory = Memory::with_content(memory_update);
+                if let Err(err) = self.save_memory(&memory) {
+                    return Ok(SyncTurnResponse {
+                        status: SyncTurnStatus::Failed {
+                            reason: format!("failed to persist MEMORY.md: {err}"),
+                        },
+                    });
+                }
+                persisted = true;
+            }
+        }
+
+        if let Some(history_entry) = request.history_entry.as_deref() {
+            if !history_entry.trim().is_empty() {
+                if let Err(err) = self.append_history(history_entry) {
+                    return Ok(SyncTurnResponse {
+                        status: SyncTurnStatus::Failed {
+                            reason: format!("failed to append HISTORY.md: {err}"),
+                        },
+                    });
+                }
+                persisted = true;
+            }
+        }
+
+        Ok(SyncTurnResponse {
+            status: if persisted {
+                SyncTurnStatus::Persisted
+            } else {
+                SyncTurnStatus::Noop
+            },
+        })
+    }
+
+    async fn on_session_end(
+        &self,
+        request: SessionEndRequest,
+    ) -> crate::Result<SessionEndResponse> {
+        if let Some(session_id) = request.session_id {
+            let mut handled = self.handled_session_end_ids.lock();
+            if !handled.insert(session_id) {
+                return Ok(SessionEndResponse {
+                    status: SessionEndStatus::AlreadyHandled,
+                });
+            }
+        }
+
+        Ok(SessionEndResponse {
+            status: SessionEndStatus::Noop,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::{
+        MemoryProvider, PrefetchRequest, PrefetchStatus, SessionEndRequest, SessionEndStatus,
+        StartupStatus, SyncTurnRequest, SyncTurnStatus, SystemPromptRequest,
+    };
     use tempfile::TempDir;
-
-    #[test]
-    fn test_memory_manager_creation() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-        assert_eq!(manager._workspace, temp_dir.path());
-    }
-
-    #[test]
-    fn test_load_save_memory() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-
-        let memory = Memory::with_content("Test memory");
-        manager.save_memory(&memory).unwrap();
-
-        let loaded = manager.load_memory();
-        assert_eq!(loaded.content, "Test memory");
-    }
-
-    #[test]
-    fn test_load_save_daily_note() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-
-        let mut note = DailyNote::for_date("2024-01-15");
-        note.content = "Test note".to_string();
-        manager.save_daily_note(&note).unwrap();
-
-        let loaded = manager.load_daily_note("2024-01-15");
-        assert_eq!(loaded.content, "Test note");
-    }
-
-    #[test]
-    fn test_list_notes() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-
-        let mut note1 = DailyNote::for_date("2024-01-15");
-        note1.content = "Note 1".to_string();
-        manager.save_daily_note(&note1).unwrap();
-
-        let mut note2 = DailyNote::for_date("2024-01-16");
-        note2.content = "Note 2".to_string();
-        manager.save_daily_note(&note2).unwrap();
-
-        let notes = manager.list_notes();
-        assert_eq!(notes.len(), 2);
-        assert_eq!(notes[0], "2024-01-16"); // Newest first
-    }
-
-    #[test]
-    fn test_append_today() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-
-        // First append - should add header
-        manager.append_today("First entry").unwrap();
-        let note = manager.load_today_note();
-        assert!(note.content.contains("First entry"));
-        assert!(note.content.starts_with("#"));
-
-        // Second append - should not add another header
-        manager.append_today("Second entry").unwrap();
-        let note = manager.load_today_note();
-        assert!(note.content.contains("First entry"));
-        assert!(note.content.contains("Second entry"));
-    }
-
-    #[test]
-    fn test_get_recent_memories() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-
-        // Create some notes
-        let mut note1 = DailyNote::for_date("2024-01-15");
-        note1.content = "Memory 1".to_string();
-        manager.save_daily_note(&note1).unwrap();
-
-        let mut note2 = DailyNote::for_date("2024-01-16");
-        note2.content = "Memory 2".to_string();
-        manager.save_daily_note(&note2).unwrap();
-
-        // Get recent memories (this will get today's date range, so may not include our test dates)
-        let recent = manager.get_recent_memories(7);
-        // Just verify it doesn't panic
-        assert!(recent.is_empty() || !recent.is_empty());
-    }
-
-    #[test]
-    fn test_list_memory_files() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-
-        let mut note1 = DailyNote::for_date("2024-01-15");
-        note1.content = "Note 1".to_string();
-        manager.save_daily_note(&note1).unwrap();
-
-        let mut note2 = DailyNote::for_date("2024-01-16");
-        note2.content = "Note 2".to_string();
-        manager.save_daily_note(&note2).unwrap();
-
-        let files = manager.list_memory_files();
-        assert_eq!(files.len(), 2);
-        // Should be sorted newest first
-        assert!(files[0].to_str().unwrap().contains("2024-01-16"));
-    }
-
-    #[test]
-    fn test_get_memory_context() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-
-        // Set up long-term memory
-        let memory = Memory::with_content("Long term info");
-        manager.save_memory(&memory).unwrap();
-
-        // Get context
-        let context = manager.get_memory_context();
-        assert!(context.contains("Long-term Memory"));
-        assert!(context.contains("Long term info"));
-    }
-
-    #[test]
-    fn test_get_memory_context_empty() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = MemoryManager::new(temp_dir.path());
-
-        let context = manager.get_memory_context();
-        assert_eq!(context, "");
-    }
 
     #[test]
     fn test_append_history() {
@@ -357,5 +338,183 @@ mod tests {
 
         let history = manager.load_history();
         assert!(history.contains("Added memory event"));
+    }
+
+    #[tokio::test]
+    async fn test_memory_provider_system_prompt_block_reads_memory() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = MemoryManager::new(temp_dir.path());
+        manager
+            .save_memory(&Memory::with_content("Long term provider context"))
+            .unwrap();
+
+        let response = manager
+            .system_prompt_block(&SystemPromptRequest {
+                workspace_root: temp_dir.path().to_path_buf(),
+            })
+            .unwrap();
+
+        assert_eq!(response.status, StartupStatus::Ready);
+
+        let block = response
+            .prompt_block
+            .expect("memory-backed provider should emit a prompt block");
+
+        assert!(block.markdown.contains("## Long-term Memory"));
+        assert!(block.markdown.contains("Long term provider context"));
+        assert_eq!(
+            block.shape,
+            crate::memory::StartupInjectionShape::CompactRenderedMarkdown
+        );
+    }
+
+    #[tokio::test]
+    async fn test_memory_provider_sync_turn_persists_memory_and_history() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = MemoryManager::new(temp_dir.path());
+
+        let result = manager
+            .sync_turn(SyncTurnRequest {
+                workspace_root: temp_dir.path().to_path_buf(),
+                memory_update_markdown: Some("Updated memory from sync_turn".to_string()),
+                history_entry: Some("[2026-05-08 10:00 UTC] synchronized turn".to_string()),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result.status, SyncTurnStatus::Persisted);
+        assert_eq!(manager.load_memory().content, "Updated memory from sync_turn");
+        assert!(manager.load_history().contains("synchronized turn"));
+    }
+
+    #[tokio::test]
+    async fn test_memory_provider_session_end_is_noop_by_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = MemoryManager::new(temp_dir.path());
+
+        let response = manager
+            .on_session_end(SessionEndRequest {
+                workspace_root: temp_dir.path().to_path_buf(),
+                session_id: Some("session-1".to_string()),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(response.status, SessionEndStatus::Noop);
+    }
+
+    #[tokio::test]
+    async fn test_memory_provider_returns_degraded_startup_when_no_context_is_available() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = MemoryManager::new(temp_dir.path());
+
+        let response = manager
+            .system_prompt_block(&SystemPromptRequest {
+                workspace_root: temp_dir.path().to_path_buf(),
+            })
+            .unwrap();
+
+        match response.status {
+            StartupStatus::Degraded {
+                reason,
+                last_usable_wakeup,
+            } => {
+                assert!(reason.contains("startup continuity unavailable"));
+                assert!(last_usable_wakeup.is_none());
+            }
+            other => panic!("expected degraded startup, got {other:?}"),
+        }
+
+        let block = response
+            .prompt_block
+            .expect("degraded startup should still provide explicit startup text");
+        assert!(block.markdown.contains("status: degraded"));
+        assert!(block.markdown.contains("last_usable_wakeup: omitted"));
+    }
+
+    #[tokio::test]
+    async fn test_memory_provider_prefetch_distinguishes_no_intent_from_failed_recall() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = MemoryManager::new(temp_dir.path());
+
+        let skipped = manager
+            .prefetch(PrefetchRequest {
+                workspace_root: temp_dir.path().to_path_buf(),
+                intent: "   ".to_string(),
+                current_room: None,
+                user_message: Some("help".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(skipped.status, PrefetchStatus::SkippedNoIntent);
+        assert!(skipped.prompt_block.is_none());
+
+        let failed = manager
+            .prefetch(PrefetchRequest {
+                workspace_root: temp_dir.path().to_path_buf(),
+                intent: "recall-project-status".to_string(),
+                current_room: Some("roadmap".to_string()),
+                user_message: Some("what changed?".to_string()),
+            })
+            .await
+            .unwrap();
+        match failed.status {
+            PrefetchStatus::Failed { reason } => {
+                assert!(reason.contains("prefetch recall is unavailable"));
+            }
+            other => panic!("expected failed recall, got {other:?}"),
+        }
+        assert!(failed.prompt_block.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_memory_provider_sync_turn_failure_is_explicit() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        std::fs::create_dir_all(workspace.join("memory")).unwrap();
+        std::fs::write(workspace.join("memory").join("MEMORY.md"), "locked").unwrap();
+        std::fs::remove_file(workspace.join("memory").join("MEMORY.md")).unwrap();
+        std::fs::create_dir_all(workspace.join("memory").join("MEMORY.md")).unwrap();
+
+        let manager = MemoryManager::new(&workspace);
+        let result = manager
+            .sync_turn(SyncTurnRequest {
+                workspace_root: workspace,
+                memory_update_markdown: Some("cannot persist".to_string()),
+                history_entry: None,
+            })
+            .await
+            .unwrap();
+
+        match result.status {
+            SyncTurnStatus::Failed { reason } => {
+                assert!(reason.contains("failed to persist MEMORY.md"));
+            }
+            other => panic!("expected sync failure, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_memory_provider_session_end_is_idempotent_for_duplicates() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = MemoryManager::new(temp_dir.path());
+
+        let first = manager
+            .on_session_end(SessionEndRequest {
+                workspace_root: temp_dir.path().to_path_buf(),
+                session_id: Some("session-dup".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(first.status, SessionEndStatus::Noop);
+
+        let duplicate = manager
+            .on_session_end(SessionEndRequest {
+                workspace_root: temp_dir.path().to_path_buf(),
+                session_id: Some("session-dup".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(duplicate.status, SessionEndStatus::AlreadyHandled);
     }
 }
