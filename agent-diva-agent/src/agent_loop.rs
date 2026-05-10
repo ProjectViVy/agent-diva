@@ -660,10 +660,9 @@ mod tests {
     // ── memory provider lifecycle wiring tests (Task 6) ──────────────
 
     use agent_diva_core::memory::{
-        PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest,
-        SessionEndResponse, SessionEndStatus, StartupStatus, SyncTurnRequest,
-        SyncTurnResponse, SyncTurnStatus, SystemPromptBlock, SystemPromptRequest,
-        SystemPromptResponse,
+        PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
+        SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus,
+        SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
     };
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -786,8 +785,7 @@ mod tests {
         let memory_provider = Arc::new(TrackingMemoryProvider::new());
 
         // ContextBuilder with injected provider
-        let builder = ContextBuilder::new(workspace)
-            .with_memory_provider(memory_provider.clone());
+        let builder = ContextBuilder::new(workspace).with_memory_provider(memory_provider.clone());
 
         let prompt = builder.build_system_prompt();
 
@@ -840,12 +838,10 @@ mod tests {
 
         assert_eq!(response.status, PrefetchStatus::Ready);
         assert!(response.prompt_block.is_some());
-        assert!(
-            response
-                .prompt_block
-                .unwrap()
-                .contains("recall provider boundary")
-        );
+        assert!(response
+            .prompt_block
+            .unwrap()
+            .contains("recall provider boundary"));
     }
 
     #[tokio::test]

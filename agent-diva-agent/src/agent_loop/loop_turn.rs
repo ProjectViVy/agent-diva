@@ -699,15 +699,30 @@ fn derive_prefetch_intent(message: &str) -> String {
 
     let lower = trimmed.to_lowercase();
     let recall_words = [
-        "recall", "remember", "summarize", "summary", "review",
-        "history", "memory", "previous", "last", "recent",
-        "what", "how", "why", "when", "where", "who",
-        "list", "find", "search", "look", "check",
+        "recall",
+        "remember",
+        "summarize",
+        "summary",
+        "review",
+        "history",
+        "memory",
+        "previous",
+        "last",
+        "recent",
+        "what",
+        "how",
+        "why",
+        "when",
+        "where",
+        "who",
+        "list",
+        "find",
+        "search",
+        "look",
+        "check",
     ];
 
-    let has_recall_signal = recall_words.iter().any(|word| {
-        lower.contains(word)
-    });
+    let has_recall_signal = recall_words.iter().any(|word| lower.contains(word));
 
     if has_recall_signal {
         // Use a truncated version as the search intent.

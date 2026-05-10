@@ -415,9 +415,9 @@ fn default_identity_header() -> String {
 mod tests {
     use super::*;
     use agent_diva_core::memory::{
-        PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest,
-        SessionEndResponse, SessionEndStatus, SyncTurnRequest, SyncTurnResponse,
-        SyncTurnStatus, SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
+        PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
+        SessionEndStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus, SystemPromptBlock,
+        SystemPromptRequest, SystemPromptResponse,
     };
     use std::fs;
     use std::sync::Arc;
@@ -528,9 +528,8 @@ mod tests {
 
     #[test]
     fn test_build_system_prompt_renders_degraded_startup_state() {
-        let rendered = render_startup_injection(SystemPromptResponse::degraded(
-            "wakeup generation failed",
-        ));
+        let rendered =
+            render_startup_injection(SystemPromptResponse::degraded("wakeup generation failed"));
 
         assert!(rendered.contains("status: degraded"));
         assert!(rendered.contains("wakeup generation failed"));

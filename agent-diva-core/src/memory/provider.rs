@@ -382,10 +382,8 @@ pub trait MemoryProvider: Send + Sync {
     async fn sync_turn(&self, request: SyncTurnRequest) -> crate::Result<SyncTurnResponse>;
 
     /// Trigger shutdown/session-end rhythm work if needed.
-    async fn on_session_end(
-        &self,
-        request: SessionEndRequest,
-    ) -> crate::Result<SessionEndResponse>;
+    async fn on_session_end(&self, request: SessionEndRequest)
+        -> crate::Result<SessionEndResponse>;
 }
 
 #[cfg(test)]
@@ -419,7 +417,8 @@ mod tests {
 
         async fn sync_turn(&self, request: SyncTurnRequest) -> crate::Result<SyncTurnResponse> {
             Ok(SyncTurnResponse {
-                status: if request.memory_update_markdown.is_some() || request.history_entry.is_some()
+                status: if request.memory_update_markdown.is_some()
+                    || request.history_entry.is_some()
                 {
                     SyncTurnStatus::Persisted
                 } else {
@@ -461,29 +460,32 @@ mod tests {
                 intent: "recall-project-status".to_string(),
                 current_room: Some("roadmap".to_string()),
                 user_message: Some("what changed?".to_string()),
-        })
-        .await
-        .unwrap();
+            })
+            .await
+            .unwrap();
         assert_eq!(prefetch.status, PrefetchStatus::Ready);
-        assert_eq!(prefetch.prompt_block.as_deref(), Some("intent=recall-project-status room=roadmap"));
+        assert_eq!(
+            prefetch.prompt_block.as_deref(),
+            Some("intent=recall-project-status room=roadmap")
+        );
 
         let sync = provider
             .sync_turn(SyncTurnRequest {
                 workspace_root: PathBuf::from("/tmp/diva"),
                 memory_update_markdown: Some("updated".to_string()),
                 history_entry: None,
-        })
-        .await
-        .unwrap();
+            })
+            .await
+            .unwrap();
         assert_eq!(sync.status, SyncTurnStatus::Persisted);
 
         let shutdown = provider
             .on_session_end(SessionEndRequest {
                 workspace_root: PathBuf::from("/tmp/diva"),
                 session_id: Some("session-42".to_string()),
-        })
-        .await
-        .unwrap();
+            })
+            .await
+            .unwrap();
         assert_eq!(shutdown.status, SessionEndStatus::Triggered);
     }
 

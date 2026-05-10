@@ -2,9 +2,8 @@
 
 use super::provider::{
     MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest,
-    SessionEndResponse, SessionEndStatus, StartupInjectionShape, SyncTurnRequest,
-    SyncTurnResponse, SyncTurnStatus, SystemPromptBlock, SystemPromptRequest,
-    SystemPromptResponse,
+    SessionEndResponse, SessionEndStatus, StartupInjectionShape, SyncTurnRequest, SyncTurnResponse,
+    SyncTurnStatus, SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
 };
 use super::storage::{DailyNote, Memory};
 use parking_lot::Mutex;
@@ -220,7 +219,6 @@ impl MemoryManager {
             format!("## Long-term Memory\n{}", memory.content)
         }
     }
-
 }
 
 #[async_trait::async_trait]
@@ -383,7 +381,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(result.status, SyncTurnStatus::Persisted);
-        assert_eq!(manager.load_memory().content, "Updated memory from sync_turn");
+        assert_eq!(
+            manager.load_memory().content,
+            "Updated memory from sync_turn"
+        );
         assert!(manager.load_history().contains("synchronized turn"));
     }
 
