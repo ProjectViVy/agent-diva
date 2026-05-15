@@ -348,7 +348,18 @@ pub fn run() {
             commands::start_service,
             commands::stop_service,
             commands::get_gui_prefs,
-            commands::set_gui_prefs
+            commands::set_gui_prefs,
+            commands::pet_list_vrm_models,
+            commands::pet_load_voice_assets,
+            commands::pet_save_voice_selection,
+            commands::pet_import_voice_file,
+            commands::pet_delete_voice_file,
+            commands::pet_read_voice_file,
+            commands::open_desktop_pet,
+            commands::close_desktop_pet,
+            commands::set_desktop_pet_ignore_mouse,
+            commands::set_desktop_pet_always_on_top,
+            commands::minimize_desktop_pet
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

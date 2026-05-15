@@ -1,0 +1,381 @@
+<script setup lang="ts">
+/**
+ * DivaVrmAvatar.vue — VRM rendering component.
+ *
+ * Follows the gauss-scene-demo.html pattern:
+ *   1. createVrmRuntime(container, options)
+ *   2. runtime.loadCharacter(spec)
+ *   3. runtime.setBackgroundScene(sceneId, url)
+ *
+ * Rewritten for simplicity and reliability.  All animation / lip-sync /
+ * look-at complexity is deferred to future phases.
+ */
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import {
+  createVrmRuntime,
+  type AvatarMood,
+  type AvatarTransform,
+} from 'avatar-runtime-vrm'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import type { VrmLookAtTarget } from '../../types'
+import type { MotionAnimData } from '../../animation/types'
+
+// ─── Runtime handle type — extends the protocol interface ────────
+// setBackgroundScene exists on VrmRuntime but is NOT on AvatarRuntime
+// (it was added after the protocol was frozen).  We declare it here
+// so TypeScript doesn't complain when we call it.
+interface RuntimeHandle {
+  loadCharacter(spec: {
+    id: string
+    kind: 'vrm'
+    modelSource: string
+    displayName: string
+    initialMood: AvatarMood
+  }): Promise<void>
+  setMood(mood: AvatarMood): void
+  setSpeechState(state: { speaking: boolean; intensity?: number }): Promise<void>
+  setBackgroundScene(sceneId: string, url?: string): Promise<void>
+  setTransform(partial: Partial<AvatarTransform>): Promise<void>
+  getTransform(): AvatarTransform
+  resize(size: { width: number; height: number }): void
+  pause(): void
+  resume(): void
+  destroy(): Promise<void>
+}
+
+// ─── Props ───────────────────────────────────────────────────────
+
+const props = withDefaults(defineProps<{
+  modelPath: string
+  mood?: AvatarMood
+  isSpeaking?: boolean
+  desktopPet?: boolean
+  active?: boolean
+
+  // ── Scene props ──
+  /** 3D background scene ID ('transparent' | 'home' | 'sea' | 'space') */
+  backgroundScene?: string
+  /** Custom .spz file URL */
+  backgroundSceneUrl?: string
+
+  // ── Future phases (reserved interface, not implemented) ──
+  animations?: MotionAnimData[]
+  selectedMotionIds?: string[]
+  idleAnimationEnabled?: boolean
+  expressionIntensity?: number
+  lipSyncEnabled?: boolean
+  lookAtEnabled?: boolean
+  lookAtTarget?: VrmLookAtTarget
+  autoHideEnabled?: boolean
+}>(), {
+  mood: 'neutral',
+  isSpeaking: false,
+  desktopPet: false,
+  active: true,
+  expressionIntensity: 0.85,
+})
+
+const emit = defineEmits<{
+  (e: 'loadStart'): void
+  (e: 'loadSuccess'): void
+  (e: 'loadError', error: Error): void
+}>()
+
+// ─── State ───────────────────────────────────────────────────────
+
+const containerRef = ref<HTMLDivElement | null>(null)
+const runtime = shallowRef<RuntimeHandle | null>(null)
+const loadState = ref<'idle' | 'loading' | 'loaded' | 'error'>('idle')
+const retryCount = ref(0)
+const externallyPaused = ref(false)
+const isActive = computed(() => (props.active ?? true) && !externallyPaused.value)
+const currentScale = ref(1.0)
+
+let disposed = false
+let retryTimeoutId: ReturnType<typeof setTimeout> | null = null
+let loadSequence = 0
+let sceneLoadSeq = 0
+let resizeObserver: ResizeObserver | null = null
+const unlisteners: UnlistenFn[] = []
+
+// ─── Core: sync viewport ─────────────────────────────────────────
+
+function syncViewport(): void {
+  const el = containerRef.value
+  if (!el || !runtime.value) return
+  runtime.value.resize({
+    width: el.clientWidth,
+    height: el.clientHeight,
+  })
+}
+
+// ─── Core: load character (follows demo pattern) ─────────────────
+
+async function loadCurrentCharacter(force = false): Promise<void> {
+  const rt = runtime.value
+  if (!rt || disposed || !props.modelPath) return
+
+  const seq = ++loadSequence
+  if (retryTimeoutId !== null) {
+    clearTimeout(retryTimeoutId)
+    retryTimeoutId = null
+  }
+  if (force) retryCount.value = 0
+
+  const attempt = async (): Promise<void> => {
+    try {
+      loadState.value = 'loading'
+      emit('loadStart')
+
+      await rt.loadCharacter({
+        id: 'diva-pet',
+        kind: 'vrm',
+        modelSource: props.modelPath,
+        displayName: 'Diva Pet',
+        initialMood: props.mood ?? 'neutral',
+      })
+
+      if (disposed || runtime.value !== rt || seq !== loadSequence) return
+
+      loadState.value = 'loaded'
+      retryCount.value = 0
+      emit('loadSuccess')
+
+      // Apply initial host state
+      rt.setMood(props.mood ?? 'neutral')
+      await rt.setSpeechState({ speaking: Boolean(props.isSpeaking) })
+      if (!isActive.value) rt.pause()
+      else rt.resume()
+    } catch (err) {
+      if (disposed || runtime.value !== rt || seq !== loadSequence) return
+
+      if (retryCount.value < 3) {
+        retryCount.value++
+        const delay = 1000 * Math.pow(2, retryCount.value - 1)
+        retryTimeoutId = setTimeout(() => { retryTimeoutId = null; void attempt() }, delay)
+        return
+      }
+
+      loadState.value = 'error'
+      emit('loadError', err instanceof Error ? err : new Error(String(err)))
+    }
+  }
+
+  await attempt()
+}
+
+// ─── Core: scene switching (follows demo pattern) ────────────────
+
+async function syncBackgroundScene(): Promise<void> {
+  const rt = runtime.value
+  const sid = props.backgroundScene
+  if (!rt || !sid) return
+
+  const seq = ++sceneLoadSeq
+  try {
+    await rt.setBackgroundScene(sid, props.backgroundSceneUrl)
+    if (seq !== sceneLoadSeq) return
+    console.warn(`[DivaVrmAvatar] 场景: ${sid}`)
+  } catch (err) {
+    if (seq !== sceneLoadSeq) return
+    console.warn('[DivaVrmAvatar] 场景设置失败:', err)
+    try { await rt.setBackgroundScene('transparent') } catch { /* ignore */ }
+  }
+}
+
+// ─── Zoom (used by DesktopPetOverlay) ────────────────────────────
+
+const SCALE_MIN = 0.75
+const SCALE_MAX = 1.6
+const WHEEL_DELTA_STEP = 0.06
+
+function handleWheel(event: WheelEvent): void {
+  if (!runtime.value) return
+  event.preventDefault()
+  const delta = event.deltaY > 0 ? -WHEEL_DELTA_STEP : WHEEL_DELTA_STEP
+  const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, currentScale.value + delta))
+  currentScale.value = s
+  void runtime.value.setTransform({ scale: s })
+}
+
+function setScale(scale: number): void {
+  const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale))
+  currentScale.value = s
+  void runtime.value?.setTransform({ scale: s })
+}
+
+function getScale(): number {
+  return currentScale.value
+}
+
+// ─── Retry handler ──────────────────────────────────────────────
+
+function handleRetry(): void {
+  void loadCurrentCharacter(true)
+}
+
+// ─── Watchers ────────────────────────────────────────────────────
+
+watch(() => props.modelPath, () => { void loadCurrentCharacter() })
+
+watch(() => props.mood ?? 'neutral', (m) => { runtime.value?.setMood(m) })
+
+watch(() => props.isSpeaking ?? false, (s) => {
+  void runtime.value?.setSpeechState({ speaking: s, intensity: props.expressionIntensity ?? 0.85 })
+})
+
+watch(isActive, (active) => {
+  if (!runtime.value) return
+  if (active) {
+    void nextTick(() => {
+      requestAnimationFrame(() => {
+        if (disposed || !runtime.value) return
+        syncViewport()
+        runtime.value.resume()
+      })
+    })
+  } else {
+    runtime.value.pause()
+  }
+})
+
+// Scene watcher
+watch(
+  () => [props.backgroundScene, props.backgroundSceneUrl] as const,
+  () => { void syncBackgroundScene() },
+)
+
+// After model loads, sync scene
+watch(loadState, (s) => {
+  if (s === 'loaded' && props.backgroundScene) {
+    void syncBackgroundScene()
+  }
+})
+
+// ─── Lifecycle: onMounted ────────────────────────────────────────
+
+onMounted(async () => {
+  const el = containerRef.value
+  if (!el) return
+
+  // Create runtime — mirrors gauss-scene-demo.html exactly
+  const rt = await createVrmRuntime(el, {
+    mode: props.desktopPet ? 'desktop-pet' : 'embedded',
+    transparent: props.desktopPet,
+    allowInteraction: true,
+    maxFps: props.desktopPet ? 24 : 60,
+  }) as unknown as RuntimeHandle
+
+  if (disposed) {
+    await rt.destroy()
+    return
+  }
+
+  runtime.value = rt
+  syncViewport()
+
+  resizeObserver = new ResizeObserver(() => syncViewport())
+  resizeObserver.observe(el)
+
+  // Desktop-pet window render-control events
+  if (props.desktopPet) {
+    unlisteners.push(await listen('desktop-pet-render-pause', () => {
+      externallyPaused.value = true
+    }))
+    unlisteners.push(await listen('desktop-pet-render-resume', () => {
+      externallyPaused.value = false
+    }))
+  }
+
+  // Load model first, then scene — exactly as demo does
+  await loadCurrentCharacter(true)
+  if (props.backgroundScene) {
+    await syncBackgroundScene()
+  }
+})
+
+// ─── Lifecycle: onUnmounted ──────────────────────────────────────
+
+onUnmounted(() => {
+  disposed = true
+
+  if (retryTimeoutId !== null) {
+    clearTimeout(retryTimeoutId)
+    retryTimeoutId = null
+  }
+
+  resizeObserver?.disconnect()
+  resizeObserver = null
+
+  for (const u of unlisteners) u()
+  unlisteners.length = 0
+
+  const rt = runtime.value
+  runtime.value = null
+  if (rt) void rt.destroy()
+})
+
+defineExpose({ setScale, getScale })
+</script>
+
+<template>
+  <div
+    ref="containerRef"
+    class="diva-vrm-avatar"
+    @wheel.prevent="handleWheel"
+  >
+    <div v-if="loadState === 'loading'" class="vrm-overlay vrm-loading">
+      <span>Loading VRM model...</span>
+    </div>
+
+    <div v-if="loadState === 'error'" class="vrm-overlay vrm-error">
+      <span>{{ retryCount > 0 ? `Retrying (${retryCount}/3)...` : 'Failed to load model' }}</span>
+      <button class="vrm-retry-btn" @click="handleRetry">Retry</button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.diva-vrm-avatar {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.vrm-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 10;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.vrm-error {
+  pointer-events: auto;
+}
+
+.vrm-loading {
+  pointer-events: none;
+}
+
+.vrm-retry-btn {
+  padding: 6px 18px;
+  font-size: 13px;
+  color: #fff;
+  background: #ec4899;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.vrm-retry-btn:hover {
+  background: #db2777;
+}
+</style>

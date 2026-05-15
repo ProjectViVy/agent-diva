@@ -5,6 +5,10 @@
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
+    "paths": {
+"avatar-runtime-vrm": ["./avatar-runtime-vrm/src/index.ts"],
+      "@morediva/shared-avatar-protocol": ["./shared-avatar-protocol/src/index.ts"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",

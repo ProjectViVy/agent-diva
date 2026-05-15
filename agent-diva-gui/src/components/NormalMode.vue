@@ -2,21 +2,27 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
+  Cat,
   Check,
   Heart,
   History,
   Menu,
   MessageSquare,
+  Monitor,
   Server,
   Settings,
   Trash2,
 } from 'lucide-vue-next';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import ChatView from './ChatView.vue';
+import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
+import { usePetConfig } from '../features/diva-pet/services/pet-config';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
+import { invoke } from '@tauri-apps/api/core';
 import type { FileAttachmentDto } from '../api/desktop';
 
 const { t } = useI18n();
@@ -119,15 +125,61 @@ const emit = defineEmits<{
   (e: 'delete-session', sessionKey: string): void;
 }>();
 
-type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron';
+const { config: petConfig } = usePetConfig();
 
-const activeTab = ref<'chat' | 'settings'>('chat');
+type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'pet';
+
+const activeTab = ref<'chat' | 'settings' | 'pet'>('chat');
 const activeMenu = ref<'console' | 'neuro' | 'cron' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
 const isHistoryDropdownOpen = ref(false);
+const isDesktopPetActive = ref(false);
+const desktopPetPassThrough = ref(false);
+
+const toggleDesktopPet = async () => {
+  try {
+    if (isDesktopPetActive.value) {
+      await invoke('close_desktop_pet');
+      isDesktopPetActive.value = false;
+    } else {
+      await invoke('open_desktop_pet');
+      isDesktopPetActive.value = true;
+    }
+  } catch (error) {
+    console.error('Failed to toggle desktop pet:', error);
+  }
+};
+
+const togglePetPassThrough = async () => {
+  const next = !desktopPetPassThrough.value;
+  try {
+    await invoke('set_desktop_pet_ignore_mouse', { ignore: next });
+    desktopPetPassThrough.value = next;
+  } catch (e) {
+    console.warn('[NormalMode] Failed to toggle click-through:', e);
+  }
+};
+
+// ── Sync desktop pet state from Tauri events ──
+const desktopPetUnlisteners: UnlistenFn[] = [];
+
+// Initialize event listeners
+void (async () => {
+  try {
+    desktopPetUnlisteners.push(await listen<boolean>('desktop-pet-active', () => {
+      isDesktopPetActive.value = true;
+    }));
+    desktopPetUnlisteners.push(await listen<boolean>('desktop-pet-inactive', () => {
+      isDesktopPetActive.value = false;
+    }));
+  } catch (_) { /* ignore if not in Tauri */ }
+})();
+
+// ── Desktop pet listeners are initialized above, cleanup is merged into the onUnmounted below.
+
 
 const handleSessionSelect = (sessionKey: string) => {
   emit('load-session', sessionKey);
@@ -185,6 +237,8 @@ const currentProviderLabel = computed(() => {
   return props.config.provider;
 });
 
+const isPetModeActive = computed(() => activeMenu.value === null && activeTab.value === 'pet');
+
 const closeSidebar = () => {
   sidebarOpen.value = false;
   isModelDropdownOpen.value = false;
@@ -216,6 +270,7 @@ watch(sidebarOpen, (open) => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onSidebarEscapeKey);
+  desktopPetUnlisteners.forEach((fn) => fn());
 });
 
 watch([activeTab, activeMenu], () => {
@@ -224,7 +279,7 @@ watch([activeTab, activeMenu], () => {
 });
 
 const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
-  if (section === 'chat' || section === 'settings') {
+  if (section === 'chat' || section === 'settings' || section === 'pet') {
     activeMenu.value = null;
     activeTab.value = section;
     if (section === 'settings') {
@@ -242,7 +297,7 @@ const openSettingsFromModelMenu = () => {
 };
 
 const isSectionActive = (section: SidebarSection) => {
-  if (section === 'chat' || section === 'settings') {
+  if (section === 'chat' || section === 'settings' || section === 'pet') {
     return activeMenu.value === null && activeTab.value === section;
   }
   return activeMenu.value === section;
@@ -335,16 +390,20 @@ defineExpose({
       />
     </div>
 
-    <header class="app-titlebar h-12 flex items-center px-4 relative z-50 border-b drag-region">
+    <header
+      v-if="!isPetModeActive"
+      class="app-titlebar relative z-50 drag-region transition-all duration-300 h-12 flex items-center px-4 border-b"
+    >
       <div class="flex items-center space-x-3">
         <button
           @click="toggleSidebar"
-          class="p-1.5 rounded-md transition-colors no-drag"
-          :class="sidebarOpen ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:bg-gray-200'"
+          class="transition-all duration-200 no-drag"
+          :class="sidebarOpen
+            ? 'p-1.5 rounded-md bg-gray-200 text-gray-800'
+            : 'p-1.5 rounded-md text-gray-500 hover:bg-gray-200'"
         >
           <Menu :size="18" />
         </button>
-
         <div class="app-emotion w-8 h-8 rounded-full flex items-center justify-center text-lg shadow-sm border animate-pulse-slow">
           {{ currentConfig.emoji }}
         </div>
@@ -375,7 +434,8 @@ defineExpose({
           <button
             v-if="config"
             @click="isModelDropdownOpen = !isModelDropdownOpen"
-            class="flex items-center space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg transition-all text-xs text-gray-600 hover:text-pink-600 shadow-sm group"
+            class="group flex items-center transition-all shadow-sm"
+            :class="'space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg text-xs text-gray-600 hover:text-pink-600'"
             :title="t('app.switchModel')"
           >
             <Server :size="12" class="text-gray-400 group-hover:text-pink-500" />
@@ -433,7 +493,8 @@ defineExpose({
           <div class="relative no-drag">
             <button
               @click="isHistoryDropdownOpen = !isHistoryDropdownOpen"
-              class="flex items-center space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg transition-all text-xs text-gray-600 hover:text-pink-600 shadow-sm group"
+              class="group flex items-center transition-all text-xs shadow-sm"
+              :class="'space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg text-gray-600 hover:text-pink-600'"
               :title="t('chat.historySessions')"
             >
               <History :size="14" class="text-gray-400 group-hover:text-pink-500" />
@@ -475,6 +536,33 @@ defineExpose({
             </div>
             <div v-if="isHistoryDropdownOpen" class="fixed inset-0 z-[90]" @click="isHistoryDropdownOpen = false"></div>
           </div>
+
+          <!-- Desktop Pet toggle button -->
+          <button
+            @click="toggleDesktopPet"
+            class="flex items-center transition-all text-xs font-medium shadow-sm no-drag"
+            :class="isDesktopPetActive
+                ? 'space-x-1.5 px-2 py-1 rounded-lg bg-pink-100 text-pink-700 border border-pink-200 hover:bg-pink-200'
+                : 'space-x-1.5 px-2 py-1 rounded-lg bg-gray-50 text-gray-500 border border-gray-200/50 hover:bg-white hover:text-pink-600 hover:border-pink-200'"
+            :title="isDesktopPetActive ? $t('pet.closeDesktopPet') : $t('pet.openDesktopPet')"
+          >
+            <Monitor :size="14" class="transition-colors" :class="isDesktopPetActive ? 'text-pink-500' : 'text-gray-400'" />
+            <span class="hidden sm:inline">{{ isDesktopPetActive ? $t('pet.desktopPetOn') : $t('pet.desktopPet') }}</span>
+          </button>
+
+          <!-- Click-through toggle (only when pet is active) -->
+          <button
+            v-if="isDesktopPetActive"
+            @click="togglePetPassThrough"
+            class="flex items-center space-x-1 px-2 py-1 rounded-lg transition-all text-xs font-medium shadow-sm no-drag"
+            :class="desktopPetPassThrough
+              ? 'bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200'
+              : 'bg-gray-50 text-gray-500 border border-gray-200/50 hover:bg-white hover:text-amber-600 hover:border-amber-200'"
+            :title="desktopPetPassThrough ? 'Click-through: ON' : 'Click-through: OFF'"
+          >
+            <span class="text-sm leading-none">{{ desktopPetPassThrough ? '⊘' : '↗' }}</span>
+            <span class="hidden sm:inline">{{ desktopPetPassThrough ? '穿透 ON' : '穿透 OFF' }}</span>
+          </button>
         </div>
       </div>
     </header>
@@ -522,6 +610,18 @@ defineExpose({
             >
               {{ chatBadgeValue }}
             </span>
+          </span>
+        </button>
+
+        <button
+          v-if="petConfig.enabled"
+          class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-all"
+          :class="sidebarItemClass('pet')"
+          @click="navigateTo('pet')"
+        >
+          <span class="flex items-center space-x-2">
+            <Cat :size="16" :class="sidebarIconClass('pet', 'text-amber-500')" />
+            <span>{{ t('nav.pet') }}</span>
           </span>
         </button>
 
@@ -595,6 +695,16 @@ defineExpose({
             @send="(content, attachments) => emit('send', content, attachments)"
             @clear="emit('clear')"
             @stop="emit('stop')"
+          />
+        </div>
+        <div v-else-if="activeTab === 'pet'" class="h-full">
+          <DivaPetView
+            :messages="messages"
+            :is-typing="isTyping"
+            :current-emotion="currentEmotion"
+            :desktop-pet-active="isDesktopPetActive"
+            @send="(content) => emit('send', content)"
+            @toggle-sidebar="toggleSidebar"
           />
         </div>
         <div v-else class="h-full min-h-0">

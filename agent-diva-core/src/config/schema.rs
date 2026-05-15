@@ -19,6 +19,9 @@ pub struct Config {
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+    /// Pet (desktop avatar) configuration
+    #[serde(default)]
+    pub pet: PetConfig,
 }
 
 /// Logging configuration
@@ -1074,6 +1077,97 @@ impl Default for ExecToolConfig {
     fn default() -> Self {
         Self {
             timeout: default_timeout(),
+        }
+    }
+}
+
+/// Pet (desktop avatar) configuration
+///
+/// Controls the Diva Pet feature: 3D avatar rendering,
+/// voice interaction (TTS/ASR), and model selection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PetConfig {
+    /// Master switch: show/hide Diva Pet sidebar entry
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Selected VRM model filename (relative to public/vrm/models/)
+    #[serde(default)]
+    pub vrm_model: String,
+    /// Whether TTS auto-play is enabled
+    #[serde(default)]
+    pub tts_enabled: bool,
+    /// Whether ASR / microphone input is enabled
+    #[serde(default)]
+    pub asr_enabled: bool,
+    /// ASR provider. Currently "web_speech" is the implemented path.
+    #[serde(default = "default_asr_provider")]
+    pub asr_provider: String,
+    /// BCP-47 ASR language tag.
+    #[serde(default = "default_asr_language")]
+    pub asr_language: String,
+    /// TTS provider: "browser" | "openai" | "siliconflow"
+    #[serde(default = "default_tts_provider")]
+    pub tts_provider: String,
+    /// API key for remote TTS providers.
+    #[serde(default)]
+    pub tts_api_key: Option<String>,
+    /// Base URL for remote TTS providers.
+    #[serde(default)]
+    pub tts_base_url: String,
+    /// Model for remote TTS providers.
+    #[serde(default)]
+    pub tts_model: Option<String>,
+    /// Relative path under voice_resource/ used as a reference voice.
+    #[serde(default)]
+    pub tts_reference_voice: Option<String>,
+    /// Transcript for the reference voice clip.
+    #[serde(default)]
+    pub tts_reference_text: Option<String>,
+    /// TTS playback speed.
+    #[serde(default = "default_tts_speed")]
+    pub tts_speed: f64,
+    /// TTS playback volume.
+    #[serde(default = "default_tts_volume")]
+    pub tts_volume: f64,
+}
+
+fn default_asr_provider() -> String {
+    "web_speech".to_string()
+}
+
+fn default_asr_language() -> String {
+    "zh-CN".to_string()
+}
+
+fn default_tts_provider() -> String {
+    "browser".to_string()
+}
+
+fn default_tts_speed() -> f64 {
+    1.0
+}
+
+fn default_tts_volume() -> f64 {
+    1.0
+}
+
+impl Default for PetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            vrm_model: String::new(),
+            tts_enabled: false,
+            asr_enabled: false,
+            asr_provider: default_asr_provider(),
+            asr_language: default_asr_language(),
+            tts_provider: default_tts_provider(),
+            tts_api_key: None,
+            tts_base_url: String::new(),
+            tts_model: None,
+            tts_reference_voice: None,
+            tts_reference_text: None,
+            tts_speed: default_tts_speed(),
+            tts_volume: default_tts_volume(),
         }
     }
 }

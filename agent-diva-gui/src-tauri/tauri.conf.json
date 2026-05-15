@@ -17,7 +17,8 @@
         "width": 800,
         "height": 600,
         "visible": true,
-        "center": true
+        "center": true,
+        "devtools": true
       },
       {
         "label": "splashscreen",
@@ -29,6 +30,22 @@
         "resizable": false,
         "decorations": false,
         "center": true
+      },
+      {
+        "label": "desktop-pet",
+        "title": "Diva Desktop Pet",
+        "url": "/desktop-pet.html",
+        "visible": false,
+        "width": 400,
+        "height": 600,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false,
+        "devtools": true
       }
     ],
     "security": {

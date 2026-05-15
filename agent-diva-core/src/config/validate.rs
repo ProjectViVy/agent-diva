@@ -72,6 +72,28 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
         ));
     }
 
+    let asr_provider = config.pet.asr_provider.trim().to_lowercase();
+    if !asr_provider.is_empty() && asr_provider != "web_speech" {
+        errors.push("pet.asr_provider currently only supports 'web_speech'".to_string());
+    }
+    let tts_provider = config.pet.tts_provider.trim().to_lowercase();
+    if !tts_provider.is_empty()
+        && tts_provider != "browser"
+        && tts_provider != "openai"
+        && tts_provider != "siliconflow"
+    {
+        errors.push("pet.tts_provider must be one of: browser, openai, siliconflow".to_string());
+    }
+    if !config.pet.tts_speed.is_finite() || config.pet.tts_speed <= 0.0 {
+        errors.push("pet.tts_speed must be > 0".to_string());
+    }
+    if !config.pet.tts_volume.is_finite()
+        || config.pet.tts_volume < 0.0
+        || config.pet.tts_volume > 2.0
+    {
+        errors.push("pet.tts_volume must be in [0.0, 2.0]".to_string());
+    }
+
     if errors.is_empty() {
         Ok(())
     } else {

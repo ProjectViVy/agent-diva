@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
 import NormalMode from "./components/NormalMode.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
@@ -149,7 +150,7 @@ const messages = ref<Message[]>([
 ]);
 const isTyping = ref(false);
 const connectionStatus = ref<'connected' | 'error' | 'connecting'>('connected');
-const currentEmotion = ref('happy');
+const currentEmotion = ref('normal');
 const suppressNextStopError = ref(false);
 const currentChannel = ref('gui');
 const currentChatId = ref(generateChatId());
@@ -188,6 +189,9 @@ const unlisteners: UnlistenFn[] = [];
 
 const showWelcomeWizard = ref(false);
 const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
+
+// ── Desktop Pet state ──
+const isDesktopPetActive = ref(false);
 
 type WelcomeDonePayload = {
   skipped: boolean;
@@ -561,6 +565,37 @@ watch(() => ({ ...config.value }), (newConfig) => {
 watch(chatDisplayPrefs, (newVal) => {
   localStorage.setItem(HISTORY_PREFS_KEY, JSON.stringify(newVal));
 }, { deep: true });
+
+// ── Emotion sync to desktop pet window ──
+watch(
+  () => messages.value,
+  (msgs) => {
+    if (!isDesktopPetActive.value) return;
+    // Find the latest agent message and detect mood
+    const latestAgent = [...msgs].reverse().find((m) => m.role === 'agent');
+    if (!latestAgent || !latestAgent.content) return;
+
+    const text = latestAgent.content.toLowerCase();
+    let mood = 'neutral';
+    const moodKeywords: Record<string, string[]> = {
+      happy: ['哈哈', '开心', '太好了', '喜欢', '😊', 'great', 'happy', 'love', 'excellent', 'wonderful', '好棒', '恭喜'],
+      sad: ['难过', '伤心', '遗憾', '😢', 'sorry', 'unfortunately', '失望', '不行'],
+      angry: ['生气', '可恶', '愤怒', '😠', 'damn', 'frustrating', '讨厌'],
+      surprised: ['哇', '天哪', '真的吗', '😲', 'wow', 'amazing', 'incredible', '惊讶'],
+    };
+    for (const [m, keywords] of Object.entries(moodKeywords)) {
+      if (keywords.some((kw) => text.includes(kw))) {
+        mood = m;
+        break;
+      }
+    }
+
+    try {
+      emitTo('desktop-pet', 'desktop-pet-emotion', mood);
+    } catch (_) { /* window may not exist yet */ }
+  },
+  { deep: true }
+);
 
 function updateSavedModels(models: SavedModel[]) {
   savedModels.value = models;
@@ -1334,6 +1369,14 @@ onMounted(async () => {
       timestamp: Date.now(),
       emotion: currentEmotion.value
     });
+  }));
+
+  // ── Desktop Pet state sync ──
+  unlisteners.push(await listen<boolean>("desktop-pet-active", () => {
+    isDesktopPetActive.value = true;
+  }));
+  unlisteners.push(await listen<boolean>("desktop-pet-inactive", () => {
+    isDesktopPetActive.value = false;
   }));
   } catch (e) {
     console.error("App initialization error:", e);

@@ -9,16 +9,17 @@ use agent_diva_providers::{
     CustomProviderUpsert, LiteLLMClient, Message, ProviderAccess, ProviderCatalogService,
     ProviderModelCatalogView as SharedProviderModelCatalog, ProviderView as SharedProviderView,
 };
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::path::BaseDirectory;
-use tauri::{AppHandle, Emitter, Manager, State, Window};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, Window};
 use tauri_plugin_store::StoreExt;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex as AsyncMutex;
@@ -1605,7 +1606,7 @@ pub(crate) fn save_gateway_port_config(port: u16) -> Result<(), String> {
 
 #[cfg(test)]
 mod gateway_status_tests {
-    use super::gateway_process_status_from_runtime;
+    use super::{gateway_process_status_from_runtime, normalize_pet_voice_relative_path};
     use crate::gateway_status::GatewayStatus;
 
     #[test]
@@ -1620,6 +1621,18 @@ mod gateway_status_tests {
             process_status.details.as_deref(),
             Some("Gateway: Running (port: 3456)")
         );
+    }
+
+    #[test]
+    fn pet_voice_relative_path_rejects_parent_escape() {
+        let error = normalize_pet_voice_relative_path("voice_resource/../secret.mp3").unwrap_err();
+        assert!(error.contains("voice_resource"));
+    }
+
+    #[test]
+    fn pet_voice_relative_path_accepts_voice_resource_child() {
+        let path = normalize_pet_voice_relative_path("voice_resource/custom/sample.mp3").unwrap();
+        assert_eq!(path, "voice_resource/custom/sample.mp3");
     }
 }
 
@@ -2557,6 +2570,471 @@ pub struct GuiPrefs {
     pub close_to_tray: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct VrmModelInfo {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub thumbnail: Option<String>,
+}
+
+/// Scans the resource `vrm/models/` directory for `.vrm` files and returns
+/// a list of available VRM model descriptors. Returns an empty vec when the
+/// directory does not exist (e.g. on first launch before models are placed).
+#[tauri::command]
+pub async fn pet_list_vrm_models(app_handle: AppHandle) -> Result<Vec<VrmModelInfo>, String> {
+    let models_dir = match app_handle
+        .path()
+        .resolve("vrm/models", BaseDirectory::Resource)
+    {
+        Ok(dir) => dir,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if !models_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let entries = match std::fs::read_dir(&models_dir) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut models: Vec<VrmModelInfo> = Vec::new();
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("vrm") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(stem)
+            .to_string();
+        models.push(VrmModelInfo {
+            id: stem.to_string(),
+            name: stem.to_string(),
+            path: file_name,
+            thumbnail: None,
+        });
+    }
+
+    models.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(models)
+}
+
+const PET_VOICE_DIR_NAME: &str = "voice_resource";
+const PET_VOICE_CUSTOM_DIR_NAME: &str = "custom";
+
+// --- Voice Assets types ---
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetVoiceOption {
+    pub id: String,
+    pub label: String,
+    pub relative_path: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetResolvedVoiceConfig {
+    pub enabled: bool,
+    pub provider: String,
+    pub api_key: Option<String>,
+    pub base_url: String,
+    pub model: Option<String>,
+    pub reference_voice: Option<String>,
+    pub reference_text: Option<String>,
+    pub speed: f64,
+    pub volume: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetLoadedVoiceAssets {
+    pub active_voice: PetResolvedVoiceConfig,
+    pub config_directory_path: String,
+    pub voice_options: Vec<PetVoiceOption>,
+    pub voice_directory_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetSaveVoiceSelectionPayload {
+    pub enabled: bool,
+    pub provider: String,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub reference_voice: Option<String>,
+    pub reference_text: Option<String>,
+    pub speed: f64,
+    pub volume: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetImportVoiceFilePayload {
+    pub base64_data: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetDeleteVoiceFilePayload {
+    pub relative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetVoiceFileData {
+    pub base64_data: String,
+    pub content_type: String,
+    pub file_name: String,
+}
+
+#[tauri::command]
+pub fn pet_load_voice_assets() -> Result<PetLoadedVoiceAssets, String> {
+    let loader = config_loader();
+    let config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    build_pet_voice_assets(loader.config_dir(), &config)
+}
+
+#[tauri::command]
+pub fn pet_save_voice_selection(
+    payload: PetSaveVoiceSelectionPayload,
+) -> Result<PetLoadedVoiceAssets, String> {
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+
+    config.pet.tts_enabled = payload.enabled;
+    config.pet.tts_provider = normalize_tts_provider(&payload.provider);
+    config.pet.tts_api_key = payload.api_key.filter(|value| !value.trim().is_empty());
+    config.pet.tts_base_url = payload.base_url.unwrap_or_default();
+    config.pet.tts_model = payload.model.filter(|value| !value.trim().is_empty());
+    config.pet.tts_reference_voice = payload
+        .reference_voice
+        .as_deref()
+        .map(normalize_pet_voice_relative_path)
+        .transpose()?;
+    config.pet.tts_reference_text = payload
+        .reference_text
+        .filter(|value| !value.trim().is_empty());
+    config.pet.tts_speed = sanitized_pet_tts_speed(payload.speed);
+    config.pet.tts_volume = sanitized_pet_tts_volume(payload.volume);
+
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))?;
+    build_pet_voice_assets(loader.config_dir(), &config)
+}
+
+#[tauri::command]
+pub fn pet_import_voice_file(
+    payload: PetImportVoiceFilePayload,
+) -> Result<PetLoadedVoiceAssets, String> {
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    let config_dir = loader.config_dir();
+    let voice_custom_dir = config_dir
+        .join(PET_VOICE_DIR_NAME)
+        .join(PET_VOICE_CUSTOM_DIR_NAME);
+    let sanitized_name = sanitize_pet_voice_file_name(&payload.file_name);
+    let target_path = voice_custom_dir.join(sanitized_name);
+
+    std::fs::create_dir_all(&voice_custom_dir).map_err(|error| {
+        format!(
+            "failed to create voice import directory {}: {}",
+            voice_custom_dir.display(),
+            error
+        )
+    })?;
+
+    let decoded_bytes = BASE64_STANDARD
+        .decode(payload.base64_data.as_bytes())
+        .map_err(|error| format!("failed to decode imported voice file: {}", error))?;
+    std::fs::write(&target_path, decoded_bytes).map_err(|error| {
+        format!(
+            "failed to write imported voice file {}: {}",
+            target_path.display(),
+            error
+        )
+    })?;
+
+    let relative_path = make_pet_voice_relative_path(config_dir, &target_path)?;
+    config.pet.tts_reference_voice = Some(relative_path);
+    if config.pet.tts_provider.trim().is_empty() || config.pet.tts_provider == "browser" {
+        config.pet.tts_provider = "siliconflow".to_string();
+    }
+    if config.pet.tts_speed <= 0.0 || !config.pet.tts_speed.is_finite() {
+        config.pet.tts_speed = 1.0;
+    }
+    if !config.pet.tts_volume.is_finite() || !(0.0..=2.0).contains(&config.pet.tts_volume) {
+        config.pet.tts_volume = 1.0;
+    }
+
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))?;
+    build_pet_voice_assets(config_dir, &config)
+}
+
+#[tauri::command]
+pub fn pet_delete_voice_file(
+    payload: PetDeleteVoiceFilePayload,
+) -> Result<PetLoadedVoiceAssets, String> {
+    let normalized_relative_path = normalize_pet_voice_relative_path(&payload.relative_path)?;
+    if !normalized_relative_path.starts_with("voice_resource/custom/") {
+        return Err("only custom voice files can be deleted".to_string());
+    }
+
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    let target_path = resolve_pet_voice_file(loader.config_dir(), &normalized_relative_path)?;
+
+    std::fs::remove_file(&target_path)
+        .map_err(|error| format!("failed to delete voice file {}: {}", target_path.display(), error))?;
+
+    if config.pet.tts_reference_voice.as_deref() == Some(normalized_relative_path.as_str()) {
+        config.pet.tts_reference_voice = None;
+        config.pet.tts_reference_text = None;
+    }
+
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))?;
+    build_pet_voice_assets(loader.config_dir(), &config)
+}
+
+#[tauri::command]
+pub fn pet_read_voice_file(relative_path: String) -> Result<PetVoiceFileData, String> {
+    let loader = config_loader();
+    let normalized_relative_path = normalize_pet_voice_relative_path(&relative_path)?;
+    let file_path = resolve_pet_voice_file(loader.config_dir(), &normalized_relative_path)?;
+    let file_bytes = std::fs::read(&file_path)
+        .map_err(|error| format!("failed to read voice file {}: {}", file_path.display(), error))?;
+    let file_name = file_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("voice.mp3")
+        .to_string();
+
+    Ok(PetVoiceFileData {
+        base64_data: BASE64_STANDARD.encode(file_bytes),
+        content_type: pet_voice_content_type(&file_name).to_string(),
+        file_name,
+    })
+}
+
+fn build_pet_voice_assets(
+    config_dir: &Path,
+    config: &Config,
+) -> Result<PetLoadedVoiceAssets, String> {
+    let voice_dir = config_dir.join(PET_VOICE_DIR_NAME);
+    Ok(PetLoadedVoiceAssets {
+        active_voice: PetResolvedVoiceConfig {
+            enabled: config.pet.tts_enabled,
+            provider: normalize_tts_provider(&config.pet.tts_provider),
+            api_key: config.pet.tts_api_key.clone(),
+            base_url: config.pet.tts_base_url.clone(),
+            model: config.pet.tts_model.clone(),
+            reference_voice: config.pet.tts_reference_voice.clone(),
+            reference_text: config.pet.tts_reference_text.clone(),
+            speed: sanitized_pet_tts_speed(config.pet.tts_speed),
+            volume: sanitized_pet_tts_volume(config.pet.tts_volume),
+        },
+        config_directory_path: config_dir.to_string_lossy().to_string(),
+        voice_options: scan_pet_voice_files(config_dir)?,
+        voice_directory_path: voice_dir.to_string_lossy().to_string(),
+    })
+}
+
+fn scan_pet_voice_files(config_dir: &Path) -> Result<Vec<PetVoiceOption>, String> {
+    let voice_root = config_dir.join(PET_VOICE_DIR_NAME);
+    let mut options = Vec::new();
+    if !voice_root.exists() {
+        return Ok(options);
+    }
+
+    let mut stack = vec![voice_root];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(&directory)
+            .map_err(|error| format!("failed to scan voice directory {}: {}", directory.display(), error))?
+        {
+            let entry = entry.map_err(|error| {
+                format!(
+                    "failed to read voice directory entry in {}: {}",
+                    directory.display(),
+                    error
+                )
+            })?;
+            let path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|error| format!("failed to inspect voice file {}: {}", path.display(), error))?;
+            if file_type.is_dir() {
+                stack.push(path);
+                continue;
+            }
+
+            let file_name = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+            if !is_pet_voice_file(file_name) {
+                continue;
+            }
+
+            let relative_path = make_pet_voice_relative_path(config_dir, &path)?;
+            let source = if relative_path.starts_with("voice_resource/custom/") {
+                "custom"
+            } else {
+                "builtin"
+            };
+
+            options.push(PetVoiceOption {
+                id: relative_path.clone(),
+                label: derive_pet_voice_label(file_name),
+                relative_path,
+                source: source.to_string(),
+            });
+        }
+    }
+    options.sort_by(|left, right| left.label.cmp(&right.label));
+    Ok(options)
+}
+
+fn resolve_pet_voice_file(config_dir: &Path, relative_path: &str) -> Result<PathBuf, String> {
+    let normalized_relative_path = normalize_pet_voice_relative_path(relative_path)?;
+    let voice_root = config_dir.join(PET_VOICE_DIR_NAME);
+    let candidate = config_dir.join(&normalized_relative_path);
+    let canonical_candidate = candidate
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve voice file path: {}", error))?;
+    let canonical_voice_root = voice_root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve voice resource directory: {}", error))?;
+
+    if !canonical_candidate.starts_with(canonical_voice_root) {
+        return Err("voice file must be within voice_resource".to_string());
+    }
+    Ok(canonical_candidate)
+}
+
+fn normalize_pet_voice_relative_path(relative_path: &str) -> Result<String, String> {
+    let normalized = relative_path.trim().replace('\\', "/");
+    if normalized.is_empty()
+        || normalized.starts_with('/')
+        || normalized.contains('\0')
+        || normalized.split('/').any(|part| part.is_empty() || part == "." || part == "..")
+        || !normalized.starts_with("voice_resource/")
+    {
+        return Err("voice file path must stay under voice_resource".to_string());
+    }
+    Ok(normalized)
+}
+
+fn make_pet_voice_relative_path(config_dir: &Path, absolute_path: &Path) -> Result<String, String> {
+    let relative_path = absolute_path.strip_prefix(config_dir).map_err(|error| {
+        format!(
+            "failed to create relative path from {} to {}: {}",
+            config_dir.display(),
+            absolute_path.display(),
+            error
+        )
+    })?;
+    normalize_pet_voice_relative_path(&relative_path.to_string_lossy())
+}
+
+fn sanitize_pet_voice_file_name(file_name: &str) -> String {
+    let trimmed = file_name.trim();
+    let base_name = if trimmed.is_empty() {
+        "custom-voice.mp3"
+    } else {
+        trimmed
+    };
+    base_name
+        .chars()
+        .map(|c| match c {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '-',
+            _ => c,
+        })
+        .collect()
+}
+
+fn is_pet_voice_file(file_name: &str) -> bool {
+    let lower = file_name.to_lowercase();
+    lower.ends_with(".mp3")
+        || lower.ends_with(".wav")
+        || lower.ends_with(".ogg")
+        || lower.ends_with(".m4a")
+        || lower.ends_with(".webm")
+}
+
+fn pet_voice_content_type(file_name: &str) -> &'static str {
+    let lower = file_name.to_lowercase();
+    if lower.ends_with(".wav") {
+        "audio/wav"
+    } else if lower.ends_with(".ogg") {
+        "audio/ogg"
+    } else if lower.ends_with(".m4a") {
+        "audio/m4a"
+    } else if lower.ends_with(".webm") {
+        "audio/webm"
+    } else {
+        "audio/mpeg"
+    }
+}
+
+fn derive_pet_voice_label(file_name: &str) -> String {
+    file_name
+        .rsplit_once('.')
+        .map(|(stem, _)| stem)
+        .unwrap_or(file_name)
+        .replace(['_', '-'], " ")
+        .trim()
+        .to_string()
+}
+
+fn normalize_tts_provider(provider: &str) -> String {
+    match provider.trim().to_lowercase().as_str() {
+        "openai" => "openai".to_string(),
+        "siliconflow" => "siliconflow".to_string(),
+        _ => "browser".to_string(),
+    }
+}
+
+fn sanitized_pet_tts_speed(speed: f64) -> f64 {
+    if speed.is_finite() && speed > 0.0 {
+        speed
+    } else {
+        1.0
+    }
+}
+
+fn sanitized_pet_tts_volume(volume: f64) -> f64 {
+    if volume.is_finite() && (0.0..=2.0).contains(&volume) {
+        volume
+    } else {
+        1.0
+    }
+}
+
 #[tauri::command]
 pub fn get_gui_prefs(app: AppHandle) -> Result<GuiPrefs, String> {
     let store = app
@@ -2583,4 +3061,116 @@ pub fn set_gui_prefs(app: AppHandle, prefs: GuiPrefs) -> Result<(), String> {
         .map_err(|e| format!("Failed to save store: {}", e))?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn open_desktop_pet(app: AppHandle) -> Result<(), String> {
+    // Show existing window or create a new one
+    if let Some(window) = app.get_webview_window("desktop-pet") {
+        window
+            .set_ignore_cursor_events(false)
+            .map_err(|e| format!("Failed to reset ignore cursor events: {}", e))?;
+        let _ = app.emit_to("desktop-pet", "desktop-pet-render-resume", true);
+        window
+            .show()
+            .map_err(|e| format!("Failed to show desktop-pet window: {}", e))?;
+        if cfg!(debug_assertions) {
+            window.open_devtools();
+        }
+    } else {
+        // Calculate bottom-right position
+        let (x, y) = app
+            .available_monitors()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .next()
+            .map(|m| {
+                let size = m.size();
+                let scale = m.scale_factor();
+                let logical_w = size.width as f64 / scale;
+                let logical_h = size.height as f64 / scale;
+                let lx = (logical_w - 400.0 - 40.0).max(0.0);
+                let ly = (logical_h - 600.0 - 60.0).max(0.0);
+                (lx, ly)
+            })
+            .unwrap_or((100.0, 100.0));
+
+        let window = WebviewWindowBuilder::new(
+            &app,
+            "desktop-pet",
+            WebviewUrl::App("desktop-pet.html".into()),
+        )
+        .inner_size(400.0, 600.0)
+        .position(x, y)
+        .visible(true)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .shadow(false)
+        .build()
+        .map_err(|e| format!("Failed to create desktop-pet window: {}", e))?;
+        window
+            .set_ignore_cursor_events(false)
+            .map_err(|e| format!("Failed to reset ignore cursor events: {}", e))?;
+        window
+            .show()
+            .map_err(|e| format!("Failed to show desktop-pet window: {}", e))?;
+        if cfg!(debug_assertions) {
+            window.open_devtools();
+        }
+        let _ = app.emit_to("desktop-pet", "desktop-pet-render-resume", true);
+    }
+    app.emit_to("main", "desktop-pet-active", true)
+        .map_err(|e| format!("Failed to emit event: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_desktop_pet(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or("desktop-pet window not found")?;
+    let _ = app.emit_to("desktop-pet", "desktop-pet-render-pause", true);
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|e| format!("Failed to reset ignore cursor events: {}", e))?;
+    window
+        .hide()
+        .map_err(|e| format!("Failed to hide desktop-pet window: {}", e))?;
+    app.emit_to("main", "desktop-pet-inactive", false)
+        .map_err(|e| format!("Failed to emit event: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_desktop_pet_ignore_mouse(app: AppHandle, ignore: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or("desktop-pet window not found")?;
+    window
+        .set_ignore_cursor_events(ignore)
+        .map_err(|e| format!("Failed to set ignore cursor events: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_desktop_pet_always_on_top(app: AppHandle, always_on_top: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or("desktop-pet window not found")?;
+    window
+        .set_always_on_top(always_on_top)
+        .map_err(|e| format!("Failed to set always_on_top: {}", e))
+}
+
+#[tauri::command]
+pub fn minimize_desktop_pet(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or("desktop-pet window not found")?;
+    window
+        .minimize()
+        .map_err(|e| format!("Failed to minimize desktop-pet window: {}", e))
 }
