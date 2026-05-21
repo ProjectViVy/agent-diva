@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-gui"
-version = "0.4.10"
+version = "0.5.0"
 description = "A Tauri App for Agent Diva"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 edition = "2021"

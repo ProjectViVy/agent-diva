@@ -1,12 +1,16 @@
 //! Context builder for assembling prompts
 
 use crate::skills::SkillsLoader;
-use agent_diva_core::memory::MemoryManager;
+use agent_diva_core::memory::{
+    MemoryManager, MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock,
+    SystemPromptRequest, SystemPromptResponse,
+};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::Message;
 use agent_diva_tools::sanitize::truncate_tool_result;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 const DEFAULT_AGENT_NAME: &str = "agent-diva";
 const DEFAULT_AGENT_EMOJI: &str = "🐈";
@@ -34,7 +38,7 @@ impl Default for SoulContextSettings {
 pub struct ContextBuilder {
     workspace: PathBuf,
     skills_loader: SkillsLoader,
-    memory_manager: MemoryManager,
+    memory_provider: Arc<dyn MemoryProvider>,
     soul_settings: SoulContextSettings,
 }
 
@@ -42,11 +46,11 @@ impl ContextBuilder {
     /// Create a new context builder
     pub fn new(workspace: PathBuf) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, None);
-        let memory_manager = MemoryManager::new(&workspace);
+        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(MemoryManager::new(&workspace));
         Self {
             workspace,
             skills_loader,
-            memory_manager,
+            memory_provider,
             soul_settings: SoulContextSettings::default(),
         }
     }
@@ -54,13 +58,19 @@ impl ContextBuilder {
     /// Create a new context builder with skills
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
-        let memory_manager = MemoryManager::new(&workspace);
+        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(MemoryManager::new(&workspace));
         Self {
             workspace,
             skills_loader,
-            memory_manager,
+            memory_provider,
             soul_settings: SoulContextSettings::default(),
         }
+    }
+
+    /// Override the memory provider boundary used for prompt assembly.
+    pub fn with_memory_provider(mut self, memory_provider: Arc<dyn MemoryProvider>) -> Self {
+        self.memory_provider = memory_provider;
+        self
     }
 
     /// Override soul context settings.
@@ -121,7 +131,13 @@ Your workspace is at: {workspace_path}
         }
 
         // Inject long-term memory if available
-        let memory_context = self.memory_manager.get_memory_context();
+        let memory_context = self
+            .memory_provider
+            .system_prompt_block(&SystemPromptRequest {
+                workspace_root: self.workspace.clone(),
+            })
+            .map(render_startup_injection)
+            .unwrap_or_else(|err| render_provider_error_startup_injection(&err.to_string()));
         if !memory_context.is_empty() {
             prompt.push_str("\n\n");
             prompt.push_str(&memory_context);
@@ -310,6 +326,34 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 }
 
+fn render_startup_injection(response: SystemPromptResponse) -> String {
+    let mut rendered = response
+        .prompt_block
+        .map(render_system_prompt_block)
+        .unwrap_or_default();
+
+    if let StartupStatus::Degraded { .. } = response.status {
+        if rendered.is_empty() {
+            rendered = "## Memory Startup Status\n- status: degraded\n- reason: provider returned no startup block\n- last_usable_wakeup: omitted (no cache reuse)\n".to_string();
+        }
+    }
+
+    rendered
+}
+
+fn render_system_prompt_block(block: SystemPromptBlock) -> String {
+    match block.shape {
+        StartupInjectionShape::CompactRenderedMarkdown => block.markdown,
+    }
+}
+
+fn render_provider_error_startup_injection(error: &str) -> String {
+    format!(
+        "## Memory Startup Status\n- status: degraded\n- reason: provider error: {}\n- last_usable_wakeup: omitted (no cache reuse)\n",
+        error.trim()
+    )
+}
+
 impl Default for ContextBuilder {
     fn default() -> Self {
         Self::new(PathBuf::from("."))
@@ -370,8 +414,57 @@ fn default_identity_header() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::memory::{
+        PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
+        SessionEndStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus, SystemPromptBlock,
+        SystemPromptRequest, SystemPromptResponse,
+    };
     use std::fs;
+    use std::sync::Arc;
     use tempfile::TempDir;
+
+    struct TestMemoryProvider;
+
+    #[async_trait::async_trait]
+    impl MemoryProvider for TestMemoryProvider {
+        fn system_prompt_block(
+            &self,
+            request: &SystemPromptRequest,
+        ) -> agent_diva_core::Result<SystemPromptResponse> {
+            Ok(SystemPromptResponse::ready(SystemPromptBlock {
+                shape: agent_diva_core::memory::StartupInjectionShape::CompactRenderedMarkdown,
+                markdown: format!("## Provider Memory\n{}", request.workspace_root.display()),
+            }))
+        }
+
+        async fn prefetch(
+            &self,
+            _request: PrefetchRequest,
+        ) -> agent_diva_core::Result<PrefetchResponse> {
+            Ok(PrefetchResponse {
+                status: PrefetchStatus::SkippedNoIntent,
+                prompt_block: None,
+            })
+        }
+
+        async fn sync_turn(
+            &self,
+            _request: SyncTurnRequest,
+        ) -> agent_diva_core::Result<SyncTurnResponse> {
+            Ok(SyncTurnResponse {
+                status: SyncTurnStatus::Noop,
+            })
+        }
+
+        async fn on_session_end(
+            &self,
+            _request: SessionEndRequest,
+        ) -> agent_diva_core::Result<SessionEndResponse> {
+            Ok(SessionEndResponse {
+                status: SessionEndStatus::Noop,
+            })
+        }
+    }
 
     #[test]
     fn test_build_system_prompt() {
@@ -409,6 +502,47 @@ mod tests {
         assert!(prompt.contains("## Active Skills"));
         assert!(prompt.contains("## Skills"));
         assert!(prompt.contains("<skills>"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_uses_memory_provider_contract() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_memory_provider(Arc::new(TestMemoryProvider));
+
+        let prompt = builder.build_system_prompt();
+
+        assert!(prompt.contains("## Provider Memory"));
+        assert!(prompt.contains(&workspace.path().display().to_string()));
+    }
+
+    #[test]
+    fn test_build_system_prompt_consumes_explicit_compact_rendered_shape() {
+        let rendered = render_startup_injection(SystemPromptResponse::ready(SystemPromptBlock {
+            shape: agent_diva_core::memory::StartupInjectionShape::CompactRenderedMarkdown,
+            markdown: "## Wakeup Summary\nRendered startup block".to_string(),
+        }));
+
+        assert_eq!(rendered, "## Wakeup Summary\nRendered startup block");
+    }
+
+    #[test]
+    fn test_build_system_prompt_renders_degraded_startup_state() {
+        let rendered =
+            render_startup_injection(SystemPromptResponse::degraded("wakeup generation failed"));
+
+        assert!(rendered.contains("status: degraded"));
+        assert!(rendered.contains("wakeup generation failed"));
+        assert!(rendered.contains("last_usable_wakeup: omitted"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_renders_provider_error_as_degraded_startup() {
+        let rendered = render_provider_error_startup_injection("disk full");
+
+        assert!(rendered.contains("status: degraded"));
+        assert!(rendered.contains("provider error: disk full"));
+        assert!(rendered.contains("last_usable_wakeup: omitted"));
     }
 
     #[test]
