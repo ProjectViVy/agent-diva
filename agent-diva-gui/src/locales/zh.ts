@@ -65,6 +65,7 @@ export default {
     prefAutoReasoning: '自动展开思考',
     prefAutoTool: '自动展开工具详情',
     prefAutoRawMeta: '自动展开元数据',
+    attachFile: '添加文件',
   },
   settings: {
     title: '设置',
@@ -125,6 +126,8 @@ export default {
     voice: {
       ttsOn: 'TTS 开',
       ttsOff: 'TTS 关',
+      tts: '播报',
+      pushToTalk: '按住说话',
       mic: '麦克风',
       notSupported: '浏览器不支持语音',
       listening: '正在听...',

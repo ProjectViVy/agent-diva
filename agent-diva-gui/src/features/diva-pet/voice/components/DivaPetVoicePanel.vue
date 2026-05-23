@@ -11,11 +11,10 @@ import {
   Square,
 } from 'lucide-vue-next'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 function tt(key: string, fallback: string): string {
-  const result = t(key)
-  return result === key ? fallback : result
+  return te(key) ? t(key) : fallback
 }
 
 interface Props {

@@ -52,7 +52,6 @@ export class VrmModelLoader {
       loader.load(modelSource, resolve, undefined, reject)
     })
 
-    VRMUtils.removeUnnecessaryJoints(gltf.scene)
     try {
       VRMUtils.removeUnnecessaryVertices(gltf.scene)
     } catch {

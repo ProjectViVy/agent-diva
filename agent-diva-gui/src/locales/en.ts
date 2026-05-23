@@ -65,6 +65,7 @@ export default {
     prefAutoReasoning: 'Auto Reasoning',
     prefAutoTool: 'Auto Tool Details',
     prefAutoRawMeta: 'Auto Raw Metadata',
+    attachFile: 'Attach file',
   },
   settings: {
     title: 'Settings',
@@ -133,6 +134,8 @@ export default {
     voice: {
       ttsOn: 'TTS On',
       ttsOff: 'TTS Off',
+      tts: 'TTS',
+      pushToTalk: 'Push to talk',
       mic: 'Microphone',
       notSupported: 'Voice not supported',
       listening: 'Listening...',

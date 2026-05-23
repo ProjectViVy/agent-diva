@@ -56,7 +56,7 @@ export class SceneManager {
     }
 
     // ── Shadow Map ────────────────────────────────────────────────
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.renderer.shadowMap.type = THREE.PCFShadowMap
 
     const defaultTransform = getDefaultTransform(options.mode)
 

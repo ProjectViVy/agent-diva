@@ -187,6 +187,7 @@ const sessions = ref<SessionInfo[]>([]);
 const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
 
 const unlisteners: UnlistenFn[] = [];
+let healthInterval: ReturnType<typeof setInterval> | null = null;
 
 const showWelcomeWizard = ref(false);
 const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
@@ -1201,16 +1202,11 @@ onMounted(async () => {
 
     // Initial health check and polling
     await checkHealth();
-    const healthInterval = setInterval(checkHealth, 5000);
+    healthInterval = setInterval(checkHealth, 5000);
 
     // Fetch sessions and reopen the latest GUI chat (not a fresh random chat id)
     await refreshSessions();
     await restoreLatestGuiChatOnStartup();
-
-    // Register cleanup
-    onUnmounted(() => {
-      clearInterval(healthInterval);
-    });
 
     // Listen for streaming text delta
       unlisteners.push(await listen<StreamTextPayload>("agent-response-delta", (event) => {
@@ -1460,6 +1456,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearDesktopPetEmotionReplayTimer();
+  if (healthInterval !== null) {
+    clearInterval(healthInterval);
+    healthInterval = null;
+  }
   unlisteners.forEach(fn => fn());
 });
 </script>

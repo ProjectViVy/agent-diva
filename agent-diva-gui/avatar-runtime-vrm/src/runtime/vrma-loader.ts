@@ -1,4 +1,8 @@
-import { createVRMAnimationClip, VRMAnimationLoaderPlugin } from '@pixiv/three-vrm-animation'
+import {
+  createVRMAnimationClip,
+  VRMAnimationLoaderPlugin,
+  VRMLookAtQuaternionProxy,
+} from '@pixiv/three-vrm-animation'
 import type { VRMAnimation } from '@pixiv/three-vrm-animation'
 import type { VRM } from '@pixiv/three-vrm'
 import type { AnimationClip } from 'three'
@@ -9,11 +13,30 @@ interface VrmAnimationAsset {
   source: string
 }
 
+function ensureLookAtQuaternionProxy(vrm: VRM): void {
+  if (!vrm.lookAt) {
+    return
+  }
+
+  const existingProxy = vrm.scene.children.find((child) => child instanceof VRMLookAtQuaternionProxy)
+  if (existingProxy) {
+    if (!existingProxy.name) {
+      existingProxy.name = 'VRMLookAtQuaternionProxy'
+    }
+    return
+  }
+
+  const proxy = new VRMLookAtQuaternionProxy(vrm.lookAt)
+  proxy.name = 'VRMLookAtQuaternionProxy'
+  vrm.scene.add(proxy)
+}
+
 export class VrmaLoader {
   private readonly animationCache = new Map<string, Promise<VrmAnimationAsset>>()
 
   async loadClip(source: string, vrm: VRM): Promise<AnimationClip> {
     const asset = await this.loadAnimation(source)
+    ensureLookAtQuaternionProxy(vrm)
     return createVRMAnimationClip(asset.animation, vrm)
   }
 
