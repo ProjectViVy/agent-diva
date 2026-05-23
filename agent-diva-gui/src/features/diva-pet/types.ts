@@ -225,8 +225,8 @@ export const DEFAULT_PET_CONFIG: PetConfig = {
   desktopPetAlwaysOnTop: true,
   subtitleEnabled: true,
 
-  // 3D Gaussian Splatting 背景场景 — 默认室内场景（跟随 gauss-scene-demo.html）
-  selectedGaussSceneId: 'home' as GaussSceneId,
+  // 3D Gaussian Splatting 背景场景 — 默认透明背景
+  selectedGaussSceneId: 'transparent' as GaussSceneId,
   gaussSceneList: [
     { id: 'transparent', name: '透明背景', path: '', isDefault: true },
     { id: 'home',        name: '室内场景', path: 'vrm/scene/home.spz',  isDefault: true },

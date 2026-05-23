@@ -58,6 +58,20 @@ export function migrateConfig(config: Partial<PetConfig>): PetConfig {
   return migrated as PetConfig
 }
 
+export function mergeCoreConfigWithFrontendConfig(
+  coreConfig: Partial<PetConfig>,
+  frontendConfig: Partial<PetConfig>,
+): PetConfig {
+  const migratedCoreConfig = migrateConfig(coreConfig)
+  const migratedFrontendConfig = migrateConfig(frontendConfig)
+
+  return migrateConfig({
+    ...migratedCoreConfig,
+    gaussSceneList: migratedFrontendConfig.gaussSceneList,
+    selectedGaussSceneId: migratedFrontendConfig.selectedGaussSceneId,
+  })
+}
+
 export function applyExpressionDefaultMigration(
   currentConfig: PetConfig,
   getItem: (key: string) => string | null,
@@ -133,7 +147,7 @@ async function hydrateFromCoreConfig(): Promise<void> {
     const coreConfig = await loadPetConfigFromCore()
     const shouldEnableAsrByMigration = !localStorage.getItem(PET_ASR_DEFAULT_MIGRATION_KEY)
     isHydrating = true
-    config.value = migrateConfig(coreConfig)
+    config.value = mergeCoreConfigWithFrontendConfig(coreConfig, config.value)
     const expressionMigratedConfig = applyExpressionDefaultMigration(
       config.value,
       (key) => localStorage.getItem(key),

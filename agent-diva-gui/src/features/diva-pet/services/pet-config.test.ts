@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { migrateConfig } from './pet-config'
+import { mergeCoreConfigWithFrontendConfig, migrateConfig } from './pet-config'
 
 describe('migrateConfig', () => {
   it('旧配置（无新字段）自动填充默认值', () => {
@@ -86,7 +86,7 @@ describe('场景配置持久化', () => {
     const oldConfig = { enabled: true, vrmModel: 'test.vrm' }
     const migrated = migrateConfig(oldConfig)
 
-    expect(migrated.selectedGaussSceneId).toBe('home')
+    expect(migrated.selectedGaussSceneId).toBe('transparent')
     expect(migrated.gaussSceneList).toHaveLength(4)
   })
 
@@ -94,7 +94,7 @@ describe('场景配置持久化', () => {
     const config = { selectedGaussSceneId: 'invalid-scene' as any }
     const migrated = migrateConfig(config)
 
-    expect(migrated.selectedGaussSceneId).toBe('home')
+    expect(migrated.selectedGaussSceneId).toBe('transparent')
   })
 
   it('选择 home → 读取 home', () => {
@@ -102,5 +102,15 @@ describe('场景配置持久化', () => {
     const migrated = migrateConfig(config)
 
     expect(migrated.selectedGaussSceneId).toBe('home')
+  })
+
+  it('从核心配置 hydrate 时保留前端专属场景选择', () => {
+    const merged = mergeCoreConfigWithFrontendConfig(
+      { enabled: false, selectedGaussSceneId: 'transparent' as any },
+      { selectedGaussSceneId: 'sea' as any },
+    )
+
+    expect(merged.enabled).toBe(false)
+    expect(merged.selectedGaussSceneId).toBe('sea')
   })
 })

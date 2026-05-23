@@ -64,7 +64,7 @@ describe('DEFAULT_PET_CONFIG', () => {
 
 describe('GaussScene 类型定义', () => {
   it('DEFAULT_PET_CONFIG.selectedGaussSceneId === "transparent"', () => {
-    expect(DEFAULT_PET_CONFIG.selectedGaussSceneId).toBe('home')
+    expect(DEFAULT_PET_CONFIG.selectedGaussSceneId).toBe('transparent')
   })
 
   it('DEFAULT_PET_CONFIG.gaussSceneList.length === 4', () => {

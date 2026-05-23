@@ -114,6 +114,22 @@ describe('voice-api ASR config', () => {
     }))
   })
 
+  it('savePetConfigToCore does not persist frontend-only scene selection', async () => {
+    invokeMock.mockResolvedValueOnce(JSON.stringify({ pet: {} }))
+    invokeMock.mockResolvedValueOnce(undefined)
+
+    await savePetConfigToCore({
+      ...DEFAULT_PET_CONFIG,
+      selectedGaussSceneId: 'sea',
+    })
+
+    const payload = invokeMock.mock.calls[1]?.[1] as { raw?: string } | undefined
+    expect(payload?.raw).not.toContain('selectedGaussSceneId')
+    expect(payload?.raw).not.toContain('selected_gauss_scene_id')
+    expect(payload?.raw).not.toContain('gaussSceneList')
+    expect(payload?.raw).not.toContain('gauss_scene_list')
+  })
+
   it('resolveAsrTranscriptionConfig falls back to siliconflow defaults', () => {
     const resolved = resolveAsrTranscriptionConfig({
       apiKey: 'key',
