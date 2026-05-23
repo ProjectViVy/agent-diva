@@ -9,6 +9,10 @@ repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Agent logic for agent-diva"
 readme = "README.md"
 
+[features]
+default = []
+mentle = ["agent-diva-core/mentle", "dep:memtle"]
+
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
 agent-diva-files = { path = "../agent-diva-files", version = "0.5.0" }
@@ -40,6 +44,10 @@ regex = { workspace = true }
 uuid = { workspace = true }
 which = { workspace = true }
 dirs = { workspace = true }
+
+[dependencies.memtle]
+workspace = true
+optional = true
 
 [dev-dependencies]
 tokio-test = { workspace = true }

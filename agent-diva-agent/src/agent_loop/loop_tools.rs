@@ -41,6 +41,7 @@ impl AgentLoop {
                 manager: self.subagent_manager.clone(),
             }))
             .with_file_manager(self.file_manager.clone());
+        assembly = assembly.with_tools(self.custom_tools.clone());
         if let Some(cron_service) = tool_config.cron_service {
             assembly = assembly.with_cron_service(cron_service);
         }

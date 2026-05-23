@@ -80,6 +80,7 @@ windows-service = "0.7"
 # File management
 agent-diva-files = { version = "0.5.0", path = "agent-diva-files" }
 agent-diva-tooling = { version = "0.5.0", path = "agent-diva-tooling" }
+memtle = { version = "0.1.2", default-features = false }
 
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "migrate", "chrono"] }

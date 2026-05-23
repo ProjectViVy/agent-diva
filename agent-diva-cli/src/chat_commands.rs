@@ -59,6 +59,7 @@ pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         cron: config.tools.builtin.cron,
         mcp: config.tools.builtin.mcp,
         attachment: config.tools.builtin.attachment,
+        mentle: config.tools.builtin.mentle,
     }
 }
 

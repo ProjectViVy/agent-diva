@@ -40,6 +40,7 @@ pub struct ContextBuilder {
     skills_loader: SkillsLoader,
     memory_provider: Arc<dyn MemoryProvider>,
     soul_settings: SoulContextSettings,
+    mentle_enabled: bool,
 }
 
 impl ContextBuilder {
@@ -52,6 +53,7 @@ impl ContextBuilder {
             skills_loader,
             memory_provider,
             soul_settings: SoulContextSettings::default(),
+            mentle_enabled: false,
         }
     }
 
@@ -64,12 +66,19 @@ impl ContextBuilder {
             skills_loader,
             memory_provider,
             soul_settings: SoulContextSettings::default(),
+            mentle_enabled: false,
         }
     }
 
     /// Override the memory provider boundary used for prompt assembly.
     pub fn with_memory_provider(mut self, memory_provider: Arc<dyn MemoryProvider>) -> Self {
         self.memory_provider = memory_provider;
+        self
+    }
+
+    /// Enable Mentle-specific prompt routing only after runtime tools are active.
+    pub fn with_mentle(mut self, enabled: bool) -> Self {
+        self.mentle_enabled = enabled;
         self
     }
 
@@ -102,6 +111,20 @@ Your workspace is at: {workspace_path}
 - Memory files: {workspace_path}/memory/MEMORY.md
 - Memory history log: {workspace_path}/memory/HISTORY.md"#
         );
+
+        if self.mentle_enabled {
+            prompt.push_str(
+                r#"
+- L0/L1 Compass Memory: workspace Markdown memory and soul/profile files.
+- L2 Palace Memory: embedded local SQLite/Turso database, available through `memtle_*` tools.
+
+## Memory Routing
+- Store durable identity, behavior rules, relationship compass, and highest-priority summaries in `MEMORY.md`.
+- Store dense project facts, long transcripts, references, creative ideas, and detailed evidence through `memtle_*` tools.
+- Before answering historical facts, user relationship details, project state, or anything uncertain, use `memtle_search` or `memtle_kg_query`.
+- For ordinary conversation or facts already present in the current context, answer directly without forcing a memory tool call."#,
+            );
+        }
 
         if self.soul_settings.enabled {
             self.append_soul_sections(&mut prompt);
@@ -154,10 +177,16 @@ When a user asks to create a reminder, timer, or recurring schedule, use the 'cr
 Always be helpful, accurate, and concise. When using tools, explain what you're doing."#,
         );
 
-        prompt.push_str(&format!(
-            "\nWhen remembering something, write to {}/memory/MEMORY.md",
-            workspace_path
-        ));
+        if self.mentle_enabled {
+            prompt.push_str(
+                "\nWhen remembering something, route it by granularity: keep compact identity/relationship compass updates in MEMORY.md, and store dense factual details, long evidence, and creative/project records with the appropriate `memtle_*` tools.",
+            );
+        } else {
+            prompt.push_str(&format!(
+                "\nWhen remembering something, write to {}/memory/MEMORY.md",
+                workspace_path
+            ));
+        }
 
         prompt
     }
@@ -514,6 +543,29 @@ mod tests {
 
         assert!(prompt.contains("## Provider Memory"));
         assert!(prompt.contains(&workspace.path().display().to_string()));
+    }
+
+    #[test]
+    fn test_build_system_prompt_omits_mentle_routing_by_default() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+
+        let prompt = builder.build_system_prompt();
+
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_includes_mentle_routing_when_active() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf()).with_mentle(true);
+
+        let prompt = builder.build_system_prompt();
+
+        assert!(prompt.contains("L2 Palace Memory"));
+        assert!(prompt.contains("memtle_search"));
+        assert!(prompt.contains("route it by granularity"));
     }
 
     #[test]

@@ -47,6 +47,14 @@ parking_lot = "0.12"
 # File management
 agent-diva-files = { workspace = true }
 
+[dependencies.memtle]
+workspace = true
+optional = true
+
+[features]
+default = []
+mentle = ["dep:memtle"]
+
 [dev-dependencies]
 tokio-test = { workspace = true }
 tempfile = { workspace = true }

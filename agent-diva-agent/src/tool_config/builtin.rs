@@ -19,6 +19,8 @@ pub struct BuiltInToolsConfig {
     pub mcp: bool,
     #[serde(default = "default_true")]
     pub attachment: bool,
+    #[serde(default)]
+    pub mentle: bool,
 }
 
 fn default_true() -> bool {
@@ -36,6 +38,7 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: false,
             attachment: false,
+            mentle: false,
         }
     }
 
@@ -49,6 +52,7 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: false,
             attachment: false,
+            mentle: false,
         }
     }
 
@@ -62,6 +66,7 @@ impl BuiltInToolsConfig {
             cron: true,
             mcp: true,
             attachment: true,
+            mentle: true,
         }
     }
 
@@ -75,6 +80,7 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: self.mcp,
             attachment: false,
+            mentle: false,
         }
     }
 }
@@ -90,6 +96,27 @@ impl Default for BuiltInToolsConfig {
             cron: false,
             mcp: true,
             attachment: true,
+            mentle: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BuiltInToolsConfig;
+
+    #[test]
+    fn default_does_not_enable_mentle() {
+        assert!(!BuiltInToolsConfig::default().mentle);
+    }
+
+    #[test]
+    fn subagent_does_not_receive_mentle_by_default() {
+        let config = BuiltInToolsConfig {
+            mentle: true,
+            ..BuiltInToolsConfig::all()
+        };
+
+        assert!(!config.for_subagent().mentle);
     }
 }
