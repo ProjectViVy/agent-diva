@@ -1,11 +1,18 @@
 import { ref, watch } from 'vue'
 import type { PetConfig } from '../types'
-import { DEFAULT_PET_CONFIG } from '../types'
+import { DEFAULT_PET_CONFIG, getTtsApiKey } from '../types'
 import { loadPetConfigFromCore, savePetConfigToCore } from '../voice/services/voice-api'
 import { addVoiceLogEvent } from '../voice/services/voice-log'
 
 const PET_CONFIG_KEY = 'agent-diva-pet-config'
+const PET_ASR_DEFAULT_MIGRATION_KEY = 'agent-diva-pet-asr-default-enabled-migrated-v1'
+const PET_EXPRESSION_DEFAULT_MIGRATION_KEY = 'agent-diva-pet-expression-default-enabled-migrated-v1'
 let isHydrating = false
+let saveRequestId = 0
+
+const isSaving = ref(false)
+const lastSaveError = ref<string | null>(null)
+const lastSavedAt = ref<number | null>(null)
 
 /**
  * Auto-migrate config from older format to current schema.
@@ -45,7 +52,28 @@ export function migrateConfig(config: Partial<PetConfig>): PetConfig {
     }
   }
 
+  // New GUI logic no longer uses the legacy shared TTS API key.
+  migrated.ttsApiKey = null
+
   return migrated as PetConfig
+}
+
+export function applyExpressionDefaultMigration(
+  currentConfig: PetConfig,
+  getItem: (key: string) => string | null,
+  setItem: (key: string, value: string) => void,
+): PetConfig {
+  if (getItem(PET_EXPRESSION_DEFAULT_MIGRATION_KEY)) {
+    return currentConfig
+  }
+
+  const migratedConfig = {
+    ...currentConfig,
+    vrmExpressionEnabled: true,
+  }
+
+  setItem(PET_EXPRESSION_DEFAULT_MIGRATION_KEY, '1')
+  return migratedConfig
 }
 
 function loadConfig(): PetConfig {
@@ -73,23 +101,64 @@ watch(config, (newVal) => {
   }
 
   if (!isHydrating) {
-    void savePetConfigToCore(newVal).catch((e: unknown) => {
-      console.warn('[pet-config] Failed to save core config:', e)
-      addVoiceLogEvent({
-        level: 'error',
-        source: 'settings',
-        message: '保存 Diva 语音配置失败',
-        detail: { error: String(e) },
+    const requestId = ++saveRequestId
+    isSaving.value = true
+    lastSaveError.value = null
+    void savePetConfigToCore(newVal)
+      .then(() => {
+        if (requestId !== saveRequestId) return
+        lastSavedAt.value = Date.now()
       })
-    })
+      .catch((e: unknown) => {
+        console.warn('[pet-config] Failed to save core config:', e)
+        if (requestId !== saveRequestId) return
+        lastSaveError.value = String(e)
+        addVoiceLogEvent({
+          level: 'error',
+          source: 'settings',
+          message: '保存 Diva 语音配置失败',
+          detail: { error: String(e) },
+        })
+      })
+      .finally(() => {
+        if (requestId === saveRequestId) {
+          isSaving.value = false
+        }
+      })
   }
 }, { deep: true })
 
 async function hydrateFromCoreConfig(): Promise<void> {
   try {
     const coreConfig = await loadPetConfigFromCore()
+    const shouldEnableAsrByMigration = !localStorage.getItem(PET_ASR_DEFAULT_MIGRATION_KEY)
     isHydrating = true
     config.value = migrateConfig(coreConfig)
+    const expressionMigratedConfig = applyExpressionDefaultMigration(
+      config.value,
+      (key) => localStorage.getItem(key),
+      (key, value) => localStorage.setItem(key, value),
+    )
+    if (expressionMigratedConfig !== config.value) {
+      config.value = expressionMigratedConfig
+      localStorage.setItem(PET_CONFIG_KEY, JSON.stringify(expressionMigratedConfig))
+      await savePetConfigToCore(expressionMigratedConfig)
+    }
+    if (shouldEnableAsrByMigration) {
+      const migratedConfig = {
+        ...config.value,
+        asrEnabled: true,
+      }
+      config.value = migratedConfig
+      localStorage.setItem(PET_CONFIG_KEY, JSON.stringify(migratedConfig))
+      await savePetConfigToCore(migratedConfig)
+      localStorage.setItem(PET_ASR_DEFAULT_MIGRATION_KEY, '1')
+      addVoiceLogEvent({
+        level: 'info',
+        source: 'settings',
+        message: '已应用 ASR 默认开启迁移',
+      })
+    }
     addVoiceLogEvent({
       level: 'info',
       source: 'settings',
@@ -97,11 +166,12 @@ async function hydrateFromCoreConfig(): Promise<void> {
       detail: {
         provider: config.value.ttsProvider,
         model: config.value.ttsModel,
-        hasApiKey: !!config.value.ttsApiKey,
+        hasApiKey: !!getTtsApiKey(config.value),
       },
     })
   } catch (e) {
     console.warn('[pet-config] Failed to load core config:', e)
+    lastSaveError.value = String(e)
     addVoiceLogEvent({
       level: 'warn',
       source: 'settings',
@@ -124,6 +194,14 @@ export function usePetConfig() {
   }
 
   return { config, setEnabled, updateConfig }
+}
+
+export function usePetConfigSaveState() {
+  return {
+    isSaving,
+    lastSaveError,
+    lastSavedAt,
+  }
 }
 
 /** Non-reactive read of pet config (for use outside Vue components) */

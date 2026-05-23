@@ -11,18 +11,25 @@ use agent_diva_providers::{
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use eventsource_stream::Eventsource;
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
+use http::header::{HeaderValue, AUTHORIZATION};
+use native_tls::TlsConnector;
 use serde::{Deserialize, Serialize};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, Window};
 use tauri_plugin_store::StoreExt;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::time::timeout;
+use tokio_tungstenite::connect_async_tls_with_config;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::protocol::Message as WsMessage;
+use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info, warn};
 
 #[cfg(windows)]
@@ -1606,7 +1613,10 @@ pub(crate) fn save_gateway_port_config(port: u16) -> Result<(), String> {
 
 #[cfg(test)]
 mod gateway_status_tests {
-    use super::{gateway_process_status_from_runtime, normalize_pet_voice_relative_path};
+    use super::{
+        gateway_process_status_from_runtime, normalize_pet_voice_relative_path,
+        normalize_tts_provider,
+    };
     use crate::gateway_status::GatewayStatus;
 
     #[test]
@@ -1633,6 +1643,11 @@ mod gateway_status_tests {
     fn pet_voice_relative_path_accepts_voice_resource_child() {
         let path = normalize_pet_voice_relative_path("voice_resource/custom/sample.mp3").unwrap();
         assert_eq!(path, "voice_resource/custom/sample.mp3");
+    }
+
+    #[test]
+    fn normalize_tts_provider_accepts_minimax() {
+        assert_eq!(normalize_tts_provider("minimax"), "minimax");
     }
 }
 
@@ -2651,8 +2666,12 @@ pub struct PetResolvedVoiceConfig {
     pub enabled: bool,
     pub provider: String,
     pub api_key: Option<String>,
+    pub openai_api_key: Option<String>,
+    pub siliconflow_api_key: Option<String>,
+    pub minimax_api_key: Option<String>,
     pub base_url: String,
     pub model: Option<String>,
+    pub voice_id: Option<String>,
     pub reference_voice: Option<String>,
     pub reference_text: Option<String>,
     pub speed: f64,
@@ -2673,9 +2692,12 @@ pub struct PetLoadedVoiceAssets {
 pub struct PetSaveVoiceSelectionPayload {
     pub enabled: bool,
     pub provider: String,
-    pub api_key: Option<String>,
+    pub openai_api_key: Option<String>,
+    pub siliconflow_api_key: Option<String>,
+    pub minimax_api_key: Option<String>,
     pub base_url: Option<String>,
     pub model: Option<String>,
+    pub voice_id: Option<String>,
     pub reference_voice: Option<String>,
     pub reference_text: Option<String>,
     pub speed: f64,
@@ -2703,6 +2725,53 @@ pub struct PetVoiceFileData {
     pub file_name: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetMiniMaxSynthesizePayload {
+    pub text: String,
+    pub api_key: String,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub voice_id: Option<String>,
+    pub speed: Option<f64>,
+    pub volume: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetMiniMaxSynthesizeResponse {
+    pub base64_data: String,
+    pub content_type: String,
+}
+
+type MiniMaxSocket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+
+struct MiniMaxSynthesizeResult {
+    audio_bytes: Vec<u8>,
+    chunk_count: usize,
+    trace_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetSiliconFlowSynthesizePayload {
+    pub text: String,
+    pub api_key: String,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub voice: Option<String>,
+    pub speed: Option<f64>,
+    pub gain: Option<f64>,
+    pub references: Option<Vec<serde_json::Value>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetSiliconFlowSynthesizeResponse {
+    pub base64_data: String,
+    pub content_type: String,
+}
+
 #[tauri::command]
 pub fn pet_load_voice_assets() -> Result<PetLoadedVoiceAssets, String> {
     let loader = config_loader();
@@ -2723,9 +2792,19 @@ pub fn pet_save_voice_selection(
 
     config.pet.tts_enabled = payload.enabled;
     config.pet.tts_provider = normalize_tts_provider(&payload.provider);
-    config.pet.tts_api_key = payload.api_key.filter(|value| !value.trim().is_empty());
+    config.pet.tts_api_key = None;
+    config.pet.tts_openai_api_key = payload
+        .openai_api_key
+        .filter(|value| !value.trim().is_empty());
+    config.pet.tts_siliconflow_api_key = payload
+        .siliconflow_api_key
+        .filter(|value| !value.trim().is_empty());
+    config.pet.tts_minimax_api_key = payload
+        .minimax_api_key
+        .filter(|value| !value.trim().is_empty());
     config.pet.tts_base_url = payload.base_url.unwrap_or_default();
     config.pet.tts_model = payload.model.filter(|value| !value.trim().is_empty());
+    config.pet.tts_voice_id = payload.voice_id.filter(|value| !value.trim().is_empty());
     config.pet.tts_reference_voice = payload
         .reference_voice
         .as_deref()
@@ -2810,8 +2889,13 @@ pub fn pet_delete_voice_file(
         .map_err(|e| format!("failed to load config: {}", e))?;
     let target_path = resolve_pet_voice_file(loader.config_dir(), &normalized_relative_path)?;
 
-    std::fs::remove_file(&target_path)
-        .map_err(|error| format!("failed to delete voice file {}: {}", target_path.display(), error))?;
+    std::fs::remove_file(&target_path).map_err(|error| {
+        format!(
+            "failed to delete voice file {}: {}",
+            target_path.display(),
+            error
+        )
+    })?;
 
     if config.pet.tts_reference_voice.as_deref() == Some(normalized_relative_path.as_str()) {
         config.pet.tts_reference_voice = None;
@@ -2829,8 +2913,13 @@ pub fn pet_read_voice_file(relative_path: String) -> Result<PetVoiceFileData, St
     let loader = config_loader();
     let normalized_relative_path = normalize_pet_voice_relative_path(&relative_path)?;
     let file_path = resolve_pet_voice_file(loader.config_dir(), &normalized_relative_path)?;
-    let file_bytes = std::fs::read(&file_path)
-        .map_err(|error| format!("failed to read voice file {}: {}", file_path.display(), error))?;
+    let file_bytes = std::fs::read(&file_path).map_err(|error| {
+        format!(
+            "failed to read voice file {}: {}",
+            file_path.display(),
+            error
+        )
+    })?;
     let file_name = file_path
         .file_name()
         .and_then(|value| value.to_str())
@@ -2844,18 +2933,504 @@ pub fn pet_read_voice_file(relative_path: String) -> Result<PetVoiceFileData, St
     })
 }
 
+#[tauri::command]
+pub async fn pet_minimax_synthesize(
+    payload: PetMiniMaxSynthesizePayload,
+) -> Result<PetMiniMaxSynthesizeResponse, String> {
+    let api_key = payload.api_key.trim();
+    if api_key.is_empty() {
+        return Err("MiniMax API key is required".to_string());
+    }
+
+    let base_url = payload
+        .base_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .unwrap_or("https://api.minimaxi.com");
+    let model = payload
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("speech-2.8-hd");
+    let voice_id = payload
+        .voice_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("male-qn-qingse");
+    let speed = payload
+        .speed
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(1.0)
+        .clamp(1.0, 2.0)
+        .round() as i32;
+    let volume = payload
+        .volume
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(1.0)
+        .clamp(1.0, 10.0)
+        .round() as i32;
+    let ws_url = minimax_websocket_url(base_url);
+
+    info!(
+        model = model,
+        voice_id = voice_id,
+        ws_url = %ws_url,
+        key_prefix = %&api_key[..api_key.len().min(8)],
+        key_len = api_key.len(),
+        "calling MiniMax TTS websocket API"
+    );
+
+    let mut socket = minimax_establish_connection(base_url, api_key).await?;
+    let result =
+        minimax_synthesize_sync(&mut socket, model, voice_id, speed, volume, &payload.text).await;
+    let finish_result = minimax_finish_socket(&mut socket).await;
+    let result = result?;
+    finish_result?;
+
+    info!(
+        model = model,
+        voice_id = voice_id,
+        chunk_count = result.chunk_count,
+        audio_bytes = result.audio_bytes.len(),
+        trace_id = result.trace_id.as_deref().unwrap_or("n/a"),
+        "MiniMax TTS synthesis completed via websocket"
+    );
+
+    Ok(PetMiniMaxSynthesizeResponse {
+        base64_data: BASE64_STANDARD.encode(result.audio_bytes),
+        content_type: "audio/mpeg".to_string(),
+    })
+}
+
+async fn minimax_establish_connection(
+    base_url: &str,
+    api_key: &str,
+) -> Result<MiniMaxSocket, String> {
+    let ws_url = minimax_websocket_url(base_url);
+    let mut request = ws_url
+        .clone()
+        .into_client_request()
+        .map_err(|error| format!("failed to build MiniMax websocket request: {}", error))?;
+    request.headers_mut().insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {}", api_key))
+            .map_err(|error| format!("failed to build MiniMax authorization header: {}", error))?,
+    );
+
+    let tls = TlsConnector::builder()
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true)
+        .build()
+        .map_err(|error| format!("failed to build MiniMax TLS connector: {}", error))?;
+    let connector = Connector::NativeTls(tls.into());
+
+    let (mut socket, _) = timeout(
+        Duration::from_secs(10),
+        connect_async_tls_with_config(request, None, false, Some(connector)),
+    )
+    .await
+    .map_err(|_| {
+        format!(
+            "timed out while connecting to MiniMax websocket: {}",
+            ws_url
+        )
+    })?
+    .map_err(|error| {
+        format!(
+            "failed to connect to MiniMax websocket: {} (input base_url: {}, resolved ws_url: {})",
+            error, base_url, ws_url
+        )
+    })?;
+
+    minimax_expect_event(&mut socket, "connected_success").await?;
+    Ok(socket)
+}
+
+async fn minimax_synthesize_sync(
+    socket: &mut MiniMaxSocket,
+    model: &str,
+    voice_id: &str,
+    speed: i32,
+    volume: i32,
+    text: &str,
+) -> Result<MiniMaxSynthesizeResult, String> {
+    minimax_send_json(
+        socket,
+        serde_json::json!({
+            "event": "task_start",
+            "model": model,
+            "voice_setting": {
+                "voice_id": voice_id,
+                "speed": speed,
+                "vol": volume,
+                "pitch": 0,
+                "english_normalization": false
+            },
+            "audio_setting": {
+                "sample_rate": 32000,
+                "bitrate": 128000,
+                "format": "mp3",
+                "channel": 1
+            }
+        }),
+    )
+    .await?;
+    minimax_expect_event(socket, "task_started").await?;
+
+    minimax_send_json(
+        socket,
+        serde_json::json!({
+            "event": "task_continue",
+            "text": text
+        }),
+    )
+    .await?;
+
+    let mut audio_bytes = Vec::new();
+    let mut chunk_count = 0usize;
+    let mut trace_id = None;
+
+    loop {
+        let message = minimax_read_json_message(socket).await?;
+        if trace_id.is_none() {
+            trace_id = message
+                .get("trace_id")
+                .and_then(serde_json::Value::as_str)
+                .map(ToOwned::to_owned);
+        }
+
+        if let Some(audio_hex) = message
+            .get("data")
+            .and_then(|value| value.get("audio"))
+            .and_then(serde_json::Value::as_str)
+        {
+            if !audio_hex.trim().is_empty() {
+                let chunk = decode_hex_audio(audio_hex)?;
+                chunk_count += 1;
+                audio_bytes.extend_from_slice(&chunk);
+            }
+        }
+
+        if let Some(event) = message.get("event").and_then(serde_json::Value::as_str) {
+            if event.eq_ignore_ascii_case("error") || event.eq_ignore_ascii_case("task_failed") {
+                let detail = message
+                    .get("message")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("MiniMax websocket returned an error event");
+                return Err(detail.to_string());
+            }
+        }
+
+        if message
+            .get("is_final")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+        {
+            break;
+        }
+    }
+
+    if audio_bytes.is_empty() {
+        return Err("MiniMax TTS completed without audio data".to_string());
+    }
+
+    Ok(MiniMaxSynthesizeResult {
+        audio_bytes,
+        chunk_count,
+        trace_id,
+    })
+}
+
+async fn minimax_send_json(
+    socket: &mut MiniMaxSocket,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    socket
+        .send(WsMessage::Text(payload.to_string().into()))
+        .await
+        .map_err(|error| format!("failed to send MiniMax websocket message: {}", error))
+}
+
+async fn minimax_expect_event(socket: &mut MiniMaxSocket, expected: &str) -> Result<(), String> {
+    let message = minimax_read_json_message(socket).await?;
+    let actual = message
+        .get("event")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "MiniMax websocket response is missing event field".to_string())?;
+
+    if actual != expected {
+        let detail = message
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        return Err(format!(
+            "unexpected MiniMax websocket event: expected {}, got {}{}",
+            expected,
+            actual,
+            if detail.is_empty() {
+                String::new()
+            } else {
+                format!(" ({detail})")
+            }
+        ));
+    }
+
+    Ok(())
+}
+
+async fn minimax_read_json_message(
+    socket: &mut MiniMaxSocket,
+) -> Result<serde_json::Value, String> {
+    loop {
+        let frame = timeout(Duration::from_secs(30), socket.next())
+            .await
+            .map_err(|_| "timed out while waiting for MiniMax websocket message".to_string())?
+            .ok_or_else(|| "MiniMax websocket closed unexpectedly".to_string())?
+            .map_err(|error| format!("MiniMax websocket stream error: {}", error))?;
+
+        match frame {
+            WsMessage::Text(text) => {
+                let value = serde_json::from_str::<serde_json::Value>(&text)
+                    .map_err(|error| format!("invalid MiniMax websocket payload: {}", error))?;
+                return Ok(value);
+            }
+            WsMessage::Ping(payload) => {
+                socket
+                    .send(WsMessage::Pong(payload))
+                    .await
+                    .map_err(|error| format!("failed to respond to MiniMax ping: {}", error))?;
+            }
+            WsMessage::Close(frame) => {
+                let detail = frame
+                    .map(|value| value.reason.to_string())
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| "unknown close frame".to_string());
+                return Err(format!("MiniMax websocket closed: {}", detail));
+            }
+            WsMessage::Binary(_) => {
+                return Err("MiniMax websocket returned unexpected binary frame".to_string());
+            }
+            WsMessage::Pong(_) | WsMessage::Frame(_) => {}
+        }
+    }
+}
+
+async fn minimax_finish_socket(socket: &mut MiniMaxSocket) -> Result<(), String> {
+    let _ = minimax_send_json(socket, serde_json::json!({ "event": "task_finish" })).await;
+    socket
+        .close(None)
+        .await
+        .map_err(|error| format!("failed to close MiniMax websocket: {}", error))
+}
+
+fn minimax_websocket_url(base_url: &str) -> String {
+    const DEFAULT_HOST: &str = "api.minimaxi.com";
+    const WS_PATH: &str = "/ws/v1/t2a_v2";
+
+    let trimmed = base_url.trim();
+    let candidate = if trimmed.is_empty() {
+        format!("https://{DEFAULT_HOST}")
+    } else if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{}", trimmed.trim_matches('/'))
+    };
+
+    let mut url = match reqwest::Url::parse(&candidate) {
+        Ok(url) => url,
+        Err(_) => {
+            return format!("wss://{DEFAULT_HOST}{WS_PATH}");
+        }
+    };
+
+    match url.scheme() {
+        "http" | "ws" => {
+            let _ = url.set_scheme("ws");
+        }
+        "https" | "wss" => {
+            let _ = url.set_scheme("wss");
+        }
+        _ => {
+            let _ = url.set_scheme("wss");
+        }
+    }
+
+    if matches!(url.host_str(), Some("platform.minimaxi.com")) {
+        let _ = url.set_host(Some(DEFAULT_HOST));
+    }
+
+    url.set_path(WS_PATH);
+    url.set_query(None);
+    url.set_fragment(None);
+    url.to_string()
+}
+
+#[cfg(test)]
+mod minimax_url_tests {
+    use super::minimax_websocket_url;
+
+    #[test]
+    fn minimax_websocket_url_normalizes_api_base() {
+        assert_eq!(
+            minimax_websocket_url("https://api.minimaxi.com"),
+            "wss://api.minimaxi.com/ws/v1/t2a_v2"
+        );
+        assert_eq!(
+            minimax_websocket_url("https://api.minimaxi.com/v1"),
+            "wss://api.minimaxi.com/ws/v1/t2a_v2"
+        );
+    }
+
+    #[test]
+    fn minimax_websocket_url_accepts_full_websocket_endpoint() {
+        assert_eq!(
+            minimax_websocket_url("wss://api.minimaxi.com/ws/v1/t2a_v2"),
+            "wss://api.minimaxi.com/ws/v1/t2a_v2"
+        );
+    }
+
+    #[test]
+    fn minimax_websocket_url_rewrites_docs_host_and_paths() {
+        assert_eq!(
+            minimax_websocket_url("https://platform.minimaxi.com/docs/guides/speech-t2a-websocket"),
+            "wss://api.minimaxi.com/ws/v1/t2a_v2"
+        );
+    }
+}
+
+#[tauri::command]
+pub async fn pet_siliconflow_synthesize(
+    payload: PetSiliconFlowSynthesizePayload,
+) -> Result<PetSiliconFlowSynthesizeResponse, String> {
+    let api_key = payload.api_key.trim();
+    if api_key.is_empty() {
+        return Err("SiliconFlow API key is required".to_string());
+    }
+
+    let base_url = payload
+        .base_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .unwrap_or("https://api.siliconflow.cn/v1");
+    let endpoint = format!("{}/audio/speech", base_url.trim_end_matches('/'));
+    let model = payload
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .unwrap_or("fnlp/MOSS-TTSD-v0.5");
+    let voice = payload
+        .voice
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("fnlp/MOSS-TTSD-v0.5:anna");
+    let speed = payload
+        .speed
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .unwrap_or(1.0);
+    let gain = payload.gain.filter(|v| v.is_finite()).unwrap_or(0.0);
+
+    let mut body = serde_json::json!({
+        "model": model,
+        "input": payload.text,
+        "voice": voice,
+        "response_format": "mp3",
+        "speed": speed,
+        "gain": gain,
+        "stream": false
+    });
+
+    // voice 和 references 互斥：有 references 时必须移除 voice 字段
+    if let Some(refs) = &payload.references {
+        if !refs.is_empty() {
+            body.as_object_mut().and_then(|obj| obj.remove("voice"));
+            body["references"] = serde_json::Value::Array(refs.clone());
+        }
+    }
+
+    info!(
+        model = model,
+        voice = voice,
+        endpoint = endpoint,
+        has_references = payload
+            .references
+            .as_ref()
+            .map(|r| !r.is_empty())
+            .unwrap_or(false),
+        "calling SiliconFlow TTS API"
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|error| format!("failed to build HTTP client: {}", error))?;
+
+    let response = client
+        .post(&endpoint)
+        .bearer_auth(api_key)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|error| format!("SiliconFlow TTS request failed: {}", error))?;
+
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("audio/mpeg")
+        .to_string();
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("failed to read SiliconFlow response: {}", error))?;
+
+    if !status.is_success() {
+        let body_preview = String::from_utf8_lossy(&bytes);
+        return Err(format!(
+            "SiliconFlow TTS error: HTTP {} body={}",
+            status, body_preview
+        ));
+    }
+
+    if bytes.is_empty() {
+        return Err("SiliconFlow TTS returned empty audio".to_string());
+    }
+
+    info!(
+        model = model,
+        audio_bytes = bytes.len(),
+        content_type = content_type,
+        "SiliconFlow TTS synthesis completed"
+    );
+    Ok(PetSiliconFlowSynthesizeResponse {
+        base64_data: BASE64_STANDARD.encode(&bytes),
+        content_type,
+    })
+}
+
 fn build_pet_voice_assets(
     config_dir: &Path,
     config: &Config,
 ) -> Result<PetLoadedVoiceAssets, String> {
     let voice_dir = config_dir.join(PET_VOICE_DIR_NAME);
+    let provider = normalize_tts_provider(&config.pet.tts_provider);
     Ok(PetLoadedVoiceAssets {
         active_voice: PetResolvedVoiceConfig {
             enabled: config.pet.tts_enabled,
-            provider: normalize_tts_provider(&config.pet.tts_provider),
-            api_key: config.pet.tts_api_key.clone(),
+            provider: provider.clone(),
+            api_key: pet_tts_api_key_for_provider(&config.pet, &provider),
+            openai_api_key: config.pet.tts_openai_api_key.clone(),
+            siliconflow_api_key: config.pet.tts_siliconflow_api_key.clone(),
+            minimax_api_key: config.pet.tts_minimax_api_key.clone(),
             base_url: config.pet.tts_base_url.clone(),
             model: config.pet.tts_model.clone(),
+            voice_id: config.pet.tts_voice_id.clone(),
             reference_voice: config.pet.tts_reference_voice.clone(),
             reference_text: config.pet.tts_reference_text.clone(),
             speed: sanitized_pet_tts_speed(config.pet.tts_speed),
@@ -2876,9 +3451,13 @@ fn scan_pet_voice_files(config_dir: &Path) -> Result<Vec<PetVoiceOption>, String
 
     let mut stack = vec![voice_root];
     while let Some(directory) = stack.pop() {
-        for entry in std::fs::read_dir(&directory)
-            .map_err(|error| format!("failed to scan voice directory {}: {}", directory.display(), error))?
-        {
+        for entry in std::fs::read_dir(&directory).map_err(|error| {
+            format!(
+                "failed to scan voice directory {}: {}",
+                directory.display(),
+                error
+            )
+        })? {
             let entry = entry.map_err(|error| {
                 format!(
                     "failed to read voice directory entry in {}: {}",
@@ -2887,9 +3466,9 @@ fn scan_pet_voice_files(config_dir: &Path) -> Result<Vec<PetVoiceOption>, String
                 )
             })?;
             let path = entry.path();
-            let file_type = entry
-                .file_type()
-                .map_err(|error| format!("failed to inspect voice file {}: {}", path.display(), error))?;
+            let file_type = entry.file_type().map_err(|error| {
+                format!("failed to inspect voice file {}: {}", path.display(), error)
+            })?;
             if file_type.is_dir() {
                 stack.push(path);
                 continue;
@@ -2941,7 +3520,9 @@ fn normalize_pet_voice_relative_path(relative_path: &str) -> Result<String, Stri
     if normalized.is_empty()
         || normalized.starts_with('/')
         || normalized.contains('\0')
-        || normalized.split('/').any(|part| part.is_empty() || part == "." || part == "..")
+        || normalized
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
         || !normalized.starts_with("voice_resource/")
     {
         return Err("voice file path must stay under voice_resource".to_string());
@@ -3011,11 +3592,42 @@ fn derive_pet_voice_label(file_name: &str) -> String {
         .to_string()
 }
 
+fn decode_hex_audio(value: &str) -> Result<Vec<u8>, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+    if trimmed.len() % 2 != 0 {
+        return Err("MiniMax audio chunk is not valid hex".to_string());
+    }
+
+    let mut bytes = Vec::with_capacity(trimmed.len() / 2);
+    for index in (0..trimmed.len()).step_by(2) {
+        let byte = u8::from_str_radix(&trimmed[index..index + 2], 16)
+            .map_err(|error| format!("failed to decode MiniMax audio chunk: {}", error))?;
+        bytes.push(byte);
+    }
+    Ok(bytes)
+}
+
 fn normalize_tts_provider(provider: &str) -> String {
     match provider.trim().to_lowercase().as_str() {
         "openai" => "openai".to_string(),
         "siliconflow" => "siliconflow".to_string(),
+        "minimax" => "minimax".to_string(),
         _ => "browser".to_string(),
+    }
+}
+
+fn pet_tts_api_key_for_provider(
+    config: &agent_diva_core::config::schema::PetConfig,
+    provider: &str,
+) -> Option<String> {
+    match provider {
+        "openai" => config.tts_openai_api_key.clone(),
+        "siliconflow" => config.tts_siliconflow_api_key.clone(),
+        "minimax" => config.tts_minimax_api_key.clone(),
+        _ => None,
     }
 }
 

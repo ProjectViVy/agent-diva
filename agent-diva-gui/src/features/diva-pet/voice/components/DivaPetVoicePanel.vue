@@ -8,7 +8,6 @@ import {
   VolumeX,
   Loader2,
   AlertCircle,
-  Play,
   Square,
 } from 'lucide-vue-next'
 
@@ -27,6 +26,7 @@ interface Props {
   isProcessing: boolean
   voiceError: string | null
   ttsEnabled: boolean
+  isPushToTalkDisabled?: boolean
 }
 
 const props = defineProps<Props>()
@@ -36,12 +36,14 @@ const emit = defineEmits<{
   (e: 'update:ttsEnabled', val: boolean): void
   (e: 'testSpeak'): void
   (e: 'stopSpeaking'): void
+  (e: 'startVoiceHold', event: PointerEvent): void
+  (e: 'stopVoiceHold', event: PointerEvent): void
 }>()
 
 const ttsLabel = computed(() => tt('pet.voice.tts', '播报'))
 const micLabel = computed(() => tt('pet.voice.mic', '麦克风'))
-const testLabel = computed(() => tt('pet.voice.test', '测试'))
 const speakingLabel = computed(() => tt('pet.voice.speaking', '播报中'))
+const pushToTalkLabel = computed(() => tt('pet.voice.pushToTalk', '按住说话'))
 
 const ttsTitle = computed(() =>
   props.ttsEnabled ? tt('pet.voice.ttsOff', '关闭播报') : tt('pet.voice.ttsOn', '开启播报'),
@@ -57,7 +59,11 @@ const micTitle = computed(() => {
 })
 
 const stopTitle = computed(() => tt('pet.voice.stop', '停止播报'))
-const testTitle = computed(() => tt('pet.voice.testSpeak', '播放测试语音'))
+const pushToTalkTitle = computed(() => (
+  props.isPushToTalkDisabled
+    ? props.voiceError || tt('pet.voice.notSupported', '当前不可用')
+    : pushToTalkLabel.value
+))
 
 function onToggleTts() {
   emit('update:ttsEnabled', !props.ttsEnabled)
@@ -67,8 +73,12 @@ function onToggleVoice() {
   emit('toggleVoice')
 }
 
-function onTestSpeak() {
-  emit('testSpeak')
+function onStartVoiceHold(event: PointerEvent) {
+  emit('startVoiceHold', event)
+}
+
+function onStopVoiceHold(event: PointerEvent) {
+  emit('stopVoiceHold', event)
 }
 
 function onStopSpeaking() {
@@ -121,13 +131,30 @@ function onStopSpeaking() {
       />
     </div>
 
+    <!-- Test voice button is temporarily hidden.
+    <button class="voice-btn voice-btn--glass text-fuchsia-100 ring-1 ring-fuchsia-200/30">
+      <span class="voice-label">测试</span>
+    </button>
+    -->
+
     <button
-      :title="testTitle"
-      class="voice-btn voice-btn--glass text-fuchsia-100 ring-1 ring-fuchsia-200/30"
-      @click="onTestSpeak"
+      :title="pushToTalkTitle"
+      :disabled="isPushToTalkDisabled"
+      class="voice-btn voice-btn--glass voice-btn--ptt"
+      :class="[
+        isVoiceEnabled
+          ? 'text-white ring-1 ring-red-200/45 voice-btn--ptt-active'
+          : isPushToTalkDisabled
+            ? 'text-white/25 cursor-not-allowed'
+            : 'text-white/70',
+      ]"
+      @pointerdown.prevent="onStartVoiceHold"
+      @pointerup="onStopVoiceHold"
+      @pointerleave="onStopVoiceHold"
+      @pointercancel="onStopVoiceHold"
     >
-      <Play :size="15" />
-      <span class="voice-label">{{ testLabel }}</span>
+      <Mic :size="15" />
+      <span class="voice-label">{{ pushToTalkLabel }}</span>
     </button>
 
     <button
@@ -145,6 +172,7 @@ function onStopSpeaking() {
 <style scoped>
 .diva-voice-panel {
   font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  width: min(760px, 100%);
 }
 
 .voice-btn {
@@ -161,6 +189,16 @@ function onStopSpeaking() {
 .voice-btn--glass:hover {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.12));
   transform: translateY(-1px);
+}
+
+.voice-btn--ptt {
+  margin-left: auto;
+}
+
+.voice-btn--ptt-active {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.86), rgba(185, 28, 28, 0.70));
+  border-color: rgba(252, 165, 165, 0.62);
+  box-shadow: 0 10px 30px rgba(185, 28, 28, 0.30);
 }
 
 .voice-label {

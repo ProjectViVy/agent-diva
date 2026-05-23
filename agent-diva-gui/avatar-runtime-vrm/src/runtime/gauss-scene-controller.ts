@@ -37,8 +37,6 @@ function disposeObject(obj: THREE.Object3D): void {
 export class GaussSceneController {
   private scene: THREE.Scene
   private currentGroup: THREE.Group | null = null
-  private currentSceneId: GaussSceneId | null = null
-  private splatMesh: SplatMesh | null = null
 
   constructor(scene: THREE.Scene) {
     this.scene = scene
@@ -83,13 +81,11 @@ export class GaussSceneController {
       splat.position.set(0, splatHeight, 2)
       splat.scale.set(splatScale, splatScale, splatScale)
       splat.receiveShadow = true
-      this.splatMesh = splat
       group.add(splat)
     }
 
     this.scene.add(group)
     this.currentGroup = group
-    this.currentSceneId = sceneId as GaussSceneId
   }
 
   private unloadCurrent(): void {
@@ -98,8 +94,6 @@ export class GaussSceneController {
       disposeObject(this.currentGroup)
       this.currentGroup = null
     }
-    this.splatMesh = null
-    this.currentSceneId = null
   }
 
   dispose(): void {

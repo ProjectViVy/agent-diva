@@ -9,6 +9,7 @@ import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
 import { getConfigStatus, getRuntimeConfig, type FileAttachmentDto } from "./api/desktop";
+import { getDesktopPetEmotionSignal, type DesktopPetEmotionSignal } from "./utils/desktop-pet-emotion";
 import {
   HISTORY_PREFS_KEY,
   SAVED_MODELS_KEY,
@@ -192,6 +193,9 @@ const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
 
 // ── Desktop Pet state ──
 const isDesktopPetActive = ref(false);
+const lastDesktopPetEmotionSignature = ref<string | null>(null);
+const latestDesktopPetEmotionSignal = ref<DesktopPetEmotionSignal | null>(null);
+let desktopPetEmotionReplayTimer: ReturnType<typeof setTimeout> | null = null;
 
 type WelcomeDonePayload = {
   skipped: boolean;
@@ -566,16 +570,49 @@ watch(chatDisplayPrefs, (newVal) => {
   localStorage.setItem(HISTORY_PREFS_KEY, JSON.stringify(newVal));
 }, { deep: true });
 
+function clearDesktopPetEmotionReplayTimer() {
+  if (desktopPetEmotionReplayTimer !== null) {
+    window.clearTimeout(desktopPetEmotionReplayTimer);
+    desktopPetEmotionReplayTimer = null;
+  }
+}
+
+function emitDesktopPetEmotion(signal: DesktopPetEmotionSignal): void {
+  if (!isDesktopPetActive.value) return;
+  if (signal.signature === lastDesktopPetEmotionSignature.value) return;
+
+  lastDesktopPetEmotionSignature.value = signal.signature;
+
+  try {
+    emitTo('desktop-pet', 'desktop-pet-emotion', signal.mood);
+  } catch (_) { /* window may not exist yet */ }
+}
+
+function scheduleDesktopPetEmotionReplay(signal: DesktopPetEmotionSignal, delayMs = 250): void {
+  clearDesktopPetEmotionReplayTimer();
+  desktopPetEmotionReplayTimer = window.setTimeout(() => {
+    desktopPetEmotionReplayTimer = null;
+    emitDesktopPetEmotion(signal);
+  }, delayMs);
+}
+
 // ── Emotion sync to desktop pet window ──
 watch(
   () => messages.value,
   (msgs) => {
-    if (!isDesktopPetActive.value) return;
+    const signal = getDesktopPetEmotionSignal(msgs);
+    if (!signal) return;
+
+    latestDesktopPetEmotionSignal.value = signal;
+    emitDesktopPetEmotion(signal);
+    // Legacy mood sync disabled.
+    return;
+
     // Find the latest agent message and detect mood
-    const latestAgent = [...msgs].reverse().find((m) => m.role === 'agent');
+    const latestAgent = [...msgs].reverse().find((m) => m.role === 'agent')!;
     if (!latestAgent || !latestAgent.content) return;
 
-    const text = latestAgent.content.toLowerCase();
+    const text = latestAgent.content!.toLowerCase();
     let mood = 'neutral';
     const moodKeywords: Record<string, string[]> = {
       happy: ['哈哈', '开心', '太好了', '喜欢', '😊', 'great', 'happy', 'love', 'excellent', 'wonderful', '好棒', '恭喜'],
@@ -593,9 +630,19 @@ watch(
     try {
       emitTo('desktop-pet', 'desktop-pet-emotion', mood);
     } catch (_) { /* window may not exist yet */ }
+    // Legacy mood sync disabled.
   },
   { deep: true }
 );
+
+watch(isDesktopPetActive, (active) => {
+  if (!active) {
+    clearDesktopPetEmotionReplayTimer();
+    return;
+  }
+  if (!latestDesktopPetEmotionSignal.value) return;
+  scheduleDesktopPetEmotionReplay(latestDesktopPetEmotionSignal.value);
+});
 
 function updateSavedModels(models: SavedModel[]) {
   savedModels.value = models;
@@ -629,6 +676,13 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
     attachments: attachmentFileIds
   };
   messages.value.push(userMsg);
+
+  // Hide previous subtitle in desktop pet window when user sends new message
+  if (isDesktopPetActive.value) {
+    try {
+      emitTo('desktop-pet', 'desktop-pet-subtitle', '');
+    } catch (_) { /* desktop pet window may not exist */ }
+  }
 
   isTyping.value = true;
   suppressNextStopError.value = false;
@@ -734,6 +788,10 @@ async function stopMessage() {
 }
 
 const clearMessages = () => {
+  startNewChat(t('app.cleared'));
+};
+
+function startNewChat(greeting: string) {
   currentChatId.value = generateChatId();
   currentSessionKey.value = `gui:${currentChatId.value}`;
   activeStreamRequestId.value = null;
@@ -741,7 +799,7 @@ const clearMessages = () => {
   messages.value = [
     {
       role: 'agent',
-      content: t('app.cleared'),
+      content: greeting,
       timestamp: Date.now(),
       emotion: 'happy'
     }
@@ -751,7 +809,7 @@ const clearMessages = () => {
   if (isTauri()) {
     setTimeout(refreshSessions, 1000);
   }
-};
+}
 
 async function refreshSessions() {
   if (!isTauri()) return;
@@ -1195,6 +1253,16 @@ onMounted(async () => {
       lastMsg.isThinking = false;
       isTyping.value = false;
       activeStreamRequestId.value = null;
+
+      // Forward agent response as subtitle to desktop pet window for TTS
+      if (lastMsg.content && isDesktopPetActive.value) {
+        console.log('[App] Emitting desktop-pet-subtitle. length:', lastMsg.content.length, 'preview:', lastMsg.content.slice(0, 50))
+        try {
+          emitTo('desktop-pet', 'desktop-pet-subtitle', lastMsg.content);
+        } catch (err) {
+          console.error('[App] Failed to emit desktop-pet-subtitle:', err)
+        }
+      }
     }
   }));
 
@@ -1378,6 +1446,11 @@ onMounted(async () => {
   unlisteners.push(await listen<boolean>("desktop-pet-inactive", () => {
     isDesktopPetActive.value = false;
   }));
+  unlisteners.push(await listen<string>("desktop-pet-voice-message", (event) => {
+    const text = event.payload.trim();
+    if (!text) return;
+    void sendMessage(text);
+  }));
   } catch (e) {
     console.error("App initialization error:", e);
   } finally {
@@ -1386,6 +1459,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  clearDesktopPetEmotionReplayTimer();
   unlisteners.forEach(fn => fn());
 });
 </script>
@@ -1415,6 +1489,7 @@ onUnmounted(() => {
       :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
       @clear="clearMessages"
+      @new-topic="startNewChat"
       @stop="stopMessage"
       @update-saved-models="updateSavedModels"
       @save-chat-display-prefs="updateChatDisplayPrefs"

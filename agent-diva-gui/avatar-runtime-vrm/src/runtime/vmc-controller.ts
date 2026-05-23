@@ -1,5 +1,4 @@
 import type { VRM, VRMHumanBoneName } from '@pixiv/three-vrm'
-import * as THREE from 'three'
 import { VrmVersionAdapter } from './vrm-version-adapter'
 
 // ─── VMC Protocol Types ───────────────────────────────────────────
@@ -75,18 +74,15 @@ const VMC_BLEND_SHAPES = [
 export class VmcController {
   private vrm: VRM | null = null
   private versionAdapter: VrmVersionAdapter | null = null
-  private lastBlendWeights: Record<string, number> = {}
 
   attach(vrm: VRM): void {
     this.vrm = vrm
     this.versionAdapter = VrmVersionAdapter.detect(vrm)
-    this.lastBlendWeights = {}
   }
 
   detach(): void {
     this.vrm = null
     this.versionAdapter = null
-    this.lastBlendWeights = {}
   }
 
   /**
@@ -142,7 +138,6 @@ export class VmcController {
   /**
    * Extract blend shape (expression) weights in VMC protocol format.
    * Maps VRM1 expression names to VMC0 standard names.
-   * Throttled: only reports changed values since last call.
    */
   getBlendData(): VmcBlendDatum[] {
     if (!this.vrm?.expressionManager) {

@@ -68,6 +68,7 @@ export function useSubtitleOverlay() {
 
     // 通过 Tauri event 接收字幕（从主窗口 TTS 流推送）
     unlisteners.push(await listen<string>('desktop-pet-subtitle', (event) => {
+      console.log('[SubtitleOverlay] desktop-pet-subtitle event received. payload:', JSON.stringify(event.payload)?.slice(0, 100))
       if (event.payload) {
         show(event.payload)
       } else {

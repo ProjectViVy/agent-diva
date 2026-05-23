@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { createVrmRuntime } from 'avatar-runtime-vrm'
 import type { AvatarRuntimeMode } from '@morediva/shared-avatar-protocol'
+import { DESKTOP_PET_DEFAULT_TRANSFORM } from '../../../../../avatar-runtime-vrm/src/runtime/constants'
 
 const p = defineProps<{
   modelPath: string
@@ -11,6 +12,7 @@ const p = defineProps<{
   isSpeaking?: boolean
   lipSyncEnabled?: boolean
   desktopPet?: boolean
+  transparentBackground?: boolean
   active?: boolean
 }>()
 
@@ -35,11 +37,12 @@ onMounted(async () => {
   if (!el) return
 
   const mode: AvatarRuntimeMode = p.desktopPet ? 'desktop-pet' : 'embedded'
+  const transparent = !!p.desktopPet || !!p.transparentBackground
   const runtimeOptions = {
     mode,
-    transparent: !!p.desktopPet,
+    transparent,
     allowInteraction: true,
-    backgroundColor: p.desktopPet ? null : '#ffffff',
+    backgroundColor: transparent ? null : '#ffffff',
     maxFps: p.desktopPet ? 24 : 60,
   }
 
@@ -90,6 +93,7 @@ async function loadModel(): Promise<void> {
       initialMood: (p.mood ?? 'neutral') as any,
     })
     if (seq !== loadSeq) return
+    await syncDesktopPetCamera()
     emit('loadSuccess')
   } catch (err: any) {
     if (seq !== loadSeq) return
@@ -135,12 +139,17 @@ watch(() => p.isSpeaking, (s) => {
 })
 watch(() => p.active, (a) => {
   if (!runtime) return
-  a ? runtime.resume() : runtime.pause()
+  if (a) {
+    runtime.resume()
+    void syncDesktopPetCamera()
+  } else {
+    runtime.pause()
+  }
 })
 
 function setScale(v: number) {
   zoom = Math.max(0.75, Math.min(1.6, v))
-  if (runtime) void (runtime as any).setTransform({ scale: zoom })
+  if (runtime) void syncDesktopPetCamera()
 }
 
 function getScale() {
@@ -148,6 +157,20 @@ function getScale() {
 }
 
 defineExpose({ setScale, getScale })
+
+async function syncDesktopPetCamera(): Promise<void> {
+  if (!runtime) return
+
+  if (p.desktopPet) {
+    await (runtime as any).setTransform({
+      ...DESKTOP_PET_DEFAULT_TRANSFORM,
+      scale: zoom,
+    })
+    return
+  }
+
+  await (runtime as any).setTransform({ scale: zoom })
+}
 </script>
 
 <template>

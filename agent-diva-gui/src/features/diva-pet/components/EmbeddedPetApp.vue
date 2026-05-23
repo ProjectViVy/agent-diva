@@ -13,6 +13,7 @@ type EmbeddedPetMessage =
         isSpeaking?: boolean
         active?: boolean
         lipSyncEnabled?: boolean
+        transparentBackground?: boolean
       }
     }
 
@@ -24,6 +25,7 @@ const state = reactive({
   isSpeaking: false,
   active: true,
   lipSyncEnabled: false,
+  transparentBackground: false,
 })
 
 function applyState(payload: EmbeddedPetMessage['payload']): void {
@@ -34,6 +36,7 @@ function applyState(payload: EmbeddedPetMessage['payload']): void {
   state.isSpeaking = !!payload.isSpeaking
   state.active = payload.active !== false
   state.lipSyncEnabled = !!payload.lipSyncEnabled
+  state.transparentBackground = !!payload.transparentBackground
 }
 
 function onMessage(event: MessageEvent<EmbeddedPetMessage>): void {
@@ -55,6 +58,7 @@ onUnmounted(() => {
   <div class="embedded-pet-app">
     <DivaVrmAvatar
       v-if="state.modelPath"
+      :key="state.transparentBackground ? 'transparent' : 'opaque'"
       :model-path="state.modelPath"
       :background-scene="state.backgroundScene"
       :background-scene-url="state.backgroundSceneUrl"
@@ -62,6 +66,7 @@ onUnmounted(() => {
       :is-speaking="state.isSpeaking"
       :active="state.active"
       :lip-sync-enabled="state.lipSyncEnabled"
+      :transparent-background="state.transparentBackground"
     />
   </div>
 </template>
@@ -70,6 +75,6 @@ onUnmounted(() => {
 .embedded-pet-app {
   width: 100%;
   height: 100%;
-  background: #ffffff;
+  background: transparent;
 }
 </style>

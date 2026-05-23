@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Mic } from 'lucide-vue-next'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { emitTo, listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import DivaVrmAvatar from '../vrm/components/DivaVrmAvatar.vue'
 import { usePetConfig } from '../services/pet-config'
+import { useVoiceInput } from '../voice/composables/useVoiceInput'
+import { ttsService, type TTSVoiceConfig } from '../voice/services/tts-service'
+import { filterPunctuation, splitIntoSentences, stripMarkdown } from '../voice/utils/text-preprocessor'
 import type { GaussSceneId, VrmMood } from '../types'
 import { normalizeMood } from '../utils/mood'
 import { resolveVrmModelPath } from '../utils/vrm-model'
 import { useSubtitleOverlay } from './subtitle-overlay'
+import { getTtsApiKey } from '../types'
 
 interface DivaVrmAvatarHandle {
   setScale(scale: number): void
@@ -17,7 +21,21 @@ interface DivaVrmAvatarHandle {
 }
 
 const { config: petConfig } = usePetConfig()
-const { subtitle, init: initSubtitle, startDrag: startSubtitleDrag, onDrag: onSubtitleDrag, endDrag: endSubtitleDrag } = useSubtitleOverlay()
+const { subtitle, startDrag: startSubtitleDrag, onDrag: onSubtitleDrag, endDrag: endSubtitleDrag } = useSubtitleOverlay()
+
+/** Build a TTSVoiceConfig from the reactive pet config (same pattern as DivaPetView.vue). */
+const voiceConfig = computed<TTSVoiceConfig>(() => ({
+  enabled: petConfig.value.ttsEnabled,
+  provider: petConfig.value.ttsProvider,
+  apiKey: getTtsApiKey(petConfig.value),
+  baseUrl: petConfig.value.ttsBaseUrl,
+  model: petConfig.value.ttsModel,
+  voiceId: petConfig.value.ttsVoiceId,
+  referenceVoice: petConfig.value.ttsReferenceVoice,
+  referenceText: petConfig.value.ttsReferenceText,
+  speed: petConfig.value.ttsSpeed,
+  volume: petConfig.value.ttsVolume,
+}))
 
 const vrmModelPath = computed(() => resolveVrmModelPath(petConfig.value.vrmModel))
 
@@ -40,53 +58,32 @@ let moodResetTimeoutId: ReturnType<typeof setTimeout> | null = null
 
 // ── PTT (Push-To-Talk) ──────────────────────────────────────────
 
-const isRecording = ref(false)
-const recordingError = ref<string | null>(null)
-let pttMediaRecorder: MediaRecorder | null = null
-let pttAudioStream: MediaStream | null = null
+const voiceInput = useVoiceInput({
+  config: computed(() => ({
+    provider: petConfig.value.asrProvider,
+    language: petConfig.value.asrLanguage,
+    apiKey: petConfig.value.asrApiKey,
+    baseUrl: petConfig.value.asrBaseUrl,
+    model: petConfig.value.asrModel,
+  })),
+  onRecognizedText: async (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    await emitTo('main', 'desktop-pet-voice-message', trimmed)
+  },
+})
+
+const isPttDisabled = computed(() => !petConfig.value.asrEnabled || !voiceInput.isSupported)
 
 async function startRecording(event: PointerEvent): Promise<void> {
   event.preventDefault()
-  if (isRecording.value) return
-  recordingError.value = null
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    pttAudioStream = stream
-
-    const chunks: Blob[] = []
-    pttMediaRecorder = new MediaRecorder(stream)
-    pttMediaRecorder.ondataavailable = (e: BlobEvent) => {
-      if (e.data.size > 0) chunks.push(e.data)
-    }
-    pttMediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'audio/webm' })
-      console.log(`[PTT] Recording stopped. Blob size: ${blob.size} bytes`)
-      // Future: integrate with ASR here
-    }
-    pttMediaRecorder.start()
-    isRecording.value = true
-  } catch {
-    recordingError.value = '麦克风权限未授予'
-    setTimeout(() => {
-      recordingError.value = null
-    }, 2500)
-  }
+  if (isPttDisabled.value || voiceInput.isEnabled.value) return
+  await voiceInput.setEnabled(true)
 }
 
-function stopRecording(_event?: PointerEvent): void {
-  if (!isRecording.value) return
-  isRecording.value = false
-
-  if (pttMediaRecorder && pttMediaRecorder.state === 'recording') {
-    pttMediaRecorder.stop()
-    pttMediaRecorder = null
-  }
-
-  if (pttAudioStream) {
-    pttAudioStream.getTracks().forEach((track) => track.stop())
-    pttAudioStream = null
-  }
+function stopRecording(_event?: Event): void {
+  if (!voiceInput.isEnabled.value) return
+  void voiceInput.setEnabled(false)
 }
 
 // ── Wheel zoom ──────────────────────────────────────────────────
@@ -280,6 +277,9 @@ const isVrmExpressionEnabled = computed(() => petConfig.value.vrmExpressionEnabl
 const isTtsEnabled = computed(() => petConfig.value.ttsEnabled)
 const isAsrEnabled = computed(() => petConfig.value.asrEnabled)
 const isSubtitleEnabled = computed(() => petConfig.value.subtitleEnabled)
+const effectiveMood = computed<VrmMood>(() =>
+  isVrmExpressionEnabled.value ? activeMood.value : 'neutral',
+)
 
 function selectAppearance(id: string) {
   petConfig.value.activeAppearanceId = id
@@ -312,6 +312,43 @@ function toggleSubtitle() {
   resetMenuHideTimer()
 }
 
+/** Test TTS: read last subtitle text (if any) or use default test phrase. */
+let testTtsCancelId = 0
+async function testTts() {
+  const rawText = subtitle.value.text?.trim()
+  const displayText = rawText || '你好，我是 Diva，这是一条语音测试消息。'
+  console.log('[DesktopPet] Test TTS triggered. Subtitle text:', JSON.stringify(subtitle.value.text))
+
+  // Force-enable TTS for the test if currently disabled
+  const savedEnabled = petConfig.value.ttsEnabled
+  if (!savedEnabled) {
+    console.log('[DesktopPet] TTS was disabled, temporarily enabling for test.')
+    petConfig.value.ttsEnabled = true
+  }
+
+  const cancelId = ++testTtsCancelId
+  const segments = splitIntoSentences(filterPunctuation(stripMarkdown(displayText)))
+
+  console.log('[DesktopPet] Test TTS segments:', segments.length, segments.map(s => s.text.slice(0, 30)))
+
+  for (const segment of segments) {
+    if (cancelId !== testTtsCancelId) return
+    try {
+      await ttsService.speakText(segment.text, voiceConfig.value)
+    } catch (err) {
+      console.error('[DesktopPet] Test TTS segment failed:', err)
+    }
+  }
+
+  // Restore original TTS enabled state
+  if (!savedEnabled) {
+    petConfig.value.ttsEnabled = false
+  }
+
+  activeSubmenu.value = null
+  contextMenu.value = null
+}
+
 // ── Watchers ───────────────────────────────────────────────────
 
 watch(isMousePassThrough, (ignore) => {
@@ -320,6 +357,52 @@ watch(isMousePassThrough, (ignore) => {
     contextMenu.value = null
   }
 })
+
+watch(isVrmExpressionEnabled, (enabled) => {
+  if (enabled) {
+    return
+  }
+  if (moodResetTimeoutId !== null) {
+    clearTimeout(moodResetTimeoutId)
+    moodResetTimeoutId = null
+  }
+  activeMood.value = 'neutral'
+})
+
+/**
+ * TTS auto-play for desktop pet subtitles.
+ *
+ * When a non-empty subtitle appears, preprocess the text (strip markdown,
+ * split into sentences) and speak each sentence sequentially.  A newer
+ * subtitle cancels any in-progress speech from the previous one.
+ * TTS errors are silently ignored so subtitle display is never blocked.
+ */
+let subtitleTtsId = 0
+watch(
+  () => ({ visible: subtitle.value.visible, text: subtitle.value.text }),
+  ({ visible, text }) => {
+    console.log('[DesktopPet] Subtitle watcher fired. visible:', visible, 'text length:', text?.length ?? 0, 'ttsEnabled:', voiceConfig.value.enabled)
+    if (!visible || !text || !voiceConfig.value.enabled) {
+      return
+    }
+
+    const cancelId = ++subtitleTtsId
+    const segments = splitIntoSentences(filterPunctuation(stripMarkdown(text)))
+    console.log('[DesktopPet] TTS auto-play: speaking', segments.length, 'segments')
+
+    void (async () => {
+      for (const segment of segments) {
+        // Bail out if a newer subtitle arrived while we were speaking
+        if (cancelId !== subtitleTtsId) return
+        try {
+          await ttsService.speakText(segment.text, voiceConfig.value)
+        } catch (err) {
+          console.error('[DesktopPet] TTS segment failed:', err)
+        }
+      }
+    })()
+  },
+)
 
 // ── Lifecycle ──────────────────────────────────────────────────
 
@@ -335,6 +418,11 @@ onMounted(async () => {
   isAlwaysOnTop.value = petConfig.value.desktopPetAlwaysOnTop ?? true
 
   unlisteners.push(await listen<string>('desktop-pet-emotion', (event) => {
+    if (!isVrmExpressionEnabled.value) {
+      activeMood.value = 'neutral'
+      scheduleMoodReset('neutral')
+      return
+    }
     const mood = normalizeMood(event.payload)
     activeMood.value = mood
     scheduleMoodReset(mood)
@@ -349,7 +437,10 @@ onMounted(async () => {
   }))
 
   window.addEventListener('pointerup', exitDragMode)
+  window.addEventListener('pointerup', stopRecording)
+  window.addEventListener('pointercancel', stopRecording)
   window.addEventListener('blur', exitDragMode)
+  window.addEventListener('blur', stopRecording)
   window.addEventListener('wheel', handleWheel, { passive: false })
   window.addEventListener('pointermove', onSubtitleDrag)
   window.addEventListener('pointerup', endSubtitleDrag)
@@ -360,17 +451,13 @@ onUnmounted(() => {
     clearTimeout(moodResetTimeoutId)
     moodResetTimeoutId = null
   }
-  if (pttMediaRecorder && pttMediaRecorder.state === 'recording') {
-    pttMediaRecorder.stop()
-    pttMediaRecorder = null
-  }
-  if (pttAudioStream) {
-    pttAudioStream.getTracks().forEach((track) => track.stop())
-    pttAudioStream = null
-  }
+  stopRecording()
   unlisteners.forEach((fn) => fn())
   window.removeEventListener('pointerup', exitDragMode)
+  window.removeEventListener('pointerup', stopRecording)
+  window.removeEventListener('pointercancel', stopRecording)
   window.removeEventListener('blur', exitDragMode)
+  window.removeEventListener('blur', stopRecording)
   window.removeEventListener('wheel', handleWheel)
   window.removeEventListener('pointermove', onSubtitleDrag)
   window.removeEventListener('pointerup', endSubtitleDrag)
@@ -388,7 +475,7 @@ onUnmounted(() => {
     <DivaVrmAvatar
       ref="vrmAvatarRef"
       :model-path="vrmModelPath"
-      :mood="activeMood"
+      :mood="effectiveMood"
       :is-speaking="false"
       :desktop-pet="true"
       :active="isRenderActive"
@@ -420,20 +507,22 @@ onUnmounted(() => {
     >
       <button
         class="ptt-btn"
-        :class="{ recording: isRecording }"
+        :class="{ recording: voiceInput.isEnabled.value }"
+        :disabled="isPttDisabled"
         @pointerdown.prevent="startRecording"
         @pointerup="stopRecording"
         @pointerleave="stopRecording"
+        @pointercancel="stopRecording"
       >
-        <div v-if="isRecording" class="ptt-pulse-ring" />
+        <div v-if="voiceInput.isEnabled.value" class="ptt-pulse-ring" />
         <Mic :size="20" />
       </button>
-      <span class="ptt-hint" :class="{ recording: isRecording }">
-        {{ isRecording ? '松开发送' : '按住说话' }}
+      <span class="ptt-hint" :class="{ recording: voiceInput.isEnabled.value }">
+        {{ voiceInput.isEnabled.value ? '松开发送' : '按住说话' }}
       </span>
       <Transition name="tooltip-fade">
-        <span v-if="recordingError" class="ptt-error">
-          {{ recordingError }}
+        <span v-if="voiceInput.error.value" class="ptt-error">
+          {{ voiceInput.error.value }}
         </span>
       </Transition>
     </div>
@@ -507,10 +596,15 @@ onUnmounted(() => {
                 ASR: {{ isAsrEnabled ? 'ON ✓' : 'OFF' }}
               </div>
               <div class="submenu-item submenu-toggle"
-                   :class="{ active: isSubtitleEnabled }"
-                   @click="toggleSubtitle">
-                字幕显示: {{ isSubtitleEnabled ? 'ON ✓' : 'OFF' }}
-              </div>
+                    :class="{ active: isSubtitleEnabled }"
+                    @click="toggleSubtitle">
+                 字幕显示: {{ isSubtitleEnabled ? 'ON ✓' : 'OFF' }}
+               </div>
+               <div class="submenu-separator" />
+               <div class="submenu-item submenu-item-action"
+                    @click="testTts">
+                 🧪 测试语音
+               </div>
             </div>
           </Transition>
         </div>
@@ -574,6 +668,8 @@ onUnmounted(() => {
   height: 100%;
   position: relative;
   user-select: none;
+  overflow: hidden;
+  background: transparent;
 }
 
 .desktop-pet-overlay.drag-mode {
@@ -693,6 +789,21 @@ onUnmounted(() => {
 
 .submenu-item-disabled:hover {
   background: transparent;
+}
+
+.submenu-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 2px 8px;
+}
+
+.submenu-item-action {
+  color: #60a5fa;
+  font-weight: 500;
+}
+
+.submenu-item-action:hover {
+  background: rgba(59, 130, 246, 0.1);
 }
 
 .submenu-toggle {
@@ -884,6 +995,11 @@ onUnmounted(() => {
 
 .ptt-btn:hover {
   opacity: 1;
+}
+
+.ptt-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
 }
 
 .ptt-btn:active {

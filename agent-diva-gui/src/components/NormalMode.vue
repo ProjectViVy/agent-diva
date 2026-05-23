@@ -2,16 +2,15 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
-  Cat,
   Check,
   Heart,
   History,
   Menu,
   MessageSquare,
-  Monitor,
   Server,
   Settings,
   Trash2,
+  UserRound,
 } from 'lucide-vue-next';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import ChatView from './ChatView.vue';
@@ -101,9 +100,9 @@ interface Props {
   isTyping: boolean;
   connectionStatus?: 'connected' | 'error' | 'connecting';
   currentEmotion?: string;
-  config?: AppConfigShape;
+  config: AppConfigShape;
   providerConfigs?: Record<string, ProviderConfigEntry>;
-  toolsConfig?: ToolsConfigShape;
+  toolsConfig: ToolsConfigShape;
   savedModels?: SavedModel[];
   sessions?: { session_key: string; chat_id: string; snippet: string; timestamp: number }[];
   chatDisplayPrefs: ChatDisplayPrefs;
@@ -123,6 +122,7 @@ const emit = defineEmits<{
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
   (e: 'load-session', sessionKey: string): void;
   (e: 'delete-session', sessionKey: string): void;
+  (e: 'new-topic', greeting: string): void;
 }>();
 
 const { config: petConfig } = usePetConfig();
@@ -137,7 +137,6 @@ const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
 const isHistoryDropdownOpen = ref(false);
 const isDesktopPetActive = ref(false);
-const desktopPetPassThrough = ref(false);
 
 const toggleDesktopPet = async () => {
   try {
@@ -153,20 +152,8 @@ const toggleDesktopPet = async () => {
   }
 };
 
-const togglePetPassThrough = async () => {
-  const next = !desktopPetPassThrough.value;
-  try {
-    await invoke('set_desktop_pet_ignore_mouse', { ignore: next });
-    desktopPetPassThrough.value = next;
-  } catch (e) {
-    console.warn('[NormalMode] Failed to toggle click-through:', e);
-  }
-};
-
-// ── Sync desktop pet state from Tauri events ──
 const desktopPetUnlisteners: UnlistenFn[] = [];
 
-// Initialize event listeners
 void (async () => {
   try {
     desktopPetUnlisteners.push(await listen<boolean>('desktop-pet-active', () => {
@@ -177,9 +164,6 @@ void (async () => {
     }));
   } catch (_) { /* ignore if not in Tauri */ }
 })();
-
-// ── Desktop pet listeners are initialized above, cleanup is merged into the onUnmounted below.
-
 
 const handleSessionSelect = (sessionKey: string) => {
   emit('load-session', sessionKey);
@@ -247,8 +231,6 @@ const closeSidebar = () => {
 
 const toggleSidebar = () => {
   sidebarOpen.value = !sidebarOpen.value;
-  // Full-viewport z-[90] scrims for model/history menus live in the header; clear them
-  // when opening the drawer so they cannot block clicks on the main surface (e.g. settings).
   isModelDropdownOpen.value = false;
   isHistoryDropdownOpen.value = false;
   emit('toggle-sidebar');
@@ -323,12 +305,12 @@ const hearts = [
 ];
 
 const emotionConfig = computed(() => ({
-  happy: { emoji: '\u{1F60A}', label: t('emotion.happy') },
-  sad: { emoji: '\u{1F622}', label: t('emotion.sad') },
-  clingy: { emoji: '\u{1F97A}', label: t('emotion.clingy') },
-  jealous: { emoji: '\u{1F624}', label: t('emotion.jealous') },
-  angry: { emoji: '\u{1F620}', label: t('emotion.angry') },
-  normal: { emoji: '\u{1F642}', label: t('emotion.normal') },
+  happy: { emoji: '😊', label: t('emotion.happy') },
+  sad: { emoji: '😢', label: t('emotion.sad') },
+  clingy: { emoji: '🥺', label: t('emotion.clingy') },
+  jealous: { emoji: '😤', label: t('emotion.jealous') },
+  angry: { emoji: '😠', label: t('emotion.angry') },
+  normal: { emoji: '🙂', label: t('emotion.normal') },
 }));
 
 const currentConfig = computed(() => {
@@ -392,7 +374,7 @@ defineExpose({
 
     <header
       v-if="!isPetModeActive"
-      class="app-titlebar relative z-50 drag-region transition-all duration-300 h-12 flex items-center px-4 border-b"
+      class="app-titlebar relative z-50 drag-region transition-all duration-300 h-12 flex items-center justify-between px-4 border-b"
     >
       <div class="flex items-center space-x-3">
         <button
@@ -536,38 +518,21 @@ defineExpose({
             </div>
             <div v-if="isHistoryDropdownOpen" class="fixed inset-0 z-[90]" @click="isHistoryDropdownOpen = false"></div>
           </div>
-
-          <!-- Desktop Pet toggle button -->
-          <button
-            @click="toggleDesktopPet"
-            class="flex items-center transition-all text-xs font-medium shadow-sm no-drag"
-            :class="isDesktopPetActive
-                ? 'space-x-1.5 px-2 py-1 rounded-lg bg-pink-100 text-pink-700 border border-pink-200 hover:bg-pink-200'
-                : 'space-x-1.5 px-2 py-1 rounded-lg bg-gray-50 text-gray-500 border border-gray-200/50 hover:bg-white hover:text-pink-600 hover:border-pink-200'"
-            :title="isDesktopPetActive ? $t('pet.closeDesktopPet') : $t('pet.openDesktopPet')"
-          >
-            <Monitor :size="14" class="transition-colors" :class="isDesktopPetActive ? 'text-pink-500' : 'text-gray-400'" />
-            <span class="hidden sm:inline">{{ isDesktopPetActive ? $t('pet.desktopPetOn') : $t('pet.desktopPet') }}</span>
-          </button>
-
-          <!-- Click-through toggle (only when pet is active) -->
-          <button
-            v-if="isDesktopPetActive"
-            @click="togglePetPassThrough"
-            class="flex items-center space-x-1 px-2 py-1 rounded-lg transition-all text-xs font-medium shadow-sm no-drag"
-            :class="desktopPetPassThrough
-              ? 'bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200'
-              : 'bg-gray-50 text-gray-500 border border-gray-200/50 hover:bg-white hover:text-amber-600 hover:border-amber-200'"
-            :title="desktopPetPassThrough ? 'Click-through: ON' : 'Click-through: OFF'"
-          >
-            <span class="text-sm leading-none">{{ desktopPetPassThrough ? '⊘' : '↗' }}</span>
-            <span class="hidden sm:inline">{{ desktopPetPassThrough ? '穿透 ON' : '穿透 OFF' }}</span>
-          </button>
         </div>
       </div>
+
+      <button
+        @click="toggleDesktopPet"
+        class="w-9 h-9 flex items-center justify-center rounded-full transition-all shadow-sm no-drag border"
+        :class="isDesktopPetActive
+          ? 'bg-pink-100 text-pink-700 border-pink-200 hover:bg-pink-200'
+          : 'bg-gray-50 text-gray-500 border-gray-200/50 hover:bg-white hover:text-pink-600 hover:border-pink-200'"
+        :title="isDesktopPetActive ? $t('pet.closeDesktopPet') : $t('pet.openDesktopPet')"
+      >
+        <UserRound :size="16" class="transition-colors" :class="isDesktopPetActive ? 'text-pink-500' : 'text-gray-400'" />
+      </button>
     </header>
 
-    <!-- z-[60] above titlebar (z-50): full-screen dim; backdrop closes on click (Escape also). -->
     <div v-if="sidebarOpen" class="fixed inset-0 z-[60] pointer-events-none no-drag">
       <div
         class="absolute inset-0 z-0 bg-black/30 backdrop-blur-sm transition-opacity pointer-events-auto"
@@ -620,7 +585,7 @@ defineExpose({
           @click="navigateTo('pet')"
         >
           <span class="flex items-center space-x-2">
-            <Cat :size="16" :class="sidebarIconClass('pet', 'text-amber-500')" />
+            <UserRound :size="16" :class="sidebarIconClass('pet', 'text-amber-500')" />
             <span>{{ t('nav.pet') }}</span>
           </span>
         </button>
@@ -678,62 +643,49 @@ defineExpose({
       <div v-if="activeMenu === 'cron'" class="h-full">
         <CronTaskManagementView />
       </div>
-      <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
-        <!-- 这个是作者要求不要修改，未经允许禁止往这里面添加东西（未来这里面要放swarm系统的可视化） -->
-        <div class="text-gray-500 text-lg font-semibold tracking-wide">
-          {{ t('nav.comingSoon') }}
-        </div>
+      <div v-else-if="activeMenu === 'console'" class="h-full">
+        <AppDialogLayer />
+        <AppToastLayer />
       </div>
-
-      <template v-else>
-        <div v-if="activeTab === 'chat'" class="h-full">
-          <ChatView
-            :messages="messages"
-            :is-typing="isTyping"
-            :theme-mode="themeMode"
-            :history-prefs="chatDisplayPrefs"
-            @send="(content, attachments) => emit('send', content, attachments)"
-            @clear="emit('clear')"
-            @stop="emit('stop')"
-          />
-        </div>
-        <div v-else-if="activeTab === 'pet'" class="h-full">
-          <DivaPetView
-            :messages="messages"
-            :is-typing="isTyping"
-            :current-emotion="currentEmotion"
-            :desktop-pet-active="isDesktopPetActive"
-            @send="(content) => emit('send', content)"
-            @toggle-sidebar="toggleSidebar"
-          />
-        </div>
-        <div v-else class="h-full min-h-0">
-          <SettingsView
-            v-if="config && toolsConfig"
-            :config="config"
-            :provider-configs="providerConfigs"
-            :tools-config="toolsConfig"
-            :saved-models="savedModels"
-            :chat-display-prefs="chatDisplayPrefs"
-            :initial-view="settingsInitialView"
-            :save-config-action="saveConfigAction"
-            :save-tools-config-action="saveToolsConfigAction"
-            :save-channel-config-action="saveChannelConfigAction"
-            @update-saved-models="handleUpdateSavedModels"
-            @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
-          />
-          <div v-else class="h-full flex items-center justify-center text-gray-500">
-            Loading configuration...
-          </div>
-        </div>
-      </template>
+      <div v-else-if="activeMenu === 'neuro'" class="h-full">
+        <AppDialogLayer />
+        <AppToastLayer />
+      </div>
+      <div v-else-if="activeTab === 'settings'" class="h-full">
+        <SettingsView
+          :config="config"
+          :provider-configs="providerConfigs"
+          :tools-config="toolsConfig"
+          :saved-models="savedModels"
+          :chat-display-prefs="chatDisplayPrefs"
+          :initial-view="settingsInitialView"
+          :save-config-action="saveConfigAction"
+          :save-tools-config-action="saveToolsConfigAction"
+          :save-channel-config-action="saveChannelConfigAction"
+          @update-saved-models="handleUpdateSavedModels"
+          @save-chat-display-prefs="emit('save-chat-display-prefs', $event)"
+        />
+      </div>
+      <div v-else-if="activeTab === 'pet'" class="h-full">
+        <DivaPetView
+          :messages="messages"
+          :is-typing="isTyping"
+          :current-emotion="currentEmotion"
+          :desktop-pet-active="isDesktopPetActive"
+          @send="(content) => emit('send', content)"
+          @new-topic="emit('new-topic', $event)"
+          @toggle-sidebar="toggleSidebar"
+        />
+      </div>
+      <div v-else class="h-full">
+        <ChatView
+          :messages="messages"
+          :is-typing="isTyping"
+          @send="(content, attachments) => emit('send', content, attachments)"
+          @clear="emit('clear')"
+          @stop="emit('stop')"
+        />
+      </div>
     </main>
-
-    <AppDialogLayer :theme-mode="themeMode" />
-    <AppToastLayer />
   </div>
 </template>
-
-<style scoped>
-/* Scoped styles */
-</style>

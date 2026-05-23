@@ -1097,7 +1097,7 @@ pub struct PetConfig {
     #[serde(default)]
     pub tts_enabled: bool,
     /// Whether ASR / microphone input is enabled
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub asr_enabled: bool,
     /// ASR provider. Currently "web_speech" is the implemented path.
     #[serde(default = "default_asr_provider")]
@@ -1105,18 +1105,40 @@ pub struct PetConfig {
     /// BCP-47 ASR language tag.
     #[serde(default = "default_asr_language")]
     pub asr_language: String,
-    /// TTS provider: "browser" | "openai" | "siliconflow"
+    /// API key for remote ASR providers.
+    #[serde(default)]
+    pub asr_api_key: Option<String>,
+    /// Base URL for remote ASR providers.
+    #[serde(default)]
+    pub asr_base_url: String,
+    /// Model for remote ASR providers.
+    #[serde(default)]
+    pub asr_model: Option<String>,
+    /// TTS provider: "browser" | "openai" | "siliconflow" | "minimax"
     #[serde(default = "default_tts_provider")]
     pub tts_provider: String,
-    /// API key for remote TTS providers.
+    /// Legacy shared API key for remote TTS providers. New GUI code no longer
+    /// uses this field and instead stores provider-specific keys below.
     #[serde(default)]
     pub tts_api_key: Option<String>,
+    /// API key for OpenAI TTS.
+    #[serde(default)]
+    pub tts_openai_api_key: Option<String>,
+    /// API key for SiliconFlow TTS.
+    #[serde(default)]
+    pub tts_siliconflow_api_key: Option<String>,
+    /// API key for MiniMax TTS.
+    #[serde(default)]
+    pub tts_minimax_api_key: Option<String>,
     /// Base URL for remote TTS providers.
     #[serde(default)]
     pub tts_base_url: String,
     /// Model for remote TTS providers.
     #[serde(default)]
     pub tts_model: Option<String>,
+    /// Provider-specific voice id for system voice selection.
+    #[serde(default)]
+    pub tts_voice_id: Option<String>,
     /// Relative path under voice_resource/ used as a reference voice.
     #[serde(default)]
     pub tts_reference_voice: Option<String>,
@@ -1157,13 +1179,20 @@ impl Default for PetConfig {
             enabled: true,
             vrm_model: String::new(),
             tts_enabled: false,
-            asr_enabled: false,
+            asr_enabled: true,
             asr_provider: default_asr_provider(),
             asr_language: default_asr_language(),
+            asr_api_key: None,
+            asr_base_url: String::new(),
+            asr_model: None,
             tts_provider: default_tts_provider(),
             tts_api_key: None,
+            tts_openai_api_key: None,
+            tts_siliconflow_api_key: None,
+            tts_minimax_api_key: None,
             tts_base_url: String::new(),
             tts_model: None,
+            tts_voice_id: None,
             tts_reference_voice: None,
             tts_reference_text: None,
             tts_speed: default_tts_speed(),

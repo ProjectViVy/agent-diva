@@ -17,6 +17,7 @@ export interface ResolvedVoiceConfig {
   apiKey: string | null
   baseUrl: string
   model: string | null
+  voiceId: string | null
   referenceVoice: string | null
   referenceText: string | null
   speed: number
@@ -36,6 +37,7 @@ export interface SaveVoiceSelectionPayload {
   apiKey: string | null
   baseUrl: string | null
   model: string | null
+  voiceId: string | null
   referenceVoice: string | null
   referenceText: string | null
   speed: number
@@ -52,7 +54,10 @@ export interface TranscribeAudioPayload {
   base64Data: string
   fileName: string
   apiKey: string
+  provider?: PetConfig['asrProvider']
   baseUrl?: string | null
+  model?: string | null
+  language?: string | null
   contentType?: string | null
 }
 
@@ -69,10 +74,17 @@ interface CoreConfigPayload {
     asr_enabled?: boolean
     asr_provider?: string
     asr_language?: string
+    asr_api_key?: string | null
+    asr_base_url?: string
+    asr_model?: string | null
     tts_provider?: string
     tts_api_key?: string | null
+    tts_openai_api_key?: string | null
+    tts_siliconflow_api_key?: string | null
+    tts_minimax_api_key?: string | null
     tts_base_url?: string
     tts_model?: string | null
+    tts_voice_id?: string | null
     tts_reference_voice?: string | null
     tts_reference_text?: string | null
     tts_speed?: number
@@ -81,13 +93,16 @@ interface CoreConfigPayload {
   [key: string]: unknown
 }
 
+export const DEFAULT_SILICONFLOW_ASR_BASE_URL = 'https://api.siliconflow.cn/v1'
+export const DEFAULT_SILICONFLOW_ASR_MODEL = 'FunAudioLLM/SenseVoiceSmall'
+
 function normalizeTtsProvider(value: unknown): PetConfig['ttsProvider'] {
-  if (value === 'openai' || value === 'siliconflow') return value
+  if (value === 'openai' || value === 'siliconflow' || value === 'minimax') return value
   return 'browser'
 }
 
 function normalizeAsrProvider(value: unknown): PetConfig['asrProvider'] {
-  if (value === 'web_speech') return value
+  if (value === 'web_speech' || value === 'siliconflow') return value
   return 'web_speech'
 }
 
@@ -107,10 +122,17 @@ function petFromCore(raw: CoreConfigPayload): PetConfig {
     asrLanguage: typeof pet.asr_language === 'string' && pet.asr_language.trim()
       ? pet.asr_language
       : DEFAULT_PET_CONFIG.asrLanguage,
+    asrApiKey: normalizeNullableString(pet.asr_api_key),
+    asrBaseUrl: typeof pet.asr_base_url === 'string' ? pet.asr_base_url : DEFAULT_PET_CONFIG.asrBaseUrl,
+    asrModel: normalizeNullableString(pet.asr_model),
     ttsProvider: normalizeTtsProvider(pet.tts_provider),
-    ttsApiKey: normalizeNullableString(pet.tts_api_key),
+    ttsApiKey: null,
+    ttsOpenaiApiKey: normalizeNullableString(pet.tts_openai_api_key),
+    ttsSiliconflowApiKey: normalizeNullableString(pet.tts_siliconflow_api_key),
+    ttsMinimaxApiKey: normalizeNullableString(pet.tts_minimax_api_key),
     ttsBaseUrl: typeof pet.tts_base_url === 'string' ? pet.tts_base_url : DEFAULT_PET_CONFIG.ttsBaseUrl,
     ttsModel: normalizeNullableString(pet.tts_model),
+    ttsVoiceId: normalizeNullableString(pet.tts_voice_id),
     ttsReferenceVoice: normalizeNullableString(pet.tts_reference_voice),
     ttsReferenceText: normalizeNullableString(pet.tts_reference_text),
     ttsSpeed: typeof pet.tts_speed === 'number' && Number.isFinite(pet.tts_speed) && pet.tts_speed > 0
@@ -133,10 +155,17 @@ function applyPetToCore(raw: CoreConfigPayload, pet: PetConfig): CoreConfigPaylo
       asr_enabled: pet.asrEnabled,
       asr_provider: pet.asrProvider,
       asr_language: pet.asrLanguage,
+      asr_api_key: pet.asrApiKey,
+      asr_base_url: pet.asrBaseUrl,
+      asr_model: pet.asrModel,
       tts_provider: pet.ttsProvider,
-      tts_api_key: pet.ttsApiKey,
+      tts_api_key: null,
+      tts_openai_api_key: pet.ttsOpenaiApiKey,
+      tts_siliconflow_api_key: pet.ttsSiliconflowApiKey,
+      tts_minimax_api_key: pet.ttsMinimaxApiKey,
       tts_base_url: pet.ttsBaseUrl,
       tts_model: pet.ttsModel,
+      tts_voice_id: pet.ttsVoiceId,
       tts_reference_voice: pet.ttsReferenceVoice,
       tts_reference_text: pet.ttsReferenceText,
       tts_speed: pet.ttsSpeed,
@@ -181,9 +210,35 @@ export function readVoiceFile(relativePath: string): Promise<VoiceFileData> {
   return invoke<VoiceFileData>('pet_read_voice_file', { relativePath })
 }
 
+export function getAsrProviderDefaults(provider: PetConfig['asrProvider']) {
+  if (provider === 'siliconflow') {
+    return {
+      baseUrl: DEFAULT_SILICONFLOW_ASR_BASE_URL,
+      model: DEFAULT_SILICONFLOW_ASR_MODEL,
+    }
+  }
+  return {
+    baseUrl: '',
+    model: null,
+  }
+}
+
+export function resolveAsrTranscriptionConfig(payload: TranscribeAudioPayload) {
+  const provider = payload.provider ?? 'siliconflow'
+  const defaults = getAsrProviderDefaults(provider)
+  const baseUrl = (payload.baseUrl?.trim() || defaults.baseUrl).replace(/\/+$/, '')
+  const model = payload.model?.trim() || defaults.model || DEFAULT_SILICONFLOW_ASR_MODEL
+  return {
+    provider,
+    endpoint: `${baseUrl}/audio/transcriptions`,
+    model,
+    language: payload.language?.trim() || undefined,
+  }
+}
+
 export async function transcribeAudio(payload: TranscribeAudioPayload): Promise<string> {
   try {
-    const endpoint = `${payload.baseUrl || 'https://api.siliconflow.cn/v1'}/audio/transcriptions`
+    const resolved = resolveAsrTranscriptionConfig(payload)
     const byteCharacters = atob(payload.base64Data)
     const byteNumbers = new Array(byteCharacters.length)
     for (let index = 0; index < byteCharacters.length; index += 1) {
@@ -196,9 +251,12 @@ export async function transcribeAudio(payload: TranscribeAudioPayload): Promise<
       new Blob([new Uint8Array(byteNumbers)], { type: payload.contentType || 'application/octet-stream' }),
       payload.fileName,
     )
-    formData.append('model', 'FunAudioLLM/SenseVoiceSmall')
+    formData.append('model', resolved.model)
+    if (resolved.language) {
+      formData.append('language', resolved.language)
+    }
 
-    const response = await fetch(endpoint, {
+    const response = await fetch(resolved.endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${payload.apiKey}`,
@@ -211,8 +269,13 @@ export async function transcribeAudio(payload: TranscribeAudioPayload): Promise<
       addVoiceLogEvent({
         level: 'warn',
         source: 'asr',
-        message: '参考音色转写失败',
-        detail: { status: response.status, error: errorText.slice(0, 160) },
+        message: '云端 ASR 转写失败',
+        detail: {
+          provider: resolved.provider,
+          model: resolved.model,
+          status: response.status,
+          error: errorText.slice(0, 160),
+        },
       })
       return ''
     }
@@ -222,16 +285,20 @@ export async function transcribeAudio(payload: TranscribeAudioPayload): Promise<
     addVoiceLogEvent({
       level: 'info',
       source: 'asr',
-      message: text ? '参考音色转写完成' : '参考音色转写结果为空',
-      detail: { textPreview: text.slice(0, 80) || null },
+      message: text ? '云端 ASR 转写完成' : '云端 ASR 转写结果为空',
+      detail: {
+        provider: resolved.provider,
+        model: resolved.model,
+        textPreview: text.slice(0, 80) || null,
+      },
     })
     return text
   } catch (error) {
     addVoiceLogEvent({
       level: 'warn',
       source: 'asr',
-      message: '参考音色转写请求异常',
-      detail: { error: String(error) },
+      message: '云端 ASR 转写请求异常',
+      detail: { provider: payload.provider ?? 'siliconflow', error: String(error) },
     })
     return ''
   }

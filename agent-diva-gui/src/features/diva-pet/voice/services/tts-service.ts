@@ -1,62 +1,29 @@
+import { invoke } from '@tauri-apps/api/core'
 import { addVoiceLogEvent } from './voice-log'
+import { asSiliconFlowProviderHandler, createTTSProviderHandler } from './tts/provider-factory'
+import {
+  DEFAULT_SPEED,
+  PROVIDER_DEFAULTS,
+  PROVIDER_VOICE_DEFAULTS,
+  type RemoteVoiceListResponse,
+  type RemoteVoiceUploadResponse,
+  type SiliconFlowTTSProviderHandler,
+  type TTSProvider,
+  type TTSProviderFactoryContext,
+  type TTSProviderHandler,
+  type TTSRequest,
+  type TTSResponse,
+  type TTSVoiceConfig,
+  type VoiceFileReader,
+} from './tts/types'
 
-/**
- * VoiceFileReader — injectable interface for reading voice reference files.
- *
- * Consumers should implement this interface and inject it via
- * {@link TTSService.setVoiceFileReader}. When no reader is set,
- * inline reference cloning gracefully degrades (skipped).
- */
-export interface VoiceFileReader {
-  /**
-   * Read a voice file by its relative path.
-   * @returns file data or `null` if the file cannot be read.
-   */
-  readVoiceFile(relativePath: string): Promise<{
-    base64Data: string;
-    contentType: string;
-    fileName: string;
-  } | null>;
-}
-
-export interface TTSRequest {
-  text: string;
-  speed?: number;
-}
-
-export interface TTSVoiceConfig {
-  enabled: boolean;
-  provider: string;
-  apiKey: string | null;
-  baseUrl: string;
-  model: string | null;
-  referenceVoice: string | null;
-  referenceText: string | null;
-  speed: number;
-  volume?: number;
-}
-
-export type TTSProvider = "browser" | "openai" | "siliconflow" | "local";
-
-export interface TTSResponse {
-  audioUrl: string;
-  durationMs?: number;
-  isCloned?: boolean;
-}
-
-interface RemoteVoiceListEntry {
-  customName?: string;
-  model?: string;
-  uri?: string;
-}
-
-interface RemoteVoiceListResponse {
-  results?: RemoteVoiceListEntry[];
-}
-
-interface RemoteVoiceUploadResponse {
-  uri?: string;
-}
+export type {
+  TTSProvider,
+  TTSRequest,
+  TTSResponse,
+  TTSVoiceConfig,
+  VoiceFileReader,
+} from './tts/types'
 
 type TTSRequestErrorKind = "clone_voice_invalid" | "http" | "network" | "timeout";
 
@@ -97,23 +64,6 @@ class TTSRequestError extends Error {
   }
 }
 
-const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
-  openai: {
-    baseUrl: "https://api.openai.com/v1",
-    model: "tts-1",
-  },
-  siliconflow: {
-    baseUrl: "https://api.siliconflow.cn/v1",
-    model: "FunAudioLLM/CosyVoice2-0.5B",
-  },
-};
-
-const PROVIDER_VOICE_DEFAULTS: Record<string, string> = {
-  openai: "alloy",
-  siliconflow: "fnlp/MOSS-TTSD-v0.5:alex",
-};
-
-const DEFAULT_SPEED = 1.0;
 const DEFAULT_RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 const VOICE_LIST_REQUEST_POLICY: TTSRequestPolicy = {
   maxRetries: 1,
@@ -130,6 +80,7 @@ const VOICE_SYNTHESIS_REQUEST_POLICY: TTSRequestPolicy = {
   purpose: "voice synthesis request",
   timeoutMs: 30000,
 };
+
 
 class TTSService {
   private currentAudio: HTMLAudioElement | null = null;
@@ -219,6 +170,29 @@ class TTSService {
         `[TTSService] Browser TTS finished in ${(performance.now() - startTime).toFixed(0)}ms`,
       );
       return result;
+    }
+
+    if (provider === "minimax") {
+      const minimaxHandler = this.getProviderHandler("minimax");
+      try {
+        if (!minimaxHandler) {
+          throw new Error("MiniMax TTS provider factory is unavailable.");
+        }
+        const result = await minimaxHandler.synthesize(request, voiceConfig);
+        console.log(
+          `[TTSService] MiniMax TTS finished in ${(performance.now() - startTime).toFixed(0)}ms`,
+        );
+        return result;
+      } catch (error) {
+        console.error("[TTSService] MiniMax TTS failed, falling back to browser TTS.", error);
+        addVoiceLogEvent({
+          level: "warn",
+          source: "tts",
+          message: "MiniMax TTS 失败，回退到浏览器播报",
+          detail: { provider, error: this.formatUnknownError(error) },
+        });
+        return this.synthesizeWithBrowser(request);
+      }
     }
 
     if (voiceConfig.referenceVoice) {
@@ -404,12 +378,8 @@ class TTSService {
       return null;
     }
 
-    const { baseUrl, model } = this.resolveProviderConfig(
-      "siliconflow",
-      voiceConfig.baseUrl,
-      voiceConfig.model,
-    );
-    const endpoint = `${baseUrl}/audio/speech`;
+    const cloneModel = "FunAudioLLM/CosyVoice2-0.5B";
+    const siliconflowHandler = this.getSiliconFlowProviderHandler();
     const cloneVoiceUri = await this.ensureCloneVoiceUri(voiceConfig);
 
     if (!cloneVoiceUri) {
@@ -420,14 +390,10 @@ class TTSService {
     }
 
     try {
-      return await this.requestReusableCloneSpeech(
-        endpoint,
-        request,
-        voiceConfig,
-        model,
-        apiKey,
+      return await siliconflowHandler.synthesizeReusableClone(request, voiceConfig, {
         cloneVoiceUri,
-      );
+        model: cloneModel,
+      });
     } catch (error) {
       if (!this.isCloneVoiceInvalidationError(error)) {
         throw error;
@@ -445,14 +411,10 @@ class TTSService {
         );
 
         if (rebuiltCloneVoiceUri) {
-          return await this.requestReusableCloneSpeech(
-            endpoint,
-            request,
-            voiceConfig,
-            model,
-            apiKey,
-            rebuiltCloneVoiceUri,
-          );
+          return await siliconflowHandler.synthesizeReusableClone(request, voiceConfig, {
+            cloneVoiceUri: rebuiltCloneVoiceUri,
+            model: cloneModel,
+          });
         }
       } catch (rebuildError) {
         console.warn(
@@ -506,44 +468,14 @@ class TTSService {
       return null;
     }
 
-    const { baseUrl, model } = this.resolveProviderConfig(
-      "siliconflow",
-      voiceConfig.baseUrl,
-      voiceConfig.model,
-    );
-    const audioBlob = await this.requestBlob(
-      `${baseUrl}/audio/speech`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          input: request.text,
-          model,
-          references: [
-            {
-              audio: `data:${voiceFileData.contentType};base64,${voiceFileData.base64Data}`,
-              text: voiceConfig.referenceText || "",
-            },
-          ],
-          response_format: "mp3",
-          speed: request.speed || voiceConfig.speed || DEFAULT_SPEED,
-          voice: "",
-        }),
-      },
-      {
-        ...VOICE_SYNTHESIS_REQUEST_POLICY,
-        purpose: "inline voice cloning request",
-      },
-    );
+    const cloneModel = "FunAudioLLM/CosyVoice2-0.5B";
+    const siliconflowHandler = this.getSiliconFlowProviderHandler();
 
-    return {
-      audioUrl: URL.createObjectURL(audioBlob),
-      durationMs: 0,
-      isCloned: true,
-    };
+    return siliconflowHandler.synthesizeInlineClone(request, voiceConfig, {
+      model: cloneModel,
+      referenceAudio: `data:${voiceFileData.contentType};base64,${voiceFileData.base64Data}`,
+      referenceText: voiceConfig.referenceText || "",
+    });
   }
 
   private async synthesizeWithAPI(
@@ -558,10 +490,15 @@ class TTSService {
       addVoiceLogEvent({
         level: "warn",
         source: "tts",
-        message: "远程 TTS 缺少 API Key，回退到浏览器播报",
+        message: "当前 TTS Provider 未填写 API Key，请先完成配置",
         detail: { provider },
       });
       return null;
+    }
+
+    // 硅基流动通过 Tauri Rust 后端代理，绕过浏览器 CORS 限制
+    if (provider === "siliconflow") {
+      return this.getSiliconFlowProviderHandler().synthesize(request, voiceConfig);
     }
 
     const { baseUrl, model } = this.resolveProviderConfig(
@@ -675,45 +612,6 @@ class TTSService {
   // Reusable voice cloning (SiliconFlow)
   // ---------------------------------------------------------------------------
 
-  private async requestReusableCloneSpeech(
-    endpoint: string,
-    request: TTSRequest,
-    voiceConfig: TTSVoiceConfig,
-    model: string,
-    apiKey: string,
-    cloneVoiceUri: string,
-  ): Promise<TTSResponse> {
-    const audioBlob = await this.requestBlob(
-      endpoint,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          input: request.text,
-          model,
-          response_format: "mp3",
-          speed: request.speed || voiceConfig.speed || DEFAULT_SPEED,
-          voice: cloneVoiceUri,
-        }),
-      },
-      {
-        ...VOICE_SYNTHESIS_REQUEST_POLICY,
-        purpose: "reusable voice cloning request",
-      },
-      (status, responseBody) =>
-        this.classifyCloneVoiceSpeechError(endpoint, status, responseBody, cloneVoiceUri),
-    );
-
-    return {
-      audioUrl: URL.createObjectURL(audioBlob),
-      durationMs: 0,
-      isCloned: true,
-    };
-  }
-
   private async rebuildCloneVoiceUri(
     voiceConfig: TTSVoiceConfig,
     invalidUri: string,
@@ -741,57 +639,6 @@ class TTSService {
     }
 
     return uploadedUri;
-  }
-
-  private classifyCloneVoiceSpeechError(
-    endpoint: string,
-    status: number,
-    responseBody: string,
-    cloneVoiceUri: string,
-  ) {
-    if (!this.isLikelyInvalidCloneVoiceError(status, responseBody, cloneVoiceUri)) {
-      return null;
-    }
-
-    return new TTSRequestError("Reusable cloned voice URI is invalid or expired.", {
-      endpoint,
-      kind: "clone_voice_invalid",
-      responseBody,
-      retryable: false,
-      status,
-    });
-  }
-
-  private isLikelyInvalidCloneVoiceError(
-    status: number,
-    responseBody: string,
-    cloneVoiceUri: string,
-  ) {
-    if (status === 404 || status === 410) {
-      return true;
-    }
-
-    if (status < 400 || status >= 500) {
-      return false;
-    }
-
-    const normalizedBody = responseBody.toLowerCase();
-    const normalizedUri = cloneVoiceUri.toLowerCase();
-    const mentionsVoiceTarget =
-      normalizedBody.includes(normalizedUri) ||
-      ["voice", "speaker", "uri", "audio/voice"].some((token) =>
-        normalizedBody.includes(token),
-      );
-    const mentionsInvalidity = [
-      "deleted",
-      "expired",
-      "invalid",
-      "missing",
-      "not found",
-      "unknown",
-    ].some((token) => normalizedBody.includes(token));
-
-    return mentionsVoiceTarget && mentionsInvalidity;
   }
 
   private isCloneVoiceInvalidationError(error: unknown): error is TTSRequestError {
@@ -1022,6 +869,43 @@ class TTSService {
     return {
       baseUrl: baseUrl || defaults.baseUrl,
       model: model || defaults.model,
+    };
+  }
+
+  private createProviderFactoryContext(): TTSProviderFactoryContext {
+    return {
+      createAudioResponse: (base64Data, contentType, isCloned = false) =>
+        this.createAudioResponse(base64Data, contentType, isCloned),
+      invokeCommand: <TResponse>(command: string, payload: unknown) =>
+        invoke<TResponse>(command, { payload }),
+      logEvent: addVoiceLogEvent,
+      resolveProviderConfig: (provider, baseUrl, model) =>
+        this.resolveProviderConfig(provider, baseUrl, model),
+    };
+  }
+
+  private getProviderHandler(provider: TTSProvider): TTSProviderHandler | null {
+    return createTTSProviderHandler(provider, this.createProviderFactoryContext());
+  }
+
+  private getSiliconFlowProviderHandler(): SiliconFlowTTSProviderHandler {
+    return asSiliconFlowProviderHandler(this.getProviderHandler("siliconflow"));
+  }
+
+  private createAudioResponse(
+    base64Data: string,
+    contentType: string | null | undefined,
+    isCloned = false,
+  ): TTSResponse {
+    const audioBlob = this.decodeBase64ToBlob(
+      base64Data,
+      contentType || "audio/mpeg",
+    );
+
+    return {
+      audioUrl: URL.createObjectURL(audioBlob),
+      durationMs: 0,
+      isCloned,
     };
   }
 

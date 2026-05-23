@@ -42,6 +42,43 @@ describe('migrateConfig', () => {
     expect(migrated.asrEnabled).toBe(true)
     expect(migrated.asrLanguage).toBe('en-US')
   })
+
+  it('补齐新增的云 ASR 配置字段默认值', () => {
+    const migrated = migrateConfig({})
+
+    expect(migrated.asrApiKey).toBeNull()
+    expect(migrated.asrBaseUrl).toBe('')
+    expect(migrated.asrModel).toBeNull()
+  })
+
+  it('保留已保存的云 ASR 配置', () => {
+    const migrated = migrateConfig({
+      asrProvider: 'siliconflow',
+      asrApiKey: 'test-key',
+      asrBaseUrl: 'https://api.siliconflow.cn/v1',
+      asrModel: 'FunAudioLLM/SenseVoiceSmall',
+    })
+
+    expect(migrated.asrProvider).toBe('siliconflow')
+    expect(migrated.asrApiKey).toBe('test-key')
+    expect(migrated.asrBaseUrl).toBe('https://api.siliconflow.cn/v1')
+    expect(migrated.asrModel).toBe('FunAudioLLM/SenseVoiceSmall')
+  })
+
+  it('旧配置缺少 ttsVoiceId 时自动补默认值', () => {
+    const migrated = migrateConfig({ ttsProvider: 'minimax' as const })
+
+    expect(migrated.ttsVoiceId).toBeNull()
+  })
+
+  it('保留已保存的 ttsVoiceId', () => {
+    const migrated = migrateConfig({
+      ttsProvider: 'minimax' as const,
+      ttsVoiceId: 'male-qn-qingse',
+    })
+
+    expect(migrated.ttsVoiceId).toBe('male-qn-qingse')
+  })
 })
 
 describe('场景配置持久化', () => {

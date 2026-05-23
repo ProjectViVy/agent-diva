@@ -1,11 +1,12 @@
 import * as THREE from 'three'
 import type { Object3D } from 'three'
+import type { AvatarRuntimeMode } from '@morediva/shared-avatar-protocol'
 import type { AvatarTransform } from '../protocol'
 import {
-  DEFAULT_CAMERA_DISTANCE,
-  DEFAULT_CAMERA_TARGET_Y,
-  DEFAULT_TRANSFORM,
   TRANSFORM_LIMITS,
+  getCameraPosition,
+  getCameraTarget,
+  getDefaultTransform,
 } from './constants'
 
 function clamp(value: number, min: number, max: number): number {
@@ -14,7 +15,8 @@ function clamp(value: number, min: number, max: number): number {
 
 export class TransformController {
   private modelRoot: Object3D | null = null
-  private current: AvatarTransform = { ...DEFAULT_TRANSFORM }
+  private readonly initial: AvatarTransform
+  private current: AvatarTransform
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -24,7 +26,11 @@ export class TransformController {
       getAzimuthalAngle(): number
       getPolarAngle(): number
     },
-  ) {}
+    mode: AvatarRuntimeMode,
+  ) {
+    this.initial = getDefaultTransform(mode)
+    this.current = { ...this.initial }
+  }
 
   attachModel(root: Object3D | null): void {
     this.modelRoot = root
@@ -54,7 +60,7 @@ export class TransformController {
   }
 
   reset(): AvatarTransform {
-    this.current = { ...DEFAULT_TRANSFORM }
+    this.current = { ...this.initial }
     this.applyCurrent()
     return this.getTransform()
   }
@@ -75,28 +81,12 @@ export class TransformController {
 
   private applyCurrent(): void {
     if (this.modelRoot) {
-      this.modelRoot.position.set(this.current.offsetX, this.current.offsetY, 0)
+      this.modelRoot.position.set(0, 0, 0)
     }
 
-    this.controls.target.set(
-      this.current.offsetX,
-      DEFAULT_CAMERA_TARGET_Y + this.current.offsetY,
-      0,
-    )
-
-    // Map scale to camera distance (inverse relationship: larger scale = closer camera)
-    // This mirrors how ChatVRM uses OrbitControls camera-distance zoom.
-    const effectiveDistance = DEFAULT_CAMERA_DISTANCE / this.current.scale
-
-    const offset = new THREE.Vector3().setFromSphericalCoords(
-      effectiveDistance,
-      this.current.rotationPolar,
-      this.current.rotationAzimuth,
-    )
-    this.camera.position.copy(this.controls.target).add(offset)
-    // NOTE: do NOT call controls.update() here — its internal spherical state
-    // would overwrite the camera.position we just set. The animation loop
-    // (SceneManager.scheduleFrame) calls controls.update() every frame, which
-    // re-reads camera.position and reconciles its internal state.
+    this.controls.target.copy(getCameraTarget(this.current))
+    this.camera.position.copy(getCameraPosition(this.current))
+    // Keep OrbitControls' spherical state aligned with the programmatic camera preset.
+    this.controls.update()
   }
 }

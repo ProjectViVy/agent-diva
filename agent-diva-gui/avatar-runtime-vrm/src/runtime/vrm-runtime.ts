@@ -21,7 +21,6 @@ import {
 import { RuntimeBridge } from './bridge'
 import { AnimationController } from './animation-controller'
 import ChunkAnimationController from './chunk-controller'
-import type { ChunkControllerHooks } from './chunk-controller'
 import { DEFAULT_CAPABILITIES, RUNTIME_VERSION } from './constants'
 import { ExpressionController } from './expression-controller'
 import HoverAutoHideController from './hover-auto-hide-controller'
@@ -30,7 +29,6 @@ import { VrmModelLoader } from './model-loader'
 import { MotionController } from './motion-controller'
 import PointerLockController from './pointerlock-controller'
 import PttController from './ptt-controller'
-import type { PttControllerHooks } from './ptt-controller'
 import { SceneManager } from './scene-manager'
 import { SpeechController } from './speech-controller'
 import SubtitleController from './subtitle-controller'
@@ -96,6 +94,7 @@ export class VrmRuntime implements AvatarRuntime {
     this.transformController = new TransformController(
       this.sceneManager.camera,
       this.sceneManager.controls,
+      options.mode,
     )
     this.pointerLockController = new PointerLockController(
       this.sceneManager.camera,

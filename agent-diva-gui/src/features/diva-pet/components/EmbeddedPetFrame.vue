@@ -9,6 +9,7 @@ interface Props {
   isSpeaking?: boolean
   active?: boolean
   lipSyncEnabled?: boolean
+  transparentBackground?: boolean
 }
 
 const props = defineProps<Props>()
@@ -24,6 +25,7 @@ const payload = computed(() => ({
   isSpeaking: !!props.isSpeaking,
   active: props.active !== false,
   lipSyncEnabled: !!props.lipSyncEnabled,
+  transparentBackground: !!props.transparentBackground,
 }))
 
 function postState(): void {
@@ -81,6 +83,6 @@ watch(payload, () => {
   width: 100%;
   height: 100%;
   border: 0;
-  background: #ffffff;
+  background: transparent;
 }
 </style>

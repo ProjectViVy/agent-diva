@@ -31,7 +31,8 @@ export class ExpressionController {
     }
 
     for (const current of MOODS) {
-      this.vrm.expressionManager.setValue(current, current === mood ? 1 : 0)
+      const value = mood === 'neutral' ? 0 : current === mood ? 1 : 0
+      this.vrm.expressionManager.setValue(current, value)
     }
   }
 }

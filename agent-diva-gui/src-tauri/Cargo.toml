@@ -30,7 +30,10 @@ tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 reqwest = { workspace = true }
+http = { workspace = true }
 futures = "0.3"
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
+native-tls = "0.2"
 eventsource-stream = "0.2"
 once_cell = { workspace = true }
 which = { workspace = true }

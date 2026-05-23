@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
-import { Send, Loader2, Settings, Monitor, Image, Menu } from 'lucide-vue-next'
+import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
+import { Send, Loader2, Settings, Monitor, Image, Menu, Plus } from 'lucide-vue-next'
+import MarkdownIt from 'markdown-it'
 import { useI18n } from 'vue-i18n'
 import EmbeddedPetFrame from './EmbeddedPetFrame.vue'
 import DivaPetVoicePanel from '../voice/components/DivaPetVoicePanel.vue'
@@ -8,8 +9,8 @@ import DivaPetModelManager from './DivaPetModelManager.vue'
 import { useVoicePlayer } from '../voice/composables/useVoicePlayer'
 import { useVoiceInput } from '../voice/composables/useVoiceInput'
 import { usePetConfig } from '../services/pet-config'
-import type { PetMessage, VrmMood, GaussSceneId } from '../types'
-import { deriveMoodFromMessages } from '../utils/mood'
+import { getTtsApiKey, type PetMessage, type VrmMood, type GaussSceneId } from '../types'
+import { getDesktopPetEmotionSignal } from '../../../utils/desktop-pet-emotion'
 import { resolveVrmModelPath } from '../utils/vrm-model'
 import { resolveGaussSceneUrl } from '../utils/gauss-scene'
 import { ttsService, type TTSVoiceConfig } from '../voice/services/tts-service'
@@ -19,31 +20,42 @@ const { t } = useI18n()
 const { config: petConfig, updateConfig } = usePetConfig()
 ttsService.setVoiceFileReader(tauriVoiceFileReader)
 
+const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
+
 const vrmModelPath = computed(() => resolveVrmModelPath(petConfig.value.vrmModel))
 
 interface Props {
-  messages: PetMessage[]
-  isTyping: boolean
+  messages?: PetMessage[]
+  isTyping?: boolean
   currentEmotion?: string
   desktopPetActive?: boolean
 }
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  messages: () => [],
+  isTyping: false,
+  currentEmotion: 'normal',
+  desktopPetActive: false,
+})
 
 const emit = defineEmits<{
   (e: 'send', content: string): void
   (e: 'toggle-sidebar'): void
+  (e: 'new-topic', greeting: string): void
 }>()
 
-const currentMood = computed<VrmMood>(() =>
-  deriveMoodFromMessages(props.messages, props.currentEmotion),
-)
+const NEW_TOPIC_GREETING = '让我们换个话题聊聊吧'
+
+const currentMood = ref<VrmMood>('neutral')
+const lastMoodSignature = ref<string | null>(null)
+let moodResetTimer: ReturnType<typeof setTimeout> | null = null
 
 const voiceConfig = computed<TTSVoiceConfig>(() => ({
   enabled: petConfig.value.ttsEnabled,
   provider: petConfig.value.ttsProvider,
-  apiKey: petConfig.value.ttsApiKey,
+  apiKey: getTtsApiKey(petConfig.value),
   baseUrl: petConfig.value.ttsBaseUrl,
   model: petConfig.value.ttsModel,
+  voiceId: petConfig.value.ttsVoiceId,
   referenceVoice: petConfig.value.ttsReferenceVoice,
   referenceText: petConfig.value.ttsReferenceText,
   speed: petConfig.value.ttsSpeed,
@@ -52,13 +64,21 @@ const voiceConfig = computed<TTSVoiceConfig>(() => ({
 
 const { isSpeaking, speakText, stopSpeaking } = useVoicePlayer({
   messages: computed(() => props.messages),
+  isTyping: computed(() => props.isTyping),
   ttsConfig: voiceConfig,
 })
 
 const voiceInput = useVoiceInput({
   isSuspended: computed(() => isSpeaking.value),
-  language: computed(() => petConfig.value.asrLanguage),
+  config: computed(() => ({
+    provider: petConfig.value.asrProvider,
+    language: petConfig.value.asrLanguage,
+    apiKey: petConfig.value.asrApiKey,
+    baseUrl: petConfig.value.asrBaseUrl,
+    model: petConfig.value.asrModel,
+  })),
   onRecognizedText: async (text: string) => {
+    if (props.isTyping) return
     emit('send', text)
   },
 })
@@ -73,6 +93,41 @@ watch(
   { immediate: true },
 )
 
+function clearMoodResetTimer() {
+  if (moodResetTimer !== null) {
+    window.clearTimeout(moodResetTimer)
+    moodResetTimer = null
+  }
+}
+
+function scheduleMoodReset(mood: VrmMood) {
+  clearMoodResetTimer()
+  if (mood === 'neutral') {
+    currentMood.value = 'neutral'
+    return
+  }
+  moodResetTimer = window.setTimeout(() => {
+    moodResetTimer = null
+    currentMood.value = 'neutral'
+  }, 4000)
+}
+
+watch(
+  () => getDesktopPetEmotionSignal(props.messages),
+  (signal) => {
+    if (!signal) return
+    if (signal.signature === lastMoodSignature.value) return
+
+    lastMoodSignature.value = signal.signature
+    currentMood.value = signal.mood as VrmMood
+    scheduleMoodReset(currentMood.value)
+  },
+)
+
+onUnmounted(() => {
+  clearMoodResetTimer()
+})
+
 function onTtsToggle(val: boolean) {
   updateConfig({ ttsEnabled: val })
 }
@@ -83,8 +138,26 @@ async function onVoiceToggle() {
   updateConfig({ asrEnabled: nextEnabled && applied })
 }
 
+const isHeaderPttDisabled = computed(() => props.isTyping || !voiceInput.isSupported)
+
+async function startHeaderVoiceInput(event: PointerEvent) {
+  event.preventDefault()
+  if (isHeaderPttDisabled.value || voiceInput.isEnabled.value) return
+  await voiceInput.setEnabled(true)
+}
+
+function stopHeaderVoiceInput() {
+  if (!voiceInput.isEnabled.value) return
+  void voiceInput.setEnabled(false)
+}
+
 function onTestSpeak() {
   speakText('Diva pet mode preview.')
+}
+
+function onNewTopic() {
+  if (props.isTyping) return
+  emit('new-topic', NEW_TOPIC_GREETING)
 }
 
 const showModelManager = ref(false)
@@ -95,6 +168,10 @@ function onModelChanged(modelId: string) {
 
 const showScenePicker = ref(false)
 const isWhisperNearby = ref(false)
+const isTransparentScene = computed(() => petConfig.value.selectedGaussSceneId === 'transparent')
+const runtimeBackgroundScene = computed(() => (
+  isTransparentScene.value ? undefined : petConfig.value.selectedGaussSceneId
+))
 
 const SCENE_ICONS: Record<string, string> = {
   transparent: 'T', home: 'H', sea: 'S', space: '*',
@@ -106,6 +183,7 @@ function selectScene(id: string) {
 }
 
 const backgroundSceneUrl = computed(() => {
+  if (isTransparentScene.value) return undefined
   const scene = petConfig.value.gaussSceneList?.find(
     (s) => s.id === petConfig.value.selectedGaussSceneId,
   )
@@ -179,8 +257,9 @@ const moodLabels: Record<VrmMood, string> = {
         :is-speaking="isSpeaking"
         :active="!desktopPetActive"
         :lip-sync-enabled="petConfig.vrmExpressionEnabled"
-        :background-scene="petConfig.selectedGaussSceneId"
+        :background-scene="runtimeBackgroundScene"
         :background-scene-url="backgroundSceneUrl"
+        :transparent-background="isTransparentScene"
       />
 
       <div
@@ -193,6 +272,7 @@ const moodLabels: Record<VrmMood, string> = {
 
       <div
         v-if="currentMood !== 'neutral'"
+        data-testid="pet-mood-badge"
         class="pet-glass absolute top-4 left-16 px-3 py-1.5 text-[11px] rounded-full text-white/90 border-white/15 z-20"
       >
         {{ moodLabels[currentMood] }} {{ currentMood }}
@@ -246,6 +326,14 @@ const moodLabels: Record<VrmMood, string> = {
         >
           <div class="pet-chat-header">
             <span class="text-[11px] tracking-[0.24em] uppercase text-white/55">Whispers</span>
+            <button
+              class="pet-chat-new-topic-button"
+              :disabled="isTyping"
+              title="新建聊天"
+              @click.stop="onNewTopic"
+            >
+              <Plus :size="12" />
+            </button>
           </div>
 
           <div ref="messagesContainer" class="pet-chat-scroll space-y-2">
@@ -263,8 +351,8 @@ const moodLabels: Record<VrmMood, string> = {
                   'pet-agent-bubble rounded-bl-md': msg.role === 'agent',
                 }"
               >
-                <div v-if="msg.content" class="whitespace-pre-wrap">{{ msg.content }}</div>
-                <div v-else-if="msg.role === 'agent'" class="flex items-center gap-1.5 text-white/60">
+                <div v-if="msg.content" class="whitespace-pre-wrap markdown-body pet-markdown" v-html="md.render(msg.content)"></div>
+                <div v-else-if="msg.role === 'agent' && msg.isStreaming" class="flex items-center gap-1.5 text-white/60">
                   <Loader2 :size="12" class="animate-spin" />
                   <span class="text-[10px]">{{ t('chat.thinking') }}</span>
                 </div>
@@ -278,19 +366,11 @@ const moodLabels: Record<VrmMood, string> = {
               </div>
             </div>
 
-            <div v-if="isTyping" class="flex justify-start">
-              <div class="pet-agent-bubble rounded-[18px] rounded-bl-md px-3 py-2">
-                <div class="flex items-center gap-1.5 text-white/60 text-[10px]">
-                  <Loader2 :size="12" class="animate-spin" />
-                  {{ currentMood !== 'neutral' ? `Thinking ${moodLabels[currentMood]}` : t('chat.thinking') }}
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
-      <div class="absolute left-4 right-4 bottom-4 z-20 flex flex-col items-start gap-3">
+      <div class="absolute left-4 right-4 bottom-4 z-20 flex flex-col items-center gap-3">
         <DivaPetVoicePanel
           :is-speaking="isSpeaking"
           :is-voice-supported="voiceInput.isSupported"
@@ -299,14 +379,17 @@ const moodLabels: Record<VrmMood, string> = {
           :is-processing="voiceInput.isProcessing.value"
           :voice-error="voiceInput.error.value"
           :tts-enabled="petConfig.ttsEnabled"
+          :is-push-to-talk-disabled="isHeaderPttDisabled"
           @toggle-voice="onVoiceToggle"
           @update:tts-enabled="onTtsToggle"
           @test-speak="onTestSpeak"
+          @start-voice-hold="startHeaderVoiceInput"
+          @stop-voice-hold="stopHeaderVoiceInput"
           @stop-speaking="stopSpeaking"
         />
 
         <div class="pet-input-dock pet-glass">
-          <div class="flex items-center gap-2">
+          <div class="flex w-full items-center gap-2">
             <input
               v-model="inputText"
               type="text"
@@ -416,10 +499,62 @@ const moodLabels: Record<VrmMood, string> = {
   padding: 0 2px 10px;
 }
 
+.pet-chat-new-topic-button {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+}
+
+.pet-chat-new-topic-button:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.pet-chat-new-topic-button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
 .pet-chat-scroll {
   max-height: min(42vh, 360px);
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
+}
+
+.pet-chat-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pet-chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pet-chat-scroll::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.22);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.pet-chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.34);
+  background-clip: content-box;
+}
+
+.pet-chat-scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .pet-agent-bubble {
@@ -439,7 +574,9 @@ const moodLabels: Record<VrmMood, string> = {
 }
 
 .pet-input-dock {
-  width: min(680px, 100%);
+  width: min(760px, 100%);
+  max-width: 100%;
+  align-self: center;
   border-radius: 9999px;
   padding: 8px 8px 8px 16px;
 }
@@ -523,5 +660,113 @@ const moodLabels: Record<VrmMood, string> = {
   .pet-input-dock {
     width: 100%;
   }
+}
+
+.pet-markdown {
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.pet-markdown :deep(p) {
+  margin-bottom: 0.3em;
+}
+
+.pet-markdown :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.pet-markdown :deep(strong) {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.pet-markdown :deep(em) {
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.pet-markdown :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.7rem;
+  background-color: rgba(0, 0, 0, 0.25);
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
+  color: rgba(165, 243, 252, 0.9);
+}
+
+.pet-markdown :deep(pre) {
+  background-color: rgba(0, 0, 0, 0.35);
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.65rem;
+  margin: 0.4rem 0;
+  overflow-x: auto;
+}
+
+.pet-markdown :deep(pre code) {
+  background-color: transparent;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.pet-markdown :deep(ul), .pet-markdown :deep(ol) {
+  padding-left: 1.25em;
+  margin-bottom: 0.3em;
+}
+
+.pet-markdown :deep(ul) {
+  list-style-type: disc;
+}
+
+.pet-markdown :deep(ol) {
+  list-style-type: decimal;
+}
+
+.pet-markdown :deep(li) {
+  margin-bottom: 0.15em;
+}
+
+.pet-markdown :deep(blockquote) {
+  border-left: 2px solid rgba(165, 243, 252, 0.4);
+  padding-left: 0.6rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 0.3rem 0;
+}
+
+.pet-markdown :deep(a) {
+  color: rgba(165, 243, 252, 0.9);
+  text-decoration: underline;
+}
+
+.pet-markdown :deep(a:hover) {
+  color: rgba(103, 232, 249, 1);
+}
+
+.pet-markdown :deep(h1), .pet-markdown :deep(h2), .pet-markdown :deep(h3),
+.pet-markdown :deep(h4), .pet-markdown :deep(h5), .pet-markdown :deep(h6) {
+  font-weight: 600;
+  margin-bottom: 0.25em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.pet-markdown :deep(h1) { font-size: 0.85rem; }
+.pet-markdown :deep(h2) { font-size: 0.8rem; }
+.pet-markdown :deep(h3) { font-size: 0.75rem; }
+.pet-markdown :deep(h4), .pet-markdown :deep(h5), .pet-markdown :deep(h6) { font-size: 0.72rem; }
+
+.pet-markdown :deep(hr) {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  margin: 0.5rem 0;
+}
+
+.pet-markdown :deep(table) {
+  border-collapse: collapse;
+  font-size: 0.7rem;
+  margin: 0.3rem 0;
+}
+
+.pet-markdown :deep(table td), .pet-markdown :deep(table th) {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.2em 0.5em;
 }
 </style>

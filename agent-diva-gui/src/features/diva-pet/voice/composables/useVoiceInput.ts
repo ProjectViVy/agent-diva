@@ -8,9 +8,16 @@ import {
   type MaybeRef,
   type Ref,
 } from 'vue'
+import type { ASRProviderConfig } from '../services/asr-service'
+import { isCloudAsrProvider, transcribeWithAsrProvider } from '../services/asr-service'
 import { addVoiceLogEvent } from '../services/voice-log'
 
 const VOICE_INPUT_RESTART_DELAY_MS = 420
+const CLOUD_ASR_SILENCE_MS = 1200
+const CLOUD_ASR_MAX_RECORDING_MS = 12000
+const CLOUD_ASR_IDLE_TIMEOUT_MS = 6000
+const CLOUD_ASR_MONITOR_INTERVAL_MS = 180
+const CLOUD_ASR_ACTIVITY_THRESHOLD = 10
 
 interface SpeechRecognitionAlternativeLike {
   transcript: string
@@ -63,7 +70,7 @@ declare global {
 
 export interface UseVoiceInputOptions {
   isSuspended?: MaybeRef<boolean>
-  language?: MaybeRef<string>
+  config?: MaybeRef<ASRProviderConfig>
   onPreviewText?: (text: string) => void
   onRecognizedText: (text: string) => Promise<void> | void
 }
@@ -110,7 +117,12 @@ function isMicrophonePermissionError(error: unknown): boolean {
 
 export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResult {
   const recognitionConstructor = getSpeechRecognitionConstructor()
-  const isSupported = recognitionConstructor !== null
+  const isWebSpeechSupported = recognitionConstructor !== null
+  const isCloudSupported = typeof window !== 'undefined'
+    && typeof navigator !== 'undefined'
+    && !!navigator.mediaDevices?.getUserMedia
+    && typeof MediaRecorder !== 'undefined'
+  const isSupported = isWebSpeechSupported || isCloudSupported
 
   const isEnabled = ref(false)
   const isListening = ref(false)
@@ -124,11 +136,27 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   const isRunningRef = ref(false)
   const stoppedForDisableRef = ref(false)
   const hasMicrophoneGrantRef = ref(false)
+  const mediaStreamRef = ref<MediaStream | null>(null)
+  const mediaRecorderRef = ref<MediaRecorder | null>(null)
+  const monitorIntervalRef = ref<number | null>(null)
+  const recordingTimeoutRef = ref<number | null>(null)
+  const audioContextRef = ref<AudioContext | null>(null)
+  const analyserRef = ref<AnalyserNode | null>(null)
+  const chunksRef = ref<Blob[]>([])
+  const speechDetectedRef = ref(false)
+  const silenceStartedAtRef = ref<number | null>(null)
+  const recordingStartedAtRef = ref<number | null>(null)
   const onPreviewTextRef = ref(options.onPreviewText)
   const onRecognizedTextRef = ref(options.onRecognizedText)
-  const languageRef = ref(toValue(options.language) ?? 'zh-CN')
+  const configRef = ref<ASRProviderConfig>(toValue(options.config) ?? {
+    provider: 'web_speech',
+    language: 'zh-CN',
+    apiKey: null,
+    baseUrl: '',
+    model: null,
+  })
 
-  if (!isSupported) {
+  if (!isWebSpeechSupported) {
     addVoiceLogEvent({
       level: 'warn',
       source: 'asr',
@@ -159,10 +187,17 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   )
 
   watch(
-    () => toValue(options.language),
+    () => toValue(options.config),
     (val) => {
-      languageRef.value = val ?? 'zh-CN'
+      configRef.value = val ?? {
+        provider: 'web_speech',
+        language: 'zh-CN',
+        apiKey: null,
+        baseUrl: '',
+        model: null,
+      }
     },
+    { deep: true },
   )
 
   function clearRestartTimeout(): void {
@@ -172,6 +207,40 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
     }
   }
 
+
+  function clearCloudTimers(): void {
+    if (monitorIntervalRef.value !== null) {
+      window.clearInterval(monitorIntervalRef.value)
+      monitorIntervalRef.value = null
+    }
+    if (recordingTimeoutRef.value !== null) {
+      window.clearTimeout(recordingTimeoutRef.value)
+      recordingTimeoutRef.value = null
+    }
+    silenceStartedAtRef.value = null
+    recordingStartedAtRef.value = null
+  }
+
+  function stopCloudStream(): void {
+    mediaStreamRef.value?.getTracks().forEach((track) => track.stop())
+    mediaStreamRef.value = null
+  }
+
+  async function ensureCloudAudioGraph(stream: MediaStream): Promise<void> {
+    if (!audioContextRef.value) {
+      audioContextRef.value = new AudioContext()
+    }
+    if (audioContextRef.value.state === 'suspended') {
+      await audioContextRef.value.resume()
+    }
+
+    const source = audioContextRef.value.createMediaStreamSource(stream)
+    const analyser = audioContextRef.value.createAnalyser()
+    analyser.fftSize = 1024
+    analyser.smoothingTimeConstant = 0.85
+    source.connect(analyser)
+    analyserRef.value = analyser
+  }
   async function requestMicrophonePermission(): Promise<boolean> {
     if (hasMicrophoneGrantRef.value) return true
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
@@ -182,11 +251,15 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       hasMicrophoneGrantRef.value = true
+      if (isCloudAsrProvider(configRef.value.provider)) {
+        mediaStreamRef.value = stream
+        stream = null
+      }
       addVoiceLogEvent({
         level: 'info',
         source: 'asr',
         message: '麦克风权限已确认',
-        detail: { provider: 'web_speech' },
+        detail: { provider: configRef.value.provider },
       })
       return true
     } catch (permissionError) {
@@ -209,10 +282,186 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
     }
   }
 
+  function describeUnsupportedProvider(provider: ASRProviderConfig['provider']): string {
+    if (provider === 'web_speech') {
+      return '当前环境暂不支持 Web Speech API。'
+    }
+    return '当前环境暂不支持云端 ASR 录音能力。'
+  }
+
+  function cleanupCloudRecorder(): void {
+    clearCloudTimers()
+    chunksRef.value = []
+    speechDetectedRef.value = false
+    if (mediaRecorderRef.value) {
+      mediaRecorderRef.value.ondataavailable = null
+      mediaRecorderRef.value.onerror = null
+      mediaRecorderRef.value.onstart = null
+      mediaRecorderRef.value.onstop = null
+      mediaRecorderRef.value = null
+    }
+    analyserRef.value = null
+    isRunningRef.value = false
+    isListening.value = false
+  }
+
+  async function finishCloudCapture(): Promise<void> {
+    const blob = new Blob(chunksRef.value, {
+      type: mediaRecorderRef.value?.mimeType || chunksRef.value[0]?.type || 'audio/webm',
+    })
+    const hadSpeech = speechDetectedRef.value
+    cleanupCloudRecorder()
+
+    if (!hadSpeech || blob.size === 0) {
+      if (isEnabled.value && !isProcessing.value) scheduleRecognitionStart()
+      return
+    }
+
+    isProcessing.value = true
+    try {
+      const text = await transcribeWithAsrProvider({
+        audioBlob: blob,
+        config: configRef.value,
+      })
+      const finalTranscript = normalizeTranscript(text)
+      if (finalTranscript) {
+        onPreviewTextRef.value?.(finalTranscript)
+        addVoiceLogEvent({
+          level: 'info',
+          source: 'asr',
+          message: '识别到语音输入',
+          detail: {
+            provider: configRef.value.provider,
+            text: finalTranscript.slice(0, 80),
+          },
+        })
+        await Promise.resolve(onRecognizedTextRef.value(finalTranscript))
+      }
+    } catch (submitError) {
+      error.value = submitError instanceof Error ? submitError.message : '语音输入发送失败，请重试。'
+      addVoiceLogEvent({
+        level: 'error',
+        source: 'asr',
+        message: '云端 ASR 处理失败',
+        detail: { provider: configRef.value.provider, error: error.value },
+      })
+    } finally {
+      isProcessing.value = false
+      if (isEnabled.value && !isRunningRef.value) scheduleRecognitionStart()
+    }
+  }
+
+  function stopCloudRecording(): void {
+    const recorder = mediaRecorderRef.value
+    if (!recorder || recorder.state === 'inactive') {
+      cleanupCloudRecorder()
+      return
+    }
+    try {
+      recorder.stop()
+    } catch (stopError) {
+      console.warn('[VoiceInput] Failed to stop cloud recorder.', stopError)
+      cleanupCloudRecorder()
+    }
+  }
+
+  async function scheduleCloudRecognitionStart(): Promise<void> {
+    if (!mediaStreamRef.value) {
+      mediaStreamRef.value = await navigator.mediaDevices.getUserMedia({ audio: true })
+    }
+    const stream = mediaStreamRef.value
+    if (!stream) {
+      throw new Error('云端 ASR 无法获取麦克风输入。')
+    }
+
+    await ensureCloudAudioGraph(stream)
+    const recorder = new MediaRecorder(stream)
+    chunksRef.value = []
+    speechDetectedRef.value = false
+    silenceStartedAtRef.value = null
+    recordingStartedAtRef.value = Date.now()
+
+    recorder.onstart = () => {
+      stoppedForDisableRef.value = false
+      isRunningRef.value = true
+      isListening.value = true
+      error.value = null
+      addVoiceLogEvent({
+        level: 'info',
+        source: 'asr',
+        message: '开始云端语音识别',
+        detail: {
+          provider: configRef.value.provider,
+          language: configRef.value.language,
+        },
+      })
+    }
+
+    recorder.ondataavailable = (event: BlobEvent) => {
+      if (event.data.size > 0) {
+        chunksRef.value.push(event.data)
+      }
+    }
+
+    recorder.onerror = (event: Event) => {
+      const recorderEvent = event as Event & { error?: DOMException }
+      error.value = recorderEvent.error?.message || '云端 ASR 录音失败，请稍后重试。'
+      addVoiceLogEvent({
+        level: 'error',
+        source: 'asr',
+        message: '云端 ASR 录音失败',
+        detail: { provider: configRef.value.provider, error: error.value },
+      })
+      cleanupCloudRecorder()
+    }
+
+    recorder.onstop = () => {
+      void finishCloudCapture()
+    }
+
+    mediaRecorderRef.value = recorder
+    recorder.start()
+
+    monitorIntervalRef.value = window.setInterval(() => {
+      const analyser = analyserRef.value
+      if (!analyser) return
+      const buffer = new Uint8Array(analyser.frequencyBinCount)
+      analyser.getByteFrequencyData(buffer)
+      const average = buffer.reduce((sum, value) => sum + value, 0) / Math.max(buffer.length, 1)
+      const now = Date.now()
+      if (average >= CLOUD_ASR_ACTIVITY_THRESHOLD) {
+        speechDetectedRef.value = true
+        silenceStartedAtRef.value = null
+        return
+      }
+      if (!speechDetectedRef.value) {
+        if ((recordingStartedAtRef.value ?? now) + CLOUD_ASR_IDLE_TIMEOUT_MS <= now) {
+          stopCloudRecording()
+        }
+        return
+      }
+      if (silenceStartedAtRef.value === null) {
+        silenceStartedAtRef.value = now
+        return
+      }
+      if (now - silenceStartedAtRef.value >= CLOUD_ASR_SILENCE_MS) {
+        stopCloudRecording()
+      }
+    }, CLOUD_ASR_MONITOR_INTERVAL_MS)
+
+    recordingTimeoutRef.value = window.setTimeout(() => {
+      stopCloudRecording()
+    }, CLOUD_ASR_MAX_RECORDING_MS)
+  }
+
   function scheduleRecognitionStart(): void {
     clearRestartTimeout()
-    if (!isEnabled.value || suspendedRef.value || isProcessing.value || recognitionConstructor === null) {
-      return
+      if (!isEnabled.value || suspendedRef.value || isProcessing.value || recognitionConstructor === null) {
+      if (!isCloudAsrProvider(configRef.value.provider)) return
+      if (!isCloudSupported) return
+      if (isEnabled.value && !suspendedRef.value && !isProcessing.value) {
+        // cloud ASR does not depend on SpeechRecognition constructor
+      }
     }
 
     const remainingPauseMs = Math.max(0, resumeAtRef.value - Date.now())
@@ -226,10 +475,32 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
         return
       }
 
+      if (isCloudAsrProvider(configRef.value.provider)) {
+        void scheduleCloudRecognitionStart().catch((startError: unknown) => {
+          const message = startError instanceof Error ? startError.message : String(startError)
+          console.warn('[VoiceInput] Failed to start cloud ASR.', startError)
+          error.value = message || '云端 ASR 无法启动，请稍后重试。'
+          isEnabled.value = false
+          isListening.value = false
+          isRunningRef.value = false
+          addVoiceLogEvent({
+            level: 'error',
+            source: 'asr',
+            message: '云端 ASR 启动失败',
+            detail: { provider: configRef.value.provider, error: error.value },
+          })
+        })
+        return
+      }
+
+      if (recognitionConstructor === null) {
+        return
+      }
+
       const recognition = recognitionRef.value ?? new recognitionConstructor()
       recognition.continuous = false
       recognition.interimResults = true
-      recognition.lang = languageRef.value
+      recognition.lang = configRef.value.language
       recognition.maxAlternatives = 1
 
       recognition.onstart = () => {
@@ -241,7 +512,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
           level: 'info',
           source: 'asr',
           message: '开始语音识别',
-          detail: { provider: 'web_speech', language: languageRef.value },
+          detail: { provider: configRef.value.provider, language: configRef.value.language },
         })
       }
 
@@ -319,7 +590,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
           level: 'info',
           source: 'asr',
           message: '语音识别结束',
-          detail: { enabled: isEnabled.value },
+          detail: { enabled: isEnabled.value, provider: configRef.value.provider },
         })
 
         if (stoppedForDisableRef.value) {
@@ -349,7 +620,15 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
     }, startDelayMs)
   }
 
-  watch([isEnabled, suspendedRef, languageRef], ([enabled, suspended]) => {
+  watch([
+    isEnabled,
+    suspendedRef,
+    () => configRef.value.provider,
+    () => configRef.value.language,
+    () => configRef.value.baseUrl,
+    () => configRef.value.model,
+    () => configRef.value.apiKey,
+  ], ([enabled, suspended]) => {
     if (!isSupported) return
 
     if (!enabled || suspended) {
@@ -362,6 +641,8 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
           console.warn('[VoiceInput] Failed to stop recognition.', stopError)
         }
       }
+      stopCloudRecording()
+      clearCloudTimers()
       isListening.value = false
       if (!enabled) isProcessing.value = false
       return
@@ -371,14 +652,19 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   })
 
   onUnmounted(() => {
-    if (!isSupported) return
     isEnabled.value = false
     clearRestartTimeout()
-    if (!recognitionRef.value) return
-    try {
-      recognitionRef.value.abort()
-    } catch (abortError) {
-      console.warn('[VoiceInput] Failed to abort recognition during cleanup.', abortError)
+    stopCloudRecording()
+    stopCloudStream()
+    if (audioContextRef.value) {
+      void audioContextRef.value.close().catch(() => undefined)
+    }
+    if (recognitionRef.value) {
+      try {
+        recognitionRef.value.abort()
+      } catch (abortError) {
+        console.warn('[VoiceInput] Failed to abort recognition during cleanup.', abortError)
+      }
     }
   })
 
@@ -400,13 +686,15 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   }
 
   async function setEnabled(enabled: boolean): Promise<boolean> {
-    if (enabled && !isSupported) {
-      error.value = '当前环境暂不支持语音输入。'
+    const provider = configRef.value.provider
+    const providerSupported = provider === 'web_speech' ? isWebSpeechSupported : isCloudSupported
+    if (enabled && !providerSupported) {
+      error.value = describeUnsupportedProvider(provider)
       addVoiceLogEvent({
         level: 'warn',
         source: 'asr',
-        message: '无法开启语音输入：当前环境不支持 Web Speech API',
-        detail: { provider: 'web_speech' },
+        message: '无法开启语音输入：当前环境不支持所选 ASR Provider',
+        detail: { provider },
       })
       return false
     }
@@ -427,7 +715,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
       level: 'info',
       source: 'asr',
       message: enabled ? '语音输入已开启' : '语音输入已关闭',
-      detail: { provider: 'web_speech', language: languageRef.value },
+      detail: { provider, language: configRef.value.language },
     })
     return true
   }

@@ -84,9 +84,7 @@ export function deriveMoodFromMessages(messages: PetMessage[], fallbackEmotion?:
     }
 
     const detected = deriveMoodFromText(message.content)
-    if (detected !== 'neutral') {
-      return detected
-    }
+    return detected !== 'neutral' ? detected : normalizeMood(fallbackEmotion)
   }
 
   return normalizeMood(fallbackEmotion)

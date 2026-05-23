@@ -2,23 +2,25 @@
 import { computed, onMounted, ref } from 'vue'
 import { Cat, Clipboard, Mic, Play, RefreshCw, Square, Trash2, Upload, Volume2 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import { usePetConfig } from '../../features/diva-pet/services/pet-config'
+import { usePetConfig, usePetConfigSaveState } from '../../features/diva-pet/services/pet-config'
 import {
   deleteVoiceFile,
+  getAsrProviderDefaults,
   importVoiceFile,
   loadVoiceAssets,
   readVoiceFile,
-  saveVoiceSelection,
   tauriVoiceFileReader,
   transcribeAudio,
   type VoiceOption,
 } from '../../features/diva-pet/voice/services/voice-api'
 import { addVoiceLogEvent, clearVoiceLogEvents, useVoiceLog } from '../../features/diva-pet/voice/services/voice-log'
-import type { PetConfig } from '../../features/diva-pet/types'
+import { getTtsApiKey, type PetConfig } from '../../features/diva-pet/types'
+import { isCloudAsrProvider, resolveAsrConfigDefaults } from '../../features/diva-pet/voice/services/asr-service'
 import { ttsService, type TTSVoiceConfig } from '../../features/diva-pet/voice/services/tts-service'
 
 const { t } = useI18n()
 const { config, updateConfig } = usePetConfig()
+const { isSaving, lastSaveError, lastSavedAt } = usePetConfigSaveState()
 const { recentEvents } = useVoiceLog()
 
 ttsService.setVoiceFileReader(tauriVoiceFileReader)
@@ -52,26 +54,114 @@ const isWebSpeechSupported = computed(() => {
   return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
 })
 
+const isCloudAsrSupported = computed(() => {
+  if (typeof window === 'undefined') return false
+  return typeof navigator !== 'undefined'
+    && !!navigator.mediaDevices?.getUserMedia
+    && typeof MediaRecorder !== 'undefined'
+})
+
+const isSelectedAsrProviderSupported = computed(() => {
+  return config.value.asrProvider === 'web_speech'
+    ? isWebSpeechSupported.value
+    : isCloudAsrSupported.value
+})
+
 const selectedVoice = computed(() => {
   return voiceOptions.value.find((voice) => voice.relativePath === config.value.ttsReferenceVoice) ?? null
 })
 
+const currentAsrProviderLabel = computed(() => config.value.asrProvider === 'siliconflow' ? 'SiliconFlow' : 'Web Speech')
+const isCloudAsrSelected = computed(() => isCloudAsrProvider(config.value.asrProvider))
+
 const currentTtsConfig = computed<TTSVoiceConfig>(() => ({
   enabled: config.value.ttsEnabled,
   provider: config.value.ttsProvider,
-  apiKey: config.value.ttsApiKey,
+  apiKey: getTtsApiKey(config.value),
   baseUrl: config.value.ttsBaseUrl,
   model: config.value.ttsModel,
+  voiceId: config.value.ttsVoiceId,
   referenceVoice: config.value.ttsReferenceVoice,
   referenceText: config.value.ttsReferenceText,
   speed: config.value.ttsSpeed,
   volume: config.value.ttsVolume,
 }))
 
+const MINIMAX_VOICE_PRESETS = [
+  { id: 'male-qn-qingse', label: 'male-qn-qingse' },
+  { id: 'audiobook_male_1', label: 'audiobook_male_1' },
+]
+
+const SILICONFLOW_VOICE_PRESETS: Record<string, { id: string; label: string }[]> = {
+  'fnlp/MOSS-TTSD-v0.5': [
+    { id: 'fnlp/MOSS-TTSD-v0.5:alex', label: 'alex' },
+    { id: 'fnlp/MOSS-TTSD-v0.5:anna', label: 'anna' },
+    { id: 'fnlp/MOSS-TTSD-v0.5:bella', label: 'bella' },
+    { id: 'fnlp/MOSS-TTSD-v0.5:benjamin', label: 'benjamin' },
+    { id: 'fnlp/MOSS-TTSD-v0.5:charles', label: 'charles' },
+    { id: 'fnlp/MOSS-TTSD-v0.5:claire', label: 'claire' },
+    { id: 'fnlp/MOSS-TTSD-v0.5:david', label: 'david' },
+    { id: 'fnlp/MOSS-TTSD-v0.5:diana', label: 'diana' },
+  ],
+  'FunAudioLLM/CosyVoice2-0.5B': [
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:alex', label: 'alex' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:anna', label: 'anna' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:bella', label: 'bella' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:benjamin', label: 'benjamin' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:charles', label: 'charles' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:claire', label: 'claire' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:david', label: 'david' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:diana', label: 'diana' },
+  ],
+}
+
+const siliconflowVoicePresets = computed(() => {
+  const model = config.value.ttsModel?.trim()
+  if (model && SILICONFLOW_VOICE_PRESETS[model]) {
+    return SILICONFLOW_VOICE_PRESETS[model]
+  }
+  // 默认 MOSS-TTSD
+  return SILICONFLOW_VOICE_PRESETS['fnlp/MOSS-TTSD-v0.5']
+})
+
+const isMiniMaxProvider = computed(() => config.value.ttsProvider === 'minimax')
+const isSiliconFlowProvider = computed(() => config.value.ttsProvider === 'siliconflow')
+const isOpenAIProvider = computed(() => config.value.ttsProvider === 'openai')
+
+const TTS_MODEL_PRESETS: Record<string, string[]> = {
+  openai: ['tts-1', 'tts-1-hd'],
+  siliconflow: ['fnlp/MOSS-TTSD-v0.5', 'FunAudioLLM/CosyVoice2-0.5B'],
+  minimax: ['speech-2.8-hd', 'speech-2.8-turbo', 'speech-2.6-hd', 'speech-2.6-turbo'],
+}
+const ttsModelPresets = computed(() => TTS_MODEL_PRESETS[config.value.ttsProvider] ?? [])
+const ttsModelPlaceholder = computed(() => providerDefaults(config.value.ttsProvider).model || 'tts-1')
+
+const saveStateText = computed(() => {
+  if (isSaving.value) return '保存中...'
+  if (lastSaveError.value) return '保存失败'
+  if (lastSavedAt.value) return '已保存'
+  return '尚未保存'
+})
+
+const saveStateClass = computed(() => {
+  if (lastSaveError.value) return 'text-red-600'
+  if (isSaving.value) return 'text-amber-600'
+  return 'text-emerald-600'
+})
+
 function providerDefaults(provider: PetConfig['ttsProvider']) {
   if (provider === 'openai') return { baseUrl: 'https://api.openai.com/v1', model: 'tts-1' }
-  if (provider === 'siliconflow') return { baseUrl: 'https://api.siliconflow.cn/v1', model: 'FunAudioLLM/CosyVoice2-0.5B' }
-  return { baseUrl: '', model: '' }
+  if (provider === 'siliconflow') return { baseUrl: 'https://api.siliconflow.cn/v1', model: 'fnlp/MOSS-TTSD-v0.5', voiceId: 'fnlp/MOSS-TTSD-v0.5:anna' }
+  if (provider === 'minimax') return { baseUrl: 'https://api.minimaxi.com', model: 'speech-2.8-hd', voiceId: 'male-qn-qingse' }
+  return { baseUrl: '', model: '', voiceId: null }
+}
+
+function asrProviderDefaults(provider: PetConfig['asrProvider']) {
+  const defaults = getAsrProviderDefaults(provider)
+  return {
+    baseUrl: defaults.baseUrl,
+    model: defaults.model,
+  }
 }
 
 async function refreshVoiceAssets(): Promise<void> {
@@ -97,39 +187,32 @@ function patchConfig(patch: Partial<PetConfig>): void {
   updateConfig(patch)
 }
 
-async function patchVoiceConfig(patch: Partial<PetConfig>): Promise<void> {
-  const next = { ...config.value, ...patch }
+function patchAsrConfig(patch: Partial<PetConfig>): void {
   updateConfig(patch)
-  try {
-    await saveVoiceSelection({
-      enabled: next.ttsEnabled,
-      provider: next.ttsProvider,
-      apiKey: next.ttsApiKey,
-      baseUrl: next.ttsBaseUrl || null,
-      model: next.ttsModel,
-      referenceVoice: next.ttsReferenceVoice,
-      referenceText: next.ttsReferenceText,
-      speed: next.ttsSpeed,
-      volume: next.ttsVolume,
-    })
-    await refreshVoiceAssets()
-  } catch (error) {
-    settingsError.value = String(error)
-    addVoiceLogEvent({
-      level: 'error',
-      source: 'settings',
-      message: '保存 TTS 设置失败',
-      detail: { error: String(error) },
-    })
-  }
+  settingsError.value = null
+}
+
+function patchVoiceConfig(patch: Partial<PetConfig>): void {
+  updateConfig(patch)
+  settingsError.value = null
+}
+
+function onAsrProviderChange(provider: PetConfig['asrProvider']): void {
+  const defaults = asrProviderDefaults(provider)
+  patchAsrConfig({
+    asrProvider: provider,
+    asrBaseUrl: defaults.baseUrl,
+    asrModel: defaults.model,
+  })
 }
 
 function onProviderChange(provider: PetConfig['ttsProvider']): void {
   const defaults = providerDefaults(provider)
-  void patchVoiceConfig({
+  patchVoiceConfig({
     ttsProvider: provider,
-    ttsBaseUrl: config.value.ttsBaseUrl || defaults.baseUrl,
-    ttsModel: config.value.ttsModel || defaults.model || null,
+    ttsBaseUrl: defaults.baseUrl,
+    ttsModel: defaults.model || null,
+    ttsVoiceId: defaults.voiceId ?? null,
   })
 }
 
@@ -146,35 +229,29 @@ async function onImportVoice(event: Event): Promise<void> {
     const importedVoicePath = importedAssets.activeVoice.referenceVoice
     let referenceText = importedAssets.activeVoice.referenceText
 
-    if (importedVoicePath && importedAssets.activeVoice.apiKey) {
+    if (importedVoicePath && isCloudAsrSelected.value && config.value.asrApiKey) {
       const voiceFile = await readVoiceFile(importedVoicePath)
+      const resolvedAsr = resolveAsrConfigDefaults(config.value.asrProvider, {
+        baseUrl: config.value.asrBaseUrl,
+        model: config.value.asrModel,
+      })
       const transcribedText = await transcribeAudio({
         base64Data: voiceFile.base64Data,
         fileName: voiceFile.fileName,
-        apiKey: importedAssets.activeVoice.apiKey,
-        baseUrl: importedAssets.activeVoice.baseUrl,
+        apiKey: config.value.asrApiKey,
+        provider: config.value.asrProvider,
+        baseUrl: resolvedAsr.baseUrl,
+        model: resolvedAsr.model,
+        language: config.value.asrLanguage,
         contentType: voiceFile.contentType,
       })
       referenceText = transcribedText || referenceText
     }
 
-    const assets = await saveVoiceSelection({
-      enabled: importedAssets.activeVoice.enabled,
-      provider: importedAssets.activeVoice.provider,
-      apiKey: importedAssets.activeVoice.apiKey,
-      baseUrl: importedAssets.activeVoice.baseUrl,
-      model: importedAssets.activeVoice.model,
-      referenceVoice: importedVoicePath,
-      referenceText,
-      speed: importedAssets.activeVoice.speed,
-      volume: importedAssets.activeVoice.volume,
-    })
-
-    voiceOptions.value = assets.voiceOptions
+    voiceOptions.value = importedAssets.voiceOptions
     updateConfig({
-      ttsProvider: assets.activeVoice.provider === 'siliconflow' ? 'siliconflow' : config.value.ttsProvider,
-      ttsReferenceVoice: assets.activeVoice.referenceVoice,
-      ttsReferenceText: assets.activeVoice.referenceText,
+      ttsReferenceVoice: importedVoicePath,
+      ttsReferenceText: referenceText,
     })
     addVoiceLogEvent({
       level: 'info',
@@ -207,16 +284,26 @@ async function onRunVoiceDevTest(event: Event): Promise<void> {
   isRunningVoiceDevTest.value = true
 
   try {
-    if (!config.value.ttsApiKey) {
-      throw new Error('当前尚未配置可用于转写的 API Key。')
+    if (!isCloudAsrSelected.value) {
+      throw new Error('开发测试面板的音频转写仅支持云端 ASR Provider。')
+    }
+    if (!config.value.asrApiKey) {
+      throw new Error('当前尚未配置可用于转写的 ASR API Key。')
     }
 
     const base64Data = await fileToBase64(file)
+    const resolvedAsr = resolveAsrConfigDefaults(config.value.asrProvider, {
+      baseUrl: config.value.asrBaseUrl,
+      model: config.value.asrModel,
+    })
     const transcription = await transcribeAudio({
       base64Data,
       fileName: file.name,
-      apiKey: config.value.ttsApiKey,
-      baseUrl: config.value.ttsBaseUrl,
+      apiKey: config.value.asrApiKey,
+      provider: config.value.asrProvider,
+      baseUrl: resolvedAsr.baseUrl,
+      model: resolvedAsr.model,
+      language: config.value.asrLanguage,
       contentType: file.type || 'application/octet-stream',
     })
 
@@ -339,6 +426,11 @@ onMounted(() => {
     <div v-if="settingsError" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
       {{ settingsError }}
     </div>
+    <div class="mb-4 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+      <span class="font-medium text-gray-600">配置保存状态：</span>
+      <span :class="saveStateClass">{{ saveStateText }}</span>
+      <span v-if="lastSavedAt && !isSaving && !lastSaveError" class="ml-2 text-gray-400">{{ new Date(lastSavedAt).toLocaleTimeString() }}</span>
+    </div>
 
     <section class="settings-card">
       <h3 class="settings-title">基础设置</h3>
@@ -393,23 +485,49 @@ onMounted(() => {
       <div class="setting-row">
         <div>
           <div class="font-medium text-gray-800">启用语音输入</div>
-          <div class="mt-0.5 text-sm" :class="isWebSpeechSupported ? 'text-gray-500' : 'text-amber-600'">
-            {{ isWebSpeechSupported ? 'Web Speech API 可用' : '当前环境不支持 Web Speech API' }}
+          <div class="mt-0.5 text-sm" :class="isSelectedAsrProviderSupported ? 'text-gray-500' : 'text-amber-600'">
+            {{ isSelectedAsrProviderSupported ? `${currentAsrProviderLabel} 可用` : `当前环境不支持 ${currentAsrProviderLabel}` }}
           </div>
         </div>
         <button
           class="toggle"
           :class="config.asrEnabled ? 'toggle-on' : 'toggle-off'"
-          :disabled="!isWebSpeechSupported"
-          @click="patchConfig({ asrEnabled: !config.asrEnabled })"
+          :disabled="!isSelectedAsrProviderSupported"
+          @click="patchAsrConfig({ asrEnabled: !config.asrEnabled })"
         >
           <span :class="config.asrEnabled ? 'translate-x-6' : 'translate-x-1'" />
         </button>
       </div>
-      <label class="field-label mt-4">
-        识别语言
-        <input class="field-input" :value="config.asrLanguage" @change="patchConfig({ asrLanguage: ($event.target as HTMLInputElement).value || 'zh-CN' })" />
-      </label>
+      <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label class="field-label">
+          Provider
+          <select class="field-input" :value="config.asrProvider" @change="onAsrProviderChange(($event.target as HTMLSelectElement).value as PetConfig['asrProvider'])">
+            <option value="web_speech">Web Speech</option>
+            <option value="siliconflow">SiliconFlow</option>
+          </select>
+        </label>
+        <label class="field-label">
+          识别语言
+          <input class="field-input" :value="config.asrLanguage" @change="patchAsrConfig({ asrLanguage: ($event.target as HTMLInputElement).value || 'zh-CN' })" />
+        </label>
+      </div>
+      <div v-if="config.asrProvider === 'web_speech'" class="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700">
+        Web Speech 依赖系统/浏览器语音识别能力，不需要单独配置云端凭证。
+      </div>
+      <div v-else class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label class="field-label md:col-span-2">
+          Base URL
+          <input class="field-input" :value="config.asrBaseUrl" placeholder="https://api.siliconflow.cn/v1" @change="patchAsrConfig({ asrBaseUrl: ($event.target as HTMLInputElement).value })" />
+        </label>
+        <label class="field-label md:col-span-2">
+          API Key
+          <input class="field-input" type="password" :value="config.asrApiKey ?? ''" autocomplete="off" @change="patchAsrConfig({ asrApiKey: ($event.target as HTMLInputElement).value || null })" />
+        </label>
+        <label class="field-label md:col-span-2">
+          模型
+          <input class="field-input" :value="config.asrModel ?? ''" placeholder="FunAudioLLM/SenseVoiceSmall" @change="patchAsrConfig({ asrModel: ($event.target as HTMLInputElement).value || null })" />
+        </label>
+      </div>
     </section>
 
     <section class="settings-card">
@@ -422,7 +540,7 @@ onMounted(() => {
           <div class="font-medium text-gray-800">启用播报</div>
           <div class="mt-0.5 text-sm text-gray-500">AI 回复后自动播放语音</div>
         </div>
-        <button class="toggle" :class="config.ttsEnabled ? 'toggle-on' : 'toggle-off'" @click="void patchVoiceConfig({ ttsEnabled: !config.ttsEnabled })">
+        <button class="toggle" :class="config.ttsEnabled ? 'toggle-on' : 'toggle-off'" @click="patchVoiceConfig({ ttsEnabled: !config.ttsEnabled })">
           <span :class="config.ttsEnabled ? 'translate-x-6' : 'translate-x-1'" />
         </button>
       </div>
@@ -434,27 +552,54 @@ onMounted(() => {
             <option value="browser">Browser</option>
             <option value="openai">OpenAI</option>
             <option value="siliconflow">SiliconFlow</option>
+            <option value="minimax">MiniMax</option>
           </select>
         </label>
         <label class="field-label">
           模型
-          <input class="field-input" :value="config.ttsModel ?? ''" placeholder="tts-1" @change="void patchVoiceConfig({ ttsModel: ($event.target as HTMLInputElement).value || null })" />
+          <select class="field-input" :value="config.ttsModel ?? ''" @change="patchVoiceConfig({ ttsModel: ($event.target as HTMLSelectElement).value || null })">
+            <option value="">{{ ttsModelPlaceholder }}（默认）</option>
+            <option v-for="model in ttsModelPresets" :key="model" :value="model">{{ model }}</option>
+          </select>
+        </label>
+        <label v-if="isMiniMaxProvider" class="field-label">
+          音色 ID
+          <select class="field-input" :value="config.ttsVoiceId ?? ''" @change="patchVoiceConfig({ ttsVoiceId: ($event.target as HTMLSelectElement).value || null })">
+            <option value="">默认</option>
+            <option v-for="voice in MINIMAX_VOICE_PRESETS" :key="voice.id" :value="voice.id">{{ voice.label }}</option>
+          </select>
+        </label>
+        <label v-if="isSiliconFlowProvider" class="field-label">
+          音色
+          <select class="field-input" :value="config.ttsVoiceId ?? ''" @change="patchVoiceConfig({ ttsVoiceId: ($event.target as HTMLSelectElement).value || null })">
+            <option value="">默认</option>
+            <option v-for="voice in siliconflowVoicePresets" :key="voice.id" :value="voice.id">{{ voice.label }}</option>
+          </select>
         </label>
         <label class="field-label md:col-span-2">
           Base URL
-          <input class="field-input" :value="config.ttsBaseUrl" placeholder="https://api.siliconflow.cn/v1" @change="void patchVoiceConfig({ ttsBaseUrl: ($event.target as HTMLInputElement).value })" />
+          <input class="field-input" :value="config.ttsBaseUrl" placeholder="https://api.siliconflow.cn/v1" @change="patchVoiceConfig({ ttsBaseUrl: ($event.target as HTMLInputElement).value })" />
         </label>
         <label class="field-label md:col-span-2">
           API Key
-          <input class="field-input" type="password" :value="config.ttsApiKey ?? ''" autocomplete="off" @change="void patchVoiceConfig({ ttsApiKey: ($event.target as HTMLInputElement).value || null })" />
+          <template v-if="isMiniMaxProvider">
+            <input class="field-input" type="password" :value="config.ttsMinimaxApiKey ?? ''" autocomplete="off" placeholder="请输入 MiniMax API Key" @change="patchVoiceConfig({ ttsMinimaxApiKey: ($event.target as HTMLInputElement).value || null })" />
+          </template>
+          <template v-else-if="isSiliconFlowProvider">
+            <input class="field-input" type="password" :value="config.ttsSiliconflowApiKey ?? ''" autocomplete="off" placeholder="请输入 SiliconFlow API Key" @change="patchVoiceConfig({ ttsSiliconflowApiKey: ($event.target as HTMLInputElement).value || null })" />
+          </template>
+          <template v-else-if="isOpenAIProvider">
+            <input class="field-input" type="password" :value="config.ttsOpenaiApiKey ?? ''" autocomplete="off" placeholder="请输入 OpenAI API Key" @change="patchVoiceConfig({ ttsOpenaiApiKey: ($event.target as HTMLInputElement).value || null })" />
+          </template>
+          <input v-else class="field-input" type="password" :value="''" autocomplete="off" disabled placeholder="Browser TTS 不需要 API Key" />
         </label>
         <label class="field-label">
           语速 {{ config.ttsSpeed.toFixed(2) }}
-          <input class="w-full" type="range" min="0.5" max="2" step="0.05" :value="config.ttsSpeed" @input="void patchVoiceConfig({ ttsSpeed: Number(($event.target as HTMLInputElement).value) })" />
+          <input class="w-full" type="range" min="0.5" max="2" step="0.05" :value="config.ttsSpeed" @input="patchVoiceConfig({ ttsSpeed: Number(($event.target as HTMLInputElement).value) })" />
         </label>
         <label class="field-label">
           音量 {{ config.ttsVolume.toFixed(2) }}
-          <input class="w-full" type="range" min="0" max="1" step="0.05" :value="config.ttsVolume" @input="void patchVoiceConfig({ ttsVolume: Number(($event.target as HTMLInputElement).value) })" />
+          <input class="w-full" type="range" min="0" max="1" step="0.05" :value="config.ttsVolume" @input="patchVoiceConfig({ ttsVolume: Number(($event.target as HTMLInputElement).value) })" />
         </label>
       </div>
 
@@ -473,21 +618,28 @@ onMounted(() => {
             </button>
           </div>
         </div>
-        <input ref="fileInput" class="hidden" type="file" accept="audio/*" @change="(event) => void onImportVoice(event)" />
-        <select class="field-input" :value="config.ttsReferenceVoice ?? ''" @change="void patchVoiceConfig({ ttsReferenceVoice: ($event.target as HTMLSelectElement).value || null })">
-          <option value="">不使用参考音色</option>
-          <option v-for="voice in voiceOptions" :key="voice.id" :value="voice.relativePath">
-            {{ voice.label }} | {{ voice.source }}
-          </option>
-        </select>
-        <label class="field-label mt-3">
-          参考文本
-          <textarea
-            class="field-input min-h-20"
-            :value="config.ttsReferenceText ?? ''"
-            @change="void patchVoiceConfig({ ttsReferenceText: ($event.target as HTMLTextAreaElement).value || null })"
-          />
-        </label>
+        <template v-if="isMiniMaxProvider">
+          <div class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700">
+            MiniMax 首版仅支持系统音色，不支持参考音色导入或复刻音色。
+          </div>
+        </template>
+        <template v-else>
+          <input ref="fileInput" class="hidden" type="file" accept="audio/*" @change="(event) => void onImportVoice(event)" />
+          <select class="field-input" :value="config.ttsReferenceVoice ?? ''" @change="patchVoiceConfig({ ttsReferenceVoice: ($event.target as HTMLSelectElement).value || null })">
+            <option value="">不使用参考音色</option>
+            <option v-for="voice in voiceOptions" :key="voice.id" :value="voice.relativePath">
+              {{ voice.label }} | {{ voice.source }}
+            </option>
+          </select>
+          <label class="field-label mt-3">
+            参考文本
+            <textarea
+              class="field-input min-h-20"
+              :value="config.ttsReferenceText ?? ''"
+              @change="patchVoiceConfig({ ttsReferenceText: ($event.target as HTMLTextAreaElement).value || null })"
+            />
+          </label>
+        </template>
       </div>
     </section>
 
@@ -499,9 +651,12 @@ onMounted(() => {
       <p class="mb-4 text-sm text-gray-500">
         上传一段音频，使用当前配置先转写，再用当前 TTS 配置播报转写结果。
       </p>
+      <div v-if="!isCloudAsrSelected" class="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700">
+        当前 ASR Provider 为 Web Speech，开发测试面板的文件转写能力仅在云端 ASR Provider 下可用。
+      </div>
 
       <div class="dev-test-actions">
-        <button class="dev-test-btn" :disabled="isRunningVoiceDevTest" @click="devAudioInput?.click()">
+        <button class="dev-test-btn" :disabled="isRunningVoiceDevTest || !isCloudAsrSelected" @click="devAudioInput?.click()">
           <Upload :size="15" />
           <span>{{ isRunningVoiceDevTest ? '处理中...' : '上传音频并测试' }}</span>
         </button>

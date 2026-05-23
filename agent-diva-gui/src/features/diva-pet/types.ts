@@ -4,6 +4,8 @@ export interface PetMessage {
   content: string
   timestamp?: number
   emotion?: string
+  isStreaming?: boolean
+  isThinking?: boolean
 }
 
 /** VRM expression / mood identifier */
@@ -107,17 +109,29 @@ export interface PetConfig {
   /** Whether ASR / microphone input is enabled */
   asrEnabled: boolean
   /** ASR provider */
-  asrProvider: 'web_speech'
+  asrProvider: 'web_speech' | 'siliconflow'
   /** ASR language tag */
   asrLanguage: string
+  /** API key for remote ASR providers */
+  asrApiKey: string | null
+  /** Base URL for remote ASR providers */
+  asrBaseUrl: string
+  /** Model for remote ASR providers */
+  asrModel: string | null
   /** TTS provider */
-  ttsProvider: 'browser' | 'openai' | 'siliconflow'
-  /** API key for remote TTS providers */
+  ttsProvider: 'browser' | 'openai' | 'siliconflow' | 'minimax'
+  /** Legacy shared TTS API key. Kept only for old local data and ignored by new logic. */
   ttsApiKey: string | null
+  /** Provider-specific API keys used by the current GUI logic. */
+  ttsOpenaiApiKey: string | null
+  ttsSiliconflowApiKey: string | null
+  ttsMinimaxApiKey: string | null
   /** Base URL for remote TTS providers */
   ttsBaseUrl: string
   /** Model for remote TTS providers */
   ttsModel: string | null
+  /** Provider-specific system voice identifier */
+  ttsVoiceId: string | null
   /** Relative voice reference path under voice_resource/ */
   ttsReferenceVoice: string | null
   /** Transcript for the reference voice clip */
@@ -173,13 +187,20 @@ export const DEFAULT_PET_CONFIG: PetConfig = {
   enabled: true,
   vrmModel: '',
   ttsEnabled: false,
-  asrEnabled: false,
+  asrEnabled: true,
   asrProvider: 'web_speech',
   asrLanguage: 'zh-CN',
+  asrApiKey: null,
+  asrBaseUrl: '',
+  asrModel: null,
   ttsProvider: 'browser',
   ttsApiKey: null,
+  ttsOpenaiApiKey: null,
+  ttsSiliconflowApiKey: null,
+  ttsMinimaxApiKey: null,
   ttsBaseUrl: '',
   ttsModel: null,
+  ttsVoiceId: null,
   ttsReferenceVoice: null,
   ttsReferenceText: null,
   ttsSpeed: 1.0,
@@ -212,4 +233,21 @@ export const DEFAULT_PET_CONFIG: PetConfig = {
     { id: 'sea',         name: '海边场景', path: 'vrm/scene/sea.spz',   isDefault: true },
     { id: 'space',       name: '太空场景', path: 'vrm/scene/space.spz', isDefault: true },
   ],
+}
+
+/**
+ * Resolve the effective TTS API key for the currently selected provider.
+ * New GUI logic only accepts provider-specific keys.
+ */
+export function getTtsApiKey(config: PetConfig): string | null {
+  switch (config.ttsProvider) {
+    case 'minimax':
+      return config.ttsMinimaxApiKey
+    case 'siliconflow':
+      return config.ttsSiliconflowApiKey
+    case 'openai':
+      return config.ttsOpenaiApiKey
+    default:
+      return null
+  }
 }

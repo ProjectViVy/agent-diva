@@ -1,5 +1,6 @@
 import { ref, watch, type Ref } from 'vue'
 import { ttsService, type TTSVoiceConfig } from '../services/tts-service'
+import { filterPunctuation, splitIntoSentences, stripMarkdown } from '../utils/text-preprocessor'
 import type { PetMessage } from '../../types'
 
 /**
@@ -9,19 +10,26 @@ import type { PetMessage } from '../../types'
  * agent messages, exposing `isSpeaking` state that drives VRM
  * mouth-sync via the `:is-speaking` prop.
  *
+ * Two triggers for auto-play:
+ * 1. New messages pushed to the array (legacy, for non-streaming scenarios)
+ * 2. `isTyping` transitions from `true` to `false` (primary: streaming completion)
+ *
  * @example
  * ```ts
  * const { isSpeaking, stopSpeaking } = useVoicePlayer({
  *   messages: computed(() => props.messages),
+ *   isTyping: computed(() => props.isTyping),
  *   ttsConfig: voiceConfig,
  * })
  * ```
  */
 export function useVoicePlayer(options: {
   messages: Ref<PetMessage[]>
+  isTyping?: Ref<boolean>
   ttsConfig: Ref<TTSVoiceConfig>
 }) {
-  const { messages, ttsConfig } = options
+  const { messages, isTyping, ttsConfig } = options
+  const typingState = isTyping ?? ref(false)
 
   const isSpeaking = ref(false)
 
@@ -97,10 +105,65 @@ export function useVoicePlayer(options: {
 
         // Stop any previously-playing speech before starting the new one.
         stopSpeaking()
-        void speakMessage(msg.content, config)
+
+        // Preprocess: strip markdown, then split into sentences
+        // Speak each sentence sequentially so TTS sounds natural.
+        const plainText = stripMarkdown(msg.content)
+        const filteredText = filterPunctuation(plainText)
+        const segments = splitIntoSentences(filteredText)
+
+        void (async () => {
+          for (const segment of segments) {
+            await speakMessage(segment.text, config)
+          }
+        })()
       }
     },
     { deep: false },
+  )
+
+  // ── isTyping watcher ───────────────────────────────────────────
+  // Triggers TTS when streaming completes (isTyping true → false).
+  watch(
+    typingState,
+    (current, previous) => {
+      if (previous !== true || current !== false) {
+        return
+      }
+
+      const config = ttsConfig.value
+      if (!config?.enabled) {
+        return
+      }
+
+      // Find the most recent agent message with non-empty content
+      const lastAgentMsg = [...messages.value]
+        .reverse()
+        .find((m) => m.role === 'agent' && m.content?.trim())
+
+      if (!lastAgentMsg?.content) {
+        return
+      }
+
+      // Only speak if it hasn't already been picked up by the messages watcher.
+      // Guard: compare partial content snapshot to avoid double-play.
+      const contentSnapshot = lastAgentMsg.content.trim()
+      if (contentSnapshot.length === 0) {
+        return
+      }
+
+      stopSpeaking()
+
+      const plainText = stripMarkdown(contentSnapshot)
+      const filteredText = filterPunctuation(plainText)
+      const segments = splitIntoSentences(filteredText)
+
+      void (async () => {
+        for (const segment of segments) {
+          await speakMessage(segment.text, config)
+        }
+      })()
+    },
   )
 
   // ── Public API ─────────────────────────────────────────────────

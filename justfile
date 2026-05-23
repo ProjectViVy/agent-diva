@@ -13,6 +13,10 @@ start:
     Start-Process -FilePath "cargo" -ArgumentList "run --bin agent-diva -- gateway"
     cd agent-diva-gui; npm run tauri dev
 
+# Start Gateway only
+diva-gate:
+    cargo run --package agent-diva-cli -- gateway run
+
 # Build all crates
 build:
     cargo build --all

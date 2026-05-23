@@ -145,3 +145,6 @@ pnpm-debug.log*
 
 # Temporary state files
 state/
+
+# Workspace temporary staging area
+temp/

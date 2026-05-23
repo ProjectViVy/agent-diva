@@ -355,6 +355,8 @@ pub fn run() {
             commands::pet_import_voice_file,
             commands::pet_delete_voice_file,
             commands::pet_read_voice_file,
+            commands::pet_minimax_synthesize,
+            commands::pet_siliconflow_synthesize,
             commands::open_desktop_pet,
             commands::close_desktop_pet,
             commands::set_desktop_pet_ignore_mouse,

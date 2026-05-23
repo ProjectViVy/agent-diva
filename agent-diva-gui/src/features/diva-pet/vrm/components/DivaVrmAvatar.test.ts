@@ -2,9 +2,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-const { mockSetBackgroundScene, mockCreateRuntime, runtimeCallOrder } = vi.hoisted(() => {
+const { mockSetBackgroundScene, mockSetTransform, mockCreateRuntime, runtimeCallOrder } = vi.hoisted(() => {
   const runtimeCallOrder: string[] = []
   const mockSetBackgroundScene = vi.fn<(...args: unknown[]) => Promise<void>>()
+  const mockSetTransform = vi.fn<(...args: unknown[]) => Promise<void>>()
 
   const mockCreateRuntime = vi.fn<any>(async () => ({
     setBackgroundScene: vi.fn((...args: unknown[]) => {
@@ -22,14 +23,14 @@ const { mockSetBackgroundScene, mockCreateRuntime, runtimeCallOrder } = vi.hoist
     resize: vi.fn(() => {
       runtimeCallOrder.push('resize')
     }),
-    setTransform: vi.fn().mockResolvedValue(undefined),
+    setTransform: vi.fn((...args: unknown[]) => mockSetTransform(...args)),
     destroy: vi.fn().mockResolvedValue(undefined),
     bridge: {
       on: vi.fn(() => vi.fn()),
     },
   }))
 
-  return { mockSetBackgroundScene, mockCreateRuntime, runtimeCallOrder }
+  return { mockSetBackgroundScene, mockSetTransform, mockCreateRuntime, runtimeCallOrder }
 })
 
 class MockResizeObserver {
@@ -47,6 +48,7 @@ async function setup(props: Record<string, unknown> = {}) {
   vi.clearAllMocks()
   runtimeCallOrder.length = 0
   mockSetBackgroundScene.mockResolvedValue(undefined)
+  mockSetTransform.mockResolvedValue(undefined)
   mockCreateRuntime.mockClear()
 
   const { default: DivaVrmAvatar } = await import('./DivaVrmAvatar.vue')
@@ -199,6 +201,29 @@ describe('runtime initialization', () => {
     expect(options?.allowInteraction).toBe(true)
     expect(options?.backgroundColor).toBeNull()
     expect(options?.maxFps).toBe(24)
+  })
+
+  it('uses transparent embedded runtime options when transparentBackground is enabled', async () => {
+    await setup({ transparentBackground: true })
+
+    const options = mockCreateRuntime.mock.lastCall?.[1] as Record<string, unknown> | undefined
+    expect(options?.mode).toBe('embedded')
+    expect(options?.transparent).toBe(true)
+    expect(options?.allowInteraction).toBe(true)
+    expect(options?.backgroundColor).toBeNull()
+    expect(options?.maxFps).toBe(60)
+  })
+
+  it('explicitly reapplies the desktop-pet front camera after model load', async () => {
+    await setup({ desktopPet: true })
+
+    expect(mockSetTransform).toHaveBeenCalledWith({
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+      rotationAzimuth: 0,
+      rotationPolar: Math.PI / 2,
+    })
   })
 })
 

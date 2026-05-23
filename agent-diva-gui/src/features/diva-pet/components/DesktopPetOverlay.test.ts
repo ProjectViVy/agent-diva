@@ -8,20 +8,49 @@ import { DEFAULT_PET_CONFIG } from '../types'
 //  Hoisted mocks — must be defined before vi.mock (hoisted) references them
 // ═══════════════════════════════════════════════════════════════════
 
-const { mockInvoke, mockGetCurrentWindowFn, mockListen } = vi.hoisted(() => ({
-  mockInvoke: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
-  mockGetCurrentWindowFn: vi.fn(() => ({
-    startDragging: vi.fn(() => Promise.resolve()),
-    minimize: vi.fn(() => Promise.resolve()),
-  })),
-  mockListen: vi.fn(() => Promise.resolve(() => {})),
-}))
+const { mockInvoke, mockGetCurrentWindowFn, mockListen, mockEmitTo, mockVoiceSetEnabled, mockVoiceInputOptions, mockVoiceState } = vi.hoisted(() => {
+  const mockVoiceState = {
+    error: { value: null as string | null },
+    isEnabled: { value: false },
+    isListening: { value: false },
+    isProcessing: { value: false },
+  }
+  return {
+    mockInvoke: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+    mockGetCurrentWindowFn: vi.fn(() => ({
+      startDragging: vi.fn(() => Promise.resolve()),
+      minimize: vi.fn(() => Promise.resolve()),
+    })),
+    mockListen: vi.fn<(...args: unknown[]) => Promise<() => void>>(() => Promise.resolve(() => {})),
+    mockEmitTo: vi.fn(() => Promise.resolve(undefined)),
+    mockVoiceSetEnabled: vi.fn((enabled: boolean) => {
+      mockVoiceState.isEnabled.value = enabled
+      return Promise.resolve(true)
+    }),
+    mockVoiceInputOptions: { current: null as null | { onRecognizedText: (text: string) => Promise<void> | void } },
+    mockVoiceState,
+  }
+})
 
 // ── Tauri API mocks ──────────────────────────────────────────────
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: mockGetCurrentWindowFn }))
-vi.mock('@tauri-apps/api/event', () => ({ listen: mockListen }))
+vi.mock('@tauri-apps/api/event', () => ({ listen: mockListen, emitTo: mockEmitTo }))
+
+vi.mock('../voice/composables/useVoiceInput', () => ({
+  useVoiceInput: (options: { onRecognizedText: (text: string) => Promise<void> | void }) => {
+    mockVoiceInputOptions.current = options
+    return {
+      ...mockVoiceState,
+      isSupported: true,
+      note: { value: null },
+      pauseFor: vi.fn(),
+      setEnabled: mockVoiceSetEnabled,
+      toggle: vi.fn(),
+    }
+  },
+}))
 
 // ── DivaVrmAvatar stub (avoids Three.js import in test env) ─────
 
@@ -127,9 +156,18 @@ vi.mock('lucide-vue-next', () => ({
 
 /** Reset all mocks and config, then mount component. */
 async function setup() {
+  const registeredListeners = new Map<string, (event: { payload: unknown }) => void>()
+
   // Reset mock call history
   mockInvoke.mockReset()
   mockListen.mockReset()
+  mockEmitTo.mockReset()
+  mockVoiceSetEnabled.mockClear()
+  mockVoiceState.error.value = null
+  mockVoiceState.isEnabled.value = false
+  mockVoiceState.isListening.value = false
+  mockVoiceState.isProcessing.value = false
+  mockVoiceInputOptions.current = null
   mockGetCurrentWindowFn.mockReset()
   mockGetCurrentWindowFn.mockReturnValue({
     startDragging: vi.fn(() => Promise.resolve()),
@@ -141,7 +179,11 @@ async function setup() {
 
   // Default: all invoke calls succeed
   mockInvoke.mockResolvedValue(undefined)
-  mockListen.mockResolvedValue(() => {})
+  mockListen.mockImplementation(async (...args: unknown[]) => {
+    const [event, callback] = args as [string, (payload: { payload: unknown }) => void]
+    registeredListeners.set(event, callback)
+    return () => {}
+  })
 
   // Ensure navigator.mediaDevices exists (happy-dom may lack it)
   if (!('mediaDevices' in navigator)) {
@@ -172,7 +214,7 @@ async function setup() {
   await nextTick()
   await nextTick()
 
-  return { wrapper }
+  return { wrapper, registeredListeners }
 }
 
 /** Open the context menu at given coordinates. */
@@ -203,9 +245,77 @@ describe('DesktopPetOverlay', () => {
     mockConfig.value.selectedGaussSceneId = 'sea'
     const { wrapper } = await setup()
 
+    expect(wrapper.find('.desktop-pet-overlay').classes()).not.toContain('desktop-pet-app-background')
+
     const avatar = wrapper.findComponent({ name: 'DivaVrmAvatar' })
     expect(avatar.props('backgroundScene')).toBe('transparent')
     expect(avatar.props('backgroundSceneUrl')).toBeUndefined()
+  })
+
+  it('shows the push-to-talk button and toggles voice input while held', async () => {
+    const { wrapper } = await setup()
+    mockConfig.value.asrEnabled = true
+    await nextTick()
+
+    const button = wrapper.get('.ptt-btn')
+
+    await button.trigger('pointerdown')
+    expect(mockVoiceSetEnabled).toHaveBeenCalledWith(true)
+
+    await button.trigger('pointerup')
+    expect(mockVoiceSetEnabled).toHaveBeenLastCalledWith(false)
+  })
+
+  it('stops voice input when pointer leaves the push-to-talk button', async () => {
+    const { wrapper } = await setup()
+    mockConfig.value.asrEnabled = true
+    await nextTick()
+    const button = wrapper.get('.ptt-btn')
+
+    await button.trigger('pointerdown')
+    await button.trigger('pointerleave')
+
+    expect(mockVoiceSetEnabled).toHaveBeenNthCalledWith(1, true)
+    expect(mockVoiceSetEnabled).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('emits recognized desktop-pet voice text to the main window', async () => {
+    await setup()
+
+    await mockVoiceInputOptions.current?.onRecognizedText('  hello diva  ')
+
+    expect(mockEmitTo).toHaveBeenCalledWith('main', 'desktop-pet-voice-message', 'hello diva')
+  })
+
+  it('flashes a received mood for one second and then resets to neutral', async () => {
+    vi.useFakeTimers()
+    const { wrapper, registeredListeners } = await setup()
+    mockConfig.value.vrmExpressionEnabled = true
+    await nextTick()
+
+    registeredListeners.get('desktop-pet-emotion')?.({ payload: 'happy' })
+    await nextTick()
+
+    const avatar = wrapper.getComponent({ name: 'DivaVrmAvatar' })
+    expect(avatar.props('mood')).toBe('happy')
+
+    vi.advanceTimersByTime(4000)
+    await nextTick()
+
+    expect(avatar.props('mood')).toBe('neutral')
+    vi.useRealTimers()
+  })
+
+  it('keeps the desktop pet neutral when expression mapping is disabled', async () => {
+    const { wrapper, registeredListeners } = await setup()
+    mockConfig.value.vrmExpressionEnabled = false
+    await nextTick()
+
+    registeredListeners.get('desktop-pet-emotion')?.({ payload: 'happy' })
+    await nextTick()
+
+    const avatar = wrapper.getComponent({ name: 'DivaVrmAvatar' })
+    expect(avatar.props('mood')).toBe('neutral')
   })
 
   // ── 1. Right-click context menu ───────────────────────────────

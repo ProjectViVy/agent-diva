@@ -2,7 +2,13 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { SparkRenderer } from '@sparkjsdev/spark'
 import type { AvatarInitOptions, AvatarRuntimeMetrics, AvatarViewportSize } from '../protocol'
-import { DEFAULT_CAMERA_DISTANCE, DEFAULT_CAMERA_TARGET_Y, TRANSFORM_LIMITS } from './constants'
+import {
+  DEFAULT_CAMERA_DISTANCE,
+  TRANSFORM_LIMITS,
+  getCameraPosition,
+  getCameraTarget,
+  getDefaultTransform,
+} from './constants'
 import { GaussSceneController } from './gauss-scene-controller'
 import type { GaussSceneId } from './gauss-scene-controller'
 import { PanoramaRenderer } from './panorama-renderer'
@@ -21,7 +27,6 @@ export class SceneManager {
   private animationFrameId: number | null = null
   private paused = true
   private destroyed = false
-  private lastFrameTime = 0
   private lastMetricsTime = 0
   private frameCount = 0
   private maxFps: number | null
@@ -53,8 +58,10 @@ export class SceneManager {
     // ── Shadow Map ────────────────────────────────────────────────
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
+    const defaultTransform = getDefaultTransform(options.mode)
+
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000)
-    this.camera.position.set(0, DEFAULT_CAMERA_TARGET_Y, DEFAULT_CAMERA_DISTANCE)
+    this.camera.position.copy(getCameraPosition(defaultTransform))
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.45)
     this.keyLight = new THREE.DirectionalLight(0xffffff, 0.9)
@@ -71,7 +78,7 @@ export class SceneManager {
     this.setShadowEnabled(!options.transparent)
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.target.set(0, DEFAULT_CAMERA_TARGET_Y, 0)
+    this.controls.target.copy(getCameraTarget(defaultTransform))
     this.controls.enablePan = false
     // Zoom distance range derived from scale limits (inverse: larger scale = closer camera).
     // scale.min=0.75 → maxDistance=3.2/0.75≈4.27, scale.max=1.6 → minDistance=3.2/1.6=2.0
@@ -149,7 +156,6 @@ export class SceneManager {
     this.paused = false
     this.timer.reset()
     this.timer.connect(document)
-    this.lastFrameTime = 0
     this.lastMetricsTime = performance.now()
     this.frameCount = 0
     this.scheduleFrame()
@@ -221,7 +227,6 @@ export class SceneManager {
     this.animationFrameId = requestAnimationFrame((timestamp) => {
       this.scheduleFrame()
 
-      this.lastFrameTime = timestamp
       this.timer.update(timestamp)
       let delta = this.timer.getDelta()
 
