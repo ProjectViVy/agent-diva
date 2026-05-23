@@ -278,7 +278,8 @@ fn minimax_websocket_url(base_url: &str) -> String {
     let trimmed = trim_trailing_slash(base_url).trim_end_matches("/v1");
     let url = format!("{}/ws/v1/t2a_v2", trimmed);
     // WebSocket 客户端需要 ws:// 或 wss:// scheme, 不能是 http:// 或 https://
-    url.replace("https://", "wss://").replace("http://", "ws://")
+    url.replace("https://", "wss://")
+        .replace("http://", "ws://")
 }
 
 fn trim_trailing_slash(input: &str) -> &str {

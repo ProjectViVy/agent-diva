@@ -30,8 +30,11 @@ async fn main() -> Result<(), BoxError> {
     );
     println!("audio_path   : {}", audio_path.display());
 
-    let client = Client::builder().timeout(Duration::from_secs(120)).build()?;
-    let result = transcribe_audio(&client, &api_key, &base_url, &model, language, &audio_path).await?;
+    let client = Client::builder()
+        .timeout(Duration::from_secs(120))
+        .build()?;
+    let result =
+        transcribe_audio(&client, &api_key, &base_url, &model, language, &audio_path).await?;
 
     println!(
         "trace_id     : {}",
