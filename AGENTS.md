@@ -239,6 +239,13 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Execution Method: Record GUI smoke test commands and results in `verification.md`.
   - Maintainer: Committer of the GUI change.
 
+- **commit-each-update-scope-only**:
+  - Constraints/Range of applicability: Each completed update must create one git commit, and the commit may include only the files changed for that specific update.
+  - Example: After updating project rules in `AGENTS.md`, stage and commit only `AGENTS.md`.
+  - Counterexample: Finish an update without a commit, or include unrelated pre-existing workspace changes in the commit.
+  - Execution Method: Before committing, inspect `git status --short`; stage explicit paths for the current update only; verify the staged diff; then commit with a concise Conventional Commit message.
+  - Maintainer: Current assistant.
+
 ---
 
 ## reply-prefix-required
