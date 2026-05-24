@@ -6,7 +6,7 @@ This guide covers development practices and workflows for agent-diva.
 
 ### Setting Up Your Environment
 
-1. **Install Rust** (1.70+):
+1. **Install Rust** (workspace baseline `1.80+`):
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
@@ -29,6 +29,26 @@ This guide covers development practices and workflows for agent-diva.
    cd Agent Diva/agent-diva
    cargo build --all
    ```
+
+### Mentle Integration Build Path
+
+The default workspace build and the Mentle feature build do not have the same prerequisites.
+
+- Default workspace baseline: Rust `1.80+`
+- Mentle feature baseline: Rust `1.88+`
+- Frozen Mentle dependency: published `crates.io` package `memtle 0.1.2`
+- Mentle dependency shape: `default-features = false`
+- Forbidden for mainline work: local `../mentle` path dependency, git override, or `[patch.crates-io]` override for `memtle`
+
+Windows developers working on the Mentle feature path must also have a working native C/C++ toolchain available. In CI, the repository installs LLVM so `clang-cl.exe` is present before running Mentle checks.
+
+Example Mentle verification commands:
+
+```bash
+cargo check -p agent-diva-agent --features mentle
+cargo test -p agent-diva-core --features mentle memory
+cargo test -p agent-diva-agent --features mentle mentle
+```
 
 ### IDE Setup
 
@@ -263,6 +283,12 @@ cargo update --package serde
 cargo install cargo-outdated
 cargo outdated
 ```
+
+For Mentle integration work:
+
+- do not upgrade `memtle` opportunistically during unrelated changes
+- keep the workspace pinned to `memtle 0.1.2` until a dedicated upgrade change is reviewed
+- do not use local path or patch overrides as a substitute for a published upstream version
 
 ### Running Specific Tests
 

@@ -262,6 +262,9 @@ fn mentle_tool_metadata_from_definition(
     let name = def.get("name").and_then(|value| value.as_str())?;
     let description = def.get("description").and_then(|value| value.as_str())?;
     let parameters = def.get("inputSchema")?;
+    if !parameters.is_object() {
+        return None;
+    }
 
     Some((
         name.to_string(),
@@ -283,6 +286,23 @@ fn mentle_tool_from_definition(
         parameters,
         toolkit,
     }) as Arc<dyn Tool>)
+}
+
+#[cfg(feature = "mentle")]
+fn mentle_tools_from_definitions(
+    tool_defs: impl IntoIterator<Item = serde_json::Value>,
+    toolkit: Arc<tokio::sync::Mutex<memtle::toolkit::MemtleToolkit>>,
+) -> Vec<Arc<dyn Tool>> {
+    let mut tools = Vec::new();
+    for def in tool_defs {
+        if let Some(tool) = mentle_tool_from_definition(&def, toolkit.clone()) {
+            tools.push(tool);
+        } else {
+            warn!("Skipping invalid Mentle tool definition: {def}");
+        }
+    }
+
+    tools
 }
 
 #[cfg(feature = "mentle")]
@@ -310,14 +330,7 @@ async fn try_build_mentle_runtime(workspace: &std::path::Path) -> Option<MentleR
     );
 
     let tool_defs = toolkit.lock().await.tool_definitions();
-    let mut tools = Vec::with_capacity(tool_defs.len());
-    for def in tool_defs {
-        if let Some(tool) = mentle_tool_from_definition(&def, toolkit.clone()) {
-            tools.push(tool);
-        } else {
-            warn!("Skipping invalid Mentle tool definition: {def}");
-        }
-    }
+    let tools = mentle_tools_from_definitions(tool_defs, toolkit.clone());
 
     Some(MentleRuntime {
         toolkit,
@@ -830,11 +843,13 @@ impl AgentLoop {
 mod tests {
     use super::*;
     use agent_diva_providers::{
-        LLMResponse, LiteLLMClient, Message, ProviderError, ProviderEventStream, ProviderResult,
+        LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
+        ProviderResult,
     };
     use async_trait::async_trait;
     use futures::stream;
     use serde_json::Value;
+    use std::sync::Mutex;
     use tokio::time::{timeout, Duration};
 
     struct FailingStreamProvider;
@@ -864,6 +879,51 @@ mod tests {
         ) -> ProviderResult<ProviderEventStream> {
             Ok(Box::pin(stream::iter(vec![Err(ProviderError::ApiError(
                 "simulated stream failure".to_string(),
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[derive(Default)]
+    struct CapturingStreamProvider {
+        captured_messages: Mutex<Vec<Vec<Message>>>,
+    }
+
+    #[async_trait]
+    impl LLMProvider for CapturingStreamProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            self.captured_messages.lock().unwrap().push(messages);
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                LLMResponse {
+                    content: Some("done".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
             ))])))
         }
 
@@ -1155,9 +1215,47 @@ mod tests {
             "description": "Search the memory palace",
             "inputSchema": { "type": "object" }
         });
+        let invalid_schema = serde_json::json!({
+            "name": "memtle_search",
+            "description": "Search the memory palace",
+            "inputSchema": "not a json schema object"
+        });
 
         assert!(mentle_tool_metadata_from_definition(&missing_schema).is_none());
         assert!(mentle_tool_metadata_from_definition(&missing_name).is_none());
+        assert!(mentle_tool_metadata_from_definition(&invalid_schema).is_none());
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tools_skip_invalid_definitions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let toolkit = Arc::new(tokio::sync::Mutex::new(toolkit));
+        let tools = mentle_tools_from_definitions(
+            vec![
+                serde_json::json!({
+                    "name": "memtle_status",
+                    "description": "Return palace status",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }),
+                serde_json::json!({
+                    "name": "memtle_broken",
+                    "description": "Broken schema",
+                    "inputSchema": "not an object"
+                }),
+            ],
+            toolkit,
+        );
+
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name(), "memtle_status");
     }
 
     #[cfg(feature = "mentle")]
@@ -1178,6 +1276,10 @@ mod tests {
             }
         });
         let tool = mentle_tool_from_definition(&definition, toolkit).unwrap();
+        let schema = tool.to_schema();
+
+        assert_eq!(schema["function"]["name"], "memtle_status");
+        assert_eq!(schema["function"]["parameters"], definition["inputSchema"]);
 
         let output = tool.execute(serde_json::json!({})).await.unwrap();
 
@@ -1228,6 +1330,12 @@ mod tests {
         );
         let mut config = ToolConfig::default();
         config.builtin.mentle = true;
+        std::fs::create_dir_all(workspace.join("memory")).unwrap();
+        std::fs::write(
+            workspace.join("memory").join("MEMORY.md"),
+            "Markdown fallback continuity.",
+        )
+        .unwrap();
 
         let agent = AgentLoop::with_tools_and_memory_provider_inner(
             bus,
@@ -1250,6 +1358,7 @@ mod tests {
         assert!(!agent.tools.has("memtle_status"));
         assert!(!prompt.contains("L2 Palace Memory"));
         assert!(!prompt.contains("memtle_search"));
+        assert!(prompt.contains("Markdown fallback continuity."));
     }
 
     use agent_diva_core::memory::{
@@ -1267,6 +1376,7 @@ mod tests {
         session_end_called: AtomicBool,
         prefetch_count: AtomicUsize,
         sync_count: AtomicUsize,
+        prefetch_failure_reason: Option<String>,
     }
 
     impl TrackingMemoryProvider {
@@ -1278,6 +1388,14 @@ mod tests {
                 session_end_called: AtomicBool::new(false),
                 prefetch_count: AtomicUsize::new(0),
                 sync_count: AtomicUsize::new(0),
+                prefetch_failure_reason: None,
+            }
+        }
+
+        fn with_prefetch_failure(reason: impl Into<String>) -> Self {
+            Self {
+                prefetch_failure_reason: Some(reason.into()),
+                ..Self::new()
             }
         }
     }
@@ -1305,6 +1423,15 @@ mod tests {
             if request.intent.trim().is_empty() {
                 return Ok(PrefetchResponse {
                     status: PrefetchStatus::SkippedNoIntent,
+                    prompt_block: None,
+                });
+            }
+
+            if let Some(reason) = &self.prefetch_failure_reason {
+                return Ok(PrefetchResponse {
+                    status: PrefetchStatus::Failed {
+                        reason: reason.clone(),
+                    },
                     prompt_block: None,
                 });
             }
@@ -1368,6 +1495,111 @@ mod tests {
 
         // Verify the provider is the one we injected (Arc pointer identity).
         assert_eq!(Arc::strong_count(&memory_provider), 3); // agent, context, and test handle
+    }
+
+    #[tokio::test]
+    async fn test_prefetch_recall_block_is_injected_before_first_llm_call() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(CapturingStreamProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let memory_provider = Arc::new(TrackingMemoryProvider::new());
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+
+        let mut agent = AgentLoop::with_tools_and_memory_provider(
+            bus,
+            provider.clone(),
+            workspace,
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            Some(memory_provider.clone()),
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_direct("recall provider boundary", "session-1", "gui", "chat-1")
+            .await
+            .unwrap();
+
+        assert_eq!(response, "done");
+        assert_eq!(memory_provider.prefetch_count.load(Ordering::SeqCst), 1);
+
+        let captured = provider.captured_messages.lock().unwrap();
+        let first_call = captured
+            .first()
+            .expect("provider should capture the first LLM call");
+        assert!(first_call.len() >= 3);
+        assert_eq!(first_call[0].role, "system");
+        assert_eq!(first_call[1].role, "system");
+        assert!(first_call[1].content.contains("## Prefetch Recall"));
+        assert!(first_call[1].content.contains("recall provider boundary"));
+        assert_eq!(first_call[2].role, "user");
+        assert_eq!(first_call[2].content, "recall provider boundary");
+    }
+
+    #[tokio::test]
+    async fn test_agent_loop_prefetch_failure_continues_without_recall_injection() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(CapturingStreamProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let memory_provider = Arc::new(TrackingMemoryProvider::with_prefetch_failure(
+            "palace query unavailable",
+        ));
+
+        let mut agent = AgentLoop::with_tools_and_memory_provider(
+            bus,
+            provider.clone(),
+            workspace,
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            Some(memory_provider.clone()),
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_direct("recall provider boundary", "session-1", "gui", "chat-1")
+            .await
+            .unwrap();
+
+        assert_eq!(response, "done");
+        assert_eq!(memory_provider.prefetch_count.load(Ordering::SeqCst), 1);
+
+        let captured = provider.captured_messages.lock().unwrap();
+        let first_call = captured
+            .first()
+            .expect("provider should capture the first LLM call");
+        assert!(first_call
+            .iter()
+            .all(|message| !message.content.contains("## Prefetch Recall")));
+        assert_eq!(
+            first_call
+                .last()
+                .expect("first call should include a user message")
+                .content,
+            "recall provider boundary"
+        );
     }
 
     #[tokio::test]

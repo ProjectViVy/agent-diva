@@ -1,7 +1,7 @@
 use super::AgentLoop;
 use crate::consolidation;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
-use agent_diva_core::memory::PrefetchRequest;
+use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::{LLMResponse, LLMStreamEvent};
@@ -102,16 +102,21 @@ impl AgentLoop {
                 })
                 .await;
             match prefetch_result {
-                Ok(response) if response.prompt_block.is_some() => {
-                    let block = response.prompt_block.unwrap();
-                    // Inject recall results as an additional system message
-                    // right after the main system prompt.
-                    messages.insert(1, agent_diva_providers::Message::system(block));
-                    trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
-                }
-                Ok(_) => {
-                    trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
-                }
+                Ok(response) => match response.status {
+                    PrefetchStatus::Failed { reason } => {
+                        warn!("Prefetch recall failed (non-fatal): {}", reason);
+                    }
+                    _ => {
+                        if let Some(block) = response.prompt_block {
+                            // Inject recall results as an additional system message
+                            // right after the main system prompt.
+                            messages.insert(1, agent_diva_providers::Message::system(block));
+                            trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
+                        } else {
+                            trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
+                        }
+                    }
+                },
                 Err(e) => {
                     warn!("Prefetch recall failed (non-fatal): {}", e);
                 }
