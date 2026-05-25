@@ -178,7 +178,12 @@ const toolsConfig = ref({
     fetch: {
       enabled: true
     }
-  }
+  },
+  mentle: {
+    enabled: false,
+    mode: 'off' as const,
+    allowed_tools: [] as string[],
+  },
 });
 
 const savedModels = ref<SavedModel[]>([]);
@@ -1187,7 +1192,27 @@ onMounted(async () => {
         STARTUP_TASK_TIMEOUT_MS,
         "get_tools_config"
       );
-      toolsConfig.value = fetchedTools;
+      toolsConfig.value = {
+        ...toolsConfig.value,
+        ...fetchedTools,
+        web: {
+          ...toolsConfig.value.web,
+          ...fetchedTools.web,
+          search: {
+            ...toolsConfig.value.web.search,
+            ...fetchedTools.web?.search,
+          },
+          fetch: {
+            ...toolsConfig.value.web.fetch,
+            ...fetchedTools.web?.fetch,
+          },
+        },
+        mentle: {
+          ...toolsConfig.value.mentle,
+          ...fetchedTools.mentle,
+          allowed_tools: fetchedTools.mentle?.allowed_tools ?? [],
+        },
+      };
     } catch (e) {
       console.warn("Failed to load tools config:", e);
     }

@@ -54,6 +54,11 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
+  mentle: {
+    enabled: boolean;
+    mode: 'off' | 'read_only' | 'full' | 'custom';
+    allowed_tools: string[];
+  };
 }
 
 type SettingsSubview =
@@ -152,6 +157,8 @@ watch(
             <GeneralSettings
               v-else-if="currentView === 'general'"
               :chat-display-prefs="chatDisplayPrefs"
+              :tools-config="toolsConfig"
+              :save-tools-config-action="saveToolsConfigAction"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
             />
 
