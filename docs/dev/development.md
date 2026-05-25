@@ -42,6 +42,14 @@ The default workspace build and the Mentle feature build do not have the same pr
 
 Windows developers working on the Mentle feature path must also have a working native C/C++ toolchain available. In CI, the repository installs LLVM so `clang-cl.exe` is present before running Mentle checks.
 
+If LLVM is installed but the current PowerShell session cannot find
+`clang-cl.exe`, prefix the session PATH before running Mentle checks:
+
+```powershell
+$env:PATH = 'C:\Program Files\LLVM\bin;' + $env:PATH
+where.exe clang-cl
+```
+
 Example Mentle verification commands:
 
 ```bash

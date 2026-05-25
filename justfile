@@ -29,6 +29,28 @@ build-release:
 test:
     cargo test --all
 
+# Verify the frozen Mentle package source policy
+mentle-package-policy:
+    python scripts/ci/verify_mentle_package_policy.py
+
+# Run default-lane Mentle assembly and failure regressions
+sprint5-default-check:
+    cargo check -p agent-diva-agent --no-default-features
+    cargo test -p agent-diva-agent test_with_toolset
+    cargo test -p agent-diva-agent test_tool_assembly_subagent_mode_excludes_mentle_custom_tools
+    cargo test -p agent-diva-agent subagent_does_not_receive_mentle_by_default
+    cargo test -p agent-diva-agent test_build_agent_tools_reuses_custom_tools_with_cron
+    cargo test -p agent-diva-agent test_register_default_tools_preserves_custom_tools_with_cron
+    cargo test -p agent-diva-agent test_build_subagent_prompt_omits_mentle_routing
+    cargo test -p agent-diva-agent test_agent_loop_prefetch_failure_continues_without_recall_injection
+    cargo test -p agent-diva-agent test_agent_loop_consolidation_sync_failure_keeps_main_response
+
+# Run the Mentle feature lane. Windows shells need clang-cl.exe on PATH.
+mentle-check: mentle-package-policy
+    cargo check -p agent-diva-agent --features mentle
+    cargo test -p agent-diva-core --features mentle memory
+    cargo test -p agent-diva-agent --features mentle mentle
+
 # Run clippy check
 check:
     cargo clippy --all -- -D warnings
@@ -64,6 +86,10 @@ clean:
 # Run all checks (CI pipeline)
 ci: fmt-check check test
     @echo "All checks passed!"
+
+# Run Sprint 5 local hardening checks
+sprint5-check: fmt-check sprint5-default-check mentle-check
+    @echo "Sprint 5 checks passed!"
 
 # Install locally
 install:

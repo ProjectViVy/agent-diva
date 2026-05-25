@@ -32,6 +32,11 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
 - Install `just` and run commands from the workspace root.
 - Copy and configure local environment files if required by a crate or channel.
 - Verify toolchain and project health with `just fmt-check && just check && just test`.
+- For Mentle feature-lane work on Windows, ensure `clang-cl.exe` is discoverable.
+  If LLVM is installed at `C:\Program Files\LLVM\bin` but the current shell PATH
+  does not include it, prefix the session with
+  `$env:PATH = 'C:\Program Files\LLVM\bin;' + $env:PATH` before running
+  `cargo check -p agent-diva-agent --features mentle`.
 
 ## Development Guide
 If users request references to projects such as openclaw, nanobot, or shannon, prioritize reviewing the contents under the .workspace directory. Analyze the architectures of these sibling projects and propose a development approach suitable for the agent-diva architecture.
