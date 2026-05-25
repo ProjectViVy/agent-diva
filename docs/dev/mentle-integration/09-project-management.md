@@ -17,7 +17,10 @@ Current delivery state:
 - Sprint 2 is complete through the S2-A8 review package and Sprint 3 interface baseline.
 - Sprint 2 entry constraints now include the published `memtle 0.1.2` feature and toolchain record.
 - Cargo feature gates, CI package policy checks, and provisional Mentle runtime/provider code already exist in the repository and must be treated as alignment targets for Sprint 3 work.
-- Sprint 3 must consume the interface baseline in [12-s2-a8-sprint2-review-and-s3-interface-baseline.md](./12-s2-a8-sprint2-review-and-s3-interface-baseline.md), the adapter freeze in [13-s3-a1-memtle-toolkit-tool-interface.md](./13-s3-a1-memtle-toolkit-tool-interface.md), the dynamic registration model in [14-s3-a2-dynamic-tool-registration-model.md](./14-s3-a2-dynamic-tool-registration-model.md), and the toolkit error mapping in [15-s3-a3-toolkit-error-mapping.md](./15-s3-a3-toolkit-error-mapping.md).
+- Sprint 3 must consume the interface baseline in [12-s2-a8-sprint2-review-and-s3-interface-baseline.md](./12-s2-a8-sprint2-review-and-s3-interface-baseline.md), the adapter freeze in [13-s3-a1-memtle-toolkit-tool-interface.md](./13-s3-a1-memtle-toolkit-tool-interface.md), the dynamic registration model in [14-s3-a2-dynamic-tool-registration-model.md](./14-s3-a2-dynamic-tool-registration-model.md), the toolkit error mapping in [15-s3-a3-toolkit-error-mapping.md](./15-s3-a3-toolkit-error-mapping.md), the runtime assembly boundary in [16-s3-a4-a6-mentle-runtime-assembly.md](./16-s3-a4-a6-mentle-runtime-assembly.md), the test baseline in [17-s3-a7-test-and-verification-baseline.md](./17-s3-a7-test-and-verification-baseline.md), and the review package in [18-s3-a8-sprint3-review-package.md](./18-s3-a8-sprint3-review-package.md).
+- Sprint 4 is complete for AgentLoop hardening through [19-s4-a1-sprint4-entry-audit.md](./19-s4-a1-sprint4-entry-audit.md), the S4-A8 adapter/runtime compatibility review in [20-s4-a8-adapter-runtime-compatibility-review.md](./20-s4-a8-adapter-runtime-compatibility-review.md), the S4-A9 through S4-A12 closure records, and the v0.0.2/v0.0.3/v0.0.4 Sprint 4 iteration logs.
+- Sprint 5 is complete for failure modes and CI hardening through [26-s5-a1-failure-validation-matrix.md](./26-s5-a1-failure-validation-matrix.md), [27-s5-a2-a6-failure-and-ci-hardening.md](./27-s5-a2-a6-failure-and-ci-hardening.md), and [28-s5-a7-sprint5-review-package.md](./28-s5-a7-sprint5-review-package.md). It consumes the Sprint 4 review package without reopening Sprint 7 tool-selection or GUI scope.
+- Sprint 7 is planned as a post-RC enhancement through [25-s7-a1-mentle-tool-selection-and-gui-controls.md](./25-s7-a1-mentle-tool-selection-and-gui-controls.md). It may start only after Sprint 6 RC acceptance and must not block the Sprint 1-6 production integration baseline.
 
 ## 1.1 Package Source Policy
 
@@ -43,6 +46,7 @@ Reason:
 | A-MEM | Mentle Adapter Engineer | `MemtleToolkitTool`, tool definition mapping, toolkit call handling |
 | A-QA | Quality Engineer | Unit tests, integration tests, regression, acceptance evidence |
 | A-DEVOPS | Build Engineer | Cargo features, toolchain matrix, CI jobs |
+| A-GUI | GUI Engineer | `agent-diva-gui` settings UX, persisted controls, GUI smoke testing |
 | A-DOC | Documentation Engineer | Planning docs, release notes, handoff package |
 
 ## 3. WBS
@@ -57,6 +61,7 @@ Reason:
 | 6.0 | Background and advanced entrypoints | cron rebuild, `with_toolset()` strategy, subagent isolation | A-LOOP | No prompt/tool split in advanced paths |
 | 7.0 | Quality and verification | Unit, integration, failure, and CI coverage | A-QA | Acceptance suite green |
 | 8.0 | Release readiness | Risk register, release checklist, handoff docs | A-DOC | RC package ready |
+| 9.0 | Mentle tool selection and GUI controls | Tool-selection config, filtered `memtle_*` assembly, GUI General Settings controls | A-GUI/A-LOOP | Post-RC tool subsets persist and match prompt exposure |
 
 ## 4. Sprint Roadmap
 
@@ -66,10 +71,11 @@ Assumption: one-week Sprints.
 |---|---|---|---|
 | Sprint 1 | Build foundation and feature gates | Completed | Default build isolation and Mentle feature boundary defined |
 | Sprint 2 | Core hybrid memory provider | Completed | `HybridMemoryProvider` contract, cached snapshot path, and published-package implementation constraints packaged for Sprint 3 |
-| Sprint 3 | Tool adapter and runtime helper | In progress | Dynamic `memtle_*` tools and `MentleRuntime` consume the S2-A8 baseline and S3-A1 adapter freeze |
-| Sprint 4 | AgentLoop, cron, `with_toolset()`, subagent | Planned | Assembly closure and memory-safety behavior |
-| Sprint 5 | Failure modes and CI hardening | Planned | Regression and downgrade confidence |
+| Sprint 3 | Tool adapter and runtime helper | Completed | Dynamic `memtle_*` tools and `MentleRuntime` consume the S2-A8 baseline and S3-A1 adapter freeze |
+| Sprint 4 | AgentLoop, cron, `with_toolset()`, subagent | Completed | Assembly closure and memory-safety behavior |
+| Sprint 5 | Failure modes and CI hardening | Completed | Regression and downgrade confidence |
 | Sprint 6 | RC and handoff | Planned | Release candidate package |
+| Sprint 7 | Mentle tool selection and GUI controls | Planned | Optional post-RC tool-level activation and GUI control |
 
 ### Sprint 1 Review
 
@@ -154,11 +160,190 @@ The mapping records:
 - internal logs carry phase, category, and fallback action
 - startup prompt routing is active only when dynamic registration exposes `memtle_status`
 
+### Sprint 3 A4-A6 Runtime Assembly Boundary
+
+S3-A4 through S3-A6 freeze the runtime assembly boundary in [16-s3-a4-a6-mentle-runtime-assembly.md](./16-s3-a4-a6-mentle-runtime-assembly.md).
+
+The boundary records:
+
+- `MentleRuntime` as the internal owner of toolkit, runtime provider, custom tools, and active flag
+- `runtime.active()` as the prompt-routing activation rule
+- `build_agent_tools(...)` as the single registry assembly helper
+- preserved custom tool reuse across startup and later rebuild paths
+
+### Sprint 3 A7 Test and Verification Baseline
+
+S3-A7 freezes the minimum verification set in [17-s3-a7-test-and-verification-baseline.md](./17-s3-a7-test-and-verification-baseline.md).
+
+The baseline records:
+
+- the minimum default-lane, dynamic-tool, inactive-runtime, and rebuild-path verification set
+- the required command set and policy checks
+- the interpretation rule for `passed`, `failed`, and environment-`blocked` verification outcomes
+- the current Windows Mentle lane block on missing `clang-cl.exe`
+
+### Sprint 3 A8 Review Package
+
+S3-A8 closes Sprint 3 through [18-s3-a8-sprint3-review-package.md](./18-s3-a8-sprint3-review-package.md).
+
+The review package records:
+
+- the full Sprint 3 interface baseline consumed by Sprint 4
+- the prompt-routing activation anchor on `memtle_status`
+- the verification status summary carried into review
+- the unresolved operational risks that remain visible to Sprint 4
+
+### Sprint 4 AgentLoop Hardening
+
+Sprint 4 closes the AgentLoop hardening scope through
+[19-s4-a1-sprint4-entry-audit.md](./19-s4-a1-sprint4-entry-audit.md) and the
+iteration log at
+`docs/logs/2026-05-mentle-runtime/v0.0.2-s4-agentloop-hardening/`.
+
+The hardening work confirms:
+
+- initial AgentLoop assembly consumes active `MentleRuntime` helper state
+- `build_agent_tools(...)` remains the single registry assembly helper
+- startup cron rebuild and `register_default_tools(...)` preserve Mentle custom
+  tools
+- `with_toolset()` disables Mentle prompt routing unless the supplied registry
+  contains `memtle_status`
+- subagent configuration and registry assembly do not inherit Mentle long-term
+  memory capability by default
+
+### Sprint 4 A8 Adapter/Runtime Compatibility Review
+
+S4-A8 closes through
+[20-s4-a8-adapter-runtime-compatibility-review.md](./20-s4-a8-adapter-runtime-compatibility-review.md)
+and the iteration log at
+`docs/logs/2026-05-mentle-runtime/v0.0.3-s4-a8-compatibility-review/`.
+
+The review confirms:
+
+- S4-A2 through S4-A6 did not break the S3 dynamic tool definition convention
+- `MemtleToolkit::call_json(name, args).await` remains the only generic adapter
+  execution path
+- toolkit transport and payload failures still map to
+  `ToolError::ExecutionFailed`
+- invalid definitions remain local skips and do not deactivate an otherwise-open
+  runtime
+- prompt routing remains anchored on actual `memtle_status` availability
+
+### Sprint 4 A9-A12 Closure
+
+Sprint 4 closes its remaining regression, environment, documentation, and
+architecture sign-off work through:
+
+- [21-s4-a9-regression-test-baseline.md](./21-s4-a9-regression-test-baseline.md)
+- [22-s4-a10-mentle-feature-build-env.md](./22-s4-a10-mentle-feature-build-env.md)
+- [23-s4-a11-sprint4-iteration-log.md](./23-s4-a11-sprint4-iteration-log.md)
+- [24-s4-a12-sprint4-review-package.md](./24-s4-a12-sprint4-review-package.md)
+- `docs/logs/2026-05-mentle-runtime/v0.0.4-s4-regression-and-env/`
+
+The closure confirms:
+
+- assembly, cron/default rebuild, `with_toolset()`, subagent config, subagent
+  registry, and subagent prompt paths have targeted regression evidence
+- local Windows Mentle feature verification passes when LLVM's
+  `C:\Program Files\LLVM\bin` is added to the current shell PATH
+- no Sprint 4 assembly path keeps an undocumented prompt/tool mismatch open
+
+### Sprint 5 Failure Modes and CI Hardening
+
+Sprint 5 closes through the failure validation matrix in
+[26-s5-a1-failure-validation-matrix.md](./26-s5-a1-failure-validation-matrix.md),
+the hardening record in
+[27-s5-a2-a6-failure-and-ci-hardening.md](./27-s5-a2-a6-failure-and-ci-hardening.md),
+and the review package in
+[28-s5-a7-sprint5-review-package.md](./28-s5-a7-sprint5-review-package.md).
+
+The hardening scope covers:
+
+- Mentle open/startup failure downgrade to Markdown memory
+- query/recall failure behavior during prefetch
+- `sync_turn()` write failure behavior, including failed `memtle_diary_write`
+- dynamic tool definition skip behavior
+- runtime active/inactive state consistency with actual registry contents
+- cron/default rebuild preservation
+- `with_toolset()` registry-derived prompt routing
+- subagent default isolation
+- default build and Mentle feature CI coverage
+- published `memtle 0.1.2` package source validation
+
+Review outcome:
+
+- Sprint 5 is accepted for Sprint 6 entry.
+- Targeted default-lane and Mentle feature-lane verification passed.
+- Full workspace `just test` remains blocked by an unrelated provider test export
+  issue around `agent_diva_providers::ollama`.
+
+### Sprint 7 Mentle Tool Selection and GUI Controls
+
+Sprint 7 is a planned enhancement Sprint documented in
+[25-s7-a1-mentle-tool-selection-and-gui-controls.md](./25-s7-a1-mentle-tool-selection-and-gui-controls.md).
+
+It is intentionally not part of the Sprint 1 through Sprint 6 production
+integration gate. Sprint 7 may start only after Sprint 6 has produced an
+accepted RC and handoff package.
+
+The enhancement scope covers:
+
+- assembly-level filtering of dynamic `memtle_*` tools
+- persisted Mentle settings such as `mentle.enabled`, `mentle.mode`, and
+  `allowed_tools`
+- optional modes including `off`, `read_only`, `full`, and `custom`
+- prompt exposure derived only from the post-filter registry
+- a new `agent-diva-gui` General Settings section for enabling Mentle and
+  selecting active tools
+- manual GUI smoke tests for configuration switching and runtime rebuild
+  behavior
+
+Sprint 7 must preserve these existing invariants:
+
+- `memtle_status` remains the prompt-routing activation anchor
+- `build_agent_tools(...)` remains the shared registry assembly path
+- `with_toolset()` remains registry-driven
+- subagents still default to Mentle disabled
+- published `memtle` package sourcing remains unchanged
+
 ### Sprint 3 Entry Criteria
 
 - S2-A8 review package accepted.
 - Verification results are recorded for the default build, Mentle build, provider tests, and agent Mentle tests.
-- Sprint 3 implementation agrees to consume only the S2-A8 baseline, S3-A1 adapter freeze, S3-A2 dynamic registration model, and S3-A3 toolkit error mapping unless a separate architecture review changes them.
+- Sprint 3 implementation agrees to consume only the S2-A8 baseline and the Sprint 3 A1-A8 records unless a separate architecture review changes them.
+
+### Sprint 4 Entry Criteria
+
+- Sprint 3 review package accepted.
+- Runtime ownership and active/inactive prompt-routing rules are frozen.
+- Minimum verification expectations are documented, including blocked-environment reporting.
+- Sprint 4 work agrees to consume the Sprint 3 review package rather than reopening adapter/runtime baselines ad hoc.
+
+### Sprint 5 Entry Criteria
+
+- Sprint 4 review package accepted.
+- Prompt/tool consistency is frozen around the `memtle_status` activation anchor.
+- Failure-mode work agrees to validate downgrade behavior rather than add new Mentle capabilities.
+- Default-lane and Mentle-lane verification gaps are tracked in the Sprint 5 failure validation matrix.
+- Published `memtle 0.1.2` package sourcing remains a non-negotiable CI gate.
+
+### Sprint 6 Entry Criteria
+
+- Sprint 5 review package accepted.
+- Default-lane Sprint 5 regressions pass locally and in CI.
+- Mentle feature lane passes with Rust 1.88+ and the native toolchain available.
+- Residual `just test` failure is tracked as unrelated to the Mentle integration
+  baseline unless Sprint 6 decides to make full workspace tests an RC blocker.
+- Sprint 6 work agrees to package release-candidate evidence rather than reopen
+  Sprint 7 GUI/tool-selection scope.
+
+### Sprint 7 Entry Criteria
+
+- Sprint 6 RC and handoff package accepted.
+- Production-readiness gates from Sprint 1 through Sprint 6 remain green or have explicit accepted exceptions.
+- The common `memtle_*` tools for the read-only preset are identified from the completed integration baseline.
+- GUI settings persistence ownership is confirmed.
+- The team agrees Sprint 7 is an enhancement Sprint and does not reopen the RC baseline unless a separate change-control review accepts the risk.
 
 ## 5. Activity Dependencies
 
@@ -176,12 +361,18 @@ The mapping records:
 | A10 | Implement subagent isolation | A1 | A9 | Subagent pollutes long-term memory |
 | A11 | Add failure and regression tests | A7, A8, A9, A10 | A12 | Production gaps not covered |
 | A12 | Prepare RC handoff | A11 | None | Merge readiness unclear |
+| A13 | Define Mentle tool-selection config | A12 | A14 | Config shape diverges between CLI/service/GUI |
+| A14 | Define GUI General Settings UX | A12 | A13 | GUI presents theoretical tools or stale metadata |
+| A15 | Filter `memtle_*` tools during runtime assembly | A13 | A16 | Prompt advertises removed tools |
+| A16 | Persist GUI settings and trigger runtime rebuild | A14, A15 | A17 | Saved state does not affect active registry |
+| A17 | Add prompt/tool subset regression tests | A15 | A16, A18 | Tool subsets bypass existing activation anchor |
+| A18 | Prepare Sprint 7 verification and handoff package | A16, A17 | None | Enhancement ships without GUI smoke evidence |
 
 ## 6. Gantt
 
 ```text
-Timeline:      W1        W2        W3        W4        W5        W6
-Sprint:        S1        S2        S3        S4        S5        S6
+Timeline:      W1        W2        W3        W4        W5        W6        W7
+Sprint:        S1        S2        S3        S4        S5        S6        S7
 
 Feature/CI     ######    ##        ##        ##        ####      ####
 Core Provider            ######    ##                  ####
@@ -194,6 +385,9 @@ with_toolset                                 ######    ##
 Subagent Isolation                           ###
 Failure Testing                                        ######    ##
 Release Docs                                             ##      ######
+Tool Selection                                                            ######
+GUI Controls                                                              ######
+Subset QA                                                                 ####
 ```
 
 ## 7. Kanban
@@ -202,18 +396,20 @@ Release Docs                                             ##      ######
 
 | Card | Title | Owner | Target Sprint |
 |---|---|---|---|
-| K-12 | Plan unified `build_agent_tools` helper | A-LOOP | S4 |
-| K-13 | Plan cron rebuild custom tool preservation | A-LOOP | S4 |
-| K-14 | Plan `with_toolset()` safety behavior | A-LOOP | S4 |
-| K-15 | Plan subagent default Mentle isolation | A-LOOP | S4 |
-| K-16 | Plan failure injection tests | A-QA | S5 |
 | K-17 | Plan release candidate checklist | A-DOC | S6 |
+| K-36 | Freeze Sprint 7 Mentle tool-selection scope | A-ARCH | S7 |
+| K-37 | Define persisted Mentle tool-selection config | A-CORE | S7 |
+| K-38 | Implement assembly-level `memtle_*` filtering | A-LOOP | S7 |
+| K-39 | Add prompt/tool synchronization coverage for selected tool subsets | A-QA | S7 |
+| K-40 | Add Mentle tools section to `agent-diva-gui` General Settings | A-GUI | S7 |
+| K-41 | Persist GUI tool-selection settings and trigger runtime rebuild | A-GUI | S7 |
+| K-42 | Run manual GUI smoke for off/read-only/full/custom modes | A-QA | S7 |
+| K-43 | Prepare Sprint 7 review and handoff package | A-DOC | S7 |
 
 ### Ready
 
 | Card | Title | Owner |
 |---|---|---|
-| K-11 | Plan `MentleRuntime` helper | A-LOOP |
 
 ### In Progress
 
@@ -251,6 +447,19 @@ Release Docs                                             ##      ######
 | K-27 | Freeze `MemtleToolkitTool` adapter interface for S3-A1 | A-DOC |
 | K-10 | Plan dynamic tool registration | A-MEM |
 | K-28 | Freeze toolkit error mapping for S3-A3 | A-MEM |
+| K-11 | Plan `MentleRuntime` helper | A-LOOP |
+| K-29 | Define Sprint 3 QA baseline for Sprint 4 entry | A-QA |
+| K-30 | Prepare Sprint 3 review package and Sprint 4 entry baseline | A-DOC |
+| K-12 | Harden unified `build_agent_tools` helper | A-LOOP |
+| K-13 | Harden cron rebuild custom tool preservation | A-LOOP |
+| K-14 | Harden `with_toolset()` safety behavior | A-LOOP |
+| K-15 | Harden subagent default Mentle isolation | A-LOOP |
+| K-31 | Review S4 adapter/runtime compatibility against S3 conventions | A-MEM |
+| K-32 | Freeze Sprint 4 regression baseline for advanced assembly paths | A-QA |
+| K-33 | Record Mentle feature build environment and Windows LLVM PATH prerequisite | A-DEVOPS |
+| K-34 | Consolidate Sprint 4 summary, verification, acceptance, and release notes | A-DOC |
+| K-35 | Prepare Sprint 4 architecture sign-off and review package | A-ARCH |
+| K-16 | Execute Sprint 5 failure validation matrix | A-QA |
 
 ## 8. Acceptance Gates
 
@@ -269,6 +478,9 @@ Future implementation cannot be called production-ready until all of these are t
 - `with_toolset()` does not create prompt/tool mismatch.
 - Subagents default to Mentle disabled.
 - CI covers default build, Mentle build, provider tests, assembly tests, cron rebuild tests, `with_toolset()` tests, and subagent isolation tests.
+- Sprint 7 enhancements do not block Sprint 1-6 production readiness; they require an accepted Sprint 6 RC before implementation starts.
+- When Sprint 7 is implemented, configured Mentle tool subsets must preserve prompt/tool consistency and keep `memtle_status` as the activation anchor.
+- `agent-diva-gui` must persist Mentle tool-selection settings and prove the selected mode affects the active registry through a documented smoke test.
 
 ## 9. Definition of Done
 
