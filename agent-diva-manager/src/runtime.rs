@@ -5,9 +5,10 @@ mod task_runtime;
 use crate::state::ManagerCommand;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
-    runtime_control::RuntimeControlCommand, tool_config::network::NetworkToolConfig,
-    tool_config::network::WebFetchRuntimeConfig, tool_config::network::WebRuntimeConfig,
-    tool_config::network::WebSearchRuntimeConfig, AgentLoop, BuiltInToolsConfig, ToolConfig,
+    runtime_control::RuntimeControlCommand, tool_config::mentle::MentleToolRuntimeConfig,
+    tool_config::network::NetworkToolConfig, tool_config::network::WebFetchRuntimeConfig,
+    tool_config::network::WebRuntimeConfig, tool_config::network::WebSearchRuntimeConfig,
+    AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
@@ -312,6 +313,7 @@ async fn build_agent_loop(
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(config),
         network: build_network_tool_config(config),
+        mentle: MentleToolRuntimeConfig::from_config(config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
