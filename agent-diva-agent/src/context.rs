@@ -41,6 +41,7 @@ pub struct ContextBuilder {
     memory_provider: Arc<dyn MemoryProvider>,
     soul_settings: SoulContextSettings,
     mentle_enabled: bool,
+    mentle_tool_names: Vec<String>,
 }
 
 impl ContextBuilder {
@@ -54,6 +55,7 @@ impl ContextBuilder {
             memory_provider,
             soul_settings: SoulContextSettings::default(),
             mentle_enabled: false,
+            mentle_tool_names: Vec::new(),
         }
     }
 
@@ -67,6 +69,7 @@ impl ContextBuilder {
             memory_provider,
             soul_settings: SoulContextSettings::default(),
             mentle_enabled: false,
+            mentle_tool_names: Vec::new(),
         }
     }
 
@@ -80,6 +83,18 @@ impl ContextBuilder {
     pub fn with_mentle(mut self, enabled: bool) -> Self {
         self.mentle_enabled = enabled;
         self
+    }
+
+    /// Record the post-assembly Mentle tools that may be mentioned in prompts.
+    pub fn with_mentle_tools(mut self, tool_names: Vec<String>) -> Self {
+        self.mentle_tool_names = tool_names;
+        self
+    }
+
+    /// Update Mentle prompt routing after a runtime tool refresh.
+    pub fn set_mentle_prompt_state(&mut self, enabled: bool, tool_names: Vec<String>) {
+        self.mentle_enabled = enabled;
+        self.mentle_tool_names = tool_names;
     }
 
     /// Override soul context settings.
@@ -113,6 +128,7 @@ Your workspace is at: {workspace_path}
         );
 
         if self.mentle_enabled {
+            let search_guidance = self.mentle_search_guidance();
             prompt.push_str(
                 r#"
 - L0/L1 Compass Memory: workspace Markdown memory and soul/profile files.
@@ -120,8 +136,12 @@ Your workspace is at: {workspace_path}
 
 ## Memory Routing
 - Store durable identity, behavior rules, relationship compass, and highest-priority summaries in `MEMORY.md`.
-- Store dense project facts, long transcripts, references, creative ideas, and detailed evidence through `memtle_*` tools.
-- Before answering historical facts, user relationship details, project state, or anything uncertain, use `memtle_search` or `memtle_kg_query`.
+- Store dense project facts, long transcripts, references, creative ideas, and detailed evidence through the enabled Mentle tools.
+"#,
+            );
+            prompt.push_str(&search_guidance);
+            prompt.push_str(
+                r#"
 - For ordinary conversation or facts already present in the current context, answer directly without forcing a memory tool call."#,
             );
         }
@@ -189,6 +209,33 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         }
 
         prompt
+    }
+
+    fn mentle_search_guidance(&self) -> String {
+        let mut search_tools = Vec::new();
+        if self
+            .mentle_tool_names
+            .iter()
+            .any(|name| name == "memtle_search")
+        {
+            search_tools.push("`memtle_search`");
+        }
+        if self
+            .mentle_tool_names
+            .iter()
+            .any(|name| name == "memtle_kg_query")
+        {
+            search_tools.push("`memtle_kg_query`");
+        }
+
+        if search_tools.is_empty() {
+            return "- Use the enabled Mentle tools only when their schemas are present in the current tool list.\n".to_string();
+        }
+
+        format!(
+            "- Before answering historical facts, user relationship details, project state, or anything uncertain, use {}.\n",
+            search_tools.join(" or ")
+        )
     }
 
     fn append_soul_sections(&self, prompt: &mut String) {
@@ -557,9 +604,29 @@ mod tests {
     }
 
     #[test]
+    fn set_mentle_prompt_state_updates_prompt_exposure() {
+        let workspace = TempDir::new().unwrap();
+        let mut builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_mentle(true)
+            .with_mentle_tools(vec![
+                "memtle_status".to_string(),
+                "memtle_search".to_string(),
+            ]);
+        builder.set_mentle_prompt_state(false, vec!["memtle_search".to_string()]);
+
+        let prompt = builder.build_system_prompt();
+        assert!(!prompt.contains("L2 Palace Memory"));
+    }
+
+    #[test]
     fn test_build_system_prompt_includes_mentle_routing_when_active() {
         let workspace = TempDir::new().unwrap();
-        let builder = ContextBuilder::new(workspace.path().to_path_buf()).with_mentle(true);
+        let builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_mentle(true)
+            .with_mentle_tools(vec![
+                "memtle_status".to_string(),
+                "memtle_search".to_string(),
+            ]);
 
         let prompt = builder.build_system_prompt();
 

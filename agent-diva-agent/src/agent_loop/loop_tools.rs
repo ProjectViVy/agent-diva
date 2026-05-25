@@ -1,9 +1,12 @@
 use super::{build_agent_tools, AgentLoop, SubagentManagerSpawner, ToolConfig};
+#[cfg(feature = "mentle")]
+use crate::mentle_runtime::MentleRuntime;
+use crate::tool_config::mentle::MentleToolRuntimeConfig;
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 impl AgentLoop {
     /// Register default tools (for use after construction)
@@ -62,5 +65,82 @@ impl AgentLoop {
         self.subagent_manager.update_mcp_servers(servers).await;
 
         info!("Applied runtime MCP tool configuration update");
+    }
+
+    pub(super) async fn apply_mentle_config(
+        &mut self,
+        mentle: MentleToolRuntimeConfig,
+        builtin_mentle: bool,
+    ) {
+        self.tool_config.mentle = mentle.clone();
+        self.tool_config.builtin.mentle = builtin_mentle;
+
+        for name in self
+            .tools
+            .tool_names()
+            .into_iter()
+            .filter(|name| name.starts_with("memtle_"))
+        {
+            self.tools.unregister(&name);
+        }
+
+        #[cfg(feature = "mentle")]
+        {
+            let mentle_requested = builtin_mentle && mentle.is_active_request();
+            if mentle_requested {
+                match MentleRuntime::try_build(&self.workspace, &mentle).await {
+                    Some(runtime) => {
+                        self.custom_tools = runtime.custom_tools();
+                        self.mentle_active = runtime.active();
+                        self.memory_provider = runtime.memory_provider();
+                        self.mentle_runtime = Some(runtime);
+                        if mentle_requested && !self.mentle_active {
+                            warn!(
+                                "Mentle prompt disabled after update: runtime tools do not contain memtle_status"
+                            );
+                        }
+                    }
+                    None => {
+                        self.custom_tools.clear();
+                        self.mentle_active = false;
+                        self.mentle_runtime = None;
+                        warn!(
+                            "Mentle requested but runtime is unavailable after configuration update"
+                        );
+                    }
+                }
+            } else {
+                self.custom_tools.clear();
+                self.mentle_active = false;
+                self.mentle_runtime = None;
+            }
+
+            for tool in &self.custom_tools {
+                self.tools.register(tool.clone());
+            }
+        }
+
+        #[cfg(not(feature = "mentle"))]
+        {
+            if builtin_mentle && mentle.is_active_request() {
+                warn!("Mentle configuration updated but the agent-diva-agent `mentle` feature is disabled");
+            }
+            self.custom_tools.clear();
+            self.mentle_active = false;
+        }
+
+        let mentle_tool_names = self
+            .custom_tools
+            .iter()
+            .map(|tool| tool.name().to_string())
+            .collect::<Vec<_>>();
+        self.context
+            .set_mentle_prompt_state(self.mentle_active, mentle_tool_names);
+
+        if self.tool_config.cron_service.is_some() {
+            self.register_default_tools(self.tool_config.clone());
+        }
+
+        info!("Applied runtime Mentle tool configuration update");
     }
 }
