@@ -22,9 +22,9 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::state::{
     ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, FileUploadRequest,
-    ManagerCommand, McpRefreshRequest, RunCronJobRequest, SetCronJobEnabledRequest,
-    SetMcpEnabledRequest, SkillUploadRequest, StopChatRequest, ToolsConfigResponse,
-    ToolsConfigUpdate,
+    ManagerCommand, McpRefreshRequest, MentleToolsListResponse, RunCronJobRequest,
+    SetCronJobEnabledRequest, SetMcpEnabledRequest, SkillUploadRequest, StopChatRequest,
+    ToolsConfigResponse, ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -409,6 +409,7 @@ pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfi
         tracing::error!("Failed to send GetTools request: {}", e);
         return Json(ToolsConfigResponse {
             web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
+            mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
         });
     }
     match rx.await {
@@ -417,6 +418,30 @@ pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfi
             tracing::error!("Failed to receive GetTools response: {}", e);
             Json(ToolsConfigResponse {
                 web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
+                mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
+            })
+        }
+    }
+}
+
+pub async fn list_mentle_tools_handler(
+    State(state): State<AppState>,
+) -> Json<MentleToolsListResponse> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::ListMentleTools(tx)).await {
+        tracing::error!("Failed to send ListMentleTools request: {}", e);
+        return Json(MentleToolsListResponse {
+            feature_available: agent_diva_agent::mentle_discovery_available(),
+            tools: Vec::new(),
+        });
+    }
+    match rx.await {
+        Ok(response) => Json(response),
+        Err(e) => {
+            tracing::error!("Failed to receive ListMentleTools response: {}", e);
+            Json(MentleToolsListResponse {
+                feature_available: agent_diva_agent::mentle_discovery_available(),
+                tools: Vec::new(),
             })
         }
     }

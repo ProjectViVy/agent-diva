@@ -16,12 +16,47 @@ pub struct Config {
     pub gateway: GatewayConfig,
     /// Tools configuration
     pub tools: ToolsConfig,
+    /// Mentle memory tool selection configuration
+    #[serde(default)]
+    pub mentle: MentleToolConfig,
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
     /// Pet (desktop avatar) configuration
     #[serde(default)]
     pub pet: PetConfig,
+}
+
+/// Mentle tool selection configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MentleToolConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub mode: MentleToolMode,
+    #[serde(default)]
+    pub allowed_tools: Vec<String>,
+}
+
+/// Mentle tool exposure mode.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MentleToolMode {
+    #[default]
+    Off,
+    ReadOnly,
+    Full,
+    Custom,
+}
+
+impl Default for MentleToolConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: MentleToolMode::Off,
+            allowed_tools: Vec::new(),
+        }
+    }
 }
 
 /// Logging configuration
@@ -1201,5 +1236,37 @@ impl Default for PetConfig {
             tts_speed: default_tts_speed(),
             tts_volume: default_tts_volume(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, MentleToolConfig, MentleToolMode};
+
+    #[test]
+    fn mentle_config_defaults_to_off() {
+        let config = Config::default();
+
+        assert!(!config.mentle.enabled);
+        assert_eq!(config.mentle.mode, MentleToolMode::Off);
+        assert!(config.mentle.allowed_tools.is_empty());
+        assert!(!config.tools.builtin.mentle);
+    }
+
+    #[test]
+    fn mentle_config_round_trips_json() {
+        let mentle: MentleToolConfig = serde_json::from_value(serde_json::json!({
+            "enabled": true,
+            "mode": "custom",
+            "allowed_tools": ["memtle_status", "memtle_search"]
+        }))
+        .expect("valid mentle config should deserialize");
+
+        assert!(mentle.enabled);
+        assert_eq!(mentle.mode, MentleToolMode::Custom);
+        assert_eq!(mentle.allowed_tools, ["memtle_status", "memtle_search"]);
+
+        let value = serde_json::to_value(mentle).expect("config should serialize");
+        assert_eq!(value["mode"], "custom");
     }
 }
