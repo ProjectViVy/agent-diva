@@ -225,6 +225,160 @@ struct MentleToolkitTool {
 }
 
 #[cfg(feature = "mentle")]
+#[derive(Clone, Copy)]
+enum MentleErrorPhase {
+    StartupOpen,
+    ToolDefinition,
+    ToolCallTransport,
+    ToolCallPayload,
+}
+
+#[cfg(feature = "mentle")]
+impl MentleErrorPhase {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::StartupOpen => "startup_open",
+            Self::ToolDefinition => "tool_definition",
+            Self::ToolCallTransport => "tool_call_transport",
+            Self::ToolCallPayload => "tool_call_payload",
+        }
+    }
+}
+
+#[cfg(feature = "mentle")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MentleErrorCategory {
+    Io,
+    Database,
+    Json,
+    Config,
+    InvalidArguments,
+    UnknownTool,
+    NotFound,
+    InvalidDefinition,
+    ToolPayload,
+    Internal,
+}
+
+#[cfg(feature = "mentle")]
+impl MentleErrorCategory {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Io => "io",
+            Self::Database => "database",
+            Self::Json => "json",
+            Self::Config => "config",
+            Self::InvalidArguments => "invalid_arguments",
+            Self::UnknownTool => "unknown_tool",
+            Self::NotFound => "not_found",
+            Self::InvalidDefinition => "invalid_definition",
+            Self::ToolPayload => "tool_payload",
+            Self::Internal => "internal",
+        }
+    }
+}
+
+#[cfg(feature = "mentle")]
+#[derive(Clone, Copy)]
+enum MentleFallbackAction {
+    DisableMentle,
+    SkipTool,
+    ReturnToolError,
+}
+
+#[cfg(feature = "mentle")]
+impl MentleFallbackAction {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::DisableMentle => "disable_mentle",
+            Self::SkipTool => "skip_tool",
+            Self::ReturnToolError => "return_tool_error",
+        }
+    }
+}
+
+#[cfg(feature = "mentle")]
+struct MentleMappedError {
+    phase: MentleErrorPhase,
+    category: MentleErrorCategory,
+    fallback_action: MentleFallbackAction,
+    message: String,
+}
+
+#[cfg(feature = "mentle")]
+fn classify_mentle_error_message(message: &str) -> MentleErrorCategory {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("unknown tool") {
+        MentleErrorCategory::UnknownTool
+    } else if lower.contains("not found") {
+        MentleErrorCategory::NotFound
+    } else if lower.contains("argument") || lower.contains("must be") || lower.contains("invalid") {
+        MentleErrorCategory::InvalidArguments
+    } else if lower.starts_with("database error") || lower.contains("database") {
+        MentleErrorCategory::Database
+    } else if lower.starts_with("io error") || lower.contains("os error") {
+        MentleErrorCategory::Io
+    } else if lower.starts_with("json error") || lower.contains("json") {
+        MentleErrorCategory::Json
+    } else if lower.contains("config") {
+        MentleErrorCategory::Config
+    } else {
+        MentleErrorCategory::Internal
+    }
+}
+
+#[cfg(feature = "mentle")]
+fn map_mentle_transport_error(
+    phase: MentleErrorPhase,
+    fallback_action: MentleFallbackAction,
+    error: impl std::fmt::Display,
+) -> MentleMappedError {
+    let message = error.to_string();
+    MentleMappedError {
+        phase,
+        category: classify_mentle_error_message(&message),
+        fallback_action,
+        message,
+    }
+}
+
+#[cfg(feature = "mentle")]
+fn map_mentle_payload_error(
+    phase: MentleErrorPhase,
+    fallback_action: MentleFallbackAction,
+    value: &serde_json::Value,
+) -> Option<MentleMappedError> {
+    let error = value
+        .get("error")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let success_false = value.get("success").and_then(serde_json::Value::as_bool) == Some(false);
+
+    if error.is_none() && !success_false {
+        return None;
+    }
+
+    let message =
+        error.unwrap_or_else(|| "Mentle tool returned an unsuccessful payload".to_string());
+    let mut category = classify_mentle_error_message(&message);
+    if category == MentleErrorCategory::Internal {
+        category = MentleErrorCategory::ToolPayload;
+    }
+
+    Some(MentleMappedError {
+        phase,
+        category,
+        fallback_action,
+        message,
+    })
+}
+
+#[cfg(feature = "mentle")]
+fn mentle_execution_failed(mapped: MentleMappedError) -> ToolError {
+    ToolError::ExecutionFailed(mapped.message)
+}
+
+#[cfg(feature = "mentle")]
 #[async_trait::async_trait]
 impl Tool for MentleToolkitTool {
     fn name(&self) -> &str {
@@ -241,10 +395,39 @@ impl Tool for MentleToolkitTool {
 
     async fn execute(&self, args: serde_json::Value) -> agent_diva_tooling::Result<String> {
         let toolkit = self.toolkit.lock().await;
-        let result = toolkit
-            .call_json(&self.name, args)
-            .await
-            .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
+        let result = toolkit.call_json(&self.name, args).await.map_err(|err| {
+            let mapped = map_mentle_transport_error(
+                MentleErrorPhase::ToolCallTransport,
+                MentleFallbackAction::ReturnToolError,
+                err,
+            );
+            warn!(
+                phase = mapped.phase.as_str(),
+                category = mapped.category.as_str(),
+                fallback_action = mapped.fallback_action.as_str(),
+                tool_name = %self.name,
+                error = %mapped.message,
+                "Mentle toolkit call failed"
+            );
+            mentle_execution_failed(mapped)
+        })?;
+
+        if let Some(mapped) = map_mentle_payload_error(
+            MentleErrorPhase::ToolCallPayload,
+            MentleFallbackAction::ReturnToolError,
+            &result,
+        ) {
+            warn!(
+                phase = mapped.phase.as_str(),
+                category = mapped.category.as_str(),
+                fallback_action = mapped.fallback_action.as_str(),
+                tool_name = %self.name,
+                error = %mapped.message,
+                result = %result,
+                "Mentle toolkit returned an error payload"
+            );
+            return Err(mentle_execution_failed(mapped));
+        }
 
         if let Some(text) = result.as_str() {
             Ok(text.to_string())
@@ -259,10 +442,29 @@ impl Tool for MentleToolkitTool {
 fn mentle_tool_metadata_from_definition(
     def: &serde_json::Value,
 ) -> Option<(String, String, serde_json::Value)> {
-    let name = def.get("name").and_then(|value| value.as_str())?;
-    let description = def.get("description").and_then(|value| value.as_str())?;
-    let parameters = def.get("inputSchema")?;
+    let name = match def.get("name").and_then(|value| value.as_str()) {
+        Some(name) => name,
+        None => {
+            warn_invalid_mentle_tool_definition(def, "name");
+            return None;
+        }
+    };
+    let description = match def.get("description").and_then(|value| value.as_str()) {
+        Some(description) => description,
+        None => {
+            warn_invalid_mentle_tool_definition(def, "description");
+            return None;
+        }
+    };
+    let parameters = match def.get("inputSchema") {
+        Some(parameters) => parameters,
+        None => {
+            warn_invalid_mentle_tool_definition(def, "inputSchema");
+            return None;
+        }
+    };
     if !parameters.is_object() {
+        warn_invalid_mentle_tool_definition(def, "inputSchema");
         return None;
     }
 
@@ -271,6 +473,18 @@ fn mentle_tool_metadata_from_definition(
         description.to_string(),
         parameters.clone(),
     ))
+}
+
+#[cfg(feature = "mentle")]
+fn warn_invalid_mentle_tool_definition(def: &serde_json::Value, field: &str) {
+    warn!(
+        phase = MentleErrorPhase::ToolDefinition.as_str(),
+        category = MentleErrorCategory::InvalidDefinition.as_str(),
+        fallback_action = MentleFallbackAction::SkipTool.as_str(),
+        field,
+        definition = %def,
+        "Skipping invalid Mentle tool definition"
+    );
 }
 
 #[cfg(feature = "mentle")]
@@ -297,8 +511,6 @@ fn mentle_tools_from_definitions(
     for def in tool_defs {
         if let Some(tool) = mentle_tool_from_definition(&def, toolkit.clone()) {
             tools.push(tool);
-        } else {
-            warn!("Skipping invalid Mentle tool definition: {def}");
         }
     }
 
@@ -310,7 +522,19 @@ async fn try_build_mentle_runtime(workspace: &std::path::Path) -> Option<MentleR
     let db_path = workspace.join("memory").join("palace.db");
     if let Some(parent) = db_path.parent() {
         if let Err(err) = std::fs::create_dir_all(parent) {
-            warn!("Mentle disabled: failed to create memory dir: {err}");
+            let mapped = map_mentle_transport_error(
+                MentleErrorPhase::StartupOpen,
+                MentleFallbackAction::DisableMentle,
+                err,
+            );
+            warn!(
+                phase = mapped.phase.as_str(),
+                category = mapped.category.as_str(),
+                fallback_action = mapped.fallback_action.as_str(),
+                db_path = %db_path.display(),
+                error = %mapped.message,
+                "Mentle disabled: failed to create memory dir"
+            );
             return None;
         }
     }
@@ -318,7 +542,19 @@ async fn try_build_mentle_runtime(workspace: &std::path::Path) -> Option<MentleR
     let toolkit = match memtle::toolkit::MemtleToolkit::open(&db_path).await {
         Ok(toolkit) => toolkit,
         Err(err) => {
-            warn!("Mentle disabled: failed to open palace database: {err}");
+            let mapped = map_mentle_transport_error(
+                MentleErrorPhase::StartupOpen,
+                MentleFallbackAction::DisableMentle,
+                err,
+            );
+            warn!(
+                phase = mapped.phase.as_str(),
+                category = mapped.category.as_str(),
+                fallback_action = mapped.fallback_action.as_str(),
+                db_path = %db_path.display(),
+                error = %mapped.message,
+                "Mentle disabled: failed to open palace database"
+            );
             return None;
         }
     };
@@ -514,8 +750,13 @@ impl AgentLoop {
             };
 
             if let Some(runtime) = &mentle_runtime {
-                mentle_active = true;
                 custom_tools = runtime.tools.clone();
+                mentle_active = custom_tools
+                    .iter()
+                    .any(|tool| tool.name() == "memtle_status");
+                if tool_config.builtin.mentle && !mentle_active {
+                    warn!("Mentle prompt disabled: runtime tools do not contain memtle_status");
+                }
                 if active_memory_provider.is_none() {
                     active_memory_provider = Some(runtime.memory_provider.clone());
                 }
@@ -1159,6 +1400,50 @@ mod tests {
         assert!(registry.has("cron"));
     }
 
+    #[tokio::test]
+    async fn test_register_default_tools_preserves_custom_tools_with_cron() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace.clone(),
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+        let mut config = ToolConfig::default();
+        config.builtin = BuiltInToolsConfig {
+            cron: true,
+            ..BuiltInToolsConfig::none()
+        };
+        config.cron_service = Some(Arc::new(CronService::new(
+            workspace.join("cron.json"),
+            None,
+        )));
+
+        agent.custom_tools = vec![Arc::new(NamedTool {
+            name: "memtle_status",
+        })];
+        agent.register_default_tools(config);
+
+        assert!(agent.tools.has("memtle_status"));
+        assert!(agent.tools.has("cron"));
+    }
+
     #[cfg(feature = "mentle")]
     #[tokio::test]
     async fn test_tool_definitions_are_dynamic() {
@@ -1316,6 +1601,92 @@ mod tests {
 
     #[cfg(feature = "mentle")]
     #[tokio::test]
+    async fn test_mentle_tool_adapter_translates_payload_error() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let tool = MentleToolkitTool {
+            name: "memtle_add_drawer".to_string(),
+            description: "Add drawer".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+            toolkit: Arc::new(tokio::sync::Mutex::new(toolkit)),
+        };
+
+        let error = tool
+            .execute(serde_json::json!({}))
+            .await
+            .expect_err("payload error should become a tool execution error");
+
+        assert!(error.to_string().contains("must be a non-empty string"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_adapter_translates_unknown_tool_payload() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let tool = MentleToolkitTool {
+            name: "memtle_unknown_tool".to_string(),
+            description: "Unknown tool for error mapping".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+            toolkit: Arc::new(tokio::sync::Mutex::new(toolkit)),
+        };
+
+        let error = tool
+            .execute(serde_json::json!({}))
+            .await
+            .expect_err("unknown tool payload should become a tool execution error");
+
+        assert!(error.to_string().contains("Unknown tool"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_registration_skips_invalid_definition_only() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let toolkit = Arc::new(tokio::sync::Mutex::new(toolkit));
+        let definitions = vec![
+            serde_json::json!({
+                "description": "Missing name",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }),
+            serde_json::json!({
+                "name": "memtle_status",
+                "description": "Return palace status",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }),
+        ];
+
+        let tools = mentle_tools_from_definitions(definitions, toolkit);
+
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name(), "memtle_status");
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
     async fn test_mentle_open_failure_falls_back_to_markdown_memory() {
         let bus = MessageBus::new();
         let provider = Arc::new(FailingStreamProvider);
@@ -1359,6 +1730,57 @@ mod tests {
         assert!(!prompt.contains("L2 Palace Memory"));
         assert!(!prompt.contains("memtle_search"));
         assert!(prompt.contains("Markdown fallback continuity."));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_runtime_without_status_disables_prompt_routing() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        let toolkit = memtle::toolkit::MemtleToolkit::open(workspace.join("palace.db"))
+            .await
+            .unwrap();
+        let runtime = MentleRuntime {
+            toolkit: Arc::new(tokio::sync::Mutex::new(toolkit)),
+            memory_provider: Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)),
+            tools: vec![Arc::new(NamedTool {
+                name: "memtle_search",
+            })],
+        };
+
+        let agent = AgentLoop::with_tools_and_memory_provider_inner(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            config,
+            None,
+            file_manager,
+            None,
+            Some(Some(runtime)),
+        )
+        .await
+        .unwrap();
+
+        let prompt = agent.context.build_system_prompt();
+
+        assert!(!agent.mentle_active());
+        assert!(agent.tools.has("memtle_search"));
+        assert!(!agent.tools.has("memtle_status"));
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
     }
 
     use agent_diva_core::memory::{

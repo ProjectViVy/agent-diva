@@ -306,6 +306,7 @@ impl HybridMemoryProvider {
         }
     }
 
+    #[cfg(test)]
     fn with_cached_snapshot(
         file_manager: Arc<MemoryManager>,
         palace_toolkit: Arc<Mutex<MemtleToolkit>>,
@@ -337,10 +338,15 @@ impl MemoryProvider for HybridMemoryProvider {
         request: &SystemPromptRequest,
     ) -> crate::Result<SystemPromptResponse> {
         let file_response = self.file_manager.system_prompt_block(request)?;
-        let file_markdown = file_response
-            .prompt_block
-            .map(|block| block.markdown)
-            .unwrap_or_default();
+        let file_available = file_response.status == super::provider::StartupStatus::Ready;
+        let file_markdown = if file_available {
+            file_response
+                .prompt_block
+                .map(|block| block.markdown)
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
         let palace_snapshot = self.palace_snapshot.read();
         let palace_available = palace_snapshot.has_usable_snapshot();
         let palace_markdown = palace_snapshot.render_markdown();
@@ -350,7 +356,7 @@ impl MemoryProvider for HybridMemoryProvider {
             .collect::<Vec<_>>()
             .join("\n\n");
 
-        if file_markdown.trim().is_empty() && !palace_available {
+        if !file_available && !palace_available {
             return Ok(SystemPromptResponse::degraded(
                 "startup continuity unavailable; no long-term memory or palace snapshot available",
             ));
@@ -539,7 +545,7 @@ mod tests {
         HybridMemoryProvider, PalaceStatusSnapshot,
     };
     use crate::memory::{
-        MemoryManager, MemoryProvider, PrefetchRequest, PrefetchStatus, SessionEndRequest,
+        Memory, MemoryManager, MemoryProvider, PrefetchRequest, PrefetchStatus, SessionEndRequest,
         SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnStatus, SystemPromptRequest,
     };
 

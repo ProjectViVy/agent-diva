@@ -17,7 +17,7 @@ Current delivery state:
 - Sprint 2 is complete through the S2-A8 review package and Sprint 3 interface baseline.
 - Sprint 2 entry constraints now include the published `memtle 0.1.2` feature and toolchain record.
 - Cargo feature gates, CI package policy checks, and provisional Mentle runtime/provider code already exist in the repository and must be treated as alignment targets for Sprint 3 work.
-- Sprint 3 must consume the interface baseline in [12-s2-a8-sprint2-review-and-s3-interface-baseline.md](./12-s2-a8-sprint2-review-and-s3-interface-baseline.md) and the adapter freeze in [13-s3-a1-memtle-toolkit-tool-interface.md](./13-s3-a1-memtle-toolkit-tool-interface.md).
+- Sprint 3 must consume the interface baseline in [12-s2-a8-sprint2-review-and-s3-interface-baseline.md](./12-s2-a8-sprint2-review-and-s3-interface-baseline.md), the adapter freeze in [13-s3-a1-memtle-toolkit-tool-interface.md](./13-s3-a1-memtle-toolkit-tool-interface.md), the dynamic registration model in [14-s3-a2-dynamic-tool-registration-model.md](./14-s3-a2-dynamic-tool-registration-model.md), and the toolkit error mapping in [15-s3-a3-toolkit-error-mapping.md](./15-s3-a3-toolkit-error-mapping.md).
 
 ## 1.1 Package Source Policy
 
@@ -128,11 +128,37 @@ The freeze records:
 - `ToolError::ExecutionFailed` as the unified toolkit call error shape
 - skipped-and-warned invalid definitions instead of disabling the whole Mentle runtime
 
+### Sprint 3 A2 Dynamic Tool Registration Model
+
+S3-A2 freezes the dynamic `memtle_*` registration model in [14-s3-a2-dynamic-tool-registration-model.md](./14-s3-a2-dynamic-tool-registration-model.md).
+
+The model records:
+
+- `MemtleToolkit::open(path).await` as the runtime activation gate
+- `MemtleToolkit::tool_definitions()` as the only dynamic schema source
+- per-definition mapping of only `name`, `description`, and `inputSchema`
+- `inputSchema` as the Agent-Diva `Tool::parameters()` payload, converted provider-side by existing `Tool::to_schema()`
+- `MemtleToolkit::call_json(name, args).await` as the fixed execution path
+- invalid definitions skipped individually with warnings, without downgrading an otherwise-open Mentle runtime
+- S3-A3's dependency on a reusable `Vec<Arc<dyn Tool>>` custom tool vector for startup, cron rebuild, `with_toolset()`, and active prompt routing work
+
+### Sprint 3 A3 Toolkit Error Mapping
+
+S3-A3 freezes the toolkit call error mapping in [15-s3-a3-toolkit-error-mapping.md](./15-s3-a3-toolkit-error-mapping.md).
+
+The mapping records:
+
+- startup/open failures disable Mentle and keep Markdown memory as fallback
+- invalid definitions are skipped individually with structured warnings
+- `call_json` transport errors and error payloads become `ToolError::ExecutionFailed`
+- internal logs carry phase, category, and fallback action
+- startup prompt routing is active only when dynamic registration exposes `memtle_status`
+
 ### Sprint 3 Entry Criteria
 
 - S2-A8 review package accepted.
 - Verification results are recorded for the default build, Mentle build, provider tests, and agent Mentle tests.
-- Sprint 3 implementation agrees to consume only the S2-A8 baseline unless a separate architecture review changes it.
+- Sprint 3 implementation agrees to consume only the S2-A8 baseline, S3-A1 adapter freeze, S3-A2 dynamic registration model, and S3-A3 toolkit error mapping unless a separate architecture review changes them.
 
 ## 5. Activity Dependencies
 
@@ -187,7 +213,6 @@ Release Docs                                             ##      ######
 
 | Card | Title | Owner |
 |---|---|---|
-| K-10 | Plan dynamic tool registration | A-MEM |
 | K-11 | Plan `MentleRuntime` helper | A-LOOP |
 
 ### In Progress
@@ -224,6 +249,8 @@ Release Docs                                             ##      ######
 | K-24 | Review S2-A8 package and approve Sprint 3 interface baseline | A-ARCH |
 | K-09 | Plan `MentleToolkitTool` adapter | A-MEM |
 | K-27 | Freeze `MemtleToolkitTool` adapter interface for S3-A1 | A-DOC |
+| K-10 | Plan dynamic tool registration | A-MEM |
+| K-28 | Freeze toolkit error mapping for S3-A3 | A-MEM |
 
 ## 8. Acceptance Gates
 
