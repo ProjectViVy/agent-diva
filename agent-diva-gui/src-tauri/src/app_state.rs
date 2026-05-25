@@ -132,6 +132,23 @@ impl AgentState {
         Ok(())
     }
 
+    pub async fn list_mentle_tools(&self) -> Result<serde_json::Value, String> {
+        let url = format!("{}/tools/mentle/available", self.api_base_url());
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
+        }
+        response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))
+    }
+
     pub async fn get_provider_views(&self) -> Result<Vec<ProviderView>, String> {
         let url = format!("{}/providers", self.api_base_url());
         let response = self

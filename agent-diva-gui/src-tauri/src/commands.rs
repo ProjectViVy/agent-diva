@@ -1093,6 +1093,11 @@ pub async fn get_tools_config(state: State<'_, AgentState>) -> Result<serde_json
 }
 
 #[tauri::command]
+pub async fn list_mentle_tools(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+    state.list_mentle_tools().await
+}
+
+#[tauri::command]
 pub async fn get_provider_models(
     provider: String,
     api_base: Option<String>,
@@ -3025,7 +3030,7 @@ async fn minimax_establish_connection(
         .danger_accept_invalid_hostnames(true)
         .build()
         .map_err(|error| format!("failed to build MiniMax TLS connector: {}", error))?;
-    let connector = Connector::NativeTls(tls.into());
+    let connector = Connector::NativeTls(tls);
 
     let (mut socket, _) = timeout(
         Duration::from_secs(10),
@@ -3149,7 +3154,7 @@ async fn minimax_send_json(
     payload: serde_json::Value,
 ) -> Result<(), String> {
     socket
-        .send(WsMessage::Text(payload.to_string().into()))
+        .send(WsMessage::Text(payload.to_string()))
         .await
         .map_err(|error| format!("failed to send MiniMax websocket message: {}", error))
 }

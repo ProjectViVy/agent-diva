@@ -306,6 +306,7 @@ pub fn run() {
             commands::start_background_stream,
             commands::update_config,
             commands::get_tools_config,
+            commands::list_mentle_tools,
             commands::update_tools_config,
             commands::get_skills,
             commands::get_mcps,

@@ -193,8 +193,22 @@ export interface GuiPrefs {
   close_to_tray: boolean;
 }
 
+export interface MentleToolConfigShape {
+  enabled: boolean;
+  mode: 'off' | 'read_only' | 'full' | 'custom';
+  allowed_tools: string[];
+}
+
+export interface MentleToolsListResponse {
+  feature_available: boolean;
+  tools: string[];
+}
+
 export const getGuiPrefs = () =>
   invoke<GuiPrefs>("get_gui_prefs");
 
 export const setGuiPrefs = (prefs: GuiPrefs) =>
   invoke<void>("set_gui_prefs", { prefs });
+
+export const listMentleTools = () =>
+  invoke<MentleToolsListResponse>("list_mentle_tools");
