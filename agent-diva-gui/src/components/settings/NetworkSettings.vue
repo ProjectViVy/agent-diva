@@ -16,6 +16,11 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
+  mentle?: {
+    enabled: boolean;
+    mode: 'off' | 'read_only' | 'full' | 'custom';
+    allowed_tools: string[];
+  };
 }
 
 const { t } = useI18n();

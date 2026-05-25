@@ -3,6 +3,7 @@ import { ref, watch, onMounted, computed } from 'vue';
 import { SlidersHorizontal, MessageSquareText, ServerCog, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap, AlertTriangle } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import GatewayControlPanel from '../GatewayControlPanel.vue';
+import MentleSettingsCard from './MentleSettingsCard.vue';
 import { getConfigStatus, startGateway, wipeLocalData, getGuiPrefs, setGuiPrefs, type ConfigStatusReport } from '../../api/desktop';
 import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES, GUI_PREFS_KEY, defaultGuiPrefs, type GuiPrefs } from '../../utils/localStorageAgentDiva';
 
@@ -14,8 +15,29 @@ interface ChatDisplayPrefs {
   showRawMetaByDefault: boolean;
 }
 
+interface ToolsConfigShape {
+  web: {
+    search: {
+      provider: string;
+      enabled: boolean;
+      api_key: string;
+      max_results: number;
+    };
+    fetch: {
+      enabled: boolean;
+    };
+  };
+  mentle: {
+    enabled: boolean;
+    mode: 'off' | 'read_only' | 'full' | 'custom';
+    allowed_tools: string[];
+  };
+}
+
 const props = defineProps<{
   chatDisplayPrefs: ChatDisplayPrefs;
+  toolsConfig: ToolsConfigShape;
+  saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -195,6 +217,11 @@ async function runFullWipe() {
         </label>
       </div>
     </div>
+
+    <MentleSettingsCard
+      :tools-config="toolsConfig"
+      :save-tools-config-action="saveToolsConfigAction"
+    />
 
     <div class="bg-white border border-gray-100 rounded-xl p-4 space-y-4">
       <div class="flex items-center space-x-2 text-gray-700">
