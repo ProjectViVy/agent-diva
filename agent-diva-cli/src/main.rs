@@ -1,5 +1,6 @@
 //! CLI entry point for agent-diva
 
+use agent_diva_agent::tool_config::mentle::MentleToolRuntimeConfig;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
     runtime_control::RuntimeControlCommand, AgentEvent, AgentLoop, ToolConfig,
@@ -979,6 +980,7 @@ async fn run_tui(
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
+        mentle: MentleToolRuntimeConfig::from_config(&config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
