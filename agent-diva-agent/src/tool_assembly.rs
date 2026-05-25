@@ -111,6 +111,7 @@ impl ToolAssembly {
         self.subagent_spawner = None;
         self.cron_service = None;
         self.file_manager = None;
+        self.custom_tools.clear();
         self.build_internal(true)
     }
 
@@ -198,6 +199,33 @@ impl ToolAssembly {
 mod tests {
     use super::*;
 
+    struct NamedTool {
+        name: &'static str,
+    }
+
+    #[async_trait::async_trait]
+    impl Tool for NamedTool {
+        fn name(&self) -> &str {
+            self.name
+        }
+
+        fn description(&self) -> &str {
+            "test tool"
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            })
+        }
+
+        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
+            Ok("ok".to_string())
+        }
+    }
+
     #[test]
     fn test_tool_assembly_minimal() {
         let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
@@ -251,5 +279,24 @@ mod tests {
         assert!(registry.has("read_file"));
         assert!(!registry.has("spawn"));
         assert!(!registry.has("read_attachment"));
+    }
+
+    #[test]
+    fn test_tool_assembly_subagent_mode_excludes_mentle_custom_tools() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig {
+                filesystem: true,
+                mentle: true,
+                ..BuiltInToolsConfig::all()
+            })
+            .with_tool(Arc::new(NamedTool {
+                name: "memtle_status",
+            }))
+            .build_subagent_registry();
+
+        assert!(registry.has("read_file"));
+        assert!(!registry.has("memtle_status"));
+        assert!(!registry.has("spawn"));
+        assert!(!registry.has("cron"));
     }
 }

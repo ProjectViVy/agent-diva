@@ -408,6 +408,11 @@ When you have completed the task, provide a clear summary of your findings or ac
         let tasks = self.running_tasks.lock().await;
         tasks.len()
     }
+
+    #[cfg(test)]
+    pub(crate) fn builtin_tools_for_test(&self) -> &BuiltInToolsConfig {
+        &self.builtin_tools
+    }
 }
 
 #[cfg(test)]
@@ -437,5 +442,15 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
         assert!(prompt.contains("No persisted soul identity found"));
+    }
+
+    #[test]
+    fn test_build_subagent_prompt_omits_mentle_routing() {
+        let temp = tempfile::tempdir().unwrap();
+        let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
+
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_status"));
+        assert!(!prompt.contains("memtle_search"));
     }
 }

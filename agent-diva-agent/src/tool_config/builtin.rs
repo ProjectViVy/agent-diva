@@ -116,7 +116,11 @@ mod tests {
             mentle: true,
             ..BuiltInToolsConfig::all()
         };
+        let subagent = config.for_subagent();
 
-        assert!(!config.for_subagent().mentle);
+        assert!(!subagent.mentle);
+        assert!(!subagent.spawn);
+        assert!(!subagent.cron);
+        assert!(!subagent.attachment);
     }
 }
