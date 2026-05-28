@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { Globe, LoaderCircle } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { openExternalUrl } from '../../utils/openExternal';
+import type { MentleToolConfigShape } from '../../api/desktop';
 
 interface ToolsConfigShape {
   web: {
@@ -16,11 +17,7 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
-  mentle?: {
-    enabled: boolean;
-    mode: 'off' | 'read_only' | 'full' | 'custom';
-    allowed_tools: string[];
-  };
+  mentle: MentleToolConfigShape;
 }
 
 const { t } = useI18n();

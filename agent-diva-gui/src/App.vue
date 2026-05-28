@@ -8,7 +8,7 @@ import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
-import { getConfigStatus, getRuntimeConfig, type FileAttachmentDto } from "./api/desktop";
+import { getConfigStatus, getRuntimeConfig, type FileAttachmentDto, type MentleToolConfigShape } from "./api/desktop";
 import { getDesktopPetEmotionSignal, type DesktopPetEmotionSignal } from "./utils/desktop-pet-emotion";
 import {
   HISTORY_PREFS_KEY,
@@ -132,6 +132,21 @@ interface ProviderConfigEntry {
   source: 'providers' | 'custom_providers';
 }
 
+interface ToolsConfigShape {
+  web: {
+    search: {
+      provider: string;
+      enabled: boolean;
+      api_key: string;
+      max_results: number;
+    };
+    fetch: {
+      enabled: boolean;
+    };
+  };
+  mentle: MentleToolConfigShape;
+}
+
 const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
 const STARTUP_TASK_TIMEOUT_MS = 2500;
 const SESSION_LOAD_TIMEOUT_MS = 2000;
@@ -167,7 +182,7 @@ const config = ref({
   model: "deepseek-chat"
 });
 
-const toolsConfig = ref({
+const toolsConfig = ref<ToolsConfigShape>({
   web: {
     search: {
       provider: 'bocha',
@@ -181,7 +196,7 @@ const toolsConfig = ref({
   },
   mentle: {
     enabled: false,
-    mode: 'off' as const,
+    mode: 'off',
     allowed_tools: [] as string[],
   },
 });

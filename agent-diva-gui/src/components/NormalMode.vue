@@ -22,7 +22,7 @@ import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
-import type { FileAttachmentDto } from '../api/desktop';
+import type { FileAttachmentDto, MentleToolConfigShape } from '../api/desktop';
 
 const { t } = useI18n();
 
@@ -93,6 +93,7 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
+  mentle: MentleToolConfigShape;
 }
 
 interface Props {

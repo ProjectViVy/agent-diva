@@ -4,7 +4,7 @@ import { SlidersHorizontal, MessageSquareText, ServerCog, ShieldCheck, ShieldAle
 import { useI18n } from 'vue-i18n';
 import GatewayControlPanel from '../GatewayControlPanel.vue';
 import MentleSettingsCard from './MentleSettingsCard.vue';
-import { getConfigStatus, startGateway, wipeLocalData, getGuiPrefs, setGuiPrefs, type ConfigStatusReport } from '../../api/desktop';
+import { getConfigStatus, startGateway, wipeLocalData, getGuiPrefs, setGuiPrefs, type ConfigStatusReport, type MentleToolConfigShape } from '../../api/desktop';
 import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES, GUI_PREFS_KEY, defaultGuiPrefs, type GuiPrefs } from '../../utils/localStorageAgentDiva';
 
 const { t } = useI18n();
@@ -27,11 +27,7 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
-  mentle: {
-    enabled: boolean;
-    mode: 'off' | 'read_only' | 'full' | 'custom';
-    allowed_tools: string[];
-  };
+  mentle: MentleToolConfigShape;
 }
 
 const props = defineProps<{

@@ -74,9 +74,6 @@ const syncEnabledWithMode = () => {
     localConfig.value.mentle.enabled = false;
     return;
   }
-  if (localConfig.value.mentle.enabled && localConfig.value.mentle.mode === 'off') {
-    localConfig.value.mentle.mode = 'read_only';
-  }
 };
 
 watch(

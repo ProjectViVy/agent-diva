@@ -12,6 +12,7 @@ import LanguageSettings from './settings/LanguageSettings.vue';
 import PetSettings from './settings/PetSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
 import { useI18n } from 'vue-i18n';
+import type { MentleToolConfigShape } from '../api/desktop';
 
 const { t } = useI18n();
 
@@ -54,11 +55,7 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
-  mentle: {
-    enabled: boolean;
-    mode: 'off' | 'read_only' | 'full' | 'custom';
-    allowed_tools: string[];
-  };
+  mentle: MentleToolConfigShape;
 }
 
 type SettingsSubview =

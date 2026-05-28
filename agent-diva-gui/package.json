@@ -29,7 +29,7 @@
     "pnpm": "^10.33.2",
     "three": "^0.184.0",
     "vue": "^3.5.13",
-    "vue-i18n": "^9.14.4"
+    "vue-i18n": "^11.4.4"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
