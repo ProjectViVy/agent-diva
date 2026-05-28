@@ -17,8 +17,10 @@ export interface VrmModelInfo {
   id: string
   /** Display name */
   name: string
-  /** Relative path from public/vrm/models/ */
+  /** Builtin URL or custom relative path under ~/.agent-diva/vrm/models/ */
   path: string
+  /** Model source */
+  source: 'builtin' | 'custom'
   /** Optional thumbnail path */
   thumbnail?: string
 }
@@ -37,6 +39,8 @@ export interface VrmMotionInfo {
   id: string
   /** Display name (used for AI semantic motion calling) */
   name: string
+  /** Runtime motion kind */
+  kind?: 'idle' | 'oneshot'
   /** Relative path (e.g. /vrm/animations/greeting.vrma) */
   path: string
   /** Optional thumbnail path */

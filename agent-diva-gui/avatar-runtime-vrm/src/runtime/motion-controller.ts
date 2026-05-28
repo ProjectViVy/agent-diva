@@ -137,12 +137,38 @@ export class MotionController {
   }
 
   setState(patch: MotionStatePatch): AvatarMotionState {
-    if (patch.idleEnabled === undefined || patch.idleEnabled === this.state.idleEnabled) {
+    const nextSelectedIds =
+      patch.selectedIdleMotionIds === undefined
+        ? undefined
+        : this.sanitizeSelectedIdleMotionIds(patch.selectedIdleMotionIds)
+    const selectionChanged =
+      nextSelectedIds !== undefined &&
+      !this.areStringArraysEqual(nextSelectedIds, this.state.selectedIdleMotionIds)
+    const idleChanged =
+      patch.idleEnabled !== undefined && patch.idleEnabled !== this.state.idleEnabled
+
+    if (!idleChanged && !selectionChanged) {
       return this.getState()
     }
 
-    this.updateState({ idleEnabled: patch.idleEnabled })
-    if (patch.idleEnabled) {
+    this.updateState({
+      ...(idleChanged ? { idleEnabled: patch.idleEnabled } : {}),
+      ...(nextSelectedIds !== undefined ? { selectedIdleMotionIds: nextSelectedIds } : {}),
+    })
+
+    if (selectionChanged) {
+      this.idleCursor = -1
+      if (
+        this.currentIdleBinding &&
+        nextSelectedIds !== undefined &&
+        nextSelectedIds.length > 0 &&
+        !nextSelectedIds.includes(this.currentIdleBinding.entry.id)
+      ) {
+        this.stopIdlePlayback()
+      }
+    }
+
+    if (this.state.idleEnabled) {
       this.ensureIdlePlayback()
     } else if (!this.currentOneShotBinding) {
       this.stopIdlePlayback()
@@ -285,20 +311,41 @@ export class MotionController {
   }
 
   private pickNextIdleBinding(): MotionClipBinding | null {
-    if (this.idleMotionIds.length === 0) {
+    const candidates = this.effectiveIdleMotionIds()
+    if (candidates.length === 0) {
       return null
     }
 
-    if (this.idleMotionIds.length === 1) {
-      return this.bindings.get(this.idleMotionIds[0]) ?? null
+    if (candidates.length === 1) {
+      return this.bindings.get(candidates[0]) ?? null
     }
 
     let nextIndex = this.idleCursor
     while (nextIndex === this.idleCursor) {
-      nextIndex = Math.floor(Math.random() * this.idleMotionIds.length)
+      nextIndex = Math.floor(Math.random() * candidates.length)
     }
     this.idleCursor = nextIndex
-    return this.bindings.get(this.idleMotionIds[nextIndex]) ?? null
+    return this.bindings.get(candidates[nextIndex]) ?? null
+  }
+
+  private effectiveIdleMotionIds(): string[] {
+    const selected = this.state.selectedIdleMotionIds.filter((id) => this.idleMotionIds.includes(id))
+    return selected.length > 0 ? selected : this.idleMotionIds
+  }
+
+  private sanitizeSelectedIdleMotionIds(ids: string[]): string[] {
+    const seen = new Set<string>()
+    return ids.filter((id) => {
+      if (!this.idleMotionIds.includes(id) || seen.has(id)) {
+        return false
+      }
+      seen.add(id)
+      return true
+    })
+  }
+
+  private areStringArraysEqual(left: string[], right: string[]): boolean {
+    return left.length === right.length && left.every((value, index) => value === right[index])
   }
 
   private onMixerFinished(action: AnimationAction | null): void {
@@ -357,6 +404,7 @@ export class MotionController {
       next.activeMotionId !== this.state.activeMotionId ||
       next.activeMotionKind !== this.state.activeMotionKind ||
       next.idleEnabled !== this.state.idleEnabled ||
+      !this.areStringArraysEqual(next.selectedIdleMotionIds, this.state.selectedIdleMotionIds) ||
       next.idlePlaying !== this.state.idlePlaying ||
       next.oneShotPlaying !== this.state.oneShotPlaying ||
       next.runtimePlaying !== this.state.runtimePlaying

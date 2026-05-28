@@ -10,6 +10,10 @@ interface Props {
   active?: boolean
   lipSyncEnabled?: boolean
   transparentBackground?: boolean
+  idleMotionEnabled?: boolean
+  selectedMotionIds?: string[]
+  previewMotionId?: string | null
+  stopPreviewToken?: number
 }
 
 const props = defineProps<Props>()
@@ -26,6 +30,10 @@ const payload = computed(() => ({
   active: props.active !== false,
   lipSyncEnabled: !!props.lipSyncEnabled,
   transparentBackground: !!props.transparentBackground,
+  idleMotionEnabled: !!props.idleMotionEnabled,
+  selectedMotionIds: props.selectedMotionIds ?? [],
+  previewMotionId: props.previewMotionId ?? null,
+  stopPreviewToken: props.stopPreviewToken ?? 0,
 }))
 
 function postState(): void {

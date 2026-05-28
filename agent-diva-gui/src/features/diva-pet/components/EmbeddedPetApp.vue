@@ -14,6 +14,10 @@ type EmbeddedPetMessage =
         active?: boolean
         lipSyncEnabled?: boolean
         transparentBackground?: boolean
+        idleMotionEnabled?: boolean
+        selectedMotionIds?: string[]
+        previewMotionId?: string | null
+        stopPreviewToken?: number
       }
     }
 
@@ -26,6 +30,10 @@ const state = reactive({
   active: true,
   lipSyncEnabled: false,
   transparentBackground: false,
+  idleMotionEnabled: false,
+  selectedMotionIds: [] as string[],
+  previewMotionId: null as string | null,
+  stopPreviewToken: 0,
 })
 
 function applyState(payload: EmbeddedPetMessage['payload']): void {
@@ -37,6 +45,10 @@ function applyState(payload: EmbeddedPetMessage['payload']): void {
   state.active = payload.active !== false
   state.lipSyncEnabled = !!payload.lipSyncEnabled
   state.transparentBackground = !!payload.transparentBackground
+  state.idleMotionEnabled = !!payload.idleMotionEnabled
+  state.selectedMotionIds = Array.isArray(payload.selectedMotionIds) ? payload.selectedMotionIds : []
+  state.previewMotionId = payload.previewMotionId ?? null
+  state.stopPreviewToken = payload.stopPreviewToken ?? 0
 }
 
 function onMessage(event: MessageEvent<EmbeddedPetMessage>): void {
@@ -67,6 +79,10 @@ onUnmounted(() => {
       :active="state.active"
       :lip-sync-enabled="state.lipSyncEnabled"
       :transparent-background="state.transparentBackground"
+      :idle-motion-enabled="state.idleMotionEnabled"
+      :selected-motion-ids="state.selectedMotionIds"
+      :preview-motion-id="state.previewMotionId"
+      :stop-preview-token="state.stopPreviewToken"
     />
   </div>
 </template>

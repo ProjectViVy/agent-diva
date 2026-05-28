@@ -40,6 +40,7 @@ export interface AvatarMotionState {
   activeMotionId: string | null
   activeMotionKind: AvatarMotionKind | null
   idleEnabled: boolean
+  selectedIdleMotionIds: string[]
   idlePlaying: boolean
   oneShotPlaying: boolean
   runtimePlaying: boolean
@@ -47,6 +48,7 @@ export interface AvatarMotionState {
 
 export interface AvatarMotionStatePatch {
   idleEnabled?: boolean
+  selectedIdleMotionIds?: string[]
 }
 
 export interface AvatarMotionEventPayload {

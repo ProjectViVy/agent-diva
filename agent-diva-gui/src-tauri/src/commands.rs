@@ -2591,36 +2591,187 @@ pub struct GuiPrefs {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VrmModelInfo {
     pub id: String,
     pub name: String,
     pub path: String,
+    pub source: String,
     pub thumbnail: Option<String>,
 }
 
-/// Scans the resource `vrm/models/` directory for `.vrm` files and returns
-/// a list of available VRM model descriptors. Returns an empty vec when the
-/// directory does not exist (e.g. on first launch before models are placed).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetImportVrmModelPayload {
+    pub base64_data: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetVrmModelFileData {
+    pub base64_data: String,
+    pub content_type: String,
+    pub file_name: String,
+}
+
+const PET_VRM_DIR_NAME: &str = "vrm";
+const PET_VRM_MODELS_DIR_NAME: &str = "models";
+const PET_VRM_CUSTOM_DIR_NAME: &str = "custom";
+const DEFAULT_PET_VRM_MODEL_PATH: &str = "/vrm/models/Alice.vrm";
+
+/// Scans bundled VRM models and custom models under ~/.agent-diva/vrm/models/custom.
 #[tauri::command]
 pub async fn pet_list_vrm_models(app_handle: AppHandle) -> Result<Vec<VrmModelInfo>, String> {
+    let mut models: Vec<VrmModelInfo> = Vec::new();
+    append_builtin_vrm_models(&app_handle, &mut models);
+
+    let loader = config_loader();
+    append_custom_vrm_models(loader.config_dir(), &mut models)?;
+
+    if !models
+        .iter()
+        .any(|model| model.path == DEFAULT_PET_VRM_MODEL_PATH)
+    {
+        models.push(VrmModelInfo {
+            id: "Alice".to_string(),
+            name: "Alice".to_string(),
+            path: DEFAULT_PET_VRM_MODEL_PATH.to_string(),
+            source: "builtin".to_string(),
+            thumbnail: None,
+        });
+    }
+
+    models.sort_by(|a, b| a.source.cmp(&b.source).then_with(|| a.name.cmp(&b.name)));
+    models.dedup_by(|a, b| a.path == b.path);
+    Ok(models)
+}
+
+#[tauri::command]
+pub fn pet_import_vrm_model(payload: PetImportVrmModelPayload) -> Result<VrmModelInfo, String> {
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    let custom_dir = pet_vrm_custom_models_dir(loader.config_dir());
+    let sanitized_name = sanitize_pet_vrm_file_name(&payload.file_name)?;
+    let target_path = custom_dir.join(&sanitized_name);
+
+    std::fs::create_dir_all(&custom_dir).map_err(|error| {
+        format!(
+            "failed to create VRM import directory {}: {}",
+            custom_dir.display(),
+            error
+        )
+    })?;
+
+    let decoded = BASE64_STANDARD
+        .decode(payload.base64_data.as_bytes())
+        .map_err(|error| format!("failed to decode imported VRM file: {}", error))?;
+    std::fs::write(&target_path, decoded).map_err(|error| {
+        format!(
+            "failed to write imported VRM file {}: {}",
+            target_path.display(),
+            error
+        )
+    })?;
+
+    let relative_path = make_pet_vrm_relative_path(loader.config_dir(), &target_path)?;
+    config.pet.vrm_model = relative_path.clone();
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))?;
+
+    let id = target_path
+        .file_stem()
+        .and_then(OsStr::to_str)
+        .unwrap_or("custom")
+        .to_string();
+    Ok(VrmModelInfo {
+        id: id.clone(),
+        name: id,
+        path: relative_path,
+        source: "custom".to_string(),
+        thumbnail: None,
+    })
+}
+
+#[tauri::command]
+pub fn pet_delete_vrm_model(relative_path: String) -> Result<(), String> {
+    let normalized = normalize_pet_vrm_relative_path(&relative_path)?;
+    if !normalized.starts_with("vrm/models/custom/") {
+        return Err("only custom VRM models can be deleted".to_string());
+    }
+
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    let target_path = resolve_pet_vrm_model_file(loader.config_dir(), &normalized)?;
+    std::fs::remove_file(&target_path).map_err(|error| {
+        format!(
+            "failed to delete VRM model {}: {}",
+            target_path.display(),
+            error
+        )
+    })?;
+
+    if config.pet.vrm_model == normalized {
+        config.pet.vrm_model = DEFAULT_PET_VRM_MODEL_PATH.to_string();
+        loader
+            .save(&config)
+            .map_err(|e| format!("failed to save config: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn pet_read_vrm_model(relative_path: String) -> Result<PetVrmModelFileData, String> {
+    let loader = config_loader();
+    let normalized = normalize_pet_vrm_relative_path(&relative_path)?;
+    if !normalized.starts_with("vrm/models/custom/") {
+        return Err("only custom VRM models can be read from the config directory".to_string());
+    }
+
+    let file_path = resolve_pet_vrm_model_file(loader.config_dir(), &normalized)?;
+    let bytes = std::fs::read(&file_path).map_err(|error| {
+        format!(
+            "failed to read VRM model {}: {}",
+            file_path.display(),
+            error
+        )
+    })?;
+    let file_name = file_path
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or("model.vrm")
+        .to_string();
+
+    Ok(PetVrmModelFileData {
+        base64_data: BASE64_STANDARD.encode(bytes),
+        content_type: "model/gltf-binary".to_string(),
+        file_name,
+    })
+}
+
+fn append_builtin_vrm_models(app_handle: &AppHandle, models: &mut Vec<VrmModelInfo>) {
     let models_dir = match app_handle
         .path()
         .resolve("vrm/models", BaseDirectory::Resource)
     {
         Ok(dir) => dir,
-        Err(_) => return Ok(Vec::new()),
+        Err(_) => return,
     };
 
     if !models_dir.exists() {
-        return Ok(Vec::new());
+        return;
     }
 
     let entries = match std::fs::read_dir(&models_dir) {
         Ok(entries) => entries,
-        Err(_) => return Ok(Vec::new()),
+        Err(_) => return,
     };
-
-    let mut models: Vec<VrmModelInfo> = Vec::new();
 
     for entry in entries {
         let entry = match entry {
@@ -2642,13 +2793,11 @@ pub async fn pet_list_vrm_models(app_handle: AppHandle) -> Result<Vec<VrmModelIn
         models.push(VrmModelInfo {
             id: stem.to_string(),
             name: stem.to_string(),
-            path: file_name,
+            path: format!("/vrm/models/{file_name}"),
+            source: "builtin".to_string(),
             thumbnail: None,
         });
     }
-
-    models.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(models)
 }
 
 const PET_VOICE_DIR_NAME: &str = "voice_resource";
@@ -3503,6 +3652,117 @@ fn scan_pet_voice_files(config_dir: &Path) -> Result<Vec<PetVoiceOption>, String
     Ok(options)
 }
 
+fn pet_vrm_custom_models_dir(config_dir: &Path) -> PathBuf {
+    config_dir
+        .join(PET_VRM_DIR_NAME)
+        .join(PET_VRM_MODELS_DIR_NAME)
+        .join(PET_VRM_CUSTOM_DIR_NAME)
+}
+
+fn append_custom_vrm_models(
+    config_dir: &Path,
+    models: &mut Vec<VrmModelInfo>,
+) -> Result<(), String> {
+    let custom_dir = pet_vrm_custom_models_dir(config_dir);
+    if !custom_dir.exists() {
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(&custom_dir).map_err(|error| {
+        format!(
+            "failed to scan custom VRM directory {}: {}",
+            custom_dir.display(),
+            error
+        )
+    })? {
+        let entry = entry.map_err(|error| {
+            format!(
+                "failed to read custom VRM directory entry in {}: {}",
+                custom_dir.display(),
+                error
+            )
+        })?;
+        let path = entry.path();
+        if path.extension().and_then(OsStr::to_str) != Some("vrm") {
+            continue;
+        }
+        let stem = path.file_stem().and_then(OsStr::to_str).unwrap_or("custom");
+        models.push(VrmModelInfo {
+            id: stem.to_string(),
+            name: stem.to_string(),
+            path: make_pet_vrm_relative_path(config_dir, &path)?,
+            source: "custom".to_string(),
+            thumbnail: None,
+        });
+    }
+    Ok(())
+}
+
+fn normalize_pet_vrm_relative_path(relative_path: &str) -> Result<String, String> {
+    let normalized = relative_path.trim().replace('\\', "/");
+    if normalized.is_empty()
+        || normalized.starts_with('/')
+        || normalized.contains('\0')
+        || normalized
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        || !normalized.starts_with("vrm/models/")
+        || !normalized.to_lowercase().ends_with(".vrm")
+    {
+        return Err("VRM model path must stay under vrm/models and end with .vrm".to_string());
+    }
+    Ok(normalized)
+}
+
+fn make_pet_vrm_relative_path(config_dir: &Path, absolute_path: &Path) -> Result<String, String> {
+    let relative_path = absolute_path.strip_prefix(config_dir).map_err(|error| {
+        format!(
+            "failed to create relative path from {} to {}: {}",
+            config_dir.display(),
+            absolute_path.display(),
+            error
+        )
+    })?;
+    normalize_pet_vrm_relative_path(&relative_path.to_string_lossy())
+}
+
+fn resolve_pet_vrm_model_file(config_dir: &Path, relative_path: &str) -> Result<PathBuf, String> {
+    let normalized = normalize_pet_vrm_relative_path(relative_path)?;
+    let vrm_root = config_dir.join(PET_VRM_DIR_NAME);
+    let candidate = config_dir.join(&normalized);
+    let canonical_candidate = candidate
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve VRM model path: {}", error))?;
+    let canonical_vrm_root = vrm_root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve VRM resource directory: {}", error))?;
+
+    if !canonical_candidate.starts_with(canonical_vrm_root) {
+        return Err("VRM model file must be within vrm".to_string());
+    }
+    Ok(canonical_candidate)
+}
+
+fn sanitize_pet_vrm_file_name(file_name: &str) -> Result<String, String> {
+    let trimmed = file_name.trim();
+    let base_name = if trimmed.is_empty() {
+        "custom-model.vrm"
+    } else {
+        trimmed
+    };
+    let sanitized: String = base_name
+        .chars()
+        .map(|c| match c {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '-',
+            _ => c,
+        })
+        .collect();
+    if !sanitized.to_lowercase().ends_with(".vrm") {
+        return Err("only .vrm model files can be imported".to_string());
+    }
+    Ok(sanitized)
+}
+
 fn resolve_pet_voice_file(config_dir: &Path, relative_path: &str) -> Result<PathBuf, String> {
     let normalized_relative_path = normalize_pet_voice_relative_path(relative_path)?;
     let voice_root = config_dir.join(PET_VOICE_DIR_NAME);
@@ -3595,6 +3855,56 @@ fn derive_pet_voice_label(file_name: &str) -> String {
         .replace(['_', '-'], " ")
         .trim()
         .to_string()
+}
+
+#[cfg(test)]
+mod pet_vrm_model_tests {
+    use super::{
+        append_custom_vrm_models, make_pet_vrm_relative_path, normalize_pet_vrm_relative_path,
+        sanitize_pet_vrm_file_name,
+    };
+
+    #[test]
+    fn normalizes_custom_vrm_relative_path() {
+        let path = normalize_pet_vrm_relative_path("vrm\\models\\custom\\Alice.vrm").unwrap();
+        assert_eq!(path, "vrm/models/custom/Alice.vrm");
+    }
+
+    #[test]
+    fn rejects_invalid_vrm_relative_paths() {
+        assert!(normalize_pet_vrm_relative_path("vrm/models/custom/../secret.vrm").is_err());
+        assert!(normalize_pet_vrm_relative_path("/vrm/models/custom/model.vrm").is_err());
+        assert!(normalize_pet_vrm_relative_path("vrm/models/custom/model.txt").is_err());
+    }
+
+    #[test]
+    fn sanitizes_imported_vrm_file_names() {
+        assert_eq!(
+            sanitize_pet_vrm_file_name("bad:name?.vrm").unwrap(),
+            "bad-name-.vrm"
+        );
+        assert!(sanitize_pet_vrm_file_name("bad.glb").is_err());
+    }
+
+    #[test]
+    fn scans_custom_vrm_models_under_config_dir() {
+        let temp = tempfile::tempdir().unwrap();
+        let model_dir = temp.path().join("vrm").join("models").join("custom");
+        std::fs::create_dir_all(&model_dir).unwrap();
+        let model_path = model_dir.join("Custom.vrm");
+        std::fs::write(&model_path, b"vrm").unwrap();
+        std::fs::write(model_dir.join("ignored.txt"), b"no").unwrap();
+
+        let relative = make_pet_vrm_relative_path(temp.path(), &model_path).unwrap();
+        assert_eq!(relative, "vrm/models/custom/Custom.vrm");
+
+        let mut models = Vec::new();
+        append_custom_vrm_models(temp.path(), &mut models).unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "Custom");
+        assert_eq!(models[0].source, "custom");
+        assert_eq!(models[0].path, "vrm/models/custom/Custom.vrm");
+    }
 }
 
 fn decode_hex_audio(value: &str) -> Result<Vec<u8>, String> {

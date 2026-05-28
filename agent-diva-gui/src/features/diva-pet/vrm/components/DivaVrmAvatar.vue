@@ -14,6 +14,10 @@ const p = defineProps<{
   desktopPet?: boolean
   transparentBackground?: boolean
   active?: boolean
+  idleMotionEnabled?: boolean
+  selectedMotionIds?: string[]
+  previewMotionId?: string | null
+  stopPreviewToken?: number
 }>()
 
 const emit = defineEmits<{
@@ -94,6 +98,7 @@ async function loadModel(): Promise<void> {
     })
     if (seq !== loadSeq) return
     await syncDesktopPetCamera()
+    await syncMotionState()
     emit('loadSuccess')
   } catch (err: any) {
     if (seq !== loadSeq) return
@@ -146,6 +151,17 @@ watch(() => p.active, (a) => {
     runtime.pause()
   }
 })
+watch(() => [p.idleMotionEnabled, p.selectedMotionIds] as const, () => {
+  void syncMotionState()
+}, { deep: true })
+watch(() => p.previewMotionId, (id) => {
+  if (!runtime || !id) return
+  void (runtime as any).playMotion(id)
+})
+watch(() => p.stopPreviewToken, () => {
+  if (!runtime) return
+  ;(runtime as any).stopMotion()
+})
 
 function setScale(v: number) {
   zoom = Math.max(0.75, Math.min(1.6, v))
@@ -170,6 +186,14 @@ async function syncDesktopPetCamera(): Promise<void> {
   }
 
   await (runtime as any).setTransform({ scale: zoom })
+}
+
+async function syncMotionState(): Promise<void> {
+  if (!runtime) return
+  await (runtime as any).setMotionState({
+    idleEnabled: !!p.idleMotionEnabled,
+    selectedIdleMotionIds: p.selectedMotionIds ?? [],
+  })
 }
 </script>
 

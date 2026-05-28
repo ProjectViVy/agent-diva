@@ -37,7 +37,32 @@ const voiceConfig = computed<TTSVoiceConfig>(() => ({
   volume: petConfig.value.ttsVolume,
 }))
 
-const vrmModelPath = computed(() => resolveVrmModelPath(petConfig.value.vrmModel))
+const vrmModelPath = ref(resolveVrmModelPath(petConfig.value.vrmModel))
+let resolveModelRequestId = 0
+
+async function refreshVrmModelPath(model: string) {
+  const requestId = ++resolveModelRequestId
+  const resolved = resolveVrmModelPath(model)
+  if (!resolved.startsWith('vrm/models/custom/')) {
+    vrmModelPath.value = resolved
+    return
+  }
+
+  try {
+    const data = await invoke<{
+      base64Data: string
+      contentType: string
+    }>('pet_read_vrm_model', { relativePath: resolved })
+    if (requestId === resolveModelRequestId) {
+      vrmModelPath.value = `data:${data.contentType};base64,${data.base64Data}`
+    }
+  } catch (error) {
+    console.warn('[DesktopPetOverlay] Failed to read custom VRM model:', error)
+    if (requestId === resolveModelRequestId) {
+      vrmModelPath.value = '/vrm/models/Alice.vrm'
+    }
+  }
+}
 
 // ── 3D Gaussian Splatting: 背景场景 ────────────────────────────
 // Desktop-pet window should always stay transparent. Embedded main-page view
@@ -282,7 +307,13 @@ const effectiveMood = computed<VrmMood>(() =>
 )
 
 function selectAppearance(id: string) {
+  const appearance = vrmAppearances.value.find((item) => item.id === id)
+  if (!appearance) return
   petConfig.value.activeAppearanceId = id
+  petConfig.value.vrmModel = appearance.modelId
+  petConfig.value.selectedMotionIds = [...appearance.motionIds]
+  petConfig.value.vrmMotionEnabled = appearance.motionEnabled
+  petConfig.value.vrmExpressionEnabled = appearance.expressionEnabled
   activeSubmenu.value = null
   contextMenu.value = null
 }
@@ -368,6 +399,14 @@ watch(isVrmExpressionEnabled, (enabled) => {
   }
   activeMood.value = 'neutral'
 })
+
+watch(
+  () => petConfig.value.vrmModel,
+  (model) => {
+    void refreshVrmModelPath(model)
+  },
+  { immediate: true },
+)
 
 /**
  * TTS auto-play for desktop pet subtitles.
@@ -481,6 +520,8 @@ onUnmounted(() => {
       :active="isRenderActive"
       :background-scene="backgroundSceneId"
       :background-scene-url="backgroundSceneUrl"
+      :idle-motion-enabled="petConfig.vrmMotionEnabled"
+      :selected-motion-ids="petConfig.selectedMotionIds"
     />
 
     <!-- Subtitle overlay -->

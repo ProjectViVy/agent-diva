@@ -22,7 +22,49 @@ ttsService.setVoiceFileReader(tauriVoiceFileReader)
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 
-const vrmModelPath = computed(() => resolveVrmModelPath(petConfig.value.vrmModel))
+const vrmModelPath = ref(resolveVrmModelPath(petConfig.value.vrmModel))
+let resolveModelRequestId = 0
+let invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null
+
+async function getInvoke() {
+  const isTauri =
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  if (!invoke && isTauri) {
+    const mod = await import('@tauri-apps/api/core')
+    invoke = mod.invoke
+  }
+  return invoke
+}
+
+async function refreshVrmModelPath(model: string) {
+  const requestId = ++resolveModelRequestId
+  const resolved = resolveVrmModelPath(model)
+  if (!resolved.startsWith('vrm/models/custom/')) {
+    vrmModelPath.value = resolved
+    return
+  }
+
+  const inv = await getInvoke()
+  if (!inv) {
+    vrmModelPath.value = resolved
+    return
+  }
+  try {
+    const data = await inv('pet_read_vrm_model', { relativePath: resolved }) as {
+      base64Data: string
+      contentType: string
+    }
+    if (requestId === resolveModelRequestId) {
+      vrmModelPath.value = `data:${data.contentType};base64,${data.base64Data}`
+    }
+  } catch (error) {
+    console.warn('[DivaPetView] Failed to read custom VRM model:', error)
+    if (requestId === resolveModelRequestId) {
+      vrmModelPath.value = '/vrm/models/Alice.vrm'
+    }
+  }
+}
 
 interface Props {
   messages?: PetMessage[]
@@ -161,9 +203,20 @@ function onNewTopic() {
 }
 
 const showModelManager = ref(false)
+const previewMotionId = ref<string | null>(null)
+const stopPreviewToken = ref(0)
 
 function onModelChanged(modelId: string) {
   updateConfig({ vrmModel: modelId })
+}
+
+function onPreviewMotion(id: string) {
+  previewMotionId.value = id
+}
+
+function onStopPreview() {
+  previewMotionId.value = null
+  stopPreviewToken.value += 1
 }
 
 const showScenePicker = ref(false)
@@ -227,6 +280,13 @@ function scrollToBottom() {
 
 watch(() => props.messages.length, scrollToBottom)
 watch(() => props.messages, scrollToBottom, { deep: true })
+watch(
+  () => petConfig.value.vrmModel,
+  (model) => {
+    void refreshVrmModelPath(model)
+  },
+  { immediate: true },
+)
 
 const moodLabels: Record<VrmMood, string> = {
   neutral: '',
@@ -244,7 +304,7 @@ const moodLabels: Record<VrmMood, string> = {
     <div class="avatar-section relative h-full min-h-0">
       <button
         class="pet-edge-button absolute top-4 left-4 z-20"
-        title="Open Menu"
+        title="打开菜单"
         @click="emit('toggle-sidebar')"
       >
         <Menu :size="16" />
@@ -257,6 +317,10 @@ const moodLabels: Record<VrmMood, string> = {
         :is-speaking="isSpeaking"
         :active="!desktopPetActive"
         :lip-sync-enabled="petConfig.vrmExpressionEnabled"
+        :idle-motion-enabled="petConfig.vrmMotionEnabled"
+        :selected-motion-ids="petConfig.selectedMotionIds"
+        :preview-motion-id="previewMotionId"
+        :stop-preview-token="stopPreviewToken"
         :background-scene="runtimeBackgroundScene"
         :background-scene-url="backgroundSceneUrl"
         :transparent-background="isTransparentScene"
@@ -280,7 +344,7 @@ const moodLabels: Record<VrmMood, string> = {
 
       <button
         class="pet-edge-button absolute top-4 right-16 z-20"
-        title="Manage VRM Models"
+        title="外观设置"
         @click="showModelManager = !showModelManager"
       >
         <Settings :size="14" />
@@ -414,6 +478,8 @@ const moodLabels: Record<VrmMood, string> = {
       :visible="showModelManager"
       @close="showModelManager = false"
       @model-changed="onModelChanged"
+      @preview-motion="onPreviewMotion"
+      @stop-preview="onStopPreview"
     />
   </div>
 </template>

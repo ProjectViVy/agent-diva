@@ -10,6 +10,7 @@ export const DEFAULT_MOTION_STATE: AvatarMotionState = {
   activeMotionId: null,
   activeMotionKind: null,
   idleEnabled: true,
+  selectedIdleMotionIds: [],
   idlePlaying: false,
   oneShotPlaying: false,
   runtimePlaying: false,

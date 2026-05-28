@@ -1,5 +1,6 @@
 const DEFAULT_VRM_MODEL_FILE = 'Alice.vrm'
 const VRM_MODELS_BASE_PATH = '/vrm/models/'
+const CUSTOM_VRM_MODELS_PREFIX = 'vrm/models/custom/'
 
 function normalizeModelValue(model: string | null | undefined): string {
   return (model ?? '').trim().replace(/\\/g, '/')
@@ -12,6 +13,10 @@ export function resolveVrmModelPath(model: string | null | undefined): string {
   }
 
   if (normalized.startsWith(VRM_MODELS_BASE_PATH)) {
+    return normalized
+  }
+
+  if (normalized.startsWith(CUSTOM_VRM_MODELS_PREFIX)) {
     return normalized
   }
 
@@ -31,4 +36,9 @@ export function toVrmModelId(model: string | null | undefined): string {
 
   const fileName = normalized.split('/').pop() ?? normalized
   return fileName.replace(/\.vrm$/i, '')
+}
+
+export function isCustomVrmModelPath(model: string | null | undefined): boolean {
+  const normalized = normalizeModelValue(model)
+  return normalized.startsWith(CUSTOM_VRM_MODELS_PREFIX)
 }
