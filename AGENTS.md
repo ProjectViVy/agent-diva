@@ -205,11 +205,11 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Execution Method: Include "update command index" in change list and acceptance items.
   - Maintainer: Current assistant.
 
-- **no-self-commit-without-request**:
-  - Constraints/Range of applicability: Do not commit or push code without user's explicit request.
-  - Example: Commit only after the user explicitly says "help me commit."
-  - Counterexample: Commit code without authorization.
-  - Execution Method: Confirm explicit user instruction before committing.
+- **auto-commit-each-completed-update**:
+  - Constraints/Range of applicability: After each completed update, automatically create one git commit for the files changed by that update. Do not push unless the user explicitly requests it.
+  - Example: After updating project rules in `AGENTS.md`, stage and commit only `AGENTS.md`.
+  - Counterexample: Finish an update without committing it, include unrelated pre-existing workspace changes in the commit, or push without authorization.
+  - Execution Method: Before committing, inspect `git status --short`; stage explicit paths for the current update only; verify the staged diff; commit with a concise Conventional Commit message.
   - Maintainer: Current assistant.
 
 - **use-chinese-when-communicating**:
