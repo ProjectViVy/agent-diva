@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Check, Circle, PackageOpen, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
+import { Check, Circle, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import type { VrmAppearanceConfig, VrmModelInfo, VrmMotionInfo } from '../types'
+import {
+  DEFAULT_APPEARANCE_ID,
+  isDefaultAppearanceId,
+  withDefaultAppearance,
+} from '../utils/default-appearance'
 
 interface Props {
   visible: boolean
@@ -30,6 +35,13 @@ const formExpressionEnabled = ref(true)
 const formMotionEnabled = ref(true)
 
 const idleMotions = computed(() => props.motionList.filter((motion) => motion.kind !== 'oneshot'))
+const displayedAppearances = computed(() => withDefaultAppearance(props.appearances))
+const effectiveActiveId = computed(() =>
+  displayedAppearances.value.some((appearance) => appearance.id === props.activeAppearanceId)
+    ? props.activeAppearanceId
+    : DEFAULT_APPEARANCE_ID,
+)
+const selectableModels = computed(() => props.models)
 
 function modelName(modelId: string): string {
   return props.models.find((model) => model.id === modelId || model.path === modelId)?.name ?? modelId
@@ -39,13 +51,14 @@ function startCreate() {
   isCreating.value = true
   editingId.value = null
   formName.value = ''
-  formModelId.value = props.models[0]?.path ?? ''
+  formModelId.value = selectableModels.value[0]?.path ?? ''
   formMotionIds.value = []
   formExpressionEnabled.value = true
   formMotionEnabled.value = true
 }
 
 function startEdit(appearance: VrmAppearanceConfig) {
+  if (isDefaultAppearanceId(appearance.id)) return
   isCreating.value = false
   editingId.value = appearance.id
   formName.value = appearance.name
@@ -67,6 +80,8 @@ function toggleMotion(id: string) {
 }
 
 function saveForm() {
+  if (!formModelId.value) return
+
   const payload = {
     name: formName.value.trim() || '未命名外观',
     modelId: formModelId.value,
@@ -88,24 +103,23 @@ function saveForm() {
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
+  <div class="flex h-full min-h-0 flex-col">
     <div class="border-b border-gray-100 px-4 py-3">
       <button
         type="button"
-        class="flex w-full items-center justify-center gap-1.5 rounded-lg border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-medium text-pink-600 transition-colors hover:bg-pink-100"
+        class="flex w-full items-center justify-center gap-1.5 rounded-lg border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-medium text-pink-600 transition-colors hover:bg-pink-100 disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="selectableModels.length === 0"
         @click="startCreate"
       >
         <Plus :size="14" />
         <span>新建外观</span>
       </button>
+      <p v-if="selectableModels.length === 0" class="mt-2 text-[10px] text-amber-600">
+        请先在“VRM 模型”页加载或导入模型。
+      </p>
     </div>
 
-    <div class="flex-1 overflow-y-auto">
-      <div v-if="appearances.length === 0 && !isCreating" class="flex flex-col items-center justify-center px-4 py-10">
-        <PackageOpen :size="28" class="mb-2 text-gray-300" />
-        <p class="text-xs text-gray-400">暂无外观配置</p>
-      </div>
-
+    <div class="flex-1 min-h-0 overflow-y-auto">
       <div v-if="isCreating || editingId" class="border-b border-gray-100 bg-pink-50/30 px-4 py-3">
         <div class="mb-3 flex items-center justify-between">
           <span class="text-xs font-semibold text-gray-700">{{ isCreating ? '新建外观' : '编辑外观' }}</span>
@@ -124,12 +138,12 @@ function saveForm() {
         </label>
 
         <label class="mb-3 block">
-          <span class="mb-1 block text-[10px] text-gray-500">模型</span>
+          <span class="mb-1 block text-[10px] text-gray-500">角色模型</span>
           <select
             v-model="formModelId"
             class="w-full rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-800 outline-none focus:border-pink-300 focus:ring-1 focus:ring-pink-200"
           >
-            <option v-for="model in models" :key="model.path" :value="model.path">
+            <option v-for="model in selectableModels" :key="model.path" :value="model.path">
               {{ model.name }}{{ model.source === 'custom' ? '（自定义）' : '' }}
             </option>
           </select>
@@ -153,6 +167,7 @@ function saveForm() {
               </span>
               <span class="truncate">{{ motion.name }}</span>
             </button>
+            <p v-if="idleMotions.length === 0" class="text-[10px] text-gray-400">暂无可用待机动作</p>
           </div>
         </div>
 
@@ -169,7 +184,8 @@ function saveForm() {
 
         <button
           type="button"
-          class="w-full rounded-md bg-pink-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-pink-600"
+          class="w-full rounded-md bg-pink-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="!formModelId"
           @click="saveForm"
         >
           保存
@@ -178,14 +194,14 @@ function saveForm() {
 
       <div class="py-1">
         <div
-          v-for="appearance in appearances"
+          v-for="appearance in displayedAppearances"
           :key="appearance.id"
           class="border-b border-gray-50 px-4 py-2.5 last:border-b-0"
-          :class="activeAppearanceId === appearance.id ? 'bg-pink-50/50' : 'hover:bg-gray-50'"
+          :class="effectiveActiveId === appearance.id ? 'bg-pink-50/50' : 'hover:bg-gray-50'"
         >
           <div class="flex gap-2.5">
             <div class="pt-0.5">
-              <div v-if="activeAppearanceId === appearance.id" class="flex h-4 w-4 items-center justify-center rounded-full bg-pink-500">
+              <div v-if="effectiveActiveId === appearance.id" class="flex h-4 w-4 items-center justify-center rounded-full bg-pink-500">
                 <div class="h-1.5 w-1.5 rounded-full bg-white" />
               </div>
               <Circle v-else :size="16" class="text-gray-300" />
@@ -198,17 +214,17 @@ function saveForm() {
                     {{ modelName(appearance.modelId) }} · {{ appearance.motionIds.length }} 个待机动作
                   </div>
                 </div>
-                <div class="flex shrink-0 gap-1">
-                  <button type="button" class="text-gray-400 hover:text-gray-600" @click="startEdit(appearance)">
+                <div v-if="!isDefaultAppearanceId(appearance.id)" class="flex shrink-0 gap-1">
+                  <button type="button" aria-label="编辑外观" class="text-gray-400 hover:text-gray-600" @click="startEdit(appearance)">
                     <Pencil :size="13" />
                   </button>
-                  <button type="button" class="text-gray-400 hover:text-red-500" @click="emit('deleteAppearance', appearance.id)">
+                  <button type="button" aria-label="删除外观" class="text-gray-400 hover:text-red-500" @click="emit('deleteAppearance', appearance.id)">
                     <Trash2 :size="13" />
                   </button>
                 </div>
               </div>
               <button
-                v-if="activeAppearanceId !== appearance.id"
+                v-if="effectiveActiveId !== appearance.id"
                 type="button"
                 class="mt-1.5 rounded border border-pink-200 px-2 py-0.5 text-[10px] text-pink-500 hover:bg-pink-50"
                 @click="emit('switchAppearance', appearance.id)"

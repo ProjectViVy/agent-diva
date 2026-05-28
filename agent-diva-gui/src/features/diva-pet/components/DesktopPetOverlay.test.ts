@@ -80,18 +80,10 @@ function makeMockPetConfig(): PetConfig {
     asrEnabled: false,
     vrmAppearances: [
       {
-        id: 'default',
-        name: '默认外观',
-        modelId: 'test',
-        motionIds: [],
-        expressionEnabled: false,
-        motionEnabled: false,
-      },
-      {
         id: 'alt',
         name: '备用外观',
         modelId: 'test2',
-        motionIds: [],
+        motionIds: ['idle'],
         expressionEnabled: true,
         motionEnabled: true,
       },
@@ -370,10 +362,47 @@ describe('DesktopPetOverlay', () => {
       const submenu = wrapper.find('.submenu')
       expect(submenu.exists()).toBe(true)
 
-      // Should list appearance names
       const items = submenu.findAll('.submenu-item')
-      expect(items.some((el) => el.text().includes('默认外观'))).toBe(true)
+      expect(items.some((el) => el.text().includes('默认角色'))).toBe(true)
       expect(items.some((el) => el.text().includes('备用外观'))).toBe(true)
+    })
+
+    it('uses the built-in default appearance when user appearances are empty', async () => {
+      const { wrapper } = await setup()
+      mockConfig.value.vrmAppearances = []
+      mockConfig.value.activeAppearanceId = 'missing'
+      await nextTick()
+      await openMenu(wrapper)
+
+      const appearanceItem = wrapper.find('.menu-item-has-sub')
+      await appearanceItem.trigger('mouseenter')
+      await nextTick()
+
+      const submenuItems = wrapper.find('.submenu').findAll('.submenu-item')
+      expect(submenuItems).toHaveLength(1)
+      expect(submenuItems[0].text()).toContain('默认角色')
+      expect(mockConfig.value.activeAppearanceId).toBe('default')
+      expect(mockConfig.value.vrmModel).toBe('/vrm/models/Alice.vrm')
+    })
+
+    it('applies model, motions, motion switch, and expression switch when changing appearance', async () => {
+      const { wrapper } = await setup()
+      await openMenu(wrapper)
+
+      const appearanceItem = wrapper.find('.menu-item-has-sub')
+      await appearanceItem.trigger('mouseenter')
+      await nextTick()
+
+      const altItem = wrapper.findAll('.submenu-item').find((item) => item.text().includes('备用外观'))
+      expect(altItem).toBeTruthy()
+      await altItem!.trigger('click')
+      await nextTick()
+
+      expect(mockConfig.value.activeAppearanceId).toBe('alt')
+      expect(mockConfig.value.vrmModel).toBe('test2')
+      expect(mockConfig.value.selectedMotionIds).toEqual(['idle'])
+      expect(mockConfig.value.vrmMotionEnabled).toBe(true)
+      expect(mockConfig.value.vrmExpressionEnabled).toBe(true)
     })
   })
 

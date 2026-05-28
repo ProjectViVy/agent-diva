@@ -6,6 +6,12 @@ import { usePetConfig } from '../services/pet-config'
 import { useAppearanceConfig } from '../services/appearance-config'
 import { toVrmModelId } from '../utils/vrm-model'
 import { buildKnownMotionInfo, scanVRMAnimations } from '../utils/vrm-animation-scanner'
+import {
+  DEFAULT_APPEARANCE_ID,
+  DEFAULT_VRM_APPEARANCE,
+  DEFAULT_VRM_MODEL_PATH,
+  resolveAppearance,
+} from '../utils/default-appearance'
 import VrmAnimationPanel from './VrmAnimationPanel.vue'
 import VrmAppearancePanel from './VrmAppearancePanel.vue'
 
@@ -22,9 +28,10 @@ const emit = defineEmits<{
   (e: 'stopPreview'): void
 }>()
 
-type TabName = 'appearance' | 'animation'
+type TabName = 'appearance' | 'model' | 'animation'
 const tabs: Array<{ id: TabName; label: string }> = [
   { id: 'appearance', label: '外观' },
+  { id: 'model', label: 'VRM 模型' },
   { id: 'animation', label: '动画' },
 ]
 
@@ -52,7 +59,7 @@ const loadError = ref<string | null>(null)
 const importError = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
-const activeModelId = computed(() => toVrmModelId(petConfig.value.vrmModel))
+const activeModelId = computed(() => toVrmModelId(petConfig.value.vrmModel || DEFAULT_VRM_MODEL_PATH))
 const modelLoaded = computed(() => !!petConfig.value.vrmModel || models.value.length > 0)
 const currentModelName = computed(() => {
   const current = models.value.find(
@@ -69,13 +76,14 @@ async function loadModels() {
     if (inv) {
       models.value = await inv('pet_list_vrm_models') as VrmModelInfo[]
     } else {
-      models.value = [{ id: 'Alice', name: 'Alice', path: '/vrm/models/Alice.vrm', source: 'builtin' }]
+      models.value = [{ id: 'Alice', name: 'Alice', path: DEFAULT_VRM_MODEL_PATH, source: 'builtin' }]
     }
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
-    models.value = [{ id: 'Alice', name: 'Alice', path: '/vrm/models/Alice.vrm', source: 'builtin' }]
+    models.value = [{ id: 'Alice', name: 'Alice', path: DEFAULT_VRM_MODEL_PATH, source: 'builtin' }]
   } finally {
     isLoading.value = false
+    ensureEffectiveAppearance()
   }
 }
 
@@ -84,11 +92,34 @@ async function loadMotions() {
   updateConfig({ vrmMotionList: motions.length > 0 ? motions : buildKnownMotionInfo() })
 }
 
-function selectModel(model: VrmModelInfo) {
+function applyAppearance(appearance: VrmAppearanceConfig) {
   updateConfig({
-    vrmModel: model.path,
-    activeAppearanceId: petConfig.value.activeAppearanceId,
+    activeAppearanceId: appearance.id,
+    vrmModel: appearance.modelId,
+    selectedMotionIds: [...appearance.motionIds],
+    vrmMotionEnabled: appearance.motionEnabled,
+    vrmExpressionEnabled: appearance.expressionEnabled,
   })
+  emit('modelChanged', appearance.modelId)
+}
+
+function ensureEffectiveAppearance() {
+  const effective = resolveAppearance(
+    petConfig.value.vrmAppearances,
+    petConfig.value.activeAppearanceId,
+    models.value,
+  )
+
+  if (
+    petConfig.value.activeAppearanceId !== effective.id ||
+    petConfig.value.vrmModel !== effective.modelId
+  ) {
+    applyAppearance(effective)
+  }
+}
+
+function selectModel(model: VrmModelInfo) {
+  updateConfig({ vrmModel: model.path })
   emit('modelChanged', model.path)
 }
 
@@ -109,7 +140,7 @@ async function importSelectedFile(event: Event) {
 
   const inv = await getInvoke()
   if (!inv) {
-    importError.value = '导入自定义模型需要在 Tauri 桌面端运行'
+    importError.value = '导入自定义模型需要在 Tauri 桌面端运行。'
     return
   }
 
@@ -135,8 +166,7 @@ async function deleteModel(model: VrmModelInfo) {
   if (!inv) return
   await inv('pet_delete_vrm_model', { relativePath: model.path })
   if (petConfig.value.vrmModel === model.path) {
-    updateConfig({ vrmModel: '/vrm/models/Alice.vrm', activeAppearanceId: 'default' })
-    emit('modelChanged', '/vrm/models/Alice.vrm')
+    applyAppearance(DEFAULT_VRM_APPEARANCE)
   }
   await loadModels()
 }
@@ -145,17 +175,16 @@ function createAppearance(appearance: VrmAppearanceConfig) {
   appearanceApi.createAppearance(appearance)
 }
 
+function deleteAppearance(id: string) {
+  appearanceApi.deleteAppearance(id)
+  if (petConfig.value.activeAppearanceId === DEFAULT_APPEARANCE_ID) {
+    applyAppearance(DEFAULT_VRM_APPEARANCE)
+  }
+}
+
 function switchAppearance(id: string) {
-  const appearance = appearanceApi.findAppearance(id)
-  if (!appearance) return
-  updateConfig({
-    activeAppearanceId: id,
-    vrmModel: appearance.modelId,
-    selectedMotionIds: appearance.motionIds,
-    vrmMotionEnabled: appearance.motionEnabled,
-    vrmExpressionEnabled: appearance.expressionEnabled,
-  })
-  emit('modelChanged', appearance.modelId)
+  const appearance = resolveAppearance(petConfig.value.vrmAppearances, id, models.value)
+  applyAppearance(appearance)
 }
 
 function readFileAsBase64(file: File): Promise<string> {
@@ -173,10 +202,16 @@ function readFileAsBase64(file: File): Promise<string> {
 watch(
   () => petConfig.value.vrmModel,
   (model) => {
-    if (!model && models.value.length > 0) {
-      updateConfig({ vrmModel: '/vrm/models/Alice.vrm' })
+    if (!model) {
+      applyAppearance(DEFAULT_VRM_APPEARANCE)
     }
   },
+)
+
+watch(
+  () => [petConfig.value.activeAppearanceId, petConfig.value.vrmAppearances, models.value] as const,
+  () => ensureEffectiveAppearance(),
+  { deep: true },
 )
 
 watch(
@@ -217,7 +252,7 @@ watch(
         <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
           <div class="flex items-center gap-2">
             <Settings :size="16" class="text-pink-500" />
-            <span class="text-sm font-semibold text-gray-800">外观设置</span>
+            <span class="text-sm font-semibold text-gray-800">角色设置</span>
           </div>
           <button
             class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
@@ -239,26 +274,40 @@ watch(
           </button>
         </div>
 
-        <template v-if="activeTab === 'appearance'">
-          <div class="border-b border-gray-100 px-4 py-3">
-            <div class="mb-2 text-xs font-semibold text-gray-800">当前模型：{{ currentModelName }}</div>
-            <input ref="fileInput" type="file" accept=".vrm" class="hidden" @change="importSelectedFile" />
-            <button
-              :disabled="isImporting"
-              class="flex w-full items-center justify-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-medium text-pink-600 transition-colors hover:bg-pink-100 disabled:cursor-not-allowed disabled:opacity-50"
-              @click="openImportPicker"
-            >
-              <Loader2 v-if="isImporting" :size="14" class="animate-spin" />
-              <Upload v-else :size="14" />
-              <span>导入 .vrm 模型</span>
-            </button>
-            <div v-if="importError" class="mt-2 flex gap-1.5 rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-600">
-              <AlertCircle :size="13" class="shrink-0" />
-              <span>{{ importError }}</span>
-            </div>
-          </div>
+        <div class="flex-1 min-h-0 overflow-y-auto">
+          <VrmAppearancePanel
+            v-if="activeTab === 'appearance'"
+            :inline="true"
+            :visible="true"
+            :appearances="petConfig.vrmAppearances"
+            :active-appearance-id="petConfig.activeAppearanceId"
+            :models="models"
+            :motion-list="petConfig.vrmMotionList"
+            @create-appearance="createAppearance"
+            @update-appearance="appearanceApi.updateAppearance"
+            @delete-appearance="deleteAppearance"
+            @switch-appearance="switchAppearance"
+          />
 
-          <div class="max-h-48 overflow-y-auto border-b border-gray-100">
+          <div v-else-if="activeTab === 'model'" class="flex min-h-full flex-col">
+            <div class="border-b border-gray-100 px-4 py-3">
+              <div class="mb-2 text-xs font-semibold text-gray-800">当前模型：{{ currentModelName }}</div>
+              <input ref="fileInput" type="file" accept=".vrm" class="hidden" @change="importSelectedFile" />
+              <button
+                :disabled="isImporting"
+                class="flex w-full items-center justify-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-medium text-pink-600 transition-colors hover:bg-pink-100 disabled:cursor-not-allowed disabled:opacity-50"
+                @click="openImportPicker"
+              >
+                <Loader2 v-if="isImporting" :size="14" class="animate-spin" />
+                <Upload v-else :size="14" />
+                <span>导入 .vrm 模型</span>
+              </button>
+              <div v-if="importError" class="mt-2 flex gap-1.5 rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-600">
+                <AlertCircle :size="13" class="shrink-0" />
+                <span>{{ importError }}</span>
+              </div>
+            </div>
+
             <div v-if="isLoading" class="flex items-center justify-center py-6 text-xs text-gray-400">
               <Loader2 :size="16" class="mr-2 animate-spin" />
               加载模型中...
@@ -295,33 +344,20 @@ watch(
             </template>
           </div>
 
-          <VrmAppearancePanel
+          <VrmAnimationPanel
+            v-else
             :inline="true"
-            :visible="true"
-            :appearances="petConfig.vrmAppearances"
-            :active-appearance-id="petConfig.activeAppearanceId"
-            :models="models"
+            :visible="visible"
             :motion-list="petConfig.vrmMotionList"
-            @create-appearance="createAppearance"
-            @update-appearance="appearanceApi.updateAppearance"
-            @delete-appearance="appearanceApi.deleteAppearance"
-            @switch-appearance="switchAppearance"
+            :selected-motion-ids="petConfig.selectedMotionIds"
+            :vrm-motion-enabled="petConfig.vrmMotionEnabled"
+            :model-loaded="modelLoaded"
+            @update:selected-motion-ids="(ids: string[]) => updateConfig({ selectedMotionIds: ids })"
+            @update:vrm-motion-enabled="(value: boolean) => updateConfig({ vrmMotionEnabled: value })"
+            @preview-motion="(id: string) => emit('previewMotion', id)"
+            @stop-preview="emit('stopPreview')"
           />
-        </template>
-
-        <VrmAnimationPanel
-          v-else
-          :inline="true"
-          :visible="visible"
-          :motion-list="petConfig.vrmMotionList"
-          :selected-motion-ids="petConfig.selectedMotionIds"
-          :vrm-motion-enabled="petConfig.vrmMotionEnabled"
-          :model-loaded="modelLoaded"
-          @update:selected-motion-ids="(ids: string[]) => updateConfig({ selectedMotionIds: ids })"
-          @update:vrm-motion-enabled="(value: boolean) => updateConfig({ vrmMotionEnabled: value })"
-          @preview-motion="(id: string) => emit('previewMotion', id)"
-          @stop-preview="emit('stopPreview')"
-        />
+        </div>
       </div>
     </Transition>
   </Teleport>

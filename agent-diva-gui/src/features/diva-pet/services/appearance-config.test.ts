@@ -6,6 +6,7 @@ import {
   generateAppearanceId,
   createEmptyAppearance,
 } from '../services/appearance-config'
+import { DEFAULT_VRM_MODEL_PATH } from '../utils/default-appearance'
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -175,7 +176,7 @@ describe('useAppearanceConfig', () => {
       expect(api.appearances.value[0].id).toBe('id-2')
     })
 
-    it('switches activeId when deleting the active appearance', () => {
+    it('falls back to default when deleting the active appearance', () => {
       const { api, config } = setup()
       const a1 = makeAppearance({ id: 'id-1' })
       const a2 = makeAppearance({ id: 'id-2' })
@@ -187,8 +188,7 @@ describe('useAppearanceConfig', () => {
 
       api.deleteAppearance('id-1')
 
-      // Active should now be id-2 (the remaining appearance)
-      expect(api.activeId.value).toBe('id-2')
+      expect(api.activeId.value).toBe('default')
     })
 
     it('keeps activeId when deleting a non-active appearance', () => {
@@ -275,20 +275,21 @@ describe('useAppearanceConfig', () => {
       expect(active!.name).toBe('Active One')
     })
 
-    it('returns undefined when no appearance matches activeId', () => {
+    it('returns the default appearance when no appearance matches activeId', () => {
       const { api, config } = setup()
 
       config.value = { ...config.value, activeAppearanceId: 'orphan-id' }
 
       const active = api.getActiveAppearance()
-      expect(active).toBeUndefined()
+      expect(active.id).toBe('default')
+      expect(active.modelId).toBe(DEFAULT_VRM_MODEL_PATH)
     })
 
-    it('returns undefined when appearance list is empty', () => {
+    it('returns the default appearance when appearance list is empty', () => {
       const { api } = setup()
 
       const active = api.getActiveAppearance()
-      expect(active).toBeUndefined()
+      expect(active.id).toBe('default')
     })
   })
 

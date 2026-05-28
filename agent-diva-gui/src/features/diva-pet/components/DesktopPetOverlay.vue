@@ -12,6 +12,11 @@ import { filterPunctuation, splitIntoSentences, stripMarkdown } from '../voice/u
 import type { GaussSceneId, VrmMood } from '../types'
 import { normalizeMood } from '../utils/mood'
 import { resolveVrmModelPath } from '../utils/vrm-model'
+import {
+  DEFAULT_VRM_MODEL_PATH,
+  resolveAppearance,
+  withDefaultAppearance,
+} from '../utils/default-appearance'
 import { useSubtitleOverlay } from './subtitle-overlay'
 import { getTtsApiKey } from '../types'
 
@@ -59,7 +64,7 @@ async function refreshVrmModelPath(model: string) {
   } catch (error) {
     console.warn('[DesktopPetOverlay] Failed to read custom VRM model:', error)
     if (requestId === resolveModelRequestId) {
-      vrmModelPath.value = '/vrm/models/Alice.vrm'
+      vrmModelPath.value = DEFAULT_VRM_MODEL_PATH
     }
   }
 }
@@ -295,8 +300,10 @@ async function minimizePet() {
 
 // ── Menu: 外观/动画/语音 快速设置 ─────────────────────────────────
 
-const vrmAppearances = computed(() => petConfig.value.vrmAppearances ?? [])
-const activeAppearanceId = computed(() => petConfig.value.activeAppearanceId)
+const vrmAppearances = computed(() => withDefaultAppearance(petConfig.value.vrmAppearances ?? []))
+const activeAppearanceId = computed(() =>
+  resolveAppearance(petConfig.value.vrmAppearances ?? [], petConfig.value.activeAppearanceId).id,
+)
 const isVrmMotionEnabled = computed(() => petConfig.value.vrmMotionEnabled)
 const isVrmExpressionEnabled = computed(() => petConfig.value.vrmExpressionEnabled)
 const isTtsEnabled = computed(() => petConfig.value.ttsEnabled)
@@ -307,9 +314,8 @@ const effectiveMood = computed<VrmMood>(() =>
 )
 
 function selectAppearance(id: string) {
-  const appearance = vrmAppearances.value.find((item) => item.id === id)
-  if (!appearance) return
-  petConfig.value.activeAppearanceId = id
+  const appearance = resolveAppearance(petConfig.value.vrmAppearances ?? [], id)
+  petConfig.value.activeAppearanceId = appearance.id
   petConfig.value.vrmModel = appearance.modelId
   petConfig.value.selectedMotionIds = [...appearance.motionIds]
   petConfig.value.vrmMotionEnabled = appearance.motionEnabled
@@ -406,6 +412,24 @@ watch(
     void refreshVrmModelPath(model)
   },
   { immediate: true },
+)
+
+watch(
+  () => [petConfig.value.activeAppearanceId, petConfig.value.vrmAppearances] as const,
+  () => {
+    const appearance = resolveAppearance(petConfig.value.vrmAppearances ?? [], petConfig.value.activeAppearanceId)
+    if (
+      petConfig.value.activeAppearanceId !== appearance.id ||
+      petConfig.value.vrmModel !== appearance.modelId
+    ) {
+      petConfig.value.activeAppearanceId = appearance.id
+      petConfig.value.vrmModel = appearance.modelId
+      petConfig.value.selectedMotionIds = [...appearance.motionIds]
+      petConfig.value.vrmMotionEnabled = appearance.motionEnabled
+      petConfig.value.vrmExpressionEnabled = appearance.expressionEnabled
+    }
+  },
+  { deep: true, immediate: true },
 )
 
 /**
@@ -581,8 +605,8 @@ onUnmounted(() => {
         <div class="menu-item menu-item-has-sub"
              @mouseenter="openSubmenu('appearance')"
              @mouseleave="closeSubmenu('appearance')">
-          <span class="menu-label">🎭 切换外观</span>
-          <span class="menu-arrow">▶</span>
+          <span class="menu-label">切换外观</span>
+          <span class="menu-arrow">›</span>
           <Transition name="submenu-slide">
             <div v-if="activeSubmenu === 'appearance'" class="submenu">
               <div v-for="app in vrmAppearances" :key="app.id"
@@ -591,9 +615,6 @@ onUnmounted(() => {
                    @click="selectAppearance(app.id)">
                 {{ app.name }}
               </div>
-              <div v-if="!vrmAppearances.length" class="submenu-item submenu-item-disabled">
-                暂无外观预设
-              </div>
             </div>
           </Transition>
         </div>
@@ -601,19 +622,19 @@ onUnmounted(() => {
         <div class="menu-item menu-item-has-sub"
              @mouseenter="openSubmenu('animation')"
              @mouseleave="closeSubmenu('animation')">
-          <span class="menu-label">🎬 动画设置</span>
-          <span class="menu-arrow">▶</span>
+          <span class="menu-label">动画设置</span>
+          <span class="menu-arrow">›</span>
           <Transition name="submenu-slide">
             <div v-if="activeSubmenu === 'animation'" class="submenu">
               <div class="submenu-item submenu-toggle"
                    :class="{ active: isVrmMotionEnabled }"
                    @click="toggleVrmMotion">
-                空闲动画: {{ isVrmMotionEnabled ? 'ON ✓' : 'OFF' }}
+                待机动画: {{ isVrmMotionEnabled ? 'ON' : 'OFF' }}
               </div>
               <div class="submenu-item submenu-toggle"
                    :class="{ active: isVrmExpressionEnabled }"
                    @click="toggleVrmExpression">
-                表情映射: {{ isVrmExpressionEnabled ? 'ON ✓' : 'OFF' }}
+                表情映射: {{ isVrmExpressionEnabled ? 'ON' : 'OFF' }}
               </div>
             </div>
           </Transition>
@@ -622,29 +643,29 @@ onUnmounted(() => {
         <div class="menu-item menu-item-has-sub"
              @mouseenter="openSubmenu('voice')"
              @mouseleave="closeSubmenu('voice')">
-          <span class="menu-label">🔊 语音设置</span>
-          <span class="menu-arrow">▶</span>
+          <span class="menu-label">语音设置</span>
+          <span class="menu-arrow">›</span>
           <Transition name="submenu-slide">
             <div v-if="activeSubmenu === 'voice'" class="submenu">
               <div class="submenu-item submenu-toggle"
                    :class="{ active: isTtsEnabled }"
                    @click="toggleTts">
-                TTS: {{ isTtsEnabled ? 'ON ✓' : 'OFF' }}
+                TTS: {{ isTtsEnabled ? 'ON' : 'OFF' }}
               </div>
               <div class="submenu-item submenu-toggle"
                    :class="{ active: isAsrEnabled }"
                    @click="toggleAsr">
-                ASR: {{ isAsrEnabled ? 'ON ✓' : 'OFF' }}
+                ASR: {{ isAsrEnabled ? 'ON' : 'OFF' }}
               </div>
               <div class="submenu-item submenu-toggle"
                     :class="{ active: isSubtitleEnabled }"
                     @click="toggleSubtitle">
-                 字幕显示: {{ isSubtitleEnabled ? 'ON ✓' : 'OFF' }}
+                 字幕显示: {{ isSubtitleEnabled ? 'ON' : 'OFF' }}
                </div>
                <div class="submenu-separator" />
                <div class="submenu-item submenu-item-action"
                     @click="testTts">
-                 🧪 测试语音
+                 测试语音
                </div>
             </div>
           </Transition>
@@ -654,16 +675,16 @@ onUnmounted(() => {
 
         <!-- 层级 2: 开关项 -->
         <div class="menu-item menu-item-toggle" @click="togglePassThrough">
-          <span class="menu-label">🖱️ 穿透切换</span>
+          <span class="menu-label">穿透切换</span>
           <span class="menu-toggle-state" :class="{ on: isMousePassThrough }">
-            {{ isMousePassThrough ? 'ON ✓' : 'OFF' }}
+            {{ isMousePassThrough ? 'ON' : 'OFF' }}
           </span>
         </div>
 
         <div class="menu-item menu-item-toggle" @click="toggleAlwaysOnTop">
-          <span class="menu-label">📌 窗口置顶</span>
+          <span class="menu-label">窗口置顶</span>
           <span class="menu-toggle-state" :class="{ on: isAlwaysOnTop }">
-            {{ isAlwaysOnTop ? 'ON ✓' : 'OFF' }}
+            {{ isAlwaysOnTop ? 'ON' : 'OFF' }}
           </span>
         </div>
 
@@ -671,7 +692,7 @@ onUnmounted(() => {
 
         <!-- 层级 3: 缩放滑块 -->
         <div class="menu-item menu-item-slider">
-          <span class="menu-label">🔍 缩放</span>
+          <span class="menu-label">缩放</span>
           <div class="menu-slider-row">
             <input type="range" class="menu-slider" :min="SCALE_MIN" :max="SCALE_MAX"
                    :step="WHEEL_DELTA_STEP" :value="desktopPetScale"
@@ -684,19 +705,19 @@ onUnmounted(() => {
 
         <!-- 层级 4: 窗口操作 -->
         <div class="menu-item" @click="enterDragMode">
-          <span class="menu-label">✋ 移动</span>
+          <span class="menu-label">移动</span>
         </div>
 
         <div class="menu-separator" />
 
         <div class="menu-item" @click="showMainWindow">
-          <span class="menu-label">🏠 显示主窗口</span>
+          <span class="menu-label">显示主窗口</span>
         </div>
         <div class="menu-item" @click="minimizePet">
-          <span class="menu-label">💤 最小化</span>
+          <span class="menu-label">最小化</span>
         </div>
         <div class="menu-item menu-item-danger" @click="closePet">
-          <span class="menu-label">❌ 关闭</span>
+          <span class="menu-label">关闭</span>
         </div>
       </div>
     </Transition>

@@ -9,7 +9,11 @@
 
 import { computed, type Ref } from 'vue'
 import type { PetConfig, VrmAppearanceConfig } from '../types'
-import { DEFAULT_PET_CONFIG } from '../types'
+import {
+  DEFAULT_APPEARANCE_ID,
+  DEFAULT_VRM_APPEARANCE,
+  resolveAppearance,
+} from '../utils/default-appearance'
 
 export interface AppearanceConfigApi {
   /** All saved appearances (reactive) */
@@ -21,12 +25,12 @@ export interface AppearanceConfigApi {
   createAppearance(appearance: VrmAppearanceConfig): void
   /** Update an existing appearance by ID */
   updateAppearance(id: string, patch: Partial<VrmAppearanceConfig>): void
-  /** Delete an appearance by ID (refuses to delete the last one) */
+  /** Delete a user appearance by ID. The built-in default cannot be deleted. */
   deleteAppearance(id: string): void
   /** Switch to a different appearance, returns true if switch happened */
   switchAppearance(id: string): boolean
-  /** Get the active appearance config (or undefined if none) */
-  getActiveAppearance(): VrmAppearanceConfig | undefined
+  /** Get the active appearance config, falling back to the built-in default. */
+  getActiveAppearance(): VrmAppearanceConfig
   /** Find appearance by ID */
   findAppearance(id: string): VrmAppearanceConfig | undefined
 }
@@ -71,6 +75,7 @@ export function useAppearanceConfig(
   }
 
   function updateAppearance(id: string, patch: Partial<VrmAppearanceConfig>): void {
+    if (id === DEFAULT_APPEARANCE_ID) return
     const list = config.value.vrmAppearances.map((a) =>
       a.id === id ? { ...a, ...patch } : a,
     )
@@ -78,22 +83,24 @@ export function useAppearanceConfig(
   }
 
   function deleteAppearance(id: string): void {
+    if (id === DEFAULT_APPEARANCE_ID) return
+
     const list = config.value.vrmAppearances.filter((a) => a.id !== id)
-    if (list.length === 0) {
-      console.warn('[appearance-config] Cannot delete the last appearance, resetting to default')
-      updateConfig({ vrmAppearances: [], activeAppearanceId: DEFAULT_PET_CONFIG.activeAppearanceId })
-      return
-    }
-    // If we deleted the active appearance, switch to the first remaining one
     const nextActive =
       config.value.activeAppearanceId === id
-        ? list[0].id
+        ? DEFAULT_APPEARANCE_ID
         : config.value.activeAppearanceId
 
     updateConfig({ vrmAppearances: list, activeAppearanceId: nextActive })
   }
 
   function switchAppearance(id: string): boolean {
+    if (id === DEFAULT_APPEARANCE_ID) {
+      if (config.value.activeAppearanceId === DEFAULT_APPEARANCE_ID) return false
+      updateConfig({ activeAppearanceId: DEFAULT_APPEARANCE_ID })
+      return true
+    }
+
     const found = config.value.vrmAppearances.find((a) => a.id === id)
     if (!found) {
       console.warn(`[appearance-config] Appearance not found: ${id}`)
@@ -107,13 +114,12 @@ export function useAppearanceConfig(
     return true
   }
 
-  function getActiveAppearance(): VrmAppearanceConfig | undefined {
-    return config.value.vrmAppearances.find(
-      (a) => a.id === config.value.activeAppearanceId,
-    )
+  function getActiveAppearance(): VrmAppearanceConfig {
+    return resolveAppearance(config.value.vrmAppearances, config.value.activeAppearanceId)
   }
 
   function findAppearance(id: string): VrmAppearanceConfig | undefined {
+    if (id === DEFAULT_APPEARANCE_ID) return DEFAULT_VRM_APPEARANCE
     return config.value.vrmAppearances.find((a) => a.id === id)
   }
 
