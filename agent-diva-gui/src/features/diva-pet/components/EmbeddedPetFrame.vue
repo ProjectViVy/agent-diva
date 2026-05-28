@@ -31,7 +31,7 @@ const payload = computed(() => ({
   lipSyncEnabled: !!props.lipSyncEnabled,
   transparentBackground: !!props.transparentBackground,
   idleMotionEnabled: !!props.idleMotionEnabled,
-  selectedMotionIds: props.selectedMotionIds ?? [],
+  selectedMotionIds: Array.from(props.selectedMotionIds ?? []),
   previewMotionId: props.previewMotionId ?? null,
   stopPreviewToken: props.stopPreviewToken ?? 0,
 }))
@@ -39,11 +39,15 @@ const payload = computed(() => ({
 function postState(): void {
   const target = frame.value?.contentWindow
   if (!target || !frameReady.value) return
+  const state = payload.value
 
   target.postMessage(
     {
       type: 'diva-embedded-pet:state',
-      payload: payload.value,
+      payload: {
+        ...state,
+        selectedMotionIds: [...state.selectedMotionIds],
+      },
     },
     '*',
   )
