@@ -206,7 +206,7 @@ async function syncMotionState(): Promise<void> {
 async function playStartupMotion(): Promise<void> {
   if (!runtime) return
   const motionId = p.startMotionId || 'appearing'
-  if (motionId !== 'appearing' && motionId !== 'greeting') return
+  if (motionId !== 'appearing' && motionId !== 'greeting' && motionId !== 'show_full_body') return
 
   const seq = ++startupSeq
   try {

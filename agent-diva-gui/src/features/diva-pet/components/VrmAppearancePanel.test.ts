@@ -12,6 +12,7 @@ const motions: VrmMotionInfo[] = [
   { id: 'idle', name: 'Idle', kind: 'idle', path: '/vrm/animations/idle.vrma' },
   { id: 'appearing', name: 'Appearing', kind: 'startup', path: '/vrm/animations/appearing.vrma' },
   { id: 'greeting', name: 'Greeting', kind: 'startup', path: '/vrm/animations/greeting.vrma' },
+  { id: 'show_full_body', name: 'Show Full Body', kind: 'startup', path: '/vrm/animations/show_full_body.vrma' },
   { id: 'liked', name: 'Liked', kind: 'oneshot', path: '/vrm/animations/liked.vrma' },
 ]
 
@@ -80,6 +81,7 @@ describe('VrmAppearancePanel', () => {
     expect(wrapper.text()).toContain('开始动作')
     expect(wrapper.text()).toContain('Appearing')
     expect(wrapper.text()).toContain('Greeting')
+    expect(wrapper.text()).toContain('Show Full Body')
     expect(wrapper.text()).not.toContain('Liked')
 
     const greetingButton = wrapper.findAll('button').find((button) => button.text() === 'Greeting')

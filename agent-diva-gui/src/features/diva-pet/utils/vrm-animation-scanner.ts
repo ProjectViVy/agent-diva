@@ -4,11 +4,11 @@ export const VRM_ANIMATIONS_DIR = '/vrm/animations'
 
 const KNOWN_ANIMATIONS: Array<{ id: string; kind: NonNullable<VrmMotionInfo['kind']> }> = [
   { id: 'akimbo', kind: 'idle' },
-  { id: 'LookAround', kind: 'idle' },
+  { id: 'LookAround', kind: 'oneshot' },
   { id: 'model_pose', kind: 'idle' },
-  { id: 'Relax', kind: 'idle' },
-  { id: 'show_full_body', kind: 'idle' },
-  { id: 'Sleepy', kind: 'idle' },
+  { id: 'Relax', kind: 'oneshot' },
+  { id: 'show_full_body', kind: 'startup' },
+  { id: 'Sleepy', kind: 'oneshot' },
   { id: 'waiting', kind: 'idle' },
   { id: 'Angry', kind: 'oneshot' },
   { id: 'appearing', kind: 'startup' },

@@ -10,7 +10,7 @@ const BUILTIN_MOTIONS: AvatarMotionEntry[] = [
   {
     id: 'LookAround',
     name: 'Look Around',
-    kind: 'idle',
+    kind: 'oneshot',
     source: '/vrm/animations/LookAround.vrma',
   },
   {
@@ -22,19 +22,19 @@ const BUILTIN_MOTIONS: AvatarMotionEntry[] = [
   {
     id: 'Relax',
     name: 'Relax',
-    kind: 'idle',
+    kind: 'oneshot',
     source: '/vrm/animations/Relax.vrma',
   },
   {
     id: 'show_full_body',
     name: 'Show Full Body',
-    kind: 'idle',
+    kind: 'startup',
     source: '/vrm/animations/show_full_body.vrma',
   },
   {
     id: 'Sleepy',
     name: 'Sleepy',
-    kind: 'idle',
+    kind: 'oneshot',
     source: '/vrm/animations/Sleepy.vrma',
   },
   {

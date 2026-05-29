@@ -36,9 +36,7 @@ const formExpressionEnabled = ref(true)
 const formMotionEnabled = ref(true)
 
 const idleMotions = computed(() => props.motionList.filter((motion) => motion.kind === 'idle'))
-const startupMotions = computed(() =>
-  props.motionList.filter((motion) => motion.kind === 'startup' && ['appearing', 'greeting'].includes(motion.id)),
-)
+const startupMotions = computed(() => props.motionList.filter((motion) => motion.kind === 'startup'))
 const displayedAppearances = computed(() => withDefaultAppearance(props.appearances))
 const effectiveActiveId = computed(() =>
   displayedAppearances.value.some((appearance) => appearance.id === props.activeAppearanceId)

@@ -22,9 +22,10 @@ describe('vrm motion catalog sync', () => {
   it('registers newly added idle and preview motions with the expected kinds', () => {
     const motions = new Map(getBuiltinMotionCatalog().map((motion) => [motion.id, motion]))
 
-    expect(motions.get('LookAround')?.kind).toBe('idle')
-    expect(motions.get('Relax')?.kind).toBe('idle')
-    expect(motions.get('Sleepy')?.kind).toBe('idle')
+    expect(motions.get('LookAround')?.kind).toBe('oneshot')
+    expect(motions.get('Relax')?.kind).toBe('oneshot')
+    expect(motions.get('Sleepy')?.kind).toBe('oneshot')
+    expect(motions.get('show_full_body')?.kind).toBe('startup')
     expect(motions.get('waiting')?.kind).toBe('idle')
     expect(motions.get('appearing')?.kind).toBe('startup')
     expect(motions.get('greeting')?.kind).toBe('startup')

@@ -262,6 +262,12 @@ describe('startup motion', () => {
 
     expect(mockPlayMotion).toHaveBeenCalledWith('greeting')
   })
+
+  it('allows full-body display as a startup motion', async () => {
+    await setup({ startMotionId: 'show_full_body' })
+
+    expect(mockPlayMotion).toHaveBeenCalledWith('show_full_body')
+  })
 })
 
 describe('runtime ordering', () => {
