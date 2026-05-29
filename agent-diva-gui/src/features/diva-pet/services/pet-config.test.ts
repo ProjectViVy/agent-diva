@@ -81,6 +81,25 @@ describe('migrateConfig', () => {
   })
 })
 
+describe('startup motion migration', () => {
+  it('fills appearing when an older appearance has no startMotionId', () => {
+    const migrated = migrateConfig({
+      vrmAppearances: [
+        {
+          id: 'legacy',
+          name: 'Legacy',
+          modelId: 'legacy.vrm',
+          motionIds: [],
+          expressionEnabled: true,
+          motionEnabled: true,
+        },
+      ],
+    })
+
+    expect(migrated.vrmAppearances[0].startMotionId).toBe('appearing')
+  })
+})
+
 describe('场景配置持久化', () => {
   it('旧配置(无场景字段) → 自动合并默认值', () => {
     const oldConfig = { enabled: true, vrmModel: 'test.vrm' }

@@ -13,6 +13,7 @@ import {
   DEFAULT_APPEARANCE_ID,
   DEFAULT_VRM_APPEARANCE,
   resolveAppearance,
+  withAppearanceDefaults,
 } from '../utils/default-appearance'
 
 export interface AppearanceConfigApi {
@@ -51,6 +52,7 @@ export function createEmptyAppearance(name: string, modelId: string): VrmAppeara
     name,
     modelId,
     motionIds: [],
+    startMotionId: 'appearing',
     expressionEnabled: true,
     motionEnabled: true,
   }
@@ -70,14 +72,14 @@ export function useAppearanceConfig(
   const activeId = computedActiveId(config)
 
   function createAppearance(appearance: VrmAppearanceConfig): void {
-    const list = [...config.value.vrmAppearances, appearance]
+    const list = [...config.value.vrmAppearances, withAppearanceDefaults(appearance)]
     updateConfig({ vrmAppearances: list })
   }
 
   function updateAppearance(id: string, patch: Partial<VrmAppearanceConfig>): void {
     if (id === DEFAULT_APPEARANCE_ID) return
     const list = config.value.vrmAppearances.map((a) =>
-      a.id === id ? { ...a, ...patch } : a,
+      a.id === id ? withAppearanceDefaults({ ...a, ...patch }) : a,
     )
     updateConfig({ vrmAppearances: list })
   }
@@ -120,7 +122,8 @@ export function useAppearanceConfig(
 
   function findAppearance(id: string): VrmAppearanceConfig | undefined {
     if (id === DEFAULT_APPEARANCE_ID) return DEFAULT_VRM_APPEARANCE
-    return config.value.vrmAppearances.find((a) => a.id === id)
+    const found = config.value.vrmAppearances.find((a) => a.id === id)
+    return found ? withAppearanceDefaults(found) : undefined
   }
 
   return {

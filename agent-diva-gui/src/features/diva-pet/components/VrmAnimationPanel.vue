@@ -22,7 +22,8 @@ const emit = defineEmits<{
 }>()
 
 const previewingMotionId = ref<string | null>(null)
-const idleMotions = computed(() => props.motionList.filter((motion) => motion.kind !== 'oneshot'))
+const idleMotions = computed(() => props.motionList.filter((motion) => motion.kind === 'idle'))
+const startupMotions = computed(() => props.motionList.filter((motion) => motion.kind === 'startup'))
 const oneShotMotions = computed(() => props.motionList.filter((motion) => motion.kind === 'oneshot'))
 
 function isSelected(id: string): boolean {
@@ -128,6 +129,27 @@ watch(
       <section class="px-4 py-3">
         <div class="mb-2 text-xs font-semibold text-gray-700">动作预览</div>
         <div class="space-y-1">
+          <div class="mb-2 text-xs font-semibold text-gray-700">开始动作</div>
+          <div
+            v-for="motion in startupMotions"
+            :key="motion.id"
+            class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-pink-50"
+          >
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-xs font-medium text-gray-800">{{ motion.name }}</div>
+              <div class="truncate text-[10px] text-gray-400">{{ motion.path }}</div>
+            </div>
+            <button
+              type="button"
+              class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors"
+              :class="previewingMotionId === motion.id ? 'bg-red-50 text-red-500' : 'text-gray-400 hover:bg-pink-50 hover:text-pink-500'"
+              @click="preview(motion.id)"
+            >
+              <Square v-if="previewingMotionId === motion.id" :size="13" />
+              <Play v-else :size="13" />
+            </button>
+          </div>
+          <div class="mt-3 mb-2 text-xs font-semibold text-gray-700">单次动作</div>
           <div
             v-for="motion in oneShotMotions"
             :key="motion.id"

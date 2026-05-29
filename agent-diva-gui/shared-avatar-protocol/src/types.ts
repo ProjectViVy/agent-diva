@@ -27,7 +27,7 @@ export interface AvatarAnimationState {
   runtimePlaying: boolean
 }
 
-export type AvatarMotionKind = 'idle' | 'oneshot'
+export type AvatarMotionKind = 'idle' | 'startup' | 'oneshot'
 
 export interface AvatarMotionEntry {
   id: string

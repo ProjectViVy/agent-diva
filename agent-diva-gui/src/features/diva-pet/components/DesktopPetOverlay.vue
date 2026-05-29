@@ -312,6 +312,9 @@ const isSubtitleEnabled = computed(() => petConfig.value.subtitleEnabled)
 const effectiveMood = computed<VrmMood>(() =>
   isVrmExpressionEnabled.value ? activeMood.value : 'neutral',
 )
+const activeAppearanceStartMotionId = computed(() =>
+  resolveAppearance(petConfig.value.vrmAppearances ?? [], petConfig.value.activeAppearanceId).startMotionId || 'appearing',
+)
 
 function selectAppearance(id: string) {
   const appearance = resolveAppearance(petConfig.value.vrmAppearances ?? [], id)
@@ -546,6 +549,8 @@ onUnmounted(() => {
       :background-scene-url="backgroundSceneUrl"
       :idle-motion-enabled="petConfig.vrmMotionEnabled"
       :selected-motion-ids="petConfig.selectedMotionIds"
+      :start-motion-id="activeAppearanceStartMotionId"
+      :start-motion-token="petConfig.activeAppearanceId"
     />
 
     <!-- Subtitle overlay -->

@@ -58,7 +58,7 @@ vi.mock('../vrm/components/DivaVrmAvatar.vue', () => ({
   default: {
     name: 'DivaVrmAvatar',
     template: '<div class="diva-vrm-avatar-stub" />',
-    props: ['modelPath', 'mood', 'isSpeaking', 'desktopPet', 'active', 'backgroundScene', 'backgroundSceneUrl'],
+    props: ['modelPath', 'mood', 'isSpeaking', 'desktopPet', 'active', 'backgroundScene', 'backgroundSceneUrl', 'idleMotionEnabled', 'selectedMotionIds', 'startMotionId', 'startMotionToken'],
     emits: [],
     setup() {
       return { setScale: vi.fn(), playMotion: vi.fn(), stopMotion: vi.fn(), getScale: vi.fn(() => 1.0) }
@@ -84,6 +84,7 @@ function makeMockPetConfig(): PetConfig {
         name: '备用外观',
         modelId: 'test2',
         motionIds: ['idle'],
+        startMotionId: 'greeting',
         expressionEnabled: true,
         motionEnabled: true,
       },
@@ -403,6 +404,10 @@ describe('DesktopPetOverlay', () => {
       expect(mockConfig.value.selectedMotionIds).toEqual(['idle'])
       expect(mockConfig.value.vrmMotionEnabled).toBe(true)
       expect(mockConfig.value.vrmExpressionEnabled).toBe(true)
+
+      const avatar = wrapper.getComponent({ name: 'DivaVrmAvatar' })
+      expect(avatar.props('startMotionId')).toBe('greeting')
+      expect(avatar.props('startMotionToken')).toBe('alt')
     })
   })
 

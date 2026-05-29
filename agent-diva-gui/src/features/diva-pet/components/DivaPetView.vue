@@ -12,6 +12,7 @@ import { usePetConfig } from '../services/pet-config'
 import { getTtsApiKey, type PetMessage, type VrmMood, type GaussSceneId } from '../types'
 import { getDesktopPetEmotionSignal } from '../../../utils/desktop-pet-emotion'
 import { resolveVrmModelPath } from '../utils/vrm-model'
+import { resolveAppearance } from '../utils/default-appearance'
 import { resolveGaussSceneUrl } from '../utils/gauss-scene'
 import { ttsService, type TTSVoiceConfig } from '../voice/services/tts-service'
 import { tauriVoiceFileReader } from '../voice/services/voice-api'
@@ -225,6 +226,9 @@ const isTransparentScene = computed(() => petConfig.value.selectedGaussSceneId =
 const runtimeBackgroundScene = computed(() => (
   isTransparentScene.value ? undefined : petConfig.value.selectedGaussSceneId
 ))
+const activeAppearanceStartMotionId = computed(() =>
+  resolveAppearance(petConfig.value.vrmAppearances, petConfig.value.activeAppearanceId).startMotionId || 'appearing',
+)
 
 const SCENE_ICONS: Record<string, string> = {
   transparent: 'T', home: 'H', sea: 'S', space: '*',
@@ -319,6 +323,8 @@ const moodLabels: Record<VrmMood, string> = {
         :lip-sync-enabled="petConfig.vrmExpressionEnabled"
         :idle-motion-enabled="petConfig.vrmMotionEnabled"
         :selected-motion-ids="petConfig.selectedMotionIds"
+        :start-motion-id="activeAppearanceStartMotionId"
+        :start-motion-token="petConfig.activeAppearanceId"
         :preview-motion-id="previewMotionId"
         :stop-preview-token="stopPreviewToken"
         :background-scene="runtimeBackgroundScene"

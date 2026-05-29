@@ -10,6 +10,9 @@ const models: VrmModelInfo[] = [
 
 const motions: VrmMotionInfo[] = [
   { id: 'idle', name: 'Idle', kind: 'idle', path: '/vrm/animations/idle.vrma' },
+  { id: 'appearing', name: 'Appearing', kind: 'startup', path: '/vrm/animations/appearing.vrma' },
+  { id: 'greeting', name: 'Greeting', kind: 'startup', path: '/vrm/animations/greeting.vrma' },
+  { id: 'liked', name: 'Liked', kind: 'oneshot', path: '/vrm/animations/liked.vrma' },
 ]
 
 function mountPanel(overrides: {
@@ -68,5 +71,26 @@ describe('VrmAppearancePanel', () => {
 
     expect(wrapper.text()).toContain('默认角色')
     expect(wrapper.text()).toContain('当前')
+  })
+  it('shows startup motions separately and saves the selected startMotionId', async () => {
+    const wrapper = mountPanel()
+
+    await wrapper.findAll('button')[0].trigger('click')
+
+    expect(wrapper.text()).toContain('开始动作')
+    expect(wrapper.text()).toContain('Appearing')
+    expect(wrapper.text()).toContain('Greeting')
+    expect(wrapper.text()).not.toContain('Liked')
+
+    const greetingButton = wrapper.findAll('button').find((button) => button.text() === 'Greeting')
+    expect(greetingButton).toBeTruthy()
+    await greetingButton!.trigger('click')
+
+    const saveButton = wrapper.findAll('button').find((button) => button.classes().includes('bg-pink-500'))
+    expect(saveButton).toBeTruthy()
+    await saveButton!.trigger('click')
+
+    const event = wrapper.emitted('createAppearance')?.[0]?.[0] as VrmAppearanceConfig
+    expect(event.startMotionId).toBe('greeting')
   })
 })

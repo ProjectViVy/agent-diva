@@ -31,10 +31,14 @@ const isCreating = ref(false)
 const formName = ref('')
 const formModelId = ref('')
 const formMotionIds = ref<string[]>([])
+const formStartMotionId = ref('appearing')
 const formExpressionEnabled = ref(true)
 const formMotionEnabled = ref(true)
 
-const idleMotions = computed(() => props.motionList.filter((motion) => motion.kind !== 'oneshot'))
+const idleMotions = computed(() => props.motionList.filter((motion) => motion.kind === 'idle'))
+const startupMotions = computed(() =>
+  props.motionList.filter((motion) => motion.kind === 'startup' && ['appearing', 'greeting'].includes(motion.id)),
+)
 const displayedAppearances = computed(() => withDefaultAppearance(props.appearances))
 const effectiveActiveId = computed(() =>
   displayedAppearances.value.some((appearance) => appearance.id === props.activeAppearanceId)
@@ -53,6 +57,7 @@ function startCreate() {
   formName.value = ''
   formModelId.value = selectableModels.value[0]?.path ?? ''
   formMotionIds.value = []
+  formStartMotionId.value = 'appearing'
   formExpressionEnabled.value = true
   formMotionEnabled.value = true
 }
@@ -64,6 +69,7 @@ function startEdit(appearance: VrmAppearanceConfig) {
   formName.value = appearance.name
   formModelId.value = appearance.modelId
   formMotionIds.value = [...appearance.motionIds]
+  formStartMotionId.value = appearance.startMotionId || 'appearing'
   formExpressionEnabled.value = appearance.expressionEnabled
   formMotionEnabled.value = appearance.motionEnabled
 }
@@ -86,6 +92,7 @@ function saveForm() {
     name: formName.value.trim() || '未命名外观',
     modelId: formModelId.value,
     motionIds: [...formMotionIds.value],
+    startMotionId: formStartMotionId.value,
     expressionEnabled: formExpressionEnabled.value,
     motionEnabled: formMotionEnabled.value,
   }
@@ -169,6 +176,23 @@ function saveForm() {
             </button>
             <p v-if="idleMotions.length === 0" class="text-[10px] text-gray-400">暂无可用待机动作</p>
           </div>
+        </div>
+
+        <div class="mb-3">
+          <div class="mb-1 text-[10px] text-gray-500">开始动作</div>
+          <div class="grid grid-cols-2 gap-1">
+            <button
+              v-for="motion in startupMotions"
+              :key="motion.id"
+              type="button"
+              class="flex items-center justify-center rounded-md border px-2 py-1.5 text-xs transition-colors"
+              :class="formStartMotionId === motion.id ? 'border-pink-400 bg-pink-50 text-pink-600' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'"
+              @click="formStartMotionId = motion.id"
+            >
+              {{ motion.name }}
+            </button>
+          </div>
+          <p v-if="startupMotions.length === 0" class="mt-1 text-[10px] text-gray-400">暂无可用开始动作，保存时默认使用 appearing</p>
         </div>
 
         <div class="mb-3 grid grid-cols-2 gap-2 text-xs text-gray-600">

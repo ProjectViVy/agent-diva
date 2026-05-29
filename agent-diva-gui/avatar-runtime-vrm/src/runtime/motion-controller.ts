@@ -197,10 +197,10 @@ export class MotionController {
       return false
     }
 
-    if (binding.entry.kind !== 'oneshot') {
+    if (binding.entry.kind !== 'oneshot' && binding.entry.kind !== 'startup') {
       this.reportError({
         code: 'MOTION_NOT_ONESHOT',
-        message: `Motion "${id}" is not a one-shot motion.`,
+        message: `Motion "${id}" is not a playable one-shot motion.`,
         recoverable: true,
         detail: { motionId: id, kind: binding.entry.kind },
       })

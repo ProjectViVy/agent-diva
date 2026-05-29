@@ -2,7 +2,7 @@ import type { VrmMotionInfo } from '../types'
 
 export const VRM_ANIMATIONS_DIR = '/vrm/animations'
 
-const KNOWN_ANIMATIONS: Array<{ id: string; kind: 'idle' | 'oneshot' }> = [
+const KNOWN_ANIMATIONS: Array<{ id: string; kind: NonNullable<VrmMotionInfo['kind']> }> = [
   { id: 'akimbo', kind: 'idle' },
   { id: 'LookAround', kind: 'idle' },
   { id: 'model_pose', kind: 'idle' },
@@ -11,11 +11,11 @@ const KNOWN_ANIMATIONS: Array<{ id: string; kind: 'idle' | 'oneshot' }> = [
   { id: 'Sleepy', kind: 'idle' },
   { id: 'waiting', kind: 'idle' },
   { id: 'Angry', kind: 'oneshot' },
-  { id: 'appearing', kind: 'oneshot' },
+  { id: 'appearing', kind: 'startup' },
   { id: 'Blush', kind: 'oneshot' },
   { id: 'Clapping', kind: 'oneshot' },
   { id: 'Goodbye', kind: 'oneshot' },
-  { id: 'greeting', kind: 'oneshot' },
+  { id: 'greeting', kind: 'startup' },
   { id: 'Jump', kind: 'oneshot' },
   { id: 'liked', kind: 'oneshot' },
   { id: 'peace_sign', kind: 'oneshot' },

@@ -8,6 +8,7 @@ export const DEFAULT_VRM_APPEARANCE: VrmAppearanceConfig = {
   name: '默认角色',
   modelId: DEFAULT_VRM_MODEL_PATH,
   motionIds: [],
+  startMotionId: 'appearing',
   expressionEnabled: false,
   motionEnabled: false,
 }
@@ -19,7 +20,9 @@ export function isDefaultAppearanceId(id: string | null | undefined): boolean {
 export function withDefaultAppearance(appearances: VrmAppearanceConfig[] = []): VrmAppearanceConfig[] {
   return [
     DEFAULT_VRM_APPEARANCE,
-    ...appearances.filter((appearance) => appearance.id !== DEFAULT_APPEARANCE_ID),
+    ...appearances
+      .filter((appearance) => appearance.id !== DEFAULT_APPEARANCE_ID)
+      .map(withAppearanceDefaults),
   ]
 }
 
@@ -45,5 +48,12 @@ export function resolveAppearance(
     return DEFAULT_VRM_APPEARANCE
   }
 
-  return found
+  return withAppearanceDefaults(found)
+}
+
+export function withAppearanceDefaults(appearance: VrmAppearanceConfig): VrmAppearanceConfig {
+  return {
+    ...appearance,
+    startMotionId: appearance.startMotionId || 'appearing',
+  }
 }

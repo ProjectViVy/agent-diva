@@ -7,6 +7,7 @@ import { addVoiceLogEvent } from '../voice/services/voice-log'
 const PET_CONFIG_KEY = 'agent-diva-pet-config'
 const PET_ASR_DEFAULT_MIGRATION_KEY = 'agent-diva-pet-asr-default-enabled-migrated-v1'
 const PET_EXPRESSION_DEFAULT_MIGRATION_KEY = 'agent-diva-pet-expression-default-enabled-migrated-v1'
+const DEFAULT_START_MOTION_ID = 'appearing'
 let isHydrating = false
 let saveRequestId = 0
 
@@ -36,6 +37,11 @@ export function migrateConfig(config: Partial<PetConfig>): PetConfig {
   // v2.x → v3.x: ensure VRM appearance fields exist
   if (!Array.isArray(migrated.vrmAppearances)) {
     migrated.vrmAppearances = DEFAULT_PET_CONFIG.vrmAppearances
+  } else {
+    migrated.vrmAppearances = migrated.vrmAppearances.map((appearance) => ({
+      ...appearance,
+      startMotionId: appearance.startMotionId || DEFAULT_START_MOTION_ID,
+    }))
   }
 
   // v3.x → v4.x: ensure 3D Gauss scene fields exist

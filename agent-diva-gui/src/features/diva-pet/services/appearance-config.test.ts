@@ -16,6 +16,7 @@ function makeAppearance(overrides?: Partial<VrmAppearanceConfig>): VrmAppearance
     name: 'Test Appearance',
     modelId: 'test-model',
     motionIds: [],
+    startMotionId: 'appearing',
     expressionEnabled: true,
     motionEnabled: true,
     ...overrides,
@@ -47,6 +48,15 @@ describe('useAppearanceConfig', () => {
 
       expect(api.appearances.value).toHaveLength(1)
       expect(api.appearances.value[0].name).toBe('Test 1')
+    })
+
+    it('fills missing startMotionId when adding an older appearance shape', () => {
+      const { api } = setup()
+      const appearance = makeAppearance({ name: 'Legacy', startMotionId: undefined })
+
+      api.createAppearance(appearance)
+
+      expect(api.appearances.value[0].startMotionId).toBe('appearing')
     })
 
     it('preserves existing appearances when adding', () => {
@@ -395,6 +405,11 @@ describe('createEmptyAppearance', () => {
   it('has empty motionIds by default', () => {
     const appearance = createEmptyAppearance('Test', 'm1')
     expect(appearance.motionIds).toEqual([])
+  })
+
+  it('uses appearing as the default startup motion', () => {
+    const appearance = createEmptyAppearance('Test', 'm1')
+    expect(appearance.startMotionId).toBe('appearing')
   })
 
   it('has expressionEnabled and motionEnabled both true', () => {

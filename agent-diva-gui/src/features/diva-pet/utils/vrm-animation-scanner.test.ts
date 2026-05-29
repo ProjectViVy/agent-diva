@@ -11,9 +11,9 @@ describe('vrm-animation-scanner', () => {
     expect(list).toHaveLength(25)
     expect(list.find((motion) => motion.id === 'akimbo')?.kind).toBe('idle')
     expect(list.find((motion) => motion.id === 'LookAround')?.kind).toBe('idle')
-    expect(list.find((motion) => motion.id === 'greeting')?.kind).toBe('oneshot')
+    expect(list.find((motion) => motion.id === 'greeting')?.kind).toBe('startup')
     expect(list.find((motion) => motion.id === 'waiting')?.kind).toBe('idle')
-    expect(list.find((motion) => motion.id === 'appearing')?.kind).toBe('oneshot')
+    expect(list.find((motion) => motion.id === 'appearing')?.kind).toBe('startup')
     expect(list.find((motion) => motion.id === 'liked')?.kind).toBe('oneshot')
     expect(list.find((motion) => motion.id === 'greeting')?.name).toBe('问候')
     expect(list.find((motion) => motion.id === 'Clapping')?.name).toBe('鼓掌')
@@ -28,7 +28,7 @@ describe('vrm-animation-scanner', () => {
 
     const result = await scanVRMAnimations()
     expect(result.map((motion) => motion.id)).toEqual(['greeting', 'stretch'])
-    expect(result[0].kind).toBe('oneshot')
+    expect(result[0].kind).toBe('startup')
   })
 
   it('falls back to known animations and filters missing files', async () => {

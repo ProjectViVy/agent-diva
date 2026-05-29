@@ -12,6 +12,8 @@ interface Props {
   transparentBackground?: boolean
   idleMotionEnabled?: boolean
   selectedMotionIds?: string[]
+  startMotionId?: string
+  startMotionToken?: string | number
   previewMotionId?: string | null
   stopPreviewToken?: number
 }
@@ -32,6 +34,8 @@ const payload = computed(() => ({
   transparentBackground: !!props.transparentBackground,
   idleMotionEnabled: !!props.idleMotionEnabled,
   selectedMotionIds: Array.from(props.selectedMotionIds ?? []),
+  startMotionId: props.startMotionId ?? 'appearing',
+  startMotionToken: props.startMotionToken ?? 0,
   previewMotionId: props.previewMotionId ?? null,
   stopPreviewToken: props.stopPreviewToken ?? 0,
 }))

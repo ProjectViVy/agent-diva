@@ -40,7 +40,7 @@ export interface VrmMotionInfo {
   /** Display name (used for AI semantic motion calling) */
   name: string
   /** Runtime motion kind */
-  kind?: 'idle' | 'oneshot'
+  kind?: 'idle' | 'startup' | 'oneshot'
   /** Relative path (e.g. /vrm/animations/greeting.vrma) */
   path: string
   /** Optional thumbnail path */
@@ -60,6 +60,8 @@ export interface VrmAppearanceConfig {
   modelId: string
   /** Selected VRMA motion IDs for this appearance */
   motionIds: string[]
+  /** Startup VRMA motion ID for this appearance */
+  startMotionId?: string
   /** Whether expression override is enabled */
   expressionEnabled: boolean
   /** Whether idle motion is enabled */

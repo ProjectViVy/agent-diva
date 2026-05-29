@@ -2,9 +2,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-const { mockSetBackgroundScene, mockSetTransform, mockCreateRuntime, runtimeCallOrder } = vi.hoisted(() => {
+const { mockPlayMotion, mockSetBackgroundScene, mockSetMotionState, mockSetTransform, mockCreateRuntime, runtimeCallOrder } = vi.hoisted(() => {
   const runtimeCallOrder: string[] = []
+  const mockPlayMotion = vi.fn<(...args: unknown[]) => Promise<boolean>>()
   const mockSetBackgroundScene = vi.fn<(...args: unknown[]) => Promise<void>>()
+  const mockSetMotionState = vi.fn<(...args: unknown[]) => Promise<void>>()
   const mockSetTransform = vi.fn<(...args: unknown[]) => Promise<void>>()
 
   const mockCreateRuntime = vi.fn<any>(async () => ({
@@ -17,6 +19,8 @@ const { mockSetBackgroundScene, mockSetTransform, mockCreateRuntime, runtimeCall
       return Promise.resolve(undefined)
     }),
     setMood: vi.fn(),
+    setMotionState: vi.fn((...args: unknown[]) => mockSetMotionState(...args)),
+    playMotion: vi.fn((...args: unknown[]) => mockPlayMotion(...args)),
     setSpeechState: vi.fn().mockResolvedValue(undefined),
     resume: vi.fn(),
     pause: vi.fn(),
@@ -30,7 +34,7 @@ const { mockSetBackgroundScene, mockSetTransform, mockCreateRuntime, runtimeCall
     },
   }))
 
-  return { mockSetBackgroundScene, mockSetTransform, mockCreateRuntime, runtimeCallOrder }
+  return { mockPlayMotion, mockSetBackgroundScene, mockSetMotionState, mockSetTransform, mockCreateRuntime, runtimeCallOrder }
 })
 
 class MockResizeObserver {
@@ -48,6 +52,8 @@ async function setup(props: Record<string, unknown> = {}) {
   vi.clearAllMocks()
   runtimeCallOrder.length = 0
   mockSetBackgroundScene.mockResolvedValue(undefined)
+  mockSetMotionState.mockResolvedValue(undefined)
+  mockPlayMotion.mockResolvedValue(true)
   mockSetTransform.mockResolvedValue(undefined)
   mockCreateRuntime.mockClear()
 
@@ -224,6 +230,37 @@ describe('runtime initialization', () => {
       rotationAzimuth: 0,
       rotationPolar: Math.PI / 2,
     })
+  })
+})
+
+describe('startup motion', () => {
+  it('plays the configured startup motion after model load', async () => {
+    await setup({ startMotionId: 'greeting' })
+
+    expect(mockPlayMotion).toHaveBeenCalledWith('greeting')
+  })
+
+  it('uses appearing by default', async () => {
+    await setup()
+
+    expect(mockPlayMotion).toHaveBeenCalledWith('appearing')
+  })
+
+  it('ignores non-startup motion ids', async () => {
+    await setup({ startMotionId: 'liked' })
+
+    expect(mockPlayMotion).not.toHaveBeenCalledWith('liked')
+  })
+
+  it('replays startup motion when the appearance switch token changes', async () => {
+    const { wrapper } = await setup({ startMotionId: 'appearing', startMotionToken: 'default' })
+    mockPlayMotion.mockClear()
+
+    await wrapper.setProps({ startMotionId: 'greeting', startMotionToken: 'alt' })
+    await nextTick()
+    await nextTick()
+
+    expect(mockPlayMotion).toHaveBeenCalledWith('greeting')
   })
 })
 

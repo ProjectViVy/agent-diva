@@ -16,6 +16,8 @@ type EmbeddedPetMessage =
         transparentBackground?: boolean
         idleMotionEnabled?: boolean
         selectedMotionIds?: string[]
+        startMotionId?: string
+        startMotionToken?: string | number
         previewMotionId?: string | null
         stopPreviewToken?: number
       }
@@ -32,6 +34,8 @@ const state = reactive({
   transparentBackground: false,
   idleMotionEnabled: false,
   selectedMotionIds: [] as string[],
+  startMotionId: 'appearing',
+  startMotionToken: 0 as string | number,
   previewMotionId: null as string | null,
   stopPreviewToken: 0,
 })
@@ -47,6 +51,8 @@ function applyState(payload: EmbeddedPetMessage['payload']): void {
   state.transparentBackground = !!payload.transparentBackground
   state.idleMotionEnabled = !!payload.idleMotionEnabled
   state.selectedMotionIds = Array.isArray(payload.selectedMotionIds) ? payload.selectedMotionIds : []
+  state.startMotionId = payload.startMotionId ?? 'appearing'
+  state.startMotionToken = payload.startMotionToken ?? 0
   state.previewMotionId = payload.previewMotionId ?? null
   state.stopPreviewToken = payload.stopPreviewToken ?? 0
 }
@@ -81,6 +87,8 @@ onUnmounted(() => {
       :transparent-background="state.transparentBackground"
       :idle-motion-enabled="state.idleMotionEnabled"
       :selected-motion-ids="state.selectedMotionIds"
+      :start-motion-id="state.startMotionId"
+      :start-motion-token="state.startMotionToken"
       :preview-motion-id="state.previewMotionId"
       :stop-preview-token="state.stopPreviewToken"
     />

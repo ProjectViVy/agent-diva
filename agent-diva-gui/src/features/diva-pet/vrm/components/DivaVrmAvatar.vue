@@ -16,6 +16,8 @@ const p = defineProps<{
   active?: boolean
   idleMotionEnabled?: boolean
   selectedMotionIds?: string[]
+  startMotionId?: string
+  startMotionToken?: string | number
   previewMotionId?: string | null
   stopPreviewToken?: number
 }>()
@@ -35,6 +37,7 @@ let ro: ResizeObserver | null = null
 let loadSeq = 0
 let sceneSeq = 0
 let zoom = 1.0
+let startupSeq = 0
 
 onMounted(async () => {
   const el = container.value
@@ -99,6 +102,7 @@ async function loadModel(): Promise<void> {
     if (seq !== loadSeq) return
     await syncDesktopPetCamera()
     await syncMotionState()
+    await playStartupMotion()
     emit('loadSuccess')
   } catch (err: any) {
     if (seq !== loadSeq) return
@@ -154,6 +158,9 @@ watch(() => p.active, (a) => {
 watch(() => [p.idleMotionEnabled, p.selectedMotionIds] as const, () => {
   void syncMotionState()
 }, { deep: true })
+watch(() => p.startMotionToken, () => {
+  void playStartupMotion()
+})
 watch(() => p.previewMotionId, (id) => {
   if (!runtime || !id) return
   void (runtime as any).playMotion(id)
@@ -194,6 +201,21 @@ async function syncMotionState(): Promise<void> {
     idleEnabled: !!p.idleMotionEnabled,
     selectedIdleMotionIds: p.selectedMotionIds ?? [],
   })
+}
+
+async function playStartupMotion(): Promise<void> {
+  if (!runtime) return
+  const motionId = p.startMotionId || 'appearing'
+  if (motionId !== 'appearing' && motionId !== 'greeting') return
+
+  const seq = ++startupSeq
+  try {
+    const played = await (runtime as any).playMotion(motionId)
+    if (seq !== startupSeq || !played) return
+    await syncMotionState()
+  } catch (error) {
+    console.warn('[DivaVrmAvatar] Failed to play startup motion:', error)
+  }
 }
 </script>
 

@@ -106,7 +106,7 @@ function bindAnimationControls(
   blinkToggle.addEventListener('change', applyState)
 }
 
-function createMotionButton(label: string, variant: 'idle' | 'oneshot'): HTMLButtonElement {
+function createMotionButton(label: string, variant: 'idle' | 'startup' | 'oneshot'): HTMLButtonElement {
   const button = document.createElement('button')
   button.className = `motion-button motion-button--${variant}`
   button.textContent = label
@@ -148,7 +148,7 @@ function bindMotionControls(
     const renderSection = (
       container: HTMLElement,
       motions: AvatarMotionEntry[],
-      kind: 'idle' | 'oneshot',
+      kind: 'idle' | 'startup' | 'oneshot',
     ) => {
       container.innerHTML = ''
       for (const motion of motions) {

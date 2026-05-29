@@ -52,7 +52,7 @@ const BUILTIN_MOTIONS: AvatarMotionEntry[] = [
   {
     id: 'appearing',
     name: 'Appearing',
-    kind: 'oneshot',
+    kind: 'startup',
     source: '/vrm/animations/appearing.vrma',
   },
   {
@@ -76,7 +76,7 @@ const BUILTIN_MOTIONS: AvatarMotionEntry[] = [
   {
     id: 'greeting',
     name: 'Greeting',
-    kind: 'oneshot',
+    kind: 'startup',
     source: '/vrm/animations/greeting.vrma',
   },
   {
