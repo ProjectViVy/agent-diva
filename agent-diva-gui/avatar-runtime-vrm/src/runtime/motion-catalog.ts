@@ -38,10 +38,22 @@ const BUILTIN_MOTIONS: AvatarMotionEntry[] = [
     source: '/vrm/animations/Sleepy.vrma',
   },
   {
+    id: 'waiting',
+    name: 'Waiting',
+    kind: 'idle',
+    source: '/vrm/animations/waiting.vrma',
+  },
+  {
     id: 'Angry',
     name: 'Angry',
     kind: 'oneshot',
     source: '/vrm/animations/Angry.vrma',
+  },
+  {
+    id: 'appearing',
+    name: 'Appearing',
+    kind: 'oneshot',
+    source: '/vrm/animations/appearing.vrma',
   },
   {
     id: 'Blush',
@@ -72,6 +84,12 @@ const BUILTIN_MOTIONS: AvatarMotionEntry[] = [
     name: 'Jump',
     kind: 'oneshot',
     source: '/vrm/animations/Jump.vrma',
+  },
+  {
+    id: 'liked',
+    name: 'Liked',
+    kind: 'oneshot',
+    source: '/vrm/animations/liked.vrma',
   },
   {
     id: 'peace_sign',

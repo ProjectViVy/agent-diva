@@ -8,10 +8,13 @@ describe('vrm-animation-scanner', () => {
 
   it('builds the runtime playable motion catalog', () => {
     const list = buildKnownMotionInfo()
-    expect(list).toHaveLength(22)
+    expect(list).toHaveLength(25)
     expect(list.find((motion) => motion.id === 'akimbo')?.kind).toBe('idle')
     expect(list.find((motion) => motion.id === 'LookAround')?.kind).toBe('idle')
     expect(list.find((motion) => motion.id === 'greeting')?.kind).toBe('oneshot')
+    expect(list.find((motion) => motion.id === 'waiting')?.kind).toBe('idle')
+    expect(list.find((motion) => motion.id === 'appearing')?.kind).toBe('oneshot')
+    expect(list.find((motion) => motion.id === 'liked')?.kind).toBe('oneshot')
     expect(list.find((motion) => motion.id === 'greeting')?.name).toBe('问候')
     expect(list.find((motion) => motion.id === 'Clapping')?.name).toBe('鼓掌')
     expect(list.find((motion) => motion.id === 'greeting')?.path).toBe(`${VRM_ANIMATIONS_DIR}/greeting.vrma`)
