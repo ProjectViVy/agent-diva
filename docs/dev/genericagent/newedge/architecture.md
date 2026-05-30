@@ -556,9 +556,233 @@ session/history evidence
 - Mentle 后台整理失败不能影响 Markdown 权威回退。
 - Laputa projection 失败必须降级为现有 `SOUL.md` / `MEMORY.md` 注入。
 
-## 8. 接口与数据流设计
+## 8. Plan Mode 架构
 
-### 8.1 保留 `MemoryProvider` 四钩子为主边界
+Plan Mode 是 DivaGeneric 的复杂任务编排层，用来承接“三步以上、有依赖、多文件协同、需要验证”的任务。它借鉴 GenericAgent 的四阶段流程，但不照搬纯文件协议，也不重写 agent-diva 的 `AgentLoop`。核心原则是：新增编排层，复用现有 loop、tool registry、subagent、event bus 和 memory provider。
+
+### 8.1 触发条件与非目标
+
+默认触发条件：
+
+- 任务预计超过 3 个有依赖步骤。
+- 涉及多个 crate、多个配置面或多个文档/代码文件。
+- 需要先探索再决定实现方案。
+- 需要用户确认计划或存在明显风险边界。
+- 用户显式要求进入 Plan Mode。
+
+不进入 Plan Mode 的情况：
+
+- 简单问答。
+- 单文件小修。
+- 明确命令式任务且无需探索。
+- 用户要求“直接做，不要计划”且风险可控。
+
+Plan Mode 非目标：
+
+- 不替代 `AgentLoop` 单回合执行。
+- 不把所有任务都计划化。
+- 不让 `MemoryProvider` 承载计划状态机。
+- 不把计划状态混进 session message history。
+- 不默认开启并行执行；第一阶段只做串行闭环。
+
+### 8.2 确定文件名与目录结构
+
+Plan Mode 文件必须沿用此前提到的 `plan.md`、`exploration_findings.md` 等概念，但归档到 `.laputa/plans/<plan-id>/` 下，避免污染根目录。
+
+```text
+.laputa/
+  plans/
+    active.json
+    <plan-id>/
+      input.md
+      exploration_findings.md
+      plan.md
+      state.json
+      events.jsonl
+      verification.md
+      evidence/
+        step-001.md
+        step-002.md
+```
+
+文件职责：
+
+- `active.json`：当前未完成计划索引，可为空。
+- `input.md`：用户目标、约束、禁止事项、验收标准。
+- `exploration_findings.md`：探索阶段产物，只记录事实、风险、代码接缝和候选方案，不写执行步骤。
+- `plan.md`：用户可读计划，包含 checklist、依赖、验证方式和需要确认的决策。
+- `state.json`：机器可读计划状态，和 session history 分离。
+- `events.jsonl`：`PlanDrafted`、`StepStarted`、`StepBlocked`、`PlanCompleted` 等事件流。
+- `verification.md`：验证阶段结论，必须给 `PASS`、`FAIL` 或 `PARTIAL`。
+- `evidence/*.md`：每个 step 的证据、命令、输出摘要、文件变更摘要。
+
+### 8.3 四阶段状态机
+
+Plan Mode 固定四阶段：
+
+```text
+Explore -> Plan -> Execute -> Verify
+```
+
+阶段职责：
+
+- Explore：收集事实。可用 subagent 探索，但主 agent 不在此阶段承诺执行方案。
+- Plan：生成 `plan.md`，标注 checklist、依赖、验证方式、风险点和需用户确认项。
+- Execute：按 `plan.md` 串行执行 `[ ]` step，每完成一步写 evidence 并更新 `state.json`。
+- Verify：独立验证。结论必须是 `PASS`、`FAIL` 或 `PARTIAL`，不能用含糊措辞替代。
+
+硬门禁：
+
+- 没有 `exploration_findings.md` 不进入 Plan。
+- 没有用户确认或策略确认不进入 Execute。
+- `plan.md` 中存在未完成 `[ ]` 时不能进入最终完成态。
+- Verify 阶段必须读取 `plan.md` 和 `state.json`，确认 0 个未完成 required step。
+- `FAIL` 或 `PARTIAL` 不能自动标记计划成功；必须生成 follow-up、rollback 或用户确认。
+
+### 8.4 PlanOrchestrator 边界
+
+推荐新增：
+
+```text
+agent-diva-agent/src/plan_mode/
+  mod.rs
+  orchestrator.rs
+  store.rs
+  types.rs
+  events.rs
+  verifier.rs
+```
+
+后续如果 Plan Mode 成为跨 manager/gui 的稳定能力，可把 domain types 上移到 `agent-diva-core`，但第一阶段不默认新增独立 crate。
+
+职责边界：
+
+- `AgentLoop`：仍负责单回合 LLM/tool 执行。
+- `PlanOrchestrator`：负责计划生命周期、阶段门禁、step 调度、状态转移。
+- `PlanStateStore`：读写 `.laputa/plans/*`，不写 session message history。
+- `SubagentManager`：可作为探索或验证 executor，但不拥有计划状态。
+- `MemoryProvider`：只接收计划摘要、证据和最终可学习内容，不承载计划状态机。
+- `GenericCore`：从计划 evidence 中生成学习候选，不直接控制计划执行。
+- `manager/gui`：后续暴露计划状态、确认、暂停、继续、拒绝、重试入口。
+
+### 8.5 计划数据类型草案
+
+建议类型：
+
+```rust
+pub struct Plan {
+    pub plan_id: String,
+    pub title: String,
+    pub goal: String,
+    pub status: PlanStatus,
+    pub steps: Vec<PlanStep>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub struct PlanStep {
+    pub step_id: String,
+    pub title: String,
+    pub status: PlanStepStatus,
+    pub depends_on: Vec<String>,
+    pub evidence_path: Option<PathBuf>,
+    pub verification: Option<VerificationVerdict>,
+}
+
+pub enum PlanStatus {
+    Exploring,
+    AwaitingApproval,
+    Executing,
+    Verifying,
+    Completed,
+    Failed,
+    Partial,
+    Paused,
+}
+
+pub enum VerificationVerdict {
+    Pass,
+    Fail { reason: String },
+    Partial { reason: String },
+}
+```
+
+事件类型：
+
+- `PlanDrafted`
+- `PlanApproved`
+- `StepStarted`
+- `StepCompleted`
+- `StepBlocked`
+- `StepRetried`
+- `PlanPaused`
+- `PlanResumed`
+- `PlanVerificationCompleted`
+- `PlanCompleted`
+
+### 8.6 与 L0-L4 的关系
+
+Plan Mode 自身不是新的记忆层。它产生的文件按用途进入 L0-L4：
+
+- `input.md`、`exploration_findings.md`、`events.jsonl`、`evidence/*.md`：L4 evidence。
+- `verification.md`：L4 evidence，可作为 L3 升级依据。
+- 成功反复验证的流程：进入 `.laputa/sop/*.md`，即 L3。
+- 稳定事实或项目状态：确认后进入 `.laputa/MEMORY.md`、`.laputa/relationships.md` 或 Mentle，即 L2。
+- 计划执行中发现的规则：先入 `.laputa/inbox/learning-candidates.jsonl`，确认后可进入 L0/L3。
+- `plan.md` 不直接成为 SOP；只有经过验证和抽象后的流程才能进入 L3。
+
+### 8.7 工具与权限策略
+
+第一阶段策略：
+
+- 串行执行，不做依赖图并行。
+- 每个 step 可声明 tool allowlist。
+- 默认沿用当前 `ToolRegistry`，不新建工具执行内核。
+- 高风险工具调用仍走现有安全/审批机制。
+- subagent 默认不继承 Mentle 工具；Plan Mode 需要 Mentle 时由 step profile 明确配置。
+- 验证 subagent 只读优先，除非用户明确授权修复。
+
+### 8.8 用户交互与 GUI/Manager
+
+CLI/聊天入口的最小交互：
+
+- “进入计划模式”或复杂度门禁触发 plan draft。
+- 展示 `plan.md` 摘要。
+- 用户确认后执行。
+- 用户可暂停、继续、拒绝、重试当前 step。
+- 完成后展示 verification verdict。
+
+manager/gui 后续入口：
+
+- 当前 active plan。
+- step 状态和 evidence。
+- approval gate。
+- pause/resume/retry。
+- verification verdict。
+
+### 8.9 配置建议
+
+```toml
+[generic.plan_mode]
+enabled = true
+auto_trigger = "complex_only"
+require_approval = true
+max_steps = 12
+max_retries_per_step = 1
+verification_required = true
+parallel_execution = false
+```
+
+默认建议：
+
+- `enabled = false`，实验分支或用户显式开启。
+- `auto_trigger = "complex_only"`。
+- `require_approval = true`。
+- `parallel_execution = false`。
+
+## 9. 接口与数据流设计
+
+### 9.1 保留 `MemoryProvider` 四钩子为主边界
 
 DivaGeneric 的所有 prompt 注入、召回、持久化和 session-end 节律都通过 `MemoryProvider` 或其组合 provider 接入。
 
@@ -584,7 +808,7 @@ MemoryManager
 
 但不能让 `ContextBuilder` 直接读 Generic private files，也不能让 `AgentLoop` 直接调用 Mentle schema 完成学习分类。
 
-### 8.2 Generic Core 最小接口
+### 9.2 Generic Core 最小接口
 
 后续建议新增：
 
@@ -608,7 +832,7 @@ pub trait GenericCore {
 - 不暴露 Mentle backend concrete types。
 - 不要求调用方知道底层是 Markdown、SQLite、Turso 还是文件索引。
 
-### 8.3 推荐 public/domain types
+### 9.3 推荐 public/domain types
 
 后续新增或迁移的稳定类型：
 
@@ -657,7 +881,7 @@ pub struct GenericIndex {
 
 这些类型可以先放在 `agent-diva-generic`，等 manager/gui/provider 都需要共享时再上移到 `agent-diva-core`。
 
-### 8.4 Config 建议
+### 9.4 Config 建议
 
 建议新增配置：
 
@@ -669,6 +893,11 @@ learning_mode = "candidate_only"
 
 [generic.autodream]
 enabled = false
+
+[generic.plan_mode]
+enabled = false
+auto_trigger = "complex_only"
+require_approval = true
 
 [mentle]
 mode = "read_only"
@@ -686,9 +915,10 @@ mode = "read_only"
 - `generic.enabled = false` 或实验分支中显式 true
 - `learning_mode = "candidate_only"`
 - `generic.autodream.enabled = false`
+- `generic.plan_mode.enabled = false`
 - `mentle.mode = "read_only"`
 
-### 8.5 Failure degrade 规则
+### 9.5 Failure degrade 规则
 
 所有 provider failure 必须 degrade：
 
@@ -698,8 +928,10 @@ mode = "read_only"
 - `on_session_end` 失败：记录失败，不回滚 session。
 - Generic Core 分类失败：保留 evidence，不升级 candidate。
 - Laputa wakeup 失败：回退 `SOUL.md` / `IDENTITY.md` / `USER.md` / `MEMORY.md`。
+- Plan Mode 状态写入失败：停止进入下一阶段，保留 session 主对话可用。
+- Plan verification 失败：标记 `FAIL` 或 `PARTIAL`，不自动声称完成。
 
-## 9. 分阶段实施路线
+## 10. 分阶段实施路线
 
 ### P0：文档固化与现状审计
 
@@ -792,7 +1024,22 @@ mode = "read_only"
 - GUI 不直接写 memory backend。
 - 所有写入通过 manager/domain API。
 
-### P7：高级心跳和 worker 委派
+### P7：Plan Mode 串行闭环
+
+目标：
+
+- 新增 `plan_mode` 模块。
+- 实现 `.laputa/plans/<plan-id>/` 文件结构。
+- 实现 Explore -> Plan -> Execute -> Verify 串行状态机。
+- 实现 approval gate、state persistence、verification verdict。
+
+验收：
+
+- 3-step 复杂任务可生成 plan draft、经确认后串行执行，并产出 evidence 与 `PASS/FAIL/PARTIAL`。
+- 计划状态与 session message history 分离。
+- 重启后可读取 `state.json` 并恢复到未完成 step。
+
+### P8：高级心跳和 worker 委派
 
 目标：
 
@@ -805,7 +1052,7 @@ mode = "read_only"
 - worker 日志可审计。
 - no full Mentle tools in normal chat。
 
-## 10. 验收标准
+## 11. 验收标准
 
 本设计文档的验收标准：
 
@@ -818,9 +1065,11 @@ mode = "read_only"
 - Mentle 全量工具不进入日常聊天上下文。
 - 子代理默认不继承 Mentle 工具。
 - 在线路径轻量，离线路径做批量整理。
+- Plan Mode 使用独立 `.laputa/plans/*` 状态，不污染 session history。
+- Plan Mode 必须保留 approval gate 与 verification verdict。
 - 所有失败路径都 degrade，不阻断主对话。
 
-## 11. 后续实现测试要求
+## 12. 后续实现测试要求
 
 实现阶段至少覆盖：
 
@@ -831,9 +1080,12 @@ mode = "read_only"
 - Mentle `read_only/custom/full/off` 工具白名单符合预期。
 - Laputa startup degraded 时仍回退 Markdown memory。
 - Daily rhythm 生成失败不破坏 session persistence。
+- Plan Mode 复杂任务生成 `plan.md` 后等待审批，不直接执行。
+- Plan Mode `PASS/FAIL/PARTIAL` verdict 与 `state.json` 一致。
+- Plan Mode 重启后可恢复未完成 step。
 - Provider native endpoint model ID 不被错误改写为 LiteLLM prefix。
 
-## 12. 当前代码落点索引
+## 13. 当前代码落点索引
 
 | 设计点 | 当前落点 | 后续落点 |
 |---|---|---|
@@ -847,3 +1099,4 @@ mode = "read_only"
 | 子代理隔离 | `ToolAssembly::build_subagent_registry` | 保持 |
 | SOUL 注入 | `ContextBuilder::append_soul_sections` | Laputa projection 兼容迁移 |
 | Generic Core | 无 | 新增 `agent-diva-generic` |
+| Plan Mode | 无 | 新增 `agent-diva-agent/src/plan_mode/` 与 `.laputa/plans/*` |
