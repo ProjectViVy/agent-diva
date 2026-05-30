@@ -28,7 +28,7 @@
 - 确认 subagent registry 当前清空 custom tools，默认不继承 Mentle 工具。
 - 确认既有研究文档中已经存在 7 文件/目录体系：`SOUL.md`、`expectations.md`、`index.md`、`rhythm/`、`sop/`、`MEMORY.md`、`relationships.md`；本轮文档已改为沿用该命名体系，而不是采用 GenericAgent 原始文件名。
 - 确认既有 Plan Mode 调研中已经存在四阶段协议：探索、规划、执行、验证，以及 `plan.md`、`exploration_findings.md`、验证 verdict、状态与会话分离等设计；本轮已固化到架构文档中的 Plan Mode 章节。
-- 确认 Plan Mode 已从 `.laputa/plans/*` 调整为 `.diva/plans/*`，以体现其 Diva 原生运行时能力定位；Laputa 只作为约束输入与沉淀输出。
+- 确认 Plan Mode 已从 `.laputa/plans/*` 收口到现有 agent-diva 运行时目录体系下的 `.agent-diva/plans/*`，以体现其 Diva 原生运行时能力定位；Laputa 只作为约束输入与沉淀输出。
 
 ## 未执行项
 

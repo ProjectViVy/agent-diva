@@ -596,10 +596,10 @@ Plan Mode 非目标：
 
 ### 8.2 确定文件名与目录结构
 
-Plan Mode 文件必须沿用此前提到的 `plan.md`、`exploration_findings.md` 等概念，但归档到 Diva 原生运行时目录 `.diva/plans/<plan-id>/` 下，避免污染根目录，也避免把执行状态混入 Laputa 人格/记忆目录。
+Plan Mode 文件必须沿用此前提到的 `plan.md`、`exploration_findings.md` 等概念，但归档到 agent-diva 现有运行时目录体系下的 `.agent-diva/plans/<plan-id>/`，避免污染根目录，也避免把执行状态混入 Laputa 人格/记忆目录。
 
 ```text
-.diva/
+.agent-diva/
   plans/
     active.json
     <plan-id>/
@@ -627,7 +627,7 @@ Plan Mode 文件必须沿用此前提到的 `plan.md`、`exploration_findings.md
 
 与 Laputa 的文件关系：
 
-- `.diva/plans/*`：计划运行状态和执行证据，属于 Diva runtime。
+- `.agent-diva/plans/*`：计划运行状态和执行证据，属于 Diva runtime。
 - `.laputa/SOUL.md`：计划时可读的人格边界。
 - `.laputa/expectations.md`：计划时可读的用户期望。
 - `.laputa/relationships.md`：计划时可读的关系/项目认知。
@@ -678,7 +678,7 @@ agent-diva-agent/src/plan_mode/
 
 - `AgentLoop`：仍负责单回合 LLM/tool 执行。
 - `PlanOrchestrator`：负责计划生命周期、阶段门禁、step 调度、状态转移。
-- `PlanStateStore`：读写 `.diva/plans/*`，不写 session message history。
+- `PlanStateStore`：读写 `.agent-diva/plans/*`，不写 session message history。
 - `SubagentManager`：可作为探索或验证 executor，但不拥有计划状态。
 - `MemoryProvider`：只接收计划摘要、证据和最终可学习内容，不承载计划状态机。
 - `GenericCore`：从计划 evidence 中生成学习候选，不直接控制计划执行。
@@ -1048,7 +1048,7 @@ mode = "read_only"
 目标：
 
 - 新增 `plan_mode` 模块。
-- 实现 `.diva/plans/<plan-id>/` 文件结构。
+- 实现 `.agent-diva/plans/<plan-id>/` 文件结构。
 - 实现 Explore -> Plan -> Execute -> Verify 串行状态机。
 - 实现 approval gate、state persistence、verification verdict。
 
@@ -1085,7 +1085,7 @@ mode = "read_only"
 - 子代理默认不继承 Mentle 工具。
 - 在线路径轻量，离线路径做批量整理。
 - Plan Mode 是 Diva 原生能力，不是 Laputa 能力。
-- Plan Mode 使用独立 `.diva/plans/*` 状态，不污染 session history，也不混入 `.laputa/`。
+- Plan Mode 使用独立 `.agent-diva/plans/*` 状态，不污染 session history，也不混入 `.laputa/`。
 - Plan Mode 必须保留 approval gate 与 verification verdict。
 - 所有失败路径都 degrade，不阻断主对话。
 
@@ -1119,4 +1119,4 @@ mode = "read_only"
 | 子代理隔离 | `ToolAssembly::build_subagent_registry` | 保持 |
 | SOUL 注入 | `ContextBuilder::append_soul_sections` | Laputa projection 兼容迁移 |
 | Generic Core | 无 | 新增 `agent-diva-generic` |
-| Plan Mode | 无 | 新增 `agent-diva-agent/src/plan_mode/` 与 `.diva/plans/*` |
+| Plan Mode | 无 | 新增 `agent-diva-agent/src/plan_mode/` 与 `.agent-diva/plans/*` |
