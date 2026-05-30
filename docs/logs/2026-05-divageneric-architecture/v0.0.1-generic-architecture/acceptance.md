@@ -10,11 +10,12 @@
 6. 确认文档敲定 `.laputa/index.md`、`.laputa/MEMORY.md`、`.laputa/relationships.md`、`.laputa/sop/*.md`、`.laputa/rhythm/*`、`.laputa/inbox/*.jsonl` 等具体落点。
 7. 确认文档明确在线路径和离线路径的职责差异。
 8. 确认文档包含 Plan Mode 架构，且沿用 `plan.md`、`exploration_findings.md`、`verification.md` 等既有概念。
-9. 确认 Plan Mode 文件落点为 `.laputa/plans/<plan-id>/`，计划状态与 session message history 分离。
-10. 确认 Plan Mode 包含 Explore -> Plan -> Execute -> Verify 四阶段、approval gate 和 `PASS/FAIL/PARTIAL` verdict。
-11. 确认文档要求所有 provider failure degrade，不阻断主对话。
-12. 确认文档没有要求绕过 `MemoryProvider` 新建并行记忆管线。
-13. 确认文档没有让 Mentle full tool set 进入日常聊天上下文。
+9. 确认 Plan Mode 是 Diva 原生能力，不是 Laputa 能力。
+10. 确认 Plan Mode 文件落点为 `.diva/plans/<plan-id>/`，计划状态与 session message history 分离，且不混入 `.laputa/`。
+11. 确认 Plan Mode 包含 Explore -> Plan -> Execute -> Verify 四阶段、approval gate 和 `PASS/FAIL/PARTIAL` verdict。
+12. 确认文档要求所有 provider failure degrade，不阻断主对话。
+13. 确认文档没有要求绕过 `MemoryProvider` 新建并行记忆管线。
+14. 确认文档没有让 Mentle full tool set 进入日常聊天上下文。
 
 ## 工程视角验收
 
