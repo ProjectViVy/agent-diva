@@ -15,8 +15,8 @@
 - 明确 GenericAgent 化是主目标，Laputa 不是主架构中心。
 - 逐项绑定当前代码接缝：`MemoryProvider`、`ContextBuilder`、`AgentLoop`、`ToolAssembly`、`MentleRuntime`、`HybridMemoryProvider`、`consolidation`、SOUL 注入机制。
 - 给出 `agent-diva-generic` 推荐 crate 边界、L0-L4 映射、在线/离线路径、接口草案、分阶段实施路线和验收标准。
+- 根据后续确认，修订 L0-L4 章节：沿用此前对话中已经形成的 Diva/Laputa 文件名体系，并定稿 `.laputa/SOUL.md`、`.laputa/expectations.md`、`.laputa/index.md`、`.laputa/MEMORY.md`、`.laputa/relationships.md`、`.laputa/sop/`、`.laputa/rhythm/`、`.laputa/inbox/` 等文件/目录落点。
 
 ## 影响范围
 
 本轮仅新增设计文档和迭代日志，不修改 Rust 代码、配置、README 或运行时行为。
-

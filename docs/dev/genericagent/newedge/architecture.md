@@ -22,7 +22,7 @@ DivaGeneric =
 当前批准方向要求：
 
 - 不绕过 `MemoryProvider` 新建并行记忆管线。
-- 不把 GenericAgent 的文件名机械移植进 agent-diva。
+- 不把 GenericAgent 原始文件名机械移植进 agent-diva；沿用本项目此前已经讨论并沉淀的 Diva/Laputa 文件名。
 - 不让 Laputa 代替 Generic memory。
 - 不让 Mentle 全量工具污染日常聊天上下文。
 - 在线路径保持轻量，离线路径承担整理、去重、归档和学习候选处理。
@@ -167,9 +167,61 @@ agent-diva-generic/
 
 如果后续实现阶段需要降级复杂度，可以先在 `agent-diva-agent/src/generic/` 建局部模块。但默认架构采用 workspace crate，因为学习策略是跨 AgentLoop、provider、manager、GUI 的长期边界。
 
-## 4. GenericAgent L0-L4 到 agent-diva 的映射
+## 4. GenericAgent L0-L4 到 agent-diva 的映射与文件名定稿
 
-GenericAgent 的价值是分层纪律，不是文件名。DivaGeneric 采用 L0-L4 语义映射。
+GenericAgent 的价值是分层纪律，但 DivaGeneric 的文件名必须沿用本项目此前讨论中已经形成的 Diva/Laputa 命名体系。也就是说：不照搬 GenericAgent 的 `global_mem_insight.txt`、`global_mem.txt`、`L4_raw_sessions/` 等原始文件名；但保留 L0-L4 的分层纪律，并把它映射到下列确定文件。
+
+第一阶段确定的文件/目录名：
+
+```text
+.laputa/
+  SOUL.md
+  expectations.md
+  index.md
+  MEMORY.md
+  relationships.md
+  sop/
+    *.md
+  rhythm/
+    daily/
+    weekly/
+    monthly/
+  inbox/
+    learning-candidates.jsonl
+    decisions.jsonl
+```
+
+兼容期继续读取现有根目录文件：
+
+```text
+SOUL.md
+IDENTITY.md
+USER.md
+BOOTSTRAP.md
+memory/MEMORY.md
+memory/HISTORY.md
+```
+
+兼容期规则：
+
+- `.laputa/SOUL.md` 是目标身份文件；根目录 `SOUL.md` 是兼容输入/输出。
+- `.laputa/expectations.md` 是用户期望文件；根目录 `USER.md` 与 `BOOTSTRAP.md` 只做迁移兼容。
+- `.laputa/MEMORY.md` 是 wakeup/短期压缩记忆；`memory/MEMORY.md` 在过渡期仍是 Markdown 权威回退。
+- `.laputa/index.md` 是 L1 导航索引，不再另起 `global_mem_insight.txt`。
+- `.laputa/sop/*.md` 是 L3 SOP/Skill，不再默认放入 `memory/sop/`。
+- `.laputa/rhythm/*` 是 L4 日报/周报/月报归档。
+- `.laputa/inbox/*.jsonl` 是学习候选和决策审计，不直接进入日常 prompt。
+
+### 4.0 分层总表
+
+| 层级 | 含义 | 确定文件/目录 | 是否日常注入 prompt |
+|---|---|---|---|
+| L0 | 学习公理与写入纪律 | `.laputa/sop/memory-management.md`，必要规则同步到 `AGENTS.md` | 只注入短规则摘要 |
+| L1 | 极小索引/导航 | `.laputa/index.md` | 是，限制 30 行以内 |
+| L2 | 稳定事实/当前 wakeup 记忆 | `.laputa/MEMORY.md`，`.laputa/relationships.md`，后续 Mentle drawers | 是，但有 token 预算 |
+| L3 | SOP/Skill/可复用流程 | `.laputa/sop/*.md` | 只注入索引，按需读取正文 |
+| L4 | 原始证据/会话/节律归档 | `.laputa/rhythm/*`，`memory/HISTORY.md`，session store，后续 Mentle diary/evidence | 否，只通过 L1 或 prefetch 召回 |
+| Inbox | 学习候选与决策审计 | `.laputa/inbox/learning-candidates.jsonl`，`.laputa/inbox/decisions.jsonl` | 否 |
 
 ### L0：学习公理和写入纪律
 
@@ -179,10 +231,20 @@ GenericAgent 的价值是分层纪律，不是文件名。DivaGeneric 采用 L0-
 - 定义什么必须先进入候选而不能直接落库。
 - 定义“无证据不记忆”“未验证不升级 SOP/Skill”“用户敏感偏好需要确认”等规则。
 
-落点：
+确定文件名：
 
+- `.laputa/sop/memory-management.md`
+- `AGENTS.md` 中保留必要的跨项目强约束摘要
 - `agent-diva-generic::GenericPolicy`
 - 后续由 `consolidation` 和 autodream/rhythm worker 调用
+
+`memory-management.md` 至少包含：
+
+- action-verified：行动或证据验证优先。
+- sacred-no-silent-delete：不可静默删除长期记忆，删除需要记录原因。
+- no-volatile-state：易变状态不进入 L2/L3。
+- minimal-sufficient-pointer：L1 只放最小充分指针。
+- confirm-sensitive-learning：用户偏好、身份边界、关系判断默认先入候选。
 
 禁止：
 
@@ -197,8 +259,9 @@ GenericAgent 的价值是分层纪律，不是文件名。DivaGeneric 采用 L0-
 - 只包含 pointers，不放大段正文。
 - 指向 L2 facts、L3 SOP/Skill、Laputa rhythm、Mentle rooms/drawers。
 
-落点：
+确定文件名：
 
+- `.laputa/index.md`
 - `GenericIndex`
 - `GenericCore::build_index_block`
 - `ContextBuilder` 通过 `MemoryProvider::system_prompt_block()` 间接拿到渲染结果
@@ -206,7 +269,24 @@ GenericAgent 的价值是分层纪律，不是文件名。DivaGeneric 采用 L0-
 形态示例：
 
 ```markdown
-## Generic Index
+## active_rooms
+- provider-routing -> mentle:project/provider-routing
+- gui-settings -> mentle:project/gui-settings
+
+## hot_drawers
+- provider-model-id-safety -> .laputa/MEMORY.md#provider-model-id-safety
+- mentle-tool-policy -> .laputa/sop/mentle-tool-policy.md
+
+## open_threads
+- generic-learning-candidates -> .laputa/inbox/learning-candidates.jsonl
+
+## recent_sop
+- memory-provider-routing -> .laputa/sop/memory-provider-routing.md
+```
+
+`index.md` 固定 section：
+
+```markdown
 - active_rooms: provider-routing, gui-settings, laputa-rhythm
 - hot_drawers: provider-model-id-safety, mentle-tool-policy
 - open_threads: generic-learning-candidates
@@ -218,6 +298,7 @@ GenericAgent 的价值是分层纪律，不是文件名。DivaGeneric 采用 L0-
 - L1 不存储完整事实。
 - L1 不替代 Mentle search。
 - L1 在 startup prompt 中短小稳定，必要时由 prefetch 再做深召回。
+- L1 总行数上限默认 30 行，配置项为 `generic.index_max_lines`。
 
 ### L2：稳定事实
 
@@ -225,20 +306,30 @@ GenericAgent 的价值是分层纪律，不是文件名。DivaGeneric 采用 L0-
 
 - 存放稳定事实、项目状态、用户确认过的关系事实、长期可检索材料。
 
-初期形态：
+确定文件名：
 
-- 文件态 Markdown 或 JSONL
-- 可与 `memory/MEMORY.md` 共存
+- `.laputa/MEMORY.md`
+- `.laputa/relationships.md`
+- 后续 Mentle drawers/rooms
+
+职责拆分：
+
+- `.laputa/MEMORY.md`：短期 wakeup 记忆和当前压缩状态，是每次启动最重要的“我现在记得什么”。
+- `.laputa/relationships.md`：外部世界、用户、项目、协作者和关系认知。
+- Mentle drawers/rooms：深层事实、证据、长材料、项目细节。
+- `memory/MEMORY.md`：兼容期权威 Markdown 回退，不能突然废弃。
 
 后续形态：
 
-- 可迁入 Mentle drawer/room
-- 通过 `HybridMemoryProvider` 进入 prompt 或 prefetch
+- 当 L2 膨胀到文件态不适合直接注入时，事实迁入 Mentle。
+- `.laputa/MEMORY.md` 只保留 wakeup 摘要、关键关系和指向 Mentle 的 pointers。
+- `HybridMemoryProvider` 负责把 Markdown fallback + Mentle snapshot 组合进 prompt/prefetch。
 
 约束：
 
 - L2 写入必须有 evidence ref。
 - 自动提取只能生成候选，不能默认变成稳定事实。
+- 用户关系、偏好、身份判断默认先写 `.laputa/inbox/learning-candidates.jsonl`，确认后再进入 `.laputa/relationships.md` 或 `.laputa/MEMORY.md`。
 
 ### L3：SOP / Skill
 
@@ -246,16 +337,23 @@ GenericAgent 的价值是分层纪律，不是文件名。DivaGeneric 采用 L0-
 
 - 记录已验证的操作流程、工程规则、可复用技能和自动化步骤。
 
-形态：
+确定文件名：
 
-- 文件态优先，方便审查和版本控制。
-- 可放在 `memory/sop/`、`skills/` 或后续专用目录。
+- `.laputa/sop/*.md`
+- 必要时同步为正式 Codex/agent skill，但 `.laputa/sop/*.md` 是第一落点
+
+命名规则：
+
+- 使用 kebab-case，例如 `.laputa/sop/provider-model-id-safety.md`。
+- 每个 SOP 文件包含：目的、适用范围、步骤、验证方式、反例、最后验证时间。
+- 只有已验证行为才能进入 SOP；一次性经验只能先进入候选。
 
 约束：
 
 - 必须来自已验证行为。
 - 不能把一次失败探索直接升级为 SOP。
 - 对工程流程有影响时需要 acceptance/verification 记录。
+- L3 正文不默认全量注入 prompt，只通过 `.laputa/index.md` 暴露指针。
 
 ### L4：原始会话、日报、证据归档
 
@@ -263,43 +361,75 @@ GenericAgent 的价值是分层纪律，不是文件名。DivaGeneric 采用 L0-
 
 - 保留原始 session、history、daily rhythm、证据和审计材料。
 
-落点：
+确定文件名：
 
 - 当前 `SessionManager` / session store
 - `memory/HISTORY.md`
-- Laputa `rhythm/daily`
+- `.laputa/rhythm/daily/YYYY-MM-DD.md`
+- `.laputa/rhythm/weekly/YYYY-WNN.md`
+- `.laputa/rhythm/monthly/YYYY-MM.md`
 - 后续 Mentle diary 或 evidence drawer
 
 约束：
 
 - L4 是证据层，不直接塞入日常 prompt。
 - L4 通过 L1 指针或 prefetch 定向召回。
+- daily rhythm 是 autodream 的主要输出，不是装饰性报告；它可以产出 L2/L3/Laputa delta 候选，但不能无审计地重写 L2/L3。
+
+### Inbox：候选层
+
+Inbox 不是 L0-L4 之一，但它是 DivaGeneric 防止污染长期记忆的必要缓冲层。
+
+确定文件名：
+
+- `.laputa/inbox/learning-candidates.jsonl`
+- `.laputa/inbox/decisions.jsonl`
+
+`learning-candidates.jsonl` 存放：
+
+- 从 conversation、tool result、daily rhythm、Mentle recall 中提取出的待确认内容。
+- suggested_layer：`L2Fact`、`L3SopOrSkill`、`LaputaPersona`、`Discard`。
+- evidence_refs：session、history、rhythm、Mentle drawer 或文件路径。
+
+`decisions.jsonl` 存放：
+
+- 用户确认、拒绝、重分类、撤销。
+- policy 自动低风险决策。
+- 写入目标，例如 `.laputa/MEMORY.md`、`.laputa/relationships.md`、`.laputa/sop/*.md` 或 Mentle room/drawer。
 
 ## 5. Laputa 并行架构
 
 Laputa 定位为人格连续性层，不是 memory backend。
 
-第一阶段文件态建议：
+第一阶段文件态定稿：
 
 ```text
 .laputa/
   SOUL.md
   expectations.md
-  MEMORY.md
   index.md
+  MEMORY.md
+  relationships.md
+  sop/
+    memory-management.md
+    *.md
   rhythm/
     daily/
     weekly/
     monthly/
+  inbox/
+    learning-candidates.jsonl
+    decisions.jsonl
 ```
 
 与当前 agent-diva 文件的兼容关系：
 
-- 当前 `SOUL.md`：可作为 Laputa `SOUL.md` projection 的兼容输入或输出。
-- 当前 `IDENTITY.md`：可迁移为 Laputa identity source，但短期仍由 `ContextBuilder` 读取。
-- 当前 `USER.md`：可迁移为 expectations/relationship profile，但短期仍保持兼容。
-- 当前 `BOOTSTRAP.md`：仍用于首次引导，Laputa 后续可以生成 wakeup projection 后逐步降低依赖。
-- 当前 `memory/MEMORY.md`：仍是 Markdown 权威回退，不被 Laputa 接管。
+- 当前根目录 `SOUL.md`：兼容期可与 `.laputa/SOUL.md` 双向同步；目标态以 `.laputa/SOUL.md` 为准。
+- 当前 `IDENTITY.md`：迁移到 `.laputa/SOUL.md` 的身份 section；短期仍由 `ContextBuilder` 读取。
+- 当前 `USER.md`：迁移到 `.laputa/expectations.md` 和 `.laputa/relationships.md`；短期仍保持兼容读取。
+- 当前 `BOOTSTRAP.md`：由 `.laputa/expectations.md` 取代；短期仍用于首次引导。
+- 当前 `memory/MEMORY.md`：兼容期仍是 Markdown 权威回退；目标态由 `.laputa/MEMORY.md` 承接 wakeup 记忆。
+- 当前 `memory/HISTORY.md`：继续作为 L4 历史日志；后续可由 `.laputa/rhythm/*` 和 Mentle diary 补强。
 
 接入方式：
 
@@ -717,4 +847,3 @@ mode = "read_only"
 | 子代理隔离 | `ToolAssembly::build_subagent_registry` | 保持 |
 | SOUL 注入 | `ContextBuilder::append_soul_sections` | Laputa projection 兼容迁移 |
 | Generic Core | 无 | 新增 `agent-diva-generic` |
-
