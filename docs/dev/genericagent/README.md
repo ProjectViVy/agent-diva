@@ -36,6 +36,9 @@
 - [architecture](newedge/architecture.md)：Generic Core、Laputa、Mentle、Plan Mode、节律触发与 autodream 的融合边界。
 - [ui-design](newedge/ui-design.md)：Chat / Journal 双入口，以及 PlanCard、OptionCard、ReviewCard、JournalRefCard 的交互设计。
 
+### `Claude Code AutoDream 迁移调研`
+- [autodream-migration-research](autodream-migration-research.md)：确认 Claude Code AutoDream 实现事实，整理自动/手动触发、锁、后台子 agent、DreamTask UI、上下文压缩与 Agent-Diva 迁移方案。
+
 ## 历史核心调研（genericagent-upgrade-research）
 
 - [summary](../../logs/genericagent-upgrade-research/v0.0.1-initial-research/summary.md)
@@ -52,9 +55,10 @@
 4. `2026-05-laputa-new-architecture`（理解新 Laputa 设计：7 文件 + 三轴 + 心跳）
 5. `newedge/architecture.md`（理解 DivaGeneric 的当前融合设计稿）
 6. `newedge/ui-design.md`（理解 Chat / Journal / Card 的产品承载方式）
-7. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
-8. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
-9. 对照各 `verification/acceptance` 作为实施前检查清单
+7. `autodream-migration-research.md`（理解 Claude Code AutoDream 可迁移骨架与 Diva 语义差异）
+8. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
+9. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
+10. 对照各 `verification/acceptance` 作为实施前检查清单
 
 ## 说明
 
