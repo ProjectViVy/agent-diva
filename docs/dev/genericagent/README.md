@@ -39,6 +39,9 @@
 ### `Claude Code AutoDream 迁移调研`
 - [autodream-migration-research](autodream-migration-research.md)：确认 Claude Code AutoDream 实现事实，整理自动/手动触发、锁、后台子 agent、DreamTask UI、上下文压缩与 Agent-Diva 迁移方案。
 
+### `Autodream 前置压缩技术调研`
+- [compression-research](compression-research.md)：调研 Agent-Diva 接下来做 autodream/rhythm 前的压缩技术设计。覆盖 Source Capsule 数据模型、触发策略、checkpoint 设计、与 MemoryProvider/autodream/Journal/Mentle 的边界、MVP 实施建议。
+
 ## 历史核心调研（genericagent-upgrade-research）
 
 - [summary](../../logs/genericagent-upgrade-research/v0.0.1-initial-research/summary.md)
