@@ -41,6 +41,7 @@
 
 ### `Autodream 前置压缩技术调研`
 - [compression-research](compression-research.md)：调研 Agent-Diva 接下来做 autodream/rhythm 前的压缩技术设计。覆盖 Source Capsule 数据模型、触发策略、checkpoint 设计、与 MemoryProvider/autodream/Journal/Mentle 的边界、MVP 实施建议。
+- [compression-taxonomy-decision](compression-taxonomy-decision.md)：澄清上下文压缩、记忆整合、AutoDream 节律精炼是三种不同机制；记录 Agent-Diva 同时需要 session-local context compaction 和 rhythm-driven long-memory refinement 的结论。
 
 ## 历史核心调研（genericagent-upgrade-research）
 
@@ -60,9 +61,10 @@
 6. `newedge/ui-design.md`（理解 Chat / Journal / Card 的产品承载方式）
 7. `autodream-migration-research.md`（理解 Claude Code AutoDream 可迁移骨架与 Diva 语义差异）
 8. `compression-research.md`（理解 autodream 前置压缩设计：Source Capsule、触发策略、边界划分——是 autodream 实施的直接前置）
-9. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
-10. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
-11. 对照各 `verification/acceptance` 作为实施前检查清单
+9. `compression-taxonomy-decision.md`（先区分上下文压缩、记忆整合、AutoDream 节律精炼，再进入实现设计）
+10. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
+11. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
+12. 对照各 `verification/acceptance` 作为实施前检查清单
 
 ## 说明
 
