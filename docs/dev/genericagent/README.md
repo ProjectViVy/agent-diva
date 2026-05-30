@@ -39,8 +39,16 @@
 ### `Claude Code AutoDream 迁移调研`
 - [autodream-migration-research](autodream-migration-research.md)：确认 Claude Code AutoDream 实现事实，整理自动/手动触发、锁、后台子 agent、DreamTask UI、上下文压缩与 Agent-Diva 迁移方案。
 
+### `Context Compaction: 单次 Session 上下文压缩设计`
+- [context-compaction-research](context-compaction-research.md)：调研 Agent-Diva 单次 session 过长时的上下文压缩方案。覆盖 Claude Code compact 系统可借鉴点、当前上下文路径与膨胀点分析、触发策略、压缩范围与产物 schema、存储位置、prompt 组装方式、与 MEMORY.md/consolidation.rs 的边界划分、失败模式、MVP/P1/P2 分阶段实施计划。
+- [summary](../../logs/2026-05-context-compaction-research/v0.0.1-context-compaction-design/summary.md)
+- [verification](../../logs/2026-05-context-compaction-research/v0.0.1-context-compaction-design/verification.md)
+- [release](../../logs/2026-05-context-compaction-research/v0.0.1-context-compaction-design/release.md)
+- [acceptance](../../logs/2026-05-context-compaction-research/v0.0.1-context-compaction-design/acceptance.md)
+
 ### `Autodream 节律精炼设计规格`
 - [autodream-rhythm-distillation-design](autodream-rhythm-distillation-design.md)：AutoDream 节律精炼架构设计。定义触发模型（时间门控、会话数门控、手动触发、启动补跑）、后台 worker 执行模型、输入材料优先级、结构化输出 schema（memory_patch_candidate / journal_entry / learning_candidate / evidence_refs）、MEMORY.md 分级合并策略、Journal 审计链、与 Mentle/LearningCandidate 的对接、锁/checkpoint 并发控制、MVP/P1/P2 分阶段实施计划。
+
 - [summary](../../logs/2026-05-autodream-rhythm-distillation/v0.0.1-rhythm-distillation-design/summary.md)
 - [verification](../../logs/2026-05-autodream-rhythm-distillation/v0.0.1-rhythm-distillation-design/verification.md)
 - [release](../../logs/2026-05-autodream-rhythm-distillation/v0.0.1-rhythm-distillation-design/release.md)
@@ -70,9 +78,10 @@
 8. `compression-research.md`（理解 autodream 前置压缩设计：Source Capsule、触发策略、边界划分——是 autodream 实施的直接前置）
 9. `compression-taxonomy-decision.md`（先区分上下文压缩、记忆整合、AutoDream 节律精炼，再进入实现设计）
 10. `autodream-rhythm-distillation-design.md`（AutoDream 节律精炼完整架构设计：触发模型、worker 执行、输出 schema、合并策略、审计链——可直接拆任务实施）
-11. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
-12. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
-13. 对照各 `verification/acceptance` 作为实施前检查清单
+11. `context-compaction-research.md`（理解单次 session 上下文压缩设计：触发策略、压缩范围、prompt 组装、与 MEMORY.md 的边界——是 session 存活机制，与 autodream 前置压缩互补）
+12. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
+13. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
+14. 对照各 `verification/acceptance` 作为实施前检查清单
 
 ## 说明
 
