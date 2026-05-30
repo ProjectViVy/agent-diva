@@ -39,6 +39,13 @@
 ### `Claude Code AutoDream 迁移调研`
 - [autodream-migration-research](autodream-migration-research.md)：确认 Claude Code AutoDream 实现事实，整理自动/手动触发、锁、后台子 agent、DreamTask UI、上下文压缩与 Agent-Diva 迁移方案。
 
+### `Autodream 节律精炼设计规格`
+- [autodream-rhythm-distillation-design](autodream-rhythm-distillation-design.md)：AutoDream 节律精炼架构设计。定义触发模型（时间门控、会话数门控、手动触发、启动补跑）、后台 worker 执行模型、输入材料优先级、结构化输出 schema（memory_patch_candidate / journal_entry / learning_candidate / evidence_refs）、MEMORY.md 分级合并策略、Journal 审计链、与 Mentle/LearningCandidate 的对接、锁/checkpoint 并发控制、MVP/P1/P2 分阶段实施计划。
+- [summary](../../logs/2026-05-autodream-rhythm-distillation/v0.0.1-rhythm-distillation-design/summary.md)
+- [verification](../../logs/2026-05-autodream-rhythm-distillation/v0.0.1-rhythm-distillation-design/verification.md)
+- [release](../../logs/2026-05-autodream-rhythm-distillation/v0.0.1-rhythm-distillation-design/release.md)
+- [acceptance](../../logs/2026-05-autodream-rhythm-distillation/v0.0.1-rhythm-distillation-design/acceptance.md)
+
 ### `Autodream 前置压缩技术调研`
 - [compression-research](compression-research.md)：调研 Agent-Diva 接下来做 autodream/rhythm 前的压缩技术设计。覆盖 Source Capsule 数据模型、触发策略、checkpoint 设计、与 MemoryProvider/autodream/Journal/Mentle 的边界、MVP 实施建议。
 - [compression-taxonomy-decision](compression-taxonomy-decision.md)：澄清上下文压缩、记忆整合、AutoDream 节律精炼是三种不同机制；记录 Agent-Diva 同时需要 session-local context compaction 和 rhythm-driven long-memory refinement 的结论。
@@ -62,9 +69,10 @@
 7. `autodream-migration-research.md`（理解 Claude Code AutoDream 可迁移骨架与 Diva 语义差异）
 8. `compression-research.md`（理解 autodream 前置压缩设计：Source Capsule、触发策略、边界划分——是 autodream 实施的直接前置）
 9. `compression-taxonomy-decision.md`（先区分上下文压缩、记忆整合、AutoDream 节律精炼，再进入实现设计）
-10. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
-11. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
-12. 对照各 `verification/acceptance` 作为实施前检查清单
+10. `autodream-rhythm-distillation-design.md`（AutoDream 节律精炼完整架构设计：触发模型、worker 执行、输出 schema、合并策略、审计链——可直接拆任务实施）
+11. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
+12. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
+13. 对照各 `verification/acceptance` 作为实施前检查清单
 
 ## 说明
 
