@@ -44,7 +44,9 @@ pub fn should_consolidate(session: &Session, memory_window: usize) -> bool {
 3. 通过 `MemoryProvider::system_prompt_block()` 读取现有 MEMORY.md。
 4. 发送给 LLM，使用 `save_memory` 工具 schema，要求输出 `memory_update`（Markdown 长期记忆）和 `history_entry`（一行摘要）。
 5. 通过 `MemoryProvider::sync_turn()` 直接写入 MEMORY.md 和 HISTORY.md。
-6. 无论 LLM 是否返回预期工具调用，都推进 `last_consolidated` 指针。
+6. 如果 LLM 调用成功但未返回预期工具调用（`save_memory`），记录 warning 后仍推进 `last_consolidated` 指针——这是有意为之，避免对同一段消息无限重试。
+   - 但如果 `provider.chat()` 或 `sync_turn()` 返回错误，`?` 运算符会提前返回，`consolidate()` 向调用方返回 `Err`，指针**不会**被推进。
+   - 调用方 `loop_turn.rs` 捕获此错误后只记录 `error!`，不阻断主回复，但下次 turn 会重新尝试同一段压缩。
 
 ### 2.3 调用位置
 
@@ -67,7 +69,7 @@ consolidation 在 turn 结束后同步运行，失败只记 error 不阻断。
 | 证据引用 | 无。原始消息被截断到 500 字符后丢失上下文 | 保留 source_session_ids、turn indices、文件路径、excerpt_hash |
 | 候选审查 | 直接写入长期记忆，无审查 | 生成候选，由 LearningCandidate/用户确认后再写 |
 | 可重跑 | 不可重跑。指针推进后无法回溯 | capsule 生成后可被 autodream 多次消费，不影响原始 session |
-| 失败恢复 | LLM 失败也推进指针 | 失败不写 capsule，不推进 checkpoint |
+| 失败恢复 | 分层行为：LLM 调用失败或 sync_turn 失败 → 指针不推进，下次重试；LLM 成功但无工具调用 → 指针推进避免无限重试 | 失败不写 capsule，不推进 checkpoint；成功但无有效输出可标记 `parse_failed` |
 | 输入源 | 只看 session messages | 需要综合 session messages、tool results、plan evidence、history、rhythm records |
 | token 管理 | 每条消息截断 500 字符，丢失上下文 | 按 token 预算分层：关键消息保留更多、低价值消息摘要压缩 |
 
@@ -171,21 +173,26 @@ Inbox  候选层 → 压缩可生成 LearningCandidate 进入 inbox
 
 ### 4.3 在 provider composition 中的位置
 
-压缩不能绕过 `MemoryProvider`。它应该：
+压缩不绕过 `MemoryProvider`，但压缩产物也不属于 `MemoryProvider` 的管辖范围。两者通过引入 `CompressionStore` 做显式职责分离：
 
-- **读取**现有记忆：通过 `MemoryProvider::system_prompt_block()` 获取当前 MEMORY.md。
-- **写入**压缩产物：写到 `.agent-diva/compact/` 目录（不在 MemoryProvider 边界内，因为这是中间产物，不是长期记忆）。
-- **触发候选写入**：通过 `MemoryProvider::sync_turn()` 或未来的 `GenericCore::propose_learning_candidate()` 生成候选。
+- **`MemoryProvider`**：负责长期记忆的读写（MEMORY.md、HISTORY.md、SOUL.md、sop/*.md）。压缩只通过它**读取**现有记忆上下文。
+- **`CompressionStore`**：新接口，独占 `.agent-diva/compact/` 目录的读写。负责 capsule 持久化、events.jsonl 追加、checkpoint 管理、lock 管理。`MemoryProvider` 不知道它的存在。
 
 ```text
 CompressionWorker
-  -> 读: session store, history, plan evidence, MemoryProvider::system_prompt_block()
+  -> 读: session store (SessionManager)
+  -> 读: history (memory/HISTORY.md via 文件读取)
+  -> 读: plan evidence (.agent-diva/plans/ 直接读取)
+  -> 读: 现有记忆上下文 (MemoryProvider::system_prompt_block())
   -> 压缩: LLM structured extraction
-  -> 写: .agent-diva/compact/capsules/*.json
-  -> 写: .agent-diva/compact/events.jsonl
-  -> [可选] 生成 LearningCandidate -> .laputa/inbox/learning-candidates.jsonl
+  -> 写: CompressionStore::save_capsule()  -> .agent-diva/compact/capsules/
+  -> 写: CompressionStore::append_event()  -> .agent-diva/compact/events.jsonl
+  -> 写: CompressionStore::update_checkpoint() -> .agent-diva/compact/checkpoint.json
+  -> [可选] 生成 LearningCandidate -> .laputa/inbox/learning-candidates.jsonl (经 MemoryProvider 或 GenericCore)
   -> 不写: MEMORY.md, HISTORY.md, SOUL.md, sop/*.md (除非经确认)
 ```
+
+这个设计确保实现时不会在 `AgentLoop` 中散落直接写 `.agent-diva/compact/` 的代码——所有 compact 目录的写入都收敛到 `CompressionStore`。
 
 ## 5. Source Capsule 数据模型建议
 
@@ -193,14 +200,19 @@ CompressionWorker
 
 ```json
 {
+  "schema_version": 1,
   "capsule_id": "cap-20260530-a1b2c3",
   "capsule_type": "session_segment",
   "created_at": "2026-05-30T10:30:00Z",
-  "source_session_ids": ["slack:C12345", "discord:general"],
-  "source_turn_range": {
-    "start": 0,
-    "end": 45
-  },
+  "created_by": "compression_worker",
+  "redaction_level": "none",
+  "source_ranges": [
+    {
+      "session_id": "slack:C12345",
+      "start_turn": 0,
+      "end_turn": 45
+    }
+  ],
   "summary": "用户要求调研 Provider 模型 ID 安全问题。发现了 LiteLLM prefix 自动重写的 bug，修复了 provider routing 逻辑，添加了测试。",
   "key_facts": [
     "DeepSeek 原生端点不应添加 LiteLLM prefix",
@@ -227,7 +239,14 @@ CompressionWorker
     {
       "content": "修改 provider routing 时必须检查 model ID 格式",
       "suggested_layer": "L3SopOrSkill",
-      "evidence_refs": [...]
+      "evidence_refs": [
+        {
+          "source": "session",
+          "session_id": "slack:C12345",
+          "turn_index": 15,
+          "excerpt_hash": "sha256:ghi789"
+        }
+      ]
     }
   ],
   "evidence_refs": [
@@ -235,8 +254,8 @@ CompressionWorker
       "source": "session",
       "session_id": "slack:C12345",
       "turn_range": [10, 25],
-      "excerpt": "修复前的错误行为...",
-      "excerpt_hash": "sha256:def456"
+      "excerpt_hash": "sha256:def456",
+      "excerpt_preview": "修复前 DeepSeek 端点会收到 deepseek/deepseek-chat 而非 raw ID..."
     },
     {
       "source": "plan_evidence",
@@ -262,22 +281,33 @@ CompressionWorker
 
 | 字段 | 必需 | 说明 |
 |---|---|---|
+| `schema_version` | 是 | schema 版本号，当前为 `1`。后续 breaking change 递增 |
 | `capsule_id` | 是 | 唯一标识，格式 `cap-YYYYMMDD-<short_hash>` |
 | `capsule_type` | 是 | `session_segment` / `cross_session` / `plan_completion` / `manual` |
 | `created_at` | 是 | ISO 8601 时间戳 |
-| `source_session_ids` | 是 | 产生压缩输入的 session key 列表 |
-| `source_turn_range` | 否 | 单 session 时的 turn 范围 |
+| `created_by` | 是 | 生成者标识：`compression_worker` / `manual_compact` / `autodream_prune` |
+| `redaction_level` | 是 | 脱敏级别：`none`（默认，原始文本）/ `preview`（excerpt_preview ≤ 120 字符）/ `hash_only`（只保留 hash） |
+| `source_ranges` | 是 | 每个元素 `{session_id, start_turn, end_turn}`，精确标识压缩来源。多 session 时多个元素 |
 | `summary` | 是 | 结构化摘要，2-5 句话 |
 | `key_facts` | 是 | 本次会话中确立的事实列表 |
 | `decisions` | 是 | 本次会话中做出的决策，每个含 evidence_refs |
 | `open_threads` | 否 | 未完成的讨论或任务 |
 | `candidate_lessons` | 否 | 可升级为 SOP/Skill 的候选经验 |
-| `evidence_refs` | 是 | 指向原始 evidence 的引用列表 |
+| `evidence_refs` | 是 | 指向原始 evidence 的引用列表。`excerpt_preview` 可选且限长 120 字符；`excerpt_hash` 始终保留 |
 | `compression_prompt_version` | 是 | prompt 版本，用于重跑兼容 |
 | `token_budget_used` | 否 | 压缩消耗的 token 数 |
 | `raw_message_count` | 是 | 原始消息数 |
 | `compressed_from_chars` | 否 | 原始字符数 |
 | `compressed_to_chars` | 否 | 压缩后字符数 |
+
+**关键变更说明**（相对初版）：
+
+- `source_session_ids` + `source_turn_range` 合并为 `source_ranges` 数组。每个元素精确绑定 session 和 turn 范围，消除多 session 时的歧义。
+- 新增 `schema_version`：后续 schema 演进时做版本判断。
+- 新增 `created_by`：区分自动压缩、手动压缩、autodream 修剪等不同来源。
+- 新增 `redaction_level`：支持隐私场景下逐步去除明文。`preview` 级别限制 excerpt ≤ 120 字符；`hash_only` 级别只保留 hash。
+- `excerpt` 改为可选的 `excerpt_preview`：不再默认保存完整摘录，只保存限长预览。完整内容通过 `excerpt_hash` + 原始 session 回查。
+- 移除 JSON 中的 `...` 省略号：所有 evidence_refs 和 candidate_lessons 的 `evidence_refs` 都必须是完整数组，不允许省略。
 
 ### 5.3 事件流 Schema
 
@@ -337,9 +367,51 @@ CompressionWorker
 | turn-end threshold | 未压缩消息 ≥ 阈值（默认 50） | session segment | 不阻塞（async 或 fire-and-forget） |
 | session-end | `MemoryProvider::on_session_end()` | session tail | 不阻塞主 session |
 | manual `/compact` | 用户手动触发 | 当前 session 全量 | 阻塞等待结果 |
-| autodream 前置 | autodream worker 启动前 | 跨 session 聚合 | 阻塞 autodream，不阻塞主对话 |
 
-### 6.2 触发阈值
+### 6.2 执行模型：先保存，再入队
+
+当前 `consolidation.rs` 在 `loop_turn.rs` 中以 `await` 方式同步执行，位于 session save 之前。这是必须避免的模式。
+
+压缩的执行模型必须遵循：
+
+```text
+process_inbound_message_inner():
+  1. LLM + tool loop
+  2. save_turn(session, ...)
+  3. sessions.save(session)           // 先保存，保证 session 持久化
+  4. if should_compress(session):     // 再检查阈值
+     - enqueue_compression_task(      // 入队，不 await
+         session_key,
+         compression_tx.clone()       // tokio mpsc channel
+       )
+  5. return response                  // 立即返回主回复
+
+background_compression_worker(compression_rx):
+  loop {
+    task = compression_rx.recv().await
+    acquire_lock(task.session_key)
+    run_compression(task).await       // LLM 调用 + capsule 写入
+    release_lock(task.session_key)
+  }
+```
+
+三种执行模式对比：
+
+| 模式 | 触发场景 | 是否阻塞主回复 | 是否等待 LLM 结果 |
+---|---|---|---|
+| background enqueue | turn-end threshold | 否 | 否（fire-and-forget 到 worker） |
+| background enqueue | session-end | 否 | 否 |
+| synchronous | manual `/compact` | 是 | 是（用户主动要求，需要反馈） |
+
+关键约束：
+
+- **session save 必须在 compression enqueue 之前完成**。否则压缩失败可能影响 session 持久化。
+  - 注意：当前 `consolidation.rs` 的 `consolidate()` 调用位于 `sessions.save()` 之前（`loop_turn.rs:449-462`）。新压缩模块不能复制这个顺序。
+- **background worker 使用独立的 tokio task**，通过 `mpsc::channel` 接收压缩请求。主 AgentLoop 不持有 worker 的 JoinHandle。
+- **同一 session 同时只允许一个压缩任务**，通过 lock 文件或 `CompressionStore` 的内部锁保证。
+- **手动 `/compact`** 可以在主 loop 中同步执行，但仍应通过 `CompressionStore` 写入，不绕过它。
+
+### 6.3 触发阈值
 
 ```toml
 [compression]
@@ -352,14 +424,14 @@ auto_trigger = true              # turn-end 自动触发
 session_end_trigger = true       # session-end 自动触发
 ```
 
-### 6.3 Checkpoint 规则
+### 6.4 Checkpoint 规则
 
 - checkpoint 在 capsule 写入成功后才更新。**不在 LLM 调用前推进**。
 - checkpoint 独立于 `Session.last_consolidated`。两者可以并存，直到 consolidation.rs 被完全替换。
 - checkpoint 失败不影响 session save。
 - 重跑安全：如果 capsule 文件已存在且 checkpoint 已推进，跳过重复压缩。
 
-### 6.4 Lock 机制
+### 6.5 Lock 机制
 
 借鉴 Claude Code 的 `.consolidate-lock`：
 
@@ -377,19 +449,26 @@ session_end_trigger = true       # session-end 自动触发
 
 ### 7.1 压缩与 MemoryProvider 的边界
 
+压缩层和 `MemoryProvider` 是两个独立的写入域，通过 `CompressionStore` 做物理隔离：
+
 ```text
-允许:
-  - 读: MemoryProvider::system_prompt_block() 获取现有记忆上下文
-  - 写: .agent-diva/compact/ 目录（capsule、events、checkpoint）
-  - 生成: LearningCandidate 提交到 .laputa/inbox/
+MemoryProvider 管辖:
+  - 读: system_prompt_block(), prefetch()
+  - 写: sync_turn() -> MEMORY.md, HISTORY.md
+  - 写: on_session_end() -> 节律/rhythm 触发
+
+CompressionStore 管辖 (新):
+  - 写: .agent-diva/compact/capsules/*.json
+  - 写: .agent-diva/compact/events.jsonl
+  - 写: .agent-diva/compact/checkpoint.json
+  - 写: .agent-diva/compact/lock
 
 禁止:
-  - 直接改写 MEMORY.md、HISTORY.md
-  - 直接改写 .laputa/SOUL.md、relationships.md、sop/*.md
-  - 绕过 MemoryProvider 调用 Mentle 写入
-  - 在压缩过程中执行 tool calls（压缩只做文本提取，不做代码执行）
+  - 压缩直接调用 MemoryProvider::sync_turn() 改写 MEMORY.md/HISTORY.md
+  - 压缩直接改写 .laputa/SOUL.md, relationships.md, sop/*.md
+  - AgentLoop 直接写 .agent-diva/compact/ (必须经 CompressionStore)
+  - 压缩过程中执行 tool calls（压缩只做文本提取，不做代码执行）
 ```
-
 ### 7.2 压缩与 autodream 的边界
 
 | 职责 | 压缩 | autodream |
@@ -411,17 +490,24 @@ session_end_trigger = true       # session-end 自动触发
 压缩不直接产生 Journal entry。但压缩产物是 Journal 的间接来源：
 
 ```text
-compression → capsule
+compression → capsule (source_capsule_ids: [cap-xxx])
   → autodream 消费 capsule
-    → daily rhythm
-      → .laputa/rhythm/daily/YYYY-MM-DD.md
-        → JournalView 展示
+    → daily rhythm (必须携带 source_capsule_ids + evidence_refs)
+      → .laputa/rhythm/daily/YYYY-MM-DD.md (必须包含 capsule 回引)
+        → JournalView 展示 (可通过 capsule_id 回查原始 session)
 ```
+
+审计链路字段要求：
+
+- **autodream 输出**（daily/weekly/monthly rhythm）的 `events.jsonl` 记录必须携带 `source_capsule_ids` 字段，标识本次 rhythm 消费了哪些 capsule。
+- **rhythm 文件**（`.laputa/rhythm/daily/YYYY-MM-DD.md`）的 frontmatter 或 metadata 必须包含 `source_capsule_ids` 列表和 `evidence_refs`，使 Journal 可以从 rhythm entry 回溯到 capsule 再到原始 session。
+- **JournalView 展示** rhythm entry 时，应渲染 capsule 引用为可点击链接，允许用户查看原始 evidence。
+
+如果不强制要求这些字段，Journal 审计只能靠文本反查，审计价值会大打折扣。
 
 Journal 约束（来自 ui-design.md）：
 - Journal entry 不应被静默改写。
 - 修正应形成 follow-up 或 amendment record。
-- 压缩产物需要能在 Journal 中审计（通过 evidence_refs 追溯到原始 session）。
 
 ### 7.4 压缩与 Mentle 的边界
 
@@ -481,10 +567,12 @@ compression
    - 写入 `.agent-diva/compact/capsules/`。
    - 更新 checkpoint。
 
-4. **接入 turn-end lifecycle**：
-   - 在 `loop_turn.rs` 中，turn 结束后检查压缩阈值。
+4. **接入 turn-end lifecycle**（严格遵循 §6.2 的非阻塞模型）：
+   - 在 `loop_turn.rs` 中，turn 结束后**先 `sessions.save(session)`**，再检查压缩阈值。
+   - 达到阈值时 `enqueue_compression_task()`，**不 await**，立即返回主回复。
+   - background worker 异步执行 LLM 压缩调用。
    - 与现有 `consolidation::should_consolidate` 并存（可配置使用哪个）。
-   - 失败只记 warn，不阻断。
+   - 失败只记 warn，不阻断主回复。
 
 5. **写入 events.jsonl**：
    - 每次 capsule 创建、消费、checkpoint 更新都追加事件。

@@ -59,9 +59,10 @@
 5. `newedge/architecture.md`（理解 DivaGeneric 的当前融合设计稿）
 6. `newedge/ui-design.md`（理解 Chat / Journal / Card 的产品承载方式）
 7. `autodream-migration-research.md`（理解 Claude Code AutoDream 可迁移骨架与 Diva 语义差异）
-8. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
-9. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
-10. 对照各 `verification/acceptance` 作为实施前检查清单
+8. `compression-research.md`（理解 autodream 前置压缩设计：Source Capsule、触发策略、边界划分——是 autodream 实施的直接前置）
+9. `genericagent-mentle-user-controlled-learning`（理解用户可控学习闭环）
+10. `planmode-research`（理解 Plan Orchestrator 与分阶段接入）
+11. 对照各 `verification/acceptance` 作为实施前检查清单
 
 ## 说明
 
