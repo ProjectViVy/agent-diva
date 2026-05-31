@@ -4,6 +4,7 @@
 
 - [development.md](./development.md) - workflows, tooling, local setup
 - [architecture.md](./architecture.md) - high-level crate and data-flow overview
+- [agent-plan/plan-mode-architecture.md](./agent-plan/plan-mode-architecture.md) - Plan Mode MVP runtime architecture
 - [migration.md](./migration.md) - Python to Rust migration
 - [mentle-integration/09-project-management.md](./mentle-integration/09-project-management.md) - Mentle sprint status and delivery governance
 - [mentle-integration/10-package-source-policy.md](./mentle-integration/10-package-source-policy.md) - frozen `memtle` source, version, and upgrade policy
