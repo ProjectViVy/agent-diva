@@ -6,7 +6,7 @@ use agent_diva_core::memory::{
     SystemPromptRequest, SystemPromptResponse,
 };
 use agent_diva_core::soul::SoulStateStore;
-use agent_diva_providers::Message;
+use agent_diva_providers::{Message, MessageContent};
 use agent_diva_tools::sanitize::truncate_tool_result;
 use std::path::Path;
 use std::path::PathBuf;
@@ -231,6 +231,22 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         &self,
         history: Vec<agent_diva_core::session::ChatMessage>,
         current_message: String,
+        channel: Option<&str>,
+        chat_id: Option<&str>,
+    ) -> Vec<Message> {
+        self.build_messages_with_content(
+            history,
+            MessageContent::Text(current_message),
+            channel,
+            chat_id,
+        )
+    }
+
+    /// Build the complete message list for an LLM call with structured current content.
+    pub fn build_messages_with_content(
+        &self,
+        history: Vec<agent_diva_core::session::ChatMessage>,
+        current_message: MessageContent,
         channel: Option<&str>,
         chat_id: Option<&str>,
     ) -> Vec<Message> {
@@ -483,6 +499,27 @@ mod tests {
         assert_eq!(messages[0].role, "system");
         assert_eq!(messages[1].role, "user");
         assert_eq!(messages[1].content.as_text(), Some("Hello"));
+    }
+
+    #[test]
+    fn test_build_messages_with_content_keeps_structured_current_message() {
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let content = MessageContent::Parts(vec![
+            agent_diva_providers::MessageContentPart::Text {
+                text: "look".to_string(),
+            },
+            agent_diva_providers::MessageContentPart::ImageFile {
+                image_file: agent_diva_providers::ImageFile {
+                    file_id: "sha256:image".to_string(),
+                },
+            },
+        ]);
+        let messages =
+            builder.build_messages_with_content(vec![], content.clone(), Some("cli"), Some("test"));
+
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[1].role, "user");
+        assert_eq!(messages[1].content, content);
     }
 
     #[test]

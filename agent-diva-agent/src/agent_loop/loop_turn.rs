@@ -6,7 +6,9 @@ use agent_diva_core::memory::PrefetchRequest;
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_files::FileManager;
-use agent_diva_providers::{LLMResponse, LLMStreamEvent};
+use agent_diva_providers::{
+    ImageFile, LLMResponse, LLMStreamEvent, MessageContent, MessageContentPart,
+};
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -41,24 +43,13 @@ impl AgentLoop {
 
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
 
-        // Process attachments: load text file contents and append to message
-        let message_content = if !msg.media.is_empty() {
-            match self.load_attachment_contents(&msg.media).await {
-                Ok(attachment_text) if !attachment_text.is_empty() => {
-                    format!(
-                        "{}\n\n[Attachments]\n{}\n[/Attachments]",
-                        msg.content, attachment_text
-                    )
-                }
-                _ => msg.content.clone(),
-            }
-        } else {
-            msg.content.clone()
-        };
+        // Process attachments: keep images as structured parts and inline text attachments.
+        let message_content =
+            assemble_current_message_content(&self.file_manager, &msg.content, &msg.media).await;
 
         // Derive prefetch intent from raw user message before it's consumed.
-        let prefetch_intent = derive_prefetch_intent(&message_content);
-        let prefetch_user_message = message_content.clone();
+        let prefetch_user_message = message_content.to_text_lossy();
+        let prefetch_intent = derive_prefetch_intent(&prefetch_user_message);
 
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
@@ -68,7 +59,7 @@ impl AgentLoop {
         // Build initial messages
         let history = session.get_history(50); // Last 50 messages
         let history_len = history.len();
-        let mut messages = self.context.build_messages(
+        let mut messages = self.context.build_messages_with_content(
             history,
             message_content,
             Some(&msg.channel),
@@ -489,83 +480,120 @@ impl AgentLoop {
             metadata: msg.metadata,
         }))
     }
+}
 
-    /// Load and format attachment contents for inclusion in the message.
-    /// Only text files under MAX_INLINE_ATTACHMENT_SIZE are inlined.
-    /// For other files, adds a placeholder telling AI to use read_file tool.
-    async fn load_attachment_contents(
-        &self,
-        file_ids: &[String],
-    ) -> Result<String, Box<dyn std::error::Error>> {
-        let storage_path = dirs::data_local_dir()
-            .map(|p| p.join("agent-diva").join("files"))
-            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
-        info!("Loading attachments from: {}", storage_path.display());
-        info!("File IDs to load: {:?}", file_ids);
-        let mut parts = Vec::new();
+/// Build the current user message content from prompt text and attachment file IDs.
+///
+/// Image attachments become structured image parts; text and non-image attachments
+/// keep the legacy inline/placeholder text behavior.
+async fn assemble_current_message_content(
+    file_manager: &FileManager,
+    user_content: &str,
+    file_ids: &[String],
+) -> MessageContent {
+    if file_ids.is_empty() {
+        return MessageContent::Text(user_content.to_string());
+    }
 
-        for file_id in file_ids {
-            match self.file_manager.get(file_id).await {
-                Ok(handle) => {
-                    let size = handle.metadata.size;
-                    let mime_type = handle
-                        .metadata
-                        .mime_type
-                        .as_deref()
-                        .unwrap_or("application/octet-stream");
-                    let is_text = mime_type.starts_with("text/")
-                        || mime_type == "application/json"
-                        || mime_type == "application/javascript"
-                        || mime_type == "application/typescript"
-                        || mime_type == "application/x-yaml"
-                        || mime_type == "application/xml";
+    let storage_path = dirs::data_local_dir()
+        .map(|p| p.join("agent-diva").join("files"))
+        .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+    info!("Loading attachments from: {}", storage_path.display());
+    info!("File IDs to load: {:?}", file_ids);
 
-                    if is_text && size <= MAX_INLINE_ATTACHMENT_SIZE {
-                        match self.file_manager.read(&handle).await {
-                            Ok(bytes) => match String::from_utf8(bytes) {
-                                Ok(content) => {
-                                    parts.push(format!(
-                                        "--- {} ---\n{}\n---",
-                                        handle.metadata.name, content
-                                    ));
-                                }
-                                Err(_) => {
-                                    parts.push(format!(
-                                        "[File: {} ({} bytes, binary)]",
-                                        handle.metadata.name, size
-                                    ));
-                                }
-                            },
-                            Err(e) => {
-                                warn!("Failed to read file {}: {}", file_id, e);
-                                parts.push(format!(
-                                    "[File: {} (error reading: {})]",
-                                    handle.metadata.name, e
+    let mut attachment_text_parts = Vec::new();
+    let mut image_parts = Vec::new();
+
+    for file_id in file_ids {
+        match file_manager.get(file_id).await {
+            Ok(handle) => {
+                let size = handle.metadata.size;
+                let mime_type = handle
+                    .metadata
+                    .mime_type
+                    .as_deref()
+                    .unwrap_or("application/octet-stream");
+
+                if mime_type.starts_with("image/") {
+                    image_parts.push(MessageContentPart::ImageFile {
+                        image_file: ImageFile {
+                            file_id: handle.id.clone(),
+                        },
+                    });
+                    continue;
+                }
+
+                if is_inline_text_mime(mime_type) && size <= MAX_INLINE_ATTACHMENT_SIZE {
+                    match file_manager.read(&handle).await {
+                        Ok(bytes) => match String::from_utf8(bytes) {
+                            Ok(content) => {
+                                attachment_text_parts.push(format!(
+                                    "--- {} ---\n{}\n---",
+                                    handle.metadata.name, content
                                 ));
                             }
+                            Err(_) => {
+                                attachment_text_parts.push(format!(
+                                    "[File: {} ({} bytes, binary)]",
+                                    handle.metadata.name, size
+                                ));
+                            }
+                        },
+                        Err(e) => {
+                            warn!("Failed to read file {}: {}", file_id, e);
+                            attachment_text_parts.push(format!(
+                                "[File: {} (error reading: {})]",
+                                handle.metadata.name, e
+                            ));
                         }
-                    } else {
-                        // Non-text or too large - tell AI to use tool
-                        parts.push(format!(
-                            "[File: {} ({} bytes, {}) - Use read_file tool to access]",
-                            handle.metadata.name, size, mime_type
-                        ));
                     }
-                }
-                Err(e) => {
-                    warn!(
-                        "Failed to get file handle for {}: {}. Storage path: {}",
-                        file_id,
-                        e,
-                        storage_path.display()
-                    );
-                    parts.push(format!("[Attachment: {} (not found - {})]", file_id, e));
+                } else {
+                    attachment_text_parts.push(format!(
+                        "[File: {} ({} bytes, {}) - Use read_file tool to access]",
+                        handle.metadata.name, size, mime_type
+                    ));
                 }
             }
+            Err(e) => {
+                warn!(
+                    "Failed to get file handle for {}: {}. Storage path: {}",
+                    file_id,
+                    e,
+                    storage_path.display()
+                );
+                attachment_text_parts
+                    .push(format!("[Attachment: {} (not found - {})]", file_id, e));
+            }
         }
-
-        Ok(parts.join("\n\n"))
     }
+
+    let text_content = if attachment_text_parts.is_empty() {
+        user_content.to_string()
+    } else {
+        format!(
+            "{}\n\n[Attachments]\n{}\n[/Attachments]",
+            user_content,
+            attachment_text_parts.join("\n\n")
+        )
+    };
+
+    if image_parts.is_empty() {
+        MessageContent::Text(text_content)
+    } else {
+        let mut parts = Vec::with_capacity(image_parts.len() + 1);
+        parts.push(MessageContentPart::Text { text: text_content });
+        parts.extend(image_parts);
+        MessageContent::Parts(parts)
+    }
+}
+
+fn is_inline_text_mime(mime_type: &str) -> bool {
+    mime_type.starts_with("text/")
+        || mime_type == "application/json"
+        || mime_type == "application/javascript"
+        || mime_type == "application/typescript"
+        || mime_type == "application/x-yaml"
+        || mime_type == "application/xml"
 }
 
 fn changed_soul_file(
@@ -946,5 +974,226 @@ mod tests {
         let refs = resolve_attachment_refs(&file_manager, &["sha256:missing".to_string()]).await;
 
         assert_eq!(refs, None);
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_image_becomes_part() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"png bytes",
+                FileMetadata {
+                    name: "photo.png".to_string(),
+                    size: 9,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let content =
+            assemble_current_message_content(&file_manager, "describe this", &[handle.id.clone()])
+                .await;
+
+        match content {
+            MessageContent::Parts(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert_eq!(
+                    parts[0],
+                    MessageContentPart::Text {
+                        text: "describe this".to_string()
+                    }
+                );
+                assert_eq!(
+                    parts[1],
+                    MessageContentPart::ImageFile {
+                        image_file: ImageFile { file_id: handle.id }
+                    }
+                );
+            }
+            other => panic!("expected structured parts, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_text_attachment_stays_text() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"hello from file",
+                FileMetadata {
+                    name: "note.txt".to_string(),
+                    size: 15,
+                    mime_type: Some("text/plain".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let content =
+            assemble_current_message_content(&file_manager, "read this", &[handle.id]).await;
+
+        let text = content
+            .as_text()
+            .expect("text-only attachment should stay text");
+        assert!(text.contains("read this"));
+        assert!(text.contains("[Attachments]"));
+        assert!(text.contains("--- note.txt ---"));
+        assert!(text.contains("hello from file"));
+        assert!(text.contains("[/Attachments]"));
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_binary_attachment_keeps_placeholder() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"%PDF-1.7",
+                FileMetadata {
+                    name: "doc.pdf".to_string(),
+                    size: 8,
+                    mime_type: Some("application/pdf".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let content =
+            assemble_current_message_content(&file_manager, "inspect", &[handle.id]).await;
+
+        let text = content
+            .as_text()
+            .expect("binary attachment should stay text");
+        assert!(text.contains("doc.pdf"));
+        assert!(text.contains("application/pdf"));
+        assert!(text.contains("Use read_file tool to access"));
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_missing_file_keeps_error_text() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+
+        let content = assemble_current_message_content(
+            &file_manager,
+            "check missing",
+            &["sha256:missing".to_string()],
+        )
+        .await;
+
+        let text = content
+            .as_text()
+            .expect("missing attachment should stay text");
+        assert!(text.contains("check missing"));
+        assert!(text.contains("[Attachment: sha256:missing (not found -"));
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_mixed_attachments_share_user_message() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let text_handle = file_manager
+            .store(
+                b"alpha",
+                FileMetadata {
+                    name: "a.txt".to_string(),
+                    size: 5,
+                    mime_type: Some("text/plain".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let image_handle = file_manager
+            .store(
+                b"image",
+                FileMetadata {
+                    name: "a.webp".to_string(),
+                    size: 5,
+                    mime_type: Some("image/webp".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let binary_handle = file_manager
+            .store(
+                b"zip",
+                FileMetadata {
+                    name: "a.zip".to_string(),
+                    size: 3,
+                    mime_type: Some("application/zip".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let content = assemble_current_message_content(
+            &file_manager,
+            "mixed",
+            &[text_handle.id, image_handle.id.clone(), binary_handle.id],
+        )
+        .await;
+
+        match content {
+            MessageContent::Parts(parts) => {
+                assert_eq!(parts.len(), 2);
+                match &parts[0] {
+                    MessageContentPart::Text { text } => {
+                        assert!(text.contains("mixed"));
+                        assert!(text.contains("--- a.txt ---"));
+                        assert!(text.contains("alpha"));
+                        assert!(text.contains("a.zip"));
+                        assert!(text.contains("Use read_file tool to access"));
+                        assert!(!text.contains("a.webp"));
+                    }
+                    other => panic!("expected text part first, got {:?}", other),
+                }
+                assert_eq!(
+                    parts[1],
+                    MessageContentPart::ImageFile {
+                        image_file: ImageFile {
+                            file_id: image_handle.id
+                        }
+                    }
+                );
+            }
+            other => panic!("expected structured parts, got {:?}", other),
+        }
     }
 }
