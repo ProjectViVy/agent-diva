@@ -629,7 +629,8 @@ fn save_turn(
         for m in &messages[turn_start..] {
             match m.role.as_str() {
                 "assistant" => {
-                    if m.content.trim().is_empty()
+                    let content = m.content.to_text_lossy();
+                    if content.trim().is_empty()
                         && m.tool_calls
                             .as_ref()
                             .map(|calls| calls.is_empty())
@@ -646,7 +647,7 @@ fn save_turn(
                     });
                     let mut msg = ChatMessage::with_tool_metadata(
                         "assistant",
-                        &m.content,
+                        content,
                         None,
                         tool_calls_json,
                         None,
@@ -656,10 +657,11 @@ fn save_turn(
                     session.add_full_message(msg);
                 }
                 "tool" => {
-                    let content = if m.content.chars().count() > 500 {
-                        format!("{}...", m.content.chars().take(500).collect::<String>())
+                    let text_content = m.content.to_text_lossy();
+                    let content = if text_content.chars().count() > 500 {
+                        format!("{}...", text_content.chars().take(500).collect::<String>())
                     } else {
-                        m.content.clone()
+                        text_content
                     };
                     session.add_full_message(ChatMessage::with_tool_metadata(
                         "tool",

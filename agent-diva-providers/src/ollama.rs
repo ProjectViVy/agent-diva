@@ -159,7 +159,7 @@ impl OllamaProvider {
                     // Tool calls are handled separately in the request
                     return OllamaMessage {
                         role: msg.role.clone(),
-                        content: msg.content.clone(),
+                        content: msg.content.to_text_lossy(),
                     };
                 }
 
@@ -168,14 +168,14 @@ impl OllamaProvider {
                     // Tool results go in the content field
                     return OllamaMessage {
                         role: "tool".to_string(),
-                        content: msg.content.clone(),
+                        content: msg.content.to_text_lossy(),
                     };
                 }
 
                 // User and system messages pass through
                 OllamaMessage {
                     role: msg.role.clone(),
-                    content: msg.content.clone(),
+                    content: msg.content.to_text_lossy(),
                 }
             })
             .collect()
@@ -489,5 +489,42 @@ impl LLMProvider for OllamaProvider {
 
     fn get_default_model(&self) -> String {
         self.default_model.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::base::{ImageFile, MessageContent, MessageContentPart};
+
+    #[test]
+    fn convert_messages_preserves_text_only_content() {
+        let messages = vec![Message::user("hello")];
+
+        let converted = OllamaProvider::convert_messages(&messages);
+
+        assert_eq!(converted[0].role, "user");
+        assert_eq!(converted[0].content, "hello");
+    }
+
+    #[test]
+    fn convert_messages_uses_lossy_text_for_structured_parts() {
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "hello ".to_string(),
+            },
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: "file_local_123".to_string(),
+                },
+            },
+            MessageContentPart::Text {
+                text: "world".to_string(),
+            },
+        ]))];
+
+        let converted = OllamaProvider::convert_messages(&messages);
+
+        assert_eq!(converted[0].content, "hello world");
     }
 }

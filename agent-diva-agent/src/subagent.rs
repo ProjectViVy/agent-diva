@@ -270,7 +270,7 @@ impl SubagentManager {
                 // Add assistant message with tool calls
                 messages.push(Message {
                     role: "assistant".to_string(),
-                    content: response.content.clone().unwrap_or_default(),
+                    content: response.content.clone().unwrap_or_default().into(),
                     name: None,
                     tool_call_id: None,
                     tool_calls: Some(response.tool_calls.clone()),

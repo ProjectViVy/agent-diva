@@ -482,7 +482,7 @@ mod tests {
         assert_eq!(messages.len(), 2); // system + user
         assert_eq!(messages[0].role, "system");
         assert_eq!(messages[1].role, "user");
-        assert_eq!(messages[1].content, "Hello");
+        assert_eq!(messages[1].content.as_text(), Some("Hello"));
     }
 
     #[test]
@@ -575,7 +575,7 @@ mod tests {
 
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[1].role, "assistant");
-        assert_eq!(messages[1].content, "response");
+        assert_eq!(messages[1].content.as_text(), Some("response"));
         assert_eq!(messages[1].reasoning_content, Some("reasoning".to_string()));
     }
 

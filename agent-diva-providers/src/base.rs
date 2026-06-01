@@ -187,7 +187,7 @@ pub enum LLMStreamEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub role: String,
-    pub content: String,
+    pub content: MessageContent,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -200,9 +200,130 @@ pub struct Message {
     pub thinking_blocks: Option<Vec<serde_json::Value>>,
 }
 
+/// Structured content for a chat message.
+///
+/// Text messages serialize as the legacy JSON string shape, while multimodal
+/// messages serialize as an array of content parts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MessageContent {
+    Text(String),
+    Parts(Vec<MessageContentPart>),
+}
+
+impl MessageContent {
+    /// Return the content when it is the legacy text shape.
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Self::Text(text) => Some(text),
+            Self::Parts(_) => None,
+        }
+    }
+
+    /// Convert structured content to text for providers that only accept text.
+    pub fn to_text_lossy(&self) -> String {
+        match self {
+            Self::Text(text) => text.clone(),
+            Self::Parts(parts) => parts
+                .iter()
+                .filter_map(|part| match part {
+                    MessageContentPart::Text { text } => Some(text.as_str()),
+                    MessageContentPart::ImageUrl { .. }
+                    | MessageContentPart::ImageFile { .. }
+                    | MessageContentPart::ImageData { .. } => None,
+                })
+                .collect(),
+        }
+    }
+
+    /// Apply a text-only transform without altering non-text content parts.
+    pub fn sanitize_text<F>(&mut self, sanitize: F)
+    where
+        F: Fn(&str) -> String,
+    {
+        match self {
+            Self::Text(text) => {
+                *text = sanitize(text);
+            }
+            Self::Parts(parts) => {
+                for part in parts {
+                    if let MessageContentPart::Text { text } = part {
+                        *text = sanitize(text);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Return true when any text segment matches the predicate.
+    pub fn text_any<F>(&self, predicate: F) -> bool
+    where
+        F: Fn(&str) -> bool,
+    {
+        match self {
+            Self::Text(text) => predicate(text),
+            Self::Parts(parts) => parts.iter().any(|part| match part {
+                MessageContentPart::Text { text } => predicate(text),
+                MessageContentPart::ImageUrl { .. }
+                | MessageContentPart::ImageFile { .. }
+                | MessageContentPart::ImageData { .. } => false,
+            }),
+        }
+    }
+}
+
+impl From<String> for MessageContent {
+    fn from(value: String) -> Self {
+        Self::Text(value)
+    }
+}
+
+impl From<&str> for MessageContent {
+    fn from(value: &str) -> Self {
+        Self::Text(value.to_string())
+    }
+}
+
+impl From<&String> for MessageContent {
+    fn from(value: &String) -> Self {
+        Self::Text(value.clone())
+    }
+}
+
+impl From<Vec<MessageContentPart>> for MessageContent {
+    fn from(value: Vec<MessageContentPart>) -> Self {
+        Self::Parts(value)
+    }
+}
+
+/// A structured content part within a multimodal chat message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum MessageContentPart {
+    Text { text: String },
+    ImageUrl { image_url: ImageUrl },
+    ImageFile { image_file: ImageFile },
+    ImageData { image_data: ImageData },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImageUrl {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImageFile {
+    pub file_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImageData {
+    pub data_uri: String,
+}
+
 impl Message {
     /// Create a user message
-    pub fn user(content: impl Into<String>) -> Self {
+    pub fn user(content: impl Into<MessageContent>) -> Self {
         Self {
             role: "user".to_string(),
             content: content.into(),
@@ -215,7 +336,7 @@ impl Message {
     }
 
     /// Create a system message
-    pub fn system(content: impl Into<String>) -> Self {
+    pub fn system(content: impl Into<MessageContent>) -> Self {
         Self {
             role: "system".to_string(),
             content: content.into(),
@@ -228,7 +349,7 @@ impl Message {
     }
 
     /// Create an assistant message
-    pub fn assistant(content: impl Into<String>) -> Self {
+    pub fn assistant(content: impl Into<MessageContent>) -> Self {
         Self {
             role: "assistant".to_string(),
             content: content.into(),
@@ -241,7 +362,7 @@ impl Message {
     }
 
     /// Create a tool response message
-    pub fn tool(content: impl Into<String>, tool_call_id: impl Into<String>) -> Self {
+    pub fn tool(content: impl Into<MessageContent>, tool_call_id: impl Into<String>) -> Self {
         Self {
             role: "tool".to_string(),
             content: content.into(),
@@ -295,4 +416,93 @@ pub trait LLMProvider: Send + Sync {
 
     /// Get the default model for this provider
     fn get_default_model(&self) -> String;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn message_content_reads_legacy_string_content() {
+        let message: Message = serde_json::from_value(json!({
+            "role": "user",
+            "content": "hello"
+        }))
+        .unwrap();
+
+        assert_eq!(message.content, MessageContent::Text("hello".to_string()));
+    }
+
+    #[test]
+    fn message_content_writes_legacy_string_content() {
+        let message = Message::user("hello");
+        let json = serde_json::to_value(&message).unwrap();
+
+        assert_eq!(json["content"], "hello");
+    }
+
+    #[test]
+    fn message_content_reads_and_writes_structured_parts() {
+        let content = MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "look".to_string(),
+            },
+            MessageContentPart::ImageUrl {
+                image_url: ImageUrl {
+                    url: "https://example.com/cat.png".to_string(),
+                },
+            },
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: "file_local_123".to_string(),
+                },
+            },
+            MessageContentPart::ImageData {
+                image_data: ImageData {
+                    data_uri: "data:image/png;base64,AAAA".to_string(),
+                },
+            },
+        ]);
+        let message = Message::user(content.clone());
+        let json = serde_json::to_value(&message).unwrap();
+
+        assert_eq!(json["content"][0]["type"], "text");
+        assert_eq!(json["content"][0]["text"], "look");
+        assert_eq!(
+            json["content"][1]["image_url"]["url"],
+            "https://example.com/cat.png"
+        );
+        assert_eq!(
+            json["content"][2]["image_file"]["file_id"],
+            "file_local_123"
+        );
+        assert_eq!(
+            json["content"][3]["image_data"]["data_uri"],
+            "data:image/png;base64,AAAA"
+        );
+
+        let round_trip: Message = serde_json::from_value(json).unwrap();
+        assert_eq!(round_trip.content, content);
+    }
+
+    #[test]
+    fn message_content_to_text_lossy_keeps_only_text_parts() {
+        let content = MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "hello ".to_string(),
+            },
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: "file_local_123".to_string(),
+                },
+            },
+            MessageContentPart::Text {
+                text: "world".to_string(),
+            },
+        ]);
+
+        assert_eq!(content.as_text(), None);
+        assert_eq!(content.to_text_lossy(), "hello world");
+    }
 }
