@@ -30,6 +30,53 @@ pub type ProviderResult<T> = Result<T, ProviderError>;
 
 pub type ProviderEventStream = Pin<Box<dyn Stream<Item = ProviderResult<LLMStreamEvent>> + Send>>;
 
+/// Conservative feature flags for a model.
+///
+/// Unknown models default to no optional capabilities. This prevents the
+/// provider layer from sending multimodal payloads to text-only models.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelCapabilities {
+    pub vision: bool,
+    pub tools: bool,
+    pub reasoning: bool,
+}
+
+impl ModelCapabilities {
+    pub const fn text_only() -> Self {
+        Self {
+            vision: false,
+            tools: false,
+            reasoning: false,
+        }
+    }
+}
+
+/// Return conservative capabilities for a model id.
+pub fn model_capabilities_for_model(model: &str) -> ModelCapabilities {
+    let normalized = normalize_model_id(model);
+    let mut capabilities = ModelCapabilities::text_only();
+
+    capabilities.vision = matches!(
+        normalized.as_str(),
+        "gpt-4o" | "gpt-4o-mini" | "gpt-4.1" | "gpt-4.1-mini"
+    );
+
+    capabilities
+}
+
+/// Return true when the model is explicitly known to support vision input.
+pub fn supports_vision_model(model: &str) -> bool {
+    model_capabilities_for_model(model).vision
+}
+
+fn normalize_model_id(model: &str) -> String {
+    let trimmed = model.trim().to_ascii_lowercase();
+    trimmed
+        .rsplit_once('/')
+        .map(|(_, model)| model.to_string())
+        .unwrap_or(trimmed)
+}
+
 /// A tool call request from the LLM
 #[derive(Debug, Clone)]
 pub struct ToolCallRequest {
@@ -270,6 +317,14 @@ impl MessageContent {
             }),
         }
     }
+
+    /// Return true when the content contains any image-bearing part.
+    pub fn has_image(&self) -> bool {
+        match self {
+            Self::Text(_) => false,
+            Self::Parts(parts) => parts.iter().any(MessageContentPart::is_image),
+        }
+    }
 }
 
 impl From<String> for MessageContent {
@@ -306,6 +361,16 @@ pub enum MessageContentPart {
     ImageData { image_data: ImageData },
 }
 
+impl MessageContentPart {
+    /// Return true for all image-bearing content part variants.
+    pub fn is_image(&self) -> bool {
+        matches!(
+            self,
+            Self::ImageUrl { .. } | Self::ImageFile { .. } | Self::ImageData { .. }
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageUrl {
     pub url: String,
@@ -333,6 +398,11 @@ impl Message {
             reasoning_content: None,
             thinking_blocks: None,
         }
+    }
+
+    /// Return true when this message contains image-bearing content.
+    pub fn has_image_content(&self) -> bool {
+        self.content.has_image()
     }
 
     /// Create a system message
@@ -440,6 +510,37 @@ mod tests {
         let json = serde_json::to_value(&message).unwrap();
 
         assert_eq!(json["content"], "hello");
+    }
+
+    #[test]
+    fn message_content_detects_image_parts() {
+        assert!(!Message::user("hello").has_image_content());
+
+        let message = Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "look".to_string(),
+            },
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: "sha256:image".to_string(),
+                },
+            },
+        ]));
+
+        assert!(message.has_image_content());
+    }
+
+    #[test]
+    fn vision_capabilities_are_conservative() {
+        assert!(!supports_vision_model("unknown-model"));
+        assert!(!supports_vision_model("deepseek-chat"));
+        assert!(supports_vision_model("gpt-4o"));
+        assert!(supports_vision_model("openai/gpt-4.1-mini"));
+
+        assert_eq!(
+            model_capabilities_for_model("unknown-model"),
+            ModelCapabilities::text_only()
+        );
     }
 
     #[test]

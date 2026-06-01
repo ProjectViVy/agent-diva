@@ -1517,4 +1517,85 @@ mod tests {
             "file_local_123"
         );
     }
+
+    #[test]
+    fn test_build_request_serializes_openai_compatible_image_url_parts() {
+        use crate::base::{ImageUrl, Message, MessageContent, MessageContentPart};
+
+        let client = LiteLLMClient::default();
+        let request = client.build_request(
+            vec![Message::user(MessageContent::Parts(vec![
+                MessageContentPart::Text {
+                    text: "What's in this picture?".to_string(),
+                },
+                MessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: "data:image/png;base64,AAAA".to_string(),
+                    },
+                },
+            ]))],
+            None,
+            RequestBuildOptions {
+                resolved_model: "gpt-4o".to_string(),
+                max_tokens: 4096,
+                temperature: 0.7,
+                reasoning_effort: None,
+                stream: false,
+            },
+        );
+
+        let value = serde_json::to_value(&request).unwrap();
+
+        assert_eq!(value["model"], "gpt-4o");
+        assert_eq!(value["messages"][0]["content"][0]["type"], "text");
+        assert_eq!(
+            value["messages"][0]["content"][0]["text"],
+            "What's in this picture?"
+        );
+        assert_eq!(value["messages"][0]["content"][1]["type"], "image_url");
+        assert_eq!(
+            value["messages"][0]["content"][1]["image_url"]["url"],
+            "data:image/png;base64,AAAA"
+        );
+        assert!(!value.to_string().contains("image_file"));
+        assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[test]
+    fn test_build_stream_request_keeps_openai_compatible_image_url_parts() {
+        use crate::base::{ImageUrl, Message, MessageContent, MessageContentPart};
+
+        let client = LiteLLMClient::default();
+        let request = client.build_request(
+            vec![Message::user(MessageContent::Parts(vec![
+                MessageContentPart::Text {
+                    text: "describe".to_string(),
+                },
+                MessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: "data:image/webp;base64,AAAA".to_string(),
+                    },
+                },
+            ]))],
+            None,
+            RequestBuildOptions {
+                resolved_model: "gpt-4.1-mini".to_string(),
+                max_tokens: 4096,
+                temperature: 0.7,
+                reasoning_effort: None,
+                stream: true,
+            },
+        );
+
+        let value = serde_json::to_value(&request).unwrap();
+
+        assert_eq!(value["stream"], true);
+        assert_eq!(value["messages"][0]["content"][1]["type"], "image_url");
+        assert_eq!(
+            value["messages"][0]["content"][1]["image_url"]["url"],
+            "data:image/webp;base64,AAAA"
+        );
+        assert!(!value.to_string().contains("image_file"));
+        assert!(!value.to_string().contains("image_data"));
+    }
 }

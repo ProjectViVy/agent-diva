@@ -7,10 +7,14 @@ use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_files::FileManager;
 use agent_diva_providers::{
-    ImageFile, LLMResponse, LLMStreamEvent, MessageContent, MessageContentPart,
+    supports_vision_model, ImageFile, ImageUrl, LLMResponse, LLMStreamEvent, Message,
+    MessageContent, MessageContentPart,
 };
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -18,6 +22,8 @@ use tracing::{debug, error, info, trace, warn};
 
 /// Max size for text attachments to inline (100KB)
 const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
+const MAX_VISION_IMAGE_SIZE: u64 = 5 * 1024 * 1024;
+const VISION_UNSUPPORTED_MODEL_MESSAGE: &str = "This model cannot inspect images. Please switch to a vision-capable model or send a text description of the image.";
 
 impl AgentLoop {
     pub(super) async fn process_inbound_message_inner(
@@ -150,10 +156,26 @@ impl AgentLoop {
             } else {
                 self.tools.get_definitions()
             };
+            let provider_messages = match prepare_messages_for_openai_vision(
+                &self.file_manager,
+                messages.clone(),
+                &model_to_use,
+            )
+            .await
+            {
+                Ok(messages) => messages,
+                Err(error) => {
+                    warn!("Vision message preparation failed: {}", error);
+                    final_content = Some(error.user_message().to_string());
+                    final_reasoning = None;
+                    break;
+                }
+            };
+
             let mut stream = self
                 .provider
                 .chat_stream(
-                    messages.clone(),
+                    provider_messages,
                     if !tool_defs.is_empty() {
                         Some(tool_defs)
                     } else {
@@ -480,6 +502,187 @@ impl AgentLoop {
             metadata: msg.metadata,
         }))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum VisionMessagePreparationError {
+    UnsupportedModel {
+        model: String,
+    },
+    MissingFile {
+        file_id: String,
+    },
+    UnsupportedMime {
+        file_id: String,
+        mime_type: String,
+    },
+    ImageTooLarge {
+        file_id: String,
+        size: u64,
+        max_size: u64,
+    },
+    ReadFailed {
+        file_id: String,
+        error: String,
+    },
+}
+
+impl VisionMessagePreparationError {
+    fn user_message(&self) -> &'static str {
+        match self {
+            Self::UnsupportedModel { .. } => VISION_UNSUPPORTED_MODEL_MESSAGE,
+            Self::MissingFile { .. } | Self::ReadFailed { .. } => {
+                "I could not read one of the attached images. Please upload it again and retry."
+            }
+            Self::UnsupportedMime { .. } => {
+                "This image format is not supported yet. Please use PNG, JPEG, or WebP."
+            }
+            Self::ImageTooLarge { .. } => {
+                "This image is too large to inspect. Please upload an image under 5 MB."
+            }
+        }
+    }
+}
+
+impl fmt::Display for VisionMessagePreparationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedModel { model } => {
+                write!(f, "model '{}' does not support vision", model)
+            }
+            Self::MissingFile { file_id } => write!(f, "image file '{}' is missing", file_id),
+            Self::UnsupportedMime { file_id, mime_type } => write!(
+                f,
+                "image file '{}' has unsupported MIME type '{}'",
+                file_id, mime_type
+            ),
+            Self::ImageTooLarge {
+                file_id,
+                size,
+                max_size,
+            } => write!(
+                f,
+                "image file '{}' is too large: {} bytes > {} bytes",
+                file_id, size, max_size
+            ),
+            Self::ReadFailed { file_id, error } => {
+                write!(f, "failed to read image file '{}': {}", file_id, error)
+            }
+        }
+    }
+}
+
+impl std::error::Error for VisionMessagePreparationError {}
+
+async fn prepare_messages_for_openai_vision(
+    file_manager: &FileManager,
+    messages: Vec<Message>,
+    model: &str,
+) -> Result<Vec<Message>, VisionMessagePreparationError> {
+    if !messages.iter().any(Message::has_image_content) {
+        return Ok(messages);
+    }
+
+    if !supports_vision_model(model) {
+        return Err(VisionMessagePreparationError::UnsupportedModel {
+            model: model.to_string(),
+        });
+    }
+
+    let mut prepared = Vec::with_capacity(messages.len());
+    for mut message in messages {
+        message.content = resolve_message_content_images(file_manager, message.content).await?;
+        prepared.push(message);
+    }
+
+    Ok(prepared)
+}
+
+async fn resolve_message_content_images(
+    file_manager: &FileManager,
+    content: MessageContent,
+) -> Result<MessageContent, VisionMessagePreparationError> {
+    let MessageContent::Parts(parts) = content else {
+        return Ok(content);
+    };
+
+    let mut resolved_parts = Vec::with_capacity(parts.len());
+    for part in parts {
+        match part {
+            MessageContentPart::ImageFile { image_file } => {
+                let url = resolve_image_file_to_data_uri(file_manager, &image_file.file_id).await?;
+                resolved_parts.push(MessageContentPart::ImageUrl {
+                    image_url: ImageUrl { url },
+                });
+            }
+            MessageContentPart::ImageData { image_data } => {
+                resolved_parts.push(MessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: image_data.data_uri,
+                    },
+                });
+            }
+            other => resolved_parts.push(other),
+        }
+    }
+
+    Ok(MessageContent::Parts(resolved_parts))
+}
+
+async fn resolve_image_file_to_data_uri(
+    file_manager: &FileManager,
+    file_id: &str,
+) -> Result<String, VisionMessagePreparationError> {
+    let handle = file_manager.get(file_id).await.map_err(|_| {
+        VisionMessagePreparationError::MissingFile {
+            file_id: file_id.to_string(),
+        }
+    })?;
+
+    let mime_type = handle
+        .metadata
+        .mime_type
+        .clone()
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    if !is_supported_vision_mime(&mime_type) {
+        return Err(VisionMessagePreparationError::UnsupportedMime {
+            file_id: file_id.to_string(),
+            mime_type,
+        });
+    }
+
+    let size = handle.metadata.size;
+    if size > MAX_VISION_IMAGE_SIZE {
+        return Err(VisionMessagePreparationError::ImageTooLarge {
+            file_id: file_id.to_string(),
+            size,
+            max_size: MAX_VISION_IMAGE_SIZE,
+        });
+    }
+
+    let bytes = file_manager.read(&handle).await.map_err(|error| {
+        VisionMessagePreparationError::ReadFailed {
+            file_id: file_id.to_string(),
+            error: error.to_string(),
+        }
+    })?;
+    if bytes.len() as u64 > MAX_VISION_IMAGE_SIZE {
+        return Err(VisionMessagePreparationError::ImageTooLarge {
+            file_id: file_id.to_string(),
+            size: bytes.len() as u64,
+            max_size: MAX_VISION_IMAGE_SIZE,
+        });
+    }
+
+    Ok(format!(
+        "data:{};base64,{}",
+        mime_type,
+        BASE64_STANDARD.encode(bytes)
+    ))
+}
+
+fn is_supported_vision_mime(mime_type: &str) -> bool {
+    matches!(mime_type, "image/png" | "image/jpeg" | "image/webp")
 }
 
 /// Build the current user message content from prompt text and attachment file IDs.
@@ -1109,6 +1312,211 @@ mod tests {
             .expect("missing attachment should stay text");
         assert!(text.contains("check missing"));
         assert!(text.contains("[Attachment: sha256:missing (not found -"));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_rejects_text_only_model() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "describe".to_string(),
+            },
+            MessageContentPart::ImageUrl {
+                image_url: ImageUrl {
+                    url: "data:image/png;base64,AAAA".to_string(),
+                },
+            },
+        ]))];
+
+        let error = prepare_messages_for_openai_vision(&file_manager, messages, "deepseek-chat")
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error.user_message(),
+            "This model cannot inspect images. Please switch to a vision-capable model or send a text description of the image."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_converts_image_file_to_data_uri() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"png bytes",
+                FileMetadata {
+                    name: "photo.png".to_string(),
+                    size: 9,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "describe".to_string(),
+            },
+            MessageContentPart::ImageFile {
+                image_file: ImageFile { file_id: handle.id },
+            },
+        ]))];
+
+        let prepared = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+            .await
+            .unwrap();
+        let value = serde_json::to_value(&prepared[0]).unwrap();
+
+        assert_eq!(value["content"][0]["type"], "text");
+        assert_eq!(value["content"][1]["type"], "image_url");
+        assert_eq!(
+            value["content"][1]["image_url"]["url"],
+            "data:image/png;base64,cG5nIGJ5dGVz"
+        );
+        assert!(!value.to_string().contains("image_file"));
+        assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_converts_image_data_to_image_url() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "describe".to_string(),
+            },
+            MessageContentPart::ImageData {
+                image_data: agent_diva_providers::ImageData {
+                    data_uri: "data:image/webp;base64,AAAA".to_string(),
+                },
+            },
+        ]))];
+
+        let prepared = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4.1-mini")
+            .await
+            .unwrap();
+        let value = serde_json::to_value(&prepared[0]).unwrap();
+
+        assert_eq!(value["content"][1]["type"], "image_url");
+        assert_eq!(
+            value["content"][1]["image_url"]["url"],
+            "data:image/webp;base64,AAAA"
+        );
+        assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_rejects_unsupported_mime() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"<svg/>",
+                FileMetadata {
+                    name: "vector.svg".to_string(),
+                    size: 6,
+                    mime_type: Some("image/svg+xml".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: handle.id.clone(),
+                },
+            },
+        ]))];
+
+        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            VisionMessagePreparationError::UnsupportedMime { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_rejects_missing_file() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: "sha256:missing".to_string(),
+                },
+            },
+        ]))];
+
+        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            VisionMessagePreparationError::MissingFile { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_rejects_oversize_image() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let bytes = vec![0_u8; (MAX_VISION_IMAGE_SIZE + 1) as usize];
+        let handle = file_manager
+            .store(
+                &bytes,
+                FileMetadata {
+                    name: "large.png".to_string(),
+                    size: MAX_VISION_IMAGE_SIZE + 1,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: handle.id.clone(),
+                },
+            },
+        ]))];
+
+        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            VisionMessagePreparationError::ImageTooLarge { .. }
+        ));
     }
 
     #[tokio::test]
