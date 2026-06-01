@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain, Paperclip, X } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain, Paperclip, X, Image as ImageIcon, File as FileIcon } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -50,6 +50,7 @@ interface Message {
   toolCallId?: string;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
+  attachments?: FileAttachmentDto[];
 }
 
 const expandedTools = ref<Record<number, boolean>>({});
@@ -98,6 +99,7 @@ const props = defineProps<{
   isTyping: boolean;
   themeMode?: string;
   historyPrefs?: HistoryPrefs;
+  currentModel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -112,6 +114,43 @@ const inputRef = ref<HTMLTextAreaElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const attachments = ref<FileAttachmentDto[]>([]);
 const uploading = ref(false);
+const uploadError = ref<string | null>(null);
+
+const visionModels = new Set(['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini']);
+
+const normalizeModelId = (model?: string) => {
+  const trimmed = (model || '').trim().toLowerCase();
+  const parts = trimmed.split('/');
+  return parts[parts.length - 1] || trimmed;
+};
+
+const supportsVisionModel = (model?: string) => visionModels.has(normalizeModelId(model));
+
+const isImageAttachment = (attachment: FileAttachmentDto) =>
+  attachment.mime_type?.toLowerCase().startsWith('image/') ?? false;
+
+const hasImageAttachments = computed(() => attachments.value.some(isImageAttachment));
+
+const showVisionWarning = computed(
+  () => hasImageAttachments.value && !supportsVisionModel(props.currentModel)
+);
+
+const formatFileSize = (size: number) => {
+  if (!Number.isFinite(size) || size < 0) return '';
+  if (size < 1024) return `${size} B`;
+  const kb = size / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+};
+
+const attachmentLabel = (attachment: FileAttachmentDto) =>
+  isImageAttachment(attachment) ? '图片' : '文件';
+
+const attachmentTypeText = (attachment: FileAttachmentDto) => {
+  const size = formatFileSize(attachment.size);
+  return [attachmentLabel(attachment), size].filter(Boolean).join(' · ');
+};
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -168,6 +207,7 @@ const handleFileSelect = async (event: Event) => {
   if (!files || files.length === 0) return;
 
   uploading.value = true;
+  uploadError.value = null;
   try {
     for (const file of files) {
       const bytes = await file.arrayBuffer();
@@ -177,6 +217,7 @@ const handleFileSelect = async (event: Event) => {
     }
   } catch (error) {
     console.error('Failed to upload file:', error);
+    uploadError.value = `文件上传失败：${error instanceof Error ? error.message : String(error)}`;
   } finally {
     uploading.value = false;
     if (fileInputRef.value) {
@@ -187,6 +228,9 @@ const handleFileSelect = async (event: Event) => {
 
 const handleRemoveAttachment = (index: number) => {
   attachments.value.splice(index, 1);
+  if (attachments.value.length === 0) {
+    uploadError.value = null;
+  }
 };
 
 const handleSend = () => {
@@ -199,6 +243,7 @@ const handleSend = () => {
   emit('send', message, currentAttachments);
   input.value = '';
   attachments.value = [];
+  uploadError.value = null;
 };
 
 const handleClear = async () => {
@@ -433,6 +478,23 @@ const getEmotionEmoji = (emotion?: string) => {
                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
               </div>
               <div v-else class="markdown-body" v-html="md.render(msg.content)"></div>
+              <div
+                v-if="msg.attachments && msg.attachments.length > 0"
+                class="mt-2 flex flex-wrap gap-1.5"
+              >
+                <div
+                  v-for="attachment in msg.attachments"
+                  :key="attachment.file_id"
+                  class="flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]"
+                  :class="isImageAttachment(attachment) ? 'border-pink-200 bg-pink-50/80 text-pink-700' : 'border-gray-200 bg-white/70 text-gray-600'"
+                  :title="`${attachment.filename} (${attachmentTypeText(attachment)})`"
+                >
+                  <ImageIcon v-if="isImageAttachment(attachment)" :size="13" class="shrink-0" />
+                  <FileIcon v-else :size="13" class="shrink-0" />
+                  <span class="max-w-[160px] truncate font-medium">{{ attachment.filename }}</span>
+                  <span class="shrink-0 opacity-70">{{ formatFileSize(attachment.size) }}</span>
+                </div>
+              </div>
             </div>
             
             <!-- Timestamp -->
@@ -466,17 +528,34 @@ const getEmotionEmoji = (emotion?: string) => {
         <div
           v-for="(attachment, index) in attachments"
           :key="attachment.file_id"
-          class="flex items-center gap-1 bg-gray-100 rounded-lg px-2 py-1 text-xs"
+          class="flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-xs"
+          :class="isImageAttachment(attachment) ? 'border-pink-200 bg-pink-50 text-pink-700' : 'border-gray-200 bg-gray-100 text-gray-700'"
+          :title="`${attachment.filename} (${attachmentTypeText(attachment)})`"
         >
-          <Paperclip :size="12" class="text-gray-500" />
-          <span class="text-gray-700 truncate max-w-[100px]">{{ attachment.filename }}</span>
+          <ImageIcon v-if="isImageAttachment(attachment)" :size="12" class="shrink-0" />
+          <Paperclip v-else :size="12" class="shrink-0 text-gray-500" />
+          <span class="truncate max-w-[120px] font-medium">{{ attachment.filename }}</span>
+          <span class="shrink-0 opacity-70">{{ formatFileSize(attachment.size) }}</span>
           <button
             @click="handleRemoveAttachment(index)"
             class="text-gray-400 hover:text-red-500"
+            :title="'移除附件'"
           >
             <X :size="12" />
           </button>
         </div>
+      </div>
+      <div
+        v-if="showVisionWarning"
+        class="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+      >
+        当前模型可能无法识别图片，请切换到 gpt-4o / gpt-4.1 系列 vision 模型，或发送文字描述。
+      </div>
+      <div
+        v-if="uploadError"
+        class="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+      >
+        {{ uploadError }}
       </div>
       <div class="flex items-center space-x-3 bg-white rounded-xl border border-gray-200 px-2 py-2 shadow-sm focus-within:ring-2 focus-within:ring-pink-500/20 focus-within:border-pink-500 transition-all">
         <button

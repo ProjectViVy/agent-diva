@@ -34,7 +34,7 @@ interface Message {
   isStreaming?: boolean;
   timestamp?: number;
   emotion?: string;
-  attachments?: string[];
+  attachments?: FileAttachmentDto[];
 }
 
 interface ChatDisplayPrefs {
@@ -592,6 +592,7 @@ defineExpose({
             :is-typing="isTyping"
             :theme-mode="themeMode"
             :history-prefs="chatDisplayPrefs"
+            :current-model="config?.model"
             @send="(content, attachments) => emit('send', content, attachments)"
             @clear="emit('clear')"
             @stop="emit('stop')"

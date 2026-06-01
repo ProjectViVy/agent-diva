@@ -22,11 +22,11 @@ export interface FileAttachmentDto {
   filename: string;
   size: number;
   mime_type?: string | null;
-  channel: string;
+  channel?: string;
   message_id?: string | null;
   uploaded_by?: string | null;
-  stored_at: string;
-  ref_count: number;
+  stored_at?: string;
+  ref_count?: number;
 }
 
 export interface McpConnectionStatusDto {

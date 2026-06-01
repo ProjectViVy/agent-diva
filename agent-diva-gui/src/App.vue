@@ -32,7 +32,7 @@ interface Message {
   toolCallId?: string;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
-  attachments?: string[];
+  attachments?: FileAttachmentDto[];
 }
 
 interface ToolStartPayload {
@@ -98,6 +98,7 @@ interface BackendChatMessage {
   tool_calls?: serdeJsonValue[] | null;
   name?: string | null;
   thinking_blocks?: serdeJsonValue[] | null;
+  attachments?: FileAttachmentDto[] | null;
 }
 
 interface BackendSessionHistory {
@@ -446,6 +447,7 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
     toolCallId: msg.tool_call_id || undefined,
     rawMeta,
     fromHistory: true,
+    attachments: msg.attachments ?? undefined,
   };
 }
 
@@ -591,7 +593,7 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
     role: 'user',
     content: content,
     timestamp: Date.now(),
-    attachments: attachmentFileIds
+    attachments: attachments ?? []
   };
   messages.value.push(userMsg);
 
