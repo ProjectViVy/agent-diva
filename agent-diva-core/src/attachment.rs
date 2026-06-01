@@ -38,6 +38,55 @@ use agent_diva_files::FileHandle;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+/// Lightweight attachment metadata stored in conversation history.
+///
+/// Session JSONL should keep only stable file references and display metadata,
+/// never file bytes, previews, or provider-specific payloads.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileAttachmentRef {
+    /// Content-addressed file ID (SHA256 hash)
+    pub file_id: String,
+
+    /// Original filename as uploaded
+    pub filename: String,
+
+    /// MIME type if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+
+    /// File size in bytes
+    pub size: u64,
+}
+
+impl FileAttachmentRef {
+    /// Create a lightweight reference from a stored file handle.
+    pub fn from_handle(handle: &FileHandle) -> Self {
+        Self {
+            file_id: handle.id.clone(),
+            filename: handle.metadata.name.clone(),
+            mime_type: handle.metadata.mime_type.clone(),
+            size: handle.metadata.size,
+        }
+    }
+}
+
+impl From<&FileAttachment> for FileAttachmentRef {
+    fn from(attachment: &FileAttachment) -> Self {
+        Self {
+            file_id: attachment.file_id.clone(),
+            filename: attachment.filename.clone(),
+            mime_type: attachment.mime_type.clone(),
+            size: attachment.size,
+        }
+    }
+}
+
+impl From<&FileHandle> for FileAttachmentRef {
+    fn from(handle: &FileHandle) -> Self {
+        Self::from_handle(handle)
+    }
+}
+
 /// Unified file attachment representation
 ///
 /// This struct wraps a `FileHandle` from agent-diva-files and adds
@@ -351,5 +400,44 @@ mod tests {
         assert_eq!(attachment.filename, "doc.pdf");
         assert_eq!(attachment.size, 2048);
         assert_eq!(attachment.channel, "telegram");
+    }
+
+    #[test]
+    fn test_attachment_ref_from_handle_only_keeps_session_metadata() {
+        let handle = create_test_handle();
+        let attachment_ref = FileAttachmentRef::from_handle(&handle);
+
+        assert_eq!(attachment_ref.file_id, "sha256:abc123def456");
+        assert_eq!(attachment_ref.filename, "test_document.pdf");
+        assert_eq!(
+            attachment_ref.mime_type,
+            Some("application/pdf".to_string())
+        );
+        assert_eq!(attachment_ref.size, 1024 * 1024);
+
+        let json = serde_json::to_string(&attachment_ref).unwrap();
+        assert!(json.contains("file_id"));
+        assert!(json.contains("filename"));
+        assert!(json.contains("mime_type"));
+        assert!(json.contains("size"));
+        assert!(!json.contains("channel"));
+        assert!(!json.contains("message_id"));
+        assert!(!json.contains("uploaded_by"));
+        assert!(!json.contains("stored_at"));
+        assert!(!json.contains("ref_count"));
+        assert!(!json.contains("preview"));
+        assert!(!json.contains("base64"));
+    }
+
+    #[test]
+    fn test_attachment_ref_from_attachment_drops_channel_metadata() {
+        let handle = create_test_handle();
+        let attachment = FileAttachment::from_handle(handle, "slack", Some("ts_123"));
+        let attachment_ref = FileAttachmentRef::from(&attachment);
+
+        assert_eq!(attachment_ref.file_id, attachment.file_id);
+        assert_eq!(attachment_ref.filename, attachment.filename);
+        assert_eq!(attachment_ref.mime_type, attachment.mime_type);
+        assert_eq!(attachment_ref.size, attachment.size);
     }
 }

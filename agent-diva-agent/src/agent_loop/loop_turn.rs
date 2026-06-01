@@ -1,9 +1,11 @@
 use super::AgentLoop;
 use crate::consolidation;
+use agent_diva_core::attachment::FileAttachmentRef;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::memory::PrefetchRequest;
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
+use agent_diva_files::FileManager;
 use agent_diva_providers::{LLMResponse, LLMStreamEvent};
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
@@ -426,6 +428,7 @@ impl AgentLoop {
 
         // Save complete turn to session
         {
+            let user_attachments = resolve_attachment_refs(&self.file_manager, &msg.media).await;
             let session = self.sessions.get_or_create(&session_key);
             let user_role = if is_cron_trigger { "system" } else { "user" };
             save_turn(
@@ -434,6 +437,7 @@ impl AgentLoop {
                 history_len,
                 user_role,
                 &msg.content,
+                user_attachments,
                 &final_content,
             );
         }
@@ -618,10 +622,20 @@ fn save_turn(
     history_len: usize,
     user_role: &str,
     user_content: &str,
+    user_attachments: Option<Vec<FileAttachmentRef>>,
     final_content: &str,
 ) {
     // Save trigger message; cron-triggered turns are not real-time user input.
-    session.add_message(user_role, user_content);
+    match user_attachments {
+        Some(attachments) => {
+            session.add_full_message(ChatMessage::with_attachments(
+                user_role,
+                user_content,
+                attachments,
+            ));
+        }
+        None => session.add_message(user_role, user_content),
+    }
 
     // Skip system prompt (1) + history (history_len) + current user message (1)
     let turn_start = 1 + history_len + 1;
@@ -688,6 +702,34 @@ fn save_turn(
     }
 }
 
+async fn resolve_attachment_refs(
+    file_manager: &FileManager,
+    file_ids: &[String],
+) -> Option<Vec<FileAttachmentRef>> {
+    if file_ids.is_empty() {
+        return None;
+    }
+
+    let mut attachments = Vec::new();
+    for file_id in file_ids {
+        match file_manager.get(file_id).await {
+            Ok(handle) => attachments.push(FileAttachmentRef::from_handle(&handle)),
+            Err(e) => {
+                warn!(
+                    "Failed to resolve attachment metadata for {} while saving session: {}",
+                    file_id, e
+                );
+            }
+        }
+    }
+
+    if attachments.is_empty() {
+        None
+    } else {
+        Some(attachments)
+    }
+}
+
 /// Derive a lightweight recall intent from the user message.
 ///
 /// Returns an empty string when the message is too short or lacks any
@@ -739,6 +781,8 @@ fn derive_prefetch_intent(message: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_files::handle::FileMetadata;
+    use agent_diva_files::FileConfig;
 
     #[test]
     fn test_derive_prefetch_intent_is_empty_for_non_question() {
@@ -823,5 +867,84 @@ mod tests {
         let notice = format_soul_transparency_notice(&files, true, false);
         assert!(!notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
         assert!(!notice.contains("Governance hint:"));
+    }
+
+    #[test]
+    fn test_save_turn_attaches_metadata_to_user_message_only() {
+        let mut session = agent_diva_core::session::Session::new("gui:chat");
+        let messages = vec![agent_diva_providers::Message::system("system")];
+        let attachments = vec![FileAttachmentRef {
+            file_id: "sha256:image123".to_string(),
+            filename: "image.png".to_string(),
+            mime_type: Some("image/png".to_string()),
+            size: 4096,
+        }];
+
+        save_turn(
+            &mut session,
+            &messages,
+            0,
+            "user",
+            "see attached",
+            Some(attachments.clone()),
+            "done",
+        );
+
+        assert_eq!(session.messages.len(), 2);
+        assert_eq!(session.messages[0].role, "user");
+        assert_eq!(session.messages[0].attachments, Some(attachments));
+        assert_eq!(session.messages[1].role, "assistant");
+        assert_eq!(session.messages[1].attachments, None);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_attachment_refs_reads_metadata_without_bytes() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"not persisted in session",
+                FileMetadata {
+                    name: "image.png".to_string(),
+                    size: 24,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: Some("preview should not be copied".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+
+        let refs = resolve_attachment_refs(&file_manager, &[handle.id.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].file_id, handle.id);
+        assert_eq!(refs[0].filename, "image.png");
+        assert_eq!(refs[0].mime_type, Some("image/png".to_string()));
+        assert_eq!(refs[0].size, 24);
+
+        let json = serde_json::to_string(&refs).unwrap();
+        assert!(!json.contains("not persisted in session"));
+        assert!(!json.contains("preview should not be copied"));
+        assert!(!json.contains("base64"));
+        assert!(!json.contains("bytes"));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_attachment_refs_skips_missing_files() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+
+        let refs = resolve_attachment_refs(&file_manager, &["sha256:missing".to_string()]).await;
+
+        assert_eq!(refs, None);
     }
 }

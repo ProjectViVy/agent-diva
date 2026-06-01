@@ -17,5 +17,5 @@ pub mod session;
 pub mod soul;
 pub mod utils;
 
-pub use attachment::FileAttachment;
+pub use attachment::{FileAttachment, FileAttachmentRef};
 pub use error::{Error, Result};
