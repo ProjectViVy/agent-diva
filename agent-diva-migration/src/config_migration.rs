@@ -679,6 +679,7 @@ impl ConfigMigrator {
                 mcp_manager: MCPManagerConfig::default(),
             },
             logging: LoggingConfig::default(),
+            sandbox: SandboxConfig::default(),
         }
     }
 

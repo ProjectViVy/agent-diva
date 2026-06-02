@@ -13,6 +13,7 @@ use crate::is_sandbox_disabled;
 use crate::platform::{current_platform_sandbox_type, SandboxType};
 use crate::policy::{AskForApproval, SandboxMode, SandboxPolicy, WindowsSandboxLevel};
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
@@ -104,7 +105,7 @@ impl SandboxExecRequest {
 }
 
 /// Sandbox configuration for manager initialization
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SandboxConfig {
     /// Sandbox mode
     pub mode: SandboxMode,
@@ -118,8 +119,12 @@ pub struct SandboxConfig {
     pub writable_roots: Vec<PathBuf>,
     /// Protected paths (glob patterns)
     pub protected_paths: Vec<String>,
-    /// Timeout for commands
-    pub default_timeout: u64,
+    /// Patterns for commands that should be denied
+    #[serde(default)]
+    pub deny_patterns: Vec<String>,
+    /// Timeout for commands (in seconds)
+    #[serde(alias = "default_timeout")]
+    pub timeout_seconds: u64,
 }
 
 impl Default for SandboxConfig {
@@ -131,7 +136,8 @@ impl Default for SandboxConfig {
             approval_policy: AskForApproval::default(),
             writable_roots: Vec::new(),
             protected_paths: crate::filesystem::default_protected_paths(),
-            default_timeout: 60,
+            deny_patterns: Vec::new(),
+            timeout_seconds: 60,
         }
     }
 }
@@ -146,7 +152,8 @@ impl SandboxConfig {
             approval_policy: AskForApproval::Never,
             writable_roots: Vec::new(),
             protected_paths: Vec::new(),
-            default_timeout: 60,
+            deny_patterns: Vec::new(),
+            timeout_seconds: 60,
         }
     }
 
@@ -187,7 +194,8 @@ impl SandboxConfig {
                 .map(PathBuf::from)
                 .collect(),
             protected_paths: core_config.protected_paths.clone(),
-            default_timeout: core_config.timeout,
+            deny_patterns: core_config.deny_patterns.clone(),
+            timeout_seconds: core_config.timeout_seconds,
         }
     }
 
@@ -200,7 +208,8 @@ impl SandboxConfig {
             approval_policy: AskForApproval::OnFailure,
             writable_roots: vec![workspace],
             protected_paths: crate::filesystem::default_protected_paths(),
-            default_timeout: 60,
+            deny_patterns: Vec::new(),
+            timeout_seconds: 60,
         }
     }
 }
@@ -263,7 +272,7 @@ impl SandboxManager {
             windows_level: config.windows_level,
             approval_policy: config.approval_policy,
             approval_store,
-            default_timeout: config.default_timeout,
+            default_timeout: config.timeout_seconds,
             disabled,
         }
     }

@@ -82,9 +82,12 @@ pub struct SandboxConfig {
     /// Glob patterns for paths that must never be written to
     #[serde(default)]
     pub protected_paths: Vec<String>,
+    /// Patterns for commands that should be denied
+    #[serde(default)]
+    pub deny_patterns: Vec<String>,
     /// Default command timeout in seconds
     #[serde(default = "default_sandbox_timeout")]
-    pub timeout: u64,
+    pub timeout_seconds: u64,
 }
 
 fn default_sandbox_timeout() -> u64 {
@@ -100,7 +103,8 @@ impl Default for SandboxConfig {
             approval_policy: AskForApproval::default(),
             writable_roots: Vec::new(),
             protected_paths: Vec::new(),
-            timeout: 60,
+            deny_patterns: Vec::new(),
+            timeout_seconds: 60,
         }
     }
 }
@@ -121,6 +125,9 @@ pub struct Config {
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+    /// Sandbox configuration
+    #[serde(default)]
+    pub sandbox: SandboxConfig,
 }
 
 /// Logging configuration

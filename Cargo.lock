@@ -173,6 +173,7 @@ dependencies = [
  "agent-diva-manager",
  "agent-diva-neuron",
  "agent-diva-providers",
+ "agent-diva-sandbox",
  "anyhow",
  "dirs 5.0.1",
  "eventsource-stream",

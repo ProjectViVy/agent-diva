@@ -192,7 +192,9 @@ pub fn run() {
             commands::get_token_usage_timeline,
             commands::get_token_usage_sessions,
             commands::get_token_usage_models,
-            commands::get_token_usage_realtime
+            commands::get_token_usage_realtime,
+            commands::get_sandbox_config,
+            commands::save_sandbox_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

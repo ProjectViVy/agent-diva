@@ -2,23 +2,13 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { ShieldCheck, LoaderCircle, AlertTriangle, Plus, X } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
-import { invoke } from '@tauri-apps/api/core';
 import { showAppToast } from '../../utils/appToast';
+import { getSandboxConfig, saveSandboxConfig, type SandboxConfig } from '../../api/desktop';
 
 const { t } = useI18n();
 
-interface SandboxConfig {
-  mode: 'DangerFullAccess' | 'ReadOnly' | 'WorkspaceWrite';
-  approval_policy: 'Never' | 'OnFailure' | 'OnRequest' | 'UnlessTrusted';
-  network_access: boolean;
-  writable_roots: string[];
-  protected_paths: string[];
-  deny_patterns: string[];
-  timeout_seconds: number;
-}
-
-const SANDBOX_MODES: SandboxConfig['mode'][] = ['DangerFullAccess', 'ReadOnly', 'WorkspaceWrite'];
-const APPROVAL_POLICIES: SandboxConfig['approval_policy'][] = ['Never', 'OnFailure', 'OnRequest', 'UnlessTrusted'];
+const SANDBOX_MODES: SandboxConfig['mode'][] = ['danger-full-access', 'read-only', 'workspace-write'];
+const APPROVAL_POLICIES: SandboxConfig['approval_policy'][] = ['never', 'on-failure', 'on-request', 'unless-trusted'];
 
 const loading = ref(true);
 const loadError = ref<string | null>(null);
@@ -32,8 +22,8 @@ const denyPatternsText = computed({
 });
 
 const config = ref<SandboxConfig>({
-  mode: 'ReadOnly',
-  approval_policy: 'OnFailure',
+  mode: 'read-only',
+  approval_policy: 'on-failure',
   network_access: true,
   writable_roots: [],
   protected_paths: [],
@@ -53,10 +43,10 @@ const loadConfig = async () => {
   loading.value = true;
   loadError.value = null;
   try {
-    const data = await invoke<SandboxConfig>('get_sandbox_config');
+    const data = await getSandboxConfig();
     config.value = {
-      mode: data.mode ?? 'ReadOnly',
-      approval_policy: data.approval_policy ?? 'OnFailure',
+      mode: data.mode ?? 'read-only',
+      approval_policy: data.approval_policy ?? 'on-failure',
       network_access: data.network_access ?? true,
       writable_roots: data.writable_roots ?? [],
       protected_paths: data.protected_paths ?? [],
@@ -68,8 +58,8 @@ const loadConfig = async () => {
   } catch {
     // Backend command may not exist yet; use defaults so UI is still usable
     config.value = {
-      mode: 'ReadOnly',
-      approval_policy: 'OnFailure',
+      mode: 'read-only',
+      approval_policy: 'on-failure',
       network_access: true,
       writable_roots: [],
       protected_paths: [],
@@ -87,7 +77,7 @@ const saveConfig = async () => {
   if (saving.value || !isDirty.value) return;
   saving.value = true;
   try {
-    await invoke('save_sandbox_config', { config: { ...config.value } });
+    await saveSandboxConfig({ ...config.value });
     originalSnapshot.value = JSON.stringify(config.value);
     originalMode.value = config.value.mode;
     showAppToast(t('sandbox.saved'), 'success');
@@ -308,7 +298,7 @@ onMounted(loadConfig);
         </div>
         <p class="text-xs settings-muted">{{ t('sandbox.denyPatternsHint') }}</p>
         <textarea
-          v-model="config.deny_patterns"
+          v-model="denyPatternsText"
           class="settings-input sandbox-textarea"
           rows="4"
           :placeholder="t('sandbox.denyPatternsPlaceholder')"

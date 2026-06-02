@@ -296,3 +296,25 @@ export async function installSkillFromUrl(
   const result = await uploadSkill(fileName, bytes);
   return result;
 }
+
+// ============================================================
+// Sandbox API
+// ============================================================
+
+export interface SandboxConfig {
+  mode: 'danger-full-access' | 'read-only' | 'workspace-write'
+  approval_policy: 'never' | 'on-failure' | 'on-request' | 'unless-trusted'
+  network_access: boolean
+  writable_roots: string[]
+  protected_paths: string[]
+  deny_patterns: string[]
+  timeout_seconds: number
+}
+
+export async function getSandboxConfig(): Promise<SandboxConfig> {
+  return invoke<SandboxConfig>('get_sandbox_config')
+}
+
+export async function saveSandboxConfig(config: SandboxConfig): Promise<void> {
+  return invoke('save_sandbox_config', { config })
+}

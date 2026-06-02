@@ -2735,3 +2735,27 @@ pub async fn get_token_usage_realtime(
 ) -> Result<TokenInMemoryStats, String> {
     fetch_token_stats(&state, "/stats/tokens/realtime").await
 }
+
+#[tauri::command]
+pub fn get_sandbox_config() -> Result<serde_json::Value, String> {
+    let loader = config_loader();
+    let config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    serde_json::to_value(&config.sandbox).map_err(|e| format!("failed to serialize sandbox config: {}", e))
+}
+
+#[tauri::command]
+pub fn save_sandbox_config(config: serde_json::Value) -> Result<(), String> {
+    let sandbox_config: agent_diva_core::config::SandboxConfig =
+        serde_json::from_value(config)
+            .map_err(|e| format!("Invalid sandbox config: {}", e))?;
+    let loader = config_loader();
+    let mut current = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    current.sandbox = sandbox_config;
+    loader
+        .save(&current)
+        .map_err(|e| format!("failed to save config: {}", e))
+}
