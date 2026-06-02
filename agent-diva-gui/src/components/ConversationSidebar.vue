@@ -772,4 +772,49 @@ defineExpose({ closeContextMenu });
   border-left-color: var(--line, #e5e7eb);
   background: var(--panel-solid, #ffffff);
 }
+
+/* Miku Theme */
+.theme-miku .conv-sidebar {
+  border-left-color: rgba(0, 215, 200, 0.15);
+  background: var(--panel-solid, #161b22);
+}
+
+.theme-miku .conv-search-input {
+  border-color: rgba(0, 215, 200, 0.2);
+  background: var(--panel-solid, #0d1117);
+  color: var(--text, #e6edf3);
+}
+
+.theme-miku .conv-search-input:focus {
+  border-color: var(--brand, #39c5bb);
+}
+
+.theme-miku .conv-item:hover {
+  background: rgba(57, 197, 187, 0.06);
+}
+
+.theme-miku .conv-item-active {
+  background: rgba(57, 197, 187, 0.1);
+}
+
+.theme-miku .conv-item-icon {
+  border-color: rgba(0, 215, 200, 0.2);
+  background: var(--panel-solid, #0d1117);
+}
+
+.theme-miku .conv-new-session {
+  border-color: rgba(0, 215, 200, 0.2);
+  color: #39c5bb;
+}
+
+.theme-miku .conv-new-session:hover {
+  border-color: var(--brand, #39c5bb);
+  color: var(--brand, #39c5bb);
+  background: rgba(57, 197, 187, 0.06);
+}
+
+.theme-miku .conv-context-menu {
+  background: var(--panel-solid, #161b22);
+  border-color: rgba(0, 215, 200, 0.15);
+}
 </style>

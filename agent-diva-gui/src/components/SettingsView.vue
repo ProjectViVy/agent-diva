@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { ChevronLeft, SlidersHorizontal, Bot, WandSparkles, Server, MessageSquare, Search, Globe, Info, Palette } from 'lucide-vue-next';
+import { ChevronLeft, SlidersHorizontal, Bot, WandSparkles, Server, MessageSquare, Search, Globe, Info, Palette, Sparkles, History, ShieldCheck } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import SettingsDashboard from './settings/SettingsDashboard.vue';
 import GeneralSettings from './settings/GeneralSettings.vue';
@@ -12,6 +12,9 @@ import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
 import ThemeSettings from './settings/ThemeSettings.vue';
+import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue';
+import MemoryChangelog from './settings/MemoryChangelog.vue';
+import SandboxSettingsSection from './settings/SandboxSettingsSection.vue';
 
 const { t } = useI18n();
 
@@ -66,7 +69,10 @@ type SettingsSubview =
   | 'network'
   | 'language'
   | 'theme'
-  | 'about';
+  | 'about'
+  | 'self-evolution'
+  | 'memory-changelog'
+  | 'sandbox';
 
 const sectionConfig = computed(() => ({
   general: { icon: SlidersHorizontal, title: t('dashboard.general') },
@@ -78,6 +84,9 @@ const sectionConfig = computed(() => ({
   language: { icon: Globe, title: t('dashboard.language') },
   about: { icon: Info, title: t('dashboard.about') },
   theme: { icon: Palette, title: t('dashboard.theme') },
+  'self-evolution': { icon: Sparkles, title: t('dashboard.selfEvolution') },
+  'memory-changelog': { icon: History, title: t('dashboard.memoryChangelog') },
+  sandbox: { icon: ShieldCheck, title: t('dashboard.sandbox') },
 }));
 
 const props = defineProps<{
@@ -200,6 +209,18 @@ watch(
               v-else-if="currentView === 'theme'"
               :current-theme="themeMode || 'love'"
               @change-theme="(theme) => emit('change-theme', theme)"
+            />
+
+            <SelfEvolutionSettings
+              v-else-if="currentView === 'self-evolution'"
+            />
+
+            <MemoryChangelog
+              v-else-if="currentView === 'memory-changelog'"
+            />
+
+            <SandboxSettingsSection
+              v-else-if="currentView === 'sandbox'"
             />
           </div>
        </Transition>

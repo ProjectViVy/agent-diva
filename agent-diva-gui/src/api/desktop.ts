@@ -115,6 +115,48 @@ export interface RuntimeConfigSnapshot {
   has_api_key: boolean;
 }
 
+// ============================================================
+// Card DTO Interfaces (Story 1.1)
+// ============================================================
+
+export interface TodoItem {
+  id: string;
+  content: string;
+  status: 'pending' | 'done';
+  completed_at?: string;
+}
+
+export interface UiCardAction {
+  id: string;
+  label: string;
+  style: 'primary' | 'secondary' | 'danger' | 'quiet';
+  payload: string;
+}
+
+export interface UiCard {
+  id: string;
+  kind: 'decision' | 'todo' | 'approval';
+  status: string;
+  title: string;
+  summary: string;
+  body_markdown: string;
+  actions: UiCardAction[];
+  evidence_refs?: string[];
+  risk_level?: 'low' | 'medium' | 'high';
+  todo_items?: TodoItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApprovalRequest {
+  request_id: string;
+  operation: string;
+  risk: 'low' | 'medium' | 'high';
+  scope: string;
+  timeout_seconds: number;
+  created_at: string;
+}
+
 export const isTauriRuntime = () =>
   typeof window !== "undefined" &&
   ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
@@ -173,6 +215,16 @@ export const uploadSkill = (fileName: string, bytes: number[]) =>
 
 export const deleteSkill = (name: string) =>
   invoke<void>("delete_skill", { name });
+
+export interface FileAttachmentDto {
+  file_id: string;
+  filename: string;
+  size: number;
+  mime_type?: string | null;
+}
+
+export const uploadFile = (fileName: string, bytes: number[]) =>
+  invoke<FileAttachmentDto>("upload_file", { fileName, bytes });
 
 // ============================================================
 // Marketplace API (skills.sh)

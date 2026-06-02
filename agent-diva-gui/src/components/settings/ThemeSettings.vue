@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { Palette, Heart, Moon, Sun } from 'lucide-vue-next';
+import { Palette, Heart, Moon, Sun, Music } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -44,6 +44,16 @@ const themes = [
     accent: '#ec4899',
     bgLight: 'rgba(236, 72, 153, 0.1)',
     borderLight: 'rgba(236, 72, 153, 0.3)',
+  },
+  {
+    id: 'miku',
+    name: 'theme.miku',
+    desc: 'theme.mikuDesc',
+    icon: Music,
+    preview: 'linear-gradient(135deg, #0d1117 0%, #161b22 40%, #1a2332 100%)',
+    accent: '#39c5bb',
+    bgLight: 'rgba(57, 197, 187, 0.1)',
+    borderLight: 'rgba(57, 197, 187, 0.3)',
   },
 ];
 

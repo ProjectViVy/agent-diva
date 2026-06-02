@@ -160,6 +160,7 @@ pub fn run() {
             commands::refresh_mcp_status,
             commands::upload_skill,
             commands::delete_skill,
+            commands::upload_file,
             commands::get_providers,
             commands::create_custom_provider,
             commands::delete_custom_provider,

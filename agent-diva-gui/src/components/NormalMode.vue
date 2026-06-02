@@ -2,6 +2,7 @@
 import { computed, defineExpose, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
+  BookOpen,
   Bot,
   Check,
   ChevronDown,
@@ -16,11 +17,13 @@ import {
   Zap,
 } from 'lucide-vue-next';
 import ChatView from './ChatView.vue';
+import { FileAttachmentDto } from '../api/desktop';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import ConsoleView from './ConsoleView.vue';
 import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
+import NotebookView from './NotebookView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
@@ -114,7 +117,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[]): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'toggle-sidebar'): void;
@@ -124,10 +127,10 @@ const emit = defineEmits<{
   (e: 'delete-session', sessionKey: string): void;
 }>();
 
-type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills';
+type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | null>(null);
+const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -313,9 +316,19 @@ const hearts = [
   { left: '84%', top: '40%', size: 20, opacity: 0.3, delay: 0.8 },
   { left: '90%', top: '15%', size: 12, opacity: 0.22, delay: 1.1 },
 ];
+const mikuAvatars = [
+  { left: '5%', top: '15%', size: 36, opacity: 0.35, delay: 0 },
+  { left: '15%', top: '65%', size: 28, opacity: 0.25, delay: 1.5 },
+  { left: '30%', top: '25%', size: 44, opacity: 0.3, delay: 3 },
+  { left: '50%', top: '75%', size: 32, opacity: 0.2, delay: 4.5 },
+  { left: '65%', top: '20%', size: 40, opacity: 0.35, delay: 2 },
+  { left: '80%', top: '55%', size: 30, opacity: 0.25, delay: 5 },
+  { left: '90%', top: '30%', size: 38, opacity: 0.3, delay: 6.5 },
+];
 
 const emotionConfig = computed(() => ({
   happy: { emoji: '\u{1F60A}', label: t('emotion.happy') },
+
   sad: { emoji: '\u{1F622}', label: t('emotion.sad') },
   clingy: { emoji: '\u{1F97A}', label: t('emotion.clingy') },
   jealous: { emoji: '\u{1F624}', label: t('emotion.jealous') },
@@ -375,6 +388,25 @@ defineExpose({
     </div>
 
     <!-- 常驻侧边栏 -->
+
+    <!-- Miku主题背景装饰 -->
+    <div v-if="themeMode === 'miku'" class="miku-floats">
+      <div
+        v-for="(m, i) in mikuAvatars"
+        :key="i"
+        class="miku-avatar"
+        :style="{
+          left: m.left,
+          top: m.top,
+          width: `${m.size}px`,
+          height: `${m.size}px`,
+          opacity: m.opacity,
+          animationDelay: `${m.delay}s`,
+        }"
+      >
+        <img src="/miku.svg" alt="Miku" />
+      </div>
+    </div>
     <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
       <!-- Logo区域 -->
       <div class="sidebar-header">
@@ -400,6 +432,10 @@ defineExpose({
           >
             {{ chatBadgeValue }}
           </span>
+        </button>
+        <button class="nav-item" :class="{ active: isSectionActive('notebook') }" @click="navigateTo('notebook')">
+          <BookOpen />
+          <span v-if="!sidebarCollapsed">{{ t('nav.notebook') }}</span>
         </button>
         <button class="nav-item" :class="{ active: isSectionActive('console') }" @click="navigateTo('console')">
           <Server />
@@ -633,6 +669,16 @@ defineExpose({
             </div>
           </div>
         </div>
+        <!-- Notebook视图 -->
+        <div v-else-if="activeMenu === 'notebook'" class="h-full">
+          <div class="h-full min-h-0 flex flex-col subview-container">
+            <div class="flex-1 min-h-0 overflow-hidden">
+              <div class="h-full min-h-0 w-full overflow-y-auto p-6">
+                <NotebookView />
+              </div>
+            </div>
+          </div>
+        </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
           <!-- 这个是作者要求不要修改，未经允许禁止往这里面添加东西（未来这里面要放swarm系统的可视化） -->
@@ -651,7 +697,7 @@ defineExpose({
               :history-prefs="chatDisplayPrefs"
               :sessions="sessions"
               :active-session-key="activeSessionKey"
-              @send="(content) => emit('send', content)"
+              @send="(content, attachments) => emit('send', content, attachments)"
               @clear="handleClearSession"
               @stop="emit('stop')"
               @select-session="(key) => emit('load-session', key)"

@@ -289,11 +289,55 @@ struct StreamToolFinishPayload {
     call_id: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FileAttachmentDto {
+    pub file_id: String,
+    pub filename: String,
+    pub size: u64,
+    pub mime_type: Option<String>,
+}
+
+#[tauri::command]
+pub async fn upload_file(
+    file_name: String,
+    bytes: Vec<u8>,
+    state: State<'_, AgentState>,
+) -> Result<FileAttachmentDto, String> {
+    let url = format!("{}/files/upload", state.api_base_url);
+    let part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(file_name.clone())
+        .mime_str("application/octet-stream")
+        .map_err(|e| format!("Failed to build upload part: {}", e))?;
+    let form = reqwest::multipart::Form::new()
+        .part("file", part)
+        .text("channel", "gui");
+    let response = state
+        .client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to upload file: {}", e))?;
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid upload response: {}", e))?;
+    serde_json::from_value(
+        value
+            .get("attachment")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+    )
+    .map_err(|e| format!("Invalid uploaded file payload: {}", e))
+}
+
 #[tauri::command]
 pub async fn send_message(
     message: String,
     channel: Option<String>,
     chat_id: Option<String>,
+    attachments: Option<Vec<String>>,
     stream_request_id: String,
     window: Window,
     state: State<'_, AgentState>,
@@ -308,7 +352,8 @@ pub async fn send_message(
         .json(&serde_json::json!({
             "message": message,
             "channel": channel,
-            "chat_id": chat_id
+            "chat_id": chat_id,
+            "attachments": attachments
         }))
         .send()
         .await
