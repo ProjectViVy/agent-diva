@@ -303,7 +303,7 @@ pub async fn upload_file(
     bytes: Vec<u8>,
     state: State<'_, AgentState>,
 ) -> Result<FileAttachmentDto, String> {
-    let url = format!("{}/files/upload", state.api_base_url);
+    let url = format!("{}/files/upload", state.api_base_url());
     let part = reqwest::multipart::Part::bytes(bytes)
         .file_name(file_name.clone())
         .mime_str("application/octet-stream")
@@ -345,7 +345,7 @@ pub async fn send_message(
     info!("Sending message to API: {}", message);
 
     let client = &state.client;
-    let url = format!("{}/chat", state.api_base_url);
+    let url = format!("{}/chat", state.api_base_url());
 
     let response = client
         .post(&url)
@@ -490,7 +490,7 @@ pub async fn stop_generation(
     chat_id: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<bool, String> {
-    let url = format!("{}/chat/stop", state.api_base_url);
+    let url = format!("{}/chat/stop", state.api_base_url());
     let payload = serde_json::json!({
         "channel": channel,
         "chat_id": chat_id
@@ -534,7 +534,7 @@ pub async fn reset_session(
     chat_id: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<bool, String> {
-    let url = format!("{}/sessions/reset", state.api_base_url);
+    let url = format!("{}/sessions/reset", state.api_base_url());
     let payload = serde_json::json!({
         "channel": channel,
         "chat_id": chat_id
@@ -573,7 +573,7 @@ pub async fn reset_session(
 pub async fn delete_session(chat_id: String, state: State<'_, AgentState>) -> Result<bool, String> {
     let id_encoded = urlencoding::encode(&chat_id);
     // Use POST /sessions/:id (same path as DELETE) - more reliable in some environments
-    let url = format!("{}/sessions/{}", state.api_base_url, id_encoded);
+    let url = format!("{}/sessions/{}", state.api_base_url(), id_encoded);
 
     let response = state
         .client
@@ -611,7 +611,7 @@ pub async fn delete_session(chat_id: String, state: State<'_, AgentState>) -> Re
 
 #[tauri::command]
 pub async fn get_sessions(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let url = format!("{}/sessions", state.api_base_url);
+    let url = format!("{}/sessions", state.api_base_url());
 
     let response = state
         .client
@@ -651,7 +651,7 @@ pub async fn get_session_history(
 ) -> Result<serde_json::Value, String> {
     // URL encode the chat_id in case it contains special characters like ':'
     let id_encoded = urlencoding::encode(&chat_id);
-    let url = format!("{}/sessions/{}", state.api_base_url, id_encoded);
+    let url = format!("{}/sessions/{}", state.api_base_url(), id_encoded);
 
     let response = state
         .client
@@ -691,7 +691,7 @@ pub async fn get_session_history(
 
 #[tauri::command]
 pub async fn get_cron_jobs(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let url = format!("{}/cron/jobs", state.api_base_url);
+    let url = format!("{}/cron/jobs", state.api_base_url());
     let response = state
         .client
         .get(&url)
@@ -729,7 +729,7 @@ pub async fn get_cron_job(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -764,7 +764,7 @@ pub async fn create_cron_job(
     payload: serde_json::Value,
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, String> {
-    let url = format!("{}/cron/jobs", state.api_base_url);
+    let url = format!("{}/cron/jobs", state.api_base_url());
     let response = state
         .client
         .post(&url)
@@ -801,7 +801,7 @@ pub async fn update_cron_job(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -840,7 +840,7 @@ pub async fn set_cron_job_enabled(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}/enable",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -879,7 +879,7 @@ pub async fn run_cron_job(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}/run",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -917,7 +917,7 @@ pub async fn stop_cron_job_run(
 ) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/cron/jobs/{}/stop",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -951,7 +951,7 @@ pub async fn stop_cron_job_run(
 pub async fn delete_cron_job(job_id: String, state: State<'_, AgentState>) -> Result<(), String> {
     let url = format!(
         "{}/cron/jobs/{}",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&job_id)
     );
     let response = state
@@ -989,7 +989,7 @@ pub async fn start_background_stream(
     let client = state.client.clone();
     let url = format!(
         "{}/events?channel=api&chat_prefix=cron:",
-        state.api_base_url
+        state.api_base_url()
     );
 
     tauri::async_runtime::spawn(async move {
@@ -1041,7 +1041,7 @@ pub async fn start_background_stream(
 
 #[tauri::command]
 pub async fn check_health(state: State<'_, AgentState>) -> Result<bool, String> {
-    let url = format!("{}/health", state.api_base_url);
+    let url = format!("{}/health", state.api_base_url());
 
     let client = &state.client;
     let response = client
@@ -1192,7 +1192,7 @@ pub async fn create_mcp(
     payload: McpServerPayload,
     state: State<'_, AgentState>,
 ) -> Result<McpServerDto, String> {
-    let url = format!("{}/mcps", state.api_base_url);
+    let url = format!("{}/mcps", state.api_base_url());
     let response = state
         .client
         .post(&url)
@@ -1221,7 +1221,7 @@ pub async fn update_mcp(
     payload: McpServerPayload,
     state: State<'_, AgentState>,
 ) -> Result<McpServerDto, String> {
-    let url = format!("{}/mcps/{}", state.api_base_url, urlencoding::encode(&name));
+    let url = format!("{}/mcps/{}", state.api_base_url(), urlencoding::encode(&name));
     let response = state
         .client
         .put(&url)
@@ -1246,7 +1246,7 @@ pub async fn update_mcp(
 
 #[tauri::command]
 pub async fn delete_mcp(name: String, state: State<'_, AgentState>) -> Result<(), String> {
-    let url = format!("{}/mcps/{}", state.api_base_url, urlencoding::encode(&name));
+    let url = format!("{}/mcps/{}", state.api_base_url(), urlencoding::encode(&name));
     let response = state
         .client
         .delete(&url)
@@ -1275,7 +1275,7 @@ pub async fn set_mcp_enabled(
 ) -> Result<McpServerDto, String> {
     let url = format!(
         "{}/mcps/{}/enable",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&name)
     );
     let response = state
@@ -1307,7 +1307,7 @@ pub async fn refresh_mcp_status(
 ) -> Result<McpServerDto, String> {
     let url = format!(
         "{}/mcps/{}/refresh",
-        state.api_base_url,
+        state.api_base_url(),
         urlencoding::encode(&name)
     );
     let response = state
@@ -1338,7 +1338,7 @@ pub async fn upload_skill(
     bytes: Vec<u8>,
     state: State<'_, AgentState>,
 ) -> Result<SkillDto, String> {
-    let url = format!("{}/skills", state.api_base_url);
+    let url = format!("{}/skills", state.api_base_url());
     let part = reqwest::multipart::Part::bytes(bytes)
         .file_name(file_name)
         .mime_str("application/zip")
@@ -1375,7 +1375,7 @@ pub async fn upload_skill(
 #[tauri::command]
 pub async fn delete_skill(name: String, state: State<'_, AgentState>) -> Result<(), String> {
     let name = urlencoding::encode(&name);
-    let url = format!("{}/skills/{}", state.api_base_url, name);
+    let url = format!("{}/skills/{}", state.api_base_url(), name);
     let response = state
         .client
         .delete(&url)
@@ -1406,7 +1406,7 @@ pub async fn update_tools_config(
 
 #[tauri::command]
 pub async fn get_channels(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let url = format!("{}/channels", state.api_base_url);
+    let url = format!("{}/channels", state.api_base_url());
 
     let response = state
         .client
@@ -1435,7 +1435,7 @@ pub async fn update_channel(
     config: serde_json::Value,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
-    let url = format!("{}/channels", state.api_base_url);
+    let url = format!("{}/channels", state.api_base_url());
 
     let payload = serde_json::json!({
         "name": name,
@@ -2354,7 +2354,7 @@ pub fn load_config() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn get_config(state: State<'_, AgentState>) -> Result<RuntimeConfigSnapshot, String> {
-    let url = format!("{}/config", state.api_base_url);
+    let url = format!("{}/config", state.api_base_url());
     let response = state
         .client
         .get(&url)
@@ -2647,7 +2647,7 @@ async fn fetch_token_stats<T: serde::de::DeserializeOwned>(
     state: &AgentState,
     endpoint: &str,
 ) -> Result<T, String> {
-    let url = format!("{}{}", state.api_base_url, endpoint);
+    let url = format!("{}{}", state.api_base_url(), endpoint);
     let response = state
         .client
         .get(&url)

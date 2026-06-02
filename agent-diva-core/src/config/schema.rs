@@ -3,6 +3,108 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ── Sandbox configuration types (used by agent-diva-sandbox) ────────────────
+
+/// Sandbox execution mode
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SandboxMode {
+    /// No sandbox isolation — full host access
+    DangerFullAccess,
+    /// Read-only filesystem access
+    ReadOnly,
+    /// Write access limited to the workspace directory
+    WorkspaceWrite,
+}
+
+impl Default for SandboxMode {
+    fn default() -> Self {
+        Self::WorkspaceWrite
+    }
+}
+
+/// When to ask the user for approval before executing a command
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AskForApproval {
+    /// Never ask — auto-approve everything
+    Never,
+    /// Ask only when the command fails
+    OnFailure,
+    /// Ask for every command
+    OnRequest,
+    /// Ask unless the command is in a trusted list
+    UnlessTrusted,
+}
+
+impl Default for AskForApproval {
+    fn default() -> Self {
+        Self::UnlessTrusted
+    }
+}
+
+/// Windows-specific sandbox isolation level
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WindowsSandboxLevel {
+    /// No Windows sandbox — rely on general sandbox mode only
+    Disabled,
+    /// Run with a restricted token (reduced privileges)
+    RestrictedToken,
+    /// Run with elevated isolation (AppContainer-like)
+    Elevated,
+}
+
+impl Default for WindowsSandboxLevel {
+    fn default() -> Self {
+        Self::RestrictedToken
+    }
+}
+
+/// Sandbox section in the root configuration file
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxConfig {
+    /// Sandbox execution mode
+    #[serde(default)]
+    pub mode: SandboxMode,
+    /// Windows-specific sandbox level
+    #[serde(default)]
+    pub windows_level: WindowsSandboxLevel,
+    /// Whether network access is allowed inside the sandbox
+    #[serde(default)]
+    pub network_access: bool,
+    /// When to ask for user approval
+    #[serde(default)]
+    pub approval_policy: AskForApproval,
+    /// Extra writable root paths (strings; resolved at runtime)
+    #[serde(default)]
+    pub writable_roots: Vec<String>,
+    /// Glob patterns for paths that must never be written to
+    #[serde(default)]
+    pub protected_paths: Vec<String>,
+    /// Default command timeout in seconds
+    #[serde(default = "default_sandbox_timeout")]
+    pub timeout: u64,
+}
+
+fn default_sandbox_timeout() -> u64 {
+    60
+}
+
+impl Default for SandboxConfig {
+    fn default() -> Self {
+        Self {
+            mode: SandboxMode::default(),
+            windows_level: WindowsSandboxLevel::default(),
+            network_access: false,
+            approval_policy: AskForApproval::default(),
+            writable_roots: Vec::new(),
+            protected_paths: Vec::new(),
+            timeout: 60,
+        }
+    }
+}
+
 /// Root configuration for agent-diva
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {

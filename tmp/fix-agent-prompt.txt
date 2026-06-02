@@ -1,0 +1,14 @@
+Fix compilation errors in agent-diva-agent. The messages in the agent loop are `agent_diva_providers::Message` which has `content: MessageContent`. `MessageContent` is an enum (Text(String) | Parts(Vec)). To get a String, call `.to_text_lossy()`.
+
+Fix ONLY these specific patterns in agent-diva-agent/src/agent_loop/loop_turn.rs and agent-diva-agent/src/subagent.rs:
+
+1. `m.content.trim()` → `m.content.to_text_lossy().trim()` (line 598 of loop_turn.rs)
+2. `&m.content` when passed to `ChatMessage::with_tool_metadata` → `m.content.to_text_lossy()` (line 615)
+3. `m.content.chars()` → `m.content.to_text_lossy().chars()` (lines 625-626)
+4. `m.content.clone()` in an if/else where String is expected → `m.content.to_text_lossy()` (line 628)
+5. In subagent.rs: `response.content.clone().unwrap_or_default()` → wrapping in `MessageContent::Text(...)` per compiler suggestion (line 278)
+
+After fixing, run: cargo build -p agent-diva-agent
+If still errors, fix remaining ones with same pattern (MessageContent → to_text_lossy() for string contexts).
+
+Do NOT change any other files. Make minimal targeted edits.

@@ -1,7 +1,7 @@
 //! Message forwarding tool
 
 use agent_diva_core::bus::OutboundMessage;
-use agent_diva_tooling::{Tool, ToolError};
+use crate::base::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;

@@ -1,6 +1,5 @@
 //! Session data structures
 
-use crate::attachment::FileAttachmentRef;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -47,7 +46,6 @@ impl Session {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
-            attachments: None,
         });
         self.updated_at = Utc::now();
     }
@@ -108,9 +106,6 @@ pub struct ChatMessage {
     /// Optional structured thinking blocks (provider-specific)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub thinking_blocks: Option<Vec<serde_json::Value>>,
-    /// Optional file attachment metadata carried by this message.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub attachments: Option<Vec<FileAttachmentRef>>,
 }
 
 impl ChatMessage {
@@ -125,21 +120,7 @@ impl ChatMessage {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
-            attachments: None,
         }
-    }
-
-    /// Create a new chat message with attachment metadata.
-    pub fn with_attachments(
-        role: impl Into<String>,
-        content: impl Into<String>,
-        attachments: Vec<FileAttachmentRef>,
-    ) -> Self {
-        let mut message = Self::new(role, content);
-        if !attachments.is_empty() {
-            message.attachments = Some(attachments);
-        }
-        message
     }
 
     /// Create a chat message with full tool metadata
@@ -159,7 +140,6 @@ impl ChatMessage {
             name,
             reasoning_content: None,
             thinking_blocks: None,
-            attachments: None,
         }
     }
 
@@ -203,73 +183,5 @@ mod tests {
 
         let history = session.get_history(50);
         assert_eq!(history.len(), 50);
-    }
-
-    #[test]
-    fn test_chat_message_deserializes_old_json_without_attachments() {
-        let json = r#"{
-            "role": "user",
-            "content": "hello",
-            "timestamp": "2026-06-01T00:00:00Z"
-        }"#;
-
-        let message: ChatMessage = serde_json::from_str(json).unwrap();
-        assert_eq!(message.role, "user");
-        assert_eq!(message.content, "hello");
-        assert_eq!(message.attachments, None);
-    }
-
-    #[test]
-    fn test_chat_message_attachment_round_trip() {
-        let message = ChatMessage::with_attachments(
-            "user",
-            "see attached",
-            vec![FileAttachmentRef {
-                file_id: "sha256:image123".to_string(),
-                filename: "image.png".to_string(),
-                mime_type: Some("image/png".to_string()),
-                size: 4096,
-            }],
-        );
-
-        let json = serde_json::to_string(&message).unwrap();
-        assert!(json.contains("\"attachments\""));
-        assert!(!json.contains("base64"));
-        assert!(!json.contains("bytes"));
-        assert!(!json.contains("preview"));
-
-        let decoded: ChatMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(decoded.attachments, message.attachments);
-    }
-
-    #[test]
-    fn test_chat_message_new_skips_attachments_when_empty() {
-        let message = ChatMessage::new("user", "plain text");
-        let json = serde_json::to_string(&message).unwrap();
-
-        assert_eq!(message.attachments, None);
-        assert!(!json.contains("attachments"));
-    }
-
-    #[test]
-    fn test_get_history_preserves_attachment_metadata() {
-        let mut session = Session::new("test");
-        session.add_full_message(ChatMessage::with_attachments(
-            "user",
-            "image",
-            vec![FileAttachmentRef {
-                file_id: "sha256:image123".to_string(),
-                filename: "image.png".to_string(),
-                mime_type: Some("image/png".to_string()),
-                size: 4096,
-            }],
-        ));
-
-        let history = session.get_history(50);
-        assert_eq!(history.len(), 1);
-        assert_eq!(
-            history[0].attachments.as_ref().unwrap()[0].file_id,
-            "sha256:image123"
-        );
     }
 }

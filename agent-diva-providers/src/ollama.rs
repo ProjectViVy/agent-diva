@@ -120,6 +120,16 @@ where
     Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
+/// Generate a short random hex id (no uuid crate needed)
+fn rand_id() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!("{:016x}", t)
+}
+
 impl OllamaProvider {
     /// Normalize the base URL for consistency
     fn normalize_base_url(raw_url: &str) -> String {
@@ -159,7 +169,7 @@ impl OllamaProvider {
                     // Tool calls are handled separately in the request
                     return OllamaMessage {
                         role: msg.role.clone(),
-                        content: msg.content.clone(),
+                        content: msg.content.to_text_lossy(),
                     };
                 }
 
@@ -168,14 +178,14 @@ impl OllamaProvider {
                     // Tool results go in the content field
                     return OllamaMessage {
                         role: "tool".to_string(),
-                        content: msg.content.clone(),
+                        content: msg.content.to_text_lossy(),
                     };
                 }
 
                 // User and system messages pass through
                 OllamaMessage {
                     role: msg.role.clone(),
-                    content: msg.content.clone(),
+                    content: msg.content.to_text_lossy(),
                 }
             })
             .collect()
@@ -216,7 +226,7 @@ impl OllamaProvider {
         let id = tool_call
             .id
             .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            .unwrap_or_else(|| format!("call_{}", rand_id()));
         let name = tool_call.function.name.clone();
         let arguments = tool_call.function.arguments.clone();
 
@@ -233,7 +243,7 @@ impl OllamaProvider {
         let id = tool_call
             .id
             .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            .unwrap_or_else(|| format!("call_{}", rand_id()));
         let name = tool_call.function.name.clone();
         let arguments = tool_call.function.arguments.clone();
 
