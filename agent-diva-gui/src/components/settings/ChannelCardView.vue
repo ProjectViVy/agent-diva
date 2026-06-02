@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Plus } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { Plus, MessageSquarePlus } from 'lucide-vue-next';
 import ChannelCard from './ChannelCard.vue';
 import type { ChannelStatusSummary } from '../../api/desktop';
 
@@ -22,13 +23,15 @@ const emit = defineEmits<{
   (e: 'toggle', name: string): void;
 }>();
 
-const statusMap = new Map(props.statuses.map((s) => [s.name, s]));
+const statusMap = computed(() => new Map(props.statuses.map((s) => [s.name, s])));
 
-const channelList = Object.entries(props.channels).map(([name, channel]) => ({
-  name,
-  channel,
-  status: statusMap.get(name),
-}));
+const channelList = computed(() =>
+  Object.entries(props.channels).map(([name, channel]) => ({
+    name,
+    channel,
+    status: statusMap.value.get(name),
+  }))
+);
 </script>
 
 <template>
@@ -36,20 +39,7 @@ const channelList = Object.entries(props.channels).map(([name, channel]) => ({
     <!-- Empty State -->
     <div v-if="Object.keys(channels).length === 0" class="channel-empty-state">
       <div class="empty-icon">
-        <svg
-          width="80"
-          height="80"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          <line x1="9" y1="10" x2="15" y2="16" />
-          <line x1="15" y1="10" x2="9" y2="16" />
-        </svg>
+        <MessageSquarePlus :size="80" />
       </div>
       <h3>{{ $t('channels.noChannels') }}</h3>
       <p>{{ $t('channels.noChannelsHint') }}</p>
@@ -57,9 +47,6 @@ const channelList = Object.entries(props.channels).map(([name, channel]) => ({
         <button class="btn-primary" @click="emit('add')">
           <Plus :size="16" />
           {{ $t('channels.addChannel') }}
-        </button>
-        <button class="btn-secondary" @click="emit('add')">
-          {{ $t('channels.startWizard') }}
         </button>
       </div>
     </div>
@@ -101,14 +88,14 @@ const channelList = Object.entries(props.channels).map(([name, channel]) => ({
   margin-bottom: 1.5rem;
 }
 
-.empty-state h3 {
+.channel-empty-state h3 {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 0.5rem;
 }
 
-.empty-state p {
+.channel-empty-state p {
   font-size: 0.875rem;
   color: var(--text-muted);
   margin-bottom: 1.5rem;

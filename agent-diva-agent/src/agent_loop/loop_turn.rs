@@ -1,15 +1,29 @@
 use super::AgentLoop;
 use crate::consolidation;
+use agent_diva_core::attachment::FileAttachmentRef;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
+use agent_diva_core::memory::PrefetchRequest;
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
-use agent_diva_providers::{LLMResponse, LLMStreamEvent};
+use agent_diva_files::FileManager;
+use agent_diva_providers::{
+    supports_vision_model, ImageFile, ImageUrl, LLMResponse, LLMStreamEvent, Message,
+    MessageContent, MessageContentPart,
+};
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::fmt;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
+
+/// Max size for text attachments to inline (100KB)
+const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
+const MAX_VISION_IMAGE_SIZE: u64 = 5 * 1024 * 1024;
+const VISION_UNSUPPORTED_MODEL_MESSAGE: &str = "This model cannot inspect images. Please switch to a vision-capable model or send a text description of the image.";
 
 impl AgentLoop {
     pub(super) async fn process_inbound_message_inner(
@@ -33,19 +47,27 @@ impl AgentLoop {
             msg.channel, msg.sender_id, preview, model_to_use
         );
 
+        let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
+
+        // Process attachments: keep images as structured parts and inline text attachments.
+        let message_content =
+            assemble_current_message_content(&self.file_manager, &msg.content, &msg.media).await;
+
+        // Derive prefetch intent from raw user message before it's consumed.
+        let prefetch_user_message = message_content.to_text_lossy();
+        let prefetch_intent = derive_prefetch_intent(&prefetch_user_message);
+
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         self.clear_session_cancellation(&session_key);
         let session = self.sessions.get_or_create(&session_key);
 
-        let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
-
         // Build initial messages
         let history = session.get_history(50); // Last 50 messages
         let history_len = history.len();
-        let mut messages = self.context.build_messages(
+        let mut messages = self.context.build_messages_with_content(
             history,
-            msg.content.clone(),
+            message_content,
             Some(&msg.channel),
             Some(&msg.chat_id),
         );
@@ -65,6 +87,35 @@ impl AgentLoop {
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
+
+        // Intent-aware prefetch: run recall search before the first LLM call
+        // when the user message provides a workable intent string.
+        if !prefetch_intent.is_empty() {
+            let prefetch_result = self
+                .memory_provider
+                .prefetch(PrefetchRequest {
+                    workspace_root: self.workspace.clone(),
+                    intent: prefetch_intent,
+                    current_room: Some(msg.channel.clone()),
+                    user_message: Some(prefetch_user_message.clone()),
+                })
+                .await;
+            match prefetch_result {
+                Ok(response) if response.prompt_block.is_some() => {
+                    let block = response.prompt_block.unwrap();
+                    // Inject recall results as an additional system message
+                    // right after the main system prompt.
+                    messages.insert(1, agent_diva_providers::Message::system(block));
+                    trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
+                }
+                Ok(_) => {
+                    trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
+                }
+                Err(e) => {
+                    warn!("Prefetch recall failed (non-fatal): {}", e);
+                }
+            }
+        }
 
         while iteration < self.max_iterations {
             self.drain_runtime_control_commands().await;
@@ -105,10 +156,26 @@ impl AgentLoop {
             } else {
                 self.tools.get_definitions()
             };
+            let provider_messages = match prepare_messages_for_openai_vision(
+                &self.file_manager,
+                messages.clone(),
+                &model_to_use,
+            )
+            .await
+            {
+                Ok(messages) => messages,
+                Err(error) => {
+                    warn!("Vision message preparation failed: {}", error);
+                    final_content = Some(error.user_message().to_string());
+                    final_reasoning = None;
+                    break;
+                }
+            };
+
             let mut stream = self
                 .provider
                 .chat_stream(
-                    messages.clone(),
+                    provider_messages,
                     if !tool_defs.is_empty() {
                         Some(tool_defs)
                     } else {
@@ -374,6 +441,7 @@ impl AgentLoop {
 
         // Save complete turn to session
         {
+            let user_attachments = resolve_attachment_refs(&self.file_manager, &msg.media).await;
             let session = self.sessions.get_or_create(&session_key);
             let user_role = if is_cron_trigger { "system" } else { "user" };
             save_turn(
@@ -382,6 +450,7 @@ impl AgentLoop {
                 history_len,
                 user_role,
                 &msg.content,
+                user_attachments,
                 &final_content,
             );
         }
@@ -390,12 +459,12 @@ impl AgentLoop {
         {
             let session = self.sessions.get_or_create(&session_key);
             if consolidation::should_consolidate(session, self.memory_window) {
-                let memory_manager = agent_diva_core::memory::MemoryManager::new(&self.workspace);
                 if let Err(e) = consolidation::consolidate(
                     session,
                     &self.provider,
                     &model_to_use,
-                    &memory_manager,
+                    &self.workspace,
+                    &*self.memory_provider,
                     self.memory_window,
                 )
                 .await
@@ -433,6 +502,301 @@ impl AgentLoop {
             metadata: msg.metadata,
         }))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum VisionMessagePreparationError {
+    UnsupportedModel {
+        model: String,
+    },
+    MissingFile {
+        file_id: String,
+    },
+    UnsupportedMime {
+        file_id: String,
+        mime_type: String,
+    },
+    ImageTooLarge {
+        file_id: String,
+        size: u64,
+        max_size: u64,
+    },
+    ReadFailed {
+        file_id: String,
+        error: String,
+    },
+}
+
+impl VisionMessagePreparationError {
+    fn user_message(&self) -> &'static str {
+        match self {
+            Self::UnsupportedModel { .. } => VISION_UNSUPPORTED_MODEL_MESSAGE,
+            Self::MissingFile { .. } | Self::ReadFailed { .. } => {
+                "I could not read one of the attached images. Please upload it again and retry."
+            }
+            Self::UnsupportedMime { .. } => {
+                "This image format is not supported yet. Please use PNG, JPEG, or WebP."
+            }
+            Self::ImageTooLarge { .. } => {
+                "This image is too large to inspect. Please upload an image under 5 MB."
+            }
+        }
+    }
+}
+
+impl fmt::Display for VisionMessagePreparationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedModel { model } => {
+                write!(f, "model '{}' does not support vision", model)
+            }
+            Self::MissingFile { file_id } => write!(f, "image file '{}' is missing", file_id),
+            Self::UnsupportedMime { file_id, mime_type } => write!(
+                f,
+                "image file '{}' has unsupported MIME type '{}'",
+                file_id, mime_type
+            ),
+            Self::ImageTooLarge {
+                file_id,
+                size,
+                max_size,
+            } => write!(
+                f,
+                "image file '{}' is too large: {} bytes > {} bytes",
+                file_id, size, max_size
+            ),
+            Self::ReadFailed { file_id, error } => {
+                write!(f, "failed to read image file '{}': {}", file_id, error)
+            }
+        }
+    }
+}
+
+impl std::error::Error for VisionMessagePreparationError {}
+
+async fn prepare_messages_for_openai_vision(
+    file_manager: &FileManager,
+    messages: Vec<Message>,
+    model: &str,
+) -> Result<Vec<Message>, VisionMessagePreparationError> {
+    if !messages.iter().any(Message::has_image_content) {
+        return Ok(messages);
+    }
+
+    if !supports_vision_model(model) {
+        return Err(VisionMessagePreparationError::UnsupportedModel {
+            model: model.to_string(),
+        });
+    }
+
+    let mut prepared = Vec::with_capacity(messages.len());
+    for mut message in messages {
+        message.content = resolve_message_content_images(file_manager, message.content).await?;
+        prepared.push(message);
+    }
+
+    Ok(prepared)
+}
+
+async fn resolve_message_content_images(
+    file_manager: &FileManager,
+    content: MessageContent,
+) -> Result<MessageContent, VisionMessagePreparationError> {
+    let MessageContent::Parts(parts) = content else {
+        return Ok(content);
+    };
+
+    let mut resolved_parts = Vec::with_capacity(parts.len());
+    for part in parts {
+        match part {
+            MessageContentPart::ImageFile { image_file } => {
+                let url = resolve_image_file_to_data_uri(file_manager, &image_file.file_id).await?;
+                resolved_parts.push(MessageContentPart::ImageUrl {
+                    image_url: ImageUrl { url },
+                });
+            }
+            MessageContentPart::ImageData { image_data } => {
+                resolved_parts.push(MessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: image_data.data_uri,
+                    },
+                });
+            }
+            other => resolved_parts.push(other),
+        }
+    }
+
+    Ok(MessageContent::Parts(resolved_parts))
+}
+
+async fn resolve_image_file_to_data_uri(
+    file_manager: &FileManager,
+    file_id: &str,
+) -> Result<String, VisionMessagePreparationError> {
+    let handle = file_manager.get(file_id).await.map_err(|_| {
+        VisionMessagePreparationError::MissingFile {
+            file_id: file_id.to_string(),
+        }
+    })?;
+
+    let mime_type = handle
+        .metadata
+        .mime_type
+        .clone()
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    if !is_supported_vision_mime(&mime_type) {
+        return Err(VisionMessagePreparationError::UnsupportedMime {
+            file_id: file_id.to_string(),
+            mime_type,
+        });
+    }
+
+    let size = handle.metadata.size;
+    if size > MAX_VISION_IMAGE_SIZE {
+        return Err(VisionMessagePreparationError::ImageTooLarge {
+            file_id: file_id.to_string(),
+            size,
+            max_size: MAX_VISION_IMAGE_SIZE,
+        });
+    }
+
+    let bytes = file_manager.read(&handle).await.map_err(|error| {
+        VisionMessagePreparationError::ReadFailed {
+            file_id: file_id.to_string(),
+            error: error.to_string(),
+        }
+    })?;
+    if bytes.len() as u64 > MAX_VISION_IMAGE_SIZE {
+        return Err(VisionMessagePreparationError::ImageTooLarge {
+            file_id: file_id.to_string(),
+            size: bytes.len() as u64,
+            max_size: MAX_VISION_IMAGE_SIZE,
+        });
+    }
+
+    Ok(format!(
+        "data:{};base64,{}",
+        mime_type,
+        BASE64_STANDARD.encode(bytes)
+    ))
+}
+
+fn is_supported_vision_mime(mime_type: &str) -> bool {
+    matches!(mime_type, "image/png" | "image/jpeg" | "image/webp")
+}
+
+/// Build the current user message content from prompt text and attachment file IDs.
+///
+/// Image attachments become structured image parts; text and non-image attachments
+/// keep the legacy inline/placeholder text behavior.
+async fn assemble_current_message_content(
+    file_manager: &FileManager,
+    user_content: &str,
+    file_ids: &[String],
+) -> MessageContent {
+    if file_ids.is_empty() {
+        return MessageContent::Text(user_content.to_string());
+    }
+
+    let storage_path = dirs::data_local_dir()
+        .map(|p| p.join("agent-diva").join("files"))
+        .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+    info!("Loading attachments from: {}", storage_path.display());
+    info!("File IDs to load: {:?}", file_ids);
+
+    let mut attachment_text_parts = Vec::new();
+    let mut image_parts = Vec::new();
+
+    for file_id in file_ids {
+        match file_manager.get(file_id).await {
+            Ok(handle) => {
+                let size = handle.metadata.size;
+                let mime_type = handle
+                    .metadata
+                    .mime_type
+                    .as_deref()
+                    .unwrap_or("application/octet-stream");
+
+                if mime_type.starts_with("image/") {
+                    image_parts.push(MessageContentPart::ImageFile {
+                        image_file: ImageFile {
+                            file_id: handle.id.clone(),
+                        },
+                    });
+                    continue;
+                }
+
+                if is_inline_text_mime(mime_type) && size <= MAX_INLINE_ATTACHMENT_SIZE {
+                    match file_manager.read(&handle).await {
+                        Ok(bytes) => match String::from_utf8(bytes) {
+                            Ok(content) => {
+                                attachment_text_parts.push(format!(
+                                    "--- {} ---\n{}\n---",
+                                    handle.metadata.name, content
+                                ));
+                            }
+                            Err(_) => {
+                                attachment_text_parts.push(format!(
+                                    "[File: {} ({} bytes, binary)]",
+                                    handle.metadata.name, size
+                                ));
+                            }
+                        },
+                        Err(e) => {
+                            warn!("Failed to read file {}: {}", file_id, e);
+                            attachment_text_parts.push(format!(
+                                "[File: {} (error reading: {})]",
+                                handle.metadata.name, e
+                            ));
+                        }
+                    }
+                } else {
+                    attachment_text_parts.push(format!(
+                        "[File: {} ({} bytes, {}) - Use read_file tool to access]",
+                        handle.metadata.name, size, mime_type
+                    ));
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to get file handle for {}: {}. Storage path: {}",
+                    file_id,
+                    e,
+                    storage_path.display()
+                );
+                attachment_text_parts
+                    .push(format!("[Attachment: {} (not found - {})]", file_id, e));
+            }
+        }
+    }
+
+    let text_content = if attachment_text_parts.is_empty() {
+        user_content.to_string()
+    } else {
+        format!(
+            "{}\n\n[Attachments]\n{}\n[/Attachments]",
+            user_content,
+            attachment_text_parts.join("\n\n")
+        )
+    };
+
+    if image_parts.is_empty() {
+        MessageContent::Text(text_content)
+    } else {
+        let mut parts = Vec::with_capacity(image_parts.len() + 1);
+        parts.push(MessageContentPart::Text { text: text_content });
+        parts.extend(image_parts);
+        MessageContent::Parts(parts)
+    }
+}
+
+fn is_inline_text_mime(mime_type: &str) -> bool {
+    mime_type.starts_with("text/")
+        || mime_type == "application/json"
+        || mime_type == "application/javascript"
+        || mime_type == "application/typescript"
+        || mime_type == "application/x-yaml"
+        || mime_type == "application/xml"
 }
 
 fn changed_soul_file(
@@ -489,10 +853,20 @@ fn save_turn(
     history_len: usize,
     user_role: &str,
     user_content: &str,
+    user_attachments: Option<Vec<FileAttachmentRef>>,
     final_content: &str,
 ) {
     // Save trigger message; cron-triggered turns are not real-time user input.
-    session.add_message(user_role, user_content);
+    match user_attachments {
+        Some(attachments) => {
+            session.add_full_message(ChatMessage::with_attachments(
+                user_role,
+                user_content,
+                attachments,
+            ));
+        }
+        None => session.add_message(user_role, user_content),
+    }
 
     // Skip system prompt (1) + history (history_len) + current user message (1)
     let turn_start = 1 + history_len + 1;
@@ -500,7 +874,8 @@ fn save_turn(
         for m in &messages[turn_start..] {
             match m.role.as_str() {
                 "assistant" => {
-                    if m.content.trim().is_empty()
+                    let content = m.content.to_text_lossy();
+                    if content.trim().is_empty()
                         && m.tool_calls
                             .as_ref()
                             .map(|calls| calls.is_empty())
@@ -517,7 +892,7 @@ fn save_turn(
                     });
                     let mut msg = ChatMessage::with_tool_metadata(
                         "assistant",
-                        &m.content,
+                        content,
                         None,
                         tool_calls_json,
                         None,
@@ -527,10 +902,11 @@ fn save_turn(
                     session.add_full_message(msg);
                 }
                 "tool" => {
-                    let content = if m.content.chars().count() > 500 {
-                        format!("{}...", m.content.chars().take(500).collect::<String>())
+                    let text_content = m.content.to_text_lossy();
+                    let content = if text_content.chars().count() > 500 {
+                        format!("{}...", text_content.chars().take(500).collect::<String>())
                     } else {
-                        m.content.clone()
+                        text_content
                     };
                     session.add_full_message(ChatMessage::with_tool_metadata(
                         "tool",
@@ -557,9 +933,101 @@ fn save_turn(
     }
 }
 
+async fn resolve_attachment_refs(
+    file_manager: &FileManager,
+    file_ids: &[String],
+) -> Option<Vec<FileAttachmentRef>> {
+    if file_ids.is_empty() {
+        return None;
+    }
+
+    let mut attachments = Vec::new();
+    for file_id in file_ids {
+        match file_manager.get(file_id).await {
+            Ok(handle) => attachments.push(FileAttachmentRef::from_handle(&handle)),
+            Err(e) => {
+                warn!(
+                    "Failed to resolve attachment metadata for {} while saving session: {}",
+                    file_id, e
+                );
+            }
+        }
+    }
+
+    if attachments.is_empty() {
+        None
+    } else {
+        Some(attachments)
+    }
+}
+
+/// Derive a lightweight recall intent from the user message.
+///
+/// Returns an empty string when the message is too short or lacks any
+/// action/recall-indicating words, so `prefetch` is gated on intent
+/// availability without requiring a full intent classifier.
+fn derive_prefetch_intent(message: &str) -> String {
+    let trimmed = message.trim();
+    if trimmed.len() < 4 {
+        return String::new();
+    }
+
+    let lower = trimmed.to_lowercase();
+    let recall_words = [
+        "recall",
+        "remember",
+        "summarize",
+        "summary",
+        "review",
+        "history",
+        "memory",
+        "previous",
+        "last",
+        "recent",
+        "what",
+        "how",
+        "why",
+        "when",
+        "where",
+        "who",
+        "list",
+        "find",
+        "search",
+        "look",
+        "check",
+    ];
+
+    let has_recall_signal = recall_words.iter().any(|word| lower.contains(word));
+
+    if has_recall_signal {
+        // Use a truncated version as the search intent.
+        let limit = trimmed.chars().count().min(120);
+        let chars: String = trimmed.chars().take(limit).collect();
+        chars
+    } else {
+        String::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_files::handle::FileMetadata;
+    use agent_diva_files::FileConfig;
+
+    #[test]
+    fn test_derive_prefetch_intent_is_empty_for_non_question() {
+        assert!(derive_prefetch_intent("the sky is blue").is_empty());
+        assert!(derive_prefetch_intent("ok").is_empty());
+        assert!(derive_prefetch_intent("").is_empty());
+    }
+
+    #[test]
+    fn test_derive_prefetch_intent_has_value_for_action_words() {
+        assert!(!derive_prefetch_intent("recall all projects").is_empty());
+        assert!(!derive_prefetch_intent("what is the provider boundary?").is_empty());
+        assert!(!derive_prefetch_intent("summarize the last meeting").is_empty());
+    }
 
     #[test]
     fn test_changed_soul_file_detects_successful_updates() {
@@ -630,5 +1098,510 @@ mod tests {
         let notice = format_soul_transparency_notice(&files, true, false);
         assert!(!notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
         assert!(!notice.contains("Governance hint:"));
+    }
+
+    #[test]
+    fn test_save_turn_attaches_metadata_to_user_message_only() {
+        let mut session = agent_diva_core::session::Session::new("gui:chat");
+        let messages = vec![agent_diva_providers::Message::system("system")];
+        let attachments = vec![FileAttachmentRef {
+            file_id: "sha256:image123".to_string(),
+            filename: "image.png".to_string(),
+            mime_type: Some("image/png".to_string()),
+            size: 4096,
+        }];
+
+        save_turn(
+            &mut session,
+            &messages,
+            0,
+            "user",
+            "see attached",
+            Some(attachments.clone()),
+            "done",
+        );
+
+        assert_eq!(session.messages.len(), 2);
+        assert_eq!(session.messages[0].role, "user");
+        assert_eq!(session.messages[0].attachments, Some(attachments));
+        assert_eq!(session.messages[1].role, "assistant");
+        assert_eq!(session.messages[1].attachments, None);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_attachment_refs_reads_metadata_without_bytes() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"not persisted in session",
+                FileMetadata {
+                    name: "image.png".to_string(),
+                    size: 24,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: Some("preview should not be copied".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+
+        let refs = resolve_attachment_refs(&file_manager, &[handle.id.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].file_id, handle.id);
+        assert_eq!(refs[0].filename, "image.png");
+        assert_eq!(refs[0].mime_type, Some("image/png".to_string()));
+        assert_eq!(refs[0].size, 24);
+
+        let json = serde_json::to_string(&refs).unwrap();
+        assert!(!json.contains("not persisted in session"));
+        assert!(!json.contains("preview should not be copied"));
+        assert!(!json.contains("base64"));
+        assert!(!json.contains("bytes"));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_attachment_refs_skips_missing_files() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+
+        let refs = resolve_attachment_refs(&file_manager, &["sha256:missing".to_string()]).await;
+
+        assert_eq!(refs, None);
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_image_becomes_part() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"png bytes",
+                FileMetadata {
+                    name: "photo.png".to_string(),
+                    size: 9,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let content =
+            assemble_current_message_content(&file_manager, "describe this", &[handle.id.clone()])
+                .await;
+
+        match content {
+            MessageContent::Parts(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert_eq!(
+                    parts[0],
+                    MessageContentPart::Text {
+                        text: "describe this".to_string()
+                    }
+                );
+                assert_eq!(
+                    parts[1],
+                    MessageContentPart::ImageFile {
+                        image_file: ImageFile { file_id: handle.id }
+                    }
+                );
+            }
+            other => panic!("expected structured parts, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_text_attachment_stays_text() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"hello from file",
+                FileMetadata {
+                    name: "note.txt".to_string(),
+                    size: 15,
+                    mime_type: Some("text/plain".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let content =
+            assemble_current_message_content(&file_manager, "read this", &[handle.id]).await;
+
+        let text = content
+            .as_text()
+            .expect("text-only attachment should stay text");
+        assert!(text.contains("read this"));
+        assert!(text.contains("[Attachments]"));
+        assert!(text.contains("--- note.txt ---"));
+        assert!(text.contains("hello from file"));
+        assert!(text.contains("[/Attachments]"));
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_binary_attachment_keeps_placeholder() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"%PDF-1.7",
+                FileMetadata {
+                    name: "doc.pdf".to_string(),
+                    size: 8,
+                    mime_type: Some("application/pdf".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let content =
+            assemble_current_message_content(&file_manager, "inspect", &[handle.id]).await;
+
+        let text = content
+            .as_text()
+            .expect("binary attachment should stay text");
+        assert!(text.contains("doc.pdf"));
+        assert!(text.contains("application/pdf"));
+        assert!(text.contains("Use read_file tool to access"));
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_missing_file_keeps_error_text() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+
+        let content = assemble_current_message_content(
+            &file_manager,
+            "check missing",
+            &["sha256:missing".to_string()],
+        )
+        .await;
+
+        let text = content
+            .as_text()
+            .expect("missing attachment should stay text");
+        assert!(text.contains("check missing"));
+        assert!(text.contains("[Attachment: sha256:missing (not found -"));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_rejects_text_only_model() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "describe".to_string(),
+            },
+            MessageContentPart::ImageUrl {
+                image_url: ImageUrl {
+                    url: "data:image/png;base64,AAAA".to_string(),
+                },
+            },
+        ]))];
+
+        let error = prepare_messages_for_openai_vision(&file_manager, messages, "deepseek-chat")
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error.user_message(),
+            "This model cannot inspect images. Please switch to a vision-capable model or send a text description of the image."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_converts_image_file_to_data_uri() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"png bytes",
+                FileMetadata {
+                    name: "photo.png".to_string(),
+                    size: 9,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "describe".to_string(),
+            },
+            MessageContentPart::ImageFile {
+                image_file: ImageFile { file_id: handle.id },
+            },
+        ]))];
+
+        let prepared = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+            .await
+            .unwrap();
+        let value = serde_json::to_value(&prepared[0]).unwrap();
+
+        assert_eq!(value["content"][0]["type"], "text");
+        assert_eq!(value["content"][1]["type"], "image_url");
+        assert_eq!(
+            value["content"][1]["image_url"]["url"],
+            "data:image/png;base64,cG5nIGJ5dGVz"
+        );
+        assert!(!value.to_string().contains("image_file"));
+        assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_converts_image_data_to_image_url() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "describe".to_string(),
+            },
+            MessageContentPart::ImageData {
+                image_data: agent_diva_providers::ImageData {
+                    data_uri: "data:image/webp;base64,AAAA".to_string(),
+                },
+            },
+        ]))];
+
+        let prepared = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4.1-mini")
+            .await
+            .unwrap();
+        let value = serde_json::to_value(&prepared[0]).unwrap();
+
+        assert_eq!(value["content"][1]["type"], "image_url");
+        assert_eq!(
+            value["content"][1]["image_url"]["url"],
+            "data:image/webp;base64,AAAA"
+        );
+        assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_rejects_unsupported_mime() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"<svg/>",
+                FileMetadata {
+                    name: "vector.svg".to_string(),
+                    size: 6,
+                    mime_type: Some("image/svg+xml".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: handle.id.clone(),
+                },
+            },
+        ]))];
+
+        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            VisionMessagePreparationError::UnsupportedMime { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_rejects_missing_file() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: "sha256:missing".to_string(),
+                },
+            },
+        ]))];
+
+        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            VisionMessagePreparationError::MissingFile { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_rejects_oversize_image() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let bytes = vec![0_u8; (MAX_VISION_IMAGE_SIZE + 1) as usize];
+        let handle = file_manager
+            .store(
+                &bytes,
+                FileMetadata {
+                    name: "large.png".to_string(),
+                    size: MAX_VISION_IMAGE_SIZE + 1,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: handle.id.clone(),
+                },
+            },
+        ]))];
+
+        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            VisionMessagePreparationError::ImageTooLarge { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_assemble_current_message_content_mixed_attachments_share_user_message() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let text_handle = file_manager
+            .store(
+                b"alpha",
+                FileMetadata {
+                    name: "a.txt".to_string(),
+                    size: 5,
+                    mime_type: Some("text/plain".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let image_handle = file_manager
+            .store(
+                b"image",
+                FileMetadata {
+                    name: "a.webp".to_string(),
+                    size: 5,
+                    mime_type: Some("image/webp".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let binary_handle = file_manager
+            .store(
+                b"zip",
+                FileMetadata {
+                    name: "a.zip".to_string(),
+                    size: 3,
+                    mime_type: Some("application/zip".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let content = assemble_current_message_content(
+            &file_manager,
+            "mixed",
+            &[text_handle.id, image_handle.id.clone(), binary_handle.id],
+        )
+        .await;
+
+        match content {
+            MessageContent::Parts(parts) => {
+                assert_eq!(parts.len(), 2);
+                match &parts[0] {
+                    MessageContentPart::Text { text } => {
+                        assert!(text.contains("mixed"));
+                        assert!(text.contains("--- a.txt ---"));
+                        assert!(text.contains("alpha"));
+                        assert!(text.contains("a.zip"));
+                        assert!(text.contains("Use read_file tool to access"));
+                        assert!(!text.contains("a.webp"));
+                    }
+                    other => panic!("expected text part first, got {:?}", other),
+                }
+                assert_eq!(
+                    parts[1],
+                    MessageContentPart::ImageFile {
+                        image_file: ImageFile {
+                            file_id: image_handle.id
+                        }
+                    }
+                );
+            }
+            other => panic!("expected structured parts, got {:?}", other),
+        }
     }
 }

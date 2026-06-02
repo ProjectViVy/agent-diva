@@ -107,6 +107,10 @@ export default {
     reasoningThought: 'Thought for {time}s',
     reasoningProcessed: 'Processed for {time}s',
     reasoningNoThinking: 'No thinking',
+    attachFile: 'Attach file',
+    uploading: 'Uploading...',
+    removeAttachment: 'Remove attachment',
+    filePlaceholder: '[File]',
   },
   convSidebar: {
     title: 'Conversation History',
@@ -477,6 +481,8 @@ export default {
     floatingEffect: 'Floating Effect',
     tip: 'Tip',
     tipDesc: 'Only the Love theme displays floating sakura on the main page',
+    miku: 'Hatsune Miku',
+    mikuDesc: '39! Hatsune Miku tribute theme — We still don\u2019t know why the master set the group avatar to Hatsune Miku. Perhaps he is a songstress? \uD83C\uDFA4',
   },
   providers: {
     search: 'Search Providers...',
@@ -722,6 +728,9 @@ export default {
     activated: 'Activated',
     needsConfig: 'Needs config',
     missing: 'Missing',
+    deleteConfirm: 'Are you sure you want to delete channel "{name}"? This cannot be undone.',
+    deleteNotImplemented: 'Delete feature is under development. Stay tuned.',
+    testNotImplemented: 'Connection test is under development, skipping test step.',
     placeholders: {
       telegramToken: 'Enter Telegram Bot Token',
       discordToken: 'Enter Discord Bot Token',

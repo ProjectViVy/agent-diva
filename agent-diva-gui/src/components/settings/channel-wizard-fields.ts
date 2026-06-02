@@ -139,7 +139,7 @@ export const CHANNEL_CREDENTIAL_FIELDS: Record<string, WizardFormField[]> = {
       label: '使用 SSL',
       type: 'select',
       required: true,
-      default: true,
+      default: 'true',
       options: [
         { label: '是', value: 'true' },
         { label: '否', value: 'false' },
@@ -177,7 +177,7 @@ export const CHANNEL_CREDENTIAL_FIELDS: Record<string, WizardFormField[]> = {
       label: 'SMTP 使用 SSL',
       type: 'select',
       required: true,
-      default: true,
+      default: 'true',
       options: [
         { label: '是', value: 'true' },
         { label: '否', value: 'false' },
@@ -283,7 +283,7 @@ export const CHANNEL_CREDENTIAL_FIELDS: Record<string, WizardFormField[]> = {
       label: '使用 TLS',
       type: 'select',
       required: true,
-      default: false,
+      default: 'false',
       options: [
         { label: '是', value: 'true' },
         { label: '否', value: 'false' },

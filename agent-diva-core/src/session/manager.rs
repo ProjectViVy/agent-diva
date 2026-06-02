@@ -221,6 +221,8 @@ pub struct SessionInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::attachment::FileAttachmentRef;
+    use crate::session::ChatMessage;
     use tempfile::TempDir;
 
     #[test]
@@ -351,5 +353,44 @@ mod tests {
         // Session never created; no file on disk
         let loaded = manager.get_or_load("gui:nonexistent");
         assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn test_save_and_load_session_with_attachment_metadata() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let session = manager.get_or_create("gui:attachments");
+        session.add_full_message(ChatMessage::with_attachments(
+            "user",
+            "please inspect this",
+            vec![FileAttachmentRef {
+                file_id: "sha256:image123".to_string(),
+                filename: "image.png".to_string(),
+                mime_type: Some("image/png".to_string()),
+                size: 4096,
+            }],
+        ));
+        let key = session.key.clone();
+
+        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        let content = std::fs::read_to_string(manager.session_path(&key)).unwrap();
+        assert!(content.contains("\"attachments\""));
+        assert!(content.contains("\"file_id\":\"sha256:image123\""));
+        assert!(content.contains("\"filename\":\"image.png\""));
+        assert!(content.contains("\"mime_type\":\"image/png\""));
+        assert!(content.contains("\"size\":4096"));
+        assert!(!content.contains("base64"));
+        assert!(!content.contains("bytes"));
+        assert!(!content.contains("preview"));
+
+        manager.cache.clear();
+        let loaded = manager.get_or_create(&key);
+        assert_eq!(loaded.messages.len(), 1);
+        let attachment = &loaded.messages[0].attachments.as_ref().unwrap()[0];
+        assert_eq!(attachment.file_id, "sha256:image123");
+        assert_eq!(attachment.filename, "image.png");
+        assert_eq!(attachment.mime_type, Some("image/png".to_string()));
+        assert_eq!(attachment.size, 4096);
     }
 }

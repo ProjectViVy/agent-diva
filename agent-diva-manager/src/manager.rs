@@ -10,6 +10,7 @@ use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
+use agent_diva_files::FileManager;
 use agent_diva_providers::{DynamicProvider, ProviderCatalogService, ProviderRegistry};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -30,6 +31,7 @@ pub struct Manager {
     channel_manager: Option<Arc<ChannelManager>>,
     runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
     cron_service: Arc<CronService>,
+    file_manager: Arc<FileManager>,
 }
 
 enum ProviderConfigTarget<'a> {
@@ -67,6 +69,7 @@ impl Manager {
         channel_manager: Option<Arc<ChannelManager>>,
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
         cron_service: Arc<CronService>,
+        file_manager: Arc<FileManager>,
     ) -> Self {
         Self {
             api_rx,
@@ -81,6 +84,7 @@ impl Manager {
             channel_manager,
             runtime_control_tx,
             cron_service,
+            file_manager,
         }
     }
 
@@ -321,6 +325,9 @@ impl Manager {
                         ManagerCommand::DeleteSkill(name, reply) => {
                             self.handle_delete_skill(name, reply);
                         }
+                        ManagerCommand::UploadFile(request, reply) => {
+                            self.handle_upload_file(request, reply).await;
+                        }
                         ManagerCommand::Provider(command) => {
                             self.handle_provider_command(command).await;
                         }
@@ -329,25 +336,6 @@ impl Manager {
                         }
                         ManagerCommand::UpdateChannel(update) => {
                             self.handle_update_channel(update).await;
-                        }
-                        // Token usage statistics handlers
-                        ManagerCommand::GetTokenUsageTotal(range, reply) => {
-                            self.handle_get_token_usage_total(range, reply);
-                        }
-                        ManagerCommand::GetTokenUsageSummary(range, group_by, reply) => {
-                            self.handle_get_token_usage_summary(range, group_by, reply);
-                        }
-                        ManagerCommand::GetTokenUsageTimeline(range, interval, reply) => {
-                            self.handle_get_token_usage_timeline(range, interval, reply);
-                        }
-                        ManagerCommand::GetTokenUsageSessions(range, limit, reply) => {
-                            self.handle_get_token_usage_sessions(range, limit, reply);
-                        }
-                        ManagerCommand::GetTokenUsageModels(range, reply) => {
-                            self.handle_get_token_usage_models(range, reply);
-                        }
-                        ManagerCommand::GetTokenUsageRealtime(reply) => {
-                            self.handle_get_token_usage_realtime(reply);
                         }
                     }
                 }

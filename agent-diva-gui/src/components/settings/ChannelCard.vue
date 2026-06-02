@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Pencil, Trash2, Power, type LucideIcon } from 'lucide-vue-next';
+import { Pencil, Trash2, Power, MessageSquare, type LucideIcon } from 'lucide-vue-next';
 import { PLATFORM_ICONS, PLATFORM_DISPLAY_NAMES } from './channel-icons';
 import type { ChannelStatusSummary } from '../../api/desktop';
 
@@ -22,17 +22,14 @@ const emit = defineEmits<{
 }>();
 
 const platform = computed(() => {
-  // 尝试从 name 推断平台类型，或从 config 中获取
   const name = props.channel.name.toLowerCase();
-  for (const key of Object.keys(PLATFORM_ICONS)) {
-    if (name.includes(key)) return key;
-  }
-  // 默认返回第一个或 unknown
-  return 'telegram';
+  // 精确匹配平台标识
+  if (PLATFORM_ICONS[name]) return name;
+  return '';
 });
 
 const IconComponent = computed<LucideIcon>(() => {
-  return PLATFORM_ICONS[platform.value] || PLATFORM_ICONS.telegram;
+  return PLATFORM_ICONS[platform.value] || MessageSquare;
 });
 
 const displayName = computed(() => {
@@ -88,7 +85,7 @@ const missingFields = computed(() => {
       <button
         class="action-btn"
         @click="emit('toggle')"
-        :title="isEnabled ? $t('channels.disabled') : $t('channels.enabled')"
+        :title="isEnabled ? $t('channels.deactivate') : $t('channels.activate')"
       >
         <Power :size="16" />
       </button>

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Agent Diva GUI PM & UI"
-  short_description: "Product and UI design for agent-diva-gui desktop app"
-  default_prompt: "Use $agent-diva-gui-pm-ui to draft PRD, design specs, or UI improvements for Agent Diva desktop GUI."

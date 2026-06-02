@@ -1,12 +1,13 @@
 [package]
 name = "agent-diva-core"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 license = "MIT"
 repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Core types and traits for agent-diva"
+readme = "README.md"
 
 [dependencies]
 # Async runtime
@@ -37,14 +38,14 @@ chrono = { workspace = true }
 chrono-tz = { workspace = true }
 cron = { workspace = true }
 
-# Database
-rusqlite = { workspace = true }
-
 # Utilities
 uuid = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
-strum = { version = "0.26", features = ["derive"] }
+parking_lot = "0.12"
+
+# File management
+agent-diva-files = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

@@ -9,11 +9,12 @@ use agent_diva_agent::{
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
-    AgentEvent, AgentLoop, ToolConfig,
+    AgentEvent, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
+use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use console::style;
 use dialoguer::Input;
@@ -48,7 +49,20 @@ pub fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
     }
 }
 
-fn build_local_cli_agent(
+pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
+    BuiltInToolsConfig {
+        filesystem: config.tools.builtin.filesystem,
+        shell: config.tools.builtin.shell,
+        web_search: config.tools.builtin.web_search,
+        web_fetch: config.tools.builtin.web_fetch,
+        spawn: config.tools.builtin.spawn,
+        cron: config.tools.builtin.cron,
+        mcp: config.tools.builtin.mcp,
+        attachment: config.tools.builtin.attachment,
+    }
+}
+
+async fn build_local_cli_agent(
     runtime: &CliRuntime,
     model: Option<String>,
     with_runtime_control: bool,
@@ -66,6 +80,7 @@ fn build_local_cli_agent(
     let bus = MessageBus::new();
     let provider = Arc::new(build_provider(&config, &selected_model)?);
     let tool_config = ToolConfig {
+        builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
@@ -91,6 +106,13 @@ fn build_local_cli_agent(
         (None, None)
     };
 
+    // Initialize shared FileManager for attachment handling
+    let storage_path = dirs::data_local_dir()
+        .map(|p| p.join("agent-diva").join("files"))
+        .unwrap_or_else(|| std::path::PathBuf::from(".agent-diva/files"));
+    let file_config = FileConfig::with_path(&storage_path);
+    let file_manager = Arc::new(FileManager::new(file_config).await?);
+
     let agent = AgentLoop::with_tools(
         bus,
         provider,
@@ -99,7 +121,10 @@ fn build_local_cli_agent(
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
         runtime_control_rx,
-    );
+        file_manager,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
 
     Ok((config, selected_model, agent, runtime_control_tx))
 }
@@ -194,7 +219,7 @@ pub async fn run_agent(
     logs: bool,
 ) -> Result<()> {
     let (_config, _selected_model, mut agent, _runtime_control_tx) =
-        build_local_cli_agent(runtime, model, false)?;
+        build_local_cli_agent(runtime, model, false).await?;
 
     let session_key = session.unwrap_or_else(|| "cli:direct".to_string());
 
@@ -239,12 +264,10 @@ async fn run_remote_agent_turn(
                         }
                         final_response.push_str(&text);
                     }
-                    Some(AgentEvent::ReasoningDelta { text }) => {
-                        if logs {
-                            print!("{}", style(text).dim());
-                            use std::io::Write;
-                            let _ = std::io::stdout().flush();
-                        }
+                    Some(AgentEvent::ReasoningDelta { text }) if logs => {
+                        print!("{}", style(text).dim());
+                        use std::io::Write;
+                        let _ = std::io::stdout().flush();
                     }
                     Some(AgentEvent::ToolCallStarted { name, args_preview, .. }) if logs => {
                         println!("\n{}", style(format!("[tool:start] {} {}", name, args_preview)).yellow());
@@ -300,7 +323,7 @@ pub async fn run_chat(
     logs: bool,
 ) -> Result<()> {
     let (_config, selected_model, mut agent, runtime_control_tx) =
-        build_local_cli_agent(runtime, model, true)?;
+        build_local_cli_agent(runtime, model, true).await?;
     let mut current_session = session.unwrap_or_else(|| "cli:chat".to_string());
 
     println!("{}", style("Agent Diva Chat").bold().cyan());

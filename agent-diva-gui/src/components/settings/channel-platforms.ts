@@ -1,13 +1,14 @@
 // 通道平台信息定义
 // 用于配置向导中的平台信息展示和快速指引
 
+import { CHANNEL_CREDENTIAL_FIELDS } from './channel-wizard-fields';
 import type { WizardFormField } from './channel-wizard-fields';
+export { CHANNEL_CREDENTIAL_FIELDS };
 export type { WizardFormField };
 
 export interface ChannelPlatformInfo {
   name: string;
   displayName: string;
-  icon: string;
   tutorialPath: string;  // 教程文档路径
   difficulty: 1 | 2 | 3; // 配置难度 1-3 星
   requiresPublicIP: boolean;
@@ -17,348 +18,12 @@ export interface ChannelPlatformInfo {
 }
 
 /**
- * 各平台的凭证字段配置
- */
-export const CHANNEL_CREDENTIAL_FIELDS: Record<string, WizardFormField[]> = {
-  telegram: [
-    {
-      key: 'token',
-      label: 'Bot Token',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: '输入 Telegram 机器人令牌',
-    },
-  ],
-  discord: [
-    {
-      key: 'token',
-      label: 'Bot Token',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: '输入 Discord 机器人令牌',
-    },
-    {
-      key: 'gateway_url',
-      label: 'Gateway URL',
-      type: 'text',
-      required: false,
-      default: 'wss://gateway.discord.gg/?v=10&encoding=json',
-      hint: 'Discord WebSocket 网关地址',
-    },
-  ],
-  whatsapp: [
-    {
-      key: 'bridge_url',
-      label: '桥接 URL',
-      type: 'text',
-      required: true,
-      placeholder: 'http://localhost:3000',
-      hint: 'WhatsApp 桥接服务地址',
-    },
-  ],
-  feishu: [
-    {
-      key: 'app_id',
-      label: 'App ID',
-      type: 'text',
-      required: true,
-      placeholder: '飞书应用 App ID',
-    },
-    {
-      key: 'app_secret',
-      label: 'App Secret',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: '飞书应用 App Secret',
-    },
-    {
-      key: 'verification_token',
-      label: 'Verification Token',
-      type: 'password',
-      secret: true,
-      required: false,
-      placeholder: '飞书验证 Token',
-    },
-  ],
-  dingtalk: [
-    {
-      key: 'client_id',
-      label: 'Client ID',
-      type: 'text',
-      required: true,
-      placeholder: '钉钉应用 Client ID',
-    },
-    {
-      key: 'client_secret',
-      label: 'Client Secret',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: '钉钉应用 Client Secret',
-    },
-    {
-      key: 'robot_code',
-      label: '机器人代码',
-      type: 'text',
-      required: false,
-      placeholder: '可选：机器人代码',
-    },
-  ],
-  email: [
-    {
-      key: 'imap_host',
-      label: 'IMAP Host',
-      type: 'text',
-      required: true,
-      placeholder: 'imap.example.com',
-    },
-    {
-      key: 'imap_port',
-      label: 'IMAP Port',
-      type: 'number',
-      required: true,
-      default: 993,
-    },
-    {
-      key: 'imap_username',
-      label: 'IMAP 用户名',
-      type: 'text',
-      required: true,
-    },
-    {
-      key: 'imap_password',
-      label: 'IMAP 密码',
-      type: 'password',
-      secret: true,
-      required: true,
-    },
-    {
-      key: 'imap_use_ssl',
-      label: '使用 SSL',
-      type: 'select',
-      required: true,
-      default: true,
-      options: [
-        { label: '是', value: 'true' },
-        { label: '否', value: 'false' },
-      ],
-    },
-    {
-      key: 'smtp_host',
-      label: 'SMTP Host',
-      type: 'text',
-      required: true,
-      placeholder: 'smtp.example.com',
-    },
-    {
-      key: 'smtp_port',
-      label: 'SMTP Port',
-      type: 'number',
-      required: true,
-      default: 587,
-    },
-    {
-      key: 'smtp_username',
-      label: 'SMTP 用户名',
-      type: 'text',
-      required: true,
-    },
-    {
-      key: 'smtp_password',
-      label: 'SMTP 密码',
-      type: 'password',
-      secret: true,
-      required: true,
-    },
-    {
-      key: 'smtp_use_ssl',
-      label: 'SMTP 使用 SSL',
-      type: 'select',
-      required: true,
-      default: true,
-      options: [
-        { label: '是', value: 'true' },
-        { label: '否', value: 'false' },
-      ],
-    },
-    {
-      key: 'from_address',
-      label: '发件人地址',
-      type: 'text',
-      required: true,
-      placeholder: 'your@example.com',
-    },
-  ],
-  slack: [
-    {
-      key: 'bot_token',
-      label: 'Bot Token',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: 'xoxb-...',
-    },
-    {
-      key: 'app_token',
-      label: 'App Token',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: 'xapp-...',
-    },
-  ],
-  qq: [
-    {
-      key: 'app_id',
-      label: 'App ID',
-      type: 'text',
-      required: true,
-      placeholder: 'QQ 机器人 App ID',
-    },
-    {
-      key: 'secret',
-      label: '机器人 Secret',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: 'QQ 机器人 client secret',
-    },
-  ],
-  'neuro-link': [
-    {
-      key: 'host',
-      label: '监听地址',
-      type: 'text',
-      required: true,
-      default: '0.0.0.0',
-    },
-    {
-      key: 'port',
-      label: '监听端口',
-      type: 'number',
-      required: true,
-      default: 8080,
-    },
-  ],
-  irc: [
-    {
-      key: 'server',
-      label: '服务器',
-      type: 'text',
-      required: true,
-      placeholder: 'irc.libera.chat',
-    },
-    {
-      key: 'port',
-      label: '端口',
-      type: 'number',
-      required: true,
-      default: 6667,
-    },
-    {
-      key: 'nickname',
-      label: '昵称',
-      type: 'text',
-      required: true,
-      default: 'diva-bot',
-    },
-    {
-      key: 'username',
-      label: '用户名',
-      type: 'text',
-      required: false,
-      placeholder: '可选',
-    },
-    {
-      key: 'channels_str',
-      label: '频道（逗号分隔）',
-      type: 'text',
-      required: true,
-      placeholder: '#channel1, #channel2',
-    },
-    {
-      key: 'use_tls',
-      label: '使用 TLS',
-      type: 'select',
-      required: true,
-      default: false,
-      options: [
-        { label: '是', value: 'true' },
-        { label: '否', value: 'false' },
-      ],
-    },
-  ],
-  mattermost: [
-    {
-      key: 'base_url',
-      label: 'Base URL',
-      type: 'text',
-      required: true,
-      placeholder: 'https://mattermost.example.com',
-    },
-    {
-      key: 'bot_token',
-      label: 'Bot Token',
-      type: 'password',
-      secret: true,
-      required: true,
-    },
-    {
-      key: 'channel_id',
-      label: '频道 ID',
-      type: 'text',
-      required: false,
-    },
-    {
-      key: 'poll_interval_seconds',
-      label: '轮询间隔（秒）',
-      type: 'number',
-      required: true,
-      default: 5,
-    },
-  ],
-  nextcloud_talk: [
-    {
-      key: 'base_url',
-      label: 'Base URL',
-      type: 'text',
-      required: true,
-      placeholder: 'https://cloud.example.com',
-    },
-    {
-      key: 'app_token',
-      label: 'App Token',
-      type: 'password',
-      secret: true,
-      required: true,
-    },
-    {
-      key: 'room_token',
-      label: '房间令牌',
-      type: 'text',
-      required: true,
-    },
-    {
-      key: 'poll_interval_seconds',
-      label: '轮询间隔（秒）',
-      type: 'number',
-      required: true,
-      default: 5,
-    },
-  ],
-};
-
-/**
  * 各平台详细信息
  */
 export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   telegram: {
     name: 'telegram',
     displayName: 'Telegram',
-    icon: 'telegram',
     tutorialPath: '/docs/channels/telegram.md',
     difficulty: 1,
     requiresPublicIP: false,
@@ -374,7 +39,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   discord: {
     name: 'discord',
     displayName: 'Discord',
-    icon: 'discord',
     tutorialPath: '/docs/channels/discord.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -390,7 +54,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   whatsapp: {
     name: 'whatsapp',
     displayName: 'WhatsApp',
-    icon: 'whatsapp',
     tutorialPath: '/docs/channels/whatsapp.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -405,7 +68,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   feishu: {
     name: 'feishu',
     displayName: '飞书',
-    icon: 'feishu',
     tutorialPath: '/docs/channels/feishu.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -422,7 +84,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   dingtalk: {
     name: 'dingtalk',
     displayName: '钉钉',
-    icon: 'dingtalk',
     tutorialPath: '/docs/channels/dingtalk.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -439,7 +100,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   email: {
     name: 'email',
     displayName: 'Email',
-    icon: 'email',
     tutorialPath: '/docs/channels/email.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -455,7 +115,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   slack: {
     name: 'slack',
     displayName: 'Slack',
-    icon: 'slack',
     tutorialPath: '/docs/channels/slack.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -472,7 +131,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   qq: {
     name: 'qq',
     displayName: 'QQ',
-    icon: 'qq',
     tutorialPath: '/docs/channels/qq.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -488,7 +146,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   'neuro-link': {
     name: 'neuro-link',
     displayName: 'Neuro-Link',
-    icon: 'neuro-link',
     tutorialPath: '/docs/channels/neuro-link.md',
     difficulty: 1,
     requiresPublicIP: false,
@@ -503,7 +160,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   irc: {
     name: 'irc',
     displayName: 'IRC',
-    icon: 'irc',
     tutorialPath: '/docs/channels/irc.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -519,7 +175,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   mattermost: {
     name: 'mattermost',
     displayName: 'Mattermost',
-    icon: 'mattermost',
     tutorialPath: '/docs/channels/mattermost.md',
     difficulty: 2,
     requiresPublicIP: false,
@@ -534,7 +189,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
   nextcloud_talk: {
     name: 'nextcloud_talk',
     displayName: 'Nextcloud Talk',
-    icon: 'nextcloud_talk',
     tutorialPath: '/docs/channels/nextcloud-talk.md',
     difficulty: 2,
     requiresPublicIP: false,

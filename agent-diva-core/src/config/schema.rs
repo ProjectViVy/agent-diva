@@ -298,6 +298,9 @@ pub struct FeishuConfig {
     pub verification_token: String,
     #[serde(default)]
     pub allow_from: Vec<String>,
+    /// Optional port for webhook mode (not used in WebSocket mode)
+    #[serde(default)]
+    pub port: Option<u16>,
 }
 
 /// DingTalk channel configuration
@@ -890,7 +893,7 @@ fn default_host() -> String {
     "0.0.0.0".to_string()
 }
 fn default_port() -> u16 {
-    18790
+    3000
 }
 
 impl Default for GatewayConfig {
@@ -906,6 +909,8 @@ impl Default for GatewayConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ToolsConfig {
     #[serde(default)]
+    pub builtin: BuiltInToolsConfig,
+    #[serde(default)]
     pub web: WebToolsConfig,
     #[serde(default)]
     pub exec: ExecToolConfig,
@@ -915,6 +920,41 @@ pub struct ToolsConfig {
     pub mcp_servers: HashMap<String, MCPServerConfig>,
     #[serde(default, rename = "mcpManager", alias = "mcp_manager")]
     pub mcp_manager: MCPManagerConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuiltInToolsConfig {
+    #[serde(default = "default_enabled")]
+    pub filesystem: bool,
+    #[serde(default = "default_enabled")]
+    pub shell: bool,
+    #[serde(default = "default_enabled")]
+    pub web_search: bool,
+    #[serde(default = "default_enabled")]
+    pub web_fetch: bool,
+    #[serde(default = "default_enabled")]
+    pub spawn: bool,
+    #[serde(default)]
+    pub cron: bool,
+    #[serde(default = "default_enabled")]
+    pub mcp: bool,
+    #[serde(default = "default_enabled")]
+    pub attachment: bool,
+}
+
+impl Default for BuiltInToolsConfig {
+    fn default() -> Self {
+        Self {
+            filesystem: true,
+            shell: true,
+            web_search: true,
+            web_fetch: true,
+            spawn: true,
+            cron: false,
+            mcp: true,
+            attachment: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

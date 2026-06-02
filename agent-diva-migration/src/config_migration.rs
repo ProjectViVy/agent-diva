@@ -563,6 +563,7 @@ impl ConfigMigrator {
                     encrypt_key: py.channels.feishu.encrypt_key,
                     verification_token: py.channels.feishu.verification_token,
                     allow_from: py.channels.feishu.allow_from,
+                    port: None,
                 },
                 dingtalk: DingTalkConfig {
                     enabled: py.channels.dingtalk.enabled,
@@ -644,6 +645,7 @@ impl ConfigMigrator {
                 port: py.gateway.port,
             },
             tools: ToolsConfig {
+                builtin: Default::default(),
                 web: WebToolsConfig {
                     search: WebSearchConfig {
                         provider: "bocha".to_string(),

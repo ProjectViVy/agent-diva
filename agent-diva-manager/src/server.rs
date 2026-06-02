@@ -1,9 +1,10 @@
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{delete, get, post},
     Router,
 };
 use std::net::SocketAddr;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
@@ -18,40 +19,63 @@ use crate::handlers::{
     resolve_provider_handler, run_cron_job_handler, set_cron_job_enabled_handler,
     set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler, update_channel_handler,
     update_config_handler, update_cron_job_handler, update_mcp_handler, update_provider_handler,
-    update_tools_handler, upload_skill_handler,
+    update_tools_handler, upload_file_handler, upload_skill_handler,
 };
 use crate::state::AppState;
-use crate::token_stats::{
-    get_token_usage_models, get_token_usage_realtime, get_token_usage_sessions,
-    get_token_usage_summary, get_token_usage_timeline, get_token_usage_total,
-};
 
 pub async fn run_server(
     state: AppState,
     port: u16,
     mut shutdown_rx: broadcast::Receiver<()>,
 ) -> anyhow::Result<()> {
-    let app = build_app(state);
-
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("Listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    run_server_with_listener_and_signal(state, listener, async move {
+        let _ = shutdown_rx.recv().await;
+        tracing::info!("Server shutting down signal received");
+    })
+    .await
+}
+
+pub async fn run_server_with_listener(
+    state: AppState,
+    listener: tokio::net::TcpListener,
+    mut shutdown_rx: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    let listen_addr = listener.local_addr()?;
+    tracing::info!("Listening on {}", listen_addr);
+
+    run_server_with_listener_and_signal(state, listener, async move {
+        let _ = shutdown_rx.wait_for(|value| *value).await;
+        tracing::info!("Server shutting down signal received");
+    })
+    .await
+}
+
+async fn run_server_with_listener_and_signal<F>(
+    state: AppState,
+    listener: tokio::net::TcpListener,
+    shutdown_signal: F,
+) -> anyhow::Result<()>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    let app = build_router(state);
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
-            let _ = shutdown_rx.recv().await;
-            tracing::info!("Server shutting down signal received");
+            shutdown_signal.await;
         })
         .await?;
-
     Ok(())
 }
 
-fn build_app(state: AppState) -> Router {
+/// Build the axum router with all manager HTTP routes.
+pub fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(runtime_routes())
         .merge(provider_routes())
-        .merge(token_stats_routes())
         .merge(misc_routes())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -88,6 +112,10 @@ fn runtime_routes() -> Router<AppState> {
             get(get_skills_handler).post(upload_skill_handler),
         )
         .route("/api/skills/:name", delete(delete_skill_handler))
+        .route(
+            "/api/files/upload",
+            post(upload_file_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
+        ) // 50MB limit
         .route("/api/mcps", get(get_mcps_handler).post(create_mcp_handler))
         .route(
             "/api/mcps/:name",
@@ -140,19 +168,9 @@ fn misc_routes() -> Router<AppState> {
     Router::new().route("/api/health", get(heartbeat_handler))
 }
 
-fn token_stats_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/stats/tokens/total", get(get_token_usage_total))
-        .route("/api/stats/tokens/summary", get(get_token_usage_summary))
-        .route("/api/stats/tokens/timeline", get(get_token_usage_timeline))
-        .route("/api/stats/tokens/sessions", get(get_token_usage_sessions))
-        .route("/api/stats/tokens/models", get(get_token_usage_models))
-        .route("/api/stats/tokens/realtime", get(get_token_usage_realtime))
-}
-
 #[cfg(test)]
 mod tests {
-    use super::build_app;
+    use super::build_router;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use tower::util::ServiceExt;
@@ -160,7 +178,7 @@ mod tests {
     use crate::state::{AppState, ManagerCommand};
 
     #[tokio::test]
-    async fn build_app_keeps_health_and_skills_routes_without_overlap() {
+    async fn build_router_keeps_health_and_skills_routes_without_overlap() {
         let (api_tx, mut api_rx) = tokio::sync::mpsc::channel(1);
         // get_skills_handler sends GetSkills on api_tx and awaits a oneshot reply; without a
         // consumer the request would hang forever.
@@ -176,7 +194,7 @@ mod tests {
             bus: agent_diva_core::bus::MessageBus::new(),
         };
 
-        let app = build_app(state.clone());
+        let app = build_router(state.clone());
 
         let health_response = app
             .clone()

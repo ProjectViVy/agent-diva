@@ -12,6 +12,7 @@ interface ProviderCardProps {
   status: 'ready' | 'missingConfig' | 'active';
   currentModel?: string;
   apiBase?: string;
+  apiKey?: string;
   isCustom?: boolean;
 }
 
@@ -19,7 +20,16 @@ const props = withDefaults(defineProps<ProviderCardProps>(), {
   icon: '',
   currentModel: '',
   apiBase: '',
+  apiKey: '',
   isCustom: false,
+});
+
+/** Mask API key to show only last 4 chars: ****abcd */
+const maskedApiKey = computed(() => {
+  const key = props.apiKey;
+  if (!key) return '';
+  if (key.length <= 4) return '****';
+  return '****' + key.slice(-4);
 });
 
 const emit = defineEmits<{
@@ -75,6 +85,9 @@ const statusConfig = computed(() => {
       </p>
       <p v-else-if="apiBase" class="providers-card-api-base">
         {{ apiBase }}
+      </p>
+      <p v-if="maskedApiKey" class="providers-card-api-base">
+        {{ maskedApiKey }}
       </p>
     </div>
     

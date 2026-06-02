@@ -4,9 +4,6 @@ use agent_diva_core::config::schema::{
     ChannelsConfig, MCPServerConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
-use agent_diva_core::usage::{
-    GroupBy, SessionUsage, TimeInterval, TimeRange, UsageSummary, UsageTotal,
-};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -97,29 +94,9 @@ pub enum ManagerCommand {
         String,
         oneshot::Sender<Result<agent_diva_core::cron::CronRunSnapshot, String>>,
     ),
-    // Token usage statistics
-    GetTokenUsageTotal(TimeRange, oneshot::Sender<Result<UsageTotal, String>>),
-    GetTokenUsageSummary(
-        TimeRange,
-        GroupBy,
-        oneshot::Sender<Result<Vec<UsageSummary>, String>>,
-    ),
-    GetTokenUsageTimeline(
-        TimeRange,
-        TimeInterval,
-        oneshot::Sender<Result<Vec<agent_diva_core::usage::types::TimelinePoint>, String>>,
-    ),
-    GetTokenUsageSessions(
-        TimeRange,
-        u64,
-        oneshot::Sender<Result<Vec<SessionUsage>, String>>,
-    ),
-    GetTokenUsageModels(
-        TimeRange,
-        oneshot::Sender<Result<Vec<(String, f64)>, String>>,
-    ),
-    GetTokenUsageRealtime(
-        oneshot::Sender<Result<agent_diva_core::usage::writer::InMemoryStats, String>>,
+    UploadFile(
+        FileUploadRequest,
+        oneshot::Sender<Result<agent_diva_core::attachment::FileAttachment, String>>,
     ),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),
@@ -181,6 +158,14 @@ pub struct ConfigResponse {
 pub struct SkillUploadRequest {
     pub file_name: String,
     pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FileUploadRequest {
+    pub file_name: String,
+    pub bytes: Vec<u8>,
+    pub channel: String,
+    pub message_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

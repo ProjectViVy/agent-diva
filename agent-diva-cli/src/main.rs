@@ -5,7 +5,8 @@ use agent_diva_agent::{
     runtime_control::RuntimeControlCommand, AgentEvent, AgentLoop, ToolConfig,
 };
 use agent_diva_cli::chat_commands::{
-    build_network_tool_config, run_agent, run_agent_remote, run_chat, run_chat_remote,
+    build_builtin_tools_config, build_network_tool_config, run_agent, run_agent_remote, run_chat,
+    run_chat_remote,
 };
 use agent_diva_cli::cli_runtime::{
     available_provider_names, build_provider, channel_statuses, collect_status_report,
@@ -20,6 +21,7 @@ use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::{CronSchedule, CronService};
+use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use console::style;
@@ -52,7 +54,7 @@ use agent_diva_tools::wtf;
 #[derive(Parser)]
 #[command(name = "agent-diva")]
 #[command(about = "A lightweight personal AI assistant framework")]
-#[command(version = "0.4.0")]
+#[command(version = "0.4.10")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -975,6 +977,7 @@ async fn run_tui(
     let provider = Arc::new(build_provider(&config, &selected_model)?);
 
     let tool_config = ToolConfig {
+        builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
@@ -994,6 +997,14 @@ async fn run_tui(
     };
 
     let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
+
+    // Initialize shared FileManager for attachment handling
+    let storage_path = dirs::data_local_dir()
+        .map(|p| p.join("agent-diva").join("files"))
+        .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+    let file_config = FileConfig::with_path(&storage_path);
+    let file_manager = Arc::new(FileManager::new(file_config).await?);
+
     let mut agent = AgentLoop::with_tools(
         bus,
         provider,
@@ -1002,7 +1013,10 @@ async fn run_tui(
         Some(config.agents.defaults.max_tool_iterations as usize),
         tool_config,
         Some(runtime_control_rx),
-    );
+        file_manager,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
 
     let current_session = session.unwrap_or_else(|| "cli:tui".to_string());
     let (request_tx, mut request_rx) = mpsc::unbounded_channel::<(String, String)>();
@@ -1173,7 +1187,7 @@ async fn run_status(runtime: &CliRuntime, json: bool) -> Result<()> {
     let doctor = doctor_report(runtime, &config);
 
     println!("{}", style("Agent Diva Status").bold().cyan());
-    println!("Version: 0.4.0 (Rust)\n");
+    println!("Version: 0.4.10 (Rust)\n");
     println!("{}", style("Paths:").bold());
     println!("  Config: {}", report.config.config_path);
     println!("  Runtime root: {}", report.config.runtime_dir);
