@@ -63,7 +63,43 @@ This is the right split because each surface answers a different user question:
 - `Inbox`: what durable changes are pending or recently applied?
 - `Settings`: what is the allowed behavior of the system?
 
-## 4. What Needs UI
+## 4. Branch Staging Decision
+
+Before the full `agent-diva-pro` UI is implemented, the `selfinprove` branch should carry a practical MVP UI.
+
+The `selfinprove` version does not need to be visually polished. Its purpose is to validate whether the self-evolution workflow is understandable and governable:
+
+- can the user see what AutoDream produced?
+- can the user review candidates without searching through raw files?
+- can the user inspect evidence before approval?
+- can the user distinguish proposed, approved, applied, rejected, and reverted states?
+- can the user understand whether a durable memory write is safe?
+
+Recommended positioning:
+
+```text
+selfinprove branch
+  practical governance-console MVP
+  validates workflow, data shape, review actions, and backend contract
+
+agent-diva-pro branch
+  productized self-evolution UI
+  improves visual design, ergonomics, navigation, and long-term UX quality
+```
+
+Recommended `selfinprove` MVP scope:
+
+- `InboxView`: candidate list, candidate detail, evidence preview, approve/reject/apply/rollback placeholders.
+- `JournalView`: read-only daily/weekly/monthly/AutoDream entry list and markdown detail.
+- `ChatView` card minimum: render `ReviewCard` and `EvolutionProposalCard` in a plain but stable layout.
+- `Settings -> Self Evolution`: runtime switch, trigger mode, learning mode, and sensitive-change review policy.
+- lightweight run status: last AutoDream run, status, generated candidate count, last error.
+
+This MVP may use file-backed or mock-backed data while backend routes are incomplete, but direct GUI writes to authority files remain forbidden. If temporary file reads are used, they should be read-only and clearly isolated behind an API/helper that can later be replaced by manager routes.
+
+This decision reduces product risk: the team can validate the governance loop in `selfinprove` before spending design time on the final `agent-diva-pro` visual and interaction polish.
+
+## 5. What Needs UI
 
 The next self-evolution workstream needs UI in these areas.
 
@@ -158,7 +194,7 @@ The UI must expose:
 - rollback availability;
 - rollback action history.
 
-## 5. Recommended Information Architecture
+## 6. Recommended Information Architecture
 
 Recommended sidebar order for `agent-diva-pro`:
 
@@ -182,7 +218,7 @@ Why this order:
 
 `Inbox` should be a top-level item, not buried under settings, because reviewing proposed memory changes is operational work, not static configuration.
 
-## 6. Surface-by-Surface Design
+## 7. Surface-by-Surface Design
 
 ### 6.1 Chat
 
@@ -289,7 +325,7 @@ Recommended sections inside that page:
 
 This should stay operational and dense, not decorative.
 
-## 7. Card Model
+## 8. Card Model
 
 The existing card direction should be extended, not replaced.
 
@@ -336,7 +372,7 @@ needs_attention
 run_failed
 ```
 
-## 8. Core User Flows
+## 9. Core User Flows
 
 ### 8.1 Rhythm wakeup flow
 
@@ -394,7 +430,7 @@ proposal suggests unfinished project or open thread
   -> work continues in normal chat flow
 ```
 
-## 9. Required Backend/UI Contract
+## 10. Required Backend/UI Contract
 
 The current manager API is not enough for this workstream.
 
@@ -436,7 +472,7 @@ AgentEvent::MemoryChangelogWritten
 AgentEvent::MemoryRollbackCompleted
 ```
 
-## 10. Storage Mapping the UI Must Respect
+## 11. Storage Mapping the UI Must Respect
 
 The UI must not invent a new storage layer.
 
@@ -469,7 +505,7 @@ UI implications:
 
 The UI must never write directly to those files. It must call manager or runtime APIs.
 
-## 11. Priority and Sequencing
+## 12. Priority and Sequencing
 
 Recommended implementation order for `agent-diva-pro`:
 
@@ -498,7 +534,7 @@ Recommended implementation order for `agent-diva-pro`:
 
 This order matches the architecture. Review surfaces arrive before automatic durability.
 
-## 12. Non-goals
+## 13. Non-goals
 
 The first implementation should not do these things:
 
@@ -510,7 +546,7 @@ The first implementation should not do these things:
 - auto-apply identity or relationship changes without review UI;
 - build a visual knowledge graph before the inbox and changelog exist.
 
-## 13. Concrete Handoff for the Next Engineer
+## 14. Concrete Handoff for the Next Engineer
 
 If this work is handed to another engineer, their implementation brief should be:
 
@@ -538,7 +574,7 @@ They should start in these local files:
 - `agent-diva-manager/src/server.rs`
 - `agent-diva-manager/src/handlers.rs`
 
-## 14. Final Recommendation
+## 15. Final Recommendation
 
 The right name for this UI initiative is not "self-evolution page".
 
