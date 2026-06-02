@@ -13,6 +13,7 @@ members = [
     "agent-diva-service",
     "agent-diva-migration",
     "agent-diva-gui/src-tauri", "agent-diva-manager",
+    "agent-diva-sandbox",
 ]
 
 [workspace.package]

@@ -5,13 +5,15 @@
 - [development.md](./development.md) - workflows, tooling, local setup
 - [architecture.md](./architecture.md) - high-level crate and data-flow overview
 - [migration.md](./migration.md) - Python to Rust migration
-- [agent-plan/phase-a-pre-session-truth-source-fix.md](./agent-plan/phase-a-pre-session-truth-source-fix.md) - Phase A-PRE session truth source and durability fix
-- [agent-plan/plan-mode-architecture.md](./agent-plan/plan-mode-architecture.md) - Plan Mode runtime architecture
-- [agent-plan/todolist-runtime-architecture.md](./agent-plan/todolist-runtime-architecture.md) - TodoList runtime as Plan execution projection
-- [agent-plan/plan-todo-implementation-roadmap.md](./agent-plan/plan-todo-implementation-roadmap.md) - technical roadmap for Plan + TodoList implementation
-- [Observability/phase-b-thin-observability-layer.md](./Observability/phase-b-thin-observability-layer.md) - Phase B thin trace/log/debug-bundle planning
 - [nano-runtime-packaging-plan.md](./nano-runtime-packaging-plan.md) - current-state plan for the nano line, shared runtime boundaries, and packaging strategy
 - [bug-fixing-lessons-learned.md](./bug-fixing-lessons-learned.md) - detailed case studies of complex bugs and their solutions
+
+## UPSP Integration (`upsp/`)
+
+UPSP-RS (Universal Persona Substrate Protocol - Rust implementation) design documentation:
+
+- [**UPSP-RS Architecture Design**](upsp/upsp-rs-architecture-design.md) - complete architecture design (1500+ lines)
+- [**UPSP Documentation Index**](upsp/README.md) - quick navigation and overview
 
 ## Archived material (`archive/`)
 

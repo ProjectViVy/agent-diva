@@ -15,7 +15,7 @@ async fn test_stream_basic_chat() {
     let provider = OllamaProvider::new(None, "llama3.2".to_string());
     let messages = vec![Message {
         role: "user".to_string(),
-        content: "Say hello in one word".into(),
+        content: "Say hello in one word".to_string(),
         name: None,
         tool_call_id: None,
         tool_calls: None,
@@ -35,7 +35,7 @@ async fn test_stream_error_handling() {
     let provider = OllamaProvider::new(Some("http://invalid-host:11434"), "llama3.2".to_string());
     let messages = vec![Message {
         role: "user".to_string(),
-        content: "test".into(),
+        content: "test".to_string(),
         name: None,
         tool_call_id: None,
         tool_calls: None,

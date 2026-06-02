@@ -1,16 +1,15 @@
 [package]
 name = "agent-diva-providers"
-version = "0.5.0"
+version = "0.4.9"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 license = "MIT"
 repository = "https://github.com/ProjectViVy/agent-diva"
 description = "LLM provider integrations for agent-diva"
-readme = "README.md"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.4.9" }
 
 # Async runtime
 tokio = { workspace = true }
@@ -33,7 +32,6 @@ serde_yaml.workspace = true
 
 # Regex for text sanitization
 regex = { workspace = true }
-uuid = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

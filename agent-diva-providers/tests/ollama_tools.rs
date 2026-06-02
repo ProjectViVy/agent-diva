@@ -42,7 +42,7 @@ async fn test_tool_calling_basic() {
 
     let messages = vec![Message {
         role: "user".to_string(),
-        content: "What's the weather in Beijing?".into(),
+        content: "What's the weather in Beijing?".to_string(),
         name: None,
         tool_call_id: None,
         tool_calls: None,

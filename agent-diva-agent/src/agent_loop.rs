@@ -4,25 +4,26 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessa
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
-use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
+use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::session::SessionManager;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
-use agent_diva_tooling::{ToolError, ToolRegistry};
+use agent_diva_tools::{
+    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadFileTool, SpawnTool,
+    ToolError, ToolRegistry, WriteFileTool,
+};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
 use crate::runtime_control::RuntimeControlCommand;
 use crate::subagent::SubagentManager;
-use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
-use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
 
 mod loop_runtime_control;
@@ -32,8 +33,6 @@ mod loop_turn;
 /// Configuration for tool setup
 #[derive(Clone)]
 pub struct ToolConfig {
-    /// Built-in tool toggles.
-    pub builtin: BuiltInToolsConfig,
     /// Network tool runtime config
     pub network: NetworkToolConfig,
     /// Shell execution timeout in seconds
@@ -55,7 +54,6 @@ pub struct ToolConfig {
 impl Default for ToolConfig {
     fn default() -> Self {
         Self {
-            builtin: BuiltInToolsConfig::default(),
             network: NetworkToolConfig::default(),
             exec_timeout: 60,
             restrict_to_workspace: false,
@@ -101,7 +99,6 @@ pub struct AgentLoop {
     memory_window: usize,
     context: ContextBuilder,
     sessions: SessionManager,
-    tool_config: ToolConfig,
     tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
@@ -110,33 +107,6 @@ pub struct AgentLoop {
     soul_governance: SoulGovernanceSettings,
     soul_change_turns: VecDeque<Instant>,
     file_manager: Arc<FileManager>,
-    /// Memory provider boundary for prefetch, sync_turn, and shutdown hooks.
-    memory_provider: Arc<dyn MemoryProvider>,
-}
-
-pub struct AgentLoopToolSet {
-    pub registry: ToolRegistry,
-    pub config: ToolConfig,
-}
-
-struct SubagentManagerSpawner {
-    manager: Arc<SubagentManager>,
-}
-
-#[async_trait::async_trait]
-impl SubagentSpawner for SubagentManagerSpawner {
-    async fn spawn(
-        &self,
-        task: String,
-        label: Option<String>,
-        channel: String,
-        chat_id: String,
-    ) -> Result<String, ToolError> {
-        self.manager
-            .spawn(task, label, channel, chat_id)
-            .await
-            .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
-    }
 }
 
 impl AgentLoop {
@@ -159,11 +129,9 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            BuiltInToolsConfig::default().for_subagent(),
             NetworkToolConfig::default(),
             None,
             false,
-            HashMap::new(),
         ));
 
         // Initialize file manager for attachment handling
@@ -172,9 +140,6 @@ impl AgentLoop {
             .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
         let file_config = FileConfig::with_path(&storage_path);
         let file_manager = Arc::new(FileManager::new(file_config).await?);
-
-        let memory_provider: Arc<dyn MemoryProvider> =
-            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace));
 
         Ok(Self {
             bus,
@@ -185,7 +150,6 @@ impl AgentLoop {
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
             sessions,
-            tool_config: ToolConfig::default(),
             tools,
             subagent_manager,
             runtime_control_rx: None,
@@ -194,7 +158,6 @@ impl AgentLoop {
             soul_governance: SoulGovernanceSettings::default(),
             soul_change_turns: VecDeque::new(),
             file_manager,
-            memory_provider,
         })
     }
 
@@ -215,137 +178,73 @@ impl AgentLoop {
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::with_tools_and_memory_provider(
-            bus,
-            provider,
-            workspace,
-            model,
-            max_iterations,
-            tool_config,
-            runtime_control_rx,
-            file_manager,
-            None,
-        )
-        .await
-    }
-
-    /// Create a new agent loop with tool configuration and a custom memory provider.
-    ///
-    /// When `memory_provider` is `None`, a default `MemoryManager` is used.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn with_tools_and_memory_provider(
-        bus: MessageBus,
-        provider: Arc<dyn LLMProvider>,
-        workspace: PathBuf,
-        model: Option<String>,
-        max_iterations: Option<usize>,
-        tool_config: ToolConfig,
-        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
-        file_manager: Arc<FileManager>,
-        memory_provider: Option<Arc<dyn MemoryProvider>>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
+        let mut tools = ToolRegistry::new();
 
         let subagent_manager = Arc::new(SubagentManager::new(
             provider.clone(),
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            tool_config.builtin.for_subagent(),
             tool_config.network.clone(),
             Some(tool_config.exec_timeout),
             tool_config.restrict_to_workspace,
-            tool_config.mcp_servers.clone(),
         ));
 
-        let spawner = Arc::new(SubagentManagerSpawner {
-            manager: subagent_manager.clone(),
-        });
-        let tools = ToolAssembly::new(workspace.clone())
-            .builtin(tool_config.builtin.clone())
-            .with_network_config(tool_config.network.clone())
-            .with_exec_timeout(tool_config.exec_timeout)
-            .restrict_to_workspace(tool_config.restrict_to_workspace)
-            .mcp_servers(tool_config.mcp_servers.clone())
-            .with_subagent_spawner(spawner)
-            .with_file_manager(file_manager.clone())
-            .with_tools(Vec::new())
-            .build();
+        // Register spawn tool
+        let sm = subagent_manager.clone();
+        tools.register(Arc::new(SpawnTool::new(
+            move |task, label, channel, chat_id| {
+                let sm = sm.clone();
+                async move {
+                    sm.spawn(task, label, channel, chat_id)
+                        .await
+                        .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
+                }
+            },
+        )));
 
-        let memory_provider = memory_provider
-            .unwrap_or_else(|| Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)));
-
-        let mut agent = Self {
-            bus,
-            provider,
-            workspace,
-            model,
-            max_iterations: max_iterations.unwrap_or(20),
-            memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
-            context,
-            sessions,
-            tool_config: tool_config.clone(),
-            tools,
-            subagent_manager,
-            runtime_control_rx,
-            cancelled_sessions: HashSet::new(),
-            notify_on_soul_change: tool_config.notify_on_soul_change,
-            soul_governance: tool_config.soul_governance,
-            soul_change_turns: VecDeque::new(),
-            file_manager,
-            memory_provider,
+        // Register file system tools with SecurityPolicy
+        let security_config = if tool_config.restrict_to_workspace {
+            SecurityConfig {
+                level: SecurityLevel::Standard,
+                workspace_only: true,
+                ..SecurityConfig::default()
+            }
+        } else {
+            SecurityConfig::default()
         };
+        let security = Arc::new(SecurityPolicy::with_config(
+            workspace.clone(),
+            security_config,
+        ));
+        tools.register(Arc::new(ReadFileTool::new(security.clone())));
+        tools.register(Arc::new(WriteFileTool::new(security.clone())));
+        tools.register(Arc::new(EditFileTool::new(security.clone())));
+        tools.register(Arc::new(ListDirTool::new(security)));
 
-        if let Some(cron_service) = agent.tool_config.cron_service.clone() {
-            agent.tools = ToolAssembly::new(agent.workspace.clone())
-                .builtin(agent.tool_config.builtin.clone())
-                .with_network_config(agent.tool_config.network.clone())
-                .with_exec_timeout(agent.tool_config.exec_timeout)
-                .restrict_to_workspace(agent.tool_config.restrict_to_workspace)
-                .mcp_servers(agent.tool_config.mcp_servers.clone())
-                .with_subagent_spawner(Arc::new(SubagentManagerSpawner {
-                    manager: agent.subagent_manager.clone(),
-                }))
-                .with_cron_service(cron_service)
-                .with_file_manager(agent.file_manager.clone())
-                .build();
+        // Register shell tool
+        tools.register(Arc::new(ExecTool::with_config(
+            tool_config.exec_timeout,
+            Some(workspace.clone()),
+            tool_config.restrict_to_workspace,
+        )));
+
+        // Register web tools
+        Self::register_web_tools(&mut tools, &tool_config.network);
+
+        // Register MCP tools discovered from configured servers
+        for mcp_tool in load_mcp_tools_sync(&tool_config.mcp_servers) {
+            tools.register(mcp_tool);
         }
 
-        Ok(agent)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub async fn with_toolset(
-        bus: MessageBus,
-        provider: Arc<dyn LLMProvider>,
-        workspace: PathBuf,
-        model: Option<String>,
-        max_iterations: Option<usize>,
-        toolset: AgentLoopToolSet,
-        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
-        file_manager: Arc<FileManager>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let model = model.unwrap_or_else(|| provider.get_default_model());
-        let mut context = ContextBuilder::with_skills(workspace.clone(), None);
-        context.set_soul_settings(toolset.config.soul_context.clone());
-        let sessions = SessionManager::new(workspace.clone());
-        let subagent_manager = Arc::new(SubagentManager::new(
-            provider.clone(),
-            workspace.clone(),
-            bus.clone(),
-            Some(model.clone()),
-            toolset.config.builtin.for_subagent(),
-            toolset.config.network.clone(),
-            Some(toolset.config.exec_timeout),
-            toolset.config.restrict_to_workspace,
-            toolset.config.mcp_servers.clone(),
-        ));
-
-        let memory_provider: Arc<dyn MemoryProvider> =
-            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace));
+        // Register cron tool when scheduling is configured
+        if let Some(cron_service) = tool_config.cron_service.clone() {
+            tools.register(Arc::new(CronTool::new(cron_service)));
+        }
 
         Ok(Self {
             bus,
@@ -356,16 +255,14 @@ impl AgentLoop {
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
             sessions,
-            tool_config: toolset.config.clone(),
-            tools: toolset.registry,
+            tools,
             subagent_manager,
             runtime_control_rx,
             cancelled_sessions: HashSet::new(),
-            notify_on_soul_change: toolset.config.notify_on_soul_change,
-            soul_governance: toolset.config.soul_governance,
+            notify_on_soul_change: tool_config.notify_on_soul_change,
+            soul_governance: tool_config.soul_governance,
             soul_change_turns: VecDeque::new(),
             file_manager,
-            memory_provider,
         })
     }
 
@@ -416,24 +313,6 @@ impl AgentLoop {
         }
 
         info!("Agent loop stopped");
-
-        // Trigger session-end rhythm work with idempotency.
-        match self
-            .memory_provider
-            .on_session_end(SessionEndRequest {
-                workspace_root: self.workspace.clone(),
-                session_id: Some("agent-loop-shutdown".to_string()),
-            })
-            .await
-        {
-            Ok(response) => {
-                debug!("Session-end hook completed: {:?}", response.status);
-            }
-            Err(e) => {
-                warn!("Session-end hook failed: {}", e);
-            }
-        }
-
         Ok(())
     }
 
@@ -593,9 +472,7 @@ mod tests {
         let bus = MessageBus::new();
         let provider = Arc::new(LiteLLMClient::default());
         let workspace = PathBuf::from("/tmp/test");
-        let agent = AgentLoop::new(bus, provider, workspace, None, None)
-            .await
-            .unwrap();
+        let agent = AgentLoop::new(bus, provider, workspace, None, None);
         assert_eq!(agent.max_iterations, 20);
     }
 
@@ -606,9 +483,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 
-        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
-            .await
-            .unwrap();
+        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1));
 
         // This will fail to connect to LLM, but tests the structure
         let result = agent
@@ -634,9 +509,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 
-        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1))
-            .await
-            .unwrap();
+        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1));
         let msg = InboundMessage::new("gui", "user", "chat-1", "Hello");
 
         agent.handle_inbound(msg).await;
@@ -655,274 +528,5 @@ mod tests {
         assert_eq!(error_event.0, "gui");
         assert_eq!(error_event.1, "chat-1");
         assert!(error_event.2.contains("simulated stream failure"));
-    }
-
-    // ── memory provider lifecycle wiring tests (Task 6) ──────────────
-
-    use agent_diva_core::memory::{
-        PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
-        SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus,
-        SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
-    };
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-
-    /// A test memory provider that tracks which lifecycle hooks were called.
-    struct TrackingMemoryProvider {
-        startup_called: AtomicBool,
-        prefetch_called: AtomicBool,
-        sync_called: AtomicBool,
-        session_end_called: AtomicBool,
-        prefetch_count: AtomicUsize,
-        sync_count: AtomicUsize,
-    }
-
-    impl TrackingMemoryProvider {
-        fn new() -> Self {
-            Self {
-                startup_called: AtomicBool::new(false),
-                prefetch_called: AtomicBool::new(false),
-                sync_called: AtomicBool::new(false),
-                session_end_called: AtomicBool::new(false),
-                prefetch_count: AtomicUsize::new(0),
-                sync_count: AtomicUsize::new(0),
-            }
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl MemoryProvider for TrackingMemoryProvider {
-        fn system_prompt_block(
-            &self,
-            _request: &SystemPromptRequest,
-        ) -> agent_diva_core::Result<SystemPromptResponse> {
-            self.startup_called.store(true, Ordering::SeqCst);
-            Ok(SystemPromptResponse::ready(SystemPromptBlock {
-                shape: agent_diva_core::memory::StartupInjectionShape::CompactRenderedMarkdown,
-                markdown: "## Tracking Provider Startup\nTest continuity injected.".to_string(),
-            }))
-        }
-
-        async fn prefetch(
-            &self,
-            request: PrefetchRequest,
-        ) -> agent_diva_core::Result<PrefetchResponse> {
-            self.prefetch_called.store(true, Ordering::SeqCst);
-            self.prefetch_count.fetch_add(1, Ordering::SeqCst);
-
-            if request.intent.trim().is_empty() {
-                return Ok(PrefetchResponse {
-                    status: PrefetchStatus::SkippedNoIntent,
-                    prompt_block: None,
-                });
-            }
-
-            Ok(PrefetchResponse {
-                status: PrefetchStatus::Ready,
-                prompt_block: Some(format!("## Prefetch Recall\nIntent: {}", request.intent)),
-            })
-        }
-
-        async fn sync_turn(
-            &self,
-            _request: SyncTurnRequest,
-        ) -> agent_diva_core::Result<SyncTurnResponse> {
-            self.sync_called.store(true, Ordering::SeqCst);
-            self.sync_count.fetch_add(1, Ordering::SeqCst);
-            Ok(SyncTurnResponse {
-                status: SyncTurnStatus::Persisted,
-            })
-        }
-
-        async fn on_session_end(
-            &self,
-            _request: SessionEndRequest,
-        ) -> agent_diva_core::Result<SessionEndResponse> {
-            self.session_end_called.store(true, Ordering::SeqCst);
-            Ok(SessionEndResponse {
-                status: SessionEndStatus::Triggered,
-            })
-        }
-    }
-
-    #[tokio::test]
-    async fn test_agent_loop_accepts_custom_memory_provider() {
-        let bus = MessageBus::new();
-        let provider = Arc::new(FailingStreamProvider);
-        let temp_dir = tempfile::tempdir().unwrap();
-        let workspace = temp_dir.path().to_path_buf();
-
-        let memory_provider = Arc::new(TrackingMemoryProvider::new());
-
-        let _agent = AgentLoop::with_tools_and_memory_provider(
-            bus,
-            provider.clone(),
-            workspace,
-            None,
-            Some(1),
-            ToolConfig::default(),
-            None,
-            Arc::new(
-                agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                    &temp_dir.path().join("files"),
-                ))
-                .await
-                .unwrap(),
-            ),
-            Some(memory_provider.clone()),
-        )
-        .await
-        .unwrap();
-
-        // Verify the provider is the one we injected (Arc pointer identity).
-        assert_eq!(Arc::strong_count(&memory_provider), 2); // one in agent, one here
-    }
-
-    #[tokio::test]
-    async fn test_memory_provider_startup_called_during_context_build() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let workspace = temp_dir.path().to_path_buf();
-
-        let memory_provider = Arc::new(TrackingMemoryProvider::new());
-
-        // ContextBuilder with injected provider
-        let builder = ContextBuilder::new(workspace).with_memory_provider(memory_provider.clone());
-
-        let prompt = builder.build_system_prompt();
-
-        // Startup hook should have been called synchronously.
-        assert!(
-            memory_provider.startup_called.load(Ordering::SeqCst),
-            "system_prompt_block should be called during build_system_prompt"
-        );
-        assert!(
-            prompt.contains("Test continuity injected"),
-            "startup continuity should appear in the system prompt"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_memory_provider_prefetch_skips_on_blank_intent() {
-        let provider = TrackingMemoryProvider::new();
-
-        let response = provider
-            .prefetch(PrefetchRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                intent: "   ".to_string(),
-                current_room: None,
-                user_message: Some("help".to_string()),
-            })
-            .await
-            .unwrap();
-
-        assert_eq!(response.status, PrefetchStatus::SkippedNoIntent);
-        assert!(response.prompt_block.is_none());
-        assert!(
-            provider.prefetch_called.load(Ordering::SeqCst),
-            "prefetch should be called even when intent is blank"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_memory_provider_prefetch_runs_on_valid_intent() {
-        let provider = TrackingMemoryProvider::new();
-
-        let response = provider
-            .prefetch(PrefetchRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                intent: "recall provider boundary".to_string(),
-                current_room: Some("roadmap".to_string()),
-                user_message: Some("status?".to_string()),
-            })
-            .await
-            .unwrap();
-
-        assert_eq!(response.status, PrefetchStatus::Ready);
-        assert!(response.prompt_block.is_some());
-        assert!(response
-            .prompt_block
-            .unwrap()
-            .contains("recall provider boundary"));
-    }
-
-    #[tokio::test]
-    async fn test_memory_provider_sync_turn_records_call() {
-        let provider = TrackingMemoryProvider::new();
-
-        let response = provider
-            .sync_turn(SyncTurnRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                memory_update_markdown: Some("Updated memory".to_string()),
-                history_entry: Some("task complete".to_string()),
-            })
-            .await
-            .unwrap();
-
-        assert_eq!(response.status, SyncTurnStatus::Persisted);
-        assert!(provider.sync_called.load(Ordering::SeqCst));
-    }
-
-    #[tokio::test]
-    async fn test_memory_provider_session_end_called_at_shutdown() {
-        let provider = TrackingMemoryProvider::new();
-
-        let response = provider
-            .on_session_end(SessionEndRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                session_id: Some("test-session".to_string()),
-            })
-            .await
-            .unwrap();
-
-        assert_eq!(response.status, SessionEndStatus::Triggered);
-        assert!(provider.session_end_called.load(Ordering::SeqCst));
-    }
-
-    #[tokio::test]
-    async fn test_memory_provider_full_lifecycle_hooks() {
-        let provider = TrackingMemoryProvider::new();
-
-        // 1. Startup
-        let startup = provider
-            .system_prompt_block(&SystemPromptRequest {
-                workspace_root: PathBuf::from("/tmp"),
-            })
-            .unwrap();
-        assert!(matches!(startup.status, StartupStatus::Ready));
-        assert!(provider.startup_called.load(Ordering::SeqCst));
-
-        // 2. Prefetch with intent
-        let _prefetch = provider
-            .prefetch(PrefetchRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                intent: "review memory".to_string(),
-                current_room: None,
-                user_message: None,
-            })
-            .await
-            .unwrap();
-        assert!(provider.prefetch_called.load(Ordering::SeqCst));
-
-        // 3. Sync after successful turn
-        let sync = provider
-            .sync_turn(SyncTurnRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                memory_update_markdown: Some("evidence".to_string()),
-                history_entry: None,
-            })
-            .await
-            .unwrap();
-        assert_eq!(sync.status, SyncTurnStatus::Persisted);
-        assert!(provider.sync_called.load(Ordering::SeqCst));
-
-        // 4. Session end
-        let shutdown = provider
-            .on_session_end(SessionEndRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                session_id: Some("lifecycle".to_string()),
-            })
-            .await
-            .unwrap();
-        assert_eq!(shutdown.status, SessionEndStatus::Triggered);
-        assert!(provider.session_end_called.load(Ordering::SeqCst));
     }
 }

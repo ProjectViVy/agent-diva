@@ -21,16 +21,14 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-agent"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",
  "agent-diva-providers",
- "agent-diva-tooling",
  "agent-diva-tools",
  "anyhow",
  "async-trait",
- "base64 0.22.1",
  "chrono",
  "dirs 5.0.1",
  "futures",
@@ -48,7 +46,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-channels"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-core",
  "agent-diva-providers",
@@ -86,7 +84,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-cli"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-agent",
  "agent-diva-channels",
@@ -119,7 +117,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-core"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-files",
  "async-trait",
@@ -148,7 +146,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-files"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "async-trait",
  "chrono",
@@ -168,23 +166,29 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-gui"
-version = "0.4.1"
+version = "0.4.9"
 dependencies = [
  "agent-diva-cli",
  "agent-diva-core",
+ "agent-diva-manager",
  "agent-diva-neuron",
  "agent-diva-providers",
+ "anyhow",
  "dirs 5.0.1",
  "eventsource-stream",
  "futures",
  "once_cell",
+ "open",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "tauri-plugin-store",
+ "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "urlencoding",
@@ -193,7 +197,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-manager"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-agent",
  "agent-diva-channels",
@@ -222,7 +226,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-migration"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-core",
  "anyhow",
@@ -240,7 +244,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-neuron"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-providers",
  "async-trait",
@@ -255,7 +259,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-providers"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-core",
  "async-trait",
@@ -270,12 +274,11 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
- "uuid",
 ]
 
 [[package]]
 name = "agent-diva-service"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "anyhow",
  "clap",
@@ -285,24 +288,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "agent-diva-tooling"
-version = "0.5.0"
-dependencies = [
- "agent-diva-core",
- "async-trait",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "agent-diva-tools"
-version = "0.5.0"
+version = "0.4.9"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",
- "agent-diva-tooling",
  "anyhow",
  "async-trait",
  "chrono",
@@ -6818,6 +6808,22 @@ dependencies = [
  "url",
  "windows",
  "zbus",
+]
+
+[[package]]
+name = "tauri-plugin-store"
+version = "2.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ca1a8ff83c269b115e98726ffc13f9e548a10161544a92ad121d6d0a96e16ea"
+dependencies = [
+ "dunce",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-neuron"
-version = "0.5.0"
+version = "0.4.9"
 edition = "2021"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 license = "MIT"
@@ -8,7 +8,7 @@ repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Single-turn neuron node abstraction for agent-diva"
 
 [dependencies]
-agent-diva-providers = { path = "../agent-diva-providers", version = "0.5.0" }
+agent-diva-providers = { path = "../agent-diva-providers" }
 
 # Async runtime
 async-trait = { workspace = true }

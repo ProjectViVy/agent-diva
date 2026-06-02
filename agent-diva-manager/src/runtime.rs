@@ -7,7 +7,7 @@ use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
     runtime_control::RuntimeControlCommand, tool_config::network::NetworkToolConfig,
     tool_config::network::WebFetchRuntimeConfig, tool_config::network::WebRuntimeConfig,
-    tool_config::network::WebSearchRuntimeConfig, AgentLoop, BuiltInToolsConfig, ToolConfig,
+    tool_config::network::WebSearchRuntimeConfig, AgentLoop, ToolConfig,
 };
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
@@ -186,19 +186,6 @@ fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
     }
 }
 
-fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
-    BuiltInToolsConfig {
-        filesystem: config.tools.builtin.filesystem,
-        shell: config.tools.builtin.shell,
-        web_search: config.tools.builtin.web_search,
-        web_fetch: config.tools.builtin.web_fetch,
-        spawn: config.tools.builtin.spawn,
-        cron: config.tools.builtin.cron,
-        mcp: config.tools.builtin.mcp,
-        attachment: config.tools.builtin.attachment,
-    }
-}
-
 pub async fn run_local_gateway(runtime: GatewayRuntimeConfig) -> Result<()> {
     let port = runtime.port;
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
@@ -309,7 +296,6 @@ async fn build_agent_loop(
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let tool_config = ToolConfig {
-        builtin: build_builtin_tools_config(config),
         network: build_network_tool_config(config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
@@ -328,41 +314,7 @@ async fn build_agent_loop(
         },
     };
 
-    // Memory provider wiring — Task 6 (Phase 4).
-    //
-    // Nano-style controlled harness: when a `.laputa` state directory
-    // exists in the workspace, the runtime is prepared to inject
-    // `LaputaMemoryProvider` as the active provider through
-    // `with_tools_and_memory_provider`.
-    //
-    // To activate Laputa-backed continuity:
-    //   1. Add `laputa-core` as a dependency of `agent-diva-manager`
-    //      (path = "../../../laputa-work/laputa-next/crates/laputa-core")
-    //   2. Uncomment the block below.
-    //
-    // ```rust,ignore
-    // let laputa_state_dir = workspace.join(".laputa");
-    // let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
-    //     if laputa_state_dir.is_dir() {
-    //         tracing::info!("Laputa state directory detected; injecting LaputaMemoryProvider");
-    //         Some(Arc::new(laputa_core::provider::LaputaMemoryProvider::new(
-    //             workspace.join(".laputa").join("mempalace.db"),
-    //         )))
-    //     } else {
-    //         None
-    //     };
-    // ```
-    let laputa_state_dir = workspace.join(".laputa");
-    if laputa_state_dir.is_dir() {
-        tracing::info!(
-            "Laputa state directory detected at {}, but LaputaMemoryProvider injection is deferred (nano-style controlled harness)",
-            laputa_state_dir.display()
-        );
-    }
-
-    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> = None;
-
-    AgentLoop::with_tools_and_memory_provider(
+    AgentLoop::with_tools(
         bus,
         agent_provider,
         workspace,
@@ -371,7 +323,6 @@ async fn build_agent_loop(
         tool_config,
         Some(runtime_control_rx),
         file_manager,
-        memory_provider,
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))
