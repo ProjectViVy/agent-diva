@@ -10,7 +10,7 @@
 
 ## 核心结论
 
-**Laputa-next 已经是最小化设计（Laputa Lite），架构方向正确，可以直接作为 agent-diva 的人格连续性薄层接入。节律设计不复杂（日历驱动），UPSP 的复杂部分已被明确拒绝。**
+**Laputa-next 已经是最小化设计（Laputa Lite），架构方向正确，可以直接作为 agent-diva 的人格连续性薄层接入。节律设计不复杂（日历驱动），复杂部分已被明确拒绝。**
 
 ---
 
@@ -19,8 +19,7 @@
 上一轮调研（v0.0.1-architecture-analysis）确认 Phase 1 应为纯文件 + 公理，mentle 降为 Phase 2 存储引擎。本轮转向 laputa-work，评估：
 1. Laputa 能否替代 agent-diva 的多文件结构（MEMORY.md / HISTORY.md / SOUL.md / BOOTSTRAP.md）
 2. 节律设计是否过复杂
-3. UPSP 概念中哪些值得保留、哪些应拒绝
-4. 已开发内容的状态
+3. 已开发内容的状态
 
 ---
 
@@ -44,7 +43,7 @@ Laputa 从"全量集成 Mempalace"改为"Laputa Lite"方案（`docs/IMPORTANT-la
 
 ### 发现 3：节律设计并不复杂
 
-**复杂的节律来自 UPSP（已拒绝）：**
+**复杂的节律（已拒绝）：**
 - 32 轮节律点、动态六轴 20 区间、疲劳值双阈值、工化指数四维几何平均
 
 **Laputa-next 的节律是纯日历驱动（D-012）：**
@@ -64,30 +63,7 @@ Laputa 从"全量集成 Mempalace"改为"Laputa Lite"方案（`docs/IMPORTANT-la
 
 **D-018**："Weekly and monthly outputs are not cosmetic reports. They are the primary triggers that update Laputa personality state."
 
-### 发现 5：UPSP 概念评估
-
-**✅ 保留（Laputa 已吸收）：**
-- 主体性延续（WakeupPack + 身份连续性）
-- 节律点机制（RhythmEngine）
-- 关系共振（Relationship Weather）
-- 人格状态 > 静态文本（SOUL.md 作为 projection）
-
-**❌ 明确拒绝（D-009）：**
-- 七文件结构（与 Mempalace 重复存储）
-- 核心六轴 SCVARB（过度建模）
-- 动态六轴每轮更新（高维护低收益）
-- 疲劳值 + 睡眠周期（不适用 agent-diva）
-- 32 轮节律点（日历驱动更简单）
-- STM/LTM 分离存储（Mempalace drawer 已统一）
-
-**⚠️ UPSP 中"扯淡"的部分：**
-1. **工化指数**：四维复合几何平均，无消费者，纯自嗨
-2. **动态六轴**：arousal=0.6 无人关心
-3. **32 轮节律点**：硬编码与实际对话长度无关
-4. **跨智能体适配器**：Zeroclaw/Openfang 适配都是空气代码
-5. **"主体性工程"包装**：概念包装 > 工程价值
-
-### 发现 6：Laputa 可替代 agent-diva 多文件结构
+### 发现 5：Laputa 可替代 agent-diva 多文件结构
 
 | agent-diva 文件 | Laputa 替代 |
 |---|---|
@@ -160,7 +136,7 @@ Laputa 从"全量集成 Mempalace"改为"Laputa Lite"方案（`docs/IMPORTANT-la
 | Laputa 人格层与通用记忆层职责模糊 | Laputa 又变成 memory proxy | D-001 边界清晰：人格归 Laputa，知识归记忆层 |
 | rhythm 依赖 LLM 但 LLM 不可用 | 周报/月报无法生成 | TemplateCapsuleWriter 作为降级方案（已实现） |
 | vendor/mempalace 脏文件恢复引入回归 | 构建失败 | Phase 0 先做，确认 check 通过再推进 |
-| UPSP 概念悄悄回流 | 复杂度膨胀 | D-009 作为红线，新概念必须对照拒绝清单 |
+| 概念悄悄回流 | 复杂度膨胀 | D-009 作为红线，新概念必须对照拒绝清单 |
 
 ---
 
@@ -174,8 +150,6 @@ Laputa 从"全量集成 Mempalace"改为"Laputa Lite"方案（`docs/IMPORTANT-la
 | 架构决策记录（D-001~D-026） | `laputa-next/docs/dev/DECITION.md` |
 | 架构概述 | `laputa-next/docs/dev/architecture.md` |
 | Living Memory 契约 | `laputa-next/docs/dev/living-memory.md` |
-| UPSP 兼容性分析 | `laputa-next/docs/dev/legacy/upsp-study/UPSP与DIVA-Soul兼容性分析.md` |
-| UPSP 执行摘要 | `laputa-next/docs/dev/legacy/upsp-study/executive-summary.md` |
-| 上一轮调研 | `docs/logs/2026-05-memory-architecture-deep-dive/v0.0.1-architecture-analysis/summary.md` |
+| 上一轮调研 |
 
 本版本为调研沉淀文档，不含代码变更。

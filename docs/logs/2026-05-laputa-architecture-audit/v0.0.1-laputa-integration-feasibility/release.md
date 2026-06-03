@@ -14,7 +14,7 @@
 
 | 文件 | 说明 |
 |---|---|
-| `summary.md` | 6 项关键发现、UPSP 概念评估、架构判断、推荐接入路径 |
+| `summary.md` | 6 项关键发现、架构判断、推荐接入路径 |
 | `verification.md` | 26 项验证检查（25 通过，1 项待后续确认） |
 | `release.md` | 本文件 |
 | `acceptance.md` | 验收清单 |
