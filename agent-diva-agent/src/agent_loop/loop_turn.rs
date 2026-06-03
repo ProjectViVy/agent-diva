@@ -2,6 +2,7 @@ use super::AgentLoop;
 use crate::consolidation;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
+use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::{LLMResponse, LLMStreamEvent};
@@ -393,6 +394,10 @@ impl AgentLoop {
                 }
                 final_content = response.content;
                 final_reasoning = response.reasoning_content;
+                // Honor thinking mode: Off clears reasoning, Auto/On pass through
+                if self.thinking_mode == ThinkingMode::Off {
+                    final_reasoning = None;
+                }
                 break;
             }
         }
@@ -662,7 +667,14 @@ fn save_turn(
                 }
                 "tool" => {
                     let content = if m.content.to_text_lossy().chars().count() > 500 {
-                        format!("{}...", m.content.to_text_lossy().chars().take(500).collect::<String>())
+                        format!(
+                            "{}...",
+                            m.content
+                                .to_text_lossy()
+                                .chars()
+                                .take(500)
+                                .collect::<String>()
+                        )
                     } else {
                         m.content.to_text_lossy()
                     };

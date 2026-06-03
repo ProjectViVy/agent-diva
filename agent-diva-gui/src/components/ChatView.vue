@@ -10,6 +10,7 @@ import ConversationSidebar from './ConversationSidebar.vue';
 import DecisionCard from './DecisionCard.vue';
 import TodoCard from './TodoCard.vue';
 import ApprovalBanner from './ApprovalBanner.vue';
+import ThinkingBlock from './chat/ThinkingBlock.vue';
 import { uploadFile, FileAttachmentDto, type UiCard, type ApprovalRequest } from '../api/desktop';
 
 const { t } = useI18n();
@@ -74,10 +75,6 @@ const defaultHistoryPrefs: HistoryPrefs = {
 
 const toggleTool = (index: number) => {
   expandedTools.value[index] = !expandedTools.value[index];
-};
-
-const toggleReasoning = (index: number) => {
-  expandedReasoning.value[index] = !expandedReasoning.value[index];
 };
 
 const toggleRawMeta = (index: number) => {
@@ -551,33 +548,12 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
               class="chat-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words"
               :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
             >
-              <!-- Reasoning Block - OpenAkita 折叠卡片样式 -->
-              <div v-if="msg.reasoning" class="reasoning-card mb-3">
-                 <!-- Header -->
-                 <div 
-                    @click="toggleReasoning(index)"
-                    class="reasoning-header"
-                 >
-                    <div class="reasoning-header-left">
-                       <ChevronRight :size="12" class="reasoning-chevron" :class="{ expanded: expandedReasoning[index] }" />
-                       <Brain :size="14" :class="msg.isThinking ? 'thinking-active' : 'thinking-inactive'" />
-                       <span class="reasoning-label">
-                          <template v-if="msg.isThinking">
-                             <Loader2 :size="12" class="animate-spin" />
-                             {{ t('chat.reasoningProcessing') }}
-                          </template>
-                          <template v-else>
-                             {{ t('chat.reasoningThought', { time: 'X.X' }) }}
-                          </template>
-                       </span>
-                    </div>
-                 </div>
-                 
-                 <!-- Content -->
-                 <div v-if="expandedReasoning[index]" class="reasoning-content">
-                    <div class="markdown-body" v-html="md.render(msg.reasoning)"></div>
-                 </div>
-              </div>
+              <!-- Reasoning Block -->
+              <ThinkingBlock
+                v-if="msg.reasoning"
+                :content="msg.reasoning"
+                :thinking-ms="0"
+              />
 
               <div v-if="hasRawMeta(msg)" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
                 <div

@@ -15,6 +15,7 @@ use agent_diva_agent::{
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use console::style;
@@ -332,7 +333,7 @@ pub async fn run_chat(
     println!("{}", style("Agent Diva Chat").bold().cyan());
     println!("  model: {}", selected_model);
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop");
+    println!("  commands: /quit /clear /new /stop /thinking auto|on|off");
 
     loop {
         let input: String = Input::new()
@@ -365,6 +366,23 @@ pub async fn run_chat(
                 }
                 continue;
             }
+            cmd if cmd.starts_with("/thinking ") => {
+                let mode_str = cmd.trim_start_matches("/thinking ").trim();
+                let mode = match mode_str {
+                    "auto" => ThinkingMode::Auto,
+                    "on" => ThinkingMode::On,
+                    "off" => ThinkingMode::Off,
+                    _ => {
+                        println!("{}", style("usage: /thinking auto|on|off").yellow());
+                        continue;
+                    }
+                };
+                if let Some(tx) = &runtime_control_tx {
+                    let _ = tx.send(RuntimeControlCommand::SetThinking { mode });
+                    println!("{}", style(format!("thinking mode -> {:?}", mode)).green());
+                }
+                continue;
+            }
             _ => {}
         }
 
@@ -386,7 +404,7 @@ pub async fn run_chat_remote(
 
     println!("{}", style("Agent Diva Chat (remote)").bold().cyan());
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop");
+    println!("  commands: /quit /clear /new /stop /thinking auto|on|off");
 
     loop {
         let input: String = Input::new()

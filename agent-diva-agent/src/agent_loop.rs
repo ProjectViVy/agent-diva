@@ -5,6 +5,7 @@ use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
+use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::SessionManager;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
@@ -120,6 +121,8 @@ pub struct AgentLoop {
     memory_provider: Arc<dyn MemoryProvider>,
     custom_tools: Vec<Arc<dyn Tool>>,
     mentle_active: bool,
+    /// Current thinking mode (auto/on/off), modifiable at runtime via SetThinking.
+    thinking_mode: ThinkingMode,
     #[cfg(feature = "mentle")]
     #[allow(dead_code)]
     mentle_runtime: Option<MentleRuntime>,
@@ -272,6 +275,7 @@ impl AgentLoop {
             memory_provider,
             custom_tools: Vec::new(),
             mentle_active: false,
+            thinking_mode: ThinkingMode::default(),
             #[cfg(feature = "mentle")]
             mentle_runtime: None,
         })
@@ -462,6 +466,7 @@ impl AgentLoop {
             memory_provider,
             custom_tools,
             mentle_active,
+            thinking_mode: ThinkingMode::default(),
             #[cfg(feature = "mentle")]
             mentle_runtime,
         };
@@ -547,6 +552,7 @@ impl AgentLoop {
             memory_provider,
             custom_tools: Vec::new(),
             mentle_active,
+            thinking_mode: ThinkingMode::default(),
             #[cfg(feature = "mentle")]
             mentle_runtime: None,
         })
@@ -2192,8 +2198,16 @@ mod tests {
         assert!(first_call.len() >= 3);
         assert_eq!(first_call[0].role, "system");
         assert_eq!(first_call[1].role, "system");
-        assert!(first_call[1].content.as_text().unwrap().contains("## Prefetch Recall"));
-        assert!(first_call[1].content.as_text().unwrap().contains("recall provider boundary"));
+        assert!(first_call[1]
+            .content
+            .as_text()
+            .unwrap()
+            .contains("## Prefetch Recall"));
+        assert!(first_call[1]
+            .content
+            .as_text()
+            .unwrap()
+            .contains("recall provider boundary"));
         assert_eq!(first_call[2].role, "user");
         assert_eq!(first_call[2].content, "recall provider boundary".into());
     }
@@ -2241,9 +2255,11 @@ mod tests {
         let first_call = captured
             .first()
             .expect("provider should capture the first LLM call");
-        assert!(first_call
-            .iter()
-            .all(|message| !message.content.as_text().unwrap().contains("## Prefetch Recall")));
+        assert!(first_call.iter().all(|message| !message
+            .content
+            .as_text()
+            .unwrap()
+            .contains("## Prefetch Recall")));
         assert_eq!(
             first_call
                 .last()

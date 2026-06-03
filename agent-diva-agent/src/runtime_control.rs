@@ -30,4 +30,7 @@ pub enum RuntimeControlCommand {
         session_key: String,
         reply_tx: tokio::sync::oneshot::Sender<Result<bool, String>>,
     },
+    SetThinking {
+        mode: agent_diva_core::reasoning::ThinkingMode,
+    },
 }

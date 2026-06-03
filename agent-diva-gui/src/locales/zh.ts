@@ -49,6 +49,7 @@ export default {
     inputArgs: '输入参数:',
     execResult: '执行结果:',
     thinking: '正在深度思考...',
+    thinkingProcess: '思考过程',
     thoughtProcess: '深度思考过程',
     clearChat: '清除对话',
     newSession: '新建会话',

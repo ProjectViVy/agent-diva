@@ -49,6 +49,7 @@ export default {
     inputArgs: 'Input Arguments:',
     execResult: 'Execution Result:',
     thinking: 'Thinking deeply...',
+    thinkingProcess: 'Thinking process',
     thoughtProcess: 'Thought Process',
     clearChat: 'Clear Chat',
     newSession: 'New Session',

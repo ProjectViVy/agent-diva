@@ -67,6 +67,10 @@ impl AgentLoop {
                 }
                 let _ = reply_tx.send(result);
             }
+            RuntimeControlCommand::SetThinking { mode } => {
+                self.thinking_mode = mode;
+                info!("Thinking mode set to: {:?}", mode);
+            }
         }
     }
 

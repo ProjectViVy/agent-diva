@@ -237,6 +237,9 @@ pub struct AgentDefaults {
     /// Optional reasoning effort for thinking-capable models (low/medium/high)
     #[serde(default)]
     pub reasoning_effort: Option<String>,
+    /// Optional thinking mode override (auto/on/off)
+    #[serde(default)]
+    pub thinking_mode: Option<crate::reasoning::ThinkingMode>,
 }
 
 impl Default for AgentDefaults {
@@ -249,6 +252,7 @@ impl Default for AgentDefaults {
             temperature: 0.7,
             max_tool_iterations: 20,
             reasoning_effort: None,
+            thinking_mode: None,
         }
     }
 }
