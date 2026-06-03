@@ -876,15 +876,15 @@ export default {
     denyPatternsHint: 'Forbidden command prefix patterns, one per line',
     denyPatternsPlaceholder: 'One shell command prefix per line, e.g. rm -rf',
     modes: {
-      DangerFullAccess: 'Full Access (No Sandbox)',
-      ReadOnly: 'Read-Only',
-      WorkspaceWrite: 'Workspace Write',
+      'danger-full-access': 'Full Access (No Sandbox)',
+      'read-only': 'Read-Only',
+      'workspace-write': 'Workspace Write',
     },
     policies: {
-      Never: 'Never Ask',
-      OnFailure: 'Ask on Failure',
-      OnRequest: 'Ask on Request',
-      UnlessTrusted: 'Ask Unless Trusted',
+      'never': 'Never Ask',
+      'on-failure': 'Ask on Failure',
+      'on-request': 'Ask on Request',
+      'unless-trusted': 'Ask Unless Trusted',
     },
   },
   todoCard: {

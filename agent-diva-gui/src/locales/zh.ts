@@ -819,15 +819,15 @@ export default {
     denyPatternsHint: '禁止执行的命令前缀模式，每行一个',
     denyPatternsPlaceholder: '每行一个 shell 命令前缀，如 rm -rf',
     modes: {
-      DangerFullAccess: '完全访问（无沙箱）',
-      ReadOnly: '只读模式',
-      WorkspaceWrite: '工作区可写',
+      'danger-full-access': '完全访问（无沙箱）',
+      'read-only': '只读模式',
+      'workspace-write': '工作区可写',
     },
     policies: {
-      Never: '从不询问',
-      OnFailure: '失败时询问',
-      OnRequest: '按需询问',
-      UnlessTrusted: '非信任时询问',
+      'never': '从不询问',
+      'on-failure': '失败时询问',
+      'on-request': '按需询问',
+      'unless-trusted': '非信任时询问',
     },
   },
   todoCard: {
