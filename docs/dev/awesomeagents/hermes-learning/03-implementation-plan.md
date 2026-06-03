@@ -9,21 +9,15 @@
 
 ### Phase 1：基础设施（4-6 周）
 
-#### Week 1-2：UPSP-RS Phase 0-1
 
-**目标**：实现 UPSP-RS 核心类型和存储层
 
 **任务**：
-1. 创建 `.workspace/upsp-rs` crate
 2. 定义核心类型（Persona, Identity, State, Memory, Relation, Axes）
 3. 实现 PersonaStore trait
 4. 实现 FilesystemStore
 5. 编写单元测试
 
 **交付物**：
-- `upsp-rs/src/core/` - 核心类型定义
-- `upsp-rs/src/storage/` - 存储抽象
-- `upsp-rs/tests/` - 单元测试
 - 验证 FMA 示例位格可正常加载
 
 #### Week 3-4：Hermes SessionDB
@@ -65,19 +59,14 @@
 
 ### Phase 2：适配器层（3-4 周）
 
-#### Week 7-8：UpspMemoryProvider 适配器
 
-**目标**：实现 UPSP 到 Hermes MemoryProvider 的适配器
 
 **任务**：
-1. 创建 `agent-diva-core/src/memory/upsp_adapter.rs`
-2. 实现 UpspMemoryProvider 结构体
 3. 实现 MemoryProvider trait 的所有方法
 4. 实现节律点整合逻辑
 5. 编写单元测试和集成测试
 
 **交付物**：
-- `agent-diva-core/src/memory/upsp_adapter.rs` - 适配器实现
 - 单元测试覆盖率 > 80%
 - 集成测试验证节律点机制
 
@@ -207,14 +196,12 @@
 **目标**：实现数据迁移工具
 
 **任务**：
-1. 实现 MEMORY.md → UPSP LTM.md 迁移
 2. 实现 JSONL → SessionDB 迁移
 3. 实现回滚机制
 4. 编写迁移指南
 5. 验证迁移工具
 
 **交付物**：
-- `agent-diva-migration/src/memory_to_upsp.rs` - 记忆迁移
 - `agent-diva-migration/src/sessions_to_db.rs` - 会话迁移
 - 迁移指南文档
 
@@ -268,19 +255,13 @@
 - 分离数据库（sessions.db + memories.db）
 - 使用 PostgreSQL（过度工程）
 
-### 2.2 UPSP 集成方式
 
-**决策**：适配器模式（UpspMemoryProvider）
 
 **理由**：
-- 保持 upsp-rs 独立性
-- 不修改 upsp-rs 源码
 - 易于维护和升级
 - 符合开闭原则
 
 **替代方案**：
-- 在 upsp-rs 中直接实现 MemoryProvider（耦合度高）
-- Fork upsp-rs 并修改（维护成本高）
 
 ### 2.3 Trajectory 压缩实现
 
@@ -318,7 +299,6 @@
 
 | 风险 | 等级 | 影响 | 缓解策略 | 负责人 |
 |------|------|------|---------|--------|
-| UPSP + Hermes 架构冲突 | 🔴 高 | 集成失败 | 分层融合，明确职责边界，PoC 验证 | 架构师 |
 | 数据迁移失败 | 🟡 中 | 数据丢失 | 保留 JSONL 备份，实现回滚机制，充分测试 | 开发者 |
 | 性能下降 | 🟡 中 | 用户体验差 | 使用 WAL 模式，实现索引优化，性能基准测试 | 开发者 |
 | Rust 实现 Trajectory 压缩复杂度 | 🟡 中 | 开发延期 | 先调用外部脚本，后续优化 | 开发者 |
@@ -407,7 +387,6 @@
 **v0.1.0（MVP）**：
 - Phase 1-3 完成
 - 基础学习闭环
-- UPSP + Hermes 融合
 - 数据迁移工具
 
 **v0.2.0（增强）**：
