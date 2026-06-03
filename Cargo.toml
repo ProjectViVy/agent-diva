@@ -80,8 +80,11 @@ which = "6.0"
 windows-service = "0.7"
 
 # File management
-agent-diva-files = { version = "0.4.9", path = "agent-diva-files" }
+agent-diva-files = { version = "0.5.0", path = "agent-diva-files" }
 agent-diva-tooling = { version = "0.5.0", path = "agent-diva-tooling" }
+# Mentle integration is frozen to the published crates.io package at 0.1.2.
+# Do not replace this with a path/git override in the main workspace.
+memtle = { version = "0.1.2", default-features = false }
 
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "migrate", "chrono"] }

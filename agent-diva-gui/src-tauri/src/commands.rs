@@ -1,5 +1,7 @@
 use crate::app_state::AgentState;
+use crate::gateway_status::GatewayStatus;
 use crate::process_utils;
+use crate::shutdown_manager::ShutdownManager;
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
@@ -7,28 +9,28 @@ use agent_diva_providers::{
     CustomProviderUpsert, LiteLLMClient, Message, ProviderAccess, ProviderCatalogService,
     ProviderModelCatalogView as SharedProviderModelCatalog, ProviderView as SharedProviderView,
 };
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use eventsource_stream::Eventsource;
-use futures::StreamExt;
-use once_cell::sync::Lazy;
+use futures::{SinkExt, StreamExt};
+use http::header::{HeaderValue, AUTHORIZATION};
+use native_tls::TlsConnector;
 use serde::{Deserialize, Serialize};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
-use tauri::{AppHandle, Emitter, Manager, State, Window};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, Window};
+use tauri_plugin_store::StoreExt;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex as AsyncMutex;
-use tracing::{error, info, warn};
-
-struct GatewayProcess {
-    child: tokio::process::Child,
-    executable_path: String,
-}
-
-static GATEWAY_PROCESS: Lazy<AsyncMutex<Option<GatewayProcess>>> =
-    Lazy::new(|| AsyncMutex::new(None));
+use tokio::time::timeout;
+use tokio_tungstenite::connect_async_tls_with_config;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::protocol::Message as WsMessage;
+use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
+use tracing::{debug, error, info, warn};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -104,6 +106,19 @@ pub struct SkillDto {
     pub active: bool,
     pub path: String,
     pub can_delete: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileAttachmentDto {
+    pub file_id: String,
+    pub filename: String,
+    pub size: u64,
+    pub mime_type: Option<String>,
+    pub channel: String,
+    pub message_id: Option<String>,
+    pub uploaded_by: Option<String>,
+    pub stored_at: String,
+    pub ref_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,60 +304,21 @@ struct StreamToolFinishPayload {
     call_id: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FileAttachmentDto {
-    pub file_id: String,
-    pub filename: String,
-    pub size: u64,
-    pub mime_type: Option<String>,
-}
-
-#[tauri::command]
-pub async fn upload_file(
-    file_name: String,
-    bytes: Vec<u8>,
-    state: State<'_, AgentState>,
-) -> Result<FileAttachmentDto, String> {
-    let url = format!("{}/files/upload", state.api_base_url());
-    let part = reqwest::multipart::Part::bytes(bytes)
-        .file_name(file_name.clone())
-        .mime_str("application/octet-stream")
-        .map_err(|e| format!("Failed to build upload part: {}", e))?;
-    let form = reqwest::multipart::Form::new()
-        .part("file", part)
-        .text("channel", "gui");
-    let response = state
-        .client
-        .post(&url)
-        .multipart(form)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to upload file: {}", e))?;
-
-    let value: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Invalid upload response: {}", e))?;
-    serde_json::from_value(
-        value
-            .get("attachment")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null),
-    )
-    .map_err(|e| format!("Invalid uploaded file payload: {}", e))
-}
-
 #[tauri::command]
 pub async fn send_message(
     message: String,
     channel: Option<String>,
-    chat_id: Option<String>,
+    #[allow(non_snake_case)] chatId: Option<String>,
     attachments: Option<Vec<String>>,
-    stream_request_id: String,
+    #[allow(non_snake_case)] streamRequestId: String,
     window: Window,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
+    // Tauri v2 uses camelCase from frontend, convert to snake_case internally
+    let chat_id = chatId;
+    let stream_request_id = streamRequestId;
     info!("Sending message to API: {}", message);
+    info!("Attachments: {:?}", attachments);
 
     let client = &state.client;
     let url = format!("{}/chat", state.api_base_url());
@@ -985,8 +961,10 @@ pub async fn delete_cron_job(job_id: String, state: State<'_, AgentState>) -> Re
 pub async fn start_background_stream(
     window: Window,
     state: State<'_, AgentState>,
+    shutdown_manager: State<'_, ShutdownManager>,
 ) -> Result<(), String> {
     let client = state.client.clone();
+    let cancel_token = shutdown_manager.cancel_token();
     let url = format!(
         "{}/events?channel=api&chat_prefix=cron:",
         state.api_base_url()
@@ -994,23 +972,55 @@ pub async fn start_background_stream(
 
     tauri::async_runtime::spawn(async move {
         loop {
-            let response = match client.get(&url).send().await {
+            let response = tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    info!("Background stream cancelled before next connection attempt");
+                    break;
+                }
+                response = client.get(&url).send() => response,
+            };
+
+            let response = match response {
                 Ok(resp) => resp,
                 Err(e) => {
                     error!("Failed to connect background stream: {}", e);
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            info!("Background stream cancelled during reconnect backoff");
+                            break;
+                        }
+                        _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+                    }
                     continue;
                 }
             };
 
             if !response.status().is_success() {
                 error!("Background stream server error: {}", response.status());
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                tokio::select! {
+                    _ = cancel_token.cancelled() => {
+                        info!("Background stream cancelled after server error");
+                        break;
+                    }
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+                }
                 continue;
             }
 
             let mut stream = response.bytes_stream().eventsource();
-            while let Some(event) = stream.next().await {
+            loop {
+                let event = tokio::select! {
+                    _ = cancel_token.cancelled() => {
+                        info!("Background stream cancelled while reading events");
+                        return;
+                    }
+                    event = stream.next() => event,
+                };
+
+                let Some(event) = event else {
+                    break;
+                };
+
                 match event {
                     Ok(event) => match event.event.as_str() {
                         "final" => {
@@ -1032,8 +1042,16 @@ pub async fn start_background_stream(
                 }
             }
 
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    info!("Background stream cancelled before retry");
+                    break;
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+            }
         }
+
+        info!("Background stream task exited");
     });
 
     Ok(())
@@ -1072,6 +1090,11 @@ pub async fn update_config(
 #[tauri::command]
 pub async fn get_tools_config(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
     state.get_tools_config().await
+}
+
+#[tauri::command]
+pub async fn list_mentle_tools(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+    state.list_mentle_tools().await
 }
 
 #[tauri::command]
@@ -1221,7 +1244,11 @@ pub async fn update_mcp(
     payload: McpServerPayload,
     state: State<'_, AgentState>,
 ) -> Result<McpServerDto, String> {
-    let url = format!("{}/mcps/{}", state.api_base_url(), urlencoding::encode(&name));
+    let url = format!(
+        "{}/mcps/{}",
+        state.api_base_url(),
+        urlencoding::encode(&name)
+    );
     let response = state
         .client
         .put(&url)
@@ -1246,7 +1273,11 @@ pub async fn update_mcp(
 
 #[tauri::command]
 pub async fn delete_mcp(name: String, state: State<'_, AgentState>) -> Result<(), String> {
-    let url = format!("{}/mcps/{}", state.api_base_url(), urlencoding::encode(&name));
+    let url = format!(
+        "{}/mcps/{}",
+        state.api_base_url(),
+        urlencoding::encode(&name)
+    );
     let response = state
         .client
         .delete(&url)
@@ -1370,6 +1401,63 @@ pub async fn upload_skill(
             .unwrap_or(serde_json::Value::Null),
     )
     .map_err(|e| format!("Invalid uploaded skill payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn upload_file(
+    file_name: String,
+    bytes: Vec<u8>,
+    channel: String,
+    message_id: Option<String>,
+    state: State<'_, AgentState>,
+) -> Result<FileAttachmentDto, String> {
+    let url = format!("{}/files/upload", state.api_base_url());
+    let file_part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(file_name)
+        .mime_str("application/octet-stream")
+        .map_err(|e| format!("Failed to build file part: {}", e))?;
+    let channel_part = reqwest::multipart::Part::text(channel);
+    // Use provided message_id or generate a temporary one for GUI uploads
+    let message_id = message_id.unwrap_or_else(|| {
+        format!(
+            "gui_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+        )
+    });
+    let message_id_part = reqwest::multipart::Part::text(message_id);
+    let form = reqwest::multipart::Form::new()
+        .part("file", file_part)
+        .part("channel", channel_part)
+        .part("message_id", message_id_part);
+    let response = state
+        .client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to upload file: {}", e))?;
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid upload response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    serde_json::from_value(
+        value
+            .get("attachment")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+    )
+    .map_err(|e| format!("Invalid uploaded file payload: {}", e))
 }
 
 #[tauri::command]
@@ -1510,6 +1598,85 @@ fn config_loader() -> ConfigLoader {
     match std::env::var("AGENT_DIVA_CONFIG_DIR") {
         Ok(path) if !path.trim().is_empty() => ConfigLoader::with_dir(expand_user_path(&path)),
         _ => ConfigLoader::new(),
+    }
+}
+
+/// Saves the gateway port to a configuration file
+pub(crate) fn save_gateway_port_config(port: u16) -> Result<(), String> {
+    let loader = config_loader();
+    let config_dir = loader.config_dir();
+    std::fs::create_dir_all(config_dir)
+        .map_err(|e| format!("Failed to create config directory: {}", e))?;
+
+    let port_file = config_dir.join("gateway.port");
+    std::fs::write(&port_file, port.to_string())
+        .map_err(|e| format!("Failed to write gateway port config: {}", e))?;
+
+    info!("Saved gateway port {} to {}", port, port_file.display());
+    Ok(())
+}
+
+#[cfg(test)]
+mod gateway_status_tests {
+    use super::{
+        gateway_process_status_from_runtime, normalize_pet_voice_relative_path,
+        normalize_tts_provider,
+    };
+    use crate::gateway_status::GatewayStatus;
+
+    #[test]
+    fn gateway_process_status_uses_embedded_runtime_state() {
+        let status = GatewayStatus::new(3456);
+        let process_status = gateway_process_status_from_runtime(&status);
+
+        assert!(process_status.running);
+        assert_eq!(process_status.pid, None);
+        assert_eq!(process_status.executable_path, None);
+        assert_eq!(
+            process_status.details.as_deref(),
+            Some("Gateway: Running (port: 3456)")
+        );
+    }
+
+    #[test]
+    fn pet_voice_relative_path_rejects_parent_escape() {
+        let error = normalize_pet_voice_relative_path("voice_resource/../secret.mp3").unwrap_err();
+        assert!(error.contains("voice_resource"));
+    }
+
+    #[test]
+    fn pet_voice_relative_path_accepts_voice_resource_child() {
+        let path = normalize_pet_voice_relative_path("voice_resource/custom/sample.mp3").unwrap();
+        assert_eq!(path, "voice_resource/custom/sample.mp3");
+    }
+
+    #[test]
+    fn normalize_tts_provider_accepts_minimax() {
+        assert_eq!(normalize_tts_provider("minimax"), "minimax");
+    }
+}
+
+/// Loads the gateway port from configuration file, defaults to 3000
+#[allow(dead_code)]
+fn load_gateway_port_config() -> u16 {
+    let loader = config_loader();
+    let port_file = loader.config_dir().join("gateway.port");
+
+    match std::fs::read_to_string(&port_file) {
+        Ok(content) => match content.trim().parse::<u16>() {
+            Ok(port) => {
+                debug!("Loaded gateway port {} from {}", port, port_file.display());
+                port
+            }
+            Err(e) => {
+                warn!("Invalid port in config file: {}. Using default 3000", e);
+                3000
+            }
+        },
+        Err(_) => {
+            debug!("Gateway port config file not found. Using default 3000");
+            3000
+        }
     }
 }
 
@@ -2024,85 +2191,21 @@ fn latest_log_file(log_dir: &std::path::Path) -> Result<Option<PathBuf>, String>
     Ok(newest.map(|(_, path)| path))
 }
 
-fn resolved_cli_binary_for_launch(
-    app: &AppHandle,
-    bin_path: Option<String>,
-) -> Result<PathBuf, String> {
-    if let Some(bin_path) = bin_path {
-        let candidate = PathBuf::from(bin_path);
-        if candidate.exists() {
-            return Ok(candidate);
-        }
-        return Err(format!(
-            "gateway binary not found at {}",
-            candidate.display()
-        ));
-    }
-
-    resolve_cli_binary(app)
-}
-
-async fn refresh_gateway_process_status() -> GatewayProcessStatus {
-    let mut guard = GATEWAY_PROCESS.lock().await;
-    if let Some(process) = guard.as_mut() {
-        match process.child.try_wait() {
-            Ok(Some(status)) => {
-                let detail = format!("gateway process exited with status {status}");
-                *guard = None;
-                GatewayProcessStatus {
-                    running: false,
-                    pid: None,
-                    executable_path: None,
-                    details: Some(detail),
-                }
-            }
-            Ok(None) => GatewayProcessStatus {
-                running: true,
-                pid: process.child.id(),
-                executable_path: Some(process.executable_path.clone()),
-                details: Some("gateway process is running".to_string()),
-            },
-            Err(error) => GatewayProcessStatus {
-                running: false,
-                pid: None,
-                executable_path: Some(process.executable_path.clone()),
-                details: Some(format!("failed to inspect gateway process: {error}")),
-            },
-        }
-    } else {
-        // GATEWAY_PROCESS is empty, check port and system processes
-        let port_occupied = process_utils::is_port_3000_occupied();
-        let gateway_pids = process_utils::find_gateway_processes();
-
-        if port_occupied || !gateway_pids.is_empty() {
-            // Gateway is running but not managed by GUI
-            let mut details = String::from("gateway process detected but not managed by GUI");
-            if port_occupied {
-                details.push_str(" (port 3000 occupied)");
-            }
-            if !gateway_pids.is_empty() {
-                details.push_str(&format!(
-                    " (found {} gateway process(es))",
-                    gateway_pids.len()
-                ));
-            }
-
-            GatewayProcessStatus {
-                running: true,
-                pid: gateway_pids.first().copied(),
-                executable_path: None,
-                details: Some(details),
-            }
-        } else {
-            GatewayProcessStatus {
-                running: false,
-                pid: None,
-                executable_path: None,
-                details: Some("gateway process is not running".to_string()),
-            }
-        }
+pub fn gateway_process_status_from_runtime(status: &GatewayStatus) -> GatewayProcessStatus {
+    GatewayProcessStatus {
+        running: status.running,
+        pid: None,
+        executable_path: None,
+        details: Some(status.format_status()),
     }
 }
+
+const EMBEDDED_GATEWAY_AUTOMATIC_MESSAGE: &str =
+    "embedded mode: gateway starts automatically with app";
+const EMBEDDED_GATEWAY_COMPAT_STOP_MESSAGE: &str =
+    "embedded mode: stop_gateway is a compatibility no-op; quit the app or use tray Quit to stop the embedded gateway";
+const EMBEDDED_GATEWAY_COMPAT_UNINSTALL_MESSAGE: &str =
+    "embedded mode: uninstall_gateway is deprecated and only performs compatibility cleanup for stray legacy gateway processes";
 
 #[tauri::command]
 pub fn get_runtime_info(app: AppHandle) -> RuntimeInfo {
@@ -2197,150 +2300,61 @@ pub async fn stop_service(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn get_gateway_process_status() -> GatewayProcessStatus {
-    refresh_gateway_process_status().await
+pub async fn get_gateway_process_status(
+    state: State<'_, AsyncMutex<GatewayStatus>>,
+) -> Result<GatewayProcessStatus, String> {
+    let status = state.lock().await.clone();
+    Ok(gateway_process_status_from_runtime(&status))
 }
 
 #[tauri::command]
-pub async fn start_gateway(app: AppHandle, bin_path: Option<String>) -> Result<(), String> {
-    let current_status = refresh_gateway_process_status().await;
-    if current_status.running {
-        return Err("gateway process is already running".to_string());
-    }
-
-    // Check for port 3000 conflicts before starting
-    if process_utils::is_port_3000_occupied() {
-        info!("Port 3000 is occupied, checking for gateway processes...");
-
-        // Try to identify and terminate the occupying process if it's a gateway
-        let gateway_pids = process_utils::find_gateway_processes();
-        if !gateway_pids.is_empty() {
-            info!(
-                "Found {} gateway process(es) occupying port 3000, terminating...",
-                gateway_pids.len()
-            );
-            for pid in gateway_pids {
-                match process_utils::terminate_process(pid) {
-                    Ok(()) => info!("Terminated gateway process {}", pid),
-                    Err(e) => warn!("Failed to terminate gateway process {}: {}", pid, e),
-                }
-            }
-
-            // Wait a bit for port to be released
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-            // Check again
-            if process_utils::is_port_3000_occupied() {
-                return Err("Port 3000 is still occupied after cleanup. Please check for other processes using this port.".to_string());
-            }
-        } else {
-            // Port is occupied by a non-gateway process
-            if let Some(pid) = process_utils::find_process_on_port_3000() {
-                return Err(format!("Port 3000 is occupied by process {} (not agent-diva gateway). Please stop this process first.", pid));
-            } else {
-                return Err(
-                    "Port 3000 is occupied by an unknown process. Please free this port first."
-                        .to_string(),
-                );
-            }
-        }
-    }
-
-    let loader = config_loader();
-    std::fs::create_dir_all(loader.config_dir()).map_err(|e| {
-        format!(
-            "failed to create config directory {}: {}",
-            loader.config_dir().display(),
-            e
-        )
-    })?;
-
-    let executable = resolved_cli_binary_for_launch(&app, bin_path)?;
-    let mut command = TokioCommand::new(&executable);
-    configure_background_command(&mut command);
-    command
-        .arg("--config-dir")
-        .arg(loader.config_dir())
-        .arg("gateway")
-        .arg("run")
-        .current_dir(loader.config_dir())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    let child = command.spawn().map_err(|e| {
-        format!(
-            "failed to spawn gateway process {}: {}",
-            executable.display(),
-            e
-        )
-    })?;
-
-    let mut guard = GATEWAY_PROCESS.lock().await;
-    *guard = Some(GatewayProcess {
-        child,
-        executable_path: executable.display().to_string(),
-    });
-    Ok(())
+pub async fn get_gateway_status(
+    state: State<'_, AsyncMutex<GatewayStatus>>,
+) -> Result<GatewayStatus, String> {
+    Ok(state.lock().await.clone())
 }
 
 #[tauri::command]
+#[allow(dead_code)]
+pub fn get_gateway_port() -> u16 {
+    load_gateway_port_config()
+}
+
+#[tauri::command]
+#[deprecated(note = "Embedded mode starts the gateway automatically; keep for compatibility only.")]
+pub async fn start_gateway(_app: AppHandle, _bin_path: Option<String>) -> Result<u16, String> {
+    warn!("start_gateway called through deprecated compatibility layer");
+    Err(EMBEDDED_GATEWAY_AUTOMATIC_MESSAGE.to_string())
+}
+
+#[tauri::command]
+#[deprecated(
+    note = "Embedded mode manages gateway shutdown with app lifecycle; keep for compatibility only."
+)]
 pub async fn stop_gateway() -> Result<(), String> {
-    let mut guard = GATEWAY_PROCESS.lock().await;
-    let Some(process) = guard.as_mut() else {
-        return Ok(());
-    };
-
-    process
-        .child
-        .kill()
-        .await
-        .map_err(|e| format!("failed to stop gateway process: {e}"))?;
-    *guard = None;
+    warn!("stop_gateway called through deprecated compatibility layer");
+    info!("{}", EMBEDDED_GATEWAY_COMPAT_STOP_MESSAGE);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn uninstall_gateway() -> Result<(), String> {
-    info!("Uninstalling gateway: terminating all gateway processes...");
+#[deprecated(
+    note = "Embedded mode uses in-process lifecycle management; keep only as a compatibility cleanup wrapper."
+)]
+pub async fn uninstall_gateway(app: AppHandle) -> Result<(), String> {
+    warn!("uninstall_gateway called through deprecated compatibility layer");
+    info!("{}", EMBEDDED_GATEWAY_COMPAT_UNINSTALL_MESSAGE);
 
-    // First, stop the managed gateway process
-    let _ = stop_gateway().await;
+    crate::shutdown_embedded_gateway(&app).await;
 
-    // Then, find and terminate all gateway processes in the system
-    let gateway_pids = process_utils::find_gateway_processes();
-    if gateway_pids.is_empty() {
-        info!("No gateway processes found to uninstall");
-        return Ok(());
-    }
-
-    info!(
-        "Found {} gateway process(es) to terminate",
-        gateway_pids.len()
-    );
-    let mut errors = Vec::new();
-
-    for pid in gateway_pids {
-        match process_utils::terminate_process(pid) {
-            Ok(()) => {
-                info!("Terminated gateway process {}", pid);
-            }
-            Err(e) => {
-                warn!("Failed to terminate gateway process {}: {}", pid, e);
-                errors.push(format!("PID {}: {}", pid, e));
-            }
-        }
-    }
-
-    if !errors.is_empty() {
-        return Err(format!(
-            "Failed to terminate some processes: {}",
-            errors.join(", ")
-        ));
-    }
-
-    info!("Gateway uninstalled successfully");
-    Ok(())
+    process_utils::cleanup_legacy_gateway_processes()
+        .map(|terminated| {
+            info!(
+                "Compatibility uninstall cleanup finished: terminated {} legacy gateway process(es)",
+                terminated
+            );
+        })
+        .map_err(|error| format!("{EMBEDDED_GATEWAY_COMPAT_UNINSTALL_MESSAGE}: {error}"))
 }
 
 #[tauri::command]
@@ -2516,21 +2530,21 @@ fn wipe_local_disk_blocking(
 /// Stops the gateway, terminates stray gateway processes, then deletes the config directory
 /// (and the workspace directory when it lies outside the config directory).
 #[tauri::command]
-pub async fn wipe_local_data() -> Result<WipeSummary, String> {
-    stop_gateway().await?;
+pub async fn wipe_local_data(app: AppHandle) -> Result<WipeSummary, String> {
+    crate::shutdown_embedded_gateway(&app).await;
 
-    let gateway_pids = process_utils::find_gateway_processes();
-    if !gateway_pids.is_empty() {
-        info!(
-            "wipe_local_data: terminating {} lingering gateway process(es)",
-            gateway_pids.len()
-        );
-    }
-    for pid in gateway_pids {
-        if let Err(e) = process_utils::terminate_process(pid) {
+    match process_utils::cleanup_legacy_gateway_processes() {
+        Ok(terminated) if terminated > 0 => {
+            info!(
+                "wipe_local_data: terminated {} lingering legacy gateway process(es)",
+                terminated
+            );
+        }
+        Ok(_) => {}
+        Err(error) => {
             warn!(
-                "wipe_local_data: failed to terminate gateway pid {}: {}",
-                pid, e
+                "wipe_local_data: best-effort legacy gateway cleanup failed: {}",
+                error
             );
         }
     }
@@ -2569,6 +2583,1383 @@ pub fn tail_logs(lines: usize) -> Result<Vec<String>, String> {
         all_lines = all_lines.split_off(all_lines.len().saturating_sub(keep));
     }
     Ok(all_lines)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GuiPrefs {
+    pub close_to_tray: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VrmModelInfo {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub source: String,
+    pub thumbnail: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetImportVrmModelPayload {
+    pub base64_data: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetVrmModelFileData {
+    pub base64_data: String,
+    pub content_type: String,
+    pub file_name: String,
+}
+
+const PET_VRM_DIR_NAME: &str = "vrm";
+const PET_VRM_MODELS_DIR_NAME: &str = "models";
+const PET_VRM_CUSTOM_DIR_NAME: &str = "custom";
+const DEFAULT_PET_VRM_MODEL_PATH: &str = "/vrm/models/Alice.vrm";
+
+/// Scans bundled VRM models and custom models under ~/.agent-diva/vrm/models/custom.
+#[tauri::command]
+pub async fn pet_list_vrm_models(app_handle: AppHandle) -> Result<Vec<VrmModelInfo>, String> {
+    let mut models: Vec<VrmModelInfo> = Vec::new();
+    append_builtin_vrm_models(&app_handle, &mut models);
+
+    let loader = config_loader();
+    append_custom_vrm_models(loader.config_dir(), &mut models)?;
+
+    if !models
+        .iter()
+        .any(|model| model.path == DEFAULT_PET_VRM_MODEL_PATH)
+    {
+        models.push(VrmModelInfo {
+            id: "Alice".to_string(),
+            name: "Alice".to_string(),
+            path: DEFAULT_PET_VRM_MODEL_PATH.to_string(),
+            source: "builtin".to_string(),
+            thumbnail: None,
+        });
+    }
+
+    models.sort_by(|a, b| a.source.cmp(&b.source).then_with(|| a.name.cmp(&b.name)));
+    models.dedup_by(|a, b| a.path == b.path);
+    Ok(models)
+}
+
+#[tauri::command]
+pub fn pet_import_vrm_model(payload: PetImportVrmModelPayload) -> Result<VrmModelInfo, String> {
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    let custom_dir = pet_vrm_custom_models_dir(loader.config_dir());
+    let sanitized_name = sanitize_pet_vrm_file_name(&payload.file_name)?;
+    let target_path = custom_dir.join(&sanitized_name);
+
+    std::fs::create_dir_all(&custom_dir).map_err(|error| {
+        format!(
+            "failed to create VRM import directory {}: {}",
+            custom_dir.display(),
+            error
+        )
+    })?;
+
+    let decoded = BASE64_STANDARD
+        .decode(payload.base64_data.as_bytes())
+        .map_err(|error| format!("failed to decode imported VRM file: {}", error))?;
+    std::fs::write(&target_path, decoded).map_err(|error| {
+        format!(
+            "failed to write imported VRM file {}: {}",
+            target_path.display(),
+            error
+        )
+    })?;
+
+    let relative_path = make_pet_vrm_relative_path(loader.config_dir(), &target_path)?;
+    config.pet.vrm_model = relative_path.clone();
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))?;
+
+    let id = target_path
+        .file_stem()
+        .and_then(OsStr::to_str)
+        .unwrap_or("custom")
+        .to_string();
+    Ok(VrmModelInfo {
+        id: id.clone(),
+        name: id,
+        path: relative_path,
+        source: "custom".to_string(),
+        thumbnail: None,
+    })
+}
+
+#[tauri::command]
+pub fn pet_delete_vrm_model(relative_path: String) -> Result<(), String> {
+    let normalized = normalize_pet_vrm_relative_path(&relative_path)?;
+    if !normalized.starts_with("vrm/models/custom/") {
+        return Err("only custom VRM models can be deleted".to_string());
+    }
+
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    let target_path = resolve_pet_vrm_model_file(loader.config_dir(), &normalized)?;
+    std::fs::remove_file(&target_path).map_err(|error| {
+        format!(
+            "failed to delete VRM model {}: {}",
+            target_path.display(),
+            error
+        )
+    })?;
+
+    if config.pet.vrm_model == normalized {
+        config.pet.vrm_model = DEFAULT_PET_VRM_MODEL_PATH.to_string();
+        loader
+            .save(&config)
+            .map_err(|e| format!("failed to save config: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn pet_read_vrm_model(relative_path: String) -> Result<PetVrmModelFileData, String> {
+    let loader = config_loader();
+    let normalized = normalize_pet_vrm_relative_path(&relative_path)?;
+    if !normalized.starts_with("vrm/models/custom/") {
+        return Err("only custom VRM models can be read from the config directory".to_string());
+    }
+
+    let file_path = resolve_pet_vrm_model_file(loader.config_dir(), &normalized)?;
+    let bytes = std::fs::read(&file_path).map_err(|error| {
+        format!(
+            "failed to read VRM model {}: {}",
+            file_path.display(),
+            error
+        )
+    })?;
+    let file_name = file_path
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or("model.vrm")
+        .to_string();
+
+    Ok(PetVrmModelFileData {
+        base64_data: BASE64_STANDARD.encode(bytes),
+        content_type: "model/gltf-binary".to_string(),
+        file_name,
+    })
+}
+
+fn append_builtin_vrm_models(app_handle: &AppHandle, models: &mut Vec<VrmModelInfo>) {
+    let models_dir = match app_handle
+        .path()
+        .resolve("vrm/models", BaseDirectory::Resource)
+    {
+        Ok(dir) => dir,
+        Err(_) => return,
+    };
+
+    if !models_dir.exists() {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(&models_dir) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("vrm") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(stem)
+            .to_string();
+        models.push(VrmModelInfo {
+            id: stem.to_string(),
+            name: stem.to_string(),
+            path: format!("/vrm/models/{file_name}"),
+            source: "builtin".to_string(),
+            thumbnail: None,
+        });
+    }
+}
+
+const PET_VOICE_DIR_NAME: &str = "voice_resource";
+const PET_VOICE_CUSTOM_DIR_NAME: &str = "custom";
+
+// --- Voice Assets types ---
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetVoiceOption {
+    pub id: String,
+    pub label: String,
+    pub relative_path: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetResolvedVoiceConfig {
+    pub enabled: bool,
+    pub provider: String,
+    pub api_key: Option<String>,
+    pub openai_api_key: Option<String>,
+    pub siliconflow_api_key: Option<String>,
+    pub minimax_api_key: Option<String>,
+    pub base_url: String,
+    pub model: Option<String>,
+    pub voice_id: Option<String>,
+    pub reference_voice: Option<String>,
+    pub reference_text: Option<String>,
+    pub speed: f64,
+    pub volume: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetLoadedVoiceAssets {
+    pub active_voice: PetResolvedVoiceConfig,
+    pub config_directory_path: String,
+    pub voice_options: Vec<PetVoiceOption>,
+    pub voice_directory_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetSaveVoiceSelectionPayload {
+    pub enabled: bool,
+    pub provider: String,
+    pub openai_api_key: Option<String>,
+    pub siliconflow_api_key: Option<String>,
+    pub minimax_api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub voice_id: Option<String>,
+    pub reference_voice: Option<String>,
+    pub reference_text: Option<String>,
+    pub speed: f64,
+    pub volume: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetImportVoiceFilePayload {
+    pub base64_data: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetDeleteVoiceFilePayload {
+    pub relative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetVoiceFileData {
+    pub base64_data: String,
+    pub content_type: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetMiniMaxSynthesizePayload {
+    pub text: String,
+    pub api_key: String,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub voice_id: Option<String>,
+    pub speed: Option<f64>,
+    pub volume: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetMiniMaxSynthesizeResponse {
+    pub base64_data: String,
+    pub content_type: String,
+}
+
+type MiniMaxSocket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+
+struct MiniMaxSynthesizeResult {
+    audio_bytes: Vec<u8>,
+    chunk_count: usize,
+    trace_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetSiliconFlowSynthesizePayload {
+    pub text: String,
+    pub api_key: String,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub voice: Option<String>,
+    pub speed: Option<f64>,
+    pub gain: Option<f64>,
+    pub references: Option<Vec<serde_json::Value>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetSiliconFlowSynthesizeResponse {
+    pub base64_data: String,
+    pub content_type: String,
+}
+
+#[tauri::command]
+pub fn pet_load_voice_assets() -> Result<PetLoadedVoiceAssets, String> {
+    let loader = config_loader();
+    let config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    build_pet_voice_assets(loader.config_dir(), &config)
+}
+
+#[tauri::command]
+pub fn pet_save_voice_selection(
+    payload: PetSaveVoiceSelectionPayload,
+) -> Result<PetLoadedVoiceAssets, String> {
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+
+    config.pet.tts_enabled = payload.enabled;
+    config.pet.tts_provider = normalize_tts_provider(&payload.provider);
+    config.pet.tts_api_key = None;
+    config.pet.tts_openai_api_key = payload
+        .openai_api_key
+        .filter(|value| !value.trim().is_empty());
+    config.pet.tts_siliconflow_api_key = payload
+        .siliconflow_api_key
+        .filter(|value| !value.trim().is_empty());
+    config.pet.tts_minimax_api_key = payload
+        .minimax_api_key
+        .filter(|value| !value.trim().is_empty());
+    config.pet.tts_base_url = payload.base_url.unwrap_or_default();
+    config.pet.tts_model = payload.model.filter(|value| !value.trim().is_empty());
+    config.pet.tts_voice_id = payload.voice_id.filter(|value| !value.trim().is_empty());
+    config.pet.tts_reference_voice = payload
+        .reference_voice
+        .as_deref()
+        .map(normalize_pet_voice_relative_path)
+        .transpose()?;
+    config.pet.tts_reference_text = payload
+        .reference_text
+        .filter(|value| !value.trim().is_empty());
+    config.pet.tts_speed = sanitized_pet_tts_speed(payload.speed);
+    config.pet.tts_volume = sanitized_pet_tts_volume(payload.volume);
+
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))?;
+    build_pet_voice_assets(loader.config_dir(), &config)
+}
+
+#[tauri::command]
+pub fn pet_import_voice_file(
+    payload: PetImportVoiceFilePayload,
+) -> Result<PetLoadedVoiceAssets, String> {
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    let config_dir = loader.config_dir();
+    let voice_custom_dir = config_dir
+        .join(PET_VOICE_DIR_NAME)
+        .join(PET_VOICE_CUSTOM_DIR_NAME);
+    let sanitized_name = sanitize_pet_voice_file_name(&payload.file_name);
+    let target_path = voice_custom_dir.join(sanitized_name);
+
+    std::fs::create_dir_all(&voice_custom_dir).map_err(|error| {
+        format!(
+            "failed to create voice import directory {}: {}",
+            voice_custom_dir.display(),
+            error
+        )
+    })?;
+
+    let decoded_bytes = BASE64_STANDARD
+        .decode(payload.base64_data.as_bytes())
+        .map_err(|error| format!("failed to decode imported voice file: {}", error))?;
+    std::fs::write(&target_path, decoded_bytes).map_err(|error| {
+        format!(
+            "failed to write imported voice file {}: {}",
+            target_path.display(),
+            error
+        )
+    })?;
+
+    let relative_path = make_pet_voice_relative_path(config_dir, &target_path)?;
+    config.pet.tts_reference_voice = Some(relative_path);
+    if config.pet.tts_provider.trim().is_empty() || config.pet.tts_provider == "browser" {
+        config.pet.tts_provider = "siliconflow".to_string();
+    }
+    if config.pet.tts_speed <= 0.0 || !config.pet.tts_speed.is_finite() {
+        config.pet.tts_speed = 1.0;
+    }
+    if !config.pet.tts_volume.is_finite() || !(0.0..=2.0).contains(&config.pet.tts_volume) {
+        config.pet.tts_volume = 1.0;
+    }
+
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))?;
+    build_pet_voice_assets(config_dir, &config)
+}
+
+#[tauri::command]
+pub fn pet_delete_voice_file(
+    payload: PetDeleteVoiceFilePayload,
+) -> Result<PetLoadedVoiceAssets, String> {
+    let normalized_relative_path = normalize_pet_voice_relative_path(&payload.relative_path)?;
+    if !normalized_relative_path.starts_with("voice_resource/custom/") {
+        return Err("only custom voice files can be deleted".to_string());
+    }
+
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|e| format!("failed to load config: {}", e))?;
+    let target_path = resolve_pet_voice_file(loader.config_dir(), &normalized_relative_path)?;
+
+    std::fs::remove_file(&target_path).map_err(|error| {
+        format!(
+            "failed to delete voice file {}: {}",
+            target_path.display(),
+            error
+        )
+    })?;
+
+    if config.pet.tts_reference_voice.as_deref() == Some(normalized_relative_path.as_str()) {
+        config.pet.tts_reference_voice = None;
+        config.pet.tts_reference_text = None;
+    }
+
+    loader
+        .save(&config)
+        .map_err(|e| format!("failed to save config: {}", e))?;
+    build_pet_voice_assets(loader.config_dir(), &config)
+}
+
+#[tauri::command]
+pub fn pet_read_voice_file(relative_path: String) -> Result<PetVoiceFileData, String> {
+    let loader = config_loader();
+    let normalized_relative_path = normalize_pet_voice_relative_path(&relative_path)?;
+    let file_path = resolve_pet_voice_file(loader.config_dir(), &normalized_relative_path)?;
+    let file_bytes = std::fs::read(&file_path).map_err(|error| {
+        format!(
+            "failed to read voice file {}: {}",
+            file_path.display(),
+            error
+        )
+    })?;
+    let file_name = file_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("voice.mp3")
+        .to_string();
+
+    Ok(PetVoiceFileData {
+        base64_data: BASE64_STANDARD.encode(file_bytes),
+        content_type: pet_voice_content_type(&file_name).to_string(),
+        file_name,
+    })
+}
+
+#[tauri::command]
+pub async fn pet_minimax_synthesize(
+    payload: PetMiniMaxSynthesizePayload,
+) -> Result<PetMiniMaxSynthesizeResponse, String> {
+    let api_key = payload.api_key.trim();
+    if api_key.is_empty() {
+        return Err("MiniMax API key is required".to_string());
+    }
+
+    let base_url = payload
+        .base_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .unwrap_or("https://api.minimaxi.com");
+    let model = payload
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("speech-2.8-hd");
+    let voice_id = payload
+        .voice_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("male-qn-qingse");
+    let speed = payload
+        .speed
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(1.0)
+        .clamp(1.0, 2.0)
+        .round() as i32;
+    let volume = payload
+        .volume
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(1.0)
+        .clamp(1.0, 10.0)
+        .round() as i32;
+    let ws_url = minimax_websocket_url(base_url);
+
+    info!(
+        model = model,
+        voice_id = voice_id,
+        ws_url = %ws_url,
+        key_prefix = %&api_key[..api_key.len().min(8)],
+        key_len = api_key.len(),
+        "calling MiniMax TTS websocket API"
+    );
+
+    let mut socket = minimax_establish_connection(base_url, api_key).await?;
+    let result =
+        minimax_synthesize_sync(&mut socket, model, voice_id, speed, volume, &payload.text).await;
+    let finish_result = minimax_finish_socket(&mut socket).await;
+    let result = result?;
+    finish_result?;
+
+    info!(
+        model = model,
+        voice_id = voice_id,
+        chunk_count = result.chunk_count,
+        audio_bytes = result.audio_bytes.len(),
+        trace_id = result.trace_id.as_deref().unwrap_or("n/a"),
+        "MiniMax TTS synthesis completed via websocket"
+    );
+
+    Ok(PetMiniMaxSynthesizeResponse {
+        base64_data: BASE64_STANDARD.encode(result.audio_bytes),
+        content_type: "audio/mpeg".to_string(),
+    })
+}
+
+async fn minimax_establish_connection(
+    base_url: &str,
+    api_key: &str,
+) -> Result<MiniMaxSocket, String> {
+    let ws_url = minimax_websocket_url(base_url);
+    let mut request = ws_url
+        .clone()
+        .into_client_request()
+        .map_err(|error| format!("failed to build MiniMax websocket request: {}", error))?;
+    request.headers_mut().insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {}", api_key))
+            .map_err(|error| format!("failed to build MiniMax authorization header: {}", error))?,
+    );
+
+    let tls = TlsConnector::builder()
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true)
+        .build()
+        .map_err(|error| format!("failed to build MiniMax TLS connector: {}", error))?;
+    let connector = Connector::NativeTls(tls);
+
+    let (mut socket, _) = timeout(
+        Duration::from_secs(10),
+        connect_async_tls_with_config(request, None, false, Some(connector)),
+    )
+    .await
+    .map_err(|_| {
+        format!(
+            "timed out while connecting to MiniMax websocket: {}",
+            ws_url
+        )
+    })?
+    .map_err(|error| {
+        format!(
+            "failed to connect to MiniMax websocket: {} (input base_url: {}, resolved ws_url: {})",
+            error, base_url, ws_url
+        )
+    })?;
+
+    minimax_expect_event(&mut socket, "connected_success").await?;
+    Ok(socket)
+}
+
+async fn minimax_synthesize_sync(
+    socket: &mut MiniMaxSocket,
+    model: &str,
+    voice_id: &str,
+    speed: i32,
+    volume: i32,
+    text: &str,
+) -> Result<MiniMaxSynthesizeResult, String> {
+    minimax_send_json(
+        socket,
+        serde_json::json!({
+            "event": "task_start",
+            "model": model,
+            "voice_setting": {
+                "voice_id": voice_id,
+                "speed": speed,
+                "vol": volume,
+                "pitch": 0,
+                "english_normalization": false
+            },
+            "audio_setting": {
+                "sample_rate": 32000,
+                "bitrate": 128000,
+                "format": "mp3",
+                "channel": 1
+            }
+        }),
+    )
+    .await?;
+    minimax_expect_event(socket, "task_started").await?;
+
+    minimax_send_json(
+        socket,
+        serde_json::json!({
+            "event": "task_continue",
+            "text": text
+        }),
+    )
+    .await?;
+
+    let mut audio_bytes = Vec::new();
+    let mut chunk_count = 0usize;
+    let mut trace_id = None;
+
+    loop {
+        let message = minimax_read_json_message(socket).await?;
+        if trace_id.is_none() {
+            trace_id = message
+                .get("trace_id")
+                .and_then(serde_json::Value::as_str)
+                .map(ToOwned::to_owned);
+        }
+
+        if let Some(audio_hex) = message
+            .get("data")
+            .and_then(|value| value.get("audio"))
+            .and_then(serde_json::Value::as_str)
+        {
+            if !audio_hex.trim().is_empty() {
+                let chunk = decode_hex_audio(audio_hex)?;
+                chunk_count += 1;
+                audio_bytes.extend_from_slice(&chunk);
+            }
+        }
+
+        if let Some(event) = message.get("event").and_then(serde_json::Value::as_str) {
+            if event.eq_ignore_ascii_case("error") || event.eq_ignore_ascii_case("task_failed") {
+                let detail = message
+                    .get("message")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("MiniMax websocket returned an error event");
+                return Err(detail.to_string());
+            }
+        }
+
+        if message
+            .get("is_final")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+        {
+            break;
+        }
+    }
+
+    if audio_bytes.is_empty() {
+        return Err("MiniMax TTS completed without audio data".to_string());
+    }
+
+    Ok(MiniMaxSynthesizeResult {
+        audio_bytes,
+        chunk_count,
+        trace_id,
+    })
+}
+
+async fn minimax_send_json(
+    socket: &mut MiniMaxSocket,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    socket
+        .send(WsMessage::Text(payload.to_string()))
+        .await
+        .map_err(|error| format!("failed to send MiniMax websocket message: {}", error))
+}
+
+async fn minimax_expect_event(socket: &mut MiniMaxSocket, expected: &str) -> Result<(), String> {
+    let message = minimax_read_json_message(socket).await?;
+    let actual = message
+        .get("event")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "MiniMax websocket response is missing event field".to_string())?;
+
+    if actual != expected {
+        let detail = message
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        return Err(format!(
+            "unexpected MiniMax websocket event: expected {}, got {}{}",
+            expected,
+            actual,
+            if detail.is_empty() {
+                String::new()
+            } else {
+                format!(" ({detail})")
+            }
+        ));
+    }
+
+    Ok(())
+}
+
+async fn minimax_read_json_message(
+    socket: &mut MiniMaxSocket,
+) -> Result<serde_json::Value, String> {
+    loop {
+        let frame = timeout(Duration::from_secs(30), socket.next())
+            .await
+            .map_err(|_| "timed out while waiting for MiniMax websocket message".to_string())?
+            .ok_or_else(|| "MiniMax websocket closed unexpectedly".to_string())?
+            .map_err(|error| format!("MiniMax websocket stream error: {}", error))?;
+
+        match frame {
+            WsMessage::Text(text) => {
+                let value = serde_json::from_str::<serde_json::Value>(&text)
+                    .map_err(|error| format!("invalid MiniMax websocket payload: {}", error))?;
+                return Ok(value);
+            }
+            WsMessage::Ping(payload) => {
+                socket
+                    .send(WsMessage::Pong(payload))
+                    .await
+                    .map_err(|error| format!("failed to respond to MiniMax ping: {}", error))?;
+            }
+            WsMessage::Close(frame) => {
+                let detail = frame
+                    .map(|value| value.reason.to_string())
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| "unknown close frame".to_string());
+                return Err(format!("MiniMax websocket closed: {}", detail));
+            }
+            WsMessage::Binary(_) => {
+                return Err("MiniMax websocket returned unexpected binary frame".to_string());
+            }
+            WsMessage::Pong(_) | WsMessage::Frame(_) => {}
+        }
+    }
+}
+
+async fn minimax_finish_socket(socket: &mut MiniMaxSocket) -> Result<(), String> {
+    let _ = minimax_send_json(socket, serde_json::json!({ "event": "task_finish" })).await;
+    socket
+        .close(None)
+        .await
+        .map_err(|error| format!("failed to close MiniMax websocket: {}", error))
+}
+
+fn minimax_websocket_url(base_url: &str) -> String {
+    const DEFAULT_HOST: &str = "api.minimaxi.com";
+    const WS_PATH: &str = "/ws/v1/t2a_v2";
+
+    let trimmed = base_url.trim();
+    let candidate = if trimmed.is_empty() {
+        format!("https://{DEFAULT_HOST}")
+    } else if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{}", trimmed.trim_matches('/'))
+    };
+
+    let mut url = match reqwest::Url::parse(&candidate) {
+        Ok(url) => url,
+        Err(_) => {
+            return format!("wss://{DEFAULT_HOST}{WS_PATH}");
+        }
+    };
+
+    match url.scheme() {
+        "http" | "ws" => {
+            let _ = url.set_scheme("ws");
+        }
+        "https" | "wss" => {
+            let _ = url.set_scheme("wss");
+        }
+        _ => {
+            let _ = url.set_scheme("wss");
+        }
+    }
+
+    if matches!(url.host_str(), Some("platform.minimaxi.com")) {
+        let _ = url.set_host(Some(DEFAULT_HOST));
+    }
+
+    url.set_path(WS_PATH);
+    url.set_query(None);
+    url.set_fragment(None);
+    url.to_string()
+}
+
+#[cfg(test)]
+mod minimax_url_tests {
+    use super::minimax_websocket_url;
+
+    #[test]
+    fn minimax_websocket_url_normalizes_api_base() {
+        assert_eq!(
+            minimax_websocket_url("https://api.minimaxi.com"),
+            "wss://api.minimaxi.com/ws/v1/t2a_v2"
+        );
+        assert_eq!(
+            minimax_websocket_url("https://api.minimaxi.com/v1"),
+            "wss://api.minimaxi.com/ws/v1/t2a_v2"
+        );
+    }
+
+    #[test]
+    fn minimax_websocket_url_accepts_full_websocket_endpoint() {
+        assert_eq!(
+            minimax_websocket_url("wss://api.minimaxi.com/ws/v1/t2a_v2"),
+            "wss://api.minimaxi.com/ws/v1/t2a_v2"
+        );
+    }
+
+    #[test]
+    fn minimax_websocket_url_rewrites_docs_host_and_paths() {
+        assert_eq!(
+            minimax_websocket_url("https://platform.minimaxi.com/docs/guides/speech-t2a-websocket"),
+            "wss://api.minimaxi.com/ws/v1/t2a_v2"
+        );
+    }
+}
+
+#[tauri::command]
+pub async fn pet_siliconflow_synthesize(
+    payload: PetSiliconFlowSynthesizePayload,
+) -> Result<PetSiliconFlowSynthesizeResponse, String> {
+    let api_key = payload.api_key.trim();
+    if api_key.is_empty() {
+        return Err("SiliconFlow API key is required".to_string());
+    }
+
+    let base_url = payload
+        .base_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .unwrap_or("https://api.siliconflow.cn/v1");
+    let endpoint = format!("{}/audio/speech", base_url.trim_end_matches('/'));
+    let model = payload
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .unwrap_or("fnlp/MOSS-TTSD-v0.5");
+    let voice = payload
+        .voice
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("fnlp/MOSS-TTSD-v0.5:anna");
+    let speed = payload
+        .speed
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .unwrap_or(1.0);
+    let gain = payload.gain.filter(|v| v.is_finite()).unwrap_or(0.0);
+
+    let mut body = serde_json::json!({
+        "model": model,
+        "input": payload.text,
+        "voice": voice,
+        "response_format": "mp3",
+        "speed": speed,
+        "gain": gain,
+        "stream": false
+    });
+
+    // voice 和 references 互斥：有 references 时必须移除 voice 字段
+    if let Some(refs) = &payload.references {
+        if !refs.is_empty() {
+            body.as_object_mut().and_then(|obj| obj.remove("voice"));
+            body["references"] = serde_json::Value::Array(refs.clone());
+        }
+    }
+
+    info!(
+        model = model,
+        voice = voice,
+        endpoint = endpoint,
+        has_references = payload
+            .references
+            .as_ref()
+            .map(|r| !r.is_empty())
+            .unwrap_or(false),
+        "calling SiliconFlow TTS API"
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|error| format!("failed to build HTTP client: {}", error))?;
+
+    let response = client
+        .post(&endpoint)
+        .bearer_auth(api_key)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|error| format!("SiliconFlow TTS request failed: {}", error))?;
+
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("audio/mpeg")
+        .to_string();
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("failed to read SiliconFlow response: {}", error))?;
+
+    if !status.is_success() {
+        let body_preview = String::from_utf8_lossy(&bytes);
+        return Err(format!(
+            "SiliconFlow TTS error: HTTP {} body={}",
+            status, body_preview
+        ));
+    }
+
+    if bytes.is_empty() {
+        return Err("SiliconFlow TTS returned empty audio".to_string());
+    }
+
+    info!(
+        model = model,
+        audio_bytes = bytes.len(),
+        content_type = content_type,
+        "SiliconFlow TTS synthesis completed"
+    );
+    Ok(PetSiliconFlowSynthesizeResponse {
+        base64_data: BASE64_STANDARD.encode(&bytes),
+        content_type,
+    })
+}
+
+fn build_pet_voice_assets(
+    config_dir: &Path,
+    config: &Config,
+) -> Result<PetLoadedVoiceAssets, String> {
+    let voice_dir = config_dir.join(PET_VOICE_DIR_NAME);
+    let provider = normalize_tts_provider(&config.pet.tts_provider);
+    Ok(PetLoadedVoiceAssets {
+        active_voice: PetResolvedVoiceConfig {
+            enabled: config.pet.tts_enabled,
+            provider: provider.clone(),
+            api_key: pet_tts_api_key_for_provider(&config.pet, &provider),
+            openai_api_key: config.pet.tts_openai_api_key.clone(),
+            siliconflow_api_key: config.pet.tts_siliconflow_api_key.clone(),
+            minimax_api_key: config.pet.tts_minimax_api_key.clone(),
+            base_url: config.pet.tts_base_url.clone(),
+            model: config.pet.tts_model.clone(),
+            voice_id: config.pet.tts_voice_id.clone(),
+            reference_voice: config.pet.tts_reference_voice.clone(),
+            reference_text: config.pet.tts_reference_text.clone(),
+            speed: sanitized_pet_tts_speed(config.pet.tts_speed),
+            volume: sanitized_pet_tts_volume(config.pet.tts_volume),
+        },
+        config_directory_path: config_dir.to_string_lossy().to_string(),
+        voice_options: scan_pet_voice_files(config_dir)?,
+        voice_directory_path: voice_dir.to_string_lossy().to_string(),
+    })
+}
+
+fn scan_pet_voice_files(config_dir: &Path) -> Result<Vec<PetVoiceOption>, String> {
+    let voice_root = config_dir.join(PET_VOICE_DIR_NAME);
+    let mut options = Vec::new();
+    if !voice_root.exists() {
+        return Ok(options);
+    }
+
+    let mut stack = vec![voice_root];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(&directory).map_err(|error| {
+            format!(
+                "failed to scan voice directory {}: {}",
+                directory.display(),
+                error
+            )
+        })? {
+            let entry = entry.map_err(|error| {
+                format!(
+                    "failed to read voice directory entry in {}: {}",
+                    directory.display(),
+                    error
+                )
+            })?;
+            let path = entry.path();
+            let file_type = entry.file_type().map_err(|error| {
+                format!("failed to inspect voice file {}: {}", path.display(), error)
+            })?;
+            if file_type.is_dir() {
+                stack.push(path);
+                continue;
+            }
+
+            let file_name = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+            if !is_pet_voice_file(file_name) {
+                continue;
+            }
+
+            let relative_path = make_pet_voice_relative_path(config_dir, &path)?;
+            let source = if relative_path.starts_with("voice_resource/custom/") {
+                "custom"
+            } else {
+                "builtin"
+            };
+
+            options.push(PetVoiceOption {
+                id: relative_path.clone(),
+                label: derive_pet_voice_label(file_name),
+                relative_path,
+                source: source.to_string(),
+            });
+        }
+    }
+    options.sort_by(|left, right| left.label.cmp(&right.label));
+    Ok(options)
+}
+
+fn pet_vrm_custom_models_dir(config_dir: &Path) -> PathBuf {
+    config_dir
+        .join(PET_VRM_DIR_NAME)
+        .join(PET_VRM_MODELS_DIR_NAME)
+        .join(PET_VRM_CUSTOM_DIR_NAME)
+}
+
+fn append_custom_vrm_models(
+    config_dir: &Path,
+    models: &mut Vec<VrmModelInfo>,
+) -> Result<(), String> {
+    let custom_dir = pet_vrm_custom_models_dir(config_dir);
+    if !custom_dir.exists() {
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(&custom_dir).map_err(|error| {
+        format!(
+            "failed to scan custom VRM directory {}: {}",
+            custom_dir.display(),
+            error
+        )
+    })? {
+        let entry = entry.map_err(|error| {
+            format!(
+                "failed to read custom VRM directory entry in {}: {}",
+                custom_dir.display(),
+                error
+            )
+        })?;
+        let path = entry.path();
+        if path.extension().and_then(OsStr::to_str) != Some("vrm") {
+            continue;
+        }
+        let stem = path.file_stem().and_then(OsStr::to_str).unwrap_or("custom");
+        models.push(VrmModelInfo {
+            id: stem.to_string(),
+            name: stem.to_string(),
+            path: make_pet_vrm_relative_path(config_dir, &path)?,
+            source: "custom".to_string(),
+            thumbnail: None,
+        });
+    }
+    Ok(())
+}
+
+fn normalize_pet_vrm_relative_path(relative_path: &str) -> Result<String, String> {
+    let normalized = relative_path.trim().replace('\\', "/");
+    if normalized.is_empty()
+        || normalized.starts_with('/')
+        || normalized.contains('\0')
+        || normalized
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        || !normalized.starts_with("vrm/models/")
+        || !normalized.to_lowercase().ends_with(".vrm")
+    {
+        return Err("VRM model path must stay under vrm/models and end with .vrm".to_string());
+    }
+    Ok(normalized)
+}
+
+fn make_pet_vrm_relative_path(config_dir: &Path, absolute_path: &Path) -> Result<String, String> {
+    let relative_path = absolute_path.strip_prefix(config_dir).map_err(|error| {
+        format!(
+            "failed to create relative path from {} to {}: {}",
+            config_dir.display(),
+            absolute_path.display(),
+            error
+        )
+    })?;
+    normalize_pet_vrm_relative_path(&relative_path.to_string_lossy())
+}
+
+fn resolve_pet_vrm_model_file(config_dir: &Path, relative_path: &str) -> Result<PathBuf, String> {
+    let normalized = normalize_pet_vrm_relative_path(relative_path)?;
+    let vrm_root = config_dir.join(PET_VRM_DIR_NAME);
+    let candidate = config_dir.join(&normalized);
+    let canonical_candidate = candidate
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve VRM model path: {}", error))?;
+    let canonical_vrm_root = vrm_root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve VRM resource directory: {}", error))?;
+
+    if !canonical_candidate.starts_with(canonical_vrm_root) {
+        return Err("VRM model file must be within vrm".to_string());
+    }
+    Ok(canonical_candidate)
+}
+
+fn sanitize_pet_vrm_file_name(file_name: &str) -> Result<String, String> {
+    let trimmed = file_name.trim();
+    let base_name = if trimmed.is_empty() {
+        "custom-model.vrm"
+    } else {
+        trimmed
+    };
+    let sanitized: String = base_name
+        .chars()
+        .map(|c| match c {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '-',
+            _ => c,
+        })
+        .collect();
+    if !sanitized.to_lowercase().ends_with(".vrm") {
+        return Err("only .vrm model files can be imported".to_string());
+    }
+    Ok(sanitized)
+}
+
+fn resolve_pet_voice_file(config_dir: &Path, relative_path: &str) -> Result<PathBuf, String> {
+    let normalized_relative_path = normalize_pet_voice_relative_path(relative_path)?;
+    let voice_root = config_dir.join(PET_VOICE_DIR_NAME);
+    let candidate = config_dir.join(&normalized_relative_path);
+    let canonical_candidate = candidate
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve voice file path: {}", error))?;
+    let canonical_voice_root = voice_root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve voice resource directory: {}", error))?;
+
+    if !canonical_candidate.starts_with(canonical_voice_root) {
+        return Err("voice file must be within voice_resource".to_string());
+    }
+    Ok(canonical_candidate)
+}
+
+fn normalize_pet_voice_relative_path(relative_path: &str) -> Result<String, String> {
+    let normalized = relative_path.trim().replace('\\', "/");
+    if normalized.is_empty()
+        || normalized.starts_with('/')
+        || normalized.contains('\0')
+        || normalized
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        || !normalized.starts_with("voice_resource/")
+    {
+        return Err("voice file path must stay under voice_resource".to_string());
+    }
+    Ok(normalized)
+}
+
+fn make_pet_voice_relative_path(config_dir: &Path, absolute_path: &Path) -> Result<String, String> {
+    let relative_path = absolute_path.strip_prefix(config_dir).map_err(|error| {
+        format!(
+            "failed to create relative path from {} to {}: {}",
+            config_dir.display(),
+            absolute_path.display(),
+            error
+        )
+    })?;
+    normalize_pet_voice_relative_path(&relative_path.to_string_lossy())
+}
+
+fn sanitize_pet_voice_file_name(file_name: &str) -> String {
+    let trimmed = file_name.trim();
+    let base_name = if trimmed.is_empty() {
+        "custom-voice.mp3"
+    } else {
+        trimmed
+    };
+    base_name
+        .chars()
+        .map(|c| match c {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '-',
+            _ => c,
+        })
+        .collect()
+}
+
+fn is_pet_voice_file(file_name: &str) -> bool {
+    let lower = file_name.to_lowercase();
+    lower.ends_with(".mp3")
+        || lower.ends_with(".wav")
+        || lower.ends_with(".ogg")
+        || lower.ends_with(".m4a")
+        || lower.ends_with(".webm")
+}
+
+fn pet_voice_content_type(file_name: &str) -> &'static str {
+    let lower = file_name.to_lowercase();
+    if lower.ends_with(".wav") {
+        "audio/wav"
+    } else if lower.ends_with(".ogg") {
+        "audio/ogg"
+    } else if lower.ends_with(".m4a") {
+        "audio/m4a"
+    } else if lower.ends_with(".webm") {
+        "audio/webm"
+    } else {
+        "audio/mpeg"
+    }
+}
+
+fn derive_pet_voice_label(file_name: &str) -> String {
+    file_name
+        .rsplit_once('.')
+        .map(|(stem, _)| stem)
+        .unwrap_or(file_name)
+        .replace(['_', '-'], " ")
+        .trim()
+        .to_string()
+}
+
+#[cfg(test)]
+mod pet_vrm_model_tests {
+    use super::{
+        append_custom_vrm_models, make_pet_vrm_relative_path, normalize_pet_vrm_relative_path,
+        sanitize_pet_vrm_file_name,
+    };
+
+    #[test]
+    fn normalizes_custom_vrm_relative_path() {
+        let path = normalize_pet_vrm_relative_path("vrm\\models\\custom\\Alice.vrm").unwrap();
+        assert_eq!(path, "vrm/models/custom/Alice.vrm");
+    }
+
+    #[test]
+    fn rejects_invalid_vrm_relative_paths() {
+        assert!(normalize_pet_vrm_relative_path("vrm/models/custom/../secret.vrm").is_err());
+        assert!(normalize_pet_vrm_relative_path("/vrm/models/custom/model.vrm").is_err());
+        assert!(normalize_pet_vrm_relative_path("vrm/models/custom/model.txt").is_err());
+    }
+
+    #[test]
+    fn sanitizes_imported_vrm_file_names() {
+        assert_eq!(
+            sanitize_pet_vrm_file_name("bad:name?.vrm").unwrap(),
+            "bad-name-.vrm"
+        );
+        assert!(sanitize_pet_vrm_file_name("bad.glb").is_err());
+    }
+
+    #[test]
+    fn scans_custom_vrm_models_under_config_dir() {
+        let temp = tempfile::tempdir().unwrap();
+        let model_dir = temp.path().join("vrm").join("models").join("custom");
+        std::fs::create_dir_all(&model_dir).unwrap();
+        let model_path = model_dir.join("Custom.vrm");
+        std::fs::write(&model_path, b"vrm").unwrap();
+        std::fs::write(model_dir.join("ignored.txt"), b"no").unwrap();
+
+        let relative = make_pet_vrm_relative_path(temp.path(), &model_path).unwrap();
+        assert_eq!(relative, "vrm/models/custom/Custom.vrm");
+
+        let mut models = Vec::new();
+        append_custom_vrm_models(temp.path(), &mut models).unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "Custom");
+        assert_eq!(models[0].source, "custom");
+        assert_eq!(models[0].path, "vrm/models/custom/Custom.vrm");
+    }
+}
+
+fn decode_hex_audio(value: &str) -> Result<Vec<u8>, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+    if trimmed.len() % 2 != 0 {
+        return Err("MiniMax audio chunk is not valid hex".to_string());
+    }
+
+    let mut bytes = Vec::with_capacity(trimmed.len() / 2);
+    for index in (0..trimmed.len()).step_by(2) {
+        let byte = u8::from_str_radix(&trimmed[index..index + 2], 16)
+            .map_err(|error| format!("failed to decode MiniMax audio chunk: {}", error))?;
+        bytes.push(byte);
+    }
+    Ok(bytes)
+}
+
+fn normalize_tts_provider(provider: &str) -> String {
+    match provider.trim().to_lowercase().as_str() {
+        "openai" => "openai".to_string(),
+        "siliconflow" => "siliconflow".to_string(),
+        "minimax" => "minimax".to_string(),
+        _ => "browser".to_string(),
+    }
+}
+
+fn pet_tts_api_key_for_provider(
+    config: &agent_diva_core::config::schema::PetConfig,
+    provider: &str,
+) -> Option<String> {
+    match provider {
+        "openai" => config.tts_openai_api_key.clone(),
+        "siliconflow" => config.tts_siliconflow_api_key.clone(),
+        "minimax" => config.tts_minimax_api_key.clone(),
+        _ => None,
+    }
+}
+
+fn sanitized_pet_tts_speed(speed: f64) -> f64 {
+    if speed.is_finite() && speed > 0.0 {
+        speed
+    } else {
+        1.0
+    }
+}
+
+fn sanitized_pet_tts_volume(volume: f64) -> f64 {
+    if volume.is_finite() && (0.0..=2.0).contains(&volume) {
+        volume
+    } else {
+        1.0
+    }
 }
 
 // ============================================================
@@ -2736,6 +4127,10 @@ pub async fn get_token_usage_realtime(
     fetch_token_stats(&state, "/stats/tokens/realtime").await
 }
 
+// ============================================================
+// Sandbox Commands
+// ============================================================
+
 #[tauri::command]
 pub fn get_sandbox_config() -> Result<serde_json::Value, String> {
     let loader = config_loader();
@@ -2758,4 +4153,144 @@ pub fn save_sandbox_config(config: serde_json::Value) -> Result<(), String> {
     loader
         .save(&current)
         .map_err(|e| format!("failed to save config: {}", e))
+}
+
+#[tauri::command]
+pub fn get_gui_prefs(app: AppHandle) -> Result<GuiPrefs, String> {
+    let store = app
+        .store("settings.json")
+        .map_err(|e| format!("Failed to get store: {}", e))?;
+
+    let close_to_tray = store
+        .get("closeToTray")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    Ok(GuiPrefs { close_to_tray })
+}
+
+#[tauri::command]
+pub fn set_gui_prefs(app: AppHandle, prefs: GuiPrefs) -> Result<(), String> {
+    let store = app
+        .store("settings.json")
+        .map_err(|e| format!("Failed to get store: {}", e))?;
+
+    store.set("closeToTray", serde_json::json!(prefs.close_to_tray));
+    store
+        .save()
+        .map_err(|e| format!("Failed to save store: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_desktop_pet(app: AppHandle) -> Result<(), String> {
+    // Show existing window or create a new one
+    if let Some(window) = app.get_webview_window("desktop-pet") {
+        window
+            .set_ignore_cursor_events(false)
+            .map_err(|e| format!("Failed to reset ignore cursor events: {}", e))?;
+        let _ = app.emit_to("desktop-pet", "desktop-pet-render-resume", true);
+        window
+            .show()
+            .map_err(|e| format!("Failed to show desktop-pet window: {}", e))?;
+        if cfg!(debug_assertions) {
+            window.open_devtools();
+        }
+    } else {
+        // Calculate bottom-right position
+        let (x, y) = app
+            .available_monitors()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .next()
+            .map(|m| {
+                let size = m.size();
+                let scale = m.scale_factor();
+                let logical_w = size.width as f64 / scale;
+                let logical_h = size.height as f64 / scale;
+                let lx = (logical_w - 400.0 - 40.0).max(0.0);
+                let ly = (logical_h - 600.0 - 60.0).max(0.0);
+                (lx, ly)
+            })
+            .unwrap_or((100.0, 100.0));
+
+        let window = WebviewWindowBuilder::new(
+            &app,
+            "desktop-pet",
+            WebviewUrl::App("desktop-pet.html".into()),
+        )
+        .inner_size(400.0, 600.0)
+        .position(x, y)
+        .visible(true)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .shadow(false)
+        .build()
+        .map_err(|e| format!("Failed to create desktop-pet window: {}", e))?;
+        window
+            .set_ignore_cursor_events(false)
+            .map_err(|e| format!("Failed to reset ignore cursor events: {}", e))?;
+        window
+            .show()
+            .map_err(|e| format!("Failed to show desktop-pet window: {}", e))?;
+        if cfg!(debug_assertions) {
+            window.open_devtools();
+        }
+        let _ = app.emit_to("desktop-pet", "desktop-pet-render-resume", true);
+    }
+    app.emit_to("main", "desktop-pet-active", true)
+        .map_err(|e| format!("Failed to emit event: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_desktop_pet(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or("desktop-pet window not found")?;
+    let _ = app.emit_to("desktop-pet", "desktop-pet-render-pause", true);
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|e| format!("Failed to reset ignore cursor events: {}", e))?;
+    window
+        .hide()
+        .map_err(|e| format!("Failed to hide desktop-pet window: {}", e))?;
+    app.emit_to("main", "desktop-pet-inactive", false)
+        .map_err(|e| format!("Failed to emit event: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_desktop_pet_ignore_mouse(app: AppHandle, ignore: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or("desktop-pet window not found")?;
+    window
+        .set_ignore_cursor_events(ignore)
+        .map_err(|e| format!("Failed to set ignore cursor events: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_desktop_pet_always_on_top(app: AppHandle, always_on_top: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or("desktop-pet window not found")?;
+    window
+        .set_always_on_top(always_on_top)
+        .map_err(|e| format!("Failed to set always_on_top: {}", e))
+}
+
+#[tauri::command]
+pub fn minimize_desktop_pet(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or("desktop-pet window not found")?;
+    window
+        .minimize()
+        .map_err(|e| format!("Failed to minimize desktop-pet window: {}", e))
 }

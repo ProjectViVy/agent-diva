@@ -678,8 +678,10 @@ impl ConfigMigrator {
                     .collect(),
                 mcp_manager: MCPManagerConfig::default(),
             },
+            mentle: MentleToolConfig::default(),
             logging: LoggingConfig::default(),
             sandbox: SandboxConfig::default(),
+            pet: PetConfig::default(),
         }
     }
 

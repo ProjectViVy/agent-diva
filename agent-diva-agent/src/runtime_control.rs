@@ -1,3 +1,4 @@
+use crate::tool_config::mentle::MentleToolRuntimeConfig;
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
 use std::collections::HashMap;
@@ -5,6 +6,10 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub enum RuntimeControlCommand {
     UpdateNetwork(NetworkToolConfig),
+    UpdateMentle {
+        mentle: MentleToolRuntimeConfig,
+        builtin_mentle: bool,
+    },
     UpdateMcp {
         servers: HashMap<String, MCPServerConfig>,
     },

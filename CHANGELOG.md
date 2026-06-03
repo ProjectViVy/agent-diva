@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Diva Pet — Initial Release (Sprint 0-3)**:
+    - **VRM 3D Avatar**: `@pixiv/three-vrm` integration with orbit controls, mouse rotation, and scroll zoom.
+    - **Live2D Renderer**: Cubism5-based 2D avatar as alternative rendering option with switchable renderer UI.
+    - **Voice Interaction**: TTS auto-playback of agent responses and Web Speech API voice input.
+    - **Expression System**: Emotion keyword detection driving VRM expression blends and Live2D parameter mappings.
+    - **Mouth Sync**: Procedural mouth animation tied to TTS playback state.
+    - **Model Manager**: `DivaPetModelManager` UI for importing, switching, and previewing VRM models (.vrm).
+    - **Performance**: DPR cap (max 2x), page visibility pause (stops render when tab hidden), VRM model caching.
+    - **Error Resilience**: Automatic load retry with exponential backoff (up to 3 attempts), WebGL context loss recovery with graceful fallback UI.
+    - **Internationalization**: Full Chinese/English coverage for all Diva Pet UI strings (voice panel, model manager, renderer states).
+    - **Configuration**: `pet` section added to `Config` schema with `enabled`, `renderer`, `vrm_model`, `tts_enabled` fields.
+    - **Tauri Backend**: `pet_list_vrm_models` command for scanning VRM model directory.
+    - **Unit Tests**: Comprehensive test suites for `useVrmExpression`, `useVrmMouthSync`, and `tts-service` composables.
 - **GUI**: Enhanced `agent-diva-gui` with complete model and channel configuration capabilities.
 - **Manager**: Added `agent-diva-manager` to simplify configuration management.
 - **Reasoning Streaming**: Added real-time streaming of reasoning content (`ReasoningDelta`) from compatible models (e.g., DeepSeek Reasoner) to the GUI.

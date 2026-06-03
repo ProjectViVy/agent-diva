@@ -122,12 +122,50 @@ pub struct Config {
     pub gateway: GatewayConfig,
     /// Tools configuration
     pub tools: ToolsConfig,
+    /// Mentle memory tool selection configuration
+    #[serde(default)]
+    pub mentle: MentleToolConfig,
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
     /// Sandbox configuration
     #[serde(default)]
     pub sandbox: SandboxConfig,
+    /// Pet (desktop avatar) configuration
+    #[serde(default)]
+    pub pet: PetConfig,
+}
+
+/// Mentle tool selection configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MentleToolConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub mode: MentleToolMode,
+    #[serde(default)]
+    pub allowed_tools: Vec<String>,
+}
+
+/// Mentle tool exposure mode.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MentleToolMode {
+    #[default]
+    Off,
+    ReadOnly,
+    Full,
+    Custom,
+}
+
+impl Default for MentleToolConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: MentleToolMode::Off,
+            allowed_tools: Vec::new(),
+        }
+    }
 }
 
 /// Logging configuration
@@ -1049,6 +1087,8 @@ pub struct BuiltInToolsConfig {
     pub mcp: bool,
     #[serde(default = "default_enabled")]
     pub attachment: bool,
+    #[serde(default)]
+    pub mentle: bool,
 }
 
 impl Default for BuiltInToolsConfig {
@@ -1062,6 +1102,7 @@ impl Default for BuiltInToolsConfig {
             cron: false,
             mcp: true,
             attachment: true,
+            mentle: false,
         }
     }
 }
@@ -1184,5 +1225,157 @@ impl Default for ExecToolConfig {
         Self {
             timeout: default_timeout(),
         }
+    }
+}
+
+/// Pet (desktop avatar) configuration
+///
+/// Controls the Diva Pet feature: 3D avatar rendering,
+/// voice interaction (TTS/ASR), and model selection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PetConfig {
+    /// Master switch: show/hide Diva Pet sidebar entry
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Selected VRM model filename (relative to public/vrm/models/)
+    #[serde(default)]
+    pub vrm_model: String,
+    /// Whether TTS auto-play is enabled
+    #[serde(default)]
+    pub tts_enabled: bool,
+    /// Whether ASR / microphone input is enabled
+    #[serde(default = "default_true")]
+    pub asr_enabled: bool,
+    /// ASR provider. Currently "web_speech" is the implemented path.
+    #[serde(default = "default_asr_provider")]
+    pub asr_provider: String,
+    /// BCP-47 ASR language tag.
+    #[serde(default = "default_asr_language")]
+    pub asr_language: String,
+    /// API key for remote ASR providers.
+    #[serde(default)]
+    pub asr_api_key: Option<String>,
+    /// Base URL for remote ASR providers.
+    #[serde(default)]
+    pub asr_base_url: String,
+    /// Model for remote ASR providers.
+    #[serde(default)]
+    pub asr_model: Option<String>,
+    /// TTS provider: "browser" | "openai" | "siliconflow" | "minimax"
+    #[serde(default = "default_tts_provider")]
+    pub tts_provider: String,
+    /// Legacy shared API key for remote TTS providers. New GUI code no longer
+    /// uses this field and instead stores provider-specific keys below.
+    #[serde(default)]
+    pub tts_api_key: Option<String>,
+    /// API key for OpenAI TTS.
+    #[serde(default)]
+    pub tts_openai_api_key: Option<String>,
+    /// API key for SiliconFlow TTS.
+    #[serde(default)]
+    pub tts_siliconflow_api_key: Option<String>,
+    /// API key for MiniMax TTS.
+    #[serde(default)]
+    pub tts_minimax_api_key: Option<String>,
+    /// Base URL for remote TTS providers.
+    #[serde(default)]
+    pub tts_base_url: String,
+    /// Model for remote TTS providers.
+    #[serde(default)]
+    pub tts_model: Option<String>,
+    /// Provider-specific voice id for system voice selection.
+    #[serde(default)]
+    pub tts_voice_id: Option<String>,
+    /// Relative path under voice_resource/ used as a reference voice.
+    #[serde(default)]
+    pub tts_reference_voice: Option<String>,
+    /// Transcript for the reference voice clip.
+    #[serde(default)]
+    pub tts_reference_text: Option<String>,
+    /// TTS playback speed.
+    #[serde(default = "default_tts_speed")]
+    pub tts_speed: f64,
+    /// TTS playback volume.
+    #[serde(default = "default_tts_volume")]
+    pub tts_volume: f64,
+}
+
+fn default_asr_provider() -> String {
+    "web_speech".to_string()
+}
+
+fn default_asr_language() -> String {
+    "zh-CN".to_string()
+}
+
+fn default_tts_provider() -> String {
+    "browser".to_string()
+}
+
+fn default_tts_speed() -> f64 {
+    1.0
+}
+
+fn default_tts_volume() -> f64 {
+    1.0
+}
+
+impl Default for PetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            vrm_model: String::new(),
+            tts_enabled: false,
+            asr_enabled: true,
+            asr_provider: default_asr_provider(),
+            asr_language: default_asr_language(),
+            asr_api_key: None,
+            asr_base_url: String::new(),
+            asr_model: None,
+            tts_provider: default_tts_provider(),
+            tts_api_key: None,
+            tts_openai_api_key: None,
+            tts_siliconflow_api_key: None,
+            tts_minimax_api_key: None,
+            tts_base_url: String::new(),
+            tts_model: None,
+            tts_voice_id: None,
+            tts_reference_voice: None,
+            tts_reference_text: None,
+            tts_speed: default_tts_speed(),
+            tts_volume: default_tts_volume(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, MentleToolConfig, MentleToolMode};
+
+    #[test]
+    fn mentle_config_defaults_to_off() {
+        let config = Config::default();
+
+        assert!(!config.mentle.enabled);
+        assert_eq!(config.mentle.mode, MentleToolMode::Off);
+        assert!(config.mentle.allowed_tools.is_empty());
+        assert!(!config.tools.builtin.mentle);
+    }
+
+    #[test]
+    fn mentle_config_round_trips_json() {
+        let mentle: MentleToolConfig = serde_json::from_value(serde_json::json!({
+            "enabled": true,
+            "mode": "custom",
+            "allowed_tools": ["memtle_status", "memtle_search"]
+        }))
+        .expect("valid mentle config should deserialize");
+
+        assert!(mentle.enabled);
+        assert_eq!(mentle.mode, MentleToolMode::Custom);
+        assert_eq!(mentle.allowed_tools, ["memtle_status", "memtle_search"]);
+
+        let value = serde_json::to_value(mentle).expect("config should serialize");
+        assert_eq!(value["mode"], "custom");
     }
 }

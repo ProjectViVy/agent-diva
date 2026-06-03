@@ -11,6 +11,12 @@ impl AgentLoop {
             RuntimeControlCommand::UpdateNetwork(network) => {
                 self.apply_network_config(network).await;
             }
+            RuntimeControlCommand::UpdateMentle {
+                mentle,
+                builtin_mentle,
+            } => {
+                self.apply_mentle_config(mentle, builtin_mentle).await;
+            }
             RuntimeControlCommand::UpdateMcp { servers } => {
                 self.apply_mcp_config(servers).await;
             }

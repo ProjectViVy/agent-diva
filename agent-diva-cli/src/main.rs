@@ -1,11 +1,13 @@
 //! CLI entry point for agent-diva
 
+use agent_diva_agent::tool_config::mentle::MentleToolRuntimeConfig;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
     runtime_control::RuntimeControlCommand, AgentEvent, AgentLoop, ToolConfig,
 };
 use agent_diva_cli::chat_commands::{
-    build_network_tool_config, run_agent, run_agent_remote, run_chat, run_chat_remote,
+    build_builtin_tools_config, build_network_tool_config, run_agent, run_agent_remote, run_chat,
+    run_chat_remote,
 };
 use agent_diva_cli::cli_runtime::{
     available_provider_names, build_provider, channel_statuses, collect_status_report,
@@ -53,7 +55,7 @@ use agent_diva_tools::wtf;
 #[derive(Parser)]
 #[command(name = "agent-diva")]
 #[command(about = "A lightweight personal AI assistant framework")]
-#[command(version = "0.4.9")]
+#[command(version = "0.4.10")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -976,7 +978,9 @@ async fn run_tui(
     let provider = Arc::new(build_provider(&config, &selected_model)?);
 
     let tool_config = ToolConfig {
+        builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
+        mentle: MentleToolRuntimeConfig::from_config(&config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
@@ -1185,7 +1189,7 @@ async fn run_status(runtime: &CliRuntime, json: bool) -> Result<()> {
     let doctor = doctor_report(runtime, &config);
 
     println!("{}", style("Agent Diva Status").bold().cyan());
-    println!("Version: 0.4.9 (Rust)\n");
+    println!("Version: 0.4.10 (Rust)\n");
     println!("{}", style("Paths:").bold());
     println!("  Config: {}", report.config.config_path);
     println!("  Runtime root: {}", report.config.runtime_dir);

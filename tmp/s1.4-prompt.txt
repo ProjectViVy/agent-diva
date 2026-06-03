@@ -1,0 +1,23 @@
+Story 1.4: Merge memory module from vrm into agent-diva-core.
+
+Working directory: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+Branch: merge-vrm-into-pro (merge in progress)
+
+## Context
+VRM branch has agent-diva-core/src/memory/hybrid.rs (961 lines) — the Mentle core.
+VRM modified agent-diva-core/src/memory/provider.rs with MemoryProvider trait changes.
+
+## Acceptance Criteria:
+1. agent-diva-core/src/memory/mod.rs must have `pub mod hybrid` under #[cfg(feature = "mentle")]
+2. hybrid.rs must exist and be complete (961 lines from vrm)
+3. HybridMemoryProvider must implement full MemoryProvider trait
+4. Without mentle feature: existing memory functionality unchanged
+5. cargo check -p agent-diva-core must pass
+6. cargo check -p agent-diva-core --features mentle must pass
+
+## Approach:
+1. Read agent-diva-core/src/memory/provider.rs — resolve conflict to include both pro's and vrm's trait methods
+2. Read agent-diva-core/src/memory/mod.rs — ensure pub mod hybrid is gated
+3. Ensure hybrid.rs exists (should already be there from merge)
+4. Run cargo check to verify
+5. Do NOT touch other crates or files

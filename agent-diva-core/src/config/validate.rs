@@ -72,6 +72,31 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
         ));
     }
 
+    let asr_provider = config.pet.asr_provider.trim().to_lowercase();
+    if !asr_provider.is_empty() && asr_provider != "web_speech" && asr_provider != "siliconflow" {
+        errors.push("pet.asr_provider must be one of: web_speech, siliconflow".to_string());
+    }
+    let tts_provider = config.pet.tts_provider.trim().to_lowercase();
+    if !tts_provider.is_empty()
+        && tts_provider != "browser"
+        && tts_provider != "openai"
+        && tts_provider != "siliconflow"
+        && tts_provider != "minimax"
+    {
+        errors.push(
+            "pet.tts_provider must be one of: browser, openai, siliconflow, minimax".to_string(),
+        );
+    }
+    if !config.pet.tts_speed.is_finite() || config.pet.tts_speed <= 0.0 {
+        errors.push("pet.tts_speed must be > 0".to_string());
+    }
+    if !config.pet.tts_volume.is_finite()
+        || config.pet.tts_volume < 0.0
+        || config.pet.tts_volume > 2.0
+    {
+        errors.push("pet.tts_volume must be in [0.0, 2.0]".to_string());
+    }
+
     if errors.is_empty() {
         Ok(())
     } else {
@@ -117,6 +142,24 @@ mod tests {
         config.providers.anthropic.api_key = "test-key".to_string();
         config.tools.web.search.provider = "bocha".to_string();
         config.tools.web.search.max_results = 50;
+
+        validate_config(&config).unwrap();
+    }
+
+    #[test]
+    fn test_validate_accepts_minimax_tts_provider() {
+        let mut config = Config::default();
+        config.providers.anthropic.api_key = "test-key".to_string();
+        config.pet.tts_provider = "minimax".to_string();
+
+        validate_config(&config).unwrap();
+    }
+
+    #[test]
+    fn test_validate_accepts_siliconflow_asr_provider() {
+        let mut config = Config::default();
+        config.providers.anthropic.api_key = "test-key".to_string();
+        config.pet.asr_provider = "siliconflow".to_string();
 
         validate_config(&config).unwrap();
     }

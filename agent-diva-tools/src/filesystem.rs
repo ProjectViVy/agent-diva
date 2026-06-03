@@ -3,9 +3,9 @@
 //! This module provides file operations with comprehensive security checks
 //! including path validation, rate limiting, and workspace restrictions.
 
-use crate::base::{Result, Tool};
 use crate::sanitize::{sanitize_for_json, truncate_file_content, MAX_FILE_CONTENT_CHARS};
 use agent_diva_core::security::{SecurityError, SecurityPolicy, SharedSecurityPolicy};
+use agent_diva_tooling::{Result, Tool};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::PathBuf;

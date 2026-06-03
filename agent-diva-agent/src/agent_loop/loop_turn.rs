@@ -1,6 +1,7 @@
 use super::AgentLoop;
 use crate::consolidation;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
+use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::{LLMResponse, LLMStreamEvent};
@@ -53,6 +54,10 @@ impl AgentLoop {
             msg.content.clone()
         };
 
+        // Derive prefetch intent from raw user message before it's consumed.
+        let prefetch_intent = derive_prefetch_intent(&message_content);
+        let prefetch_user_message = message_content.clone();
+
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         self.clear_session_cancellation(&session_key);
@@ -83,6 +88,40 @@ impl AgentLoop {
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
+
+        // Intent-aware prefetch: run recall search before the first LLM call
+        // when the user message provides a workable intent string.
+        if !prefetch_intent.is_empty() {
+            let prefetch_result = self
+                .memory_provider
+                .prefetch(PrefetchRequest {
+                    workspace_root: self.workspace.clone(),
+                    intent: prefetch_intent,
+                    current_room: Some(msg.channel.clone()),
+                    user_message: Some(prefetch_user_message.clone()),
+                })
+                .await;
+            match prefetch_result {
+                Ok(response) => match response.status {
+                    PrefetchStatus::Failed { reason } => {
+                        warn!("Prefetch recall failed (non-fatal): {}", reason);
+                    }
+                    _ => {
+                        if let Some(block) = response.prompt_block {
+                            // Inject recall results as an additional system message
+                            // right after the main system prompt.
+                            messages.insert(1, agent_diva_providers::Message::system(block));
+                            trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
+                        } else {
+                            trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
+                        }
+                    }
+                },
+                Err(e) => {
+                    warn!("Prefetch recall failed (non-fatal): {}", e);
+                }
+            }
+        }
 
         while iteration < self.max_iterations {
             self.drain_runtime_control_commands().await;
@@ -408,12 +447,12 @@ impl AgentLoop {
         {
             let session = self.sessions.get_or_create(&session_key);
             if consolidation::should_consolidate(session, self.memory_window) {
-                let memory_manager = agent_diva_core::memory::MemoryManager::new(&self.workspace);
                 if let Err(e) = consolidation::consolidate(
                     session,
                     &self.provider,
                     &model_to_use,
-                    &memory_manager,
+                    &self.workspace,
+                    &*self.memory_provider,
                     self.memory_window,
                 )
                 .await
@@ -652,9 +691,71 @@ fn save_turn(
     }
 }
 
+/// Derive a lightweight recall intent from the user message.
+///
+/// Returns an empty string when the message is too short or lacks any
+/// action/recall-indicating words, so `prefetch` is gated on intent
+/// availability without requiring a full intent classifier.
+fn derive_prefetch_intent(message: &str) -> String {
+    let trimmed = message.trim();
+    if trimmed.len() < 4 {
+        return String::new();
+    }
+
+    let lower = trimmed.to_lowercase();
+    let recall_words = [
+        "recall",
+        "remember",
+        "summarize",
+        "summary",
+        "review",
+        "history",
+        "memory",
+        "previous",
+        "last",
+        "recent",
+        "what",
+        "how",
+        "why",
+        "when",
+        "where",
+        "who",
+        "list",
+        "find",
+        "search",
+        "look",
+        "check",
+    ];
+
+    let has_recall_signal = recall_words.iter().any(|word| lower.contains(word));
+
+    if has_recall_signal {
+        // Use a truncated version as the search intent.
+        let limit = trimmed.chars().count().min(120);
+        let chars: String = trimmed.chars().take(limit).collect();
+        chars
+    } else {
+        String::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_derive_prefetch_intent_is_empty_for_non_question() {
+        assert!(derive_prefetch_intent("the sky is blue").is_empty());
+        assert!(derive_prefetch_intent("ok").is_empty());
+        assert!(derive_prefetch_intent("").is_empty());
+    }
+
+    #[test]
+    fn test_derive_prefetch_intent_has_value_for_action_words() {
+        assert!(!derive_prefetch_intent("recall all projects").is_empty());
+        assert!(!derive_prefetch_intent("what is the provider boundary?").is_empty());
+        assert!(!derive_prefetch_intent("summarize the last meeting").is_empty());
+    }
 
     #[test]
     fn test_changed_soul_file_detects_successful_updates() {

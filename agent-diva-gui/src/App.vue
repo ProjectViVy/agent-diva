@@ -2,12 +2,14 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
 import NormalMode from "./components/NormalMode.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
-import { getConfigStatus, getRuntimeConfig, FileAttachmentDto } from "./api/desktop";
+import { getConfigStatus, getRuntimeConfig, type FileAttachmentDto, type MentleToolConfigShape } from "./api/desktop";
+import { getDesktopPetEmotionSignal, type DesktopPetEmotionSignal } from "./utils/desktop-pet-emotion";
 import {
   HISTORY_PREFS_KEY,
   SAVED_MODELS_KEY,
@@ -130,6 +132,21 @@ interface ProviderConfigEntry {
   source: 'providers' | 'custom_providers';
 }
 
+interface ToolsConfigShape {
+  web: {
+    search: {
+      provider: string;
+      enabled: boolean;
+      api_key: string;
+      max_results: number;
+    };
+    fetch: {
+      enabled: boolean;
+    };
+  };
+  mentle: MentleToolConfigShape;
+}
+
 const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
 const STARTUP_TASK_TIMEOUT_MS = 2500;
 const SESSION_LOAD_TIMEOUT_MS = 2000;
@@ -149,7 +166,7 @@ const messages = ref<Message[]>([
 ]);
 const isTyping = ref(false);
 const connectionStatus = ref<'connected' | 'error' | 'connecting'>('connected');
-const currentEmotion = ref('happy');
+const currentEmotion = ref('normal');
 const suppressNextStopError = ref(false);
 const currentChannel = ref('gui');
 const currentChatId = ref(generateChatId());
@@ -165,7 +182,7 @@ const config = ref({
   model: "deepseek-chat"
 });
 
-const toolsConfig = ref({
+const toolsConfig = ref<ToolsConfigShape>({
   web: {
     search: {
       provider: 'bocha',
@@ -176,7 +193,12 @@ const toolsConfig = ref({
     fetch: {
       enabled: true
     }
-  }
+  },
+  mentle: {
+    enabled: false,
+    mode: 'off',
+    allowed_tools: [] as string[],
+  },
 });
 
 const savedModels = ref<SavedModel[]>([]);
@@ -185,9 +207,16 @@ const sessions = ref<SessionInfo[]>([]);
 const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
 
 const unlisteners: UnlistenFn[] = [];
+let healthInterval: ReturnType<typeof setInterval> | null = null;
 
 const showWelcomeWizard = ref(false);
 const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
+
+// ── Desktop Pet state ──
+const isDesktopPetActive = ref(false);
+const lastDesktopPetEmotionSignature = ref<string | null>(null);
+const latestDesktopPetEmotionSignal = ref<DesktopPetEmotionSignal | null>(null);
+let desktopPetEmotionReplayTimer: ReturnType<typeof setTimeout> | null = null;
 
 type WelcomeDonePayload = {
   skipped: boolean;
@@ -562,6 +591,80 @@ watch(chatDisplayPrefs, (newVal) => {
   localStorage.setItem(HISTORY_PREFS_KEY, JSON.stringify(newVal));
 }, { deep: true });
 
+function clearDesktopPetEmotionReplayTimer() {
+  if (desktopPetEmotionReplayTimer !== null) {
+    window.clearTimeout(desktopPetEmotionReplayTimer);
+    desktopPetEmotionReplayTimer = null;
+  }
+}
+
+function emitDesktopPetEmotion(signal: DesktopPetEmotionSignal): void {
+  if (!isDesktopPetActive.value) return;
+  if (signal.signature === lastDesktopPetEmotionSignature.value) return;
+
+  lastDesktopPetEmotionSignature.value = signal.signature;
+
+  try {
+    emitTo('desktop-pet', 'desktop-pet-emotion', signal.mood);
+  } catch (_) { /* window may not exist yet */ }
+}
+
+function scheduleDesktopPetEmotionReplay(signal: DesktopPetEmotionSignal, delayMs = 250): void {
+  clearDesktopPetEmotionReplayTimer();
+  desktopPetEmotionReplayTimer = window.setTimeout(() => {
+    desktopPetEmotionReplayTimer = null;
+    emitDesktopPetEmotion(signal);
+  }, delayMs);
+}
+
+// ── Emotion sync to desktop pet window ──
+watch(
+  () => messages.value,
+  (msgs) => {
+    const signal = getDesktopPetEmotionSignal(msgs);
+    if (!signal) return;
+
+    latestDesktopPetEmotionSignal.value = signal;
+    emitDesktopPetEmotion(signal);
+    // Legacy mood sync disabled.
+    return;
+
+    // Find the latest agent message and detect mood
+    const latestAgent = [...msgs].reverse().find((m) => m.role === 'agent')!;
+    if (!latestAgent || !latestAgent.content) return;
+
+    const text = latestAgent.content!.toLowerCase();
+    let mood = 'neutral';
+    const moodKeywords: Record<string, string[]> = {
+      happy: ['哈哈', '开心', '太好了', '喜欢', '😊', 'great', 'happy', 'love', 'excellent', 'wonderful', '好棒', '恭喜'],
+      sad: ['难过', '伤心', '遗憾', '😢', 'sorry', 'unfortunately', '失望', '不行'],
+      angry: ['生气', '可恶', '愤怒', '😠', 'damn', 'frustrating', '讨厌'],
+      surprised: ['哇', '天哪', '真的吗', '😲', 'wow', 'amazing', 'incredible', '惊讶'],
+    };
+    for (const [m, keywords] of Object.entries(moodKeywords)) {
+      if (keywords.some((kw) => text.includes(kw))) {
+        mood = m;
+        break;
+      }
+    }
+
+    try {
+      emitTo('desktop-pet', 'desktop-pet-emotion', mood);
+    } catch (_) { /* window may not exist yet */ }
+    // Legacy mood sync disabled.
+  },
+  { deep: true }
+);
+
+watch(isDesktopPetActive, (active) => {
+  if (!active) {
+    clearDesktopPetEmotionReplayTimer();
+    return;
+  }
+  if (!latestDesktopPetEmotionSignal.value) return;
+  scheduleDesktopPetEmotionReplay(latestDesktopPetEmotionSignal.value);
+});
+
 function updateSavedModels(models: SavedModel[]) {
   savedModels.value = models;
 }
@@ -574,8 +677,7 @@ function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
 }
 
 async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
-  if (!content.trim() && (!attachments || attachments.length === 0)) return;
-  if (isTyping.value) return;
+  if ((!content.trim() && !attachments?.length) || isTyping.value) return;
   if (content.trim() === '/stop') {
     await stopMessage();
     return;
@@ -587,25 +689,33 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
   });
 
   const attachmentFileIds = attachments?.map(a => a.file_id);
+
   const userMsg: Message = {
     role: 'user',
     content: content,
     timestamp: Date.now(),
-    attachments: attachmentFileIds,
+    attachments: attachmentFileIds
   };
   messages.value.push(userMsg);
-  
+
+  // Hide previous subtitle in desktop pet window when user sends new message
+  if (isDesktopPetActive.value) {
+    try {
+      emitTo('desktop-pet', 'desktop-pet-subtitle', '');
+    } catch (_) { /* desktop pet window may not exist */ }
+  }
+
   isTyping.value = true;
   suppressNextStopError.value = false;
   closeStreamingPlaceholder(true);
   const streamRequestId = generateStreamRequestId();
   activeStreamRequestId.value = streamRequestId;
-  
+
   // Create a placeholder for the agent response
-  messages.value.push({ 
-    role: 'agent', 
-    content: '', 
-    isStreaming: true, 
+  messages.value.push({
+    role: 'agent',
+    content: '',
+    isStreaming: true,
     timestamp: Date.now(),
     emotion: currentEmotion.value
   });
@@ -699,6 +809,10 @@ async function stopMessage() {
 }
 
 const clearMessages = () => {
+  startNewChat(t('app.cleared'));
+};
+
+function startNewChat(greeting: string) {
   currentChatId.value = generateChatId();
   currentSessionKey.value = `gui:${currentChatId.value}`;
   activeStreamRequestId.value = null;
@@ -706,7 +820,7 @@ const clearMessages = () => {
   messages.value = [
     {
       role: 'agent',
-      content: t('app.cleared'),
+      content: greeting,
       timestamp: Date.now(),
       emotion: 'happy'
     }
@@ -716,7 +830,7 @@ const clearMessages = () => {
   if (isTauri()) {
     setTimeout(refreshSessions, 1000);
   }
-};
+}
 
 async function refreshSessions() {
   if (!isTauri()) return;
@@ -1027,14 +1141,6 @@ async function checkHealth() {
 }
 
 onMounted(async () => {
-  const markSplashComplete = () => {
-    if (isTauri()) {
-      invoke('set_splash_complete', { task: 'frontend' }).catch((e) =>
-        console.warn('set_splash_complete failed:', e)
-      );
-    }
-  };
-
   if (!isTauri()) {
       console.log("Running in browser mode - Tauri listeners skipped");
       return;
@@ -1101,7 +1207,27 @@ onMounted(async () => {
         STARTUP_TASK_TIMEOUT_MS,
         "get_tools_config"
       );
-      toolsConfig.value = fetchedTools;
+      toolsConfig.value = {
+        ...toolsConfig.value,
+        ...fetchedTools,
+        web: {
+          ...toolsConfig.value.web,
+          ...fetchedTools.web,
+          search: {
+            ...toolsConfig.value.web.search,
+            ...fetchedTools.web?.search,
+          },
+          fetch: {
+            ...toolsConfig.value.web.fetch,
+            ...fetchedTools.web?.fetch,
+          },
+        },
+        mentle: {
+          ...toolsConfig.value.mentle,
+          ...fetchedTools.mentle,
+          allowed_tools: fetchedTools.mentle?.allowed_tools ?? [],
+        },
+      };
     } catch (e) {
       console.warn("Failed to load tools config:", e);
     }
@@ -1116,16 +1242,11 @@ onMounted(async () => {
 
     // Initial health check and polling
     await checkHealth();
-    const healthInterval = setInterval(checkHealth, 5000);
+    healthInterval = setInterval(checkHealth, 5000);
 
     // Fetch sessions and reopen the latest GUI chat (not a fresh random chat id)
     await refreshSessions();
     await restoreLatestGuiChatOnStartup();
-
-    // Register cleanup
-    onUnmounted(() => {
-      clearInterval(healthInterval);
-    });
 
     // Listen for streaming text delta
       unlisteners.push(await listen<StreamTextPayload>("agent-response-delta", (event) => {
@@ -1168,6 +1289,16 @@ onMounted(async () => {
       lastMsg.isThinking = false;
       isTyping.value = false;
       activeStreamRequestId.value = null;
+
+      // Forward agent response as subtitle to desktop pet window for TTS
+      if (lastMsg.content && isDesktopPetActive.value) {
+        console.log('[App] Emitting desktop-pet-subtitle. length:', lastMsg.content.length, 'preview:', lastMsg.content.slice(0, 50))
+        try {
+          emitTo('desktop-pet', 'desktop-pet-subtitle', lastMsg.content);
+        } catch (err) {
+          console.error('[App] Failed to emit desktop-pet-subtitle:', err)
+        }
+      }
     }
   }));
 
@@ -1343,14 +1474,32 @@ onMounted(async () => {
       emotion: currentEmotion.value
     });
   }));
+
+  // ── Desktop Pet state sync ──
+  unlisteners.push(await listen<boolean>("desktop-pet-active", () => {
+    isDesktopPetActive.value = true;
+  }));
+  unlisteners.push(await listen<boolean>("desktop-pet-inactive", () => {
+    isDesktopPetActive.value = false;
+  }));
+  unlisteners.push(await listen<string>("desktop-pet-voice-message", (event) => {
+    const text = event.payload.trim();
+    if (!text) return;
+    void sendMessage(text);
+  }));
   } catch (e) {
     console.error("App initialization error:", e);
   } finally {
-    markSplashComplete();
+    // 暂时停用启动动画流程，保留 splashscreen 页面文件以便后续恢复。
   }
 });
 
 onUnmounted(() => {
+  clearDesktopPetEmotionReplayTimer();
+  if (healthInterval !== null) {
+    clearInterval(healthInterval);
+    healthInterval = null;
+  }
   unlisteners.forEach(fn => fn());
 });
 </script>
@@ -1380,6 +1529,7 @@ onUnmounted(() => {
       :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
       @clear="clearMessages"
+      @new-topic="startNewChat"
       @stop="stopMessage"
       @update-saved-models="updateSavedModels"
       @save-chat-display-prefs="updateChatDisplayPrefs"

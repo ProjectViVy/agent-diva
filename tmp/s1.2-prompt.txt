@@ -1,0 +1,20 @@
+Story 1.2: Merge workspace Cargo.toml dependencies after git merge conflict.
+
+Working directory: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+Branch: merge-vrm-into-pro (merge in progress, no commit)
+
+## Acceptance Criteria:
+- [workspace.dependencies] must contain memtle = "0.1.2"
+- agent-diva-agent dependencies: memtle = { workspace = true, optional = true }
+- agent-diva-core dependencies: memtle = { workspace = true, optional = true }
+- [features] section: mentle = ["dep:memtle"]
+- workspace version stays 0.5.0
+- sandbox dependencies (globset, shell-words, parking_lot, toml) remain intact
+- agent-diva-sandbox remains in workspace members
+
+## Approach:
+1. Read the conflicted Cargo.toml first
+2. Resolve conflicts - ADD memtle deps from vrm side, KEEP sandbox deps from pro side
+3. Also handle any conflicts in individual crate Cargo.toml files that might need memtle (agent-diva-agent/Cargo.toml, agent-diva-core/Cargo.toml)
+4. Do NOT resolve any other file conflicts
+5. Report what was changed

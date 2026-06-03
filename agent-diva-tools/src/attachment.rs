@@ -1,7 +1,7 @@
 //! Attachment tools for reading files from content-addressed storage
 
-use crate::base::{Result, Tool};
 use agent_diva_files::FileManager;
+use agent_diva_tooling::{Result, Tool};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -146,7 +146,7 @@ impl Tool for ReadAttachmentTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_files::{FileConfig, FileMetadata};
+    use agent_diva_files::{FileConfig, handle::FileMetadata};
     use tempfile::TempDir;
 
     async fn create_test_tool() -> (ReadAttachmentTool, TempDir) {

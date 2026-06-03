@@ -1,12 +1,25 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod app_state;
 mod commands;
+mod embedded_server;
+mod gateway_status;
 mod process_utils;
+mod shutdown_manager;
+mod tray;
 
+use agent_diva_core::config::schema::LoggingConfig;
+use agent_diva_core::config::ConfigLoader;
 use app_state::AgentState;
+use embedded_server::EmbeddedGatewayHandle;
+use gateway_status::GatewayStatus;
+use shutdown_manager::ShutdownManager;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
-use tauri::async_runtime::spawn;
 use tauri::Manager;
+use tokio::sync::Mutex as AsyncMutex;
+
+static LOGGING_INITIALIZED: OnceLock<()> = OnceLock::new();
 
 /// Tracks completion of frontend/backend setup for splash screen.
 struct SplashState {
@@ -14,8 +27,152 @@ struct SplashState {
     backend_done: bool,
 }
 
+pub type EmbeddedGatewayState = Arc<AsyncMutex<Option<EmbeddedGatewayHandle>>>;
+
 fn should_manage_gateway_lifecycle() -> bool {
+    // Only manage gateway lifecycle in release mode
+    // In debug mode, developers should start the gateway manually for better control
     !cfg!(debug_assertions)
+}
+
+fn config_loader() -> ConfigLoader {
+    match std::env::var("AGENT_DIVA_CONFIG_DIR") {
+        Ok(path) if !path.trim().is_empty() => ConfigLoader::with_dir(expand_user_path(&path)),
+        _ => ConfigLoader::new(),
+    }
+}
+
+fn expand_user_path(path: &str) -> PathBuf {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+fn resolve_configured_path(path: &str, config_dir: &Path) -> PathBuf {
+    let expanded = expand_user_path(path);
+    if expanded.is_absolute() {
+        expanded
+    } else {
+        config_dir.join(expanded)
+    }
+}
+
+fn resolve_logging_config(mut config: LoggingConfig, config_dir: &Path) -> LoggingConfig {
+    config.dir = resolve_configured_path(&config.dir, config_dir)
+        .to_string_lossy()
+        .to_string();
+    config
+}
+
+fn init_gui_logging() {
+    LOGGING_INITIALIZED.get_or_init(|| {
+        let loader = config_loader();
+        let config = loader.load().unwrap_or_default();
+        let logging = resolve_logging_config(config.logging, loader.config_dir());
+        let guard = agent_diva_core::logging::init_logging_with_terminal_output(&logging, false);
+        Box::leak(Box::new(guard));
+    });
+}
+
+fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRuntimeConfig {
+    let loader = config_loader();
+    let config = loader.load().unwrap_or_default();
+    let runtime = agent_diva_cli::cli_runtime::CliRuntime::from_paths(
+        None,
+        Some(loader.config_dir().to_path_buf()),
+        None,
+    );
+
+    agent_diva_manager::GatewayRuntimeConfig {
+        workspace: runtime.effective_workspace(&config),
+        cron_store: runtime.cron_store_path(),
+        config,
+        loader,
+        port: 0,
+    }
+}
+
+pub async fn shutdown_embedded_gateway(app: &tauri::AppHandle) {
+    if should_manage_gateway_lifecycle() {
+        if let Some(status) = app.try_state::<AsyncMutex<GatewayStatus>>() {
+            let mut guard = status.lock().await;
+            guard.stop();
+            tray::update_tray_status(&guard.format_status());
+        }
+
+        if let Some(state) = app.try_state::<EmbeddedGatewayState>() {
+            let mut guard = state.lock().await;
+            if let Some(handle) = guard.take() {
+                handle.shutdown();
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExitTrigger {
+    MainWindowClose,
+    TrayQuit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CloseAction {
+    HideToTray,
+    FullExit,
+}
+
+fn close_action(close_to_tray: bool, trigger: ExitTrigger) -> CloseAction {
+    match trigger {
+        ExitTrigger::MainWindowClose if close_to_tray => CloseAction::HideToTray,
+        ExitTrigger::MainWindowClose | ExitTrigger::TrayQuit => CloseAction::FullExit,
+    }
+}
+
+pub fn request_full_exit(app: tauri::AppHandle) {
+    let Some(shutdown_manager) = app.try_state::<ShutdownManager>() else {
+        tracing::warn!("Shutdown manager unavailable; exiting application directly");
+        app.exit(0);
+        return;
+    };
+
+    if !shutdown_manager.begin_shutdown() {
+        tracing::debug!("Full exit already in progress");
+        return;
+    }
+
+    tracing::info!("Starting full application shutdown");
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+        let shutdown_result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            shutdown_embedded_gateway(&app),
+        )
+        .await;
+
+        match shutdown_result {
+            Ok(_) => tracing::info!("Embedded gateway shutdown completed before process exit"),
+            Err(_) => tracing::warn!(
+                "Embedded gateway shutdown timed out after 5 seconds; continuing app exit"
+            ),
+        }
+
+        app.exit(0);
+    });
+}
+
+pub fn request_tray_quit(app: tauri::AppHandle) {
+    if close_action(tray::read_close_to_tray(&app), ExitTrigger::TrayQuit) == CloseAction::FullExit
+    {
+        request_full_exit(app);
+    }
 }
 
 #[tauri::command]
@@ -46,87 +203,86 @@ fn set_splash_complete(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    init_gui_logging();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .manage(AgentState::new())
+        .manage(ShutdownManager::new())
         .manage(Arc::new(Mutex::new(SplashState {
             frontend_done: false,
             backend_done: false,
         })))
         .setup(|app| {
             if should_manage_gateway_lifecycle() {
-                // Cleanup orphan gateway processes on startup
-                let cleanup_result = process_utils::cleanup_orphan_gateway_processes();
-                match cleanup_result {
-                    Ok(count) if count > 0 => {
-                        tracing::info!("Cleaned up {} orphan gateway process(es) on startup", count);
-                    }
-                    Ok(_) => {
-                        tracing::debug!("No orphan gateway processes found on startup");
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to cleanup orphan processes on startup: {}", e);
-                    }
-                }
+                let handle = embedded_server::start_embedded_gateway(build_gateway_runtime_config())
+                    .map_err(|error| {
+                        tracing::error!("Failed to start embedded gateway: {}", error);
+                        std::io::Error::other(format!(
+                            "failed to start embedded gateway: {error}"
+                        ))
+                    })?;
+                let port = handle.port;
+                let gateway_state: EmbeddedGatewayState = Arc::new(AsyncMutex::new(Some(handle)));
 
-                // Auto-start gateway on GUI launch
-                let app_handle = app.handle().clone();
-                spawn(async move {
-                    // Wait a bit for GUI to initialize
-                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-                    tracing::info!("Auto-starting gateway...");
-                    match commands::start_gateway(app_handle.clone(), None).await {
-                        Ok(()) => {
-                            tracing::info!("Gateway auto-started successfully");
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to auto-start gateway: {}", e);
-                        }
-                    }
-                });
+                app.manage(gateway_state);
+                app.manage(AsyncMutex::new(GatewayStatus::new(port)));
+                app.state::<AgentState>().update_gateway_port(port);
+                commands::save_gateway_port_config(port)
+                    .map_err(std::io::Error::other)?;
+                tracing::info!("Embedded gateway started on port {}", port);
             } else {
                 tracing::info!(
                     "Gateway lifecycle management is disabled in debug mode; expecting an external backend"
                 );
             }
 
-            let handle = app.handle().clone();
-            let state = app.state::<Arc<Mutex<SplashState>>>().inner().clone();
-            spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                if let Ok(mut guard) = state.lock() {
-                    guard.backend_done = true;
-                    if guard.frontend_done {
-                        drop(guard);
-                        if let Some(splash) = handle.get_webview_window("splashscreen") {
-                            let _ = splash.close();
-                        }
-                        if let Some(main_win) = handle.get_webview_window("main") {
-                            let _ = main_win.show();
-                            let _ = main_win.set_focus();
-                        }
+            if let Ok(mut guard) = app.state::<Arc<Mutex<SplashState>>>().lock() {
+                guard.backend_done = true;
+                if guard.frontend_done {
+                    drop(guard);
+                    if let Some(splash) = app.get_webview_window("splashscreen") {
+                        let _ = splash.close();
+                    }
+                    if let Some(main_win) = app.get_webview_window("main") {
+                        let _ = main_win.show();
+                        let _ = main_win.set_focus();
                     }
                 }
-            });
+            }
+
+            // Initialize system tray
+            if let Err(e) = tray::init_tray(app.handle()) {
+                tracing::warn!("Failed to initialize system tray: {}", e);
+            } else {
+                tracing::info!("System tray initialized successfully");
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Handle window close events to cleanup gateway process
-            if should_manage_gateway_lifecycle()
-                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
-            {
+            // Handle window close events based on tray setting
+            if let tauri::WindowEvent::CloseRequested { api, .. } = &event {
                 let window_label = window.label();
                 if window_label == "main" {
-                    tracing::info!("Main window closing, cleaning up gateway process...");
-                    // Spawn async task to stop gateway
-                    tauri::async_runtime::spawn(async move {
-                        if let Err(e) = commands::stop_gateway().await {
-                            tracing::error!("Failed to stop gateway on exit: {}", e);
-                        } else {
-                            tracing::info!("Gateway process stopped successfully on exit");
+                    let app_handle = window.app_handle().clone();
+                    let action = close_action(
+                        tray::read_close_to_tray(&app_handle),
+                        ExitTrigger::MainWindowClose,
+                    );
+                    match action {
+                        CloseAction::HideToTray => {
+                            api.prevent_close();
+                            tray::hide_main_window(&app_handle);
+                            tracing::info!("Window hidden to system tray");
                         }
-                    });
+                        CloseAction::FullExit => {
+                            api.prevent_close();
+                            tracing::info!("Main window close requested; performing full exit");
+                            request_full_exit(app_handle);
+                        }
+                    }
                 }
             }
         })
@@ -150,6 +306,7 @@ pub fn run() {
             commands::start_background_stream,
             commands::update_config,
             commands::get_tools_config,
+            commands::list_mentle_tools,
             commands::update_tools_config,
             commands::get_skills,
             commands::get_mcps,
@@ -159,8 +316,8 @@ pub fn run() {
             commands::set_mcp_enabled,
             commands::refresh_mcp_status,
             commands::upload_skill,
-            commands::delete_skill,
             commands::upload_file,
+            commands::delete_skill,
             commands::get_providers,
             commands::create_custom_provider,
             commands::delete_custom_provider,
@@ -171,9 +328,13 @@ pub fn run() {
             commands::get_channels,
             commands::update_channel,
             commands::check_health,
+            commands::get_gateway_status,
             commands::get_gateway_process_status,
+            #[allow(deprecated)]
             commands::start_gateway,
+            #[allow(deprecated)]
             commands::stop_gateway,
+            #[allow(deprecated)]
             commands::uninstall_gateway,
             commands::load_config,
             commands::get_config,
@@ -187,25 +348,131 @@ pub fn run() {
             commands::uninstall_service,
             commands::start_service,
             commands::stop_service,
-            commands::get_token_usage_total,
-            commands::get_token_usage_summary,
-            commands::get_token_usage_timeline,
-            commands::get_token_usage_sessions,
-            commands::get_token_usage_models,
-            commands::get_token_usage_realtime,
-            commands::get_sandbox_config,
-            commands::save_sandbox_config
+            commands::get_gui_prefs,
+            commands::set_gui_prefs,
+            commands::pet_list_vrm_models,
+            commands::pet_import_vrm_model,
+            commands::pet_delete_vrm_model,
+            commands::pet_read_vrm_model,
+            commands::pet_load_voice_assets,
+            commands::pet_save_voice_selection,
+            commands::pet_import_voice_file,
+            commands::pet_delete_voice_file,
+            commands::pet_read_voice_file,
+            commands::pet_minimax_synthesize,
+            commands::pet_siliconflow_synthesize,
+            commands::open_desktop_pet,
+            commands::close_desktop_pet,
+            commands::set_desktop_pet_ignore_mouse,
+            commands::set_desktop_pet_always_on_top,
+            commands::minimize_desktop_pet
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Some(shutdown_manager) = app.try_state::<ShutdownManager>() {
+                    let already_shutting_down = shutdown_manager.is_shutting_down();
+                    shutdown_manager.mark_exit_observed();
+                    if already_shutting_down {
+                        tracing::debug!("RunEvent::Exit observed after shutdown already started");
+                    }
+                }
+                tracing::info!("Application exiting, shutting down embedded gateway");
+                tauri::async_runtime::block_on(shutdown_embedded_gateway(app));
+            }
+        })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::should_manage_gateway_lifecycle;
+    use super::{
+        close_action, resolve_configured_path, resolve_logging_config,
+        should_manage_gateway_lifecycle, CloseAction, ExitTrigger,
+    };
+    use crate::shutdown_manager::ShutdownManager;
+    use agent_diva_core::config::schema::LoggingConfig;
+    use tempfile::TempDir;
 
     #[test]
-    fn gateway_lifecycle_is_disabled_in_debug_builds() {
-        assert_eq!(should_manage_gateway_lifecycle(), !cfg!(debug_assertions));
+    fn gateway_lifecycle_is_disabled_in_debug_mode() {
+        // In debug mode, gateway lifecycle should be disabled
+        // In release mode, gateway lifecycle should be enabled
+        if cfg!(debug_assertions) {
+            assert!(
+                !should_manage_gateway_lifecycle(),
+                "Gateway lifecycle should be disabled in debug mode"
+            );
+        } else {
+            assert!(
+                should_manage_gateway_lifecycle(),
+                "Gateway lifecycle should be enabled in release mode"
+            );
+        }
+    }
+
+    #[test]
+    fn main_window_close_hides_to_tray_when_enabled() {
+        assert_eq!(
+            close_action(true, ExitTrigger::MainWindowClose),
+            CloseAction::HideToTray
+        );
+    }
+
+    #[test]
+    fn main_window_close_exits_when_background_residency_disabled() {
+        assert_eq!(
+            close_action(false, ExitTrigger::MainWindowClose),
+            CloseAction::FullExit
+        );
+    }
+
+    #[test]
+    fn tray_quit_always_exits_even_when_background_residency_enabled() {
+        assert_eq!(
+            close_action(true, ExitTrigger::TrayQuit),
+            CloseAction::FullExit
+        );
+    }
+
+    #[test]
+    fn shutdown_manager_is_idempotent() {
+        let manager = ShutdownManager::new();
+
+        assert!(manager.begin_shutdown());
+        assert!(!manager.begin_shutdown());
+    }
+
+    #[test]
+    fn relative_log_dir_resolves_under_config_dir() {
+        let config_dir = TempDir::new().unwrap();
+
+        let path = resolve_configured_path("logs", config_dir.path());
+
+        assert_eq!(path, config_dir.path().join("logs"));
+    }
+
+    #[test]
+    fn absolute_log_dir_is_preserved() {
+        let config_dir = TempDir::new().unwrap();
+        let absolute = config_dir.path().join("custom-logs");
+
+        let path = resolve_configured_path(&absolute.to_string_lossy(), config_dir.path());
+
+        assert_eq!(path, absolute);
+    }
+
+    #[test]
+    fn logging_config_uses_resolved_log_dir() {
+        let config_dir = TempDir::new().unwrap();
+        let mut logging = LoggingConfig::default();
+        logging.dir = "logs".to_string();
+
+        let resolved = resolve_logging_config(logging, config_dir.path());
+
+        assert_eq!(
+            resolved.dir,
+            config_dir.path().join("logs").to_string_lossy().to_string()
+        );
     }
 }
