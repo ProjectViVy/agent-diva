@@ -11,6 +11,9 @@ import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
 import PetSettings from './settings/PetSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
+import ThemeSettings from './settings/ThemeSettings.vue'
+import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
+import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
 import { useI18n } from 'vue-i18n';
 import type { MentleToolConfigShape } from '../api/desktop';
 
@@ -68,7 +71,10 @@ type SettingsSubview =
   | 'network'
   | 'language'
   | 'pet'
-  | 'about';
+  | 'about'
+  | 'theme'
+  | 'self-evolution'
+  | 'sandbox';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -76,6 +82,7 @@ const props = defineProps<{
   toolsConfig: ToolsConfigShape;
   savedModels?: SavedModel[];
   chatDisplayPrefs: ChatDisplayPrefs;
+  themeMode?: string;
   initialView?: SettingsSubview;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
   saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
@@ -85,6 +92,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update-saved-models', models: SavedModel[]): void;
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
+  (e: 'change-theme', theme: string): void;
 }>();
 
 const currentView = ref<SettingsSubview>(props.initialView || 'dashboard');
@@ -100,7 +108,10 @@ const pageTitle = computed(() => {
     network: t('settings.network'),
     language: t('settings.language'),
     pet: t('settings.pet'),
-    about: t('settings.about')
+    about: t('settings.about'),
+    theme: t('dashboard.theme'),
+    'self-evolution': t('dashboard.selfEvolution'),
+    sandbox: t('dashboard.sandbox')
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -195,9 +206,19 @@ watch(
               v-else-if="currentView === 'pet'"
             />
             
-            <AboutSettings 
+            <AboutSettings
               v-else-if="currentView === 'about'"
             />
+
+            <div v-else-if="currentView === 'theme'">
+              <ThemeSettings :current-theme="themeMode" @change-theme="emit('change-theme', $event)" />
+            </div>
+            <div v-else-if="currentView === 'self-evolution'">
+              <SelfEvolutionSettings />
+            </div>
+            <div v-else-if="currentView === 'sandbox'">
+              <SandboxSettingsSection />
+            </div>
           </div>
        </Transition>
     </div>
