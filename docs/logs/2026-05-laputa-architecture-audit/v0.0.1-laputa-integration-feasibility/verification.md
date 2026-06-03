@@ -33,10 +33,10 @@
 | 是否日历驱动（非轮数驱动） | ✅ | D-012 "calendar-driven daily, weekly, and monthly rhythm triggers" |
 | 每日整合是否需要 LLM | ✅ 否 | TemplateCapsuleWriter 使用模板 |
 | 每周/月整合是否有无 LLM 降级 | ✅ | TemplateCapsuleWriter 已实现 |
-| UPSP 32 轮节律点是否被拒绝 | ✅ | D-009 "Reject for runtime: ... full dynamic six-axis model" |
+| HA'S-PROJECT 32 轮节律点是否被拒绝 | ✅ | D-009 "Reject for runtime: ... full dynamic six-axis model" |
 | RhythmService 调度实现 | ✅ | `service.rs` 228 行，gap detection via index.toml |
 
-### 4. UPSP 概念评估
+### 4. HA'S-PROJECT 概念评估
 
 | 概念 | 判定 | 依据 |
 |---|---|---|
