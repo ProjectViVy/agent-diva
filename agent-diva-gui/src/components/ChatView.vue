@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -743,13 +743,22 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
           </button>
 
           <!-- 深度思考按钮 -->
-          <button 
+          <button
             class="toolbar-btn"
             :class="{ active: showDeepThinking }"
             :title="t('chat.deepThinking')"
             @click="showDeepThinking = !showDeepThinking"
           >
             <Brain :size="14" />
+          </button>
+
+          <!-- 桌面宠物按钮 -->
+          <button
+            class="toolbar-btn"
+            :title="t('chat.openPet')"
+            @click="invoke('open_desktop_pet')"
+          >
+            <Cat :size="14" />
           </button>
 
           <!-- 权限模式选择 -->
