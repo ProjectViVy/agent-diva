@@ -61,12 +61,41 @@ pub fn model_capabilities_for_model(model: &str) -> ModelCapabilities {
         "gpt-4o" | "gpt-4o-mini" | "gpt-4.1" | "gpt-4.1-mini"
     );
 
+    capabilities.reasoning = is_known_reasoning_model(&normalized);
+
     capabilities
+}
+
+/// Return true when the model is known to support reasoning/thinking content.
+fn is_known_reasoning_model(normalized: &str) -> bool {
+    matches!(
+        normalized,
+        // DeepSeek — both chat and reasoner return reasoning_content via API
+        "deepseek-chat" | "deepseek-reasoner"
+        // Anthropic Claude — extended thinking
+        | "claude-3-opus" | "claude-3-5-sonnet" | "claude-3-7-sonnet"
+        | "claude-3-5-haiku" | "claude-sonnet-4" | "claude-opus-4"
+        // OpenAI reasoning models
+        | "o1" | "o1-mini" | "o3-mini" | "o1-pro"
+        // Gemini thinking models
+        | "gemini-2.0-flash-thinking" | "gemini-2.5-pro" | "gemini-2.5-flash"
+        // Qwen thinking-capable models
+        | "qwen-max" | "qwen-plus" | "qwq-32b"
+        // Doubao/Douyin models with thinking
+        | "doubao-pro-32k" | "doubao-lite-32k"
+        // DeepSeek R1 (via OpenRouter or native)
+        | "deepseek-r1"
+    )
 }
 
 /// Return true when the model is explicitly known to support vision input.
 pub fn supports_vision_model(model: &str) -> bool {
     model_capabilities_for_model(model).vision
+}
+
+/// Return true when the model is explicitly known to support reasoning/thinking.
+pub fn supports_reasoning_model(model: &str) -> bool {
+    model_capabilities_for_model(model).reasoning
 }
 
 fn normalize_model_id(model: &str) -> String {
@@ -537,6 +566,35 @@ mod tests {
         assert!(supports_vision_model("gpt-4o"));
         assert!(supports_vision_model("openai/gpt-4.1-mini"));
 
+        assert_eq!(
+            model_capabilities_for_model("unknown-model"),
+            ModelCapabilities::text_only()
+        );
+    }
+
+    #[test]
+    fn reasoning_capabilities_are_conservative() {
+        // Unknown models: no reasoning
+        assert!(!supports_reasoning_model("unknown-model"));
+        assert!(!supports_reasoning_model("gpt-4o"));
+
+        // DeepSeek models
+        assert!(supports_reasoning_model("deepseek-chat"));
+        assert!(supports_reasoning_model("deepseek-reasoner"));
+        assert!(supports_reasoning_model("deepseek/deepseek-r1"));
+
+        // Anthropic Claude
+        assert!(supports_reasoning_model("claude-3-5-sonnet"));
+        assert!(supports_reasoning_model("claude-sonnet-4"));
+
+        // OpenAI reasoning models
+        assert!(supports_reasoning_model("o1"));
+        assert!(supports_reasoning_model("o3-mini"));
+
+        // Gemini
+        assert!(supports_reasoning_model("gemini-2.5-pro"));
+
+        // Unknown model is still text_only
         assert_eq!(
             model_capabilities_for_model("unknown-model"),
             ModelCapabilities::text_only()
