@@ -4,6 +4,7 @@
       <span class="thinking-icon">🧠</span>
       <span class="thinking-label">{{ $t('chat.thinkingProcess') }}</span>
       <span v-if="thinkingMs && thinkingMs > 0" class="thinking-duration">({{ formatDuration(thinkingMs) }})</span>
+      <ThinkingToggle v-model="thinkingMode" class="thinking-mode-toggle" />
       <span class="thinking-toggle">{{ expanded ? '▾' : '▸' }}</span>
     </summary>
     <div class="thinking-content">
@@ -14,6 +15,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import ThinkingToggle from './ThinkingToggle.vue'
+
+type ThinkingMode = 'auto' | 'on' | 'off'
 
 defineProps<{
   content: string
@@ -21,6 +25,7 @@ defineProps<{
 }>()
 
 const expanded = ref(false)
+const thinkingMode = ref<ThinkingMode>('auto')
 
 function toggleExpanded() {
   expanded.value = !expanded.value
@@ -62,8 +67,10 @@ function formatDuration(ms: number): string {
 .thinking-duration {
   opacity: 0.6;
 }
-.thinking-toggle {
+.thinking-mode-toggle {
   margin-left: auto;
+}
+.thinking-toggle {
   font-size: 12px;
 }
 .thinking-content {
