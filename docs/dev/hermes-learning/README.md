@@ -15,7 +15,6 @@
 1. **[00-executive-summary.md](./00-executive-summary.md)** - 执行摘要
    - 一句话总结
    - Hermes 核心能力概览
-   - UPSP 改造计划概览
    - 兼容性分析
    - 推荐架构
    - 实施优先级
@@ -29,7 +28,6 @@
    - 完整学习闭环
    - Rust 实现考虑
 
-3. **[02-upsp-integration.md](./02-upsp-integration.md)** - UPSP 集成方案
    - 兼容性分析总结
    - 融合架构设计
    - 迁移策略
@@ -57,22 +55,17 @@
 - 记忆系统（Built-in + External 双层）
 - 完整学习闭环（用户交互 → 训练 → 模型改进）
 
-**UPSP 改造计划**：
 - 七文件体系（core.md, state.json, STM.md, LTM.md, relation.md, rules.md, docs.md）
 - 节律点机制（每 32 轮触发）
 - 工化指数（主体性度量）
 - 11-13 周实施路线
 
 **融合架构**：
-- 应用层：UPSP 节律点 + Hermes 会话钩子
-- 管理层：Hermes MemoryProvider 抽象 + UPSP MemoryManager
-- 存储层：UPSP 七文件 + Hermes SessionDB + brain.db
 
 ### 关键决策
 
 ✅ **已确认**：
 1. 使用单一 SQLite 数据库（brain.db）
-2. 适配器模式集成 UPSP（UpspMemoryProvider）
 3. 调用外部 Python 脚本实现 Trajectory 压缩
 4. Phase 4（RL 训练）作为可选功能
 
@@ -84,8 +77,6 @@
 ### 实施路线
 
 ```
-Phase 1: 基础设施          [Week 1-6]   - UPSP-RS + SessionDB + MemoryProvider
-Phase 2: 适配器层          [Week 7-10]  - UpspMemoryProvider + Holographic + Skills
 Phase 3: 学习闭环          [Week 11-15] - Trajectory + 触发器 + 钩子
 Phase 4: RL 训练（可选）   [Week 16-17] - RL 编排 + 格式转换
 Phase 5: 迁移与发布        [Week 18-20] - 迁移工具 + 测试 + 文档
@@ -97,24 +88,19 @@ Phase 5: 迁移与发布        [Week 18-20] - 迁移工具 + 测试 + 文档
 
 ## 与现有计划的关系
 
-### UPSP 改造计划
 
-**位置**：`docs/dev/upsp/`
 
 **关系**：
-- UPSP 提供位格主体管理能力
 - Hermes 提供自我学习能力
 - 两者通过适配器模式融合
 - 共享 brain.db 数据库
 
 **协同点**：
-- 记忆存储：UPSP 七文件 + Hermes SessionDB
 - 检索能力：共享 SQLite 索引
 - 会话管理：history.json 由 SessionDB 提供
 - 上下文构建：融合为统一加载器
 
 **冲突点**：
-- 记忆格式：UPSP 替代 MEMORY.md
 - 触发机制：节律点 vs 上下文压缩
 - 索引层：统一为 brain.db
 - 抽象接口：适配器模式解决
@@ -142,7 +128,6 @@ Phase 5: 迁移与发布        [Week 18-20] - 迁移工具 + 测试 + 文档
 
 **深入理解**（1 小时）：
 1. 阅读 [01-hermes-capabilities.md](./01-hermes-capabilities.md)
-2. 阅读 [02-upsp-integration.md](./02-upsp-integration.md)
 3. 理解融合架构设计
 
 **实施准备**（2 小时）：
@@ -154,12 +139,10 @@ Phase 5: 迁移与发布        [Week 18-20] - 迁移工具 + 测试 + 文档
 
 **立即行动**（本周）：
 1. 召开架构评审会议，确认融合方案
-2. 创建 PoC 验证 UpspMemoryProvider 适配器
 3. 细化统一的 MemoryProvider 接口设计
 
 **短期目标**（1 个月）：
 1. 完成 Phase 1（基础设施）
-2. 实现 SessionDB 和 UPSP-RS Phase 0-1
 3. 验证 FMA 示例位格可正常加载
 
 **中期目标**（3-4 个月）：
@@ -173,8 +156,6 @@ Phase 5: 迁移与发布        [Week 18-20] - 迁移工具 + 测试 + 文档
 
 ### 内部文档
 
-- [UPSP-RS 架构设计](../upsp/upsp-rs-architecture-design.md)
-- [UPSP-RS 执行摘要](../upsp/executive-summary.md)
 - [Hermes 集成架构分析](../hermes-integration/00-current-architecture-analysis.md)
 - [Agent-Diva 架构概览](../architecture.md)
 - [开发指南](../development.md)
@@ -183,8 +164,6 @@ Phase 5: 迁移与发布        [Week 18-20] - 迁移工具 + 测试 + 文档
 
 - [Hermes-Agent GitHub](https://github.com/NousResearch/hermes-agent)
 - [Hermes-Agent 文档](https://hermes-agent.nousresearch.com/docs/)
-- [UPSP 协议规范](../../.workspace/UPSP/spec/UPSP工程规范_自动版_v1_6.md)
-- [FMA 示例位格](../../.workspace/UPSP/examples/FMA/)
 - [Tinker-Atropos](https://github.com/NousResearch/tinker-atropos)
 
 ---
@@ -201,15 +180,11 @@ Phase 5: 迁移与发布        [Week 18-20] - 迁移工具 + 测试 + 文档
 
 集成后，agent-diva 将具备从经验中持续改进的能力。
 
-### Q2: UPSP 和 Hermes 会冲突吗？
 
 **A**: 有潜在冲突，但可以通过分层融合解决：
-- **记忆格式**：UPSP 替代 MEMORY.md，BuiltinMemoryProvider 读取 UPSP 文件
 - **触发机制**：统一触发器，节律点负责记忆整合，上下文压缩负责会话摘要
 - **索引层**：统一为 brain.db，分层查询
-- **抽象接口**：适配器模式（UpspMemoryProvider）
 
-详见 [02-upsp-integration.md](./02-upsp-integration.md)。
 
 ### Q3: 实施周期是多久？
 
@@ -226,7 +201,6 @@ Phase 5: 迁移与发布        [Week 18-20] - 迁移工具 + 测试 + 文档
 
 **A**: 不是。RL 训练作为 Phase 4 可选功能，不影响主线。即使不实现 RL 训练，agent-diva 也能获得：
 - 技能系统（自动创建和改进）
-- 记忆系统（UPSP + Holographic）
 - Trajectory 保存和压缩（为未来训练做准备）
 
 RL 训练可以在后续版本中实现。
@@ -239,7 +213,6 @@ RL 训练可以在后续版本中实现。
 - **双写模式**：Phase 2 同时写入旧系统和新系统
 - **充分测试**：单元测试、集成测试、端到端测试
 
-详见 [02-upsp-integration.md](./02-upsp-integration.md) 的迁移策略部分。
 
 ### Q6: Rust 实现 Trajectory 压缩会很复杂吗？
 
@@ -266,7 +239,6 @@ RL 训练可以在后续版本中实现。
 
 - **项目维护者**：agent-diva team
 - **Hermes-Agent 作者**：Nous Research
-- **UPSP 协议作者**：TzPz (参见 .workspace/UPSP)
 - **讨论渠道**：GitHub Discussions
 
 ---
@@ -276,7 +248,6 @@ RL 训练可以在后续版本中实现。
 ### v0.1.0-draft (2026-04-05)
 - 初始规划文档
 - 完成 Hermes 能力分析
-- 完成 UPSP 集成方案
 - 完成实施计划
 
 ---
