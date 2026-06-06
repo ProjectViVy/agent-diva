@@ -135,6 +135,7 @@ const inputRef = ref<HTMLTextAreaElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const attachments = ref<FileAttachmentDto[]>([]);
 const uploading = ref(false);
+const uploadingPastes = ref(false);
 const inputHeight = ref(24); // 动态输入框高度
 
 // 右侧会话侧边栏状态
@@ -229,7 +230,7 @@ const handleFileSelect = async (event: Event) => {
     for (const file of Array.from(files)) {
       const buffer = await file.arrayBuffer();
       const bytes = Array.from(new Uint8Array(buffer));
-      const dto = await uploadFile(file.name, bytes);
+      const dto = await uploadFile(file.name, bytes, 'gui');
       attachments.value.push(dto);
     }
   } catch (err) {
@@ -237,6 +238,31 @@ const handleFileSelect = async (event: Event) => {
   } finally {
     uploading.value = false;
     if (fileInputRef.value) fileInputRef.value.value = '';
+  }
+};
+
+const handlePaste = async (event: ClipboardEvent) => {
+  if (!event.clipboardData) return;
+  const items = Array.from(event.clipboardData.items);
+  const imageItems = items.filter((item) => item.type.startsWith('image/'));
+  if (imageItems.length === 0) return;
+  event.preventDefault();
+  uploadingPastes.value = true;
+  try {
+    for (const item of imageItems) {
+      const blob = item.getAsFile();
+      if (!blob) continue;
+      const buffer = await blob.arrayBuffer();
+      const bytes = Array.from(new Uint8Array(buffer));
+      const fileName = blob.name || 'pasted-image.png';
+      const dto = await uploadFile(fileName, bytes, 'gui');
+      attachments.value.push(dto);
+    }
+  } catch (err) {
+    console.error('Failed to upload pasted image:', err);
+    alert(t('chat.pasteUploadFailed') || 'Failed to upload pasted image');
+  } finally {
+    uploadingPastes.value = false;
   }
 };
 
@@ -661,7 +687,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
     <div class="chat-input-bar border-t z-20">
       <div class="chat-input-container">
         <!-- 附件预览区 -->
-        <div v-if="attachments.length > 0" class="flex flex-wrap gap-2 px-3 pt-2">
+        <div v-if="attachments.length > 0 || uploadingPastes" class="flex flex-wrap gap-2 px-3 pt-2">
           <div
             v-for="(att, idx) in attachments"
             :key="att.file_id"
@@ -672,6 +698,10 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
             <button @click="removeAttachment(idx)" class="shrink-0 opacity-60 hover:opacity-100" :title="t('chat.removeAttachment')">
               <X :size="12" />
             </button>
+          </div>
+          <div v-if="uploadingPastes" class="flex items-center gap-1 bg-black/5 dark:bg-white/10 rounded-md px-2 py-1 text-xs">
+            <Loader2 :size="12" class="animate-spin opacity-60" />
+            <span class="truncate max-w-[100px]">{{ t('chat.pasting') || 'Pasting...' }}</span>
           </div>
         </div>
         <!-- 顶部工具栏 -->
@@ -799,6 +829,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
             v-model="input"
             @input="adjustInputHeight"
             @keydown="handleKeyDown"
+            @paste="handlePaste"
             :placeholder="getPlaceholder"
             class="chat-textarea"
             rows="1"
