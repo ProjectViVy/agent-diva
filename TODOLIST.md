@@ -2,10 +2,10 @@
 
 ## Main Closeout (2026-06)
 
-- [ ] Close the mixed `main` working tree using the repo-local closeout docs instead of one bulk commit.
-- [ ] Follow [docs/dev/main-closeout-plan-2026-06.md](./docs/dev/main-closeout-plan-2026-06.md) as the authoritative closeout rule set.
-- [ ] Execute [docs/dev/main-closeout-cards-2026-06.md](./docs/dev/main-closeout-cards-2026-06.md) in order, one clean theme at a time.
-- [ ] Keep frontend/product files out of `main` closeout unless they are explicitly re-scoped later.
+- [x] Close the mixed `main` working tree using the repo-local closeout docs instead of one bulk commit. **2026-06-06 completed via MAIN-CLOSE-01..05 commits.**
+- [x] Follow [docs/dev/main-closeout-plan-2026-06.md](./docs/dev/main-closeout-plan-2026-06.md) as the authoritative closeout rule set. **done**
+- [x] Execute [docs/dev/main-closeout-cards-2026-06.md](./docs/dev/main-closeout-cards-2026-06.md) in order, one clean theme at a time. **done**
+- [x] Keep frontend/product files out of `main` closeout unless they are explicitly re-scoped later. **done — marked as moved-out in closeout cards**
 
 This file is the project-level backlog for bugs, gaps, and unfinished work found during development or review.
 
