@@ -5,9 +5,10 @@ mod task_runtime;
 use crate::state::ManagerCommand;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
-    runtime_control::RuntimeControlCommand, tool_config::network::NetworkToolConfig,
-    tool_config::network::WebFetchRuntimeConfig, tool_config::network::WebRuntimeConfig,
-    tool_config::network::WebSearchRuntimeConfig, AgentLoop, BuiltInToolsConfig, ToolConfig,
+    context_budget::ContextBudgetPolicy, runtime_control::RuntimeControlCommand,
+    tool_config::network::NetworkToolConfig, tool_config::network::WebFetchRuntimeConfig,
+    tool_config::network::WebRuntimeConfig, tool_config::network::WebSearchRuntimeConfig,
+    AgentLoop, BuiltInToolsConfig, SubagentPolicy, ToolConfig,
 };
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
@@ -314,11 +315,19 @@ async fn build_agent_loop(
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
+        subagent_policy: SubagentPolicy::from(config.tools.subagent.clone()),
         cron_service: Some(cron_service),
         soul_context: SoulContextSettings {
             enabled: config.agents.soul.enabled,
             max_chars: config.agents.soul.max_chars,
             bootstrap_once: config.agents.soul.bootstrap_once,
+        },
+        request_max_tokens: config.agents.defaults.max_tokens as i32,
+        temperature: config.agents.defaults.temperature as f64,
+        context_budget: ContextBudgetPolicy {
+            context_budget_tokens: config.agents.defaults.context_budget_tokens as usize,
+            reserve_tokens: config.agents.defaults.context_budget_reserve_tokens as usize,
+            overflow_retry_enabled: config.agents.defaults.context_overflow_retry_enabled,
         },
         notify_on_soul_change: config.agents.soul.notify_on_change,
         soul_governance: SoulGovernanceSettings {

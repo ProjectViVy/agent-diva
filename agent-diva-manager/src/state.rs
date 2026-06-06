@@ -127,6 +127,21 @@ pub struct ConfigUpdate {
     pub model: Option<String>,
 }
 
+impl ConfigUpdate {
+    pub fn log_summary(&self) -> String {
+        format!(
+            "provider={:?}, model={:?}, api_base={:?}, has_api_key={}",
+            self.provider,
+            self.model,
+            self.api_base,
+            self.api_key
+                .as_deref()
+                .map(str::trim)
+                .is_some_and(|value| !value.is_empty())
+        )
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChannelUpdate {
     pub name: String,

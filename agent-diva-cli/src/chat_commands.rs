@@ -5,11 +5,12 @@ use crate::client::ApiClient;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings,
     context::SoulContextSettings,
+    context_budget::ContextBudgetPolicy,
     runtime_control::RuntimeControlCommand,
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
-    AgentEvent, AgentLoop, BuiltInToolsConfig, ToolConfig,
+    AgentEvent, AgentLoop, BuiltInToolsConfig, SubagentPolicy, ToolConfig,
 };
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
@@ -85,11 +86,19 @@ async fn build_local_cli_agent(
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
+        subagent_policy: SubagentPolicy::from(config.tools.subagent.clone()),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
         soul_context: SoulContextSettings {
             enabled: config.agents.soul.enabled,
             max_chars: config.agents.soul.max_chars,
             bootstrap_once: config.agents.soul.bootstrap_once,
+        },
+        request_max_tokens: config.agents.defaults.max_tokens as i32,
+        temperature: config.agents.defaults.temperature as f64,
+        context_budget: ContextBudgetPolicy {
+            context_budget_tokens: config.agents.defaults.context_budget_tokens as usize,
+            reserve_tokens: config.agents.defaults.context_budget_reserve_tokens as usize,
+            overflow_retry_enabled: config.agents.defaults.context_overflow_retry_enabled,
         },
         notify_on_soul_change: config.agents.soul.notify_on_change,
         soul_governance: SoulGovernanceSettings {

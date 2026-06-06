@@ -3,16 +3,23 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 
 use tempfile::tempdir;
+
+static TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn test_lock() -> &'static Mutex<()> {
+    TEST_LOCK.get_or_init(|| Mutex::new(()))
+}
 
 fn spawn_mock_openai_server() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock server");
     let addr = listener.local_addr().expect("local addr");
 
     thread::spawn(move || {
-        for stream in listener.incoming().take(2) {
+        for stream in listener.incoming().take(8) {
             let mut stream = match stream {
                 Ok(stream) => stream,
                 Err(_) => continue,
@@ -112,12 +119,17 @@ fn write_config(root: &Path, api_base: &str) -> PathBuf {
 
 #[test]
 fn agent_message_smoke_supports_config_and_workspace_override() {
+    let _guard = test_lock().lock().unwrap();
     let temp = tempdir().unwrap();
     let api_base = spawn_mock_openai_server();
     let config_path = write_config(temp.path(), &api_base);
     let workspace_override = temp.path().join("explicit-workspace");
 
     let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .env_remove("HTTP_PROXY")
+        .env_remove("HTTPS_PROXY")
+        .env_remove("ALL_PROXY")
+        .env("NO_PROXY", "127.0.0.1,localhost")
         .args([
             "--config",
             config_path.to_str().unwrap(),
@@ -139,11 +151,16 @@ fn agent_message_smoke_supports_config_and_workspace_override() {
 
 #[test]
 fn agent_logs_and_session_smoke_succeeds() {
+    let _guard = test_lock().lock().unwrap();
     let temp = tempdir().unwrap();
     let api_base = spawn_mock_openai_server();
     let config_path = write_config(temp.path(), &api_base);
 
     let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .env_remove("HTTP_PROXY")
+        .env_remove("HTTPS_PROXY")
+        .env_remove("ALL_PROXY")
+        .env("NO_PROXY", "127.0.0.1,localhost")
         .args([
             "--config",
             config_path.to_str().unwrap(),
@@ -165,6 +182,7 @@ fn agent_logs_and_session_smoke_succeeds() {
 
 #[test]
 fn chat_help_smoke_lists_light_chat_flags() {
+    let _guard = test_lock().lock().unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
         .args(["chat", "--help"])
         .output()
@@ -178,4 +196,37 @@ fn chat_help_smoke_lists_light_chat_flags() {
     assert!(stdout.contains("--no-markdown"), "{stdout}");
     assert!(stdout.contains("--logs"), "{stdout}");
     assert!(stdout.contains("--no-logs"), "{stdout}");
+}
+
+#[test]
+fn agent_message_smoke_surfaces_broken_persisted_session() {
+    let _guard = test_lock().lock().unwrap();
+    let temp = tempdir().unwrap();
+    let api_base = spawn_mock_openai_server();
+    let config_path = write_config(temp.path(), &api_base);
+    let workspace = temp.path().join("config-workspace");
+    let sessions_dir = workspace.join("sessions");
+    fs::create_dir_all(&sessions_dir).unwrap();
+    fs::write(sessions_dir.join("cli_broken.jsonl"), "{not json").unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .env_remove("HTTP_PROXY")
+        .env_remove("HTTPS_PROXY")
+        .env_remove("ALL_PROXY")
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "agent",
+            "--message",
+            "hello against broken session",
+            "--session",
+            "cli:broken",
+        ])
+        .output()
+        .expect("failed to run agent against broken session");
+
+    assert!(!output.status.success(), "{:?}", output);
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("Failed to parse session file"), "{stderr}");
 }
