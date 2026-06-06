@@ -138,6 +138,9 @@ const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
 const sidebarAutoCollapsed = ref(false);
+const prePetSidebarCollapsed = ref<boolean | null>(null);
+const overlaySidebarOpen = ref(false);
+const overlaySidebarTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const groups = ref({ capabilities: true, tools: true });
 const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
@@ -283,6 +286,15 @@ watch([activeTab, activeMenu], () => {
 });
 
 const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
+  // FR-2: Restore sidebar state when leaving pet page
+  if (activeMenu.value === 'pet' && section !== 'pet') {
+    if (prePetSidebarCollapsed.value !== null) {
+      sidebarCollapsed.value = prePetSidebarCollapsed.value;
+      prePetSidebarCollapsed.value = null;
+    }
+    closeOverlaySidebar();
+  }
+
   if (section === 'chat' || section === 'settings') {
     activeMenu.value = null;
     activeTab.value = section;
@@ -293,6 +305,14 @@ const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'da
     activeMenu.value = section;
   }
 
+  // FR-1: Auto-collapse sidebar when entering pet page
+  if (section === 'pet') {
+    if (prePetSidebarCollapsed.value === null) {
+      prePetSidebarCollapsed.value = sidebarCollapsed.value;
+    }
+    sidebarCollapsed.value = true;
+  }
+
   if (sidebarAutoCollapsed.value) {
     sidebarCollapsed.value = true;
   }
@@ -300,6 +320,54 @@ const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'da
 
 const openSettingsFromModelMenu = () => {
   navigateTo('settings', 'providers');
+};
+
+// FR-4 & FR-5: Overlay sidebar functions
+const openOverlaySidebar = () => {
+  if (activeMenu.value !== 'pet') return;
+  overlaySidebarOpen.value = true;
+  startOverlaySidebarTimer();
+};
+
+const closeOverlaySidebar = () => {
+  overlaySidebarOpen.value = false;
+  clearOverlaySidebarTimer();
+};
+
+const toggleOverlaySidebar = () => {
+  if (overlaySidebarOpen.value) {
+    closeOverlaySidebar();
+  } else {
+    openOverlaySidebar();
+  }
+};
+
+const clearOverlaySidebarTimer = () => {
+  if (overlaySidebarTimer.value) {
+    clearTimeout(overlaySidebarTimer.value);
+    overlaySidebarTimer.value = null;
+  }
+};
+
+const startOverlaySidebarTimer = () => {
+  clearOverlaySidebarTimer();
+  overlaySidebarTimer.value = setTimeout(() => {
+    closeOverlaySidebar();
+  }, 5000);
+};
+
+const resetOverlaySidebarTimer = () => {
+  if (overlaySidebarOpen.value) {
+    startOverlaySidebarTimer();
+  }
+};
+
+const onOverlaySidebarMouseMove = () => {
+  resetOverlaySidebarTimer();
+};
+
+const onOverlaySidebarKeyDown = () => {
+  resetOverlaySidebarTimer();
 };
 
 const isSectionActive = (section: SidebarSection) => {
@@ -372,7 +440,16 @@ defineExpose({
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'sidebar-expanded': !sidebarCollapsed, [`theme-${themeMode}`]: true }">
+  <div
+    class="app-shell"
+    :class="{
+      'sidebar-expanded': !sidebarCollapsed,
+      [`theme-${themeMode}`]: true,
+      'pet-immersive': activeMenu === 'pet',
+    }"
+    @mousemove="onOverlaySidebarMouseMove"
+    @keydown="onOverlaySidebarKeyDown"
+  >
     <!-- Love主题背景装饰 -->
     <div v-if="themeMode === 'love'" class="love-hearts">
       <span
@@ -391,7 +468,6 @@ defineExpose({
     </div>
 
     <!-- 常驻侧边栏 -->
-
     <!-- Miku主题背景装饰 -->
     <div v-if="themeMode === 'miku'" class="miku-floats">
       <div
@@ -410,7 +486,11 @@ defineExpose({
         <img src="/miku.svg" alt="Miku" />
       </div>
     </div>
-    <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <aside
+      v-if="activeMenu !== 'pet'"
+      class="sidebar"
+      :class="{ 'sidebar-collapsed': sidebarCollapsed }"
+    >
       <!-- Logo区域 -->
       <div class="sidebar-header">
         <div class="brand-logo">V</div>
