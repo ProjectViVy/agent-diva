@@ -1,4 +1,3 @@
-use anyhow;
 use super::AgentLoop;
 use crate::compaction::ContextCompactor;
 use crate::consolidation;
@@ -9,6 +8,7 @@ use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::{ChatMessage, CompactTrigger};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderError};
+use anyhow;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -77,11 +77,16 @@ impl AgentLoop {
             let budget_config = self.tool_config.budget.clone();
             let budget_report = check_budget(&history, &budget_config);
 
-            (history, history_len, budget_report.should_compact, budget_report)
+            (
+                history,
+                history_len,
+                budget_report.should_compact,
+                budget_report,
+            )
         };
 
         // Phase 2: call async compact() if needed, then update session
-        let (compaction_clone, did_compact) = if should_compact {
+        let (compaction_history, did_compact) = if should_compact {
             info!(
                 "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
                 budget_report.pressure_ratio * 100.0,
@@ -96,7 +101,15 @@ impl AgentLoop {
             // Use immutable get() to avoid holding &mut across .await
             let compact_result = {
                 if let Some(session) = self.sessions.get(&session_key) {
-                    ContextCompactor::compact(session, &budget_config, provider, &model, CompactTrigger::Auto).await
+                    ContextCompactor::compact(
+                        session,
+                        &budget_config,
+                        provider,
+                        &model,
+                        CompactTrigger::Auto,
+                        &session.compaction_history,
+                    )
+                    .await
                 } else {
                     Err(anyhow::anyhow!("Session not found for compaction"))
                 }
@@ -106,20 +119,20 @@ impl AgentLoop {
                 Ok(result) => {
                     let session = self.sessions.get_or_create(&session_key);
                     session.last_compacted = result.new_compacted_index;
-                    session.compaction = Some(result.summary.clone());
-                    (Some(result.summary), true)
+                    session.compaction_history.push(result.summary);
+                    (session.compaction_history.clone(), true)
                 }
                 Err(e) => {
                     warn!("Compaction failed (non-blocking): {}", e);
-                    // Carry forward any existing compaction as fallback
+                    // Carry forward existing compaction history as fallback
                     let session = self.sessions.get_or_create(&session_key);
-                    (session.compaction.clone(), false)
+                    (session.compaction_history.clone(), false)
                 }
             }
         } else {
-            // Carry forward any existing compaction from a previous turn
+            // Carry forward any existing compaction history from a previous turn
             let session = self.sessions.get_or_create(&session_key);
-            (session.compaction.clone(), false)
+            (session.compaction_history.clone(), false)
         };
 
         // Persist compaction state immediately when it just occurred
@@ -136,7 +149,7 @@ impl AgentLoop {
             message_content.clone(),
             Some(&msg.channel),
             Some(&msg.chat_id),
-            compaction_clone.as_ref(),
+            &compaction_history,
         );
         if is_cron_trigger {
             // Make trigger origin explicit so the model does not treat it as a fresh user request.
@@ -266,49 +279,39 @@ impl AgentLoop {
                             let compact_result = {
                                 if let Some(session) = self.sessions.get(&session_key) {
                                     ContextCompactor::compact(
-                                        session, &budget_config, provider, &model,
+                                        session,
+                                        &budget_config,
+                                        provider,
+                                        &model,
                                         CompactTrigger::Reactive,
-                                    ).await
+                                        &session.compaction_history,
+                                    )
+                                    .await
                                 } else {
-                                    Err(anyhow::anyhow!("Session not found for reactive compaction"))
+                                    Err(anyhow::anyhow!(
+                                        "Session not found for reactive compaction"
+                                    ))
                                 }
                             };
 
                             // Phase 2: apply result and get updated history
-                            let (reactive_history, reactive_compaction) = match compact_result {
-                                Ok(result) => {
-                                    let session = self.sessions.get_or_create(&session_key);
-                                    session.last_compacted = result.new_compacted_index;
-                                    session.compaction = Some(result.summary.clone());
-                                    let history = session.get_history(50);
-                                    (history, result.summary)
-                                }
-                                Err(e) => {
-                                    warn!("Reactive compaction failed (non-blocking): {}", e);
-                                    // Fallback: use existing session state without updating
-                                    let session = self.sessions.get_or_create(&session_key);
-                                    let history = session.get_history(50);
-                                    let fallback = session.compaction.clone().unwrap_or_else(|| {
-                                        agent_diva_core::session::CompactSummary {
-                                            schema_version: 1,
-                                            compact_id: String::new(),
-                                            created_at: String::new(),
-                                            trigger: CompactTrigger::Reactive,
-                                            source_range: agent_diva_core::session::CompactionRange {
-                                                start_index: 0,
-                                                end_index: 0,
-                                            },
-                                            kept_recent_count: 0,
-                                            pre_compact_message_count: 0,
-                                            pre_compact_estimated_tokens: 0,
-                                            summary: String::new(),
-                                            quality_score: None,
-                                            retry_count: 0,
-                                        }
-                                    });
-                                    (history, fallback)
-                                }
-                            };
+                            let (reactive_history, reactive_compaction_history) =
+                                match compact_result {
+                                    Ok(result) => {
+                                        let session = self.sessions.get_or_create(&session_key);
+                                        session.last_compacted = result.new_compacted_index;
+                                        session.compaction_history.push(result.summary);
+                                        let history = session.get_history(50);
+                                        (history, session.compaction_history.clone())
+                                    }
+                                    Err(e) => {
+                                        warn!("Reactive compaction failed (non-blocking): {}", e);
+                                        // Fallback: use existing session state without updating
+                                        let session = self.sessions.get_or_create(&session_key);
+                                        let history = session.get_history(50);
+                                        (history, session.compaction_history.clone())
+                                    }
+                                };
 
                             // Persist compaction state
                             if let Some(s) = self.sessions.get(&session_key) {
@@ -320,13 +323,13 @@ impl AgentLoop {
                                 }
                             }
 
-                            // Rebuild messages with new compaction summary
+                            // Rebuild messages with new compaction history
                             messages = self.context.build_messages(
                                 reactive_history,
                                 message_content.clone(),
                                 Some(&msg.channel),
                                 Some(&msg.chat_id),
-                                Some(&reactive_compaction),
+                                &reactive_compaction_history,
                             );
                             if is_cron_trigger {
                                 let current_message = messages.pop();
@@ -1031,42 +1034,42 @@ mod tests {
 
     #[test]
     fn test_is_context_overflow_detects_known_patterns() {
-        assert!(is_context_overflow_error(
-            &ProviderError::ApiError("context_length_exceeded".into())
-        ));
-        assert!(is_context_overflow_error(
-            &ProviderError::ApiError("prompt_too_long".into())
-        ));
-        assert!(is_context_overflow_error(
-            &ProviderError::InvalidResponse("maximum context length exceeded".into())
-        ));
-        assert!(is_context_overflow_error(
-            &ProviderError::ApiError("token limit reached".into())
-        ));
-        assert!(is_context_overflow_error(
-            &ProviderError::ApiError("too many tokens in request".into())
-        ));
-        assert!(is_context_overflow_error(
-            &ProviderError::ApiError("input length exceeded maximum".into())
-        ));
-        assert!(is_context_overflow_error(
-            &ProviderError::ApiError("context window exceeded".into())
-        ));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "context_length_exceeded".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "prompt_too_long".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::InvalidResponse(
+            "maximum context length exceeded".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "token limit reached".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "too many tokens in request".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "input length exceeded maximum".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "context window exceeded".into()
+        )));
     }
 
     #[test]
     fn test_is_context_overflow_ignores_unrelated_errors() {
-        assert!(!is_context_overflow_error(
-            &ProviderError::ApiError("rate limit exceeded".into())
-        ));
-        assert!(!is_context_overflow_error(
-            &ProviderError::ApiError("invalid api key".into())
-        ));
-        assert!(!is_context_overflow_error(
-            &ProviderError::JsonError(serde_json::from_str::<serde_json::Value>("invalid").unwrap_err())
-        ));
-        assert!(!is_context_overflow_error(
-            &ProviderError::ConfigError("missing config".into())
-        ));
+        assert!(!is_context_overflow_error(&ProviderError::ApiError(
+            "rate limit exceeded".into()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::ApiError(
+            "invalid api key".into()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::JsonError(
+            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::ConfigError(
+            "missing config".into()
+        )));
     }
 }

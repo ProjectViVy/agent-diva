@@ -126,7 +126,10 @@ impl AgentLoop {
 
     /// Handle manual `/compact` command: run compaction on the session and
     /// return a human-readable summary string.
-    pub(super) async fn handle_compact_session(&mut self, session_key: &str) -> Result<String, String> {
+    pub(super) async fn handle_compact_session(
+        &mut self,
+        session_key: &str,
+    ) -> Result<String, String> {
         // Check session exists and has messages
         {
             let session = self
@@ -146,12 +149,14 @@ impl AgentLoop {
         // Run compaction with Manual trigger (immutable borrow, like auto-compaction)
         let compact_result = {
             if let Some(session) = self.sessions.get(session_key) {
+                let prior = session.compaction_history.clone();
                 ContextCompactor::compact(
                     session,
                     &budget_config,
                     provider,
                     &model,
                     CompactTrigger::Manual,
+                    &prior,
                 )
                 .await
             } else {
@@ -162,15 +167,17 @@ impl AgentLoop {
         match compact_result {
             Ok(result) => {
                 // Check if there was actually anything to compact
-                if result.summary.summary.is_empty() && result.summary.pre_compact_message_count == 0 {
+                if result.summary.summary.is_empty()
+                    && result.summary.pre_compact_message_count == 0
+                {
                     return Ok("nothing to compact — session is already lean".to_string());
                 }
 
-                // Persist compaction state
+                // Persist compaction state — push to history chain
                 {
                     let session = self.sessions.get_or_create(session_key);
                     session.last_compacted = result.new_compacted_index;
-                    session.compaction = Some(result.summary.clone());
+                    session.compaction_history.push(result.summary.clone());
                 }
                 if let Some(s) = self.sessions.get(session_key) {
                     if let Err(e) = self.sessions.save(s) {

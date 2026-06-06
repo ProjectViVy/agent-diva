@@ -66,7 +66,7 @@ impl SessionManager {
         let mut created_at = None;
         let mut last_consolidated: usize = 0;
         let mut last_compacted: usize = 0;
-        let mut compaction: Option<super::store::CompactSummary> = None;
+        let mut compaction_history: Vec<super::store::CompactSummary> = Vec::new();
 
         for line in content.lines() {
             let line = line.trim();
@@ -89,9 +89,24 @@ impl SessionManager {
                         .get("last_compacted")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(0) as usize;
-                    compaction = value
-                        .get("compaction")
-                        .and_then(|v| serde_json::from_value(v.clone()).ok());
+                    // New format: array of summaries
+                    if let Some(arr) = value.get("compaction_history") {
+                        if let Ok(v) =
+                            serde_json::from_value::<Vec<super::store::CompactSummary>>(arr.clone())
+                        {
+                            compaction_history = v;
+                        }
+                    }
+                    // Old format: single compaction object (backward compat)
+                    if compaction_history.is_empty() {
+                        if let Some(v) = value.get("compaction") {
+                            if let Ok(cs) =
+                                serde_json::from_value::<super::store::CompactSummary>(v.clone())
+                            {
+                                compaction_history.push(cs);
+                            }
+                        }
+                    }
                 } else if let Ok(msg) = serde_json::from_value::<super::store::ChatMessage>(value) {
                     messages.push(msg);
                 }
@@ -106,7 +121,7 @@ impl SessionManager {
             metadata,
             last_consolidated,
             last_compacted,
-            compaction,
+            compaction_history,
         })
     }
 
@@ -125,7 +140,7 @@ impl SessionManager {
             "metadata": session.metadata,
             "last_consolidated": session.last_consolidated,
             "last_compacted": session.last_compacted,
-            "compaction": session.compaction,
+            "compaction_history": session.compaction_history,
         });
         lines.push(serde_json::to_string(&metadata)?);
 

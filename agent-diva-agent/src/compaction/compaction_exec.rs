@@ -4,13 +4,15 @@
 //! calls the LLM with a structured compaction prompt, and produces a
 //! `CompactSummary` that is stored in the session.
 
-use agent_diva_core::session::{ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session};
+use agent_diva_core::session::{
+    ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session,
+};
 use agent_diva_providers::{LLMProvider, Message};
 use chrono::Utc;
 use std::sync::Arc;
 use tracing::{info, warn};
 
-use super::prompt::COMPACTION_SYSTEM_PROMPT;
+use super::prompt::{COMPACTION_SYSTEM_PROMPT, PRIOR_SUMMARIES_PREFIX};
 use super::quality::validate_summary;
 use crate::context_budget::BudgetConfig;
 use crate::token_estimate::estimate_total_tokens;
@@ -51,6 +53,7 @@ impl ContextCompactor {
         provider: Arc<dyn LLMProvider>,
         model: &str,
         trigger: CompactTrigger,
+        prior_summaries: &[CompactSummary],
     ) -> Result<CompactionResult, anyhow::Error> {
         let keep = config.keep_recent_count.min(session.messages.len());
         let start = session.last_compacted;
@@ -91,10 +94,26 @@ impl ContextCompactor {
         // Format messages for the LLM
         let formatted = Self::format_messages_for_compaction(range);
 
+        // Build prior summaries context (if any)
+        let prior_context = if prior_summaries.is_empty() {
+            String::new()
+        } else {
+            let combined = prior_summaries
+                .iter()
+                .enumerate()
+                .map(|(i, s)| format!("[{}/{}] {}", i + 1, prior_summaries.len(), s.summary))
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            format!(
+                "{}\n",
+                PRIOR_SUMMARIES_PREFIX.replace("{prior_summaries}", &combined)
+            )
+        };
+
         // Build the base user prompt
         let base_user_prompt = format!(
-            "请压缩以下 {} 条对话消息：\n\n{}",
-            pre_compact_message_count, formatted
+            "{}请压缩以下 {} 条对话消息：\n\n{}",
+            prior_context, pre_compact_message_count, formatted
         );
 
         // Retry loop: up to 3 attempts (1 initial + 2 retries)
@@ -134,7 +153,11 @@ impl ContextCompactor {
             {
                 Ok(resp) => resp,
                 Err(e) => {
-                    warn!("LLM compaction call failed on attempt {}: {}", attempt + 1, e);
+                    warn!(
+                        "LLM compaction call failed on attempt {}: {}",
+                        attempt + 1,
+                        e
+                    );
                     continue;
                 }
             };
@@ -142,7 +165,10 @@ impl ContextCompactor {
             let response_text = response.content.unwrap_or_default();
 
             if response_text.trim().is_empty() {
-                warn!("LLM returned empty compaction response on attempt {}", attempt + 1);
+                warn!(
+                    "LLM returned empty compaction response on attempt {}",
+                    attempt + 1
+                );
                 continue;
             }
 
@@ -174,7 +200,9 @@ impl ContextCompactor {
             if report.score >= QUALITY_THRESHOLD {
                 info!(
                     "Compaction quality acceptable on attempt {} (score {:.2} >= {})",
-                    attempt + 1, report.score, QUALITY_THRESHOLD
+                    attempt + 1,
+                    report.score,
+                    QUALITY_THRESHOLD
                 );
                 break;
             }
@@ -247,7 +275,11 @@ impl ContextCompactor {
 
             // Truncate very long messages to avoid blowing the compaction prompt
             let content = if msg.content.len() > 2000 {
-                format!("{}…[truncated, {} chars total]", &msg.content[..2000], msg.content.len())
+                format!(
+                    "{}…[truncated, {} chars total]",
+                    &msg.content[..2000],
+                    msg.content.len()
+                )
             } else {
                 msg.content.clone()
             };
@@ -338,7 +370,11 @@ mod tests {
         let response = "<analysis></analysis>\n<summary></summary>";
         let summary = ContextCompactor::extract_summary(response);
         // Empty tags with no content → result is empty (nothing to extract)
-        assert!(summary.is_empty(), "Empty tags with no content should produce empty summary, got: {:?}", summary);
+        assert!(
+            summary.is_empty(),
+            "Empty tags with no content should produce empty summary, got: {:?}",
+            summary
+        );
     }
 
     #[test]

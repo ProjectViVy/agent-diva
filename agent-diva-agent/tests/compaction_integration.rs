@@ -14,7 +14,9 @@
 use agent_diva_agent::context::ContextBuilder;
 use agent_diva_agent::context_budget::{self, BudgetConfig};
 use agent_diva_agent::token_estimate::{estimate_tokens, estimate_total_tokens};
-use agent_diva_core::session::{ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session};
+use agent_diva_core::session::{
+    ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session,
+};
 use chrono::Utc;
 use serde_json;
 
@@ -39,7 +41,14 @@ fn make_session(key: &str) -> Session {
     Session::new(key)
 }
 
-fn make_compact_summary(summary_text: &str, trigger: CompactTrigger, start: usize, end: usize, kept: usize, pre_count: usize) -> CompactSummary {
+fn make_compact_summary(
+    summary_text: &str,
+    trigger: CompactTrigger,
+    start: usize,
+    end: usize,
+    kept: usize,
+    pre_count: usize,
+) -> CompactSummary {
     CompactSummary {
         schema_version: 1,
         compact_id: uuid::Uuid::new_v4().to_string(),
@@ -88,10 +97,19 @@ fn test_compact_summary_roundtrip() {
     assert_eq!(restored.compact_id, original.compact_id);
     assert_eq!(restored.created_at, original.created_at);
     assert_eq!(restored.summary, original.summary);
-    assert_eq!(restored.source_range.start_index, original.source_range.start_index);
-    assert_eq!(restored.source_range.end_index, original.source_range.end_index);
+    assert_eq!(
+        restored.source_range.start_index,
+        original.source_range.start_index
+    );
+    assert_eq!(
+        restored.source_range.end_index,
+        original.source_range.end_index
+    );
     assert_eq!(restored.kept_recent_count, original.kept_recent_count);
-    assert_eq!(restored.pre_compact_message_count, original.pre_compact_message_count);
+    assert_eq!(
+        restored.pre_compact_message_count,
+        original.pre_compact_message_count
+    );
 
     // 验证 trigger 枚举 roundtrip
     let trigger_json = serde_json::to_string(&restored.trigger).unwrap();
@@ -112,7 +130,7 @@ fn test_backward_compat_session_without_compaction() {
     session.add_message("assistant", "抱歉，我无法获取实时天气信息。");
 
     // 验证 compaction 字段为 None（向后兼容）
-    assert!(session.compaction.is_none());
+    assert!(session.compaction_history.is_empty());
     assert_eq!(session.last_compacted, 0);
 
     // get_history 应该正常工作
@@ -193,7 +211,10 @@ fn test_build_messages_with_compaction() {
     // 构造历史消息（未压缩的尾部）
     let history: Vec<ChatMessage> = vec![
         make_msg("user", "最近有什么新电影？"),
-        make_msg("assistant", "最近上映了《星际穿越2》和《赛博朋克2077》电影版。"),
+        make_msg(
+            "assistant",
+            "最近上映了《星际穿越2》和《赛博朋克2077》电影版。",
+        ),
         make_msg("user", "推荐看哪一部？"),
         make_msg("assistant", "如果你喜欢科幻，推荐《星际穿越2》。"),
     ];
@@ -203,7 +224,7 @@ fn test_build_messages_with_compaction() {
         "你说得对，科幻确实不错。".to_string(),
         Some("telegram"),
         Some("12345"),
-        Some(&summary),
+        &[summary.clone()],
     );
 
     // 验证总消息数
@@ -212,22 +233,37 @@ fn test_build_messages_with_compaction() {
 
     // 验证 boundary markers
     let boundary_start = messages[1].content.to_text_lossy();
-    assert!(boundary_start.contains("Context Compaction Boundary"), "应包含 boundary start marker");
-    assert!(boundary_start.contains("compacted context start"), "应包含 compacted context start");
+    assert!(
+        boundary_start.contains("Context Compaction Boundary"),
+        "应包含 boundary start marker"
+    );
+    assert!(
+        boundary_start.contains("compacted context start"),
+        "应包含 compacted context start"
+    );
 
     let summary_msg = messages[2].content.to_text_lossy();
     assert!(summary_msg.contains("早期对话摘要"));
     assert!(summary_msg.contains("天气"));
 
     let boundary_end = messages[3].content.to_text_lossy();
-    assert!(boundary_end.contains("compacted context end"), "应包含 compacted context end");
+    assert!(
+        boundary_end.contains("compacted context end"),
+        "应包含 compacted context end"
+    );
 
     // 验证历史消息在 boundary 之后
     assert_eq!(messages[4].content.to_text_lossy(), "最近有什么新电影？");
-    assert_eq!(messages[5].content.to_text_lossy(), "最近上映了《星际穿越2》和《赛博朋克2077》电影版。");
+    assert_eq!(
+        messages[5].content.to_text_lossy(),
+        "最近上映了《星际穿越2》和《赛博朋克2077》电影版。"
+    );
 
     // 验证当前消息在最后
-    assert_eq!(messages[8].content.to_text_lossy(), "你说得对，科幻确实不错。");
+    assert_eq!(
+        messages[8].content.to_text_lossy(),
+        "你说得对，科幻确实不错。"
+    );
 
     // 验证 system prompt 存在并包含必要信息
     let system = messages[0].content.to_text_lossy();
@@ -252,7 +288,7 @@ fn test_build_messages_without_compaction() {
         "帮我查一下天气。".to_string(),
         None,
         None,
-        None, // 无 compaction
+        &[], // 无 compaction
     );
 
     // 验证总消息数: system (1) + 2 history + 1 current = 4
@@ -296,13 +332,18 @@ fn test_budget_check_below_threshold() {
 
     assert!(!report.should_compact, "少量消息不应触发 compaction");
     assert!(report.pressure_ratio < 0.80, "压力比应低于 0.80");
-    assert!(report.history_estimated < 144_000, "估算 tokens 应远低于阈值");
+    assert!(
+        report.history_estimated < 144_000,
+        "估算 tokens 应远低于阈值"
+    );
     assert!(report.pressure_ratio >= 0.0, "压力比不应为负");
 
     // 验证 system_estimated 和 total_estimated 的一致性
     assert_eq!(
         report.total_estimated,
-        report.history_estimated.saturating_add(report.system_estimated),
+        report
+            .history_estimated
+            .saturating_add(report.system_estimated),
         "total = history + system"
     );
 }
@@ -336,7 +377,10 @@ fn test_budget_check_above_threshold() {
 
     assert!(report.should_compact, "高于阈值时应触发 compaction");
     assert!(report.pressure_ratio > 0.80, "压力比应高于 0.80");
-    assert!(report.history_estimated > 8000, "估算 tokens 应高于 compact threshold");
+    assert!(
+        report.history_estimated > 8000,
+        "估算 tokens 应高于 compact threshold"
+    );
 
     // 验证空历史不触发（即使 budget 很小）
     let empty_report = context_budget::check_budget(&[], &config);
@@ -367,8 +411,8 @@ fn test_token_estimation() {
     let english = "The quick brown fox jumps over the lazy dog"; // 43 chars
     let tokens = estimate_tokens(english);
     assert_eq!(tokens, 15); // ceil(43/3) = 15
-    // 实际 GPT/DeepSeek tokenizer 通常 ~9-10 tokens
-    // 我们的启发式允许一定误差，但应在一个数量级内
+                            // 实际 GPT/DeepSeek tokenizer 通常 ~9-10 tokens
+                            // 我们的启发式允许一定误差，但应在一个数量级内
     assert!(tokens >= 1);
     assert!(tokens <= english.len()); // 每个 token 至少 1 个字符
 
@@ -385,9 +429,9 @@ fn test_token_estimation() {
 
     // ── estimate_total_tokens 求和正确 ──
     let msgs: Vec<ChatMessage> = vec![
-        make_msg("user", "hello"),  // 5 chars → ceil(5/3) = 2
+        make_msg("user", "hello"),         // 5 chars → ceil(5/3) = 2
         make_msg("assistant", "hi there"), // 8 chars → ceil(8/3) = 3
-        make_msg("user", "how are you?"), // 12 chars → ceil(12/3) = 4
+        make_msg("user", "how are you?"),  // 12 chars → ceil(12/3) = 4
     ];
     let total = estimate_total_tokens(&msgs);
     assert_eq!(total, 2 + 3 + 4); // = 9
@@ -405,7 +449,7 @@ fn test_is_context_overflow_detection() {
     // 构造一个极度受限的 budget 来测试 overflow 检测
     let config = BudgetConfig {
         max_tokens: 1_000,
-        system_budget_ratio: 0.2,    // 200 tokens for system
+        system_budget_ratio: 0.2, // 200 tokens for system
         compact_threshold_ratio: 0.80,
         keep_recent_count: 5,
     };
@@ -430,7 +474,10 @@ fn test_is_context_overflow_detection() {
         .map(|i| make_msg("user", &format!("[{}]{}", i, overflow_content)))
         .collect();
     let overflow_report = context_budget::check_budget(&overflow_history, &config);
-    assert!(overflow_report.should_compact, "超 budget 应触发 compaction");
+    assert!(
+        overflow_report.should_compact,
+        "超 budget 应触发 compaction"
+    );
     assert!(
         overflow_report.pressure_ratio > 1.0,
         "压力比应 > 1.0（overflow），实际: {}",
@@ -448,7 +495,10 @@ fn test_is_context_overflow_detection() {
         .map(|i| make_msg("user", &format!("[{}]{}", i, severe_content)))
         .collect();
     let severe_report = context_budget::check_budget(&severe_history, &config);
-    assert!(severe_report.should_compact, "严重 overflow 应触发 compaction");
+    assert!(
+        severe_report.should_compact,
+        "严重 overflow 应触发 compaction"
+    );
     assert!(
         severe_report.pressure_ratio > 1.0,
         "严重 overflow 压力比应 > 1.0，实际: {}",
@@ -460,4 +510,230 @@ fn test_is_context_overflow_detection() {
     assert!(!empty_report.should_compact);
     assert_eq!(empty_report.history_estimated, 0);
     assert!(empty_report.pressure_ratio == 0.0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test 10: 多次压缩链式处理（Multi-Compaction Chain）
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_multi_compaction_chain() {
+    // 模拟 300 轮对话，触发 3 次压缩
+    let mut session = make_session("telegram:multi-compact-test");
+
+    // 添加 300 条消息
+    for i in 0..300 {
+        let role = if i % 2 == 0 { "user" } else { "assistant" };
+        session.add_message(
+            role,
+            format!(
+                "对话轮次 {}: 这是关于项目进展的讨论内容，包含了任务分配和进度汇报。",
+                i
+            ),
+        );
+    }
+
+    let keep_recent = 10;
+
+    // ── 第 1 次压缩: [0..200] ──
+    let c1 = make_compact_summary(
+        "第一轮压缩摘要：讨论了项目启动、需求分析、技术选型。用户选择了 Rust + Tauri 技术栈。",
+        CompactTrigger::Auto,
+        0,
+        200,
+        keep_recent,
+        200,
+    );
+    session.compaction_history.push(c1);
+    session.last_compacted = 200;
+
+    // ── 第 2 次压缩: [200..280] ──
+    let c2 = make_compact_summary(
+        "第二轮压缩摘要（融合第一轮）：在项目启动基础上，完成了核心模块开发、API 设计、数据库 schema 迁移。",
+        CompactTrigger::Auto,
+        200, 280, keep_recent, 80,
+    );
+    session.compaction_history.push(c2);
+    session.last_compacted = 280;
+
+    // ── 第 3 次压缩: [280..290] ──
+    let c3 = make_compact_summary(
+        "第三轮压缩摘要（融合前两轮）：项目进入测试阶段，修复了 12 个 bug，性能优化完成 80%。",
+        CompactTrigger::Auto,
+        280,
+        290,
+        keep_recent,
+        10,
+    );
+    session.compaction_history.push(c3);
+    session.last_compacted = 290;
+
+    // 验证 compaction_history 有 3 条记录
+    assert_eq!(session.compaction_history.len(), 3, "应有 3 条压缩记录");
+
+    // 验证 source_range 不重叠
+    let ranges: Vec<_> = session
+        .compaction_history
+        .iter()
+        .map(|c| (c.source_range.start_index, c.source_range.end_index))
+        .collect();
+    assert_eq!(ranges[0], (0, 200), "第 1 次压缩范围");
+    assert_eq!(ranges[1], (200, 280), "第 2 次压缩范围");
+    assert_eq!(ranges[2], (280, 290), "第 3 次压缩范围");
+
+    // 验证每个 source_range 的 end_index == 下一个的 start_index（链式连续）
+    assert_eq!(ranges[0].1, ranges[1].0, "压缩链应连续");
+    assert_eq!(ranges[1].1, ranges[2].0, "压缩链应连续");
+
+    // 验证 get_history 只返回未压缩的尾部
+    let history = session.get_history(50);
+    assert_eq!(history.len(), 10, "应只剩最后 10 条消息 (300-290=10)");
+    assert_eq!(
+        history[0].content,
+        "对话轮次 290: 这是关于项目进展的讨论内容，包含了任务分配和进度汇报。"
+    );
+
+    // 验证 last_compacted 正确
+    assert_eq!(session.last_compacted, 290);
+
+    // 验证 build_messages 注入所有 3 个摘要
+    let builder = ContextBuilder::default();
+    let messages = builder.build_messages(
+        history,
+        "继续讨论。".to_string(),
+        Some("telegram"),
+        Some("multi-test"),
+        &session.compaction_history,
+    );
+
+    // system (1) + boundary1+summary1+boundary1 (3) + boundary2+summary2+boundary2 (3)
+    //   + boundary3+summary3+boundary3 (3) + 10 history + 1 current = 21
+    assert_eq!(messages.len(), 21, "应有 21 条消息 (1+3+3+3+10+1)");
+
+    // 验证第 1 个摘要内容
+    let s1 = messages[2].content.to_text_lossy();
+    assert!(s1.contains("项目启动"), "第 1 个摘要应包含 '项目启动'");
+
+    // 验证第 2 个摘要内容
+    let s2 = messages[5].content.to_text_lossy();
+    assert!(s2.contains("核心模块"), "第 2 个摘要应包含 '核心模块'");
+
+    // 验证第 3 个摘要内容
+    let s3 = messages[8].content.to_text_lossy();
+    assert!(s3.contains("测试阶段"), "第 3 个摘要应包含 '测试阶段'");
+
+    // 验证 latest_compaction 返回最后一条
+    let latest = session.latest_compaction().unwrap();
+    assert!(latest.summary.contains("测试阶段"), "latest 应返回第 3 条");
+
+    // 验证 all_summaries_text 包含所有摘要
+    let all = session.all_summaries_text();
+    assert!(all.contains("压缩记录 1/3"), "应包含第 1 条标记");
+    assert!(all.contains("压缩记录 2/3"), "应包含第 2 条标记");
+    assert!(all.contains("压缩记录 3/3"), "应包含第 3 条标记");
+    assert!(all.contains("项目启动"), "应包含第 1 条内容");
+    assert!(all.contains("核心模块"), "应包含第 2 条内容");
+    assert!(all.contains("测试阶段"), "应包含第 3 条内容");
+
+    // 验证序列化/反序列化 roundtrip
+    let json = serde_json::to_string(&session).unwrap();
+    let restored: Session = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored.compaction_history.len(), 3, "反序列化后应有 3 条");
+    assert_eq!(restored.last_compacted, 290);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test 11: 旧格式 backward compat 反序列化
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_backward_compat_deserialize_old_format() {
+    // 旧格式 JSON: "compaction": { ... } (单个对象)
+    let old_json = serde_json::json!({
+        "key": "telegram:old-format",
+        "messages": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "metadata": {},
+        "last_consolidated": 0,
+        "last_compacted": 5,
+        "compaction": {
+            "schema_version": 1,
+            "compact_id": "old-compact-001",
+            "created_at": "2026-01-01T00:00:00Z",
+            "trigger": "auto",
+            "source_range": { "start_index": 0, "end_index": 5 },
+            "kept_recent_count": 10,
+            "pre_compact_message_count": 5,
+            "pre_compact_estimated_tokens": 500,
+            "summary": "旧格式摘要内容",
+            "quality_score": 0.85,
+            "retry_count": 0
+        }
+    });
+
+    let session: Session = serde_json::from_value(old_json).unwrap();
+
+    // 应自动转换为 1 元素的 Vec
+    assert_eq!(
+        session.compaction_history.len(),
+        1,
+        "旧格式应转为 1 元素 Vec"
+    );
+    assert_eq!(session.compaction_history[0].compact_id, "old-compact-001");
+    assert_eq!(session.compaction_history[0].summary, "旧格式摘要内容");
+    assert_eq!(session.last_compacted, 5);
+
+    // 新格式 JSON: "compaction_history": [ ... ] (数组)
+    let new_json = serde_json::json!({
+        "key": "telegram:new-format",
+        "messages": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "metadata": {},
+        "last_consolidated": 0,
+        "last_compacted": 10,
+        "compaction_history": [
+            {
+                "schema_version": 1,
+                "compact_id": "new-compact-001",
+                "created_at": "2026-01-01T00:00:00Z",
+                "trigger": "auto",
+                "source_range": { "start_index": 0, "end_index": 5 },
+                "kept_recent_count": 10,
+                "pre_compact_message_count": 5,
+                "pre_compact_estimated_tokens": 500,
+                "summary": "第一次压缩",
+            },
+            {
+                "schema_version": 1,
+                "compact_id": "new-compact-002",
+                "created_at": "2026-01-02T00:00:00Z",
+                "trigger": "manual",
+                "source_range": { "start_index": 5, "end_index": 10 },
+                "kept_recent_count": 10,
+                "pre_compact_message_count": 5,
+                "pre_compact_estimated_tokens": 400,
+                "summary": "第二次压缩",
+            }
+        ]
+    });
+
+    let session2: Session = serde_json::from_value(new_json).unwrap();
+    assert_eq!(session2.compaction_history.len(), 2, "新格式应有 2 条");
+    assert_eq!(session2.compaction_history[0].compact_id, "new-compact-001");
+    assert_eq!(session2.compaction_history[1].compact_id, "new-compact-002");
+    assert_eq!(session2.last_compacted, 10);
+
+    // 空/缺失 compaction 字段 → 空 Vec
+    let no_compact_json = serde_json::json!({
+        "key": "telegram:no-compact",
+        "messages": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "metadata": {},
+    });
+
+    let session3: Session = serde_json::from_value(no_compact_json).unwrap();
+    assert!(session3.compaction_history.is_empty(), "缺失字段应为空 Vec");
 }
