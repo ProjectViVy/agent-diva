@@ -3,14 +3,17 @@
 //! This crate provides the agent loop, context building, and skill loading.
 
 pub mod agent_loop;
+pub mod compaction;
 pub mod consolidation;
 pub mod context;
+pub mod context_budget;
 pub mod mentle_discovery;
 #[cfg(feature = "mentle")]
 mod mentle_runtime;
 pub mod runtime_control;
 pub mod skills;
 pub mod subagent;
+pub mod token_estimate;
 pub mod tool_assembly;
 pub mod tool_config;
 

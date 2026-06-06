@@ -1,11 +1,14 @@
+use anyhow;
 use super::AgentLoop;
+use crate::compaction::ContextCompactor;
 use crate::consolidation;
+use crate::context_budget::{check_budget, BudgetConfig};
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
-use agent_diva_core::session::ChatMessage;
+use agent_diva_core::session::{ChatMessage, CompactTrigger};
 use agent_diva_core::soul::SoulStateStore;
-use agent_diva_providers::{LLMResponse, LLMStreamEvent};
+use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderError};
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -62,16 +65,78 @@ impl AgentLoop {
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         self.clear_session_cancellation(&session_key);
-        let session = self.sessions.get_or_create(&session_key);
 
-        // Build initial messages
-        let history = session.get_history(50); // Last 50 messages
-        let history_len = history.len();
+        // ── Build initial messages with budget-aware compaction ──
+        // Phase 1: check budget and decide if compaction is needed (release borrow before .await)
+        let (history, history_len, should_compact, budget_report) = {
+            let session = self.sessions.get_or_create(&session_key);
+            let history = session.get_history(50); // Last 50 messages
+            let history_len = history.len();
+
+            // Budget check against context window limits
+            let budget_config = BudgetConfig::default();
+            let budget_report = check_budget(&history, &budget_config);
+
+            (history, history_len, budget_report.should_compact, budget_report)
+        };
+
+        // Phase 2: call async compact() if needed, then update session
+        let (compaction_clone, did_compact) = if should_compact {
+            info!(
+                "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
+                budget_report.pressure_ratio * 100.0,
+                budget_report.history_estimated,
+                budget_report.total_estimated.saturating_sub(budget_report.system_estimated),
+            );
+
+            let provider = self.provider.clone();
+            let model = self.model.clone();
+            let budget_config = BudgetConfig::default();
+
+            // Use immutable get() to avoid holding &mut across .await
+            let compact_result = {
+                if let Some(session) = self.sessions.get(&session_key) {
+                    ContextCompactor::compact(session, &budget_config, provider, &model, CompactTrigger::Auto).await
+                } else {
+                    Err(anyhow::anyhow!("Session not found for compaction"))
+                }
+            };
+
+            match compact_result {
+                Ok(result) => {
+                    let session = self.sessions.get_or_create(&session_key);
+                    session.last_compacted = result.new_compacted_index;
+                    session.compaction = Some(result.summary.clone());
+                    (Some(result.summary), true)
+                }
+                Err(e) => {
+                    warn!("Compaction failed (non-blocking): {}", e);
+                    // Carry forward any existing compaction as fallback
+                    let session = self.sessions.get_or_create(&session_key);
+                    (session.compaction.clone(), false)
+                }
+            }
+        } else {
+            // Carry forward any existing compaction from a previous turn
+            let session = self.sessions.get_or_create(&session_key);
+            (session.compaction.clone(), false)
+        };
+
+        // Persist compaction state immediately when it just occurred
+        if did_compact {
+            if let Some(s) = self.sessions.get(&session_key) {
+                if let Err(e) = self.sessions.save(s) {
+                    error!("Failed to persist compaction state: {}", e);
+                }
+            }
+        }
+
         let mut messages = self.context.build_messages(
             history,
-            message_content,
+            message_content.clone(),
             Some(&msg.channel),
             Some(&msg.chat_id),
+            compaction_clone.as_ref(),
         );
         if is_cron_trigger {
             // Make trigger origin explicit so the model does not treat it as a fresh user request.
@@ -163,20 +228,122 @@ impl AgentLoop {
             } else {
                 self.tools.get_definitions()
             };
-            let mut stream = self
-                .provider
-                .chat_stream(
-                    messages.clone(),
-                    if !tool_defs.is_empty() {
-                        Some(tool_defs)
-                    } else {
-                        None
-                    },
-                    Some(model_to_use.clone()),
-                    4096,
-                    0.7,
-                )
-                .await?;
+            // Call LLM with reactive context-overflow safety net.
+            // On context_length_exceeded, perform emergency compaction and retry once.
+            let mut reactive_retry_attempted = false;
+            let mut stream = loop {
+                let tool_defs_for_call = if !tool_defs.is_empty() {
+                    Some(tool_defs.clone())
+                } else {
+                    None
+                };
+                match self
+                    .provider
+                    .chat_stream(
+                        messages.clone(),
+                        tool_defs_for_call,
+                        Some(model_to_use.clone()),
+                        4096,
+                        0.7,
+                    )
+                    .await
+                {
+                    Ok(s) => break s,
+                    Err(e) => {
+                        if !reactive_retry_attempted && is_context_overflow_error(&e) {
+                            warn!(
+                                "Context overflow detected from provider: {}. Triggering reactive compaction...",
+                                e
+                            );
+                            reactive_retry_attempted = true;
+
+                            // --- Reactive compaction ---
+                            let provider = self.provider.clone();
+                            let model = self.model.clone();
+                            let budget_config = BudgetConfig::default();
+
+                            // Phase 1: call compact() with immutable session ref
+                            let compact_result = {
+                                if let Some(session) = self.sessions.get(&session_key) {
+                                    ContextCompactor::compact(
+                                        session, &budget_config, provider, &model,
+                                        CompactTrigger::Reactive,
+                                    ).await
+                                } else {
+                                    Err(anyhow::anyhow!("Session not found for reactive compaction"))
+                                }
+                            };
+
+                            // Phase 2: apply result and get updated history
+                            let (reactive_history, reactive_compaction) = match compact_result {
+                                Ok(result) => {
+                                    let session = self.sessions.get_or_create(&session_key);
+                                    session.last_compacted = result.new_compacted_index;
+                                    session.compaction = Some(result.summary.clone());
+                                    let history = session.get_history(50);
+                                    (history, result.summary)
+                                }
+                                Err(e) => {
+                                    warn!("Reactive compaction failed (non-blocking): {}", e);
+                                    // Fallback: use existing session state without updating
+                                    let session = self.sessions.get_or_create(&session_key);
+                                    let history = session.get_history(50);
+                                    let fallback = session.compaction.clone().unwrap_or_else(|| {
+                                        agent_diva_core::session::CompactSummary {
+                                            schema_version: 1,
+                                            compact_id: String::new(),
+                                            created_at: String::new(),
+                                            trigger: CompactTrigger::Reactive,
+                                            source_range: agent_diva_core::session::CompactionRange {
+                                                start_index: 0,
+                                                end_index: 0,
+                                            },
+                                            kept_recent_count: 0,
+                                            pre_compact_message_count: 0,
+                                            pre_compact_estimated_tokens: 0,
+                                            summary: String::new(),
+                                        }
+                                    });
+                                    (history, fallback)
+                                }
+                            };
+
+                            // Persist compaction state
+                            if let Some(s) = self.sessions.get(&session_key) {
+                                if let Err(persist_err) = self.sessions.save(s) {
+                                    error!(
+                                        "Failed to persist reactive compaction state: {}",
+                                        persist_err
+                                    );
+                                }
+                            }
+
+                            // Rebuild messages with new compaction summary
+                            messages = self.context.build_messages(
+                                reactive_history,
+                                message_content.clone(),
+                                Some(&msg.channel),
+                                Some(&msg.chat_id),
+                                Some(&reactive_compaction),
+                            );
+                            if is_cron_trigger {
+                                let current_message = messages.pop();
+                                messages.push(agent_diva_providers::Message::system(
+                                    "This turn is triggered automatically by a scheduled cron job, not by a real-time user input. Do not schedule new reminders/jobs from this turn unless explicitly required by prior task design.",
+                                ));
+                                if let Some(current_message) = current_message {
+                                    messages.push(current_message);
+                                }
+                            }
+
+                            info!("Reactive compaction complete, retrying provider call...");
+                            continue; // retry once
+                        } else {
+                            return Err(e.into());
+                        }
+                    }
+                }
+            };
             let mut streamed_content = String::new();
             let mut streamed_reasoning = String::new();
             let mut response: Option<LLMResponse> = None;
@@ -751,6 +918,24 @@ fn derive_prefetch_intent(message: &str) -> String {
     }
 }
 
+/// Check whether a provider error indicates a context-length overflow.
+///
+/// Matches against known error patterns from various LLM providers
+/// (DeepSeek, OpenAI, Anthropic, etc.) that signal the request exceeded
+/// the model's maximum context window.
+fn is_context_overflow_error(err: &ProviderError) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("context_length_exceeded")
+        || msg.contains("prompt_too_long")
+        || msg.contains("maximum context length")
+        || msg.contains("context length")
+        || msg.contains("token limit")
+        || msg.contains("too many tokens")
+        || msg.contains("input length exceeded")
+        || msg.contains("max tokens")
+        || msg.contains("context window")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -838,5 +1023,48 @@ mod tests {
         let notice = format_soul_transparency_notice(&files, true, false);
         assert!(!notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
         assert!(!notice.contains("Governance hint:"));
+    }
+
+    // ── Reactive compact: context-overflow detection ──────────────
+
+    #[test]
+    fn test_is_context_overflow_detects_known_patterns() {
+        assert!(is_context_overflow_error(
+            &ProviderError::ApiError("context_length_exceeded".into())
+        ));
+        assert!(is_context_overflow_error(
+            &ProviderError::ApiError("prompt_too_long".into())
+        ));
+        assert!(is_context_overflow_error(
+            &ProviderError::InvalidResponse("maximum context length exceeded".into())
+        ));
+        assert!(is_context_overflow_error(
+            &ProviderError::ApiError("token limit reached".into())
+        ));
+        assert!(is_context_overflow_error(
+            &ProviderError::ApiError("too many tokens in request".into())
+        ));
+        assert!(is_context_overflow_error(
+            &ProviderError::ApiError("input length exceeded maximum".into())
+        ));
+        assert!(is_context_overflow_error(
+            &ProviderError::ApiError("context window exceeded".into())
+        ));
+    }
+
+    #[test]
+    fn test_is_context_overflow_ignores_unrelated_errors() {
+        assert!(!is_context_overflow_error(
+            &ProviderError::ApiError("rate limit exceeded".into())
+        ));
+        assert!(!is_context_overflow_error(
+            &ProviderError::ApiError("invalid api key".into())
+        ));
+        assert!(!is_context_overflow_error(
+            &ProviderError::JsonError(serde_json::from_str::<serde_json::Value>("invalid").unwrap_err())
+        ));
+        assert!(!is_context_overflow_error(
+            &ProviderError::ConfigError("missing config".into())
+        ));
     }
 }

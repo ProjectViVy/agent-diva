@@ -302,13 +302,18 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         header
     }
 
-    /// Build the complete message list for an LLM call
+    /// Build the complete message list for an LLM call.
+    ///
+    /// If `session_compaction` is provided, the compacted summary is injected
+    /// as a boundary marker + system message before the raw history, so the LLM
+    /// sees both the summary and the recent messages.
     pub fn build_messages(
         &self,
         history: Vec<agent_diva_core::session::ChatMessage>,
         current_message: String,
         channel: Option<&str>,
         chat_id: Option<&str>,
+        session_compaction: Option<&agent_diva_core::session::CompactSummary>,
     ) -> Vec<Message> {
         let mut messages = Vec::new();
 
@@ -321,6 +326,17 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
             ));
         }
         messages.push(Message::system(system_prompt));
+
+        // Inject compaction boundary if present
+        if let Some(compaction) = session_compaction {
+            if !compaction.summary.is_empty() {
+                messages.push(Message::system(
+                    "## Context Compaction Boundary\n以下早期对话已被压缩为摘要。摘要可能有失真，如需精确信息请询问用户。\n[compacted context start]",
+                ));
+                messages.push(Message::system(&compaction.summary));
+                messages.push(Message::system("[compacted context end]"));
+            }
+        }
 
         // History - convert from ChatMessage to Message
         for msg in history {
@@ -554,7 +570,7 @@ mod tests {
     fn test_build_messages() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
         let messages =
-            builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"));
+            builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"), None);
         assert_eq!(messages.len(), 2); // system + user
         assert_eq!(messages[0].role, "system");
         assert_eq!(messages[1].role, "user");
