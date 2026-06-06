@@ -996,6 +996,7 @@ async fn run_tui(
             frequent_change_threshold: config.agents.soul.frequent_change_threshold,
             boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
         },
+        budget: config.tools.budget.clone().into(),
     };
 
     let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();

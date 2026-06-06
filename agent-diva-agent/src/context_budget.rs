@@ -60,6 +60,17 @@ impl Default for BudgetConfig {
     }
 }
 
+impl From<agent_diva_core::config::CompactionBudgetConfig> for BudgetConfig {
+    fn from(cfg: agent_diva_core::config::CompactionBudgetConfig) -> Self {
+        Self {
+            max_tokens: cfg.max_tokens,
+            system_budget_ratio: cfg.system_budget_ratio,
+            compact_threshold_ratio: cfg.compact_threshold_ratio,
+            keep_recent_count: cfg.keep_recent_count,
+        }
+    }
+}
+
 /// Report produced by [`check_budget`].
 ///
 /// Contains token estimates and the compaction decision.

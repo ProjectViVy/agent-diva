@@ -2,7 +2,7 @@ use anyhow;
 use super::AgentLoop;
 use crate::compaction::ContextCompactor;
 use crate::consolidation;
-use crate::context_budget::{check_budget, BudgetConfig};
+use crate::context_budget::check_budget;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
@@ -74,7 +74,7 @@ impl AgentLoop {
             let history_len = history.len();
 
             // Budget check against context window limits
-            let budget_config = BudgetConfig::default();
+            let budget_config = self.tool_config.budget.clone();
             let budget_report = check_budget(&history, &budget_config);
 
             (history, history_len, budget_report.should_compact, budget_report)
@@ -91,7 +91,7 @@ impl AgentLoop {
 
             let provider = self.provider.clone();
             let model = self.model.clone();
-            let budget_config = BudgetConfig::default();
+            let budget_config = self.tool_config.budget.clone();
 
             // Use immutable get() to avoid holding &mut across .await
             let compact_result = {
@@ -260,7 +260,7 @@ impl AgentLoop {
                             // --- Reactive compaction ---
                             let provider = self.provider.clone();
                             let model = self.model.clone();
-                            let budget_config = BudgetConfig::default();
+                            let budget_config = self.tool_config.budget.clone();
 
                             // Phase 1: call compact() with immutable session ref
                             let compact_result = {

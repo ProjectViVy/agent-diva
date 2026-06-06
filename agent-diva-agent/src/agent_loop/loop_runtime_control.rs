@@ -1,6 +1,5 @@
 use super::AgentLoop;
 use crate::compaction::ContextCompactor;
-use crate::context_budget::BudgetConfig;
 use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{AgentEvent, InboundMessage};
 use agent_diva_core::session::CompactTrigger;
@@ -140,7 +139,7 @@ impl AgentLoop {
             }
         };
 
-        let budget_config = BudgetConfig::default();
+        let budget_config = self.tool_config.budget.clone();
         let provider = self.provider.clone();
         let model = self.model.clone();
 

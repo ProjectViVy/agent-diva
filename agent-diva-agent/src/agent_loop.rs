@@ -20,6 +20,7 @@ use uuid::Uuid;
 
 use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
+use crate::context_budget::BudgetConfig;
 #[cfg(feature = "mentle")]
 use crate::mentle_runtime::MentleRuntime;
 use crate::runtime_control::RuntimeControlCommand;
@@ -56,6 +57,8 @@ pub struct ToolConfig {
     pub notify_on_soul_change: bool,
     /// Governance behavior for soul evolution transparency
     pub soul_governance: SoulGovernanceSettings,
+    /// Context compaction budget configuration.
+    pub budget: BudgetConfig,
 }
 
 impl Default for ToolConfig {
@@ -71,6 +74,7 @@ impl Default for ToolConfig {
             soul_context: SoulContextSettings::default(),
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
+            budget: BudgetConfig::default(),
         }
     }
 }

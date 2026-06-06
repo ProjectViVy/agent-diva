@@ -1059,6 +1059,48 @@ impl Default for GatewayConfig {
     }
 }
 
+/// Compaction budget configuration — mirrors `BudgetConfig` fields for config file
+/// deserialization.  Lives in core so the config layer has no dependency on agent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactionBudgetConfig {
+    /// Maximum tokens allowed in the full assembled context.
+    #[serde(default = "default_compaction_max_tokens")]
+    pub max_tokens: usize,
+    /// Fraction of `max_tokens` reserved for system prompt. Range [0.0, 1.0).
+    #[serde(default = "default_compaction_system_budget_ratio")]
+    pub system_budget_ratio: f64,
+    /// Fraction of history budget that triggers compaction. Range (0.0, 1.0].
+    #[serde(default = "default_compaction_threshold_ratio")]
+    pub compact_threshold_ratio: f64,
+    /// Number of recent messages to always keep (never compacted).
+    #[serde(default = "default_compaction_keep_recent_count")]
+    pub keep_recent_count: usize,
+}
+
+fn default_compaction_max_tokens() -> usize {
+    180_000
+}
+fn default_compaction_system_budget_ratio() -> f64 {
+    0.15
+}
+fn default_compaction_threshold_ratio() -> f64 {
+    0.80
+}
+fn default_compaction_keep_recent_count() -> usize {
+    10
+}
+
+impl Default for CompactionBudgetConfig {
+    fn default() -> Self {
+        Self {
+            max_tokens: default_compaction_max_tokens(),
+            system_budget_ratio: default_compaction_system_budget_ratio(),
+            compact_threshold_ratio: default_compaction_threshold_ratio(),
+            keep_recent_count: default_compaction_keep_recent_count(),
+        }
+    }
+}
+
 /// Tools configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ToolsConfig {
@@ -1074,6 +1116,9 @@ pub struct ToolsConfig {
     pub mcp_servers: HashMap<String, MCPServerConfig>,
     #[serde(default, rename = "mcpManager", alias = "mcp_manager")]
     pub mcp_manager: MCPManagerConfig,
+    /// Context compaction budget configuration.
+    #[serde(default)]
+    pub budget: CompactionBudgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
