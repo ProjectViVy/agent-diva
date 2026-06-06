@@ -428,6 +428,7 @@ mod tests {
                 ("x-b".to_string(), "2".to_string()),
             ])),
             custom_models: vec![],
+            reasoning_config: None,
         }));
 
         assert_eq!(access.api_key, None);

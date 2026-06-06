@@ -53,6 +53,18 @@ impl ModelCapabilities {
 
 /// Return conservative capabilities for a model id.
 pub fn model_capabilities_for_model(model: &str) -> ModelCapabilities {
+    model_capabilities_for_model_with_config(model, None)
+}
+
+/// Return capabilities for a model id, optionally using provider-level reasoning config.
+///
+/// If `reasoning_config` is provided and has a `reasoning_type`, the model is considered
+/// reasoning-capable regardless of the hard-coded list. This allows per-provider
+/// dynamic configuration without waiting for code updates.
+pub fn model_capabilities_for_model_with_config(
+    model: &str,
+    reasoning_config: Option<&agent_diva_core::reasoning::ReasoningConfig>,
+) -> ModelCapabilities {
     let normalized = normalize_model_id(model);
     let mut capabilities = ModelCapabilities::text_only();
 
@@ -61,7 +73,13 @@ pub fn model_capabilities_for_model(model: &str) -> ModelCapabilities {
         "gpt-4o" | "gpt-4o-mini" | "gpt-4.1" | "gpt-4.1-mini"
     );
 
-    capabilities.reasoning = is_known_reasoning_model(&normalized);
+    // Dynamic reasoning detection: if provider has reasoning_config, trust it;
+    // otherwise fall back to the hard-coded known-reasoning-model list.
+    capabilities.reasoning = if let Some(config) = reasoning_config {
+        !config.reasoning_type.is_empty()
+    } else {
+        is_known_reasoning_model(&normalized)
+    };
 
     capabilities
 }
@@ -96,6 +114,14 @@ pub fn supports_vision_model(model: &str) -> bool {
 /// Return true when the model is explicitly known to support reasoning/thinking.
 pub fn supports_reasoning_model(model: &str) -> bool {
     model_capabilities_for_model(model).reasoning
+}
+
+/// Return true when the model supports reasoning given an optional provider-level config.
+pub fn supports_reasoning_model_with_config(
+    model: &str,
+    reasoning_config: Option<&agent_diva_core::reasoning::ReasoningConfig>,
+) -> bool {
+    model_capabilities_for_model_with_config(model, reasoning_config).reasoning
 }
 
 fn normalize_model_id(model: &str) -> String {
@@ -663,5 +689,74 @@ mod tests {
 
         assert_eq!(content.as_text(), None);
         assert_eq!(content.to_text_lossy(), "hello world");
+    }
+
+    #[test]
+    fn dynamic_reasoning_with_config_enables_reasoning_for_any_model() {
+        use agent_diva_core::reasoning::ReasoningConfig;
+
+        // Unknown model without config: no reasoning
+        assert!(!supports_reasoning_model("unknown-custom-model"));
+
+        // Unknown model with reasoning config: reasoning enabled
+        let config = ReasoningConfig {
+            reasoning_type: "openai-chat".to_string(),
+            thinking_token_limits: None,
+            supported_efforts: None,
+            default_effort: None,
+        };
+        assert!(supports_reasoning_model_with_config(
+            "unknown-custom-model",
+            Some(&config)
+        ));
+
+        // Known reasoning model still works without config
+        assert!(supports_reasoning_model("deepseek-chat"));
+
+        // Known reasoning model with config still works
+        assert!(supports_reasoning_model_with_config("deepseek-chat", Some(&config)));
+    }
+
+    #[test]
+    fn dynamic_reasoning_with_empty_type_disables_reasoning() {
+        use agent_diva_core::reasoning::ReasoningConfig;
+
+        let config = ReasoningConfig {
+            reasoning_type: "".to_string(),
+            thinking_token_limits: None,
+            supported_efforts: None,
+            default_effort: None,
+        };
+        // Empty reasoning_type means no reasoning capability
+        assert!(!supports_reasoning_model_with_config("any-model", Some(&config)));
+    }
+
+    #[test]
+    fn model_capabilities_with_config_reflects_dynamic_reasoning() {
+        use agent_diva_core::reasoning::ReasoningConfig;
+
+        let config = ReasoningConfig {
+            reasoning_type: "anthropic".to_string(),
+            thinking_token_limits: None,
+            supported_efforts: None,
+            default_effort: Some("high".to_string()),
+        };
+
+        let caps = model_capabilities_for_model_with_config("my-custom-model", Some(&config));
+        assert!(caps.reasoning);
+        assert!(!caps.vision); // Still conservative for unknown models
+    }
+
+    #[test]
+    fn model_capabilities_without_config_falls_back_to_hardcoded() {
+        // Known reasoning model
+        let caps = model_capabilities_for_model("deepseek-chat");
+        assert!(caps.reasoning);
+
+        // Unknown model
+        let caps = model_capabilities_for_model("unknown-model");
+        assert!(!caps.reasoning);
+        assert!(!caps.vision);
+        assert!(!caps.tools);
     }
 }

@@ -691,6 +691,7 @@ impl ConfigMigrator {
             api_base: py.api_base.clone(),
             extra_headers: py.extra_headers.clone(),
             custom_models: Vec::new(),
+            reasoning_config: None,
         }
     }
 }

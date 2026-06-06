@@ -161,6 +161,8 @@ pub struct LiteLLMClient {
     selected_provider: Option<ProviderSpec>,
     direct_openai_compatible: bool,
     default_reasoning_effort: Option<String>,
+    /// Per-provider reasoning configuration for dynamic capability detection
+    reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
 }
 
 fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -180,6 +182,27 @@ impl LiteLLMClient {
         extra_headers: Option<HashMap<String, String>>,
         provider_name: Option<String>,
         default_reasoning_effort: Option<String>,
+    ) -> Self {
+        Self::new_with_config(
+            api_key,
+            api_base,
+            default_model,
+            extra_headers,
+            provider_name,
+            default_reasoning_effort,
+            None,
+        )
+    }
+
+    /// Create a new LiteLLM client with optional reasoning configuration.
+    pub fn new_with_config(
+        api_key: Option<String>,
+        api_base: Option<String>,
+        default_model: String,
+        extra_headers: Option<HashMap<String, String>>,
+        provider_name: Option<String>,
+        default_reasoning_effort: Option<String>,
+        reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
     ) -> Self {
         tracing::info!(
             "Creating LiteLLMClient. Provider: {:?}, Base: {:?}",
@@ -215,6 +238,18 @@ impl LiteLLMClient {
         let direct_openai_compatible =
             provider_name.is_some() && selected_provider.is_none() && !api_base.trim().is_empty();
 
+        // Derive default_reasoning_effort from reasoning_config if not explicitly provided
+        let derived_reasoning_effort = default_reasoning_effort
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                reasoning_config
+                    .as_ref()
+                    .and_then(|c| c.default_effort.clone())
+                    .map(|s| s.trim().to_lowercase())
+                    .filter(|s| !s.is_empty())
+            });
+
         Self {
             client: build_api_http_client(&api_base, std::time::Duration::from_secs(300))
                 .unwrap_or_else(|_| Client::new()),
@@ -225,9 +260,8 @@ impl LiteLLMClient {
             registry,
             selected_provider,
             direct_openai_compatible,
-            default_reasoning_effort: default_reasoning_effort
-                .map(|s| s.trim().to_lowercase())
-                .filter(|s| !s.is_empty()),
+            default_reasoning_effort: derived_reasoning_effort,
+            reasoning_config,
         }
     }
 
@@ -764,6 +798,11 @@ impl LiteLLMClient {
                 problems.join("\n    - ")
             );
         }
+    }
+
+    /// Return the provider's reasoning configuration, if any.
+    pub fn reasoning_config(&self) -> Option<&agent_diva_core::reasoning::ReasoningConfig> {
+        self.reasoning_config.as_ref()
     }
 }
 

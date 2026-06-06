@@ -934,6 +934,9 @@ pub struct ProviderConfig {
     pub extra_headers: Option<HashMap<String, String>>,
     #[serde(default)]
     pub custom_models: Vec<String>,
+    /// Per-provider reasoning configuration for dynamic model capability detection
+    #[serde(default)]
+    pub reasoning_config: Option<crate::reasoning::ReasoningConfig>,
 }
 
 /// User-defined provider configuration.
