@@ -333,7 +333,7 @@ pub async fn run_chat(
     println!("{}", style("Agent Diva Chat").bold().cyan());
     println!("  model: {}", selected_model);
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop /thinking auto|on|off");
+    println!("  commands: /quit /clear /new /stop /thinking auto|on|off /compact");
 
     loop {
         let input: String = Input::new()
@@ -383,6 +383,24 @@ pub async fn run_chat(
                 }
                 continue;
             }
+            "/compact" => {
+                if let Some(tx) = &runtime_control_tx {
+                    let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                    let _ = tx.send(RuntimeControlCommand::CompactSession {
+                        session_key: current_session.clone(),
+                        reply_tx,
+                    });
+                    println!("{}", style("compacting...").cyan());
+                    match reply_rx.await {
+                        Ok(Ok(msg)) => println!("{}", style(msg).green()),
+                        Ok(Err(e)) => println!("{}", style(format!("compact error: {}", e)).red()),
+                        Err(_) => println!("{}", style("compact: no response from agent").red()),
+                    }
+                } else {
+                    println!("{}", style("/compact requires local agent (runtime control unavailable)").yellow());
+                }
+                continue;
+            }
             _ => {}
         }
 
@@ -404,7 +422,7 @@ pub async fn run_chat_remote(
 
     println!("{}", style("Agent Diva Chat (remote)").bold().cyan());
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop /thinking auto|on|off");
+    println!("  commands: /quit /clear /new /stop /thinking auto|on|off /compact");
 
     loop {
         let input: String = Input::new()
@@ -441,6 +459,10 @@ pub async fn run_chat_remote(
                         style("no running task for session").dim()
                     }
                 );
+                continue;
+            }
+            "/compact" => {
+                println!("{}", style("/compact is not supported in remote mode — use local chat instead").yellow());
                 continue;
             }
             _ => {}

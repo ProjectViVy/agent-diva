@@ -1,9 +1,12 @@
 use super::AgentLoop;
+use crate::compaction::ContextCompactor;
+use crate::context_budget::BudgetConfig;
 use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{AgentEvent, InboundMessage};
+use agent_diva_core::session::CompactTrigger;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
-use tracing::info;
+use tracing::{info, warn};
 
 impl AgentLoop {
     pub(super) async fn handle_runtime_control_command(&mut self, cmd: RuntimeControlCommand) {
@@ -71,6 +74,13 @@ impl AgentLoop {
                 self.thinking_mode = mode;
                 info!("Thinking mode set to: {:?}", mode);
             }
+            RuntimeControlCommand::CompactSession {
+                session_key,
+                reply_tx,
+            } => {
+                let result = self.handle_compact_session(&session_key).await;
+                let _ = reply_tx.send(result);
+            }
         }
     }
 
@@ -113,5 +123,76 @@ impl AgentLoop {
         let _ = self
             .bus
             .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+    }
+
+    /// Handle manual `/compact` command: run compaction on the session and
+    /// return a human-readable summary string.
+    pub(super) async fn handle_compact_session(&mut self, session_key: &str) -> Result<String, String> {
+        // Check session exists and has messages
+        {
+            let session = self
+                .sessions
+                .get(session_key)
+                .ok_or_else(|| "session not found".to_string())?;
+            let history = session.get_history(50);
+            if history.is_empty() {
+                return Err("session has no messages to compact".to_string());
+            }
+        };
+
+        let budget_config = BudgetConfig::default();
+        let provider = self.provider.clone();
+        let model = self.model.clone();
+
+        // Run compaction with Manual trigger (immutable borrow, like auto-compaction)
+        let compact_result = {
+            if let Some(session) = self.sessions.get(session_key) {
+                ContextCompactor::compact(
+                    session,
+                    &budget_config,
+                    provider,
+                    &model,
+                    CompactTrigger::Manual,
+                )
+                .await
+            } else {
+                return Err("session disappeared during compaction".to_string());
+            }
+        };
+
+        match compact_result {
+            Ok(result) => {
+                // Check if there was actually anything to compact
+                if result.summary.summary.is_empty() && result.summary.pre_compact_message_count == 0 {
+                    return Ok("nothing to compact — session is already lean".to_string());
+                }
+
+                // Persist compaction state
+                {
+                    let session = self.sessions.get_or_create(session_key);
+                    session.last_compacted = result.new_compacted_index;
+                    session.compaction = Some(result.summary.clone());
+                }
+                if let Some(s) = self.sessions.get(session_key) {
+                    if let Err(e) = self.sessions.save(s) {
+                        warn!("Failed to persist compaction state: {}", e);
+                    }
+                }
+
+                info!(
+                    "Manual compaction complete: {} msgs → {} chars summary",
+                    result.summary.pre_compact_message_count,
+                    result.summary.summary.len()
+                );
+
+                Ok(format!(
+                    "compact done — {} messages compressed, ~{} tokens saved\nsummary: {}",
+                    result.summary.pre_compact_message_count,
+                    result.summary.pre_compact_estimated_tokens,
+                    result.summary.summary
+                ))
+            }
+            Err(e) => Err(format!("compaction failed: {}", e)),
+        }
     }
 }

@@ -33,4 +33,9 @@ pub enum RuntimeControlCommand {
     SetThinking {
         mode: agent_diva_core::reasoning::ThinkingMode,
     },
+    /// Manually trigger context compaction for a session (/compact command).
+    CompactSession {
+        session_key: String,
+        reply_tx: tokio::sync::oneshot::Sender<Result<String, String>>,
+    },
 }
