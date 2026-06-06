@@ -115,7 +115,9 @@ Write focused unit tests near the code with `#[cfg(test)]`. Add integration test
 
 ## Commit & Pull Request Guidelines
 
-Recent history follows Conventional Commit prefixes (`feat:`, `fix:`, `docs:`); keep using that style with concise imperative summaries. Before PRs, run `just ci`, describe behavioral impact, link related issues, and update docs when interfaces/channels/providers change. Keep PRs focused to a single concern for easier review.
+Recent history follows Conventional Commit prefixes (`feat:`, `fix:`, `docs:`); keep using that style with concise imperative summaries. Commit each completed, self-contained update automatically instead of accumulating a large dirty working tree. Do not push unless the user explicitly requests it. Before PRs, run `just ci`, describe behavioral impact, link related issues, and update docs when interfaces/channels/providers change. Keep PRs focused to a single concern for easier review.
+
+Before committing, clean up generated scratch artifacts, temporary scripts, stale archives, local test outputs, and other non-deliverable dirty-work files created during the task. Do not remove or revert unrelated user changes. Stage only the files for the current focused update, keep unrelated pre-existing changes out of the commit, and record deferred validation or follow-up items in the commit body/report and `TODOLIST.md` when applicable.
 
 **Recommended PR checklist:**
 
@@ -134,6 +136,20 @@ Recent history follows Conventional Commit prefixes (`feat:`, `fix:`, `docs:`); 
   - `release.md`: Release/deployment method (if not applicable, provide a reason).
   - `acceptance.md`: Acceptance steps from user/product perspective.
 - Optional documentation: `prd.md`, `notes.md` (discussion records), `rollback.md` (rollback plan).
+
+## TODOLIST Protocol
+
+- `TODOLIST.md` at the repository root is the canonical backlog for discovered bugs, gaps, deferred work, and unfinished implementation or UX items.
+- When an issue is found during code review, implementation, validation, or documentation work, add it to `TODOLIST.md` unless it is fixed in the same iteration.
+- Entries should include enough context to recover the issue later: status checkbox, short title, reason, expected behavior, and related files or docs when available.
+- When a TODO is completed, move or mark it under the done section instead of silently deleting it.
+
+## COMMIT Rule
+
+- Commits must use English Conventional Commit prefixes.
+- Each commit should cover one focused concern only; avoid mixing unrelated cleanup, docs, and feature work.
+- Before committing, ensure the changed set is clean of temporary artifacts and any non-deliverable scratch files.
+- For non-trivial commits, include a short validation note in the commit message body or accompanying report when applicable.
 
 ## Command Mechanism
 
@@ -206,10 +222,17 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Maintainer: Current assistant.
 
 - **auto-commit-each-completed-update**:
-  - Constraints/Range of applicability: After each completed update, automatically create one git commit for the files changed by that update. Do not push unless the user explicitly requests it.
-  - Example: After updating project rules in `AGENTS.md`, stage and commit only `AGENTS.md`.
-  - Counterexample: Finish an update without committing it, include unrelated pre-existing workspace changes in the commit, or push without authorization.
-  - Execution Method: Before committing, inspect `git status --short`; stage explicit paths for the current update only; verify the staged diff; commit with a concise Conventional Commit message.
+  - Constraints/Range of applicability: After each completed, self-contained update, automatically create one git commit for the files changed by that update. Do not push unless the user explicitly requests it.
+  - Example: After updating project rules in `AGENTS.md`, stage and commit only `AGENTS.md`; after finishing one focused bugfix, commit only that bugfix.
+  - Counterexample: Leave a completed update uncommitted, include unrelated pre-existing workspace changes in the commit, mix multiple concerns into one giant commit, or push without authorization.
+  - Execution Method: Before committing, inspect `git status --short --untracked-files=all`; clean or exclude current-task scratch artifacts; stage explicit paths for the current update only; verify the staged diff is one focused concern; run relevant validation when practical, or explicitly note deferred validation in the commit body/report; update `TODOLIST.md` for discovered but unfixed issues; commit with a concise English Conventional Commit message.
+  - Maintainer: Current assistant.
+
+- **todolist-capture-required**:
+  - Constraints/Range of applicability: Any discovered bug, unfinished work, known limitation, or deferred improvement must be recorded in root `TODOLIST.md` unless it is completed in the same iteration.
+  - Example: Discover that GUI image paste is not implemented; add an open TODO with context and expected behavior.
+  - Counterexample: Mention a future fix in chat but leave no durable project backlog entry.
+  - Execution Method: Update `TODOLIST.md` before final response or commit; include related docs/files when available.
   - Maintainer: Current assistant.
 
 - **use-chinese-when-communicating**:
