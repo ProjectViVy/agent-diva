@@ -14,6 +14,7 @@ import AboutSettings from './settings/AboutSettings.vue';
 import ThemeSettings from './settings/ThemeSettings.vue'
 import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
+import CompactionSettings from './settings/CompactionSettings.vue'
 import { useI18n } from 'vue-i18n';
 import type { MentleToolConfigShape } from '../api/desktop';
 
@@ -74,7 +75,8 @@ type SettingsSubview =
   | 'about'
   | 'theme'
   | 'self-evolution'
-  | 'sandbox';
+  | 'sandbox'
+  | 'compaction';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -111,7 +113,8 @@ const pageTitle = computed(() => {
     about: t('settings.about'),
     theme: t('dashboard.theme'),
     'self-evolution': t('dashboard.selfEvolution'),
-    sandbox: t('dashboard.sandbox')
+    sandbox: t('dashboard.sandbox'),
+    compaction: t('dashboard.compaction')
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -218,6 +221,9 @@ watch(
             </div>
             <div v-else-if="currentView === 'sandbox'">
               <SandboxSettingsSection />
+            </div>
+            <div v-else-if="currentView === 'compaction'">
+              <CompactionSettings />
             </div>
           </div>
        </Transition>
