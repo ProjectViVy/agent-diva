@@ -7,4 +7,4 @@ pub mod manager;
 pub mod store;
 
 pub use manager::{SessionInfo, SessionManager};
-pub use store::{ChatMessage, Session};
+pub use store::{ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session};

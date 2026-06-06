@@ -3,6 +3,58 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+// ---------------------------------------------------------------------------
+// Compaction types
+// ---------------------------------------------------------------------------
+
+/// What triggered a context compaction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CompactTrigger {
+    /// Budget threshold exceeded — automatic compaction
+    Auto,
+    /// User-triggered (e.g. /compact command)
+    Manual,
+    /// Provider overflow catch — reactive compaction (P1)
+    Reactive,
+}
+
+/// Index range of compacted messages in the session
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactionRange {
+    /// Start index (inclusive) of compacted messages
+    pub start_index: usize,
+    /// End index (exclusive) of compacted messages
+    pub end_index: usize,
+}
+
+/// A type-safe, serializable compaction record stored in the session
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactSummary {
+    /// Schema version for forward compatibility
+    pub schema_version: u32,
+    /// Unique compact event ID
+    pub compact_id: String,
+    /// ISO8601 timestamp when compaction occurred
+    pub created_at: String,
+    /// What triggered this compaction
+    pub trigger: CompactTrigger,
+    /// Index range of the compacted messages
+    pub source_range: CompactionRange,
+    /// Number of recent messages kept (not compacted)
+    pub kept_recent_count: usize,
+    /// Message count before compaction
+    pub pre_compact_message_count: usize,
+    /// Estimated tokens before compaction
+    pub pre_compact_estimated_tokens: usize,
+    /// The generated natural-language summary
+    pub summary: String,
+}
+
+// ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
 /// A conversation session
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
@@ -19,6 +71,12 @@ pub struct Session {
     /// Index of last consolidated message (for memory consolidation)
     #[serde(default)]
     pub last_consolidated: usize,
+    /// Index of last compacted message (messages before this are summarized in `compaction`)
+    #[serde(default)]
+    pub last_compacted: usize,
+    /// Context compaction summary, if compaction has occurred
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub compaction: Option<CompactSummary>,
 }
 
 impl Session {
@@ -32,6 +90,8 @@ impl Session {
             updated_at: now,
             metadata: serde_json::Value::Object(serde_json::Map::new()),
             last_consolidated: 0,
+            last_compacted: 0,
+            compaction: None,
         }
     }
 
@@ -56,13 +116,19 @@ impl Session {
         self.updated_at = Utc::now();
     }
 
-    /// Get message history for LLM context
+    /// Get message history for LLM context.
+    ///
+    /// Uses the *higher* of `last_consolidated` and `last_compacted` as the
+    /// floor so that both compacted and consolidated messages are excluded.
     pub fn get_history(&self, max_messages: usize) -> Vec<ChatMessage> {
-        // Clamp last_consolidated to avoid out-of-bounds on corrupted data
-        let consolidated = self.last_consolidated.min(self.messages.len());
-        let unconsolidated = &self.messages[consolidated..];
-        let start = unconsolidated.len().saturating_sub(max_messages);
-        let mut sliced: Vec<ChatMessage> = unconsolidated[start..]
+        // Floor = max of the two progress pointers
+        let floor = self
+            .last_consolidated
+            .max(self.last_compacted)
+            .min(self.messages.len());
+        let window = &self.messages[floor..];
+        let start = window.len().saturating_sub(max_messages);
+        let mut sliced: Vec<ChatMessage> = window[start..]
             .iter()
             .filter(|m| matches!(m.role.as_str(), "user" | "assistant" | "tool"))
             .cloned()
@@ -78,6 +144,8 @@ impl Session {
     pub fn clear(&mut self) {
         self.messages.clear();
         self.last_consolidated = 0;
+        self.last_compacted = 0;
+        self.compaction = None;
         self.updated_at = Utc::now();
     }
 }

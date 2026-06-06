@@ -65,6 +65,8 @@ impl SessionManager {
         let mut metadata = serde_json::Value::Object(serde_json::Map::new());
         let mut created_at = None;
         let mut last_consolidated: usize = 0;
+        let mut last_compacted: usize = 0;
+        let mut compaction: Option<super::store::CompactSummary> = None;
 
         for line in content.lines() {
             let line = line.trim();
@@ -83,6 +85,13 @@ impl SessionManager {
                         .get("last_consolidated")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(0) as usize;
+                    last_compacted = value
+                        .get("last_compacted")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                    compaction = value
+                        .get("compaction")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok());
                 } else if let Ok(msg) = serde_json::from_value::<super::store::ChatMessage>(value) {
                     messages.push(msg);
                 }
@@ -96,6 +105,8 @@ impl SessionManager {
             updated_at: chrono::Utc::now(),
             metadata,
             last_consolidated,
+            last_compacted,
+            compaction,
         })
     }
 
@@ -113,6 +124,8 @@ impl SessionManager {
             "updated_at": session.updated_at.to_rfc3339(),
             "metadata": session.metadata,
             "last_consolidated": session.last_consolidated,
+            "last_compacted": session.last_compacted,
+            "compaction": session.compaction,
         });
         lines.push(serde_json::to_string(&metadata)?);
 
