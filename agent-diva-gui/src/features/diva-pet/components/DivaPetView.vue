@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
-import { Send, Loader2, Settings, Monitor, Image, Menu, Plus } from 'lucide-vue-next'
+import { Send, Loader2, Settings, Monitor, Image, Menu, Plus, ChevronDown } from 'lucide-vue-next'
 import MarkdownIt from 'markdown-it'
 import { useI18n } from 'vue-i18n'
 import EmbeddedPetFrame from './EmbeddedPetFrame.vue'
@@ -67,23 +67,41 @@ async function refreshVrmModelPath(model: string) {
   }
 }
 
+interface SavedModel {
+  id: string;
+  provider: string;
+  model: string;
+  apiBase: string;
+  apiKey: string;
+  displayName: string;
+}
+
 interface Props {
   messages?: PetMessage[]
   isTyping?: boolean
   currentEmotion?: string
   desktopPetActive?: boolean
+  savedModels?: SavedModel[]
+  currentModel?: string
+  currentProvider?: string
+  connectionStatus?: 'connected' | 'error' | 'connecting'
 }
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
   isTyping: false,
   currentEmotion: 'normal',
   desktopPetActive: false,
+  savedModels: () => [],
+  currentModel: '',
+  currentProvider: '',
+  connectionStatus: 'connecting',
 })
 
 const emit = defineEmits<{
   (e: 'send', content: string): void
   (e: 'toggle-sidebar'): void
   (e: 'new-topic', greeting: string): void
+  (e: 'select-model', model: SavedModel): void
 }>()
 
 const NEW_TOPIC_GREETING = '让我们换个话题聊聊吧'
@@ -204,8 +222,27 @@ function onNewTopic() {
 }
 
 const showModelManager = ref(false)
+const showModelMenu = ref(false)
 const previewMotionId = ref<string | null>(null)
 const stopPreviewToken = ref(0)
+
+const emotionConfig = computed(() => ({
+  happy: { emoji: '😊', label: t('emotion.happy') },
+  sad: { emoji: '😢', label: t('emotion.sad') },
+  angry: { emoji: '😠', label: t('emotion.angry') },
+  surprised: { emoji: '😲', label: t('emotion.surprised') },
+  normal: { emoji: '😐', label: t('emotion.normal') },
+  excited: { emoji: '🤩', label: t('emotion.excited') },
+  confused: { emoji: '😕', label: t('emotion.confused') },
+  worried: { emoji: '😟', label: t('emotion.worried') },
+  love: { emoji: '😍', label: t('emotion.love') },
+  sleepy: { emoji: '😴', label: t('emotion.sleepy') },
+}))
+
+function selectModel(model: SavedModel) {
+  showModelMenu.value = false
+  emit('select-model', model)
+}
 
 function onModelChanged(modelId: string) {
   updateConfig({ vrmModel: modelId })
@@ -292,13 +329,6 @@ watch(
   { immediate: true },
 )
 
-const moodLabels: Record<VrmMood, string> = {
-  neutral: '',
-  happy: ':)',
-  sad: ':(',
-  angry: '!!',
-  surprised: '?!',
-}
 </script>
 
 <template>
@@ -340,12 +370,57 @@ const moodLabels: Record<VrmMood, string> = {
         <p class="text-sm">{{ t('pet.desktopPetActiveHint') }}</p>
       </div>
 
+      <!-- 迷你状态栏 (Mini Status Bar) -->
       <div
-        v-if="currentMood !== 'neutral'"
-        data-testid="pet-mood-badge"
-        class="pet-glass absolute top-4 left-16 px-3 py-1.5 text-[11px] rounded-full text-white/90 border-white/15 z-20"
+        class="pet-glass absolute top-4 left-16 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full text-white/90 border-white/15"
       >
-        {{ moodLabels[currentMood] }} {{ currentMood }}
+        <!-- 情绪 -->
+        <span class="text-sm">{{ emotionConfig[(props.currentEmotion || 'happy') as keyof typeof emotionConfig]?.emoji || '😊' }}</span>
+        <span class="text-[11px]">{{ emotionConfig[(props.currentEmotion || 'happy') as keyof typeof emotionConfig]?.label || t('emotion.happy') }}</span>
+        <!-- 分隔线 -->
+        <span class="w-px h-3 bg-white/20" />
+        <!-- 连接状态 -->
+        <div class="flex items-center gap-1">
+          <div
+            class="w-1.5 h-1.5 rounded-full"
+            :class="{
+              'bg-green-400': props.connectionStatus === 'connected',
+              'bg-red-400': props.connectionStatus === 'error',
+              'bg-yellow-400 animate-pulse': props.connectionStatus === 'connecting',
+            }"
+          />
+          <span class="text-[10px]">
+            {{ props.connectionStatus === 'connected' ? t('app.online') : props.connectionStatus === 'error' ? t('app.offline') : t('app.connecting') }}
+          </span>
+        </div>
+        <!-- 分隔线 -->
+        <span class="w-px h-3 bg-white/20" />
+        <!-- 模型选择 -->
+        <div class="relative">
+          <button
+            class="text-[10px] hover:text-cyan-200 transition-colors flex items-center gap-1"
+            @click="showModelMenu = !showModelMenu"
+          >
+            <span class="max-w-[80px] truncate">{{ props.currentModel || t('app.switchModel') }}</span>
+            <ChevronDown :size="10" />
+          </button>
+          <!-- 模型下拉菜单 -->
+          <div
+            v-if="showModelMenu"
+            class="absolute top-full left-0 mt-1 w-48 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-lg shadow-xl border border-white/15 overflow-hidden z-30"
+          >
+            <div class="py-1 max-h-60 overflow-y-auto">
+              <div
+                v-for="model in props.savedModels"
+                :key="model.id"
+                class="w-full cursor-pointer px-3 py-2 text-left text-xs hover:bg-cyan-50 dark:hover:bg-cyan-900/30 flex items-center justify-between"
+                @click="selectModel(model)"
+              >
+                <span class="truncate">{{ model.displayName }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <button

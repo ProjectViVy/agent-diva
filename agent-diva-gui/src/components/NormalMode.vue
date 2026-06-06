@@ -637,7 +637,7 @@ defineExpose({
     <!-- 主内容区 -->
     <main class="main-panel">
       <!-- Topbar -->
-      <header class="topbar drag-region">
+      <header v-if="activeMenu !== 'pet'" class="topbar drag-region">
         <div class="topbar-left no-drag">
           <!-- DIVA 头像和状态 -->
           <div class="topbar-identity">
@@ -767,8 +767,49 @@ defineExpose({
           </div>
         </div>
         <!-- Pet视图 -->
-        <div v-else-if="activeMenu === 'pet'" class="h-full">
-          <DivaPetView />
+        <div v-else-if="activeMenu === 'pet'" class="h-full relative">
+          <DivaPetView
+            :messages="messages"
+            :is-typing="isTyping"
+            :current-emotion="currentEmotion"
+            :saved-models="savedModels"
+            :current-model="config?.model"
+            :current-provider="config?.provider"
+            :connection-status="connectionStatus"
+            @send="(content) => emit('send', content)"
+            @toggle-sidebar="toggleOverlaySidebar"
+            @select-model="selectSavedModel"
+          />
+          <!-- Overlay 侧边栏 -->
+          <div
+            v-if="overlaySidebarOpen"
+            class="fixed inset-0 z-[150] bg-black/20"
+            @click="closeOverlaySidebar"
+          />
+          <aside
+            v-if="overlaySidebarOpen"
+            class="fixed left-0 top-0 bottom-0 z-[160] w-64 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-2xl transform transition-transform duration-300"
+          >
+            <div class="p-4">
+              <div class="flex items-center justify-between mb-4">
+                <span class="font-bold text-lg">DiVA</span>
+                <button @click="closeOverlaySidebar" class="p-1 hover:bg-gray-100 rounded">
+                  <X :size="18" />
+                </button>
+              </div>
+              <nav class="space-y-1">
+                <button
+                  v-for="section in ['chat', 'notebook', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
+                  :key="section"
+                  class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  :class="{ 'bg-pink-50 text-pink-600 font-medium': isSectionActive(section as SidebarSection) }"
+                  @click="navigateTo(section as SidebarSection); closeOverlaySidebar()"
+                >
+                  {{ t('nav.' + section) }}
+                </button>
+              </nav>
+            </div>
+          </aside>
         </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
