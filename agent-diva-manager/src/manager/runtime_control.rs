@@ -117,6 +117,7 @@ impl Manager {
                     reply_rx
                         .await
                         .map_err(|e| format!("failed to receive session: {}", e))
+                        .and_then(|result| result)
                 },
                 "runtime control channel is not initialized",
             )
@@ -220,8 +221,9 @@ impl Manager {
         update: ConfigUpdate,
     ) -> anyhow::Result<()> {
         debug!("Processing UpdateConfig command");
-        debug!("Update request: {:?}", update);
-        info!("Processing UpdateConfig request: {:?}", update);
+        let update_summary = update.log_summary();
+        debug!("Update request: {}", update_summary);
+        info!("Processing UpdateConfig request: {}", update_summary);
 
         let mut config = self
             .loader

@@ -375,7 +375,7 @@ pub async fn update_config_handler(
     State(state): State<AppState>,
     Json(payload): Json<ConfigUpdate>,
 ) -> Json<serde_json::Value> {
-    tracing::info!("Received update config request: {:?}", payload);
+    tracing::info!("Received update config request: {}", payload.log_summary());
     if let Err(e) = state
         .api_tx
         .send(ManagerCommand::UpdateConfig(payload))

@@ -533,6 +533,9 @@ impl ConfigMigrator {
                     temperature: py.agents.defaults.temperature,
                     max_tool_iterations: py.agents.defaults.max_tool_iterations,
                     reasoning_effort: None,
+                    context_budget_tokens: 24_000,
+                    context_budget_reserve_tokens: 4_000,
+                    context_overflow_retry_enabled: true,
                 },
                 soul: AgentSoulConfig::default(),
             },
@@ -646,6 +649,7 @@ impl ConfigMigrator {
             },
             tools: ToolsConfig {
                 builtin: Default::default(),
+                subagent: Default::default(),
                 web: WebToolsConfig {
                     search: WebSearchConfig {
                         provider: "bocha".to_string(),
@@ -656,7 +660,11 @@ impl ConfigMigrator {
                     fetch: WebFetchConfig::default(),
                 },
                 exec: ExecToolConfig {
-                    timeout: py.tools.exec.timeout,
+                    timeout: if py.tools.exec.timeout == 0 {
+                        default_timeout()
+                    } else {
+                        py.tools.exec.timeout
+                    },
                 },
                 restrict_to_workspace: py.tools.restrict_to_workspace,
                 mcp_servers: py

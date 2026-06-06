@@ -185,7 +185,7 @@ mod tests {
 
         let handle = start_embedded_gateway(config).unwrap();
         let port = handle.port;
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
 
         let mut last_error = None;
         for _ in 0..30 {
