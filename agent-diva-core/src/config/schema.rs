@@ -90,6 +90,15 @@ pub struct AgentDefaults {
     /// Optional reasoning effort for thinking-capable models (low/medium/high)
     #[serde(default)]
     pub reasoning_effort: Option<String>,
+    /// Soft context budget for prompt assembly and trimming.
+    #[serde(default = "default_context_budget_tokens")]
+    pub context_budget_tokens: u32,
+    /// Reserved tokens for completion output and estimation slack.
+    #[serde(default = "default_context_budget_reserve_tokens")]
+    pub context_budget_reserve_tokens: u32,
+    /// Whether to retry once with stronger compaction after overflow-like errors.
+    #[serde(default = "default_true")]
+    pub context_overflow_retry_enabled: bool,
 }
 
 impl Default for AgentDefaults {
@@ -102,8 +111,19 @@ impl Default for AgentDefaults {
             temperature: 0.7,
             max_tool_iterations: 20,
             reasoning_effort: None,
+            context_budget_tokens: default_context_budget_tokens(),
+            context_budget_reserve_tokens: default_context_budget_reserve_tokens(),
+            context_overflow_retry_enabled: true,
         }
     }
+}
+
+fn default_context_budget_tokens() -> u32 {
+    24_000
+}
+
+fn default_context_budget_reserve_tokens() -> u32 {
+    4_000
 }
 
 /// Soul/identity settings
@@ -911,6 +931,8 @@ pub struct ToolsConfig {
     #[serde(default)]
     pub builtin: BuiltInToolsConfig,
     #[serde(default)]
+    pub subagent: SubagentToolsConfig,
+    #[serde(default)]
     pub web: WebToolsConfig,
     #[serde(default)]
     pub exec: ExecToolConfig,
@@ -920,6 +942,46 @@ pub struct ToolsConfig {
     pub mcp_servers: HashMap<String, MCPServerConfig>,
     #[serde(default, rename = "mcpManager", alias = "mcp_manager")]
     pub mcp_manager: MCPManagerConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubagentToolsConfig {
+    #[serde(default = "default_subagent_max_concurrent")]
+    pub max_concurrent: usize,
+    #[serde(default = "default_subagent_max_depth")]
+    pub max_depth: usize,
+    #[serde(default = "default_true")]
+    pub allow_shell: bool,
+    #[serde(default = "default_true")]
+    pub allow_filesystem: bool,
+    #[serde(default)]
+    pub allow_web_fetch: bool,
+    #[serde(default)]
+    pub allow_web_search: bool,
+    #[serde(default)]
+    pub allow_mcp: bool,
+}
+
+fn default_subagent_max_concurrent() -> usize {
+    2
+}
+
+fn default_subagent_max_depth() -> usize {
+    1
+}
+
+impl Default for SubagentToolsConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent: default_subagent_max_concurrent(),
+            max_depth: default_subagent_max_depth(),
+            allow_shell: true,
+            allow_filesystem: true,
+            allow_web_fetch: false,
+            allow_web_search: false,
+            allow_mcp: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1059,7 +1121,7 @@ impl Default for WebFetchConfig {
     }
 }
 
-/// Exec tool configuration
+/// Default execution timeout configuration for tool calls.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecToolConfig {
     #[serde(default = "default_timeout")]

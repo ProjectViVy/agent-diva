@@ -687,10 +687,9 @@ async fn read_file_with_offset_limit(
         if line_num <= start {
             continue;
         }
-        if result.len() >= max_lines {
-            break;
+        if result.len() < max_lines {
+            result.push(format!("{}: {}", line_num, line));
         }
-        result.push(format!("{}: {}", line_num, line));
     }
 
     let total = line_num;

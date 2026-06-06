@@ -64,3 +64,9 @@ impl From<config::ConfigError> for Error {
         Error::Config(e.to_string())
     }
 }
+
+impl From<crate::session::SessionLoadError> for Error {
+    fn from(e: crate::session::SessionLoadError) -> Self {
+        Error::Session(e.to_string())
+    }
+}

@@ -4,6 +4,8 @@
 
 use std::collections::HashMap;
 
+use crate::redaction::redact_secrets;
+
 /// Maximum length of content to include in error context
 const MAX_CONTEXT_LENGTH: usize = 500;
 
@@ -36,13 +38,15 @@ impl ErrorContext {
 
     /// Add problematic content
     pub fn with_content(mut self, content: impl Into<String>) -> Self {
-        self.problematic_content = Some(truncate_content(&content.into(), MAX_CONTEXT_LENGTH));
+        let redacted = redact_secrets(&content.into());
+        self.problematic_content = Some(truncate_content(&redacted, MAX_CONTEXT_LENGTH));
         self
     }
 
     /// Add metadata
     pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.metadata.insert(key.into(), value.into());
+        let redacted = redact_secrets(&value.into());
+        self.metadata.insert(key.into(), redacted);
         self
     }
 
@@ -186,6 +190,18 @@ mod tests {
             ctx.problematic_content,
             Some("problematic content".to_string())
         );
+    }
+
+    #[test]
+    fn test_error_context_redacts_secrets() {
+        let ctx = ErrorContext::new("test", "error")
+            .with_content("Authorization: Bearer sk-secret")
+            .with_metadata("api_key", "ghp_token");
+        let rendered = ctx.to_detailed_string();
+
+        assert!(rendered.contains("***REDACTED***"));
+        assert!(!rendered.contains("sk-secret"));
+        assert!(!rendered.contains("ghp_token"));
     }
 
     #[test]

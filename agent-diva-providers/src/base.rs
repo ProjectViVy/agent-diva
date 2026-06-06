@@ -30,10 +30,11 @@ pub type ProviderResult<T> = Result<T, ProviderError>;
 
 pub type ProviderEventStream = Pin<Box<dyn Stream<Item = ProviderResult<LLMStreamEvent>> + Send>>;
 
-/// Conservative feature flags for a model.
+/// Best-effort feature flags for a model.
 ///
-/// Unknown models default to no optional capabilities. This prevents the
-/// provider layer from sending multimodal payloads to text-only models.
+/// Unknown models default to no optional capabilities. These flags are used for
+/// hints and UI affordances only; callers should not rely on them to reject
+/// requests before the provider has a chance to respond.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelCapabilities {
     pub vision: bool,
@@ -51,22 +52,106 @@ impl ModelCapabilities {
     }
 }
 
-/// Return conservative capabilities for a model id.
+/// Return best-effort capabilities for a model id.
 pub fn model_capabilities_for_model(model: &str) -> ModelCapabilities {
     let normalized = normalize_model_id(model);
     let mut capabilities = ModelCapabilities::text_only();
 
     capabilities.vision = matches!(
         normalized.as_str(),
-        "gpt-4o" | "gpt-4o-mini" | "gpt-4.1" | "gpt-4.1-mini"
+        "gpt-4o"
+            | "gpt-4o-mini"
+            | "gpt-4.1"
+            | "gpt-4.1-mini"
+            | "claude-3-5-sonnet-20240620"
+            | "claude-3-5-sonnet-latest"
+            | "claude-3-7-sonnet-20250219"
+            | "claude-3-7-sonnet-latest"
+            | "gemini-2.0-flash"
+            | "gemini-2.0-flash-lite"
+            | "gemini-2.5-flash"
+            | "gemini-2.5-pro"
     );
 
     capabilities
 }
 
 /// Return true when the model is explicitly known to support vision input.
+///
+/// This helper is informational. Unknown models may still support image input
+/// and should generally be tried before falling back.
 pub fn supports_vision_model(model: &str) -> bool {
     model_capabilities_for_model(model).vision
+}
+
+/// Return true when an upstream provider error clearly indicates that the
+/// selected model cannot accept multimodal image input.
+pub fn provider_error_indicates_vision_unsupported(error: &ProviderError) -> bool {
+    match error {
+        ProviderError::ApiError(message) | ProviderError::InvalidResponse(message) => {
+            message_indicates_vision_unsupported(message)
+        }
+        ProviderError::HttpError(_)
+        | ProviderError::JsonError(_)
+        | ProviderError::ConfigError(_) => false,
+    }
+}
+
+fn message_indicates_vision_unsupported(message: &str) -> bool {
+    let normalized = message.to_ascii_lowercase();
+
+    let mentions_image_input = normalized.contains("image_url")
+        || normalized.contains("image url")
+        || normalized.contains("image input")
+        || normalized.contains("vision")
+        || normalized.contains("multimodal")
+        || normalized.contains("multi-modal")
+        || normalized.contains("image");
+    let mentions_not_supported = normalized.contains("not support")
+        || normalized.contains("unsupported")
+        || normalized.contains("does not support")
+        || normalized.contains("doesn't support")
+        || normalized.contains("not capable")
+        || normalized.contains("cannot handle")
+        || normalized.contains("can't handle")
+        || normalized.contains("not enabled")
+        || normalized.contains("only available for")
+        || normalized.contains("text-only");
+
+    mentions_image_input && mentions_not_supported
+}
+
+/// Return true when an upstream provider error clearly indicates that the
+/// request exceeded the model's context or token window.
+pub fn provider_error_indicates_context_overflow(error: &ProviderError) -> bool {
+    match error {
+        ProviderError::ApiError(message) | ProviderError::InvalidResponse(message) => {
+            message_indicates_context_overflow(message)
+        }
+        ProviderError::HttpError(_)
+        | ProviderError::JsonError(_)
+        | ProviderError::ConfigError(_) => false,
+    }
+}
+
+fn message_indicates_context_overflow(message: &str) -> bool {
+    let normalized = message.to_ascii_lowercase();
+    let mentions_context = normalized.contains("context length")
+        || normalized.contains("maximum context length")
+        || normalized.contains("max context length")
+        || normalized.contains("too many tokens")
+        || normalized.contains("prompt is too long")
+        || normalized.contains("reduce the length")
+        || normalized.contains("token limit")
+        || normalized.contains("context window")
+        || normalized.contains("input is too long");
+    let mentions_limit = normalized.contains("exceed")
+        || normalized.contains("over")
+        || normalized.contains("long")
+        || normalized.contains("maximum")
+        || normalized.contains("limit");
+
+    mentions_context && mentions_limit
 }
 
 fn normalize_model_id(model: &str) -> String {
@@ -531,16 +616,58 @@ mod tests {
     }
 
     #[test]
-    fn vision_capabilities_are_conservative() {
+    fn vision_capabilities_are_best_effort() {
         assert!(!supports_vision_model("unknown-model"));
         assert!(!supports_vision_model("deepseek-chat"));
         assert!(supports_vision_model("gpt-4o"));
         assert!(supports_vision_model("openai/gpt-4.1-mini"));
+        assert!(supports_vision_model("claude-3-5-sonnet-20240620"));
+        assert!(supports_vision_model("anthropic/claude-3-7-sonnet-latest"));
+        assert!(supports_vision_model("gemini-2.0-flash"));
+        assert!(supports_vision_model("google/gemini-2.5-pro"));
 
         assert_eq!(
             model_capabilities_for_model("unknown-model"),
             ModelCapabilities::text_only()
         );
+    }
+
+    #[test]
+    fn provider_error_detects_vision_unsupported_messages() {
+        assert!(provider_error_indicates_vision_unsupported(
+            &ProviderError::ApiError(
+                "Model does not support vision or image input for this endpoint".to_string()
+            )
+        ));
+        assert!(provider_error_indicates_vision_unsupported(
+            &ProviderError::InvalidResponse(
+                "image_url content is unsupported for this text-only model".to_string()
+            )
+        ));
+
+        assert!(!provider_error_indicates_vision_unsupported(
+            &ProviderError::ApiError("rate limit exceeded".to_string())
+        ));
+        assert!(!provider_error_indicates_vision_unsupported(
+            &ProviderError::InvalidResponse("unexpected response payload".to_string())
+        ));
+    }
+
+    #[test]
+    fn provider_error_detects_context_overflow_messages() {
+        assert!(provider_error_indicates_context_overflow(
+            &ProviderError::ApiError(
+                "This model's maximum context length is 8192 tokens, however you requested 12000 tokens".to_string()
+            )
+        ));
+        assert!(provider_error_indicates_context_overflow(
+            &ProviderError::InvalidResponse(
+                "prompt is too long, reduce the length and retry".to_string()
+            )
+        ));
+        assert!(!provider_error_indicates_context_overflow(
+            &ProviderError::ApiError("vision unsupported".to_string())
+        ));
     }
 
     #[test]

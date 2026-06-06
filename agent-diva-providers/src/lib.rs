@@ -12,9 +12,11 @@ pub mod registry;
 pub mod transcription;
 
 pub use base::{
-    model_capabilities_for_model, supports_vision_model, ImageData, ImageFile, ImageUrl,
-    LLMProvider, LLMResponse, LLMStreamEvent, Message, MessageContent, MessageContentPart,
-    ModelCapabilities, ProviderError, ProviderEventStream, ProviderResult, ToolCallRequest,
+    model_capabilities_for_model, provider_error_indicates_context_overflow,
+    provider_error_indicates_vision_unsupported, supports_vision_model, ImageData, ImageFile,
+    ImageUrl, LLMProvider, LLMResponse, LLMStreamEvent, Message, MessageContent,
+    MessageContentPart, ModelCapabilities, ProviderError, ProviderEventStream, ProviderResult,
+    ToolCallRequest,
 };
 pub use catalog::{
     CustomProviderUpsert, ProviderCatalogService, ProviderModelCatalogView, ProviderModelEntry,

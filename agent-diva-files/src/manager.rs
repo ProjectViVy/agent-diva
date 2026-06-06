@@ -749,7 +749,10 @@ mod tests {
 
         // Clone reference
         let cloned = manager.clone_ref(&handle).await.unwrap();
-        assert_eq!(cloned.ref_count(), 2);
+        assert_eq!(cloned.id, handle.id);
+
+        let stats_after_clone = manager.stats().await.unwrap();
+        assert_eq!(stats_after_clone.total_refs, 2);
 
         // Release reference
         manager.release(&cloned).await.unwrap();

@@ -18,6 +18,20 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     if config.agents.defaults.max_tool_iterations == 0 {
         errors.push("agents.defaults.max_tool_iterations must be > 0".to_string());
     }
+    if config.agents.defaults.context_budget_tokens == 0 {
+        errors.push("agents.defaults.context_budget_tokens must be > 0".to_string());
+    }
+    if config.agents.defaults.context_budget_reserve_tokens == 0 {
+        errors.push("agents.defaults.context_budget_reserve_tokens must be > 0".to_string());
+    }
+    if config.agents.defaults.context_budget_reserve_tokens
+        >= config.agents.defaults.context_budget_tokens
+    {
+        errors.push(
+            "agents.defaults.context_budget_reserve_tokens must be < agents.defaults.context_budget_tokens"
+                .to_string(),
+        );
+    }
     if let Some(reasoning_effort) = &config.agents.defaults.reasoning_effort {
         let effort = reasoning_effort.trim().to_lowercase();
         if !effort.is_empty() && effort != "low" && effort != "medium" && effort != "high" {
@@ -34,6 +48,15 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     }
     if config.agents.soul.frequent_change_threshold == 0 {
         errors.push("agents.soul.frequent_change_threshold must be > 0".to_string());
+    }
+    if config.tools.exec.timeout == 0 {
+        errors.push("tools.exec.timeout must be > 0".to_string());
+    }
+    if config.tools.subagent.max_concurrent == 0 {
+        errors.push("tools.subagent.max_concurrent must be > 0".to_string());
+    }
+    if config.tools.subagent.max_depth == 0 {
+        errors.push("tools.subagent.max_depth must be > 0".to_string());
     }
 
     for (name, server) in &config.tools.mcp_servers {
@@ -119,5 +142,44 @@ mod tests {
         config.tools.web.search.max_results = 50;
 
         validate_config(&config).unwrap();
+    }
+
+    #[test]
+    fn test_validate_rejects_zero_exec_timeout() {
+        let mut config = Config::default();
+        config.providers.anthropic.api_key = "test-key".to_string();
+        config.tools.exec.timeout = 0;
+
+        let err = validate_config(&config).unwrap_err();
+        assert!(err.to_string().contains("tools.exec.timeout must be > 0"));
+    }
+
+    #[test]
+    fn test_validate_rejects_zero_subagent_limits() {
+        let mut config = Config::default();
+        config.providers.anthropic.api_key = "test-key".to_string();
+        config.tools.subagent.max_concurrent = 0;
+        config.tools.subagent.max_depth = 0;
+
+        let err = validate_config(&config).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("tools.subagent.max_concurrent must be > 0"));
+        assert!(err
+            .to_string()
+            .contains("tools.subagent.max_depth must be > 0"));
+    }
+
+    #[test]
+    fn test_validate_rejects_invalid_context_budget() {
+        let mut config = Config::default();
+        config.providers.anthropic.api_key = "test-key".to_string();
+        config.agents.defaults.context_budget_tokens = 1_000;
+        config.agents.defaults.context_budget_reserve_tokens = 1_000;
+
+        let err = validate_config(&config).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("context_budget_reserve_tokens must be <"));
     }
 }

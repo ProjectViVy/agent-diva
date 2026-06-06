@@ -473,22 +473,37 @@ mod tests {
         let config_dir = TempDir::new().unwrap();
         let workspace = TempDir::new().unwrap();
         write_config(config_dir.path(), workspace.path());
+        let service = SkillService::new(ConfigLoader::with_dir(config_dir.path()));
+        let builtin_name = service
+            .list_skills()
+            .unwrap()
+            .into_iter()
+            .find(|skill| skill.source == "builtin")
+            .map(|skill| skill.name)
+            .expect("expected at least one builtin skill for override test");
         write_skill(
             workspace.path(),
-            "weather",
-            "---\nname: weather\ndescription: Workspace Weather\n---\n\n# Workspace\n",
+            &builtin_name,
+            &format!(
+                "---\nname: {builtin_name}\ndescription: Workspace Override\n---\n\n# Workspace\n"
+            ),
         );
-        let service = SkillService::new(ConfigLoader::with_dir(config_dir.path()));
 
         let before = service.list_skills().unwrap();
-        let weather = before.iter().find(|skill| skill.name == "weather").unwrap();
-        assert_eq!(weather.source, "workspace");
+        let overridden = before
+            .iter()
+            .find(|skill| skill.name == builtin_name)
+            .unwrap();
+        assert_eq!(overridden.source, "workspace");
 
-        service.delete_skill("weather").unwrap();
+        service.delete_skill(&builtin_name).unwrap();
 
         let after = service.list_skills().unwrap();
-        let weather = after.iter().find(|skill| skill.name == "weather").unwrap();
-        assert_eq!(weather.source, "builtin");
+        let restored = after
+            .iter()
+            .find(|skill| skill.name == builtin_name)
+            .unwrap();
+        assert_eq!(restored.source, "builtin");
     }
 
     #[test]
@@ -498,7 +513,14 @@ mod tests {
         write_config(config_dir.path(), workspace.path());
         let service = SkillService::new(ConfigLoader::with_dir(config_dir.path()));
 
-        let err = service.delete_skill("weather").unwrap_err();
+        let builtin_name = service
+            .list_skills()
+            .unwrap()
+            .into_iter()
+            .find(|skill| skill.source == "builtin")
+            .map(|skill| skill.name)
+            .expect("expected at least one builtin skill for delete rejection test");
+        let err = service.delete_skill(&builtin_name).unwrap_err();
         assert!(err.to_string().contains("builtin"));
     }
 }
