@@ -49,6 +49,12 @@ pub struct CompactSummary {
     pub pre_compact_estimated_tokens: usize,
     /// The generated natural-language summary
     pub summary: String,
+    /// Quality score of the adopted summary (0.0–1.0), if quality validation ran
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub quality_score: Option<f64>,
+    /// Number of LLM retries before the final summary was adopted (0 = first attempt succeeded)
+    #[serde(default)]
+    pub retry_count: u32,
 }
 
 // ---------------------------------------------------------------------------

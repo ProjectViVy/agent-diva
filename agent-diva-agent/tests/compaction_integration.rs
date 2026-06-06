@@ -53,6 +53,8 @@ fn make_compact_summary(summary_text: &str, trigger: CompactTrigger, start: usiz
         pre_compact_message_count: pre_count,
         pre_compact_estimated_tokens: 0,
         summary: summary_text.to_string(),
+        quality_score: None,
+        retry_count: 0,
     }
 }
 

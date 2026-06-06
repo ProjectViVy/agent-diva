@@ -302,6 +302,8 @@ impl AgentLoop {
                                             pre_compact_message_count: 0,
                                             pre_compact_estimated_tokens: 0,
                                             summary: String::new(),
+                                            quality_score: None,
+                                            retry_count: 0,
                                         }
                                     });
                                     (history, fallback)

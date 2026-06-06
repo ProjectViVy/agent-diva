@@ -23,6 +23,8 @@
 
 pub mod compaction_exec;
 pub mod prompt;
+pub mod quality;
 
 pub use compaction_exec::ContextCompactor;
 pub use prompt::COMPACTION_SYSTEM_PROMPT;
+pub use quality::{validate_summary, QualityReport};

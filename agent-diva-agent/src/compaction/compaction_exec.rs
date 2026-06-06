@@ -11,6 +11,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use super::prompt::COMPACTION_SYSTEM_PROMPT;
+use super::quality::validate_summary;
 use crate::context_budget::BudgetConfig;
 use crate::token_estimate::estimate_total_tokens;
 
@@ -37,7 +38,8 @@ impl ContextCompactor {
     /// 2. Formats messages for the LLM
     /// 3. Calls the provider with [`COMPACTION_SYSTEM_PROMPT`]
     /// 4. Extracts `<summary>` from the LLM response
-    /// 5. Returns a [`CompactionResult`] with a full [`CompactSummary`]
+    /// 5. Validates summary quality, retries if below threshold (max 2 retries)
+    /// 6. Returns a [`CompactionResult`] with a full [`CompactSummary`]
     ///
     /// # Errors
     ///
@@ -70,6 +72,8 @@ impl ContextCompactor {
                     pre_compact_message_count: 0,
                     pre_compact_estimated_tokens: 0,
                     summary: String::new(),
+                    quality_score: None,
+                    retry_count: 0,
                 },
                 new_compacted_index: session.last_compacted,
             });
@@ -87,32 +91,117 @@ impl ContextCompactor {
         // Format messages for the LLM
         let formatted = Self::format_messages_for_compaction(range);
 
-        // Build the user prompt
-        let user_prompt = format!(
+        // Build the base user prompt
+        let base_user_prompt = format!(
             "请压缩以下 {} 条对话消息：\n\n{}",
             pre_compact_message_count, formatted
         );
 
-        // Build messages for the LLM call
-        let messages = vec![
-            Message::system(COMPACTION_SYSTEM_PROMPT),
-            Message::user(user_prompt),
-        ];
+        // Retry loop: up to 3 attempts (1 initial + 2 retries)
+        const MAX_RETRIES: u32 = 2;
+        const QUALITY_THRESHOLD: f64 = 0.6;
 
-        // Call LLM (non-streaming, synchronous compaction)
-        let response = provider
-            .chat(messages, None, Some(model.to_string()), 4096, 0.3)
-            .await
-            .map_err(|e| anyhow::anyhow!("LLM compaction call failed: {}", e))?;
+        let mut best_summary_text = String::new();
+        let mut best_score: f64 = 0.0;
+        let mut best_report_issues: Vec<String> = Vec::new();
+        let mut attempts = 0u32;
 
-        let response_text = response.content.unwrap_or_default();
+        for attempt in 0..=MAX_RETRIES {
+            attempts += 1;
 
-        if response_text.trim().is_empty() {
-            return Err(anyhow::anyhow!("LLM returned empty compaction response"));
+            // On retry, prepend quality feedback to the user prompt
+            let user_prompt = if attempt == 0 {
+                base_user_prompt.clone()
+            } else {
+                format!(
+                    "注意：上一次生成的摘要质量不合格（得分 {:.2}/1.0），原因：{}。\n请生成更详细、更完整的摘要，确保覆盖所有关键信息。\n\n{}",
+                    best_score,
+                    best_report_issues.join("；"),
+                    base_user_prompt
+                )
+            };
+
+            // Build messages for the LLM call
+            let messages = vec![
+                Message::system(COMPACTION_SYSTEM_PROMPT),
+                Message::user(user_prompt),
+            ];
+
+            // Call LLM (non-streaming, synchronous compaction)
+            let response = match provider
+                .chat(messages, None, Some(model.to_string()), 4096, 0.3)
+                .await
+            {
+                Ok(resp) => resp,
+                Err(e) => {
+                    warn!("LLM compaction call failed on attempt {}: {}", attempt + 1, e);
+                    continue;
+                }
+            };
+
+            let response_text = response.content.unwrap_or_default();
+
+            if response_text.trim().is_empty() {
+                warn!("LLM returned empty compaction response on attempt {}", attempt + 1);
+                continue;
+            }
+
+            // Parse <summary> from response
+            let summary_text = Self::extract_summary(&response_text);
+
+            // Validate quality
+            let report = validate_summary(&summary_text, range);
+
+            info!(
+                "Compaction attempt {}/{}: score={:.2} (len={:.2}, kw={:.2}, comp={:.2}), issues={:?}",
+                attempt + 1,
+                MAX_RETRIES + 1,
+                report.score,
+                report.length_score,
+                report.keyword_score,
+                report.completeness_score,
+                report.issues
+            );
+
+            // Track the best attempt
+            if report.score > best_score {
+                best_score = report.score;
+                best_summary_text = summary_text;
+                best_report_issues = report.issues.clone();
+            }
+
+            // Early exit if quality is acceptable
+            if report.score >= QUALITY_THRESHOLD {
+                info!(
+                    "Compaction quality acceptable on attempt {} (score {:.2} >= {})",
+                    attempt + 1, report.score, QUALITY_THRESHOLD
+                );
+                break;
+            }
+
+            if attempt < MAX_RETRIES {
+                info!(
+                    "Compaction quality insufficient (score {:.2} < {}), retrying…",
+                    report.score, QUALITY_THRESHOLD
+                );
+            }
         }
 
-        // Parse <summary> from response; fall back to raw text on failure
-        let summary_text = Self::extract_summary(&response_text);
+        if best_summary_text.is_empty() {
+            return Err(anyhow::anyhow!(
+                "All compaction attempts produced empty summaries"
+            ));
+        }
+
+        let retry_count = attempts.saturating_sub(1);
+
+        info!(
+            "Compaction complete: {} messages → {} chars summary (score={:.2}, retries={})",
+            pre_compact_message_count,
+            best_summary_text.len(),
+            best_score,
+            retry_count
+        );
 
         // Generate a unique compact_id
         let compact_id = format!(
@@ -133,14 +222,10 @@ impl ContextCompactor {
             kept_recent_count: keep,
             pre_compact_message_count,
             pre_compact_estimated_tokens,
-            summary: summary_text,
+            summary: best_summary_text,
+            quality_score: Some(best_score),
+            retry_count,
         };
-
-        info!(
-            "Compaction complete: {} messages → {} chars summary",
-            pre_compact_message_count,
-            summary.summary.len()
-        );
 
         Ok(CompactionResult {
             summary,
