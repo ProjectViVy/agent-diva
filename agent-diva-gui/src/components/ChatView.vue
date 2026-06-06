@@ -2,9 +2,6 @@
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat } from 'lucide-vue-next';
-import LightbulbAutoOutline from '../assets/icons/LightbulbAutoOutline.vue';
-import LightbulbOn from '../assets/icons/LightbulbOn.vue';
-import LightbulbOffOutline from '../assets/icons/LightbulbOffOutline.vue';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -14,6 +11,7 @@ import DecisionCard from './DecisionCard.vue';
 import TodoCard from './TodoCard.vue';
 import ApprovalBanner from './ApprovalBanner.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
+import ThinkingToggle from './chat/ThinkingToggle.vue';
 import { uploadFile, FileAttachmentDto, type UiCard, type ApprovalRequest } from '../api/desktop';
 
 const { t } = useI18n();
@@ -151,12 +149,6 @@ const permissionMode = ref<'cautious' | 'smart' | 'trusted'>('smart');
 const isRecording = ref(false);
 // const recordingDuration = ref(0); // 预留
 const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
-const showThinkingMenu = ref(false);
-const thinkingOptions = computed(() => [
-  { value: 'auto' as const, icon: LightbulbAutoOutline, label: 'chat.thinkingModeAuto' },
-  { value: 'on' as const, icon: LightbulbOn, label: 'chat.thinkingModeOn' },
-  { value: 'off' as const, icon: LightbulbOffOutline, label: 'chat.thinkingModeOff' },
-]);
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -757,31 +749,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
           </button>
 
           <!-- 思考模式选择 -->
-          <div class="relative">
-            <button
-              class="toolbar-btn"
-              :class="{ active: thinkingMode !== 'off' }"
-              :title="t('chat.thinkingMode')"
-              @click="showThinkingMenu = !showThinkingMenu"
-            >
-              <component :is="thinkingOptions.find(o => o.value === thinkingMode)?.icon || LightbulbAutoOutline" :size="14" />
-            </button>
-            <div v-if="showThinkingMenu" class="mode-menu">
-              <div
-                v-for="opt in thinkingOptions"
-                :key="opt.value"
-                @click="thinkingMode = opt.value; showThinkingMenu = false"
-                class="mode-menu-item"
-                :class="{ active: thinkingMode === opt.value }"
-              >
-                <component :is="opt.icon" :size="16" />
-                <div class="mode-menu-text">
-                  <div class="mode-label">{{ t(opt.label) }}</div>
-                </div>
-                <CheckCircle2 v-if="thinkingMode === opt.value" :size="14" />
-              </div>
-            </div>
-          </div>
+          <ThinkingToggle v-model="thinkingMode" />
 
           <!-- 桌面宠物按钮 -->
           <button
