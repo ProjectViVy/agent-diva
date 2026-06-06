@@ -1,3 +1,5 @@
+use crate::subagent::SubagentSpawnRequest;
+use crate::subagent_policy::SubagentPolicy;
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
@@ -14,13 +16,7 @@ use std::sync::Arc;
 
 #[async_trait::async_trait]
 pub trait SubagentSpawner: Send + Sync {
-    async fn spawn(
-        &self,
-        task: String,
-        label: Option<String>,
-        channel: String,
-        chat_id: String,
-    ) -> Result<String, ToolError>;
+    async fn spawn(&self, request: SubagentSpawnRequest) -> Result<String, ToolError>;
 }
 
 pub struct ToolAssembly {
@@ -106,8 +102,8 @@ impl ToolAssembly {
         self.build_internal(false)
     }
 
-    pub fn build_subagent_registry(mut self) -> ToolRegistry {
-        self.builtin_config = self.builtin_config.for_subagent();
+    pub fn build_subagent_registry(mut self, policy: &SubagentPolicy) -> ToolRegistry {
+        self.builtin_config = self.builtin_config.for_subagent(policy);
         self.subagent_spawner = None;
         self.cron_service = None;
         self.file_manager = None;
@@ -115,7 +111,7 @@ impl ToolAssembly {
     }
 
     fn build_internal(self, subagent_mode: bool) -> ToolRegistry {
-        let mut registry = ToolRegistry::new();
+        let mut registry = ToolRegistry::with_timeout_secs(self.exec_timeout);
 
         if self.builtin_config.filesystem {
             let security_config = if self.restrict_to_workspace {
@@ -168,7 +164,18 @@ impl ToolAssembly {
                 registry.register(Arc::new(SpawnTool::new(
                     move |task, label, channel, chat_id| {
                         let spawner = spawner.clone();
-                        async move { spawner.spawn(task, label, channel, chat_id).await }
+                        async move {
+                            spawner
+                                .spawn(SubagentSpawnRequest {
+                                    task,
+                                    label,
+                                    origin_channel: channel,
+                                    origin_chat_id: chat_id,
+                                    current_depth: 0,
+                                    origin: "main_agent".to_string(),
+                                })
+                                .await
+                        }
                     },
                 )));
             }
@@ -197,6 +204,7 @@ impl ToolAssembly {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::subagent_policy::SubagentPolicy;
 
     #[test]
     fn test_tool_assembly_minimal() {
@@ -239,6 +247,7 @@ mod tests {
 
     #[test]
     fn test_tool_assembly_subagent_mode_disables_spawn_and_attachment() {
+        let policy = SubagentPolicy::default();
         let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
             .builtin(BuiltInToolsConfig {
                 filesystem: true,
@@ -246,10 +255,40 @@ mod tests {
                 attachment: true,
                 ..BuiltInToolsConfig::none()
             })
-            .build_subagent_registry();
+            .build_subagent_registry(&policy);
 
         assert!(registry.has("read_file"));
         assert!(!registry.has("spawn"));
         assert!(!registry.has("read_attachment"));
+    }
+
+    #[test]
+    fn test_tool_assembly_subagent_mode_respects_policy_for_web_tools() {
+        let policy = SubagentPolicy {
+            allow_web_fetch: true,
+            allow_web_search: false,
+            ..SubagentPolicy::default()
+        };
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig {
+                filesystem: true,
+                web_search: true,
+                web_fetch: true,
+                ..BuiltInToolsConfig::none()
+            })
+            .with_network_config(NetworkToolConfig::default())
+            .build_subagent_registry(&policy);
+
+        assert!(registry.has("web_fetch"));
+        assert!(!registry.has("web_search"));
+    }
+
+    #[test]
+    fn test_tool_assembly_propagates_registry_timeout() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .with_exec_timeout(12)
+            .build();
+
+        assert_eq!(registry.timeout_secs(), 12);
     }
 }

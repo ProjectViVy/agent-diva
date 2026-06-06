@@ -1,5 +1,10 @@
+use super::context_retry::{prepare_budgeted_messages, should_retry_context_overflow};
+use super::loop_guard::{
+    is_tool_error_result, LoopGuard, DEFAULT_AGENT_LOOP_TIMEOUT, DEFAULT_REPEATED_FAILURE_THRESHOLD,
+};
 use super::AgentLoop;
 use crate::consolidation;
+use crate::context_budget::CompactionMode;
 use agent_diva_core::attachment::FileAttachmentRef;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::memory::PrefetchRequest;
@@ -7,14 +12,15 @@ use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_files::FileManager;
 use agent_diva_providers::{
-    supports_vision_model, ImageFile, ImageUrl, LLMResponse, LLMStreamEvent, Message,
-    MessageContent, MessageContentPart,
+    provider_error_indicates_vision_unsupported, ImageFile, ImageUrl, LLMResponse, LLMStreamEvent,
+    Message, MessageContent, MessageContentPart, ProviderError,
 };
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -60,10 +66,10 @@ impl AgentLoop {
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         self.clear_session_cancellation(&session_key);
-        let session = self.sessions.get_or_create(&session_key);
+        let session = self.sessions.get_or_create(&session_key)?;
 
         // Build initial messages
-        let history = session.get_history(50); // Last 50 messages
+        let history = session.get_history(self.context_budget.history_probe_messages());
         let history_len = history.len();
         let mut messages = self.context.build_messages_with_content(
             history,
@@ -81,11 +87,21 @@ impl AgentLoop {
                 messages.push(current_message);
             }
         }
+        let user_role = if is_cron_trigger { "system" } else { "user" };
+        let user_attachments = resolve_attachment_refs(&self.file_manager, &msg.media).await;
+        {
+            let session = self.sessions.get_or_create(&session_key)?;
+            persist_inbound_message(session, user_role, &msg.content, user_attachments.clone());
+        }
+        self.persist_session_or_fail(&session_key, &msg, event_tx, "persist inbound user message")?;
 
         // Agent loop
         let mut iteration = 0;
-        let mut final_content: Option<String> = None;
-        let mut final_reasoning: Option<String> = None;
+        let mut loop_guard = LoopGuard::new(
+            self.max_iterations,
+            DEFAULT_AGENT_LOOP_TIMEOUT,
+            DEFAULT_REPEATED_FAILURE_THRESHOLD,
+        );
         let mut soul_files_changed: HashSet<String> = HashSet::new();
 
         // Intent-aware prefetch: run recall search before the first LLM call
@@ -117,14 +133,20 @@ impl AgentLoop {
             }
         }
 
-        while iteration < self.max_iterations {
+        let (final_content, final_reasoning) = 'agent_loop: loop {
             self.drain_runtime_control_commands().await;
             if self.is_session_cancelled(&session_key) {
                 self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
                 return Ok(None);
             }
 
-            iteration += 1;
+            iteration = match loop_guard.begin_iteration(iteration) {
+                Ok(next_iteration) => next_iteration,
+                Err(reason) => {
+                    warn!(reason = ?reason, "Stopping agent loop before next iteration");
+                    break (Some(reason.user_message()), None);
+                }
+            };
             debug!("Agent iteration {}/{}", iteration, self.max_iterations);
             trace!(trace_id = %trace_id, loop_index = iteration, step_name = "loop_started", "Agent loop started");
 
@@ -156,116 +178,221 @@ impl AgentLoop {
             } else {
                 self.tools.get_definitions()
             };
-            let provider_messages = match prepare_messages_for_openai_vision(
-                &self.file_manager,
-                messages.clone(),
-                &model_to_use,
-            )
-            .await
-            {
-                Ok(messages) => messages,
-                Err(error) => {
-                    warn!("Vision message preparation failed: {}", error);
-                    final_content = Some(error.user_message().to_string());
-                    final_reasoning = None;
-                    break;
-                }
-            };
+            let response = {
+                let mut compaction_mode = CompactionMode::Normal;
+                let mut overflow_retry_used = false;
 
-            let mut stream = self
-                .provider
-                .chat_stream(
-                    provider_messages,
-                    if !tool_defs.is_empty() {
-                        Some(tool_defs)
-                    } else {
-                        None
-                    },
-                    Some(model_to_use.clone()),
-                    4096,
-                    0.7,
-                )
-                .await?;
-            let mut streamed_content = String::new();
-            let mut streamed_reasoning = String::new();
-            let mut response: Option<LLMResponse> = None;
-            loop {
-                self.drain_runtime_control_commands().await;
-                if self.is_session_cancelled(&session_key) {
-                    self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
-                    return Ok(None);
-                }
+                loop {
+                    let prepared_request = prepare_budgeted_messages(
+                        &messages,
+                        &tool_defs,
+                        &self.context_budget,
+                        compaction_mode,
+                    );
+                    trace!(
+                        trace_id = %trace_id,
+                        loop_index = iteration,
+                        compaction_mode = ?prepared_request.report.mode,
+                        estimated_before = prepared_request.report.estimated_tokens_before,
+                        estimated_after = prepared_request.report.estimated_tokens_after,
+                        available_budget = prepared_request.report.available_context_tokens,
+                        removed_history_messages = prepared_request.report.removed_history_messages,
+                        truncated_tool_messages = prepared_request.report.truncated_tool_messages,
+                        step_name = "context_compacted",
+                        "Prepared request under context budget"
+                    );
 
-                let stream_event =
-                    match tokio::time::timeout(Duration::from_millis(250), stream.next()).await {
-                        Ok(Some(event)) => event,
-                        Ok(None) => break,
-                        Err(_) => continue,
+                    let provider_messages = match prepare_messages_for_openai_vision(
+                        &self.file_manager,
+                        prepared_request.messages,
+                    )
+                    .await
+                    {
+                        Ok(messages) => messages,
+                        Err(error) => {
+                            warn!("Vision message preparation failed: {}", error);
+                            break 'agent_loop (Some(error.user_message().to_string()), None);
+                        }
                     };
 
-                match stream_event? {
-                    LLMStreamEvent::TextDelta(delta) => {
-                        streamed_content.push_str(&delta);
-                        let event = AgentEvent::AssistantDelta { text: delta };
-                        if let Some(tx) = event_tx {
-                            let _ = tx.send(event.clone());
-                        }
-                        let _ =
-                            self.bus
-                                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-                    }
-                    LLMStreamEvent::ReasoningDelta(delta) => {
-                        debug!("Stream ReasoningDelta: {:?}", delta);
-                        streamed_reasoning.push_str(&delta);
-                        let event = AgentEvent::ReasoningDelta { text: delta };
-                        if let Some(tx) = event_tx {
-                            let _ = tx.send(event.clone());
-                        }
-                        let _ =
-                            self.bus
-                                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-                    }
-                    LLMStreamEvent::ToolCallDelta {
-                        name,
-                        arguments_delta,
-                        ..
-                    } => {
-                        if let Some(delta) = arguments_delta {
-                            let event = AgentEvent::ToolCallDelta {
-                                name,
-                                args_delta: delta,
-                            };
-                            if let Some(tx) = event_tx {
-                                let _ = tx.send(event.clone());
+                    let mut stream = match self
+                        .provider
+                        .chat_stream(
+                            provider_messages,
+                            if !tool_defs.is_empty() {
+                                Some(tool_defs.clone())
+                            } else {
+                                None
+                            },
+                            Some(model_to_use.clone()),
+                            self.request_max_tokens,
+                            self.temperature,
+                        )
+                        .await
+                    {
+                        Ok(stream) => stream,
+                        Err(error) => {
+                            if let Some(user_message) = provider_error_to_user_message(&error) {
+                                warn!("Provider rejected multimodal request: {}", error);
+                                break 'agent_loop (Some(user_message.to_string()), None);
                             }
-                            let _ = self.bus.publish_event(
-                                msg.channel.clone(),
-                                msg.chat_id.clone(),
-                                event,
-                            );
+                            if should_retry_context_overflow(
+                                &self.context_budget,
+                                &error,
+                                overflow_retry_used,
+                            ) {
+                                warn!(
+                                    "Provider rejected request for context overflow; retrying with stronger compaction"
+                                );
+                                overflow_retry_used = true;
+                                compaction_mode = CompactionMode::OverflowRecovery;
+                                continue;
+                            }
+                            if crate::context_budget::provider_error_indicates_context_overflow(
+                                &error,
+                            ) {
+                                break 'agent_loop (
+                                    Some(self.context_budget.overflow_user_message().to_string()),
+                                    None,
+                                );
+                            }
+                            return Err(Box::new(error));
+                        }
+                    };
+                    let mut streamed_content = String::new();
+                    let mut streamed_reasoning = String::new();
+                    let mut response: Option<LLMResponse> = None;
+                    let mut retry_with_stronger_compaction = false;
+                    loop {
+                        self.drain_runtime_control_commands().await;
+                        if self.is_session_cancelled(&session_key) {
+                            self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
+                            return Ok(None);
+                        }
+                        if let Err(reason) = loop_guard.check_elapsed() {
+                            warn!(reason = ?reason, "Stopping agent loop during provider stream");
+                            break 'agent_loop (Some(reason.user_message()), None);
+                        }
+
+                        let stream_event =
+                            match tokio::time::timeout(Duration::from_millis(250), stream.next())
+                                .await
+                            {
+                                Ok(Some(event)) => event,
+                                Ok(None) => break,
+                                Err(_) => continue,
+                            };
+
+                        let stream_event = match stream_event {
+                            Ok(stream_event) => stream_event,
+                            Err(error) => {
+                                if let Some(user_message) = provider_error_to_user_message(&error) {
+                                    warn!("Provider stream rejected multimodal request: {}", error);
+                                    break 'agent_loop (Some(user_message.to_string()), None);
+                                }
+                                if should_retry_context_overflow(
+                                    &self.context_budget,
+                                    &error,
+                                    overflow_retry_used,
+                                ) && streamed_content.is_empty()
+                                    && streamed_reasoning.is_empty()
+                                {
+                                    warn!(
+                                        "Provider stream failed with context overflow before output; retrying once"
+                                    );
+                                    overflow_retry_used = true;
+                                    compaction_mode = CompactionMode::OverflowRecovery;
+                                    retry_with_stronger_compaction = true;
+                                    break;
+                                }
+                                if crate::context_budget::provider_error_indicates_context_overflow(
+                                    &error,
+                                ) {
+                                    break 'agent_loop (
+                                        Some(
+                                            self.context_budget.overflow_user_message().to_string(),
+                                        ),
+                                        None,
+                                    );
+                                }
+                                return Err(Box::new(error));
+                            }
+                        };
+
+                        match stream_event {
+                            LLMStreamEvent::TextDelta(delta) => {
+                                streamed_content.push_str(&delta);
+                                let event = AgentEvent::AssistantDelta { text: delta };
+                                if let Some(tx) = event_tx {
+                                    let _ = tx.send(event.clone());
+                                }
+                                let _ = self.bus.publish_event(
+                                    msg.channel.clone(),
+                                    msg.chat_id.clone(),
+                                    event,
+                                );
+                            }
+                            LLMStreamEvent::ReasoningDelta(delta) => {
+                                debug!("Stream ReasoningDelta: {:?}", delta);
+                                streamed_reasoning.push_str(&delta);
+                                let event = AgentEvent::ReasoningDelta { text: delta };
+                                if let Some(tx) = event_tx {
+                                    let _ = tx.send(event.clone());
+                                }
+                                let _ = self.bus.publish_event(
+                                    msg.channel.clone(),
+                                    msg.chat_id.clone(),
+                                    event,
+                                );
+                            }
+                            LLMStreamEvent::ToolCallDelta {
+                                name,
+                                arguments_delta,
+                                ..
+                            } => {
+                                if let Some(delta) = arguments_delta {
+                                    let event = AgentEvent::ToolCallDelta {
+                                        name,
+                                        args_delta: delta,
+                                    };
+                                    if let Some(tx) = event_tx {
+                                        let _ = tx.send(event.clone());
+                                    }
+                                    let _ = self.bus.publish_event(
+                                        msg.channel.clone(),
+                                        msg.chat_id.clone(),
+                                        event,
+                                    );
+                                }
+                            }
+                            LLMStreamEvent::Completed(done) => {
+                                response = Some(done);
+                                break;
+                            }
                         }
                     }
-                    LLMStreamEvent::Completed(done) => {
-                        response = Some(done);
-                        break;
+                    if retry_with_stronger_compaction {
+                        continue;
                     }
+
+                    let response = response.unwrap_or_else(|| LLMResponse {
+                        content: if streamed_content.is_empty() {
+                            None
+                        } else {
+                            Some(streamed_content)
+                        },
+                        tool_calls: Vec::new(),
+                        finish_reason: "stop".to_string(),
+                        usage: std::collections::HashMap::new(),
+                        reasoning_content: if streamed_reasoning.is_empty() {
+                            None
+                        } else {
+                            Some(streamed_reasoning)
+                        },
+                    });
+                    break response;
                 }
-            }
-            let response = response.unwrap_or_else(|| LLMResponse {
-                content: if streamed_content.is_empty() {
-                    None
-                } else {
-                    Some(streamed_content)
-                },
-                tool_calls: Vec::new(),
-                finish_reason: "stop".to_string(),
-                usage: std::collections::HashMap::new(),
-                reasoning_content: if streamed_reasoning.is_empty() {
-                    None
-                } else {
-                    Some(streamed_reasoning)
-                },
-            });
+            };
 
             // Trace intent decision
             let decision_type = if response.has_tool_calls() {
@@ -294,6 +421,10 @@ impl AgentLoop {
                     if self.is_session_cancelled(&session_key) {
                         self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
                         return Ok(None);
+                    }
+                    if let Err(reason) = loop_guard.check_elapsed() {
+                        warn!(reason = ?reason, "Stopping agent loop before tool execution");
+                        break 'agent_loop (Some(reason.user_message()), None);
                     }
 
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_invoked", tool_name = %tool_call.name, "Tool invoked");
@@ -370,7 +501,7 @@ impl AgentLoop {
 
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),
-                        is_error: result.starts_with("Error"),
+                        is_error: is_tool_error_result(&result),
                         result: result.clone(),
                         call_id: tool_call.id.clone(),
                     };
@@ -380,12 +511,21 @@ impl AgentLoop {
                     let _ = self
                         .bus
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    let stop_reason = loop_guard.record_tool_result(
+                        &tool_call.name,
+                        &serde_json::json!(tool_call.arguments),
+                        &result,
+                    );
                     self.context.add_tool_result(
                         &mut messages,
                         tool_call.id.clone(),
                         tool_call.name.clone(),
                         result,
                     );
+                    if let Some(reason) = stop_reason {
+                        warn!(reason = ?reason, tool_name = %tool_call.name, "Stopping agent loop after repeated tool failure");
+                        break 'agent_loop (Some(reason.user_message()), None);
+                    }
                 }
             } else {
                 // No tool calls, we're done
@@ -396,17 +536,14 @@ impl AgentLoop {
                         .map(|s| s.chars().take(200).collect::<String>())
                         .unwrap_or_default();
                     error!("LLM returned error finish_reason with content: {}", preview);
-                    final_content =
-                        Some("Sorry, I encountered an error calling the AI model.".to_string());
-                    final_reasoning = None;
-                    break;
+                    break (
+                        Some("Sorry, I encountered an error calling the AI model.".to_string()),
+                        None,
+                    );
                 }
-                final_content = response.content;
-                final_reasoning = response.reasoning_content;
-                break;
+                break (response.content, response.reasoning_content);
             }
-        }
-
+        };
         let mut final_content = final_content.unwrap_or_else(|| {
             "I've completed processing but have no response to give.".to_string()
         });
@@ -441,23 +578,14 @@ impl AgentLoop {
 
         // Save complete turn to session
         {
-            let user_attachments = resolve_attachment_refs(&self.file_manager, &msg.media).await;
-            let session = self.sessions.get_or_create(&session_key);
-            let user_role = if is_cron_trigger { "system" } else { "user" };
-            save_turn(
-                session,
-                &messages,
-                history_len,
-                user_role,
-                &msg.content,
-                user_attachments,
-                &final_content,
-            );
+            let session = self.sessions.get_or_create(&session_key)?;
+            append_turn_outputs(session, &messages, history_len, &final_content);
         }
+        self.persist_session_or_fail(&session_key, &msg, event_tx, "persist final turn state")?;
 
         // Run memory consolidation if threshold reached
         {
-            let session = self.sessions.get_or_create(&session_key);
+            let session = self.sessions.get_or_create(&session_key)?;
             if consolidation::should_consolidate(session, self.memory_window) {
                 if let Err(e) = consolidation::consolidate(
                     session,
@@ -473,13 +601,7 @@ impl AgentLoop {
                 }
             }
         }
-
-        // Persist session to disk
-        if let Some(session) = self.sessions.get(&session_key) {
-            if let Err(e) = self.sessions.save(session) {
-                error!("Failed to save session: {}", e);
-            }
-        }
+        self.persist_session_or_fail(&session_key, &msg, event_tx, "persist consolidation cursor")?;
 
         // Extract reply_to from metadata if available (critical for platforms like QQ)
         let reply_to = msg
@@ -504,11 +626,38 @@ impl AgentLoop {
     }
 }
 
+impl AgentLoop {
+    fn persist_session_or_fail(
+        &self,
+        session_key: &str,
+        msg: &InboundMessage,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+        action: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let session = self.sessions.get(session_key).ok_or_else(|| {
+            io::Error::other(format!(
+                "session '{session_key}' missing from cache before {action}"
+            ))
+        })?;
+
+        if let Err(error) = self.sessions.save(session) {
+            error!(session_key = %session_key, action = %action, error = %error, "Failed to persist session");
+            self.emit_error_event(
+                msg,
+                event_tx,
+                format!("Failed to persist session history during {action}: {error}"),
+            );
+            return Err(Box::new(io::Error::other(format!(
+                "failed to persist session history during {action}: {error}"
+            ))));
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum VisionMessagePreparationError {
-    UnsupportedModel {
-        model: String,
-    },
     MissingFile {
         file_id: String,
     },
@@ -530,7 +679,6 @@ enum VisionMessagePreparationError {
 impl VisionMessagePreparationError {
     fn user_message(&self) -> &'static str {
         match self {
-            Self::UnsupportedModel { .. } => VISION_UNSUPPORTED_MODEL_MESSAGE,
             Self::MissingFile { .. } | Self::ReadFailed { .. } => {
                 "I could not read one of the attached images. Please upload it again and retry."
             }
@@ -547,9 +695,6 @@ impl VisionMessagePreparationError {
 impl fmt::Display for VisionMessagePreparationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UnsupportedModel { model } => {
-                write!(f, "model '{}' does not support vision", model)
-            }
             Self::MissingFile { file_id } => write!(f, "image file '{}' is missing", file_id),
             Self::UnsupportedMime { file_id, mime_type } => write!(
                 f,
@@ -577,16 +722,9 @@ impl std::error::Error for VisionMessagePreparationError {}
 async fn prepare_messages_for_openai_vision(
     file_manager: &FileManager,
     messages: Vec<Message>,
-    model: &str,
 ) -> Result<Vec<Message>, VisionMessagePreparationError> {
     if !messages.iter().any(Message::has_image_content) {
         return Ok(messages);
-    }
-
-    if !supports_vision_model(model) {
-        return Err(VisionMessagePreparationError::UnsupportedModel {
-            model: model.to_string(),
-        });
     }
 
     let mut prepared = Vec::with_capacity(messages.len());
@@ -681,6 +819,10 @@ async fn resolve_image_file_to_data_uri(
     ))
 }
 
+fn provider_error_to_user_message(error: &ProviderError) -> Option<&'static str> {
+    provider_error_indicates_vision_unsupported(error).then_some(VISION_UNSUPPORTED_MODEL_MESSAGE)
+}
+
 fn is_supported_vision_mime(mime_type: &str) -> bool {
     matches!(mime_type, "image/png" | "image/jpeg" | "image/webp")
 }
@@ -745,8 +887,8 @@ async fn assemble_current_message_content(
                         Err(e) => {
                             warn!("Failed to read file {}: {}", file_id, e);
                             attachment_text_parts.push(format!(
-                                "[File: {} (error reading: {})]",
-                                handle.metadata.name, e
+                                "[File: {} (could not be read)]",
+                                handle.metadata.name
                             ));
                         }
                     }
@@ -764,8 +906,7 @@ async fn assemble_current_message_content(
                     e,
                     storage_path.display()
                 );
-                attachment_text_parts
-                    .push(format!("[Attachment: {} (not found - {})]", file_id, e));
+                attachment_text_parts.push("[Attachment unavailable]".to_string());
             }
         }
     }
@@ -846,17 +987,12 @@ fn format_soul_transparency_notice(
     notice
 }
 
-/// Save all messages from the current turn to the session
-fn save_turn(
+fn persist_inbound_message(
     session: &mut agent_diva_core::session::Session,
-    messages: &[agent_diva_providers::Message],
-    history_len: usize,
     user_role: &str,
     user_content: &str,
     user_attachments: Option<Vec<FileAttachmentRef>>,
-    final_content: &str,
 ) {
-    // Save trigger message; cron-triggered turns are not real-time user input.
     match user_attachments {
         Some(attachments) => {
             session.add_full_message(ChatMessage::with_attachments(
@@ -867,7 +1003,15 @@ fn save_turn(
         }
         None => session.add_message(user_role, user_content),
     }
+}
 
+/// Save assistant/tool outputs from the current turn to the session.
+fn append_turn_outputs(
+    session: &mut agent_diva_core::session::Session,
+    messages: &[agent_diva_providers::Message],
+    history_len: usize,
+    final_content: &str,
+) {
     // Skip system prompt (1) + history (history_len) + current user message (1)
     let turn_start = 1 + history_len + 1;
     if turn_start < messages.len() {
@@ -1111,21 +1255,38 @@ mod tests {
             size: 4096,
         }];
 
-        save_turn(
+        persist_inbound_message(
             &mut session,
-            &messages,
-            0,
             "user",
             "see attached",
             Some(attachments.clone()),
-            "done",
         );
+        append_turn_outputs(&mut session, &messages, 0, "done");
 
         assert_eq!(session.messages.len(), 2);
         assert_eq!(session.messages[0].role, "user");
         assert_eq!(session.messages[0].attachments, Some(attachments));
         assert_eq!(session.messages[1].role, "assistant");
         assert_eq!(session.messages[1].attachments, None);
+    }
+
+    #[test]
+    fn test_append_turn_outputs_does_not_duplicate_inbound_user_message() {
+        let mut session = agent_diva_core::session::Session::new("gui:chat");
+        persist_inbound_message(&mut session, "user", "hello", None);
+        let messages = vec![
+            agent_diva_providers::Message::system("system"),
+            agent_diva_providers::Message::user("hello"),
+            agent_diva_providers::Message::assistant("done"),
+        ];
+
+        append_turn_outputs(&mut session, &messages, 0, "done");
+
+        assert_eq!(session.messages.len(), 2);
+        assert_eq!(session.messages[0].role, "user");
+        assert_eq!(session.messages[0].content, "hello");
+        assert_eq!(session.messages[1].role, "assistant");
+        assert_eq!(session.messages[1].content, "done");
     }
 
     #[tokio::test]
@@ -1311,11 +1472,47 @@ mod tests {
             .as_text()
             .expect("missing attachment should stay text");
         assert!(text.contains("check missing"));
-        assert!(text.contains("[Attachment: sha256:missing (not found -"));
+        assert!(text.contains("[Attachment unavailable]"));
+        assert!(!text.contains("sha256:missing"));
     }
 
     #[tokio::test]
-    async fn test_prepare_messages_for_openai_vision_rejects_text_only_model() {
+    async fn test_assemble_current_message_content_read_failure_hides_internal_error() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
+            .await
+            .unwrap();
+        let handle = file_manager
+            .store(
+                b"hello",
+                FileMetadata {
+                    name: "note.txt".to_string(),
+                    size: 5,
+                    mime_type: Some("text/plain".to_string()),
+                    source: Some("gui".to_string()),
+                    created_at: chrono::Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let stored_path = handle.full_path(&temp_dir.path().join("data"));
+        std::fs::remove_file(stored_path).unwrap();
+
+        let content =
+            assemble_current_message_content(&file_manager, "read this", &[handle.id]).await;
+
+        let text = content
+            .as_text()
+            .expect("unreadable attachment should stay text");
+        assert!(text.contains("[File: note.txt (could not be read)]"));
+        assert!(!text.contains("No such file"));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_messages_for_openai_vision_allows_unknown_model() {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
             .await
@@ -1331,14 +1528,11 @@ mod tests {
             },
         ]))];
 
-        let error = prepare_messages_for_openai_vision(&file_manager, messages, "deepseek-chat")
+        let prepared = prepare_messages_for_openai_vision(&file_manager, messages)
             .await
-            .unwrap_err();
+            .unwrap();
 
-        assert_eq!(
-            error.user_message(),
-            "This model cannot inspect images. Please switch to a vision-capable model or send a text description of the image."
-        );
+        assert_eq!(prepared.len(), 1);
     }
 
     #[tokio::test]
@@ -1371,7 +1565,7 @@ mod tests {
             },
         ]))];
 
-        let prepared = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+        let prepared = prepare_messages_for_openai_vision(&file_manager, messages)
             .await
             .unwrap();
         let value = serde_json::to_value(&prepared[0]).unwrap();
@@ -1403,7 +1597,7 @@ mod tests {
             },
         ]))];
 
-        let prepared = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4.1-mini")
+        let prepared = prepare_messages_for_openai_vision(&file_manager, messages)
             .await
             .unwrap();
         let value = serde_json::to_value(&prepared[0]).unwrap();
@@ -1445,7 +1639,7 @@ mod tests {
             },
         ]))];
 
-        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+        let error = prepare_messages_for_openai_vision(&file_manager, messages)
             .await
             .unwrap_err();
 
@@ -1469,7 +1663,7 @@ mod tests {
             },
         ]))];
 
-        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+        let error = prepare_messages_for_openai_vision(&file_manager, messages)
             .await
             .unwrap_err();
 
@@ -1509,7 +1703,7 @@ mod tests {
             },
         ]))];
 
-        let error = prepare_messages_for_openai_vision(&file_manager, messages, "gpt-4o")
+        let error = prepare_messages_for_openai_vision(&file_manager, messages)
             .await
             .unwrap_err();
 

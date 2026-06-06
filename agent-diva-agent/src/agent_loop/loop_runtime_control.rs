@@ -32,8 +32,18 @@ impl AgentLoop {
                 session_key,
                 reply_tx,
             } => {
-                let session = self.sessions.get_or_load(&session_key).cloned();
-                let _ = reply_tx.send(session);
+                let result = match self.sessions.get_or_load(&session_key) {
+                    Ok(session) => Ok(session.cloned()),
+                    Err(error) => {
+                        tracing::error!(
+                            session_key = %session_key,
+                            error = %error,
+                            "Failed to load session for runtime control"
+                        );
+                        Err(error.to_string())
+                    }
+                };
+                let _ = reply_tx.send(result);
             }
             RuntimeControlCommand::DeleteSession {
                 session_key,

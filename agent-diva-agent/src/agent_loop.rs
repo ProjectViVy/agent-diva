@@ -19,12 +19,17 @@ use uuid::Uuid;
 
 use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
+use crate::context_budget::ContextBudgetPolicy;
 use crate::runtime_control::RuntimeControlCommand;
 use crate::subagent::SubagentManager;
+use crate::subagent::SubagentSpawnRequest;
+use crate::subagent_policy::SubagentPolicy;
 use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
 use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
 
+pub(crate) mod context_retry;
+mod loop_guard;
 mod loop_runtime_control;
 mod loop_tools;
 mod loop_turn;
@@ -36,16 +41,22 @@ pub struct ToolConfig {
     pub builtin: BuiltInToolsConfig,
     /// Network tool runtime config
     pub network: NetworkToolConfig,
-    /// Shell execution timeout in seconds
+    /// Default tool execution timeout in seconds
     pub exec_timeout: u64,
     /// Whether to restrict file access to workspace
     pub restrict_to_workspace: bool,
     /// Configured MCP servers
     pub mcp_servers: HashMap<String, MCPServerConfig>,
+    /// Subagent delegation policy
+    pub subagent_policy: SubagentPolicy,
     /// Optional cron service for scheduling tools
     pub cron_service: Option<Arc<CronService>>,
     /// Soul context settings
     pub soul_context: SoulContextSettings,
+    /// Response/request runtime settings
+    pub request_max_tokens: i32,
+    pub temperature: f64,
+    pub context_budget: ContextBudgetPolicy,
     /// Whether to append transparent notifications on soul updates
     pub notify_on_soul_change: bool,
     /// Governance behavior for soul evolution transparency
@@ -60,8 +71,12 @@ impl Default for ToolConfig {
             exec_timeout: 60,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
+            subagent_policy: SubagentPolicy::default(),
             cron_service: None,
             soul_context: SoulContextSettings::default(),
+            request_max_tokens: 4096,
+            temperature: 0.7,
+            context_budget: ContextBudgetPolicy::default(),
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
         }
@@ -97,6 +112,9 @@ pub struct AgentLoop {
     workspace: PathBuf,
     #[allow(dead_code)]
     model: String,
+    request_max_tokens: i32,
+    temperature: f64,
+    context_budget: ContextBudgetPolicy,
     max_iterations: usize,
     memory_window: usize,
     context: ContextBuilder,
@@ -125,15 +143,9 @@ struct SubagentManagerSpawner {
 
 #[async_trait::async_trait]
 impl SubagentSpawner for SubagentManagerSpawner {
-    async fn spawn(
-        &self,
-        task: String,
-        label: Option<String>,
-        channel: String,
-        chat_id: String,
-    ) -> Result<String, ToolError> {
+    async fn spawn(&self, request: SubagentSpawnRequest) -> Result<String, ToolError> {
         self.manager
-            .spawn(task, label, channel, chat_id)
+            .spawn(request)
             .await
             .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
     }
@@ -159,11 +171,13 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            BuiltInToolsConfig::default().for_subagent(),
+            BuiltInToolsConfig::default(),
             NetworkToolConfig::default(),
             None,
             false,
             HashMap::new(),
+            SubagentPolicy::default(),
+            ToolConfig::default().context_budget,
         ));
 
         // Initialize file manager for attachment handling
@@ -181,6 +195,9 @@ impl AgentLoop {
             provider,
             workspace,
             model,
+            request_max_tokens: ToolConfig::default().request_max_tokens,
+            temperature: ToolConfig::default().temperature,
+            context_budget: ToolConfig::default().context_budget,
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
@@ -254,11 +271,13 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            tool_config.builtin.for_subagent(),
+            tool_config.builtin.clone(),
             tool_config.network.clone(),
             Some(tool_config.exec_timeout),
             tool_config.restrict_to_workspace,
             tool_config.mcp_servers.clone(),
+            tool_config.subagent_policy.clone(),
+            tool_config.context_budget.clone(),
         ));
 
         let spawner = Arc::new(SubagentManagerSpawner {
@@ -283,6 +302,9 @@ impl AgentLoop {
             provider,
             workspace,
             model,
+            request_max_tokens: tool_config.request_max_tokens,
+            temperature: tool_config.temperature,
+            context_budget: tool_config.context_budget.clone(),
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
@@ -337,11 +359,13 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            toolset.config.builtin.for_subagent(),
+            toolset.config.builtin.clone(),
             toolset.config.network.clone(),
             Some(toolset.config.exec_timeout),
             toolset.config.restrict_to_workspace,
             toolset.config.mcp_servers.clone(),
+            toolset.config.subagent_policy.clone(),
+            toolset.config.context_budget.clone(),
         ));
 
         let memory_provider: Arc<dyn MemoryProvider> =
@@ -352,6 +376,9 @@ impl AgentLoop {
             provider,
             workspace,
             model,
+            request_max_tokens: toolset.config.request_max_tokens,
+            temperature: toolset.config.temperature,
+            context_budget: toolset.config.context_budget.clone(),
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
@@ -547,13 +574,28 @@ impl AgentLoop {
 mod tests {
     use super::*;
     use agent_diva_providers::{
-        LLMResponse, LiteLLMClient, Message, ProviderError, ProviderEventStream, ProviderResult,
+        LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
+        ProviderResult, ToolCallRequest,
     };
+    use agent_diva_tooling::Tool;
     use async_trait::async_trait;
     use futures::stream;
+    use serde_json::json;
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
     use tokio::time::{timeout, Duration};
 
     struct FailingStreamProvider;
+    struct SuccessfulStreamProvider;
+    struct OverflowRetryProvider {
+        calls: AtomicUsize,
+        fail_times: usize,
+    }
+    struct RepeatingToolStreamProvider {
+        args_sequence: Mutex<Vec<HashMap<String, serde_json::Value>>>,
+    }
+    struct AlwaysFailTool;
 
     #[async_trait]
     impl LLMProvider for FailingStreamProvider {
@@ -585,6 +627,162 @@ mod tests {
 
         fn get_default_model(&self) -> String {
             "test-model".to_string()
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for SuccessfulStreamProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                LLMResponse {
+                    content: Some("assistant ok".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: std::collections::HashMap::new(),
+                    reasoning_content: None,
+                },
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for OverflowRetryProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let call_index = self.calls.fetch_add(1, Ordering::SeqCst);
+            if call_index < self.fail_times {
+                return Err(ProviderError::ApiError(
+                    "This model's maximum context length is 8192 tokens, however you requested 12000 tokens".to_string(),
+                ));
+            }
+
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                LLMResponse {
+                    content: Some("assistant recovered".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for RepeatingToolStreamProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let mut args_sequence = self.args_sequence.lock().unwrap();
+            let arguments = args_sequence.remove(0);
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                LLMResponse {
+                    content: Some("tool attempt".to_string()),
+                    tool_calls: vec![ToolCallRequest {
+                        id: "call-1".to_string(),
+                        call_type: "function".to_string(),
+                        name: "fail_tool".to_string(),
+                        arguments,
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[async_trait]
+    impl Tool for AlwaysFailTool {
+        fn name(&self) -> &str {
+            "fail_tool"
+        }
+
+        fn description(&self) -> &str {
+            "Always returns an error"
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "properties": {
+                    "attempt": { "type": "integer" }
+                },
+                "required": ["attempt"]
+            })
+        }
+
+        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
+            Ok("Error: simulated tool failure".to_string())
         }
     }
 
@@ -659,12 +857,118 @@ mod tests {
 
     // ── memory provider lifecycle wiring tests (Task 6) ──────────────
 
+    #[tokio::test]
+    async fn test_process_inbound_persists_user_message_on_provider_failure() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
+            .await
+            .unwrap();
+        let msg = InboundMessage::new("gui", "user", "chat-1", "Hello durable");
+
+        let result = agent.process_inbound_message(msg, None).await;
+        assert!(result.is_err());
+
+        let session = agent
+            .sessions
+            .get_or_load("gui:chat-1")
+            .unwrap()
+            .cloned()
+            .expect("session should persist after provider failure");
+        assert_eq!(session.messages.len(), 1);
+        assert_eq!(session.messages[0].role, "user");
+        assert_eq!(session.messages[0].content, "Hello durable");
+    }
+
+    #[tokio::test]
+    async fn test_process_inbound_success_does_not_duplicate_user_message() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(SuccessfulStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
+            .await
+            .unwrap();
+        let msg = InboundMessage::new("gui", "user", "chat-1", "Hello once");
+
+        let response = agent.process_inbound_message(msg, None).await.unwrap();
+        assert_eq!(response.unwrap().content, "assistant ok");
+
+        let session = agent
+            .sessions
+            .get_or_load("gui:chat-1")
+            .unwrap()
+            .cloned()
+            .expect("session should exist after successful turn");
+        assert_eq!(session.messages.len(), 2);
+        assert_eq!(
+            session
+                .messages
+                .iter()
+                .filter(|message| message.role == "user")
+                .count(),
+            1
+        );
+        assert_eq!(session.messages[0].content, "Hello once");
+        assert_eq!(session.messages[1].content, "assistant ok");
+    }
+
+    #[tokio::test]
+    async fn test_process_inbound_retries_once_after_context_overflow() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(OverflowRetryProvider {
+            calls: AtomicUsize::new(0),
+            fail_times: 1,
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let mut agent = AgentLoop::new(bus, provider.clone(), workspace, None, Some(1))
+            .await
+            .unwrap();
+        let response = agent
+            .process_inbound_message(InboundMessage::new("gui", "user", "chat-1", "Hello"), None)
+            .await
+            .unwrap()
+            .expect("response should exist");
+
+        assert_eq!(response.content, "assistant recovered");
+        assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn test_process_inbound_returns_explicit_message_after_repeated_context_overflow() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(OverflowRetryProvider {
+            calls: AtomicUsize::new(0),
+            fail_times: 2,
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let mut agent = AgentLoop::new(bus, provider.clone(), workspace, None, Some(1))
+            .await
+            .unwrap();
+        let response = agent
+            .process_inbound_message(InboundMessage::new("gui", "user", "chat-1", "Hello"), None)
+            .await
+            .unwrap()
+            .expect("response should exist");
+
+        assert!(response.content.contains("context is too large"));
+        assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+    }
+
     use agent_diva_core::memory::{
         PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
         SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus,
         SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
     };
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::atomic::AtomicBool;
 
     /// A test memory provider that tracks which lifecycle hooks were called.
     struct TrackingMemoryProvider {
@@ -924,5 +1228,100 @@ mod tests {
             .unwrap();
         assert_eq!(shutdown.status, SessionEndStatus::Triggered);
         assert!(provider.session_end_called.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn test_process_inbound_stops_on_repeated_failed_tool_call() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(RepeatingToolStreamProvider {
+            args_sequence: Mutex::new(vec![
+                HashMap::from([("attempt".to_string(), json!(1))]),
+                HashMap::from([("attempt".to_string(), json!(1))]),
+                HashMap::from([("attempt".to_string(), json!(1))]),
+            ]),
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(AlwaysFailTool));
+        let toolset = AgentLoopToolSet {
+            registry,
+            config: ToolConfig::default(),
+        };
+
+        let mut agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(10),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_inbound_message(InboundMessage::new("gui", "user", "chat-1", "hello"), None)
+            .await
+            .unwrap()
+            .expect("response should exist");
+
+        assert!(response.content.contains("repeated failures"));
+        assert!(response.content.contains("fail_tool"));
+    }
+
+    #[tokio::test]
+    async fn test_process_inbound_does_not_trip_repeated_failure_on_different_args() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(RepeatingToolStreamProvider {
+            args_sequence: Mutex::new(vec![
+                HashMap::from([("attempt".to_string(), json!(1))]),
+                HashMap::from([("attempt".to_string(), json!(2))]),
+            ]),
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(AlwaysFailTool));
+        let toolset = AgentLoopToolSet {
+            registry,
+            config: ToolConfig::default(),
+        };
+
+        let mut agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(2),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_inbound_message(InboundMessage::new("gui", "user", "chat-1", "hello"), None)
+            .await
+            .unwrap()
+            .expect("response should exist");
+
+        assert!(response.content.contains("maximum tool iterations"));
+        assert!(!response.content.contains("repeated failures"));
     }
 }

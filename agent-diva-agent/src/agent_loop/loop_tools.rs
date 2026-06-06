@@ -1,4 +1,5 @@
 use super::{AgentLoop, ToolConfig};
+use crate::subagent::SubagentSpawnRequest;
 use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
@@ -13,15 +14,9 @@ struct RuntimeSubagentSpawner {
 
 #[async_trait::async_trait]
 impl SubagentSpawner for RuntimeSubagentSpawner {
-    async fn spawn(
-        &self,
-        task: String,
-        label: Option<String>,
-        channel: String,
-        chat_id: String,
-    ) -> Result<String, ToolError> {
+    async fn spawn(&self, request: SubagentSpawnRequest) -> Result<String, ToolError> {
         self.manager
-            .spawn(task, label, channel, chat_id)
+            .spawn(request)
             .await
             .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
     }

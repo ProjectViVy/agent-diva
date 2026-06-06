@@ -5,13 +5,17 @@ use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::timeout;
 use tracing::{error, warn};
 
 const ERROR_HINT: &str = "\n\n[Analyze the error above and try a different approach.]";
+const DEFAULT_TOOL_TIMEOUT_SECS: u64 = 60;
 
 /// Registry of available tools.
 pub struct ToolRegistry {
     tools: HashMap<String, Arc<dyn Tool>>,
+    timeout_secs: u64,
 }
 
 impl ToolRegistry {
@@ -19,6 +23,15 @@ impl ToolRegistry {
     pub fn new() -> Self {
         Self {
             tools: HashMap::new(),
+            timeout_secs: DEFAULT_TOOL_TIMEOUT_SECS,
+        }
+    }
+
+    /// Create a new tool registry with a specific default timeout.
+    pub fn with_timeout_secs(timeout_secs: u64) -> Self {
+        Self {
+            timeout_secs,
+            ..Self::new()
         }
     }
 
@@ -46,6 +59,11 @@ impl ToolRegistry {
     /// Get all tool definitions in OpenAI format.
     pub fn get_definitions(&self) -> Vec<Value> {
         self.tools.values().map(|tool| tool.to_schema()).collect()
+    }
+
+    /// Get the registry-level default tool timeout in seconds.
+    pub fn timeout_secs(&self) -> u64 {
+        self.timeout_secs
     }
 
     /// Execute a tool by name with given parameters.
@@ -86,25 +104,25 @@ impl ToolRegistry {
             );
         }
 
-        match tool.execute(params.clone()).await {
-            Ok(result) => {
-                if result.starts_with("Error") {
-                    let params_str = serde_json::to_string(&params).unwrap_or_default();
-                    let ctx = ErrorContext::new("tool_execution", &result)
-                        .with_content(&params_str)
-                        .with_metadata("tool_name", name.to_string());
-                    warn!("{}", ctx.to_detailed_string());
-                    format!("{}{}", result, ERROR_HINT)
-                } else {
-                    result
-                }
-            }
-            Err(e) => {
+        match timeout(
+            Duration::from_secs(self.timeout_secs),
+            tool.execute(params.clone()),
+        )
+        .await
+        {
+            Err(_) => {
                 let params_str = serde_json::to_string(&params).unwrap_or_default();
                 let problems = find_problematic_chars(&params_str);
-                let ctx = ErrorContext::new("tool_execution", e.to_string())
-                    .with_content(&params_str)
-                    .with_metadata("tool_name", name.to_string());
+                let ctx = ErrorContext::new(
+                    "tool_execution_timeout",
+                    format!(
+                        "Tool '{}' timed out after {} seconds",
+                        name, self.timeout_secs
+                    ),
+                )
+                .with_content(&params_str)
+                .with_metadata("tool_name", name.to_string())
+                .with_metadata("timeout_secs", self.timeout_secs.to_string());
                 let ctx_str = ctx.to_detailed_string();
                 if problems.is_empty() {
                     error!("{}", ctx_str);
@@ -115,8 +133,43 @@ impl ToolRegistry {
                         problems.join("\n    - ")
                     );
                 }
-                format!("Error executing {}: {}{}", name, e, ERROR_HINT)
+                format!(
+                    "Error executing {}: tool timed out after {} seconds{}",
+                    name, self.timeout_secs, ERROR_HINT
+                )
             }
+            Ok(result) => match result {
+                Ok(result) => {
+                    if result.starts_with("Error") {
+                        let params_str = serde_json::to_string(&params).unwrap_or_default();
+                        let ctx = ErrorContext::new("tool_execution", &result)
+                            .with_content(&params_str)
+                            .with_metadata("tool_name", name.to_string());
+                        warn!("{}", ctx.to_detailed_string());
+                        format!("{}{}", result, ERROR_HINT)
+                    } else {
+                        result
+                    }
+                }
+                Err(e) => {
+                    let params_str = serde_json::to_string(&params).unwrap_or_default();
+                    let problems = find_problematic_chars(&params_str);
+                    let ctx = ErrorContext::new("tool_execution", e.to_string())
+                        .with_content(&params_str)
+                        .with_metadata("tool_name", name.to_string());
+                    let ctx_str = ctx.to_detailed_string();
+                    if problems.is_empty() {
+                        error!("{}", ctx_str);
+                    } else {
+                        error!(
+                            "{}\n  Problematic characters found:\n    - {}",
+                            ctx_str,
+                            problems.join("\n    - ")
+                        );
+                    }
+                    format!("Error executing {}: {}{}", name, e, ERROR_HINT)
+                }
+            },
         }
     }
 
@@ -146,8 +199,10 @@ impl Default for ToolRegistry {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use tokio::time::sleep;
 
     struct MockTool;
+    struct SlowTool;
 
     #[async_trait]
     impl Tool for MockTool {
@@ -169,6 +224,30 @@ mod tests {
 
         async fn execute(&self, _args: Value) -> crate::Result<String> {
             Ok("mock result".to_string())
+        }
+    }
+
+    #[async_trait]
+    impl Tool for SlowTool {
+        fn name(&self) -> &str {
+            "slow"
+        }
+
+        fn description(&self) -> &str {
+            "A slow mock tool"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            })
+        }
+
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
+            sleep(Duration::from_millis(50)).await;
+            Ok("too late".to_string())
         }
     }
 
@@ -202,6 +281,22 @@ mod tests {
         let registry = ToolRegistry::new();
         let result = registry.execute("nonexistent", serde_json::json!({})).await;
         assert!(result.contains("Tool 'nonexistent' not found"));
+        assert!(result.contains("[Analyze the error above"));
+    }
+
+    #[test]
+    fn test_registry_timeout_defaults_to_sixty_seconds() {
+        let registry = ToolRegistry::new();
+        assert_eq!(registry.timeout_secs(), 60);
+    }
+
+    #[tokio::test]
+    async fn test_execute_tool_timeout_wrapped() {
+        let mut registry = ToolRegistry::with_timeout_secs(0);
+        registry.register(Arc::new(SlowTool));
+
+        let result = registry.execute("slow", serde_json::json!({})).await;
+        assert!(result.contains("tool timed out after 0 seconds"));
         assert!(result.contains("[Analyze the error above"));
     }
 }

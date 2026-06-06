@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::subagent_policy::SubagentPolicy;
+
 /// Built-in tool toggles shared by the main agent and nano runtime.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuiltInToolsConfig {
@@ -65,15 +67,15 @@ impl BuiltInToolsConfig {
         }
     }
 
-    pub fn for_subagent(&self) -> Self {
+    pub fn for_subagent(&self, policy: &SubagentPolicy) -> Self {
         Self {
-            filesystem: self.filesystem,
-            shell: self.shell,
-            web_search: self.web_search,
-            web_fetch: self.web_fetch,
+            filesystem: self.filesystem && policy.allow_filesystem,
+            shell: self.shell && policy.allow_shell,
+            web_search: self.web_search && policy.allow_web_search,
+            web_fetch: self.web_fetch && policy.allow_web_fetch,
             spawn: false,
             cron: false,
-            mcp: self.mcp,
+            mcp: self.mcp && policy.allow_mcp,
             attachment: false,
         }
     }

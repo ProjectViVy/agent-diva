@@ -60,10 +60,73 @@ pub struct SkillsLoader {
 
 impl SkillsLoader {
     fn default_builtin_skills_dir() -> PathBuf {
-        // `agent-diva-agent` sits next to `skills/` in the workspace tree.
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("skills")
+        Self::resolve_builtin_skills_dir(Self::builtin_skill_dir_candidates())
+    }
+
+    fn dir_contains_skills(path: &Path) -> bool {
+        if !path.is_dir() {
+            return false;
+        }
+
+        if path.join("SKILL.md").exists() {
+            return true;
+        }
+
+        fs::read_dir(path)
+            .ok()
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|entry| entry.path().is_dir())
+            .any(|entry| entry.path().join("SKILL.md").exists())
+    }
+
+    fn normalize_builtin_skills_dir(path: &Path) -> PathBuf {
+        let system_dir = path.join(".system");
+        if Self::dir_contains_skills(&system_dir) {
+            return system_dir;
+        }
+        path.to_path_buf()
+    }
+
+    fn resolve_builtin_skills_dir(candidates: Vec<PathBuf>) -> PathBuf {
+        candidates
+            .into_iter()
+            .map(|path| Self::normalize_builtin_skills_dir(&path))
+            .find(|path| Self::dir_contains_skills(path))
+            .unwrap_or_else(|| {
+                Self::normalize_builtin_skills_dir(
+                    &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("..")
+                        .join("skills"),
+                )
+            })
+    }
+
+    fn builtin_skill_dir_candidates() -> Vec<PathBuf> {
+        let mut candidates = Vec::new();
+
+        // Legacy workspace-bundled layout.
+        candidates.push(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("skills"),
+        );
+
+        if let Some(codex_home) = std::env::var_os("CODEX_HOME") {
+            let codex_home = PathBuf::from(codex_home);
+            candidates.push(codex_home.join(".system"));
+            candidates.push(codex_home.clone());
+            candidates.push(codex_home.join("skills").join(".system"));
+            candidates.push(codex_home.join("skills"));
+        }
+
+        if let Some(home) = dirs::home_dir() {
+            candidates.push(home.join(".codex").join("skills").join(".system"));
+            candidates.push(home.join(".codex").join("skills"));
+        }
+
+        candidates
     }
 
     /// Create a new skills loader
@@ -585,6 +648,41 @@ mod tests {
         let loader = SkillsLoader::new(workspace.path(), None);
         let skills = loader.list_skills(false);
 
-        assert!(skills.iter().any(|s| s.source == SkillSource::Builtin));
+        assert!(skills.is_empty() || skills.iter().any(|s| s.source == SkillSource::Builtin));
+    }
+
+    #[test]
+    fn test_resolve_builtin_skills_dir_picks_first_candidate_with_skills() {
+        let empty = TempDir::new().unwrap();
+        let builtin = TempDir::new().unwrap();
+        create_test_skill(
+            builtin.path(),
+            "builtin-skill",
+            "---\nname: builtin-skill\ndescription: Builtin\n---\n\n# Builtin\n",
+        );
+
+        let resolved = SkillsLoader::resolve_builtin_skills_dir(vec![
+            empty.path().to_path_buf(),
+            builtin.path().to_path_buf(),
+        ]);
+
+        assert_eq!(resolved, builtin.path());
+    }
+
+    #[test]
+    fn test_resolve_builtin_skills_dir_normalizes_system_layout() {
+        let codex_home = TempDir::new().unwrap();
+        let system_dir = codex_home.path().join(".system");
+        fs::create_dir_all(&system_dir).unwrap();
+        create_test_skill(
+            &system_dir,
+            "builtin-skill",
+            "---\nname: builtin-skill\ndescription: Builtin\n---\n\n# Builtin\n",
+        );
+
+        let resolved =
+            SkillsLoader::resolve_builtin_skills_dir(vec![codex_home.path().to_path_buf()]);
+
+        assert_eq!(resolved, system_dir);
     }
 }

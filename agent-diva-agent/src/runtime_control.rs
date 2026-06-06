@@ -19,7 +19,9 @@ pub enum RuntimeControlCommand {
     },
     GetSession {
         session_key: String,
-        reply_tx: tokio::sync::oneshot::Sender<Option<agent_diva_core::session::store::Session>>,
+        reply_tx: tokio::sync::oneshot::Sender<
+            Result<Option<agent_diva_core::session::store::Session>, String>,
+        >,
     },
     DeleteSession {
         session_key: String,

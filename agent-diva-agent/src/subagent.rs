@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
-use tokio::sync::RwLock;
+use anyhow::{anyhow, Result};
+use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -15,10 +15,29 @@ use agent_diva_core::utils::truncate;
 use agent_diva_providers::base::{LLMProvider, Message};
 use agent_diva_tooling::ToolRegistry;
 
+use crate::agent_loop::context_retry::{prepare_budgeted_messages, should_retry_context_overflow};
+use crate::context_budget::{
+    provider_error_indicates_context_overflow, CompactionMode, ContextBudgetPolicy,
+};
+use crate::loop_guard::{
+    LoopGuard, DEFAULT_REPEATED_FAILURE_THRESHOLD, DEFAULT_SUBAGENT_LOOP_TIMEOUT,
+    DEFAULT_SUBAGENT_MAX_ITERATIONS,
+};
+use crate::subagent_policy::SubagentPolicy;
 use crate::tool_assembly::ToolAssembly;
 use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
+
+#[derive(Debug, Clone)]
+pub struct SubagentSpawnRequest {
+    pub task: String,
+    pub label: Option<String>,
+    pub origin_channel: String,
+    pub origin_chat_id: String,
+    pub current_depth: usize,
+    pub origin: String,
+}
 
 /// Subagent manager for background task execution.
 ///
@@ -36,6 +55,9 @@ pub struct SubagentManager {
     restrict_to_workspace: bool,
     mcp_servers: Arc<RwLock<HashMap<String, MCPServerConfig>>>,
     running_tasks: Arc<tokio::sync::Mutex<HashMap<String, JoinHandle<()>>>>,
+    subagent_policy: SubagentPolicy,
+    concurrency_limit: Arc<Semaphore>,
+    context_budget: ContextBudgetPolicy,
 }
 
 impl SubagentManager {
@@ -51,6 +73,8 @@ impl SubagentManager {
         exec_timeout: Option<u64>,
         restrict_to_workspace: bool,
         mcp_servers: HashMap<String, MCPServerConfig>,
+        subagent_policy: SubagentPolicy,
+        context_budget: ContextBudgetPolicy,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let exec_timeout = exec_timeout.unwrap_or(30);
@@ -66,6 +90,9 @@ impl SubagentManager {
             restrict_to_workspace,
             mcp_servers: Arc::new(RwLock::new(mcp_servers)),
             running_tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            concurrency_limit: Arc::new(Semaphore::new(subagent_policy.max_concurrent)),
+            subagent_policy,
+            context_budget,
         }
     }
 
@@ -89,23 +116,23 @@ impl SubagentManager {
     ///
     /// # Returns
     /// Status message indicating the subagent was started
-    pub async fn spawn(
-        &self,
-        task: String,
-        label: Option<String>,
-        origin_channel: String,
-        origin_chat_id: String,
-    ) -> Result<String> {
+    pub async fn spawn(&self, request: SubagentSpawnRequest) -> Result<String> {
+        self.ensure_depth_allowed(request.current_depth)?;
+        let permit = self
+            .concurrency_limit
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| self.concurrent_limit_error())?;
         let task_id = Uuid::new_v4().to_string()[..8].to_string();
-        let display_label = label.unwrap_or_else(|| {
-            if task.len() > 30 {
+        let display_label = request.label.clone().unwrap_or_else(|| {
+            if request.task.len() > 30 {
                 let mut end = 30;
-                while !task.is_char_boundary(end) {
+                while !request.task.is_char_boundary(end) {
                     end -= 1;
                 }
-                format!("{}...", &task[..end])
+                format!("{}...", &request.task[..end])
             } else {
-                task.clone()
+                request.task.clone()
             }
         });
 
@@ -113,11 +140,20 @@ impl SubagentManager {
         let workspace = self.workspace.clone();
         let bus = self.bus.clone();
         let model = self.model.clone();
-        let builtin_tools = self.builtin_tools.clone();
-        let network_config = self.network_config.read().await.clone();
+        let builtin_tools = self.subagent_policy.builtin_tools(&self.builtin_tools);
+        let parent_network_config = self.network_config.read().await.clone();
+        let network_config = self.subagent_policy.network_config(&parent_network_config);
         let exec_timeout = self.exec_timeout;
         let restrict_to_workspace = self.restrict_to_workspace;
-        let mcp_servers = self.mcp_servers.read().await.clone();
+        let parent_mcp_servers = self.mcp_servers.read().await.clone();
+        let mcp_servers = self.subagent_policy.mcp_servers(&parent_mcp_servers);
+        let subagent_policy = self.subagent_policy.clone();
+        let context_budget = self.context_budget.clone();
+        let next_depth = request.current_depth + 1;
+        let origin_channel = request.origin_channel.clone();
+        let origin_chat_id = request.origin_chat_id.clone();
+        let task = request.task.clone();
+        let origin = request.origin.clone();
 
         let task_id_clone = task_id.clone();
         let display_label_clone = display_label.clone();
@@ -140,6 +176,11 @@ impl SubagentManager {
                 exec_timeout,
                 restrict_to_workspace,
                 mcp_servers,
+                subagent_policy,
+                context_budget,
+                next_depth,
+                origin,
+                permit,
             )
             .await;
 
@@ -153,7 +194,10 @@ impl SubagentManager {
         tasks.insert(task_id.clone(), bg_task);
         drop(tasks);
 
-        info!("Spawned subagent [{}]: {}", task_id, display_label);
+        info!(
+            "Spawned subagent [{}]: {} (depth={}, origin={})",
+            task_id, display_label, next_depth, request.origin
+        );
         Ok(format!(
             "Subagent [{}] started (id: {}). I'll notify you when it completes.",
             display_label, task_id
@@ -177,8 +221,16 @@ impl SubagentManager {
         exec_timeout: u64,
         restrict_to_workspace: bool,
         mcp_servers: HashMap<String, MCPServerConfig>,
+        subagent_policy: SubagentPolicy,
+        context_budget: ContextBudgetPolicy,
+        depth: usize,
+        origin: String,
+        _permit: OwnedSemaphorePermit,
     ) {
-        info!("Subagent [{}] starting task: {}", task_id, label);
+        info!(
+            "Subagent [{}] starting task: {} (depth={}, origin={})",
+            task_id, label, depth, origin
+        );
 
         let result = Self::execute_subagent_task(
             &task_id,
@@ -191,6 +243,8 @@ impl SubagentManager {
             exec_timeout,
             restrict_to_workspace,
             &mcp_servers,
+            &subagent_policy,
+            &context_budget,
         )
         .await;
 
@@ -232,6 +286,8 @@ impl SubagentManager {
         exec_timeout: u64,
         restrict_to_workspace: bool,
         mcp_servers: &HashMap<String, MCPServerConfig>,
+        subagent_policy: &SubagentPolicy,
+        context_budget: &ContextBudgetPolicy,
     ) -> Result<String> {
         let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
             .builtin(builtin_tools.clone())
@@ -239,32 +295,87 @@ impl SubagentManager {
             .with_exec_timeout(exec_timeout)
             .restrict_to_workspace(restrict_to_workspace)
             .mcp_servers(mcp_servers.clone())
-            .build_subagent_registry();
+            .build_subagent_registry(subagent_policy);
+        let system_prompt = Self::build_subagent_prompt(task, workspace, subagent_policy);
+        Self::execute_subagent_task_with_registry(
+            task_id,
+            task,
+            provider,
+            model,
+            system_prompt,
+            &tools,
+            context_budget,
+        )
+        .await
+    }
 
-        // Build messages with subagent-specific prompt
-        let system_prompt = Self::build_subagent_prompt(task, workspace);
+    async fn execute_subagent_task_with_registry(
+        task_id: &str,
+        task: &str,
+        provider: &Arc<dyn LLMProvider>,
+        model: &str,
+        system_prompt: String,
+        tools: &ToolRegistry,
+        context_budget: &ContextBudgetPolicy,
+    ) -> Result<String> {
         let mut messages = vec![
             Message::system(system_prompt),
             Message::user(task.to_string()),
         ];
 
-        // Run agent loop (limited iterations)
-        let max_iterations = 15;
         let mut iteration = 0;
-        let mut final_result: Option<String> = None;
+        let mut loop_guard = LoopGuard::new(
+            DEFAULT_SUBAGENT_MAX_ITERATIONS,
+            DEFAULT_SUBAGENT_LOOP_TIMEOUT,
+            DEFAULT_REPEATED_FAILURE_THRESHOLD,
+        );
+        let final_result = loop {
+            iteration = match loop_guard.begin_iteration(iteration) {
+                Ok(next_iteration) => next_iteration,
+                Err(reason) => return Err(anyhow::anyhow!(reason.user_message())),
+            };
+            loop_guard
+                .check_elapsed()
+                .map_err(|reason| anyhow::anyhow!(reason.user_message()))?;
 
-        while iteration < max_iterations {
-            iteration += 1;
-
-            let response = provider
-                .chat(
-                    messages.clone(),
-                    Some(tools.get_definitions()),
-                    Some(model.to_string()),
-                    2000,
-                    0.7,
-                )
-                .await?;
+            let mut compaction_mode = CompactionMode::Normal;
+            let mut overflow_retry_used = false;
+            let tool_defs = tools.get_definitions();
+            let response = loop {
+                let prepared_request = prepare_budgeted_messages(
+                    &messages,
+                    &tool_defs,
+                    context_budget,
+                    compaction_mode,
+                );
+                let response = provider
+                    .chat(
+                        prepared_request.messages,
+                        Some(tool_defs.clone()),
+                        Some(model.to_string()),
+                        2000,
+                        0.7,
+                    )
+                    .await;
+                match response {
+                    Ok(response) => break response,
+                    Err(error)
+                        if should_retry_context_overflow(
+                            context_budget,
+                            &error,
+                            overflow_retry_used,
+                        ) =>
+                    {
+                        overflow_retry_used = true;
+                        compaction_mode = CompactionMode::OverflowRecovery;
+                        continue;
+                    }
+                    Err(error) if provider_error_indicates_context_overflow(&error) => {
+                        return Err(anyhow!(context_budget.overflow_user_message()));
+                    }
+                    Err(error) => return Err(error.into()),
+                }
+            };
 
             if response.has_tool_calls() {
                 // Add assistant message with tool calls
@@ -280,6 +391,9 @@ impl SubagentManager {
 
                 // Execute tools
                 for tool_call in &response.tool_calls {
+                    loop_guard
+                        .check_elapsed()
+                        .map_err(|reason| anyhow::anyhow!(reason.user_message()))?;
                     let args_json = serde_json::to_value(&tool_call.arguments)?;
                     let args_str = serde_json::to_string(&tool_call.arguments)?;
                     debug!(
@@ -287,13 +401,19 @@ impl SubagentManager {
                         task_id, tool_call.name, args_str
                     );
                     let result = tools.execute(&tool_call.name, args_json).await;
+                    if let Some(reason) = loop_guard.record_tool_result(
+                        &tool_call.name,
+                        &serde_json::json!(tool_call.arguments),
+                        &result,
+                    ) {
+                        return Err(anyhow::anyhow!(reason.user_message()));
+                    }
                     messages.push(Message::tool(result, tool_call.id.clone()));
                 }
             } else {
-                final_result = response.content;
-                break;
+                break response.content;
             }
-        }
+        };
 
         Ok(final_result
             .unwrap_or_else(|| "Task completed but no final response was generated.".to_string()))
@@ -337,8 +457,33 @@ impl SubagentManager {
     }
 
     /// Build a focused system prompt for the subagent
-    fn build_subagent_prompt(task: &str, workspace: &Path) -> String {
+    fn build_subagent_prompt(task: &str, workspace: &Path, policy: &SubagentPolicy) -> String {
         let soul_summary = Self::build_identity_summary(workspace);
+        let mut allowed = Vec::new();
+        if policy.allow_filesystem {
+            allowed.push("Read and write files in the workspace");
+        }
+        if policy.allow_shell {
+            allowed.push("Execute shell commands");
+        }
+        if policy.allow_web_search {
+            allowed.push("Search the web");
+        }
+        if policy.allow_web_fetch {
+            allowed.push("Fetch web pages");
+        }
+        if policy.allow_mcp {
+            allowed.push("Use enabled MCP tools");
+        }
+        let allowed_tools = if allowed.is_empty() {
+            "- No delegated tools are enabled".to_string()
+        } else {
+            allowed
+                .into_iter()
+                .map(|item| format!("- {}", item))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
         format!(
             r#"# Subagent
 
@@ -357,9 +502,7 @@ You are a subagent spawned by the main agent to complete a specific task.
 4. Be concise but informative in your findings
 
 ## What You Can Do
-- Read and write files in the workspace
-- Execute shell commands
-- Search the web and fetch web pages
+{}
 - Complete the task thoroughly
 
 ## What You Cannot Do
@@ -373,6 +516,7 @@ Your workspace is at: {}
 When you have completed the task, provide a clear summary of your findings or actions."#,
             task,
             soul_summary,
+            allowed_tools,
             workspace.display()
         )
     }
@@ -408,11 +552,169 @@ When you have completed the task, provide a clear summary of your findings or ac
         let tasks = self.running_tasks.lock().await;
         tasks.len()
     }
+
+    pub fn subagent_policy(&self) -> &SubagentPolicy {
+        &self.subagent_policy
+    }
+
+    fn ensure_depth_allowed(&self, current_depth: usize) -> Result<()> {
+        if current_depth >= self.subagent_policy.max_depth {
+            return Err(self.depth_limit_error(current_depth + 1));
+        }
+        Ok(())
+    }
+
+    fn concurrent_limit_error(&self) -> anyhow::Error {
+        anyhow!(
+            "Subagent spawn rejected: the concurrent subagent limit ({}) is already in use.",
+            self.subagent_policy.max_concurrent
+        )
+    }
+
+    fn depth_limit_error(&self, attempted_depth: usize) -> anyhow::Error {
+        anyhow!(
+            "Subagent spawn rejected: nesting depth {} exceeds the configured maximum of {}.",
+            attempted_depth,
+            self.subagent_policy.max_depth
+        )
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::SubagentManager;
+    use super::{SubagentManager, SubagentSpawnRequest};
+    use crate::subagent_policy::SubagentPolicy;
+    use crate::tool_config::builtin::BuiltInToolsConfig;
+    use crate::tool_config::network::{
+        NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
+    };
+    use crate::ContextBudgetPolicy;
+    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::config::MCPServerConfig;
+    use agent_diva_providers::{
+        LLMResponse, Message, ProviderError, ProviderResult, ToolCallRequest,
+    };
+    use agent_diva_tooling::{Tool, ToolRegistry};
+    use async_trait::async_trait;
+    use serde_json::json;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use tokio::sync::Notify;
+
+    struct RepeatingToolProvider {
+        args_sequence: Mutex<Vec<HashMap<String, serde_json::Value>>>,
+    }
+    struct BlockingProvider {
+        notify: Arc<Notify>,
+    }
+    struct FailingTool;
+
+    #[async_trait]
+    impl agent_diva_providers::LLMProvider for RepeatingToolProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            let mut args_sequence = self.args_sequence.lock().unwrap();
+            let arguments = args_sequence.remove(0);
+            Ok(LLMResponse {
+                content: Some("tool attempt".to_string()),
+                tool_calls: vec![ToolCallRequest {
+                    id: "call-1".to_string(),
+                    call_type: "function".to_string(),
+                    name: "fail_tool".to_string(),
+                    arguments,
+                }],
+                finish_reason: "tool_calls".to_string(),
+                usage: HashMap::new(),
+                reasoning_content: None,
+            })
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<agent_diva_providers::ProviderEventStream> {
+            Err(ProviderError::ApiError(
+                "chat_stream should not be used".to_string(),
+            ))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[async_trait]
+    impl agent_diva_providers::LLMProvider for BlockingProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            self.notify.notified().await;
+            Ok(LLMResponse {
+                content: Some("done".to_string()),
+                tool_calls: Vec::new(),
+                finish_reason: "stop".to_string(),
+                usage: HashMap::new(),
+                reasoning_content: None,
+            })
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<agent_diva_providers::ProviderEventStream> {
+            Err(ProviderError::ApiError(
+                "chat_stream should not be used".to_string(),
+            ))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[async_trait]
+    impl Tool for FailingTool {
+        fn name(&self) -> &str {
+            "fail_tool"
+        }
+
+        fn description(&self) -> &str {
+            "Always fails"
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "properties": {
+                    "attempt": { "type": "integer" }
+                },
+                "required": ["attempt"]
+            })
+        }
+
+        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
+            Ok("Error: simulated tool failure".to_string())
+        }
+    }
 
     #[test]
     fn test_build_subagent_prompt_includes_identity_summary() {
@@ -425,7 +727,11 @@ mod tests {
         )
         .unwrap();
 
-        let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
+        let prompt = SubagentManager::build_subagent_prompt(
+            "analyze logs",
+            temp.path(),
+            &SubagentPolicy::default(),
+        );
         assert!(prompt.contains("## Inherited Identity"));
         assert!(prompt.contains("### SOUL.md"));
         assert!(prompt.contains("### IDENTITY.md"));
@@ -435,7 +741,175 @@ mod tests {
     #[test]
     fn test_build_subagent_prompt_fallback_without_identity_files() {
         let temp = tempfile::tempdir().unwrap();
-        let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
+        let prompt = SubagentManager::build_subagent_prompt(
+            "analyze logs",
+            temp.path(),
+            &SubagentPolicy::default(),
+        );
         assert!(prompt.contains("No persisted soul identity found"));
+    }
+
+    #[test]
+    fn test_build_subagent_prompt_reflects_minimal_permissions() {
+        let temp = tempfile::tempdir().unwrap();
+        let prompt = SubagentManager::build_subagent_prompt(
+            "inspect files",
+            temp.path(),
+            &SubagentPolicy::default(),
+        );
+
+        assert!(prompt.contains("Read and write files in the workspace"));
+        assert!(prompt.contains("Execute shell commands"));
+        assert!(!prompt.contains("Search the web"));
+        assert!(!prompt.contains("Fetch web pages"));
+        assert!(!prompt.contains("MCP"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_subagent_task_stops_on_repeated_failed_tool_call() {
+        let provider: Arc<dyn agent_diva_providers::LLMProvider> =
+            Arc::new(RepeatingToolProvider {
+                args_sequence: Mutex::new(vec![
+                    HashMap::from([("attempt".to_string(), json!(1))]),
+                    HashMap::from([("attempt".to_string(), json!(1))]),
+                    HashMap::from([("attempt".to_string(), json!(1))]),
+                ]),
+            });
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(FailingTool));
+
+        let error = SubagentManager::execute_subagent_task_with_registry(
+            "task-1",
+            "inspect",
+            &provider,
+            "test-model",
+            "system".to_string(),
+            &registry,
+            &ContextBudgetPolicy::default(),
+        )
+        .await
+        .expect_err("subagent should stop on repeated tool failures");
+
+        assert!(error.to_string().contains("repeated failures"));
+        assert!(error.to_string().contains("fail_tool"));
+    }
+
+    #[test]
+    fn test_policy_minimizes_network_and_mcp_for_subagent() {
+        let policy = SubagentPolicy::default();
+        let parent_network = NetworkToolConfig {
+            web: WebRuntimeConfig {
+                search: WebSearchRuntimeConfig {
+                    provider: "bocha".to_string(),
+                    enabled: true,
+                    api_key: Some("secret-key".to_string()),
+                    max_results: 5,
+                },
+                fetch: WebFetchRuntimeConfig { enabled: true },
+            },
+        };
+        let trimmed_network = policy.network_config(&parent_network);
+        let mut parent_mcp = HashMap::new();
+        parent_mcp.insert(
+            "demo".to_string(),
+            MCPServerConfig {
+                url: "http://127.0.0.1:8080".to_string(),
+                ..MCPServerConfig::default()
+            },
+        );
+
+        assert!(!trimmed_network.web.search.enabled);
+        assert!(trimmed_network.web.search.api_key.is_none());
+        assert!(!trimmed_network.web.fetch.enabled);
+        assert!(policy.mcp_servers(&parent_mcp).is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_subagent_manager_rejects_when_concurrency_limit_reached() {
+        let notify = Arc::new(Notify::new());
+        let provider: Arc<dyn agent_diva_providers::LLMProvider> = Arc::new(BlockingProvider {
+            notify: notify.clone(),
+        });
+        let manager = SubagentManager::new(
+            provider,
+            tempfile::tempdir().unwrap().path().to_path_buf(),
+            MessageBus::new(),
+            Some("test-model".to_string()),
+            BuiltInToolsConfig::default(),
+            NetworkToolConfig::default(),
+            Some(5),
+            false,
+            HashMap::new(),
+            SubagentPolicy {
+                max_concurrent: 1,
+                ..SubagentPolicy::default()
+            },
+            ContextBudgetPolicy::default(),
+        );
+
+        let first = manager
+            .spawn(SubagentSpawnRequest {
+                task: "hold".to_string(),
+                label: Some("hold".to_string()),
+                origin_channel: "cli".to_string(),
+                origin_chat_id: "direct".to_string(),
+                current_depth: 0,
+                origin: "test".to_string(),
+            })
+            .await
+            .expect("first spawn should succeed");
+        assert!(first.contains("started"));
+
+        let err = manager
+            .spawn(SubagentSpawnRequest {
+                task: "second".to_string(),
+                label: Some("second".to_string()),
+                origin_channel: "cli".to_string(),
+                origin_chat_id: "direct".to_string(),
+                current_depth: 0,
+                origin: "test".to_string(),
+            })
+            .await
+            .expect_err("second spawn should be rejected");
+        assert!(err.to_string().contains("concurrent subagent limit"));
+
+        notify.notify_waiters();
+    }
+
+    #[tokio::test]
+    async fn test_subagent_manager_rejects_when_depth_exceeded() {
+        let provider: Arc<dyn agent_diva_providers::LLMProvider> =
+            Arc::new(RepeatingToolProvider {
+                args_sequence: Mutex::new(vec![HashMap::from([("attempt".to_string(), json!(1))])]),
+            });
+        let manager = SubagentManager::new(
+            provider,
+            tempfile::tempdir().unwrap().path().to_path_buf(),
+            MessageBus::new(),
+            Some("test-model".to_string()),
+            BuiltInToolsConfig::default(),
+            NetworkToolConfig::default(),
+            Some(5),
+            false,
+            HashMap::new(),
+            SubagentPolicy {
+                max_depth: 1,
+                ..SubagentPolicy::default()
+            },
+            ContextBudgetPolicy::default(),
+        );
+
+        let err = manager
+            .spawn(SubagentSpawnRequest {
+                task: "too deep".to_string(),
+                label: Some("too-deep".to_string()),
+                origin_channel: "cli".to_string(),
+                origin_chat_id: "direct".to_string(),
+                current_depth: 1,
+                origin: "test".to_string(),
+            })
+            .await
+            .expect_err("depth violation should be rejected");
+        assert!(err.to_string().contains("nesting depth"));
     }
 }
