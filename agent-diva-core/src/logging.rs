@@ -1,5 +1,6 @@
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::Arc;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
     fmt,
@@ -9,7 +10,7 @@ use tracing_subscriber::{
     EnvFilter, Layer, Registry,
 };
 
-use crate::{config::schema::LoggingConfig, redaction::redact_secrets};
+use crate::{config::schema::LoggingConfig, redaction::redact_secrets, trace::TraceLogger};
 
 /// Initialize the logging system
 pub fn init_logging(config: &LoggingConfig) -> WorkerGuard {
@@ -94,11 +95,15 @@ pub fn init_logging_with_terminal_output(
         .with(file_layer)
         .init();
 
-    if let Err(e) = cleanup_old_logs(&config.dir, 7) {
+    if let Err(e) = cleanup_old_logs(&config.dir, config.retention_days) {
         eprintln!("Failed to clean up old logs: {}", e);
     }
 
     guard
+}
+
+pub fn build_runtime_trace_logger(config: &LoggingConfig) -> Arc<TraceLogger> {
+    TraceLogger::from_logging_config(config)
 }
 
 #[derive(Clone)]

@@ -33,6 +33,18 @@ pub struct LoggingConfig {
     /// Directory for log files
     #[serde(default = "default_log_dir")]
     pub dir: String,
+    /// Whether append-only structured runtime JSONL logs are enabled.
+    #[serde(default = "default_true")]
+    pub structured_runtime_logs_enabled: bool,
+    /// How many days logs are retained before cleanup.
+    #[serde(default = "default_log_retention_days")]
+    pub retention_days: u64,
+    /// Optional dedicated directory for runtime JSONL logs; falls back to `dir`.
+    #[serde(default)]
+    pub runtime_log_dir: Option<String>,
+    /// Whether tool output summaries may be recorded in structured runtime logs.
+    #[serde(default = "default_true")]
+    pub record_tool_output_summaries: bool,
     /// Module-specific overrides
     #[serde(default)]
     pub overrides: HashMap<String, String>,
@@ -50,12 +62,20 @@ fn default_log_dir() -> String {
     "logs".to_string()
 }
 
+fn default_log_retention_days() -> u64 {
+    7
+}
+
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             level: default_log_level(),
             format: default_log_format(),
             dir: default_log_dir(),
+            structured_runtime_logs_enabled: default_true(),
+            retention_days: default_log_retention_days(),
+            runtime_log_dir: None,
+            record_tool_output_summaries: default_true(),
             overrides: HashMap::new(),
         }
     }

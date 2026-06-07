@@ -52,6 +52,17 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     if config.tools.exec.timeout == 0 {
         errors.push("tools.exec.timeout must be > 0".to_string());
     }
+    if config.logging.retention_days == 0 {
+        errors.push("logging.retention_days must be > 0".to_string());
+    }
+    if config.logging.dir.trim().is_empty() {
+        errors.push("logging.dir must not be empty".to_string());
+    }
+    if let Some(runtime_log_dir) = &config.logging.runtime_log_dir {
+        if runtime_log_dir.trim().is_empty() {
+            errors.push("logging.runtime_log_dir must not be empty when set".to_string());
+        }
+    }
     if config.tools.subagent.max_concurrent == 0 {
         errors.push("tools.subagent.max_concurrent must be > 0".to_string());
     }
@@ -181,5 +192,21 @@ mod tests {
         assert!(err
             .to_string()
             .contains("context_budget_reserve_tokens must be <"));
+    }
+
+    #[test]
+    fn test_validate_rejects_invalid_logging_settings() {
+        let mut config = Config::default();
+        config.providers.anthropic.api_key = "test-key".to_string();
+        config.logging.retention_days = 0;
+        config.logging.runtime_log_dir = Some("   ".to_string());
+
+        let err = validate_config(&config).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("logging.retention_days must be > 0"));
+        assert!(err
+            .to_string()
+            .contains("logging.runtime_log_dir must not be empty when set"));
     }
 }

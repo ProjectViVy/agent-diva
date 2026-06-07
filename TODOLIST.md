@@ -144,6 +144,13 @@ Plan/permission/research decisions were moved out of the active `main` backlog o
 
 ## Done
 
+- [x] H-1 docs/dev README broken nano link fixed. (2026-06-07)
+  - Replaced the dead `nano-runtime-packaging-plan.md` link with the archived nano/shared-runtime packaging index.
+- [x] P1-2 thin observability minimum slice landed. (2026-06-07)
+  - Added `agent-diva-core::trace` with typed `TraceId`, `TraceEvent`, JSONL writer, redaction, truncation, and retention-aware cleanup.
+  - Added `logging.structured_runtime_logs_enabled`, `logging.retention_days`, `logging.runtime_log_dir`, and `logging.record_tool_output_summaries`.
+  - Agent runtime now emits structured `message_received`, `llm_request_started`, `llm_response_completed`, `llm_response_failed`, `tool_call_started`, `tool_call_completed`, `tool_call_failed`, and `runtime_cancelled`.
+  - Remaining observability backlog stays open for debug bundle export, gateway/channel events, and GUI settings.
 - [x] P0-1 infinite loop / circuit breaker closed. (2026-06-04)
   - Added shared `agent-diva-agent::loop_guard` for main agent loop and subagent loop.
   - Added repeated identical tool-failure breaker, stable tool-call fingerprinting, and loop wall-clock timeout.

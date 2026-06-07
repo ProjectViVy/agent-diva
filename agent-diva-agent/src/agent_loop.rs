@@ -6,6 +6,7 @@ use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
 use agent_diva_core::session::SessionManager;
+use agent_diva_core::trace::{TraceId, TraceLogger};
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
 use agent_diva_tooling::{ToolError, ToolRegistry};
@@ -15,7 +16,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
-use uuid::Uuid;
 
 use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
@@ -57,6 +57,8 @@ pub struct ToolConfig {
     pub request_max_tokens: i32,
     pub temperature: f64,
     pub context_budget: ContextBudgetPolicy,
+    /// Structured runtime observability logger.
+    pub trace_logger: Option<Arc<TraceLogger>>,
     /// Whether to append transparent notifications on soul updates
     pub notify_on_soul_change: bool,
     /// Governance behavior for soul evolution transparency
@@ -77,6 +79,7 @@ impl Default for ToolConfig {
             request_max_tokens: 4096,
             temperature: 0.7,
             context_budget: ContextBudgetPolicy::default(),
+            trace_logger: None,
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
         }
@@ -130,6 +133,7 @@ pub struct AgentLoop {
     file_manager: Arc<FileManager>,
     /// Memory provider boundary for prefetch, sync_turn, and shutdown hooks.
     memory_provider: Arc<dyn MemoryProvider>,
+    trace_logger: Option<Arc<TraceLogger>>,
 }
 
 pub struct AgentLoopToolSet {
@@ -212,6 +216,7 @@ impl AgentLoop {
             soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
+            trace_logger: None,
         })
     }
 
@@ -319,6 +324,7 @@ impl AgentLoop {
             soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
+            trace_logger: tool_config.trace_logger.clone(),
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -393,6 +399,7 @@ impl AgentLoop {
             soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
+            trace_logger: toolset.config.trace_logger.clone(),
         })
     }
 
@@ -492,7 +499,7 @@ impl AgentLoop {
         msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
-        let trace_id = Uuid::new_v4().to_string();
+        let trace_id = TraceId::new();
         use tracing::Instrument;
         let span = tracing::info_span!("AgentSpan", trace_id = %trace_id);
 
@@ -573,14 +580,17 @@ impl AgentLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::trace::TraceLogger;
     use agent_diva_providers::{
         LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
         ProviderResult, ToolCallRequest,
     };
     use agent_diva_tooling::Tool;
     use async_trait::async_trait;
+    use chrono::Local;
     use futures::stream;
     use serde_json::json;
+    use serde_json::Value;
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
@@ -596,6 +606,10 @@ mod tests {
         args_sequence: Mutex<Vec<HashMap<String, serde_json::Value>>>,
     }
     struct AlwaysFailTool;
+    struct ToolThenFinalProvider {
+        calls: AtomicUsize,
+    }
+    struct OkTool;
 
     #[async_trait]
     impl LLMProvider for FailingStreamProvider {
@@ -784,6 +798,114 @@ mod tests {
         async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
             Ok("Error: simulated tool failure".to_string())
         }
+    }
+
+    #[async_trait]
+    impl LLMProvider for ToolThenFinalProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let call_index = self.calls.fetch_add(1, Ordering::SeqCst);
+            let response = if call_index == 0 {
+                LLMResponse {
+                    content: Some("using tool".to_string()),
+                    tool_calls: vec![ToolCallRequest {
+                        id: "call-ok".to_string(),
+                        call_type: "function".to_string(),
+                        name: "ok_tool".to_string(),
+                        arguments: HashMap::from([("path".to_string(), json!("README.md"))]),
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            } else {
+                LLMResponse {
+                    content: Some("assistant after tool".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            };
+
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[async_trait]
+    impl Tool for OkTool {
+        fn name(&self) -> &str {
+            "ok_tool"
+        }
+
+        fn description(&self) -> &str {
+            "Returns a deterministic success result"
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"]
+            })
+        }
+
+        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
+            Ok("completed with ghp_demo token".to_string())
+        }
+    }
+
+    fn build_trace_logger(temp_dir: &tempfile::TempDir) -> Arc<TraceLogger> {
+        Arc::new(TraceLogger::new(
+            true,
+            temp_dir.path().join("runtime-logs"),
+            7,
+            280,
+            64,
+            true,
+        ))
+    }
+
+    fn trace_log_path(temp_dir: &tempfile::TempDir) -> PathBuf {
+        temp_dir
+            .path()
+            .join("runtime-logs")
+            .join(format!("runtime-{}.jsonl", Local::now().format("%Y-%m-%d")))
+    }
+
+    fn read_trace_events(temp_dir: &tempfile::TempDir) -> Vec<Value> {
+        std::fs::read_to_string(trace_log_path(temp_dir))
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect()
     }
 
     #[tokio::test]
@@ -1323,5 +1445,169 @@ mod tests {
 
         assert!(response.content.contains("maximum tool iterations"));
         assert!(!response.content.contains("repeated failures"));
+    }
+
+    #[tokio::test]
+    async fn test_structured_runtime_logs_capture_message_and_tool_success() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(ToolThenFinalProvider {
+            calls: AtomicUsize::new(0),
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(OkTool));
+        let mut tool_config = ToolConfig::default();
+        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
+        let toolset = AgentLoopToolSet {
+            registry,
+            config: tool_config,
+        };
+
+        let mut agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(3),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(response.content, "assistant after tool");
+
+        let events = read_trace_events(&temp_dir);
+        let names: Vec<_> = events
+            .iter()
+            .map(|event| event["event"].as_str().unwrap().to_string())
+            .collect();
+        assert!(names.contains(&"message_received".to_string()));
+        assert!(names.contains(&"llm_request_started".to_string()));
+        assert!(names.contains(&"llm_response_completed".to_string()));
+        assert!(names.contains(&"tool_call_started".to_string()));
+        assert!(names.contains(&"tool_call_completed".to_string()));
+
+        let first_trace_id = events[0]["trace_id"].as_str().unwrap().to_string();
+        assert!(events
+            .iter()
+            .all(|event| event["trace_id"].as_str() == Some(first_trace_id.as_str())));
+        let tool_completed = events
+            .iter()
+            .find(|event| event["event"] == "tool_call_completed")
+            .unwrap();
+        assert_eq!(tool_completed["metadata"]["status"], "ok");
+        assert_eq!(tool_completed["metadata"]["tool"], "ok_tool");
+        assert!(tool_completed["metadata"]["result_summary"]
+            .as_str()
+            .unwrap()
+            .contains("***REDACTED***"));
+    }
+
+    #[tokio::test]
+    async fn test_structured_runtime_logs_capture_tool_failure() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(RepeatingToolStreamProvider {
+            args_sequence: Mutex::new(vec![HashMap::from([("attempt".to_string(), json!(1))])]),
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(AlwaysFailTool));
+        let mut tool_config = ToolConfig::default();
+        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
+        let toolset = AgentLoopToolSet {
+            registry,
+            config: tool_config,
+        };
+
+        let mut agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(response.content.contains("maximum tool iterations"));
+
+        let events = read_trace_events(&temp_dir);
+        let failed = events
+            .iter()
+            .find(|event| event["event"] == "tool_call_failed")
+            .unwrap();
+        assert_eq!(failed["metadata"]["status"], "error");
+        assert_eq!(failed["metadata"]["tool"], "fail_tool");
+    }
+
+    #[tokio::test]
+    async fn test_structured_runtime_logs_capture_provider_failure() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut tool_config = ToolConfig::default();
+        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
+
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            tool_config,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let result = agent
+            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
+            .await;
+        assert!(result.is_err());
+
+        let events = read_trace_events(&temp_dir);
+        let failed = events
+            .iter()
+            .find(|event| event["event"] == "llm_response_failed")
+            .unwrap();
+        assert_eq!(failed["metadata"]["status"], "error");
+        assert_eq!(failed["metadata"]["model"], "test-model");
     }
 }

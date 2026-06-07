@@ -12,7 +12,7 @@
 - [main-closeout-plan-2026-06.md](./main-closeout-plan-2026-06.md) - closeout rules for keeping `main` backend-only and clean
 - [main-closeout-cards-2026-06.md](./main-closeout-cards-2026-06.md) - executable cards for splitting the current mixed `main` working tree
 - [Observability/phase-b-thin-observability-layer.md](./Observability/phase-b-thin-observability-layer.md) - Phase B thin trace/log/debug-bundle planning
-- [nano-runtime-packaging-plan.md](./nano-runtime-packaging-plan.md) - current-state plan for the nano line, shared runtime boundaries, and packaging strategy
+- [archive/nano/agent-diva-nano-master-spec.md](./archive/nano/agent-diva-nano-master-spec.md) - archived nano/shared-runtime packaging index and reference pointers
 - [bug-fixing-lessons-learned.md](./bug-fixing-lessons-learned.md) - detailed case studies of complex bugs and their solutions
 
 ## Archived material (`archive/`)

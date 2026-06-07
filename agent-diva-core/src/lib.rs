@@ -16,6 +16,7 @@ pub mod redaction;
 pub mod security;
 pub mod session;
 pub mod soul;
+pub mod trace;
 pub mod utils;
 
 pub use attachment::{FileAttachment, FileAttachmentRef};

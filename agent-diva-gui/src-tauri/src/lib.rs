@@ -64,6 +64,11 @@ fn resolve_logging_config(mut config: LoggingConfig, config_dir: &Path) -> Loggi
     config.dir = resolve_configured_path(&config.dir, config_dir)
         .to_string_lossy()
         .to_string();
+    config.runtime_log_dir = config.runtime_log_dir.as_deref().map(|path| {
+        resolve_configured_path(path, config_dir)
+            .to_string_lossy()
+            .to_string()
+    });
     config
 }
 

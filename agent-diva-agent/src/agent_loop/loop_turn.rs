@@ -10,6 +10,7 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::memory::PrefetchRequest;
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
+use agent_diva_core::trace::{TraceEvent, TraceId};
 use agent_diva_files::FileManager;
 use agent_diva_providers::{
     provider_error_indicates_vision_unsupported, ImageFile, ImageUrl, LLMResponse, LLMStreamEvent,
@@ -22,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
@@ -36,7 +37,7 @@ impl AgentLoop {
         &mut self,
         msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-        trace_id: String,
+        trace_id: TraceId,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
         trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
 
@@ -65,6 +66,20 @@ impl AgentLoop {
 
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
+        self.emit_runtime_trace(
+            "info",
+            &trace_id,
+            &session_key,
+            &msg.channel,
+            "agent_loop",
+            "message_received",
+            format!("Received message from {}", msg.sender_id),
+            serde_json::json!({
+                "sender_id": msg.sender_id,
+                "has_attachments": !msg.media.is_empty(),
+                "preview": preview,
+            }),
+        );
         self.clear_session_cancellation(&session_key);
         let session = self.sessions.get_or_create(&session_key)?;
 
@@ -136,6 +151,16 @@ impl AgentLoop {
         let (final_content, final_reasoning) = 'agent_loop: loop {
             self.drain_runtime_control_commands().await;
             if self.is_session_cancelled(&session_key) {
+                self.emit_runtime_trace(
+                    "warn",
+                    &trace_id,
+                    &session_key,
+                    &msg.channel,
+                    "agent_loop",
+                    "runtime_cancelled",
+                    "Generation stopped before next iteration".to_string(),
+                    serde_json::json!({ "loop_index": iteration }),
+                );
                 self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
                 return Ok(None);
             }
@@ -214,6 +239,21 @@ impl AgentLoop {
                             break 'agent_loop (Some(error.user_message().to_string()), None);
                         }
                     };
+                    let llm_started_at = Instant::now();
+                    self.emit_runtime_trace(
+                        "info",
+                        &trace_id,
+                        &session_key,
+                        &msg.channel,
+                        "provider",
+                        "llm_request_started",
+                        format!("Starting LLM request with model {}", model_to_use),
+                        serde_json::json!({
+                            "model": model_to_use,
+                            "status": "started",
+                            "loop_index": iteration,
+                        }),
+                    );
 
                     let mut stream = match self
                         .provider
@@ -232,6 +272,15 @@ impl AgentLoop {
                     {
                         Ok(stream) => stream,
                         Err(error) => {
+                            self.emit_llm_failed_event(
+                                &trace_id,
+                                &session_key,
+                                &msg.channel,
+                                &model_to_use,
+                                iteration,
+                                llm_started_at.elapsed(),
+                                &error,
+                            );
                             if let Some(user_message) = provider_error_to_user_message(&error) {
                                 warn!("Provider rejected multimodal request: {}", error);
                                 break 'agent_loop (Some(user_message.to_string()), None);
@@ -266,6 +315,16 @@ impl AgentLoop {
                     loop {
                         self.drain_runtime_control_commands().await;
                         if self.is_session_cancelled(&session_key) {
+                            self.emit_runtime_trace(
+                                "warn",
+                                &trace_id,
+                                &session_key,
+                                &msg.channel,
+                                "agent_loop",
+                                "runtime_cancelled",
+                                "Generation stopped during provider stream".to_string(),
+                                serde_json::json!({ "loop_index": iteration }),
+                            );
                             self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
                             return Ok(None);
                         }
@@ -286,6 +345,15 @@ impl AgentLoop {
                         let stream_event = match stream_event {
                             Ok(stream_event) => stream_event,
                             Err(error) => {
+                                self.emit_llm_failed_event(
+                                    &trace_id,
+                                    &session_key,
+                                    &msg.channel,
+                                    &model_to_use,
+                                    iteration,
+                                    llm_started_at.elapsed(),
+                                    &error,
+                                );
                                 if let Some(user_message) = provider_error_to_user_message(&error) {
                                     warn!("Provider stream rejected multimodal request: {}", error);
                                     break 'agent_loop (Some(user_message.to_string()), None);
@@ -390,6 +458,23 @@ impl AgentLoop {
                             Some(streamed_reasoning)
                         },
                     });
+                    self.emit_runtime_trace(
+                        "info",
+                        &trace_id,
+                        &session_key,
+                        &msg.channel,
+                        "provider",
+                        "llm_response_completed",
+                        format!("LLM response completed with {}", response.finish_reason),
+                        serde_json::json!({
+                            "model": model_to_use,
+                            "status": "ok",
+                            "finish_reason": response.finish_reason,
+                            "loop_index": iteration,
+                            "duration_ms": llm_started_at.elapsed().as_millis() as u64,
+                            "tool_call_count": response.tool_calls.len(),
+                        }),
+                    );
                     break response;
                 }
             };
@@ -419,6 +504,19 @@ impl AgentLoop {
                 for tool_call in &response.tool_calls {
                     self.drain_runtime_control_commands().await;
                     if self.is_session_cancelled(&session_key) {
+                        self.emit_runtime_trace(
+                            "warn",
+                            &trace_id,
+                            &session_key,
+                            &msg.channel,
+                            "agent_loop",
+                            "runtime_cancelled",
+                            "Generation stopped before tool execution".to_string(),
+                            serde_json::json!({
+                                "loop_index": iteration,
+                                "tool": tool_call.name,
+                            }),
+                        );
                         self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
                         return Ok(None);
                     }
@@ -436,6 +534,7 @@ impl AgentLoop {
                         args_str.clone()
                     };
                     info!("Tool call: {}({})", tool_call.name, preview);
+                    let tool_started_at = Instant::now();
                     let event = AgentEvent::ToolCallStarted {
                         name: tool_call.name.clone(),
                         args_preview: preview.clone(),
@@ -447,6 +546,21 @@ impl AgentLoop {
                     let _ = self
                         .bus
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    self.emit_runtime_trace(
+                        "info",
+                        &trace_id,
+                        &session_key,
+                        &msg.channel,
+                        "tool_runtime",
+                        "tool_call_started",
+                        format!("{} started", tool_call.name),
+                        serde_json::json!({
+                            "tool": tool_call.name,
+                            "status": "started",
+                            "loop_index": iteration,
+                            "call_id": tool_call.id,
+                        }),
+                    );
 
                     let result = match serde_json::to_value(&tool_call.arguments) {
                         Ok(mut params_value) => {
@@ -511,6 +625,40 @@ impl AgentLoop {
                     let _ = self
                         .bus
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    let duration_ms = tool_started_at.elapsed().as_millis() as u64;
+                    let tool_failed = is_tool_error_result(&result);
+                    let mut metadata = serde_json::json!({
+                        "tool": tool_call.name,
+                        "status": if tool_failed { "error" } else { "ok" },
+                        "duration_ms": duration_ms,
+                        "loop_index": iteration,
+                        "call_id": tool_call.id,
+                    });
+                    if self
+                        .trace_logger
+                        .as_ref()
+                        .is_some_and(|logger| logger.record_tool_output_summaries())
+                    {
+                        metadata["result_summary"] = serde_json::Value::String(result.clone());
+                    }
+                    self.emit_runtime_trace(
+                        if tool_failed { "warn" } else { "info" },
+                        &trace_id,
+                        &session_key,
+                        &msg.channel,
+                        "tool_runtime",
+                        if tool_failed {
+                            "tool_call_failed"
+                        } else {
+                            "tool_call_completed"
+                        },
+                        if tool_failed {
+                            format!("{} failed", tool_call.name)
+                        } else {
+                            format!("{} completed", tool_call.name)
+                        },
+                        metadata,
+                    );
                     let stop_reason = loop_guard.record_tool_result(
                         &tool_call.name,
                         &serde_json::json!(tool_call.arguments),
@@ -530,6 +678,21 @@ impl AgentLoop {
             } else {
                 // No tool calls, we're done
                 if response.finish_reason == "error" {
+                    self.emit_runtime_trace(
+                        "error",
+                        &trace_id,
+                        &session_key,
+                        &msg.channel,
+                        "provider",
+                        "llm_response_failed",
+                        "LLM returned error finish_reason".to_string(),
+                        serde_json::json!({
+                            "model": model_to_use,
+                            "status": "error",
+                            "finish_reason": response.finish_reason,
+                            "loop_index": iteration,
+                        }),
+                    );
                     let preview = response
                         .content
                         .as_deref()
@@ -627,6 +790,66 @@ impl AgentLoop {
 }
 
 impl AgentLoop {
+    #[allow(clippy::too_many_arguments)]
+    fn emit_runtime_trace(
+        &self,
+        level: &str,
+        trace_id: &TraceId,
+        session_id: &str,
+        channel: &str,
+        component: &str,
+        event: &str,
+        summary: String,
+        metadata: serde_json::Value,
+    ) {
+        let Some(logger) = &self.trace_logger else {
+            return;
+        };
+
+        let trace_event = TraceEvent::new(
+            level,
+            trace_id.clone(),
+            session_id.to_string(),
+            channel.to_string(),
+            component.to_string(),
+            event.to_string(),
+            summary,
+            metadata,
+        );
+        if let Err(error) = logger.write_event(&trace_event) {
+            warn!(event = %event, error = %error, "Failed to write structured runtime trace");
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_llm_failed_event(
+        &self,
+        trace_id: &TraceId,
+        session_id: &str,
+        channel: &str,
+        model: &str,
+        iteration: usize,
+        duration: Duration,
+        error: &ProviderError,
+    ) {
+        self.emit_runtime_trace(
+            "error",
+            trace_id,
+            session_id,
+            channel,
+            "provider",
+            "llm_response_failed",
+            format!("LLM request failed for model {}", model),
+            serde_json::json!({
+                "model": model,
+                "status": "error",
+                "error_kind": error.to_string(),
+                "loop_index": iteration,
+                "duration_ms": duration.as_millis() as u64,
+            }),
+        );
+    }
+
     fn persist_session_or_fail(
         &self,
         session_key: &str,

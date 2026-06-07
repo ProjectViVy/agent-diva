@@ -22,6 +22,7 @@ use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::{CronSchedule, CronService};
+use agent_diva_core::logging::build_runtime_trace_logger;
 use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -997,6 +998,7 @@ async fn run_tui(
             reserve_tokens: config.agents.defaults.context_budget_reserve_tokens as usize,
             overflow_retry_enabled: config.agents.defaults.context_overflow_retry_enabled,
         },
+        trace_logger: Some(build_runtime_trace_logger(&config.logging)),
         notify_on_soul_change: config.agents.soul.notify_on_change,
         soul_governance: SoulGovernanceSettings {
             frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
