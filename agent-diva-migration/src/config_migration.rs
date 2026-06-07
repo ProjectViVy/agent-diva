@@ -533,6 +533,7 @@ impl ConfigMigrator {
                     temperature: py.agents.defaults.temperature,
                     max_tool_iterations: py.agents.defaults.max_tool_iterations,
                     reasoning_effort: None,
+                    thinking_mode: None,
                 },
                 soul: AgentSoulConfig::default(),
             },
