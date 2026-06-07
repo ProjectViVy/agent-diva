@@ -39,6 +39,8 @@ pub struct ModelCapabilities {
     pub vision: bool,
     pub tools: bool,
     pub reasoning: bool,
+    /// Known context window size in tokens, if the model is in the hardcoded table.
+    pub context_window: Option<usize>,
 }
 
 impl ModelCapabilities {
@@ -47,6 +49,7 @@ impl ModelCapabilities {
             vision: false,
             tools: false,
             reasoning: false,
+            context_window: None,
         }
     }
 }
@@ -80,7 +83,7 @@ pub fn model_capabilities_for_model_with_config(
     } else {
         is_known_reasoning_model(&normalized)
     };
-
+    capabilities.context_window = context_window_for_model(&normalized);
     capabilities
 }
 
@@ -104,6 +107,44 @@ fn is_known_reasoning_model(normalized: &str) -> bool {
         // DeepSeek R1 (via OpenRouter or native)
         | "deepseek-r1"
     )
+}
+/// Known context window sizes for popular models (OpenFang-style hardcoded table).
+///
+/// This is a pragmatic fallback — the "笨办法" (dumb approach) that always works
+/// without network calls or heavy dependencies. Unknown models return `None`,
+/// and callers fall back to a conservative default (128K).
+fn context_window_for_model(normalized: &str) -> Option<usize> {
+    match normalized {
+        // ── Anthropic ──────────────────────────────────────────────────────
+        "claude-sonnet-4-6" | "claude-opus-4-7" => Some(1_000_000),
+        "claude-opus-4-6" | "claude-sonnet-4" | "claude-opus-4" => Some(200_000),
+        "claude-haiku-4" | "claude-3-5-sonnet" | "claude-3-7-sonnet" => Some(200_000),
+        "claude-3-opus" | "claude-3-5-haiku" | "claude-3-haiku" => Some(200_000),
+        // ── OpenAI ─────────────────────────────────────────────────────────
+        "gpt-4.1" | "gpt-4.1-mini" => Some(1_047_576),
+        "gpt-4o" | "gpt-4o-mini" => Some(128_000),
+        "gpt-5" => Some(400_000),
+        "o1" | "o1-mini" | "o3-mini" | "o1-pro" => Some(128_000),
+        // ── DeepSeek ───────────────────────────────────────────────────────
+        "deepseek-chat" | "deepseek-coder" => Some(128_000),
+        "deepseek-reasoner" | "deepseek-r1" => Some(128_000),
+        "deepseek-v4-pro" | "deepseek-v4-chat" => Some(1_000_000),
+        // ── Google Gemini ──────────────────────────────────────────────────
+        "gemini-2.5-pro" | "gemini-2.5-flash" => Some(1_048_576),
+        "gemini-2.0-flash-thinking" => Some(1_048_576),
+        // ── xAI ────────────────────────────────────────────────────────────
+        "grok-4" => Some(256_000),
+        // ── Qwen ───────────────────────────────────────────────────────────
+        "qwen-max" | "qwen-plus" | "qwq-32b" | "qwen3-30b-a3b" => Some(262_144),
+        // ── MiniMax ────────────────────────────────────────────────────────
+        "minimax-text-01" => Some(204_800),
+        // ── MiMo ───────────────────────────────────────────────────────────
+        "mimo-7b" => Some(262_144),
+        // ── Doubao ─────────────────────────────────────────────────────────
+        "doubao-pro-32k" | "doubao-lite-32k" => Some(32_000),
+        // Unknown model → caller should use a conservative default
+        _ => None,
+    }
 }
 
 /// Return true when the model is explicitly known to support vision input.
@@ -764,5 +805,89 @@ mod tests {
         assert!(!caps.reasoning);
         assert!(!caps.vision);
         assert!(!caps.tools);
+    }
+    #[test]
+    fn context_window_for_known_models() {
+        // Anthropic 1M models
+        assert_eq!(
+            model_capabilities_for_model("claude-sonnet-4-6").context_window,
+            Some(1_000_000)
+        );
+        assert_eq!(
+            model_capabilities_for_model("claude-opus-4-7").context_window,
+            Some(1_000_000)
+        );
+        // Anthropic 200K models
+        assert_eq!(
+            model_capabilities_for_model("claude-sonnet-4").context_window,
+            Some(200_000)
+        );
+        assert_eq!(
+            model_capabilities_for_model("claude-haiku-4").context_window,
+            Some(200_000)
+        );
+        // OpenAI 1M models
+        assert_eq!(
+            model_capabilities_for_model("gpt-4.1").context_window,
+            Some(1_047_576)
+        );
+        // OpenAI 128K models
+        assert_eq!(
+            model_capabilities_for_model("gpt-4o").context_window,
+            Some(128_000)
+        );
+        // OpenAI 400K model
+        assert_eq!(
+            model_capabilities_for_model("gpt-5").context_window,
+            Some(400_000)
+        );
+        // DeepSeek 128K
+        assert_eq!(
+            model_capabilities_for_model("deepseek-chat").context_window,
+            Some(128_000)
+        );
+        // DeepSeek 1M
+        assert_eq!(
+            model_capabilities_for_model("deepseek-v4-pro").context_window,
+            Some(1_000_000)
+        );
+        // Gemini 1M
+        assert_eq!(
+            model_capabilities_for_model("gemini-2.5-pro").context_window,
+            Some(1_048_576)
+        );
+        // xAI
+        assert_eq!(
+            model_capabilities_for_model("grok-4").context_window,
+            Some(256_000)
+        );
+        // Qwen
+        assert_eq!(
+            model_capabilities_for_model("qwen-max").context_window,
+            Some(262_144)
+        );
+    }
+    #[test]
+    fn context_window_for_unknown_model_is_none() {
+        assert_eq!(
+            model_capabilities_for_model("unknown-model").context_window,
+            None
+        );
+        assert_eq!(
+            model_capabilities_for_model("some-random-llm").context_window,
+            None
+        );
+    }
+    #[test]
+    fn context_window_with_provider_prefix() {
+        // Provider prefix should be stripped by normalize_model_id
+        assert_eq!(
+            model_capabilities_for_model("openai/gpt-4o").context_window,
+            Some(128_000)
+        );
+        assert_eq!(
+            model_capabilities_for_model("anthropic/claude-sonnet-4-6").context_window,
+            Some(1_000_000)
+        );
     }
 }

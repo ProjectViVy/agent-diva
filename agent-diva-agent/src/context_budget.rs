@@ -70,6 +70,46 @@ impl From<agent_diva_core::config::CompactionBudgetConfig> for BudgetConfig {
         }
     }
 }
+impl BudgetConfig {
+    /// Build a [`BudgetConfig`] using the hardcoded context window for the given model.
+    ///
+    /// Looks up the model in the hardcoded table via
+    /// [`agent_diva_providers::model_capabilities_for_model`].
+    /// Falls back to 128_000 for unknown models (conservative default).
+    ///
+    /// Other config fields (`system_budget_ratio`, `compact_threshold_ratio`,
+    /// `keep_recent_count`) use their default values.
+    pub fn for_model(model: &str) -> Self {
+        let max_tokens = agent_diva_providers::model_capabilities_for_model(model)
+            .context_window
+            .unwrap_or(128_000);
+        Self {
+            max_tokens,
+            ..Self::default()
+        }
+    }
+    /// Build a [`BudgetConfig`] with the full priority chain:
+    ///
+    /// 1. Environment variable `AGENT_DIVA_MAX_CONTEXT_TOKENS` (highest priority)
+    /// 2. Hardcoded model table via [`for_model`](Self::for_model)
+    /// 3. Conservative default of 128_000 tokens
+    ///
+    /// This is the recommended constructor for runtime use — it respects
+    /// operator overrides while still being model-aware.
+    pub fn from_env_or_model(model: &str) -> Self {
+        if let Ok(val) = std::env::var("AGENT_DIVA_MAX_CONTEXT_TOKENS") {
+            if let Ok(tokens) = val.parse::<usize>() {
+                if tokens > 0 {
+                    return Self {
+                        max_tokens: tokens,
+                        ..Self::default()
+                    };
+                }
+            }
+        }
+        Self::for_model(model)
+    }
+}
 
 /// Report produced by [`check_budget`].
 ///
@@ -336,5 +376,63 @@ mod tests {
         let msgs = vec![make_msg(&"x".repeat(900))]; // ≈ 300 tokens
         let report = check_budget(&msgs, &config);
         assert!(!report.should_compact);
+    }
+    // ── for_model / from_env_or_model ─────────────────────────────
+    #[test]
+    fn for_model_known_model() {
+        // DeepSeek chat → 128K context window
+        let config = BudgetConfig::for_model("deepseek-chat");
+        assert_eq!(config.max_tokens, 128_000);
+        // Other fields use defaults
+        assert_eq!(config.system_budget_ratio, 0.15);
+        assert_eq!(config.compact_threshold_ratio, 0.80);
+        assert_eq!(config.keep_recent_count, 10);
+    }
+    #[test]
+    fn for_model_large_context_model() {
+        // Claude Sonnet 4.6 → 1M context window
+        let config = BudgetConfig::for_model("claude-sonnet-4-6");
+        assert_eq!(config.max_tokens, 1_000_000);
+    }
+    #[test]
+    fn for_model_unknown_model_falls_back_to_128k() {
+        let config = BudgetConfig::for_model("some-unknown-model");
+        assert_eq!(config.max_tokens, 128_000);
+    }
+    #[test]
+    fn for_model_with_provider_prefix() {
+        // Provider prefix should be stripped
+        let config = BudgetConfig::for_model("openai/gpt-4o");
+        assert_eq!(config.max_tokens, 128_000);
+        let config = BudgetConfig::for_model("anthropic/claude-sonnet-4-6");
+        assert_eq!(config.max_tokens, 1_000_000);
+    }
+    #[test]
+    fn from_env_or_model_uses_model_when_no_env() {
+        // Ensure env var is not set
+        std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
+        let config = BudgetConfig::from_env_or_model("gpt-5");
+        assert_eq!(config.max_tokens, 400_000);
+    }
+    #[test]
+    fn from_env_or_model_env_overrides_model() {
+        std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "500000");
+        let config = BudgetConfig::from_env_or_model("deepseek-chat");
+        assert_eq!(config.max_tokens, 500_000);
+        std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
+    }
+    #[test]
+    fn from_env_or_model_ignores_invalid_env() {
+        std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "not-a-number");
+        let config = BudgetConfig::from_env_or_model("gpt-4o");
+        assert_eq!(config.max_tokens, 128_000); // Falls through to model table
+        std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
+    }
+    #[test]
+    fn from_env_or_model_ignores_zero_env() {
+        std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "0");
+        let config = BudgetConfig::from_env_or_model("gpt-4o");
+        assert_eq!(config.max_tokens, 128_000); // Zero is treated as invalid
+        std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
     }
 }
