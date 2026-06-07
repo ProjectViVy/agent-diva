@@ -46,6 +46,9 @@ parking_lot = "0.12"
 # File management
 agent-diva-files = { workspace = true }
 
+# Database
+sqlx = { workspace = true }
+
 [dev-dependencies]
 tokio-test = { workspace = true }
 tempfile = { workspace = true }

@@ -1049,6 +1049,8 @@ pub struct BuiltInToolsConfig {
     pub mcp: bool,
     #[serde(default = "default_enabled")]
     pub attachment: bool,
+    #[serde(default)]
+    pub planning: bool,
 }
 
 impl Default for BuiltInToolsConfig {
@@ -1062,6 +1064,7 @@ impl Default for BuiltInToolsConfig {
             cron: false,
             mcp: true,
             attachment: true,
+            planning: false,
         }
     }
 }
