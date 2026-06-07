@@ -2759,3 +2759,242 @@ pub fn save_sandbox_config(config: serde_json::Value) -> Result<(), String> {
         .save(&current)
         .map_err(|e| format!("failed to save config: {}", e))
 }
+
+// ── Plan DTOs ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanDto {
+    pub id: String,
+    pub title: String,
+    pub goal: String,
+    pub phase: String,
+    pub status: String,
+    pub todo_count: usize,
+    pub todo_completed: usize,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanDetailDto {
+    pub id: String,
+    pub title: String,
+    pub goal: String,
+    pub phase: String,
+    pub status: String,
+    pub strategy: Option<String>,
+    pub assumptions: Vec<String>,
+    pub risks: Vec<String>,
+    pub open_questions: Vec<String>,
+    pub verification_verdict: Option<String>,
+    pub steps: Vec<StepDto>,
+    pub todos: Vec<TodoDto>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StepDto {
+    pub id: String,
+    pub ordinal: i32,
+    pub title: String,
+    pub rationale: Option<String>,
+    pub expected_output: Option<String>,
+    pub status: String,
+    pub evidence_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TodoDto {
+    pub id: String,
+    pub title: String,
+    pub detail: Option<String>,
+    pub status: String,
+    pub priority: String,
+    pub evidence_ref: Option<String>,
+    pub block_reason: Option<String>,
+    pub updated_at: String,
+}
+
+// ── Plan Commands ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_plans(state: State<'_, AgentState>) -> Result<Vec<PlanDto>, String> {
+    let url = format!("{}/plans", state.api_base_url());
+
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch plans: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid get plans response: {}", e))?;
+
+    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    if !status_ok {
+        let message = value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("Get plans request rejected: {}", message));
+    }
+
+    let plans = value
+        .get("plans")
+        .cloned()
+        .unwrap_or(serde_json::Value::Array(vec![]));
+
+    serde_json::from_value(plans).map_err(|e| format!("Invalid plans payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_plan(
+    plan_id: String,
+    state: State<'_, AgentState>,
+) -> Result<Option<PlanDetailDto>, String> {
+    let id_encoded = urlencoding::encode(&plan_id);
+    let url = format!("{}/plans/{}", state.api_base_url(), id_encoded);
+
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch plan: {}", e))?;
+
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid get plan response: {}", e))?;
+
+    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    if !status_ok {
+        let message = value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("Get plan request rejected: {}", message));
+    }
+
+    let plan = value.get("plan").cloned().unwrap_or(serde_json::Value::Null);
+    if plan.is_null() {
+        return Ok(None);
+    }
+
+    serde_json::from_value(plan)
+        .map(Some)
+        .map_err(|e| format!("Invalid plan detail payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_active_plan(
+    state: State<'_, AgentState>,
+) -> Result<Option<PlanDetailDto>, String> {
+    // First, list plans to find the active one
+    let url = format!("{}/plans", state.api_base_url());
+
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch plans: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid get plans response: {}", e))?;
+
+    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    if !status_ok {
+        let message = value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("Get plans request rejected: {}", message));
+    }
+
+    let plans_raw = value
+        .get("plans")
+        .cloned()
+        .unwrap_or(serde_json::Value::Array(vec![]));
+
+    let plans: Vec<PlanDto> =
+        serde_json::from_value(plans_raw).map_err(|e| format!("Invalid plans payload: {}", e))?;
+
+    let active = match plans.into_iter().find(|p| p.is_active) {
+        Some(plan) => plan,
+        None => return Ok(None),
+    };
+
+    // Fetch detail for the active plan
+    let id_encoded = urlencoding::encode(&active.id);
+    let detail_url = format!("{}/plans/{}", state.api_base_url(), id_encoded);
+
+    let detail_response = state
+        .client
+        .get(&detail_url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch active plan detail: {}", e))?;
+
+    if detail_response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+
+    if !detail_response.status().is_success() {
+        return Err(format!(
+            "Server returned error: {}",
+            detail_response.status()
+        ));
+    }
+
+    let detail_value: serde_json::Value = detail_response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid get active plan detail response: {}", e))?;
+
+    let detail_status_ok =
+        detail_value.get("status").and_then(|v| v.as_str()) == Some("ok");
+    if !detail_status_ok {
+        let message = detail_value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!(
+            "Get active plan detail request rejected: {}",
+            message
+        ));
+    }
+
+    let plan = detail_value
+        .get("plan")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    if plan.is_null() {
+        return Ok(None);
+    }
+
+    serde_json::from_value(plan)
+        .map(Some)
+        .map_err(|e| format!("Invalid plan detail payload: {}", e))
+}
