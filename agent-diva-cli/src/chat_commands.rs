@@ -398,7 +398,11 @@ pub async fn run_chat(
                         Err(_) => println!("{}", style("compact: no response from agent").red()),
                     }
                 } else {
-                    println!("{}", style("/compact requires local agent (runtime control unavailable)").yellow());
+                    println!(
+                        "{}",
+                        style("/compact requires local agent (runtime control unavailable)")
+                            .yellow()
+                    );
                 }
                 continue;
             }
@@ -463,7 +467,11 @@ pub async fn run_chat_remote(
                 continue;
             }
             "/compact" => {
-                println!("{}", style("/compact is not supported in remote mode — use local chat instead").yellow());
+                println!(
+                    "{}",
+                    style("/compact is not supported in remote mode — use local chat instead")
+                        .yellow()
+                );
                 continue;
             }
             _ => {}

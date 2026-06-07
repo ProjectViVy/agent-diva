@@ -213,10 +213,7 @@ mod tests {
 
     #[test]
     fn total_multiple_messages() {
-        let msgs = vec![
-            make_msg("user", "hello"),
-            make_msg("assistant", "hi there"),
-        ];
+        let msgs = vec![make_msg("user", "hello"), make_msg("assistant", "hi there")];
         let total = estimate_total_tokens(&msgs);
         let individual: usize = msgs.iter().map(estimate_message_tokens).sum();
         assert_eq!(total, individual);

@@ -122,8 +122,7 @@ pub fn check_budget(history: &[ChatMessage], config: &BudgetConfig) -> BudgetRep
 
     let system_budget = (config.max_tokens as f64 * config.system_budget_ratio) as usize;
     let history_budget = config.max_tokens.saturating_sub(system_budget);
-    let compact_threshold =
-        (history_budget as f64 * config.compact_threshold_ratio) as usize;
+    let compact_threshold = (history_budget as f64 * config.compact_threshold_ratio) as usize;
 
     let system_estimated = system_budget;
     let total_estimated = history_estimated.saturating_add(system_estimated);
@@ -178,10 +177,7 @@ mod tests {
         assert_eq!(report.history_estimated, 0);
         assert_eq!(report.pressure_ratio, 0.0);
         // system_estimated should be the reserved budget
-        assert_eq!(
-            report.system_estimated,
-            (180_000.0 * 0.15) as usize
-        );
+        assert_eq!(report.system_estimated, (180_000.0 * 0.15) as usize);
     }
 
     #[test]
@@ -209,9 +205,7 @@ mod tests {
         // 7 messages → 938 tokens
         // history_budget = 1000, compact_threshold = 800
         // 938 > 800 → should_compact = true
-        let msgs: Vec<_> = (0..7)
-            .map(|_| make_msg(&"x".repeat(402)))
-            .collect();
+        let msgs: Vec<_> = (0..7).map(|_| make_msg(&"x".repeat(402))).collect();
         let report = check_budget(&msgs, &config);
         assert!(report.should_compact);
         assert!(report.pressure_ratio > 0.8);
@@ -258,9 +252,7 @@ mod tests {
         // 5 messages → 500 tokens
         // system_budget = 500, history_budget = 500, threshold = 400
         // 500 > 400 → should_compact = true
-        let msgs: Vec<_> = (0..5)
-            .map(|_| make_msg(&"x".repeat(300)))
-            .collect();
+        let msgs: Vec<_> = (0..5).map(|_| make_msg(&"x".repeat(300))).collect();
         let report = check_budget(&msgs, &config);
         assert!(report.should_compact);
         assert_eq!(report.system_estimated, 500);
@@ -275,7 +267,9 @@ mod tests {
         let report = check_budget(&msgs, &config);
         assert_eq!(
             report.total_estimated,
-            report.history_estimated.saturating_add(report.system_estimated)
+            report
+                .history_estimated
+                .saturating_add(report.system_estimated)
         );
     }
 

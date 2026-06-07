@@ -34,8 +34,7 @@ pub struct QualityReport {
 // ---------------------------------------------------------------------------
 
 /// English identifier regex: `[a-zA-Z_][a-zA-Z0-9_]{2,}` (length >= 3).
-static RE_EN_IDENT: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]{2,}").unwrap());
+static RE_EN_IDENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]{2,}").unwrap());
 
 /// File path token: contains `/` or `.` (e.g. `src/main.rs`, `Cargo.toml`).
 static RE_PATH: Lazy<Regex> =
@@ -45,18 +44,14 @@ static RE_PATH: Lazy<Regex> =
 static STOP_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // English
-        "the", "and", "for", "are", "but", "not", "you", "all", "can",
-        "had", "her", "was", "one", "our", "out", "has", "his", "how",
-        "its", "may", "new", "now", "old", "see", "way", "who", "did",
-        "get", "let", "say", "she", "too", "use",
-        // Chinese
-        "的", "是", "在", "了", "有", "和", "我", "你", "他", "她",
-        "它", "们", "这", "那", "就", "也", "都", "要", "会", "能",
-        "对", "说", "到", "可以", "没有", "什么", "这个", "那个",
-        "一个", "如果", "因为", "所以", "但是", "然后", "或者",
-        "已经", "还是", "不是", "而且", "虽然", "这样",
-        "那样", "非常", "一些", "一下", "自己", "知道",
-        "请", "把", "被", "从", "向", "让", "给", "用",
+        "the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one",
+        "our", "out", "has", "his", "how", "its", "may", "new", "now", "old", "see", "way", "who",
+        "did", "get", "let", "say", "she", "too", "use", // Chinese
+        "的", "是", "在", "了", "有", "和", "我", "你", "他", "她", "它", "们", "这", "那", "就",
+        "也", "都", "要", "会", "能", "对", "说", "到", "可以", "没有", "什么", "这个", "那个",
+        "一个", "如果", "因为", "所以", "但是", "然后", "或者", "已经", "还是", "不是", "而且",
+        "虽然", "这样", "那样", "非常", "一些", "一下", "自己", "知道", "请", "把", "被", "从",
+        "向", "让", "给", "用",
     ]
     .iter()
     .copied()
@@ -194,7 +189,10 @@ fn score_completeness(summary: &str) -> (f64, Option<String>) {
             (0.6, None)
         }
     } else {
-        (0.2, Some("摘要缺少完整句子（无句号/问号/感叹号）".to_string()))
+        (
+            0.2,
+            Some("摘要缺少完整句子（无句号/问号/感叹号）".to_string()),
+        )
     }
 }
 
@@ -277,9 +275,19 @@ mod tests {
         // The scanner groups consecutive CJK chars — comma breaks the run
         // So we get two keywords: "用户请求修改配置文件" and "助手已执行命令"
         let kw_concat: Vec<&str> = kw.iter().map(|s| s.as_str()).collect();
-        assert!(kw_concat.iter().any(|k| k.contains("用户")), "should find keyword containing '用户', got {:?}", kw);
-        assert!(kw_concat.iter().any(|k| k.contains("请求")), "should find keyword containing '请求'");
-        assert!(kw_concat.iter().any(|k| k.contains("配置")), "should find keyword containing '配置'");
+        assert!(
+            kw_concat.iter().any(|k| k.contains("用户")),
+            "should find keyword containing '用户', got {:?}",
+            kw
+        );
+        assert!(
+            kw_concat.iter().any(|k| k.contains("请求")),
+            "should find keyword containing '请求'"
+        );
+        assert!(
+            kw_concat.iter().any(|k| k.contains("配置")),
+            "should find keyword containing '配置'"
+        );
         assert!(!kw.contains("了"), "stop-word '了' should be filtered");
     }
 
@@ -384,9 +392,13 @@ mod tests {
     fn test_validate_good_summary() {
         let sources = vec![
             make_msg("user", "请帮我修改 src/main.rs 文件中的配置"),
-            make_msg("assistant", "已修改配置文件，添加了新的 config 选项。编译通过。"),
+            make_msg(
+                "assistant",
+                "已修改配置文件，添加了新的 config 选项。编译通过。",
+            ),
         ];
-        let summary = "用户请求修改 src/main.rs 配置文件，助手成功添加了新的 config 选项，项目编译顺利通过。";
+        let summary =
+            "用户请求修改 src/main.rs 配置文件，助手成功添加了新的 config 选项，项目编译顺利通过。";
         let report = validate_summary(summary, &sources);
         assert!(
             report.score >= 0.6,
@@ -404,7 +416,10 @@ mod tests {
     fn test_validate_bad_summary() {
         let sources = vec![
             make_msg("user", "请帮我修改 src/main.rs 文件中的配置"),
-            make_msg("assistant", "已修改配置文件，添加了新的 config 选项。编译通过。"),
+            make_msg(
+                "assistant",
+                "已修改配置文件，添加了新的 config 选项。编译通过。",
+            ),
         ];
         let summary = "嗯";
         let report = validate_summary(summary, &sources);
@@ -413,10 +428,7 @@ mod tests {
             "bad summary should score < 0.6, got {:.2}",
             report.score
         );
-        assert!(
-            !report.issues.is_empty(),
-            "bad summary should have issues"
-        );
+        assert!(!report.issues.is_empty(), "bad summary should have issues");
     }
 
     #[test]

@@ -714,7 +714,10 @@ mod tests {
         assert!(supports_reasoning_model("deepseek-chat"));
 
         // Known reasoning model with config still works
-        assert!(supports_reasoning_model_with_config("deepseek-chat", Some(&config)));
+        assert!(supports_reasoning_model_with_config(
+            "deepseek-chat",
+            Some(&config)
+        ));
     }
 
     #[test]
@@ -728,7 +731,10 @@ mod tests {
             default_effort: None,
         };
         // Empty reasoning_type means no reasoning capability
-        assert!(!supports_reasoning_model_with_config("any-model", Some(&config)));
+        assert!(!supports_reasoning_model_with_config(
+            "any-model",
+            Some(&config)
+        ));
     }
 
     #[test]

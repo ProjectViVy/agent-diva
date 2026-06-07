@@ -212,7 +212,10 @@ async fn test_e2e_200_plus_turn_auto_trigger() {
         result.summary.summary.contains("220 轮"),
         "summary should reference conversation scale"
     );
-    assert!(matches!(result.summary.trigger, CompactTrigger::Auto), "trigger should be Auto");
+    assert!(
+        matches!(result.summary.trigger, CompactTrigger::Auto),
+        "trigger should be Auto"
+    );
     assert!(
         result.summary.pre_compact_message_count > 0,
         "should have compacted messages"
@@ -538,7 +541,10 @@ async fn test_e2e_post_compaction_continuity() {
         "current message should be at the end"
     );
 
-    println!("Test D passed: post-compaction continuity verified, {} messages in context", messages.len());
+    println!(
+        "Test D passed: post-compaction continuity verified, {} messages in context",
+        messages.len()
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -703,7 +709,11 @@ async fn test_e2e_edge_empty_session() {
     .expect("empty session compaction should return empty placeholder");
 
     // Should return empty placeholder without calling LLM
-    assert_eq!(provider.call_count(), 0, "should not call LLM for empty session");
+    assert_eq!(
+        provider.call_count(),
+        0,
+        "should not call LLM for empty session"
+    );
     assert!(
         result.summary.summary.is_empty(),
         "empty session should produce empty summary"
@@ -804,7 +814,10 @@ fn test_e2e_build_messages_multi_boundary() {
         compact_id: "c1".to_string(),
         created_at: Utc::now().to_rfc3339(),
         trigger: CompactTrigger::Auto,
-        source_range: CompactionRange { start_index: 0, end_index: 200 },
+        source_range: CompactionRange {
+            start_index: 0,
+            end_index: 200,
+        },
         kept_recent_count: 10,
         pre_compact_message_count: 200,
         pre_compact_estimated_tokens: 10000,
@@ -817,7 +830,10 @@ fn test_e2e_build_messages_multi_boundary() {
         compact_id: "c2".to_string(),
         created_at: Utc::now().to_rfc3339(),
         trigger: CompactTrigger::Auto,
-        source_range: CompactionRange { start_index: 200, end_index: 270 },
+        source_range: CompactionRange {
+            start_index: 200,
+            end_index: 270,
+        },
         kept_recent_count: 10,
         pre_compact_message_count: 70,
         pre_compact_estimated_tokens: 3500,
@@ -830,7 +846,10 @@ fn test_e2e_build_messages_multi_boundary() {
         compact_id: "c3".to_string(),
         created_at: Utc::now().to_rfc3339(),
         trigger: CompactTrigger::Reactive,
-        source_range: CompactionRange { start_index: 270, end_index: 290 },
+        source_range: CompactionRange {
+            start_index: 270,
+            end_index: 290,
+        },
         kept_recent_count: 10,
         pre_compact_message_count: 20,
         pre_compact_estimated_tokens: 1000,
