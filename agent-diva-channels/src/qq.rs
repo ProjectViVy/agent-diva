@@ -511,7 +511,7 @@ impl QQHandler {
             .and_then(|data| data.get("heartbeat_interval").and_then(Value::as_u64))
             .unwrap_or(DEFAULT_HEARTBEAT_INTERVAL_MS);
         let heartbeat_grace_ms = (heartbeat_interval_ms / 10).min(5_000);
-        let effective_heartbeat_ms = heartbeat_interval_ms.saturating_add(heartbeat_grace_ms);
+        let _effective_heartbeat_ms = heartbeat_interval_ms.saturating_add(heartbeat_grace_ms);
 
         let (stored_session_id, stored_last_seq) = {
             let state = self.session_state.read().await;
@@ -553,7 +553,7 @@ impl QQHandler {
         }
 
         let mut last_seq = stored_last_seq.unwrap_or(0);
-        let mut heartbeat_ticker = interval(Duration::from_millis(effective_heartbeat_ms));
+        let mut heartbeat_ticker = interval(Duration::from_millis(heartbeat_interval_ms));
         let mut missed_heartbeat_acks = 0;
         let mut session_established = false;
 
