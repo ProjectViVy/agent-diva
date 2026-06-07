@@ -121,7 +121,7 @@ mod tests {
             .unwrap();
 
         assert!(attachment.file_id.starts_with("sha256:"));
-        assert_eq!(attachment.file_name, "test.txt");
+        assert_eq!(attachment.filename, "test.txt");
 
         // Read back
         let read_content = service.read_file(&attachment.file_id).await.unwrap();

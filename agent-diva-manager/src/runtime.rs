@@ -312,6 +312,7 @@ async fn build_agent_loop(
             frequent_change_threshold: config.agents.soul.frequent_change_threshold,
             boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
         },
+        planning_store: None,
     };
 
     AgentLoop::with_tools(
