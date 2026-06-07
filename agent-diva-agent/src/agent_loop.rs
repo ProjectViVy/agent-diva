@@ -4,6 +4,7 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessa
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
+use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::session::SessionManager;
 use agent_diva_files::{FileConfig, FileManager};
@@ -16,9 +17,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, info};
 use uuid::Uuid;
+
+use crate::planning::nag::NagTracker;
+use crate::planning::orchestrator::PlanOrchestrator;
 
 use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
@@ -31,7 +35,6 @@ mod loop_tools;
 mod loop_turn;
 
 /// Configuration for tool setup
-#[derive(Clone)]
 pub struct ToolConfig {
     /// Network tool runtime config
     pub network: NetworkToolConfig,
@@ -49,6 +52,8 @@ pub struct ToolConfig {
     pub notify_on_soul_change: bool,
     /// Governance behavior for soul evolution transparency
     pub soul_governance: SoulGovernanceSettings,
+    /// Optional planning store — when present, planning tools and hooks are active
+    pub planning_store: Option<Arc<dyn PlanningStore>>,
 }
 
 impl Default for ToolConfig {
@@ -62,6 +67,7 @@ impl Default for ToolConfig {
             soul_context: SoulContextSettings::default(),
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
+            planning_store: None,
         }
     }
 }
@@ -107,6 +113,10 @@ pub struct AgentLoop {
     soul_governance: SoulGovernanceSettings,
     soul_change_turns: VecDeque<Instant>,
     file_manager: Arc<FileManager>,
+    /// Planning subsystem: store, orchestrator, and NAG tracker.
+    planning_store: Option<Arc<dyn PlanningStore>>,
+    orchestrator: Option<Arc<Mutex<PlanOrchestrator>>>,
+    nag_tracker: NagTracker,
 }
 
 impl AgentLoop {
@@ -158,6 +168,9 @@ impl AgentLoop {
             soul_governance: SoulGovernanceSettings::default(),
             soul_change_turns: VecDeque::new(),
             file_manager,
+            planning_store: None,
+            orchestrator: None,
+            nag_tracker: NagTracker::new(),
         })
     }
 
@@ -246,6 +259,24 @@ impl AgentLoop {
             tools.register(Arc::new(CronTool::new(cron_service)));
         }
 
+        // Initialize planning subsystem
+        let (planning_store, orchestrator) = if let Some(store) = tool_config.planning_store.clone() {
+            let orch = Arc::new(Mutex::new(PlanOrchestrator::new()));
+            // Register store-only planning tools from agent-diva-tools
+            use agent_diva_tools::planning::{PlanCreateTool, TodoShowTool, TodoWriteTool};
+            tools.register(Arc::new(TodoShowTool::new(store.clone())));
+            tools.register(Arc::new(TodoWriteTool::new(store.clone())));
+            tools.register(Arc::new(PlanCreateTool::new(store.clone())));
+            // Register orchestrator-dependent tools from this crate
+            use crate::planning::tools::{PlanApproveTool, PlanShowTool, PlanTransitionTool};
+            tools.register(Arc::new(PlanApproveTool::new(orch.clone(), store.clone())));
+            tools.register(Arc::new(PlanTransitionTool::new(orch.clone(), store.clone())));
+            tools.register(Arc::new(PlanShowTool::new(store.clone())));
+            (Some(store), Some(orch))
+        } else {
+            (None, None)
+        };
+
         Ok(Self {
             bus,
             provider,
@@ -263,6 +294,9 @@ impl AgentLoop {
             soul_governance: tool_config.soul_governance,
             soul_change_turns: VecDeque::new(),
             file_manager,
+            planning_store,
+            orchestrator,
+            nag_tracker: NagTracker::new(),
         })
     }
 
@@ -472,7 +506,7 @@ mod tests {
         let bus = MessageBus::new();
         let provider = Arc::new(LiteLLMClient::default());
         let workspace = PathBuf::from("/tmp/test");
-        let agent = AgentLoop::new(bus, provider, workspace, None, None);
+        let agent = AgentLoop::new(bus, provider, workspace, None, None).await.unwrap();
         assert_eq!(agent.max_iterations, 20);
     }
 
@@ -483,7 +517,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 
-        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1));
+        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1)).await.unwrap();
 
         // This will fail to connect to LLM, but tests the structure
         let result = agent
@@ -509,7 +543,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 
-        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1));
+        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1))
+            .await
+            .unwrap();
         let msg = InboundMessage::new("gui", "user", "chat-1", "Hello");
 
         agent.handle_inbound(msg).await;

@@ -9,6 +9,7 @@ pub mod runtime_control;
 pub mod skills;
 pub mod subagent;
 pub mod tool_config;
+pub mod planning;
 
 pub use agent_diva_core::bus::AgentEvent;
 pub use agent_loop::{AgentLoop, ToolConfig};

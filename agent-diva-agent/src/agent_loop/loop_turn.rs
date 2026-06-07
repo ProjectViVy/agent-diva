@@ -1,5 +1,6 @@
 use super::AgentLoop;
 use crate::consolidation;
+use crate::planning::hooks;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
@@ -77,6 +78,45 @@ impl AgentLoop {
                 messages.push(current_message);
             }
         }
+
+        // HOOK-1: Inject planning context if an active plan exists
+        if let Some(ref store) = self.planning_store {
+            match hooks::inject_plan_context(store.as_ref()).await {
+                Ok(Some(plan_block)) => {
+                    // Insert after system prompt (index 0) but before history
+                    messages.insert(1, agent_diva_providers::Message::system(plan_block));
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    warn!("Failed to inject plan context: {}", e);
+                }
+            }
+        }
+
+        // NAG: Check if we should nag about pending todos
+        if let Some(ref store) = self.planning_store {
+            if self.nag_tracker.should_nag() {
+                if let Ok(plan_id) = store.get_active_plan().await {
+                    if let Ok(todos) = store.get_todos(&plan_id).await {
+                        let has_pending = todos.items.iter().any(|t| {
+                            matches!(t.status, agent_diva_core::planning::model::TodoStatus::Pending
+                                | agent_diva_core::planning::model::TodoStatus::InProgress)
+                        });
+                        if has_pending {
+                            messages.insert(
+                                1,
+                                agent_diva_providers::Message::system(
+                                    self.nag_tracker.nag_message().to_string(),
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Track whether any planning tool calls were made this turn
+        let mut had_planning_call = false;
 
         // Agent loop
         let mut iteration = 0;
@@ -317,6 +357,24 @@ impl AgentLoop {
                         }
                     }
 
+                    // HOOK-2: Detect planning tool calls (including lifecycle tools)
+                    if hooks::is_planning_tool_call(&tool_call.name)
+                        || matches!(tool_call.name.as_str(), "plan_create" | "plan_approve" | "plan_transition" | "plan_show")
+                    {
+                        had_planning_call = true;
+                    }
+
+                    // HOOK-3: After planning tool execution completes
+                    if hooks::is_planning_tool_call(&tool_call.name) {
+                        if let Some(ref store) = self.planning_store {
+                            if let Ok(plan_id) = store.get_active_plan().await {
+                                if let Err(e) = hooks::on_planning_tool_complete(store.as_ref(), &plan_id).await {
+                                    warn!("HOOK-3 on_planning_tool_complete failed: {}", e);
+                                }
+                            }
+                        }
+                    }
+
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
 
                     let event = AgentEvent::ToolCallFinished {
@@ -425,10 +483,20 @@ impl AgentLoop {
 
         // Persist session to disk
         if let Some(session) = self.sessions.get(&session_key) {
+            // HOOK-4: Sync planning store before session save
+            if let Some(ref store) = self.planning_store {
+                if let Err(e) = hooks::on_session_save(store.as_ref()).await {
+                    warn!("HOOK-4 on_session_save failed: {}", e);
+                }
+            }
+
             if let Err(e) = self.sessions.save(session) {
                 error!("Failed to save session: {}", e);
             }
         }
+
+        // Update NAG tracker for this turn
+        self.nag_tracker.record_turn(had_planning_call);
 
         // Extract reply_to from metadata if available (critical for platforms like QQ)
         let reply_to = msg

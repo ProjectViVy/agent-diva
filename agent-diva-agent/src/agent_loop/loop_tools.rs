@@ -1,4 +1,6 @@
 use super::{AgentLoop, ToolConfig};
+use crate::planning::orchestrator::PlanOrchestrator;
+use crate::planning::nag::NagTracker;
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
@@ -8,6 +10,7 @@ use agent_diva_tools::{
 };
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tracing::info;
 
 impl AgentLoop {
@@ -70,6 +73,25 @@ impl AgentLoop {
         // Register cron tool when scheduling is configured
         if let Some(cron_service) = tool_config.cron_service {
             self.tools.register(Arc::new(CronTool::new(cron_service)));
+        }
+
+        // Register planning tools when planning store is configured
+        if let Some(store) = tool_config.planning_store {
+            let orch = Arc::new(Mutex::new(PlanOrchestrator::new()));
+            // Store-only tools from agent-diva-tools
+            use agent_diva_tools::planning::{PlanCreateTool, TodoShowTool, TodoWriteTool};
+            self.tools.register(Arc::new(TodoShowTool::new(store.clone())));
+            self.tools.register(Arc::new(TodoWriteTool::new(store.clone())));
+            self.tools.register(Arc::new(PlanCreateTool::new(store.clone())));
+            // Orchestrator-dependent tools from this crate
+            use crate::planning::tools::{PlanApproveTool, PlanShowTool, PlanTransitionTool};
+            self.tools.register(Arc::new(PlanApproveTool::new(orch.clone(), store.clone())));
+            self.tools.register(Arc::new(PlanTransitionTool::new(orch.clone(), store.clone())));
+            self.tools.register(Arc::new(PlanShowTool::new(store.clone())));
+            // Set planning state
+            self.planning_store = Some(store);
+            self.orchestrator = Some(orch);
+            self.nag_tracker = NagTracker::new();
         }
     }
 
