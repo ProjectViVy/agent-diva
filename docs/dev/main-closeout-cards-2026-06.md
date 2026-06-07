@@ -11,7 +11,7 @@ Status legend:
 
 ## MAIN-CLOSE-01 Runtime Safety Baseline
 
-- Status: `todo`
+- Status: `done`
 - Scope: circuit breaker, loop guard, context budget, overflow retry, subagent runtime guardrails, tool timeout plumbing
 - Primary areas:
   - `agent-diva-agent/src/agent_loop.rs`
@@ -38,7 +38,7 @@ Status legend:
 
 ## MAIN-CLOSE-02 Session Truth Source
 
-- Status: `todo`
+- Status: `done`
 - Scope: backend session durability, restore semantics, runtime state consistency, CLI/manager wiring needed for the same contract
 - Primary areas:
   - `agent-diva-core/src/session/manager.rs`
@@ -58,7 +58,7 @@ Status legend:
 
 ## MAIN-CLOSE-03 Logging, Redaction, and Provider Safety
 
-- Status: `todo`
+- Status: `done`
 - Scope: redaction, error context, provider/http safety helpers, filesystem/tool safety adjustments, minimal manager hooks needed for those paths
 - Primary areas:
   - `agent-diva-core/src/error.rs`
@@ -83,7 +83,7 @@ Status legend:
 
 ## MAIN-CLOSE-04 Backend Multimodal Boundary
 
-- Status: `todo`
+- Status: `done`
 - Scope: backend-only multimodal and embedded-server support needed on `main`
 - Primary areas:
   - `agent-diva-manager/src/handlers.rs`
@@ -100,7 +100,7 @@ Status legend:
 
 ## MAIN-CLOSE-05 Backlog and Documentation Closeout
 
-- Status: `todo`
+- Status: `done`
 - Scope: make closeout visible, finite, and auditable
 - Primary areas:
   - `TODOLIST.md`
