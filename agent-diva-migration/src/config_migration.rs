@@ -533,6 +533,7 @@ impl ConfigMigrator {
                     temperature: py.agents.defaults.temperature,
                     max_tool_iterations: py.agents.defaults.max_tool_iterations,
                     reasoning_effort: None,
+                    thinking_mode: None,
                 },
                 soul: AgentSoulConfig::default(),
             },
@@ -563,6 +564,7 @@ impl ConfigMigrator {
                     encrypt_key: py.channels.feishu.encrypt_key,
                     verification_token: py.channels.feishu.verification_token,
                     allow_from: py.channels.feishu.allow_from,
+                    port: None,
                 },
                 dingtalk: DingTalkConfig {
                     enabled: py.channels.dingtalk.enabled,
@@ -644,6 +646,7 @@ impl ConfigMigrator {
                 port: py.gateway.port,
             },
             tools: ToolsConfig {
+                builtin: Default::default(),
                 web: WebToolsConfig {
                     search: WebSearchConfig {
                         provider: "bocha".to_string(),
@@ -675,8 +678,12 @@ impl ConfigMigrator {
                     })
                     .collect(),
                 mcp_manager: MCPManagerConfig::default(),
+                budget: Default::default(),
             },
+            mentle: MentleToolConfig::default(),
             logging: LoggingConfig::default(),
+            sandbox: SandboxConfig::default(),
+            pet: PetConfig::default(),
         }
     }
 
@@ -686,6 +693,7 @@ impl ConfigMigrator {
             api_base: py.api_base.clone(),
             extra_headers: py.extra_headers.clone(),
             custom_models: Vec::new(),
+            reasoning_config: None,
         }
     }
 }

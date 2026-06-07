@@ -1,12 +1,10 @@
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
-    ChannelsConfig, MCPServerConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
+    ChannelsConfig, MCPServerConfig, MentleToolConfig, WebFetchConfig, WebSearchConfig,
+    WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
-use agent_diva_core::usage::{
-    GroupBy, SessionUsage, TimeInterval, TimeRange, UsageSummary, UsageTotal,
-};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -54,6 +52,7 @@ pub enum ManagerCommand {
     GetChannels(oneshot::Sender<ChannelsConfig>),
     GetTools(oneshot::Sender<ToolsConfigResponse>),
     UpdateTools(ToolsConfigUpdate),
+    ListMentleTools(oneshot::Sender<MentleToolsListResponse>),
     GetMcps(oneshot::Sender<Result<Vec<McpServerDto>, String>>),
     CreateMcp(
         McpServerUpsert,
@@ -97,29 +96,9 @@ pub enum ManagerCommand {
         String,
         oneshot::Sender<Result<agent_diva_core::cron::CronRunSnapshot, String>>,
     ),
-    // Token usage statistics
-    GetTokenUsageTotal(TimeRange, oneshot::Sender<Result<UsageTotal, String>>),
-    GetTokenUsageSummary(
-        TimeRange,
-        GroupBy,
-        oneshot::Sender<Result<Vec<UsageSummary>, String>>,
-    ),
-    GetTokenUsageTimeline(
-        TimeRange,
-        TimeInterval,
-        oneshot::Sender<Result<Vec<agent_diva_core::usage::types::TimelinePoint>, String>>,
-    ),
-    GetTokenUsageSessions(
-        TimeRange,
-        u64,
-        oneshot::Sender<Result<Vec<SessionUsage>, String>>,
-    ),
-    GetTokenUsageModels(
-        TimeRange,
-        oneshot::Sender<Result<Vec<(String, f64)>, String>>,
-    ),
-    GetTokenUsageRealtime(
-        oneshot::Sender<Result<agent_diva_core::usage::writer::InMemoryStats, String>>,
+    UploadFile(
+        FileUploadRequest,
+        oneshot::Sender<Result<agent_diva_core::attachment::FileAttachment, String>>,
     ),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),
@@ -183,9 +162,18 @@ pub struct SkillUploadRequest {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
+pub struct FileUploadRequest {
+    pub file_name: String,
+    pub bytes: Vec<u8>,
+    pub channel: String,
+    pub message_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfigResponse {
     pub web: WebToolsConfigResponse,
+    pub mentle: MentleToolConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,6 +185,8 @@ pub struct WebToolsConfigResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfigUpdate {
     pub web: WebToolsConfigUpdate,
+    #[serde(default)]
+    pub mentle: MentleToolConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,6 +204,12 @@ pub struct McpRefreshRequest {
 pub struct WebToolsConfigUpdate {
     pub search: WebSearchConfig,
     pub fetch: WebFetchConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MentleToolsListResponse {
+    pub feature_available: bool,
+    pub tools: Vec<String>,
 }
 
 impl From<WebToolsConfig> for WebToolsConfigResponse {

@@ -203,8 +203,8 @@ const openWizard = () => {
 };
 
 const handleWizardTest = async (data: any) => {
-  // TODO: 实现连接测试逻辑，目前返回成功
-  return { success: true, message: t('channels.testSuccess') };
+  // TODO: 实现真实连接测试逻辑
+  return { success: false, message: t('channels.testNotImplemented') };
 };
 
 const handleWizardComplete = async (data: any) => {
@@ -226,7 +226,10 @@ const handleCardEdit = (name: string) => {
 };
 
 const handleCardDelete = async (name: string) => {
-  console.log('Delete channel:', name);
+  const confirmed = window.confirm(t('channels.deleteConfirm', { name }));
+  if (!confirmed) return;
+  // TODO: 调用后端删除 API
+  window.alert(t('channels.deleteNotImplemented'));
 };
 
 const handleCardToggle = async (name: string) => {
@@ -300,9 +303,6 @@ const handleRefresh = async () => {
           </button>
         </div>
         <div class="flex items-center gap-2">
-          <button class="btn-secondary" @click="openWizard">
-            {{ t('channels.startWizard') }}
-          </button>
           <button class="btn-primary" @click="openWizard">
             <Plus :size="16" />
             {{ t('channels.addChannel') }}

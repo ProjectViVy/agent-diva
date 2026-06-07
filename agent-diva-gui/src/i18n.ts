@@ -275,15 +275,15 @@ zhPatched.providers.hideApiKey =
   zhPatched.providers?.hideApiKey || '隐藏 API Key';
 
 zhPatched.providers.testConnection =
-  zhPatched.providers?.testConnection || '娴嬭瘯杩炴帴';
+  zhPatched.providers?.testConnection || '测试连接';
 zhPatched.providers.testingConnection =
-  zhPatched.providers?.testingConnection || '娴嬭瘯涓?..';
+  zhPatched.providers?.testingConnection || '测试中...';
 zhPatched.providers.testSuccess =
-  zhPatched.providers?.testSuccess || '杩炴帴姝ｅ父';
+  zhPatched.providers?.testSuccess || '连接正常';
 zhPatched.providers.testSuccessWithLatency =
-  zhPatched.providers?.testSuccessWithLatency || '姝ｅ父 {ms}ms';
+  zhPatched.providers?.testSuccessWithLatency || '正常 {ms}ms';
 zhPatched.providers.testFailed =
-  zhPatched.providers?.testFailed || '杩炴帴澶辫触';
+  zhPatched.providers?.testFailed || '连接失败';
 
 zhPatched.channels = {
   ...(zhPatched.channels || {}),

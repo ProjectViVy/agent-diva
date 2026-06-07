@@ -7,11 +7,15 @@ pub mod catalog;
 pub mod discovery;
 mod http_util;
 pub mod litellm;
+pub mod ollama;
 pub mod registry;
 pub mod transcription;
 
 pub use base::{
-    LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
+    model_capabilities_for_model, model_capabilities_for_model_with_config,
+    supports_reasoning_model, supports_reasoning_model_with_config, supports_vision_model,
+    ImageData, ImageFile, ImageUrl, LLMProvider, LLMResponse, LLMStreamEvent, Message,
+    MessageContent, MessageContentPart, ModelCapabilities, ProviderError, ProviderEventStream,
     ProviderResult, ToolCallRequest,
 };
 pub use catalog::{
@@ -22,6 +26,7 @@ pub use discovery::{
     fetch_provider_model_catalog, ModelCatalogSource, ProviderAccess, ProviderModelCatalog,
 };
 pub use litellm::LiteLLMClient;
+pub use ollama::OllamaProvider;
 pub use registry::{ProviderRegistry, ProviderSpec};
 
 use async_trait::async_trait;

@@ -1,26 +1,73 @@
 use agent_diva_providers::{
     CustomProviderUpsert, ProviderModelCatalogView as SharedProviderModelCatalog, ProviderView,
 };
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct AgentState {
     pub client: reqwest::Client,
-    pub api_base_url: String,
+    api_base_url: Arc<RwLock<String>>,
+    gateway_port: Arc<RwLock<u16>>,
 }
 
 impl AgentState {
     pub fn new() -> Self {
+        let gateway_port = Self::load_gateway_port();
         Self {
-            // Local Manager only: never use the system HTTP proxy (common on Windows with VPN /
-            // corporate proxy). Proxying 127.0.0.1 often yields 502 Bad Gateway from the proxy.
             client: reqwest::Client::builder()
                 .no_proxy()
                 .build()
                 .expect("reqwest client for local Manager API"),
-            // Must match `agent-diva-manager` bind (`127.0.0.1` only). Using `localhost` can
-            // resolve to `::1` first on Windows; nothing listens there → health checks stay offline.
-            api_base_url: "http://127.0.0.1:3000/api".to_string(),
+            api_base_url: Arc::new(RwLock::new(Self::api_base_url_for_port(gateway_port))),
+            gateway_port: Arc::new(RwLock::new(gateway_port)),
         }
+    }
+
+    fn api_base_url_for_port(port: u16) -> String {
+        format!("http://127.0.0.1:{port}/api")
+    }
+
+    pub fn api_base_url(&self) -> String {
+        self.api_base_url
+            .read()
+            .map(|value| value.clone())
+            .unwrap_or_else(|_| Self::api_base_url_for_port(3000))
+    }
+
+    pub fn update_gateway_port(&self, gateway_port: u16) {
+        if let Ok(mut guard) = self.gateway_port.write() {
+            *guard = gateway_port;
+        }
+        if let Ok(mut guard) = self.api_base_url.write() {
+            *guard = Self::api_base_url_for_port(gateway_port);
+        }
+    }
+
+    fn load_gateway_port() -> u16 {
+        if cfg!(debug_assertions) {
+            return 3000;
+        }
+
+        if let Ok(config_dir) = std::env::var("AGENT_DIVA_CONFIG_DIR") {
+            if !config_dir.trim().is_empty() {
+                let port_file = std::path::PathBuf::from(config_dir).join("gateway.port");
+                if let Ok(content) = std::fs::read_to_string(&port_file) {
+                    if let Ok(port) = content.trim().parse::<u16>() {
+                        return port;
+                    }
+                }
+            }
+        }
+
+        let loader = agent_diva_core::config::ConfigLoader::new();
+        let port_file = loader.config_dir().join("gateway.port");
+        if let Ok(content) = std::fs::read_to_string(&port_file) {
+            if let Ok(port) = content.trim().parse::<u16>() {
+                return port;
+            }
+        }
+
+        3000
     }
 
     pub async fn reconfigure(
@@ -30,7 +77,7 @@ impl AgentState {
         provider: Option<String>,
         model: Option<String>,
     ) -> Result<(), String> {
-        let url = format!("{}/config", self.api_base_url);
+        let url = format!("{}/config", self.api_base_url());
         let payload = serde_json::json!({
             "api_base": api_base,
             "api_key": api_key,
@@ -54,7 +101,7 @@ impl AgentState {
     }
 
     pub async fn get_tools_config(&self) -> Result<serde_json::Value, String> {
-        let url = format!("{}/tools", self.api_base_url);
+        let url = format!("{}/tools", self.api_base_url());
         let response = self
             .client
             .get(&url)
@@ -71,7 +118,7 @@ impl AgentState {
     }
 
     pub async fn update_tools_config(&self, tools: serde_json::Value) -> Result<(), String> {
-        let url = format!("{}/tools", self.api_base_url);
+        let url = format!("{}/tools", self.api_base_url());
         let response = self
             .client
             .post(&url)
@@ -85,8 +132,25 @@ impl AgentState {
         Ok(())
     }
 
+    pub async fn list_mentle_tools(&self) -> Result<serde_json::Value, String> {
+        let url = format!("{}/tools/mentle/available", self.api_base_url());
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
+        }
+        response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))
+    }
+
     pub async fn get_provider_views(&self) -> Result<Vec<ProviderView>, String> {
-        let url = format!("{}/providers", self.api_base_url);
+        let url = format!("{}/providers", self.api_base_url());
         let response = self
             .client
             .get(&url)
@@ -109,7 +173,7 @@ impl AgentState {
     ) -> Result<SharedProviderModelCatalog, String> {
         let url = format!(
             "{}/providers/{}/models?runtime={}",
-            self.api_base_url,
+            self.api_base_url(),
             urlencoding::encode(provider),
             runtime
         );
@@ -132,7 +196,7 @@ impl AgentState {
         &self,
         payload: &CustomProviderUpsert,
     ) -> Result<Option<ProviderView>, String> {
-        let url = format!("{}/providers", self.api_base_url);
+        let url = format!("{}/providers", self.api_base_url());
         let response = self
             .client
             .post(&url)
@@ -163,7 +227,7 @@ impl AgentState {
     pub async fn delete_custom_provider(&self, provider: &str) -> Result<(), String> {
         let url = format!(
             "{}/providers/{}",
-            self.api_base_url,
+            self.api_base_url(),
             urlencoding::encode(provider)
         );
         let response = self
@@ -189,7 +253,7 @@ impl AgentState {
     pub async fn add_provider_model(&self, provider: &str, model: &str) -> Result<(), String> {
         let url = format!(
             "{}/providers/{}/models",
-            self.api_base_url,
+            self.api_base_url(),
             urlencoding::encode(provider)
         );
         let response = self
@@ -199,16 +263,8 @@ impl AgentState {
             .send()
             .await
             .map_err(|e| format!("Request failed: {}", e))?;
-        let value = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| format!("Invalid JSON: {}", e))?;
-        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
-            return Err(value
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error")
-                .to_string());
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
         }
         Ok(())
     }
@@ -216,7 +272,7 @@ impl AgentState {
     pub async fn remove_provider_model(&self, provider: &str, model: &str) -> Result<(), String> {
         let url = format!(
             "{}/providers/{}/models/{}",
-            self.api_base_url,
+            self.api_base_url(),
             urlencoding::encode(provider),
             urlencoding::encode(model)
         );
@@ -226,22 +282,14 @@ impl AgentState {
             .send()
             .await
             .map_err(|e| format!("Request failed: {}", e))?;
-        let value = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| format!("Invalid JSON: {}", e))?;
-        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
-            return Err(value
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error")
-                .to_string());
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
         }
         Ok(())
     }
 
     pub async fn get_skills(&self) -> Result<serde_json::Value, String> {
-        let url = format!("{}/skills", self.api_base_url);
+        let url = format!("{}/skills", self.api_base_url());
         let response = self
             .client
             .get(&url)
@@ -251,10 +299,12 @@ impl AgentState {
         if !response.status().is_success() {
             return Err(format!("Server error: {}", response.status()));
         }
+
         let value = response
             .json::<serde_json::Value>()
             .await
             .map_err(|e| format!("Invalid JSON: {}", e))?;
+
         if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
             return Err(value
                 .get("message")
@@ -262,6 +312,7 @@ impl AgentState {
                 .unwrap_or("unknown error")
                 .to_string());
         }
+
         Ok(value
             .get("skills")
             .cloned()
@@ -269,7 +320,7 @@ impl AgentState {
     }
 
     pub async fn get_mcps(&self) -> Result<serde_json::Value, String> {
-        let url = format!("{}/mcps", self.api_base_url);
+        let url = format!("{}/mcps", self.api_base_url());
         let response = self
             .client
             .get(&url)
@@ -279,10 +330,12 @@ impl AgentState {
         if !response.status().is_success() {
             return Err(format!("Server error: {}", response.status()));
         }
+
         let value = response
             .json::<serde_json::Value>()
             .await
             .map_err(|e| format!("Invalid JSON: {}", e))?;
+
         if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
             return Err(value
                 .get("message")
@@ -290,6 +343,7 @@ impl AgentState {
                 .unwrap_or("unknown error")
                 .to_string());
         }
+
         Ok(value
             .get("mcps")
             .cloned()

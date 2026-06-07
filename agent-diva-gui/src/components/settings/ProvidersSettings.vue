@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import {
@@ -18,6 +18,8 @@ import {
 } from '../../api/providers';
 import { invoke } from '@tauri-apps/api/core';
 import { appConfirm } from '../../utils/appDialog';
+import { showAppToast } from '../../utils/appToast';
+import ProviderWizardModal from './ProviderWizardModal.vue';
 
 const { t } = useI18n();
 
@@ -103,6 +105,14 @@ const isRefreshing = ref(false);
 const runtimeCatalogs = ref<Record<string, ProviderModelCatalog>>({});
 const modelTestStatuses = ref<Record<string, ModelTestStatus>>({});
 const modelTestTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+// Cleanup timers on unmount to prevent memory leaks
+onUnmounted(() => {
+  for (const timer of modelTestTimers.values()) {
+    clearTimeout(timer);
+  }
+  modelTestTimers.clear();
+});
 const isSavingConfig = ref(false);
 const lastSavedConfigSnapshot = ref(JSON.stringify(props.config));
 const lastSavedModelsSnapshot = ref(JSON.stringify(props.savedModels || []));
@@ -113,6 +123,24 @@ const newProviderForm = ref<NewProviderForm>({
   apiKey: '',
   defaultModel: '',
 });
+
+// Wizard modal state
+const showCreateWizard = ref(false);
+const editingProviderName = ref<string | null>(null);
+
+const openWizard = (name?: string) => {
+  editingProviderName.value = name || null;
+  showCreateWizard.value = true;
+};
+const closeWizard = () => {
+  showCreateWizard.value = false;
+  editingProviderName.value = null;
+};
+const onWizardSaved = () => {
+  closeWizard();
+  refreshProviderState();
+};
+
 const isCreateProviderApiKeyVisible = ref(false);
 
 const dedupeProviders = (items: ProviderSpec[]) => {
@@ -201,7 +229,7 @@ const refreshProviderState = async () => {
       await setSelectedProvider(initialProvider);
     }
   } catch (e) {
-    console.error('Failed to load providers:', e);
+    showAppToast(t('providers.loadError'), 'error');
   } finally {
     isRefreshing.value = false;
   }
@@ -317,11 +345,6 @@ const resetNewProviderForm = () => {
   };
 };
 
-const openCreateProviderDialog = () => {
-  resetNewProviderForm();
-  isCreateProviderDialogOpen.value = true;
-};
-
 const closeCreateProviderDialog = () => {
   isCreateProviderDialogOpen.value = false;
   isSavingProvider.value = false;
@@ -367,7 +390,7 @@ const createProvider = async () => {
     statusReport.value = await getConfigStatus();
     closeCreateProviderDialog();
   } catch (error) {
-    console.error('Failed to create custom provider:', error);
+    showAppToast(t('providers.createError'), 'error');
   } finally {
     isSavingProvider.value = false;
   }
@@ -393,7 +416,7 @@ const refreshSelectedProviderModels = async () => {
       selectedProvider.value = refreshedProvider;
     }
   } catch (error) {
-    console.error('Failed to refresh provider models:', error);
+    showAppToast(t('providers.refreshError'), 'error');
   } finally {
     isRefreshing.value = false;
   }
@@ -440,7 +463,7 @@ const requestDeleteCustomProvider = async (provider: ProviderSpec) => {
       }
     }
   } catch (error) {
-    console.error('Failed to delete custom provider:', error);
+    showAppToast(t('providers.deleteError'), 'error');
   } finally {
     isDeletingCustomProvider.value = null;
   }
@@ -649,7 +672,7 @@ const addManualModel = async () => {
     upsertSavedModel(entry);
     closeManualModelDialog();
   } catch (error) {
-    console.error('Failed to add manual model:', error);
+    showAppToast(t('providers.addModelError'), 'error');
   }
 };
 
@@ -706,7 +729,7 @@ const deleteProviderModel = async (modelName: string) => {
       }
     }
   } catch (error) {
-    console.error('Failed to delete provider model:', error);
+    showAppToast(t('providers.deleteModelError'), 'error');
   }
 };
 
@@ -791,7 +814,7 @@ watch(() => props.savedModels, (newVal) => {
           <button
             type="button"
             class="providers-add-btn"
-            @click="openCreateProviderDialog"
+            @click="openWizard()"
           >
             <Plus :size="14" />
             <span>{{ t('providers.createProviderAction') }}</span>
@@ -1206,6 +1229,13 @@ watch(() => props.savedModels, (newVal) => {
 
     </div>
   </div>
+
+  <ProviderWizardModal
+    :open="showCreateWizard"
+    :providers="providers"
+    @update:open="showCreateWizard = $event"
+    @complete="onWizardSaved"
+  />
 </template>
 
 <style scoped>

@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
 import { useI18n } from 'vue-i18n';
 import ConversationSidebar from './ConversationSidebar.vue';
+import DecisionCard from './DecisionCard.vue';
+import TodoCard from './TodoCard.vue';
+import ApprovalBanner from './ApprovalBanner.vue';
+import ThinkingBlock from './chat/ThinkingBlock.vue';
+import ThinkingToggle from './chat/ThinkingToggle.vue';
+import { uploadFile, FileAttachmentDto, type UiCard, type ApprovalRequest } from '../api/desktop';
 
 const { t } = useI18n();
 
@@ -72,10 +78,6 @@ const toggleTool = (index: number) => {
   expandedTools.value[index] = !expandedTools.value[index];
 };
 
-const toggleReasoning = (index: number) => {
-  expandedReasoning.value[index] = !expandedReasoning.value[index];
-};
-
 const toggleRawMeta = (index: number) => {
   expandedRawMeta.value[index] = !expandedRawMeta.value[index];
 };
@@ -115,7 +117,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[]): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'select-session', sessionKey: string): void;
@@ -128,6 +130,10 @@ const emit = defineEmits<{
 const input = ref('');
 const messagesEndRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const attachments = ref<FileAttachmentDto[]>([]);
+const uploading = ref(false);
+const uploadingPastes = ref(false);
 const inputHeight = ref(24); // 动态输入框高度
 
 // 右侧会话侧边栏状态
@@ -142,8 +148,7 @@ const permissionMode = ref<'cautious' | 'smart' | 'trusted'>('smart');
 // const showAttachments = ref(false); // 预留
 const isRecording = ref(false);
 // const recordingDuration = ref(0); // 预留
-const showDeepThinking = ref(false);
-// const thinkingDepth = ref<'low' | 'medium' | 'high'>('medium'); // 预留
+const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -172,6 +177,7 @@ watch(() => props.messages, (newMessages, oldMessages) => {
     expandedReasoning.value = {};
     expandedTools.value = {};
     expandedRawMeta.value = {};
+    cardCache.clear();
   }
 
   // Auto-expand structured sections based on local preferences
@@ -195,12 +201,65 @@ onMounted(() => {
 });
 
 const handleSend = () => {
-  if (!input.value.trim() || props.isTyping) return;
-  emit('send', input.value);
+  if (props.isTyping) return;
+  if (!input.value.trim() && attachments.value.length === 0) return;
+  const currentAttachments = [...attachments.value];
+  const text = input.value.trim() || (currentAttachments.length > 0 ? t('chat.filePlaceholder') : '');
+  emit('send', text, currentAttachments.length > 0 ? currentAttachments : undefined);
   input.value = '';
+  attachments.value = [];
   nextTick(() => {
     adjustInputHeight();
   });
+};
+
+const handleFileSelect = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+  if (!files || files.length === 0) return;
+  uploading.value = true;
+  try {
+    for (const file of Array.from(files)) {
+      const buffer = await file.arrayBuffer();
+      const bytes = Array.from(new Uint8Array(buffer));
+      const dto = await uploadFile(file.name, bytes, 'gui');
+      attachments.value.push(dto);
+    }
+  } catch (err) {
+    console.error('Failed to upload file:', err);
+  } finally {
+    uploading.value = false;
+    if (fileInputRef.value) fileInputRef.value.value = '';
+  }
+};
+
+const handlePaste = async (event: ClipboardEvent) => {
+  if (!event.clipboardData) return;
+  const items = Array.from(event.clipboardData.items);
+  const imageItems = items.filter((item) => item.type.startsWith('image/'));
+  if (imageItems.length === 0) return;
+  event.preventDefault();
+  uploadingPastes.value = true;
+  try {
+    for (const item of imageItems) {
+      const blob = item.getAsFile();
+      if (!blob) continue;
+      const buffer = await blob.arrayBuffer();
+      const bytes = Array.from(new Uint8Array(buffer));
+      const fileName = blob.name || 'pasted-image.png';
+      const dto = await uploadFile(fileName, bytes, 'gui');
+      attachments.value.push(dto);
+    }
+  } catch (err) {
+    console.error('Failed to upload pasted image:', err);
+    alert(t('chat.pasteUploadFailed') || 'Failed to upload pasted image');
+  } finally {
+    uploadingPastes.value = false;
+  }
+};
+
+const removeAttachment = (index: number) => {
+  attachments.value.splice(index, 1);
 };
 
 const handleClear = async () => {
@@ -287,6 +346,44 @@ const formatTime = (timestamp?: number) => {
   if (!timestamp) return '';
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
+
+// ── Card rendering helpers ────────────────────────────────
+/** Parse tool message content as card data, return null if invalid */
+const parseCard = (content: string): Record<string, unknown> | null => {
+  if (!content) return null;
+  try {
+    const parsed = JSON.parse(content);
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Cache for parseCard results, keyed by message index. Cleared on message reset. */
+const cardCache = new Map<number, Record<string, unknown> | null>();
+
+/** Cached parseCard — avoids double-parse per card render. */
+const getCachedCard = (index: number, content: string): Record<string, unknown> | null => {
+  if (cardCache.has(index)) return cardCache.get(index)!;
+  const result = parseCard(content);
+  cardCache.set(index, result);
+  return result;
+};
+
+/** Handle DecisionCard approve/reject action */
+const onCardAction = (payload: { id: string; decision: 'approved' | 'rejected' }) => {
+  console.log('[ChatView] card action:', payload);
+};
+
+/** Handle TodoCard item check toggle */
+const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' | 'done' }) => {
+  console.log('[ChatView] card check:', payload);
+};
+
+/** Handle ApprovalBanner allow/reject response */
+const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'reject' }) => {
+  console.log('[ChatView] approval respond:', payload);
+};
 </script>
 
 <template>
@@ -359,89 +456,117 @@ const formatTime = (timestamp?: number) => {
           <!-- Bubble -->
           <div class="flex flex-col min-w-0 max-w-full">
             <!-- Tool Message -->
-            <div 
-              v-if="msg.role === 'tool'"
-              class="rounded-lg border text-sm overflow-hidden bg-white"
-              :class="{
-                'border-gray-200': msg.toolStatus === 'running',
-                'border-green-200 bg-green-50/50': msg.toolStatus === 'success',
-                'border-red-200 bg-red-50/50': msg.toolStatus === 'error'
-              }"
-            >
-              <!-- Tool Header -->
-              <div class="px-3 py-2 flex items-center space-x-2">
-                <div v-if="msg.toolStatus === 'running'" class="animate-spin text-gray-400">
-                  <Loader2 :size="14" />
+            <template v-if="msg.role === 'tool'">
+              <!-- Card rendering: plan_create / todo_write / approval_request -->
+              <template v-if="msg.toolName === 'plan_create' && getCachedCard(index, msg.content)">
+                <div class="min-w-0">
+                  <DecisionCard
+                    :card="(getCachedCard(index, msg.content) as unknown as UiCard)"
+                    @action="onCardAction"
+                  />
                 </div>
-                <div v-else-if="msg.toolStatus === 'success'" class="text-green-500">
-                  <CheckCircle2 :size="14" />
+              </template>
+              <template v-else-if="msg.toolName === 'todo_write' && getCachedCard(index, msg.content)">
+                <div class="min-w-0">
+                  <TodoCard
+                    :card="(getCachedCard(index, msg.content) as unknown as UiCard)"
+                    @check="onCardCheck"
+                  />
                 </div>
-                <div v-else class="text-red-500">
-                  <XCircle :size="14" />
+              </template>
+              <template v-else-if="msg.toolName === 'approval_request' && getCachedCard(index, msg.content)">
+                <div class="min-w-0">
+                  <ApprovalBanner
+                    :request="(getCachedCard(index, msg.content) as unknown as ApprovalRequest)"
+                    @respond="onApprovalRespond"
+                  />
                 </div>
-                
-                <span class="font-medium" :class="{
-                  'text-gray-600': msg.toolStatus === 'running',
-                  'text-green-700': msg.toolStatus === 'success',
-                  'text-red-700': msg.toolStatus === 'error'
-                }">
-                  {{ msg.toolStatus === 'running' ? t('chat.toolRunning') : (msg.toolStatus === 'success' ? t('chat.toolSuccess') : t('chat.toolFailed')) }}
-                </span>
-                
-                <span v-if="msg.toolName" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
-                  {{ msg.toolName }}
-                </span>
-              </div>
-              
-              <!-- Tool Details Toggle -->
+              </template>
+              <!-- Default tool output rendering -->
               <div
-                v-if="msg.toolStatus !== 'running' && msg.toolResult"
-                class="px-3 pb-1 text-xs text-gray-600 break-all whitespace-pre-wrap"
+                v-else
+                class="rounded-lg border text-sm overflow-hidden bg-white"
+                :class="{
+                  'border-gray-200': msg.toolStatus === 'running',
+                  'border-green-200 bg-green-50/50': msg.toolStatus === 'success',
+                  'border-red-200 bg-red-50/50': msg.toolStatus === 'error'
+                }"
               >
-                {{ msg.toolResult.length > 160 ? `${msg.toolResult.slice(0, 160)}...` : msg.toolResult }}
-              </div>
-              <div v-if="msg.toolStatus !== 'running'" class="px-3 pb-2 flex justify-end">
-                <button 
-                  @click="toggleTool(index)"
-                  class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <span>{{ expandedTools[index] ? t('chat.hideDetails') : t('chat.viewDetails') }}</span>
-                  <component :is="expandedTools[index] ? ChevronDown : ChevronRight" :size="12" />
-                </button>
-              </div>
+                <!-- Tool Header -->
+                <div class="px-3 py-2 flex items-center space-x-2">
+                  <div v-if="msg.toolStatus === 'running'" class="animate-spin text-gray-400">
+                    <Loader2 :size="14" />
+                  </div>
+                  <div v-else-if="msg.toolStatus === 'success'" class="text-green-500">
+                    <CheckCircle2 :size="14" />
+                  </div>
+                  <div v-else class="text-red-500">
+                    <XCircle :size="14" />
+                  </div>
 
-              <!-- Tool Details Content -->
-              <div v-if="expandedTools[index]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
-                <div v-if="msg.toolCallId">
-                  <div class="font-semibold text-gray-500 mb-1">tool_call_id</div>
-                  <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolCallId }}</div>
-                </div>
-                <div>
-                  <div class="font-semibold text-gray-500 mb-1">{{ t('chat.inputArgs') }}</div>
-                  <div class="bg-gray-100 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
-                </div>
-                <div v-if="msg.toolResult">
-                  <div class="font-semibold text-gray-500 mb-1">{{ t('chat.execResult') }}</div>
-                  <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
-                </div>
-              </div>
+                  <span class="font-medium" :class="{
+                    'text-gray-600': msg.toolStatus === 'running',
+                    'text-green-700': msg.toolStatus === 'success',
+                    'text-red-700': msg.toolStatus === 'error'
+                  }">
+                    {{ msg.toolStatus === 'running' ? t('chat.toolRunning') : (msg.toolStatus === 'success' ? t('chat.toolSuccess') : t('chat.toolFailed')) }}
+                  </span>
 
-              <div v-if="hasRawMeta(msg)" class="border-t border-gray-100 bg-white/70 px-3 py-2">
-                <button
-                  @click="toggleRawMeta(index)"
-                  class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <span>{{ expandedRawMeta[index] ? t('chat.hideRawMeta') : t('chat.viewRawMeta') }}</span>
-                  <component :is="expandedRawMeta[index] ? ChevronDown : ChevronRight" :size="12" />
-                </button>
+                  <span v-if="msg.toolName" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
+                    {{ msg.toolName }}
+                  </span>
+                </div>
+
+                <!-- Tool Details Toggle -->
                 <div
-                  v-if="expandedRawMeta[index]"
-                  class="mt-2 bg-gray-50 border border-gray-200 rounded p-2 font-mono text-[11px] text-gray-600 max-h-52 overflow-y-auto whitespace-pre-wrap break-all"
+                  v-if="msg.toolStatus !== 'running' && msg.toolResult"
+                  class="px-3 pb-1 text-xs text-gray-600 break-all whitespace-pre-wrap"
                 >
-                  {{ renderRawMeta(msg) }}
+                  {{ msg.toolResult.length > 160 ? `${msg.toolResult.slice(0, 160)}...` : msg.toolResult }}
+                </div>
+                <div v-if="msg.toolStatus !== 'running'" class="px-3 pb-2 flex justify-end">
+                  <button
+                    @click="toggleTool(index)"
+                    class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <span>{{ expandedTools[index] ? t('chat.hideDetails') : t('chat.viewDetails') }}</span>
+                    <component :is="expandedTools[index] ? ChevronDown : ChevronRight" :size="12" />
+                  </button>
+                </div>
+
+                <!-- Tool Details Content -->
+                <div v-if="expandedTools[index]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
+                  <div v-if="msg.toolCallId">
+                    <div class="font-semibold text-gray-500 mb-1">tool_call_id</div>
+                    <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolCallId }}</div>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-gray-500 mb-1">{{ t('chat.inputArgs') }}</div>
+                    <div class="bg-gray-100 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
+                  </div>
+                  <div v-if="msg.toolResult">
+                    <div class="font-semibold text-gray-500 mb-1">{{ t('chat.execResult') }}</div>
+                    <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
+                  </div>
+                </div>
+
+                <div v-if="hasRawMeta(msg)" class="border-t border-gray-100 bg-white/70 px-3 py-2">
+                  <button
+                    @click="toggleRawMeta(index)"
+                    class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <span>{{ expandedRawMeta[index] ? t('chat.hideRawMeta') : t('chat.viewRawMeta') }}</span>
+                    <component :is="expandedRawMeta[index] ? ChevronDown : ChevronRight" :size="12" />
+                  </button>
+                  <div
+                    v-if="expandedRawMeta[index]"
+                    class="mt-2 bg-gray-50 border border-gray-200 rounded p-2 font-mono text-[11px] text-gray-600 max-h-52 overflow-y-auto whitespace-pre-wrap break-all"
+                  >
+                    {{ renderRawMeta(msg) }}
+                  </div>
                 </div>
               </div>
-            </div>
+            </template>
 
             <!-- Normal Message -->
             <div
@@ -449,33 +574,12 @@ const formatTime = (timestamp?: number) => {
               class="chat-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words"
               :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
             >
-              <!-- Reasoning Block - OpenAkita 折叠卡片样式 -->
-              <div v-if="msg.reasoning" class="reasoning-card mb-3">
-                 <!-- Header -->
-                 <div 
-                    @click="toggleReasoning(index)"
-                    class="reasoning-header"
-                 >
-                    <div class="reasoning-header-left">
-                       <ChevronRight :size="12" class="reasoning-chevron" :class="{ expanded: expandedReasoning[index] }" />
-                       <Brain :size="14" :class="msg.isThinking ? 'thinking-active' : 'thinking-inactive'" />
-                       <span class="reasoning-label">
-                          <template v-if="msg.isThinking">
-                             <Loader2 :size="12" class="animate-spin" />
-                             {{ t('chat.reasoningProcessing') }}
-                          </template>
-                          <template v-else>
-                             {{ t('chat.reasoningThought', { time: 'X.X' }) }}
-                          </template>
-                       </span>
-                    </div>
-                 </div>
-                 
-                 <!-- Content -->
-                 <div v-if="expandedReasoning[index]" class="reasoning-content">
-                    <div class="markdown-body" v-html="md.render(msg.reasoning)"></div>
-                 </div>
-              </div>
+              <!-- Reasoning Block -->
+              <ThinkingBlock
+                v-if="msg.reasoning"
+                :content="msg.reasoning"
+                :thinking-ms="0"
+              />
 
               <div v-if="hasRawMeta(msg)" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
                 <div
@@ -574,6 +678,24 @@ const formatTime = (timestamp?: number) => {
     <!-- Input Area - Cursor/OpenAkita 风格 -->
     <div class="chat-input-bar border-t z-20">
       <div class="chat-input-container">
+        <!-- 附件预览区 -->
+        <div v-if="attachments.length > 0 || uploadingPastes" class="flex flex-wrap gap-2 px-3 pt-2">
+          <div
+            v-for="(att, idx) in attachments"
+            :key="att.file_id"
+            class="flex items-center gap-1 bg-black/5 dark:bg-white/10 rounded-md px-2 py-1 text-xs"
+          >
+            <Paperclip :size="12" class="shrink-0 opacity-60" />
+            <span class="truncate max-w-[100px]">{{ att.filename }}</span>
+            <button @click="removeAttachment(idx)" class="shrink-0 opacity-60 hover:opacity-100" :title="t('chat.removeAttachment')">
+              <X :size="12" />
+            </button>
+          </div>
+          <div v-if="uploadingPastes" class="flex items-center gap-1 bg-black/5 dark:bg-white/10 rounded-md px-2 py-1 text-xs">
+            <Loader2 :size="12" class="animate-spin opacity-60" />
+            <span class="truncate max-w-[100px]">{{ t('chat.pasting') || 'Pasting...' }}</span>
+          </div>
+        </div>
         <!-- 顶部工具栏 -->
         <div class="chat-input-toolbar">
           <!-- 执行模式选择 -->
@@ -610,9 +732,11 @@ const formatTime = (timestamp?: number) => {
           <div class="toolbar-divider"></div>
 
           <!-- 附件按钮 -->
-          <button class="toolbar-btn" :title="t('chat.attachment')">
-            <Paperclip :size="14" />
+          <button class="toolbar-btn" :title="uploading ? t('chat.uploading') : t('chat.attachFile')" @click="fileInputRef?.click()" :disabled="uploading">
+            <Loader2 v-if="uploading" :size="14" class="animate-spin" />
+            <Paperclip v-else :size="14" />
           </button>
+          <input type="file" ref="fileInputRef" @change="handleFileSelect" class="hidden" multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.zip,.tar.gz" />
 
           <!-- 语音按钮 -->
           <button 
@@ -624,14 +748,16 @@ const formatTime = (timestamp?: number) => {
             <Mic :size="14" />
           </button>
 
-          <!-- 深度思考按钮 -->
-          <button 
+          <!-- 思考模式选择 -->
+          <ThinkingToggle v-model="thinkingMode" />
+
+          <!-- 桌面宠物按钮 -->
+          <button
             class="toolbar-btn"
-            :class="{ active: showDeepThinking }"
-            :title="t('chat.deepThinking')"
-            @click="showDeepThinking = !showDeepThinking"
+            :title="t('chat.openPet')"
+            @click="invoke('open_desktop_pet')"
           >
-            <Brain :size="14" />
+            <Cat :size="14" />
           </button>
 
           <!-- 权限模式选择 -->
@@ -671,6 +797,7 @@ const formatTime = (timestamp?: number) => {
             v-model="input"
             @input="adjustInputHeight"
             @keydown="handleKeyDown"
+            @paste="handlePaste"
             :placeholder="getPlaceholder"
             class="chat-textarea"
             rows="1"
@@ -711,9 +838,9 @@ const formatTime = (timestamp?: number) => {
             <button
               v-else
               @click="handleSend"
-              :disabled="!input.trim()"
+              :disabled="!input.trim() && attachments.length === 0"
               class="input-action-btn send"
-              :class="{ disabled: !input.trim() }"
+              :class="{ disabled: !input.trim() && attachments.length === 0 }"
               :title="t('chat.send')"
             >
               <Send :size="18" />

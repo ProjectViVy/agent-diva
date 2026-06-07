@@ -13,6 +13,7 @@ interface ProviderCardItem {
   status: 'ready' | 'missingConfig' | 'active';
   currentModel?: string;
   apiBase?: string;
+  apiKey?: string;
   isCustom?: boolean;
 }
 
@@ -40,6 +41,7 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
   status: provider.name === props.activeProviderName ? 'active' : provider.status,
   currentModel: provider.currentModel,
   apiBase: provider.apiBase,
+  apiKey: provider.apiKey,
   isCustom: provider.isCustom,
 });
 </script>

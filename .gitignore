@@ -2,6 +2,7 @@
 /target
 # Accidental cargo message-mode output at repo root
 /build_utf8.json
+/build.json
 **/*.rs.bk
 *.d
 *.rlib
@@ -10,26 +11,20 @@
 *.dll
 *.pdb
 
-# IDE
-# Cursor: ignore local IDE noise under repo root, but keep versioned skills.
-# (Debug logs like .cursor/debug-*.log are also matched by *.log below.)
-.cursor/*
-!.cursor/skills/
-!.cursor/skills/**
+# IDE & AI tool caches - all ignored by .*/ rule below
+# Only .git/ and .github/ are preserved
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
-.claude/
-.qoder/
-.workspace/
-.kiro/
-*.sublime-*
-*.code-workspace
-.project
-.classpath
-.settings/
+
+# Ignore all hidden directories (starting with .) except .git and .github
+.*/
+!/.git/
+!/.git/**
+!/.github/
+!/.github/**
+
+# Ignore all directories starting with _
+_*/
 
 # JS/GUI
 **/node_modules/
@@ -87,6 +82,9 @@ Icon?
 Thumbs.db
 desktop.ini
 
+# Windows command redirect artifacts
+nul
+
 # Environment
 .env
 .env.local
@@ -100,12 +98,27 @@ desktop.ini
 *.profraw
 coverage/
 
+# Nested test workspaces (local experiments)
+tui-test/target/
+tui-test/Cargo.lock
+
 # Documentation build
 target/doc/
 
 # GUI bundle 构建产物（由 prepare_gui_bundle.py 生成）
 agent-diva-gui/src-tauri/resources/bin/
 agent-diva-gui/src-tauri/resources/manifests/
+
+# VRM 子包的编译产物（防止 tsc 无 outDir 时污染 src/）
+agent-diva-gui/shared-avatar-protocol/src/*.js
+agent-diva-gui/shared-avatar-protocol/src/*.d.ts
+agent-diva-gui/shared-avatar-protocol/src/*.d.ts.map
+agent-diva-gui/shared-avatar-protocol/src/*.js.map
+agent-diva-gui/avatar-runtime-vrm/demo-dist/
+
+# BMad Builder artifacts
+_bmad/
+_bmad-output/
 
 # Temporary files
 *.tmp
@@ -126,3 +139,12 @@ logs/
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# OMC (oh-my-claudecode) session state
+.omc/
+
+# Temporary state files
+state/
+
+# Workspace temporary staging area
+temp/

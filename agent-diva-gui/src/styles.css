@@ -145,6 +145,50 @@
   --warning: #f59e0b;
 }
 
+/* Miku 主题 - 初音未来应援色 */
+:root[data-theme="miku"] {
+  --bg-app: #0d1117;
+  --panel: #161b22;
+  --panel-solid: #161b22;
+  --line: rgba(0, 215, 200, 0.15);
+  --text: #e6edf3;
+  --text-muted: #7d8590;
+  --brand: #39c5bb;
+  --brand-light: #00f0df;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glass-blur: blur(20px);
+  --radius: 14px;
+  --radius-sm: 8px;
+
+  --nav-hover: rgba(0, 215, 200, 0.08);
+  --nav-active: rgba(0, 215, 200, 0.12);
+  --nav-active-border: #39c5bb;
+  --nav-icon: #7d8590;
+  --nav-icon-active: #39c5bb;
+
+  --sidebar-width: 280px;
+  --sidebar-collapsed-width: 60px;
+
+  --bubble-user-radius: 18px 18px 4px 18px;
+  --bubble-assistant-radius: 18px 18px 18px 4px;
+  --bubble-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --bubble-glow: none;
+  --bubble-padding: 14px 18px;
+  --bubble-max-width: 75%;
+
+  --accent: #39c5bb;
+  --accent-light: #00f0df;
+  --accent-glow: rgba(57, 197, 187, 0.4);
+  --accent-border: rgba(0, 240, 223, 0.3);
+  --accent-bg-light: rgba(57, 197, 187, 0.08);
+  --accent-bg-hover: rgba(57, 197, 187, 0.12);
+
+  --danger: #f85149;
+  --danger-bg: rgba(248, 81, 73, 0.12);
+  --success: #3fb950;
+  --warning: #d29922;
+}
+
 @layer base {
   * {
     @apply box-border;
@@ -1397,6 +1441,114 @@
     color: #9b5a6a;
   }
 
+  /* Miku 主题 - 初音未来风格覆盖 */
+  .theme-miku.app-shell {
+    background: #0d1117;
+    color: #e6edf3;
+    border: 1px solid rgba(0, 215, 200, 0.15);
+  }
+
+  .theme-miku .app-titlebar {
+    background: #161b22;
+    border-color: rgba(0, 215, 200, 0.15);
+    color: #e6edf3;
+  }
+
+  .theme-miku .app-emotion {
+    background: rgba(22, 27, 34, 0.9);
+    border-color: rgba(0, 215, 200, 0.2);
+  }
+
+  .theme-miku .app-badge {
+    background: rgba(57, 197, 187, 0.2);
+    color: #39c5bb;
+  }
+
+  .theme-miku .text-gray-900,
+  .theme-miku .text-gray-800,
+  .theme-miku .text-gray-700,
+  .theme-miku .text-gray-600,
+  .theme-miku .text-gray-500,
+  .theme-miku .text-gray-400,
+  .theme-miku .text-gray-300 {
+    color: #e6edf3;
+  }
+
+  .theme-miku .bg-white,
+  .theme-miku .bg-white\/50,
+  .theme-miku .bg-white\/70,
+  .theme-miku .bg-gray-50,
+  .theme-miku .bg-gray-50\/80,
+  .theme-miku .bg-gray-100,
+  .theme-miku .bg-gray-200 {
+    background-color: #161b22;
+  }
+
+  .theme-miku .border-gray-50,
+  .theme-miku .border-gray-100,
+  .theme-miku .border-gray-200 {
+    border-color: rgba(0, 215, 200, 0.15);
+  }
+
+  .theme-miku .chat-shell {
+    background: #0d1117;
+    color: #e6edf3;
+  }
+
+  .theme-miku .chat-input-bar {
+    background: #161b22;
+    border-color: rgba(0, 215, 200, 0.15);
+  }
+
+  .theme-miku .chat-input {
+    background: #0d1117;
+    border-color: rgba(0, 215, 200, 0.2);
+    color: #e6edf3;
+  }
+
+  .theme-miku .chat-avatar {
+    background: #161b22;
+    border: 1px solid rgba(0, 215, 200, 0.2);
+    color: #39c5bb;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .theme-miku .chat-avatar:hover {
+    box-shadow: 0 4px 16px rgba(57, 197, 187, 0.3);
+    transform: scale(1.05);
+  }
+
+  .theme-miku .chat-avatar-me {
+    background: rgba(57, 197, 187, 0.25);
+    color: #39c5bb;
+    font-weight: 600;
+    font-size: 11px;
+    border: 1px solid rgba(0, 215, 200, 0.25);
+  }
+
+  .theme-miku .chat-bubble-user {
+    background: linear-gradient(135deg, #1a3a3a 0%, #1a2a2a 100%);
+    color: #e6edf3;
+    border-radius: var(--bubble-user-radius);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .theme-miku .chat-bubble-assistant {
+    background: #161b22;
+    color: #e6edf3;
+    border: 1px solid rgba(0, 215, 200, 0.15);
+    border-radius: var(--bubble-assistant-radius);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .theme-miku .chat-empty-icon {
+    background: #161b22;
+    border-color: rgba(0, 215, 200, 0.2);
+  }
+
+  .theme-miku .chat-empty-text {
+    color: #7d8590;
+  }
   .love-hearts {
     position: absolute;
     inset: 0;
@@ -3474,6 +3626,17 @@
   background: transparent;
 }
 
+/* Miku 主题子视图 */
+.theme-miku .subview-container {
+  background: rgba(22, 27, 34, 0.85);
+  border-color: rgba(0, 215, 200, 0.15);
+}
+
+.theme-miku .console-view,
+.theme-miku .cron-view {
+  background: transparent;
+}
+
 /* ========================================
    供应商卡片视图样式 - Providers Card View
    ======================================== */
@@ -4095,3 +4258,36 @@
   }
 }
 
+
+/* Miku 主题 - 漂浮初音头像 */
+.miku-floats {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.miku-avatar {
+  position: absolute;
+  animation: miku-float 6s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(0, 215, 200, 0.4));
+  image-rendering: pixelated;
+}
+
+.miku-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+@keyframes miku-float {
+  0% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) scale(1.05) rotate(5deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}

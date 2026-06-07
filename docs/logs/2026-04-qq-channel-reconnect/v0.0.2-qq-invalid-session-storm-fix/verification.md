@@ -1,0 +1,25 @@
+# Verification
+
+- `cargo fmt --package agent-diva-channels --all`
+  - 结果：通过
+- `cargo test -p agent-diva-channels qq_ -- --nocapture`
+  - 结果：通过
+  - 覆盖：
+    - `qq_reconnects_and_resumes_after_server_close`
+    - `qq_reconnect_opcode_resumes_session`
+    - `qq_falls_back_to_identify_after_invalid_resume_session`
+    - `qq_invalid_session_storm_uses_incremental_backoff`
+    - `qq_heartbeat_timeout_reconnects_with_resume`
+    - `qq_replies_to_websocket_ping_without_dropping_connection`
+- `just fmt-check`
+  - 结果：通过
+- `just check`
+  - 结果：通过
+- `just test`
+  - 结果：失败，但失败点不在本次 QQ 修复范围内
+  - 阻塞项：
+    - `agent-diva-providers/tests/ollama_streaming.rs`
+    - `agent-diva-providers/tests/ollama_tools.rs`
+  - 失败原因：
+    - `agent_diva_providers::ollama` 导入不存在
+    - `ollama_streaming.rs` 存在类型推断错误 `E0282`

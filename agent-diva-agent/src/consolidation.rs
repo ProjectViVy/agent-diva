@@ -1,8 +1,9 @@
 //! Memory consolidation: summarizes old conversation history into long-term memory
 
-use agent_diva_core::memory::MemoryManager;
+use agent_diva_core::memory::{MemoryProvider, SyncTurnRequest, SyncTurnStatus};
 use agent_diva_core::session::Session;
 use agent_diva_providers::{LLMProvider, Message};
+use std::path::Path;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
@@ -53,7 +54,8 @@ pub async fn consolidate(
     session: &mut Session,
     provider: &Arc<dyn LLMProvider>,
     model: &str,
-    memory_manager: &MemoryManager,
+    workspace: &Path,
+    memory_provider: &dyn MemoryProvider,
     memory_window: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let consolidated = session.last_consolidated.min(session.messages.len());
@@ -87,7 +89,13 @@ pub async fn consolidate(
     }
 
     // Load existing memory for context
-    let existing_memory = memory_manager.get_memory_context();
+    let existing_memory = memory_provider
+        .system_prompt_block(&agent_diva_core::memory::SystemPromptRequest {
+            workspace_root: workspace.to_path_buf(),
+        })?
+        .prompt_block
+        .map(|block| block.markdown)
+        .unwrap_or_default();
 
     // Build the LLM request
     let system_msg = Message::system(CONSOLIDATION_PROMPT);
@@ -132,16 +140,41 @@ pub async fn consolidate(
             .unwrap_or("");
 
         if !memory_update.is_empty() {
-            let memory = agent_diva_core::memory::Memory::with_content(memory_update);
-            memory_manager.save_memory(&memory)?;
             debug!("Updated MEMORY.md");
         }
 
         if !history_entry.is_empty() {
             let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC");
             let entry = format!("[{}] {}", timestamp, history_entry);
-            memory_manager.append_history(&entry)?;
+            memory_provider
+                .sync_turn(SyncTurnRequest {
+                    workspace_root: workspace.to_path_buf(),
+                    memory_update_markdown: (!memory_update.is_empty())
+                        .then(|| memory_update.to_string()),
+                    history_entry: Some(entry),
+                })
+                .await
+                .and_then(|response| match response.status {
+                    SyncTurnStatus::Persisted | SyncTurnStatus::Noop => Ok(response),
+                    SyncTurnStatus::Failed { reason } => {
+                        Err(agent_diva_core::Error::Internal(reason))
+                    }
+                })?;
             debug!("Appended to HISTORY.md");
+        } else if !memory_update.is_empty() {
+            memory_provider
+                .sync_turn(SyncTurnRequest {
+                    workspace_root: workspace.to_path_buf(),
+                    memory_update_markdown: Some(memory_update.to_string()),
+                    history_entry: None,
+                })
+                .await
+                .and_then(|response| match response.status {
+                    SyncTurnStatus::Persisted | SyncTurnStatus::Noop => Ok(response),
+                    SyncTurnStatus::Failed { reason } => {
+                        Err(agent_diva_core::Error::Internal(reason))
+                    }
+                })?;
         }
 
         info!("Consolidation complete with memory update");

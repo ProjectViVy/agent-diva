@@ -3,6 +3,64 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+// ---------------------------------------------------------------------------
+// Compaction types
+// ---------------------------------------------------------------------------
+
+/// What triggered a context compaction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CompactTrigger {
+    /// Budget threshold exceeded — automatic compaction
+    Auto,
+    /// User-triggered (e.g. /compact command)
+    Manual,
+    /// Provider overflow catch — reactive compaction (P1)
+    Reactive,
+}
+
+/// Index range of compacted messages in the session
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactionRange {
+    /// Start index (inclusive) of compacted messages
+    pub start_index: usize,
+    /// End index (exclusive) of compacted messages
+    pub end_index: usize,
+}
+
+/// A type-safe, serializable compaction record stored in the session
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactSummary {
+    /// Schema version for forward compatibility
+    pub schema_version: u32,
+    /// Unique compact event ID
+    pub compact_id: String,
+    /// ISO8601 timestamp when compaction occurred
+    pub created_at: String,
+    /// What triggered this compaction
+    pub trigger: CompactTrigger,
+    /// Index range of the compacted messages
+    pub source_range: CompactionRange,
+    /// Number of recent messages kept (not compacted)
+    pub kept_recent_count: usize,
+    /// Message count before compaction
+    pub pre_compact_message_count: usize,
+    /// Estimated tokens before compaction
+    pub pre_compact_estimated_tokens: usize,
+    /// The generated natural-language summary
+    pub summary: String,
+    /// Quality score of the adopted summary (0.0–1.0), if quality validation ran
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub quality_score: Option<f64>,
+    /// Number of LLM retries before the final summary was adopted (0 = first attempt succeeded)
+    #[serde(default)]
+    pub retry_count: u32,
+}
+
+// ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
 /// A conversation session
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
@@ -19,6 +77,19 @@ pub struct Session {
     /// Index of last consolidated message (for memory consolidation)
     #[serde(default)]
     pub last_consolidated: usize,
+    /// Index of last compacted message (messages before this are summarized in `compaction_history`)
+    #[serde(default)]
+    pub last_compacted: usize,
+    /// Context compaction history — chain of summaries from multiple compactions.
+    ///
+    /// Backward compatible: old sessions with a single `compaction` object are
+    /// automatically deserialized into a one-element vec.
+    #[serde(
+        alias = "compaction",
+        deserialize_with = "compaction_compat::deserialize_compaction_history",
+        default
+    )]
+    pub compaction_history: Vec<CompactSummary>,
 }
 
 impl Session {
@@ -32,6 +103,8 @@ impl Session {
             updated_at: now,
             metadata: serde_json::Value::Object(serde_json::Map::new()),
             last_consolidated: 0,
+            last_compacted: 0,
+            compaction_history: Vec::new(),
         }
     }
 
@@ -56,13 +129,19 @@ impl Session {
         self.updated_at = Utc::now();
     }
 
-    /// Get message history for LLM context
+    /// Get message history for LLM context.
+    ///
+    /// Uses the *higher* of `last_consolidated` and `last_compacted` as the
+    /// floor so that both compacted and consolidated messages are excluded.
     pub fn get_history(&self, max_messages: usize) -> Vec<ChatMessage> {
-        // Clamp last_consolidated to avoid out-of-bounds on corrupted data
-        let consolidated = self.last_consolidated.min(self.messages.len());
-        let unconsolidated = &self.messages[consolidated..];
-        let start = unconsolidated.len().saturating_sub(max_messages);
-        let mut sliced: Vec<ChatMessage> = unconsolidated[start..]
+        // Floor = max of the two progress pointers
+        let floor = self
+            .last_consolidated
+            .max(self.last_compacted)
+            .min(self.messages.len());
+        let window = &self.messages[floor..];
+        let start = window.len().saturating_sub(max_messages);
+        let mut sliced: Vec<ChatMessage> = window[start..]
             .iter()
             .filter(|m| matches!(m.role.as_str(), "user" | "assistant" | "tool"))
             .cloned()
@@ -78,7 +157,27 @@ impl Session {
     pub fn clear(&mut self) {
         self.messages.clear();
         self.last_consolidated = 0;
+        self.last_compacted = 0;
+        self.compaction_history.clear();
         self.updated_at = Utc::now();
+    }
+
+    /// Get the most recent compaction summary, if any.
+    pub fn latest_compaction(&self) -> Option<&CompactSummary> {
+        self.compaction_history.last()
+    }
+
+    /// Concatenate all compaction summaries into a single text block.
+    ///
+    /// Each summary is prefixed with its ordinal position for context.
+    pub fn all_summaries_text(&self) -> String {
+        let total = self.compaction_history.len();
+        self.compaction_history
+            .iter()
+            .enumerate()
+            .map(|(i, s)| format!("[压缩记录 {}/{}]\n{}", i + 1, total, s.summary))
+            .collect::<Vec<_>>()
+            .join("\n\n")
     }
 }
 
@@ -152,6 +251,40 @@ impl ChatMessage {
     }
 }
 
+/// Backward-compatible deserialization helpers for `compaction_history`.
+///
+/// Old sessions stored a single `compaction: Option<CompactSummary>`.
+/// New sessions store `compaction_history: Vec<CompactSummary>`.
+/// This module lets serde accept both formats transparently.
+mod compaction_compat {
+    use serde::{Deserialize, Deserializer};
+
+    use super::CompactSummary;
+
+    /// Deserialize either a single `CompactSummary` or a `Vec<CompactSummary>`.
+    ///
+    /// Old format: `"compaction": { ... }` → one-element vec.
+    /// New format: `"compaction_history": [ ... ]` → vec as-is.
+    pub fn deserialize_compaction_history<'de, D>(
+        deserializer: D,
+    ) -> Result<Vec<CompactSummary>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Compat {
+            History(Vec<CompactSummary>),
+            Single(CompactSummary),
+        }
+
+        Ok(match Compat::deserialize(deserializer)? {
+            Compat::History(v) => v,
+            Compat::Single(s) => vec![s],
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,6 +294,7 @@ mod tests {
         let session = Session::new("telegram:12345");
         assert_eq!(session.key, "telegram:12345");
         assert!(session.messages.is_empty());
+        assert!(session.compaction_history.is_empty());
     }
 
     #[test]

@@ -1,12 +1,16 @@
 //! Context builder for assembling prompts
 
 use crate::skills::SkillsLoader;
-use agent_diva_core::memory::MemoryManager;
+use agent_diva_core::memory::{
+    MemoryManager, MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock,
+    SystemPromptRequest, SystemPromptResponse,
+};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::Message;
 use agent_diva_tools::sanitize::truncate_tool_result;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 const DEFAULT_AGENT_NAME: &str = "agent-diva";
 const DEFAULT_AGENT_EMOJI: &str = "🐈";
@@ -34,33 +38,63 @@ impl Default for SoulContextSettings {
 pub struct ContextBuilder {
     workspace: PathBuf,
     skills_loader: SkillsLoader,
-    memory_manager: MemoryManager,
+    memory_provider: Arc<dyn MemoryProvider>,
     soul_settings: SoulContextSettings,
+    mentle_enabled: bool,
+    mentle_tool_names: Vec<String>,
 }
 
 impl ContextBuilder {
     /// Create a new context builder
     pub fn new(workspace: PathBuf) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, None);
-        let memory_manager = MemoryManager::new(&workspace);
+        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(MemoryManager::new(&workspace));
         Self {
             workspace,
             skills_loader,
-            memory_manager,
+            memory_provider,
             soul_settings: SoulContextSettings::default(),
+            mentle_enabled: false,
+            mentle_tool_names: Vec::new(),
         }
     }
 
     /// Create a new context builder with skills
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
-        let memory_manager = MemoryManager::new(&workspace);
+        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(MemoryManager::new(&workspace));
         Self {
             workspace,
             skills_loader,
-            memory_manager,
+            memory_provider,
             soul_settings: SoulContextSettings::default(),
+            mentle_enabled: false,
+            mentle_tool_names: Vec::new(),
         }
+    }
+
+    /// Override the memory provider boundary used for prompt assembly.
+    pub fn with_memory_provider(mut self, memory_provider: Arc<dyn MemoryProvider>) -> Self {
+        self.memory_provider = memory_provider;
+        self
+    }
+
+    /// Enable Mentle-specific prompt routing only after runtime tools are active.
+    pub fn with_mentle(mut self, enabled: bool) -> Self {
+        self.mentle_enabled = enabled;
+        self
+    }
+
+    /// Record the post-assembly Mentle tools that may be mentioned in prompts.
+    pub fn with_mentle_tools(mut self, tool_names: Vec<String>) -> Self {
+        self.mentle_tool_names = tool_names;
+        self
+    }
+
+    /// Update Mentle prompt routing after a runtime tool refresh.
+    pub fn set_mentle_prompt_state(&mut self, enabled: bool, tool_names: Vec<String>) {
+        self.mentle_enabled = enabled;
+        self.mentle_tool_names = tool_names;
     }
 
     /// Override soul context settings.
@@ -93,6 +127,25 @@ Your workspace is at: {workspace_path}
 - Memory history log: {workspace_path}/memory/HISTORY.md"#
         );
 
+        if self.mentle_enabled {
+            let search_guidance = self.mentle_search_guidance();
+            prompt.push_str(
+                r#"
+- L0/L1 Compass Memory: workspace Markdown memory and soul/profile files.
+- L2 Palace Memory: embedded local SQLite/Turso database, available through `memtle_*` tools.
+
+## Memory Routing
+- Store durable identity, behavior rules, relationship compass, and highest-priority summaries in `MEMORY.md`.
+- Store dense project facts, long transcripts, references, creative ideas, and detailed evidence through the enabled Mentle tools.
+"#,
+            );
+            prompt.push_str(&search_guidance);
+            prompt.push_str(
+                r#"
+- For ordinary conversation or facts already present in the current context, answer directly without forcing a memory tool call."#,
+            );
+        }
+
         if self.soul_settings.enabled {
             self.append_soul_sections(&mut prompt);
         }
@@ -121,7 +174,13 @@ Your workspace is at: {workspace_path}
         }
 
         // Inject long-term memory if available
-        let memory_context = self.memory_manager.get_memory_context();
+        let memory_context = self
+            .memory_provider
+            .system_prompt_block(&SystemPromptRequest {
+                workspace_root: self.workspace.clone(),
+            })
+            .map(render_startup_injection)
+            .unwrap_or_else(|err| render_provider_error_startup_injection(&err.to_string()));
         if !memory_context.is_empty() {
             prompt.push_str("\n\n");
             prompt.push_str(&memory_context);
@@ -138,12 +197,45 @@ When a user asks to create a reminder, timer, or recurring schedule, use the 'cr
 Always be helpful, accurate, and concise. When using tools, explain what you're doing."#,
         );
 
-        prompt.push_str(&format!(
-            "\nWhen remembering something, write to {}/memory/MEMORY.md",
-            workspace_path
-        ));
+        if self.mentle_enabled {
+            prompt.push_str(
+                "\nWhen remembering something, route it by granularity: keep compact identity/relationship compass updates in MEMORY.md, and store dense factual details, long evidence, and creative/project records with the appropriate `memtle_*` tools.",
+            );
+        } else {
+            prompt.push_str(&format!(
+                "\nWhen remembering something, write to {}/memory/MEMORY.md",
+                workspace_path
+            ));
+        }
 
         prompt
+    }
+
+    fn mentle_search_guidance(&self) -> String {
+        let mut search_tools = Vec::new();
+        if self
+            .mentle_tool_names
+            .iter()
+            .any(|name| name == "memtle_search")
+        {
+            search_tools.push("`memtle_search`");
+        }
+        if self
+            .mentle_tool_names
+            .iter()
+            .any(|name| name == "memtle_kg_query")
+        {
+            search_tools.push("`memtle_kg_query`");
+        }
+
+        if search_tools.is_empty() {
+            return "- Use the enabled Mentle tools only when their schemas are present in the current tool list.\n".to_string();
+        }
+
+        format!(
+            "- Before answering historical facts, user relationship details, project state, or anything uncertain, use {}.\n",
+            search_tools.join(" or ")
+        )
     }
 
     fn append_soul_sections(&self, prompt: &mut String) {
@@ -210,13 +302,18 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         header
     }
 
-    /// Build the complete message list for an LLM call
+    /// Build the complete message list for an LLM call.
+    ///
+    /// If `session_compaction_history` is non-empty, each compacted summary is
+    /// injected as a boundary marker + system message before the raw history,
+    /// so the LLM sees all summaries and the recent messages.
     pub fn build_messages(
         &self,
         history: Vec<agent_diva_core::session::ChatMessage>,
         current_message: String,
         channel: Option<&str>,
         chat_id: Option<&str>,
+        session_compaction_history: &[agent_diva_core::session::CompactSummary],
     ) -> Vec<Message> {
         let mut messages = Vec::new();
 
@@ -229,6 +326,27 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
             ));
         }
         messages.push(Message::system(system_prompt));
+
+        // Inject compaction boundaries for each summary
+        for (i, compaction) in session_compaction_history.iter().enumerate() {
+            if compaction.summary.is_empty() {
+                continue;
+            }
+            if i == 0 {
+                // First compaction: full boundary markers
+                messages.push(Message::system(
+                    "## Context Compaction Boundary\n以下早期对话已被压缩为摘要。摘要可能有失真，如需精确信息请询问用户。\n[compacted context start]",
+                ));
+            } else {
+                // Subsequent compactions: shorter markers
+                messages.push(Message::system(&format!(
+                    "## Context Compaction #{}\n[compacted context start]",
+                    i + 1
+                )));
+            }
+            messages.push(Message::system(&compaction.summary));
+            messages.push(Message::system("[compacted context end]"));
+        }
 
         // History - convert from ChatMessage to Message
         for msg in history {
@@ -310,6 +428,34 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 }
 
+fn render_startup_injection(response: SystemPromptResponse) -> String {
+    let mut rendered = response
+        .prompt_block
+        .map(render_system_prompt_block)
+        .unwrap_or_default();
+
+    if let StartupStatus::Degraded { .. } = response.status {
+        if rendered.is_empty() {
+            rendered = "## Memory Startup Status\n- status: degraded\n- reason: provider returned no startup block\n- last_usable_wakeup: omitted (no cache reuse)\n".to_string();
+        }
+    }
+
+    rendered
+}
+
+fn render_system_prompt_block(block: SystemPromptBlock) -> String {
+    match block.shape {
+        StartupInjectionShape::CompactRenderedMarkdown => block.markdown,
+    }
+}
+
+fn render_provider_error_startup_injection(error: &str) -> String {
+    format!(
+        "## Memory Startup Status\n- status: degraded\n- reason: provider error: {}\n- last_usable_wakeup: omitted (no cache reuse)\n",
+        error.trim()
+    )
+}
+
 impl Default for ContextBuilder {
     fn default() -> Self {
         Self::new(PathBuf::from("."))
@@ -370,8 +516,57 @@ fn default_identity_header() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::memory::{
+        PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
+        SessionEndStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus, SystemPromptBlock,
+        SystemPromptRequest, SystemPromptResponse,
+    };
     use std::fs;
+    use std::sync::Arc;
     use tempfile::TempDir;
+
+    struct TestMemoryProvider;
+
+    #[async_trait::async_trait]
+    impl MemoryProvider for TestMemoryProvider {
+        fn system_prompt_block(
+            &self,
+            request: &SystemPromptRequest,
+        ) -> agent_diva_core::Result<SystemPromptResponse> {
+            Ok(SystemPromptResponse::ready(SystemPromptBlock {
+                shape: agent_diva_core::memory::StartupInjectionShape::CompactRenderedMarkdown,
+                markdown: format!("## Provider Memory\n{}", request.workspace_root.display()),
+            }))
+        }
+
+        async fn prefetch(
+            &self,
+            _request: PrefetchRequest,
+        ) -> agent_diva_core::Result<PrefetchResponse> {
+            Ok(PrefetchResponse {
+                status: PrefetchStatus::SkippedNoIntent,
+                prompt_block: None,
+            })
+        }
+
+        async fn sync_turn(
+            &self,
+            _request: SyncTurnRequest,
+        ) -> agent_diva_core::Result<SyncTurnResponse> {
+            Ok(SyncTurnResponse {
+                status: SyncTurnStatus::Noop,
+            })
+        }
+
+        async fn on_session_end(
+            &self,
+            _request: SessionEndRequest,
+        ) -> agent_diva_core::Result<SessionEndResponse> {
+            Ok(SessionEndResponse {
+                status: SessionEndStatus::Noop,
+            })
+        }
+    }
 
     #[test]
     fn test_build_system_prompt() {
@@ -385,11 +580,11 @@ mod tests {
     fn test_build_messages() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
         let messages =
-            builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"));
+            builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"), &[]);
         assert_eq!(messages.len(), 2); // system + user
         assert_eq!(messages[0].role, "system");
         assert_eq!(messages[1].role, "user");
-        assert_eq!(messages[1].content, "Hello");
+        assert_eq!(messages[1].content, "Hello".into());
     }
 
     #[test]
@@ -409,6 +604,90 @@ mod tests {
         assert!(prompt.contains("## Active Skills"));
         assert!(prompt.contains("## Skills"));
         assert!(prompt.contains("<skills>"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_uses_memory_provider_contract() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_memory_provider(Arc::new(TestMemoryProvider));
+
+        let prompt = builder.build_system_prompt();
+
+        assert!(prompt.contains("## Provider Memory"));
+        assert!(prompt.contains(&workspace.path().display().to_string()));
+    }
+
+    #[test]
+    fn test_build_system_prompt_omits_mentle_routing_by_default() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+
+        let prompt = builder.build_system_prompt();
+
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
+    }
+
+    #[test]
+    fn set_mentle_prompt_state_updates_prompt_exposure() {
+        let workspace = TempDir::new().unwrap();
+        let mut builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_mentle(true)
+            .with_mentle_tools(vec![
+                "memtle_status".to_string(),
+                "memtle_search".to_string(),
+            ]);
+        builder.set_mentle_prompt_state(false, vec!["memtle_search".to_string()]);
+
+        let prompt = builder.build_system_prompt();
+        assert!(!prompt.contains("L2 Palace Memory"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_includes_mentle_routing_when_active() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_mentle(true)
+            .with_mentle_tools(vec![
+                "memtle_status".to_string(),
+                "memtle_search".to_string(),
+            ]);
+
+        let prompt = builder.build_system_prompt();
+
+        assert!(prompt.contains("L2 Palace Memory"));
+        assert!(prompt.contains("memtle_search"));
+        assert!(prompt.contains("route it by granularity"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_consumes_explicit_compact_rendered_shape() {
+        let rendered = render_startup_injection(SystemPromptResponse::ready(SystemPromptBlock {
+            shape: agent_diva_core::memory::StartupInjectionShape::CompactRenderedMarkdown,
+            markdown: "## Wakeup Summary\nRendered startup block".to_string(),
+        }));
+
+        assert_eq!(rendered, "## Wakeup Summary\nRendered startup block");
+    }
+
+    #[test]
+    fn test_build_system_prompt_renders_degraded_startup_state() {
+        let rendered =
+            render_startup_injection(SystemPromptResponse::degraded("wakeup generation failed"));
+
+        assert!(rendered.contains("status: degraded"));
+        assert!(rendered.contains("wakeup generation failed"));
+        assert!(rendered.contains("last_usable_wakeup: omitted"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_renders_provider_error_as_degraded_startup() {
+        let rendered = render_provider_error_startup_injection("disk full");
+
+        assert!(rendered.contains("status: degraded"));
+        assert!(rendered.contains("provider error: disk full"));
+        assert!(rendered.contains("last_usable_wakeup: omitted"));
     }
 
     #[test]
@@ -441,7 +720,7 @@ mod tests {
 
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[1].role, "assistant");
-        assert_eq!(messages[1].content, "response");
+        assert_eq!(messages[1].content, "response".into());
         assert_eq!(messages[1].reasoning_content, Some("reasoning".to_string()));
     }
 

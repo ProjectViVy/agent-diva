@@ -3,6 +3,112 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ── Sandbox configuration types (used by agent-diva-sandbox) ────────────────
+
+/// Sandbox execution mode
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SandboxMode {
+    /// No sandbox isolation — full host access
+    DangerFullAccess,
+    /// Read-only filesystem access
+    ReadOnly,
+    /// Write access limited to the workspace directory
+    WorkspaceWrite,
+}
+
+impl Default for SandboxMode {
+    fn default() -> Self {
+        Self::WorkspaceWrite
+    }
+}
+
+/// When to ask the user for approval before executing a command
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AskForApproval {
+    /// Never ask — auto-approve everything
+    Never,
+    /// Ask only when the command fails
+    OnFailure,
+    /// Ask for every command
+    OnRequest,
+    /// Ask unless the command is in a trusted list
+    UnlessTrusted,
+}
+
+impl Default for AskForApproval {
+    fn default() -> Self {
+        Self::UnlessTrusted
+    }
+}
+
+/// Windows-specific sandbox isolation level
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WindowsSandboxLevel {
+    /// No Windows sandbox — rely on general sandbox mode only
+    Disabled,
+    /// Run with a restricted token (reduced privileges)
+    RestrictedToken,
+    /// Run with elevated isolation (AppContainer-like)
+    Elevated,
+}
+
+impl Default for WindowsSandboxLevel {
+    fn default() -> Self {
+        Self::RestrictedToken
+    }
+}
+
+/// Sandbox section in the root configuration file
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxConfig {
+    /// Sandbox execution mode
+    #[serde(default)]
+    pub mode: SandboxMode,
+    /// Windows-specific sandbox level
+    #[serde(default)]
+    pub windows_level: WindowsSandboxLevel,
+    /// Whether network access is allowed inside the sandbox
+    #[serde(default)]
+    pub network_access: bool,
+    /// When to ask for user approval
+    #[serde(default)]
+    pub approval_policy: AskForApproval,
+    /// Extra writable root paths (strings; resolved at runtime)
+    #[serde(default)]
+    pub writable_roots: Vec<String>,
+    /// Glob patterns for paths that must never be written to
+    #[serde(default)]
+    pub protected_paths: Vec<String>,
+    /// Patterns for commands that should be denied
+    #[serde(default)]
+    pub deny_patterns: Vec<String>,
+    /// Default command timeout in seconds
+    #[serde(default = "default_sandbox_timeout")]
+    pub timeout_seconds: u64,
+}
+
+fn default_sandbox_timeout() -> u64 {
+    60
+}
+
+impl Default for SandboxConfig {
+    fn default() -> Self {
+        Self {
+            mode: SandboxMode::default(),
+            windows_level: WindowsSandboxLevel::default(),
+            network_access: false,
+            approval_policy: AskForApproval::default(),
+            writable_roots: Vec::new(),
+            protected_paths: Vec::new(),
+            deny_patterns: Vec::new(),
+            timeout_seconds: 60,
+        }
+    }
+}
+
 /// Root configuration for agent-diva
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
@@ -16,9 +122,50 @@ pub struct Config {
     pub gateway: GatewayConfig,
     /// Tools configuration
     pub tools: ToolsConfig,
+    /// Mentle memory tool selection configuration
+    #[serde(default)]
+    pub mentle: MentleToolConfig,
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+    /// Sandbox configuration
+    #[serde(default)]
+    pub sandbox: SandboxConfig,
+    /// Pet (desktop avatar) configuration
+    #[serde(default)]
+    pub pet: PetConfig,
+}
+
+/// Mentle tool selection configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MentleToolConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub mode: MentleToolMode,
+    #[serde(default)]
+    pub allowed_tools: Vec<String>,
+}
+
+/// Mentle tool exposure mode.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MentleToolMode {
+    #[default]
+    Off,
+    ReadOnly,
+    Full,
+    Custom,
+}
+
+impl Default for MentleToolConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: MentleToolMode::Off,
+            allowed_tools: Vec::new(),
+        }
+    }
 }
 
 /// Logging configuration
@@ -90,6 +237,9 @@ pub struct AgentDefaults {
     /// Optional reasoning effort for thinking-capable models (low/medium/high)
     #[serde(default)]
     pub reasoning_effort: Option<String>,
+    /// Optional thinking mode override (auto/on/off)
+    #[serde(default)]
+    pub thinking_mode: Option<crate::reasoning::ThinkingMode>,
 }
 
 impl Default for AgentDefaults {
@@ -102,6 +252,7 @@ impl Default for AgentDefaults {
             temperature: 0.7,
             max_tool_iterations: 20,
             reasoning_effort: None,
+            thinking_mode: None,
         }
     }
 }
@@ -298,6 +449,9 @@ pub struct FeishuConfig {
     pub verification_token: String,
     #[serde(default)]
     pub allow_from: Vec<String>,
+    /// Optional port for webhook mode (not used in WebSocket mode)
+    #[serde(default)]
+    pub port: Option<u16>,
 }
 
 /// DingTalk channel configuration
@@ -780,6 +934,9 @@ pub struct ProviderConfig {
     pub extra_headers: Option<HashMap<String, String>>,
     #[serde(default)]
     pub custom_models: Vec<String>,
+    /// Per-provider reasoning configuration for dynamic model capability detection
+    #[serde(default)]
+    pub reasoning_config: Option<crate::reasoning::ReasoningConfig>,
 }
 
 /// User-defined provider configuration.
@@ -890,7 +1047,7 @@ fn default_host() -> String {
     "0.0.0.0".to_string()
 }
 fn default_port() -> u16 {
-    18790
+    3000
 }
 
 impl Default for GatewayConfig {
@@ -902,9 +1059,53 @@ impl Default for GatewayConfig {
     }
 }
 
+/// Compaction budget configuration — mirrors `BudgetConfig` fields for config file
+/// deserialization.  Lives in core so the config layer has no dependency on agent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactionBudgetConfig {
+    /// Maximum tokens allowed in the full assembled context.
+    #[serde(default = "default_compaction_max_tokens")]
+    pub max_tokens: usize,
+    /// Fraction of `max_tokens` reserved for system prompt. Range [0.0, 1.0).
+    #[serde(default = "default_compaction_system_budget_ratio")]
+    pub system_budget_ratio: f64,
+    /// Fraction of history budget that triggers compaction. Range (0.0, 1.0].
+    #[serde(default = "default_compaction_threshold_ratio")]
+    pub compact_threshold_ratio: f64,
+    /// Number of recent messages to always keep (never compacted).
+    #[serde(default = "default_compaction_keep_recent_count")]
+    pub keep_recent_count: usize,
+}
+
+fn default_compaction_max_tokens() -> usize {
+    180_000
+}
+fn default_compaction_system_budget_ratio() -> f64 {
+    0.15
+}
+fn default_compaction_threshold_ratio() -> f64 {
+    0.80
+}
+fn default_compaction_keep_recent_count() -> usize {
+    10
+}
+
+impl Default for CompactionBudgetConfig {
+    fn default() -> Self {
+        Self {
+            max_tokens: default_compaction_max_tokens(),
+            system_budget_ratio: default_compaction_system_budget_ratio(),
+            compact_threshold_ratio: default_compaction_threshold_ratio(),
+            keep_recent_count: default_compaction_keep_recent_count(),
+        }
+    }
+}
+
 /// Tools configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ToolsConfig {
+    #[serde(default)]
+    pub builtin: BuiltInToolsConfig,
     #[serde(default)]
     pub web: WebToolsConfig,
     #[serde(default)]
@@ -915,6 +1116,47 @@ pub struct ToolsConfig {
     pub mcp_servers: HashMap<String, MCPServerConfig>,
     #[serde(default, rename = "mcpManager", alias = "mcp_manager")]
     pub mcp_manager: MCPManagerConfig,
+    /// Context compaction budget configuration.
+    #[serde(default)]
+    pub budget: CompactionBudgetConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuiltInToolsConfig {
+    #[serde(default = "default_enabled")]
+    pub filesystem: bool,
+    #[serde(default = "default_enabled")]
+    pub shell: bool,
+    #[serde(default = "default_enabled")]
+    pub web_search: bool,
+    #[serde(default = "default_enabled")]
+    pub web_fetch: bool,
+    #[serde(default = "default_enabled")]
+    pub spawn: bool,
+    #[serde(default)]
+    pub cron: bool,
+    #[serde(default = "default_enabled")]
+    pub mcp: bool,
+    #[serde(default = "default_enabled")]
+    pub attachment: bool,
+    #[serde(default)]
+    pub mentle: bool,
+}
+
+impl Default for BuiltInToolsConfig {
+    fn default() -> Self {
+        Self {
+            filesystem: true,
+            shell: true,
+            web_search: true,
+            web_fetch: true,
+            spawn: true,
+            cron: false,
+            mcp: true,
+            attachment: true,
+            mentle: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -1035,5 +1277,157 @@ impl Default for ExecToolConfig {
         Self {
             timeout: default_timeout(),
         }
+    }
+}
+
+/// Pet (desktop avatar) configuration
+///
+/// Controls the Diva Pet feature: 3D avatar rendering,
+/// voice interaction (TTS/ASR), and model selection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PetConfig {
+    /// Master switch: show/hide Diva Pet sidebar entry
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Selected VRM model filename (relative to public/vrm/models/)
+    #[serde(default)]
+    pub vrm_model: String,
+    /// Whether TTS auto-play is enabled
+    #[serde(default)]
+    pub tts_enabled: bool,
+    /// Whether ASR / microphone input is enabled
+    #[serde(default = "default_true")]
+    pub asr_enabled: bool,
+    /// ASR provider. Currently "web_speech" is the implemented path.
+    #[serde(default = "default_asr_provider")]
+    pub asr_provider: String,
+    /// BCP-47 ASR language tag.
+    #[serde(default = "default_asr_language")]
+    pub asr_language: String,
+    /// API key for remote ASR providers.
+    #[serde(default)]
+    pub asr_api_key: Option<String>,
+    /// Base URL for remote ASR providers.
+    #[serde(default)]
+    pub asr_base_url: String,
+    /// Model for remote ASR providers.
+    #[serde(default)]
+    pub asr_model: Option<String>,
+    /// TTS provider: "browser" | "openai" | "siliconflow" | "minimax"
+    #[serde(default = "default_tts_provider")]
+    pub tts_provider: String,
+    /// Legacy shared API key for remote TTS providers. New GUI code no longer
+    /// uses this field and instead stores provider-specific keys below.
+    #[serde(default)]
+    pub tts_api_key: Option<String>,
+    /// API key for OpenAI TTS.
+    #[serde(default)]
+    pub tts_openai_api_key: Option<String>,
+    /// API key for SiliconFlow TTS.
+    #[serde(default)]
+    pub tts_siliconflow_api_key: Option<String>,
+    /// API key for MiniMax TTS.
+    #[serde(default)]
+    pub tts_minimax_api_key: Option<String>,
+    /// Base URL for remote TTS providers.
+    #[serde(default)]
+    pub tts_base_url: String,
+    /// Model for remote TTS providers.
+    #[serde(default)]
+    pub tts_model: Option<String>,
+    /// Provider-specific voice id for system voice selection.
+    #[serde(default)]
+    pub tts_voice_id: Option<String>,
+    /// Relative path under voice_resource/ used as a reference voice.
+    #[serde(default)]
+    pub tts_reference_voice: Option<String>,
+    /// Transcript for the reference voice clip.
+    #[serde(default)]
+    pub tts_reference_text: Option<String>,
+    /// TTS playback speed.
+    #[serde(default = "default_tts_speed")]
+    pub tts_speed: f64,
+    /// TTS playback volume.
+    #[serde(default = "default_tts_volume")]
+    pub tts_volume: f64,
+}
+
+fn default_asr_provider() -> String {
+    "web_speech".to_string()
+}
+
+fn default_asr_language() -> String {
+    "zh-CN".to_string()
+}
+
+fn default_tts_provider() -> String {
+    "browser".to_string()
+}
+
+fn default_tts_speed() -> f64 {
+    1.0
+}
+
+fn default_tts_volume() -> f64 {
+    1.0
+}
+
+impl Default for PetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            vrm_model: String::new(),
+            tts_enabled: false,
+            asr_enabled: true,
+            asr_provider: default_asr_provider(),
+            asr_language: default_asr_language(),
+            asr_api_key: None,
+            asr_base_url: String::new(),
+            asr_model: None,
+            tts_provider: default_tts_provider(),
+            tts_api_key: None,
+            tts_openai_api_key: None,
+            tts_siliconflow_api_key: None,
+            tts_minimax_api_key: None,
+            tts_base_url: String::new(),
+            tts_model: None,
+            tts_voice_id: None,
+            tts_reference_voice: None,
+            tts_reference_text: None,
+            tts_speed: default_tts_speed(),
+            tts_volume: default_tts_volume(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, MentleToolConfig, MentleToolMode};
+
+    #[test]
+    fn mentle_config_defaults_to_off() {
+        let config = Config::default();
+
+        assert!(!config.mentle.enabled);
+        assert_eq!(config.mentle.mode, MentleToolMode::Off);
+        assert!(config.mentle.allowed_tools.is_empty());
+        assert!(!config.tools.builtin.mentle);
+    }
+
+    #[test]
+    fn mentle_config_round_trips_json() {
+        let mentle: MentleToolConfig = serde_json::from_value(serde_json::json!({
+            "enabled": true,
+            "mode": "custom",
+            "allowed_tools": ["memtle_status", "memtle_search"]
+        }))
+        .expect("valid mentle config should deserialize");
+
+        assert!(mentle.enabled);
+        assert_eq!(mentle.mode, MentleToolMode::Custom);
+        assert_eq!(mentle.allowed_tools, ["memtle_status", "memtle_search"]);
+
+        let value = serde_json::to_value(mentle).expect("config should serialize");
+        assert_eq!(value["mode"], "custom");
     }
 }

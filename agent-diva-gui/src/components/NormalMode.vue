@@ -2,7 +2,9 @@
 import { computed, defineExpose, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
+  BookOpen,
   Bot,
+  Cat,
   Check,
   ChevronDown,
   Heart,
@@ -16,11 +18,14 @@ import {
   Zap,
 } from 'lucide-vue-next';
 import ChatView from './ChatView.vue';
+import { FileAttachmentDto } from '../api/desktop';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import ConsoleView from './ConsoleView.vue';
 import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
+import NotebookView from './NotebookView.vue';
+import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
@@ -57,6 +62,7 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
+  | 'pet'
   | 'about';
 
 interface SavedModel {
@@ -114,7 +120,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[]): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'toggle-sidebar'): void;
@@ -124,14 +130,17 @@ const emit = defineEmits<{
   (e: 'delete-session', sessionKey: string): void;
 }>();
 
-type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills';
+type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'pet';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | null>(null);
+const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'pet' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
 const sidebarAutoCollapsed = ref(false);
+const prePetSidebarCollapsed = ref<boolean | null>(null);
+const overlaySidebarOpen = ref(false);
+const overlaySidebarTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const groups = ref({ capabilities: true, tools: true });
 const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
@@ -277,6 +286,15 @@ watch([activeTab, activeMenu], () => {
 });
 
 const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
+  // FR-2: Restore sidebar state when leaving pet page
+  if (activeMenu.value === 'pet' && section !== 'pet') {
+    if (prePetSidebarCollapsed.value !== null) {
+      sidebarCollapsed.value = prePetSidebarCollapsed.value;
+      prePetSidebarCollapsed.value = null;
+    }
+    closeOverlaySidebar();
+  }
+
   if (section === 'chat' || section === 'settings') {
     activeMenu.value = null;
     activeTab.value = section;
@@ -287,6 +305,14 @@ const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'da
     activeMenu.value = section;
   }
 
+  // FR-1: Auto-collapse sidebar when entering pet page
+  if (section === 'pet') {
+    if (prePetSidebarCollapsed.value === null) {
+      prePetSidebarCollapsed.value = sidebarCollapsed.value;
+    }
+    sidebarCollapsed.value = true;
+  }
+
   if (sidebarAutoCollapsed.value) {
     sidebarCollapsed.value = true;
   }
@@ -294,6 +320,54 @@ const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'da
 
 const openSettingsFromModelMenu = () => {
   navigateTo('settings', 'providers');
+};
+
+// FR-4 & FR-5: Overlay sidebar functions
+const openOverlaySidebar = () => {
+  if (activeMenu.value !== 'pet') return;
+  overlaySidebarOpen.value = true;
+  startOverlaySidebarTimer();
+};
+
+const closeOverlaySidebar = () => {
+  overlaySidebarOpen.value = false;
+  clearOverlaySidebarTimer();
+};
+
+const toggleOverlaySidebar = () => {
+  if (overlaySidebarOpen.value) {
+    closeOverlaySidebar();
+  } else {
+    openOverlaySidebar();
+  }
+};
+
+const clearOverlaySidebarTimer = () => {
+  if (overlaySidebarTimer.value) {
+    clearTimeout(overlaySidebarTimer.value);
+    overlaySidebarTimer.value = null;
+  }
+};
+
+const startOverlaySidebarTimer = () => {
+  clearOverlaySidebarTimer();
+  overlaySidebarTimer.value = setTimeout(() => {
+    closeOverlaySidebar();
+  }, 5000);
+};
+
+const resetOverlaySidebarTimer = () => {
+  if (overlaySidebarOpen.value) {
+    startOverlaySidebarTimer();
+  }
+};
+
+const onOverlaySidebarMouseMove = () => {
+  resetOverlaySidebarTimer();
+};
+
+const onOverlaySidebarKeyDown = () => {
+  resetOverlaySidebarTimer();
 };
 
 const isSectionActive = (section: SidebarSection) => {
@@ -313,9 +387,19 @@ const hearts = [
   { left: '84%', top: '40%', size: 20, opacity: 0.3, delay: 0.8 },
   { left: '90%', top: '15%', size: 12, opacity: 0.22, delay: 1.1 },
 ];
+const mikuAvatars = [
+  { left: '5%', top: '15%', size: 36, opacity: 0.35, delay: 0 },
+  { left: '15%', top: '65%', size: 28, opacity: 0.25, delay: 1.5 },
+  { left: '30%', top: '25%', size: 44, opacity: 0.3, delay: 3 },
+  { left: '50%', top: '75%', size: 32, opacity: 0.2, delay: 4.5 },
+  { left: '65%', top: '20%', size: 40, opacity: 0.35, delay: 2 },
+  { left: '80%', top: '55%', size: 30, opacity: 0.25, delay: 5 },
+  { left: '90%', top: '30%', size: 38, opacity: 0.3, delay: 6.5 },
+];
 
 const emotionConfig = computed(() => ({
   happy: { emoji: '\u{1F60A}', label: t('emotion.happy') },
+
   sad: { emoji: '\u{1F622}', label: t('emotion.sad') },
   clingy: { emoji: '\u{1F97A}', label: t('emotion.clingy') },
   jealous: { emoji: '\u{1F624}', label: t('emotion.jealous') },
@@ -356,7 +440,16 @@ defineExpose({
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'sidebar-expanded': !sidebarCollapsed, [`theme-${themeMode}`]: true }">
+  <div
+    class="app-shell"
+    :class="{
+      'sidebar-expanded': !sidebarCollapsed,
+      [`theme-${themeMode}`]: true,
+      'pet-immersive': activeMenu === 'pet',
+    }"
+    @mousemove="onOverlaySidebarMouseMove"
+    @keydown="onOverlaySidebarKeyDown"
+  >
     <!-- Love主题背景装饰 -->
     <div v-if="themeMode === 'love'" class="love-hearts">
       <span
@@ -375,7 +468,29 @@ defineExpose({
     </div>
 
     <!-- 常驻侧边栏 -->
-    <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <!-- Miku主题背景装饰 -->
+    <div v-if="themeMode === 'miku'" class="miku-floats">
+      <div
+        v-for="(m, i) in mikuAvatars"
+        :key="i"
+        class="miku-avatar"
+        :style="{
+          left: m.left,
+          top: m.top,
+          width: `${m.size}px`,
+          height: `${m.size}px`,
+          opacity: m.opacity,
+          animationDelay: `${m.delay}s`,
+        }"
+      >
+        <img src="/miku.svg" alt="Miku" />
+      </div>
+    </div>
+    <aside
+      v-if="activeMenu !== 'pet'"
+      class="sidebar"
+      :class="{ 'sidebar-collapsed': sidebarCollapsed }"
+    >
       <!-- Logo区域 -->
       <div class="sidebar-header">
         <div class="brand-logo">V</div>
@@ -400,6 +515,14 @@ defineExpose({
           >
             {{ chatBadgeValue }}
           </span>
+        </button>
+        <button class="nav-item" :class="{ active: isSectionActive('notebook') }" @click="navigateTo('notebook')">
+          <BookOpen />
+          <span v-if="!sidebarCollapsed">{{ t('nav.notebook') }}</span>
+        </button>
+        <button class="nav-item" :class="{ active: isSectionActive('pet') }" @click="navigateTo('pet')">
+          <Cat />
+          <span v-if="!sidebarCollapsed">{{ t('nav.pet') }}</span>
         </button>
         <button class="nav-item" :class="{ active: isSectionActive('console') }" @click="navigateTo('console')">
           <Server />
@@ -514,7 +637,7 @@ defineExpose({
     <!-- 主内容区 -->
     <main class="main-panel">
       <!-- Topbar -->
-      <header class="topbar drag-region">
+      <header v-if="activeMenu !== 'pet'" class="topbar drag-region">
         <div class="topbar-left no-drag">
           <!-- DIVA 头像和状态 -->
           <div class="topbar-identity">
@@ -633,6 +756,61 @@ defineExpose({
             </div>
           </div>
         </div>
+        <!-- Notebook视图 -->
+        <div v-else-if="activeMenu === 'notebook'" class="h-full">
+          <div class="h-full min-h-0 flex flex-col subview-container">
+            <div class="flex-1 min-h-0 overflow-hidden">
+              <div class="h-full min-h-0 w-full overflow-y-auto p-6">
+                <NotebookView />
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Pet视图 -->
+        <div v-else-if="activeMenu === 'pet'" class="h-full relative">
+          <DivaPetView
+            :messages="messages"
+            :is-typing="isTyping"
+            :current-emotion="currentEmotion"
+            :saved-models="savedModels"
+            :current-model="config?.model"
+            :current-provider="config?.provider"
+            :connection-status="connectionStatus"
+            @send="(content) => emit('send', content)"
+            @toggle-sidebar="toggleOverlaySidebar"
+            @select-model="selectSavedModel"
+          />
+          <!-- Overlay 侧边栏 -->
+          <div
+            v-if="overlaySidebarOpen"
+            class="fixed inset-0 z-[150] bg-black/20"
+            @click="closeOverlaySidebar"
+          />
+          <aside
+            v-if="overlaySidebarOpen"
+            class="fixed left-0 top-0 bottom-0 z-[160] w-64 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-2xl transform transition-transform duration-300"
+          >
+            <div class="p-4">
+              <div class="flex items-center justify-between mb-4">
+                <span class="font-bold text-lg">DiVA</span>
+                <button @click="closeOverlaySidebar" class="p-1 hover:bg-gray-100 rounded">
+                  <X :size="18" />
+                </button>
+              </div>
+              <nav class="space-y-1">
+                <button
+                  v-for="section in ['chat', 'notebook', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
+                  :key="section"
+                  class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  :class="{ 'bg-pink-50 text-pink-600 font-medium': isSectionActive(section as SidebarSection) }"
+                  @click="navigateTo(section as SidebarSection); closeOverlaySidebar()"
+                >
+                  {{ t('nav.' + section) }}
+                </button>
+              </nav>
+            </div>
+          </aside>
+        </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
           <!-- 这个是作者要求不要修改，未经允许禁止往这里面添加东西（未来这里面要放swarm系统的可视化） -->
@@ -651,7 +829,7 @@ defineExpose({
               :history-prefs="chatDisplayPrefs"
               :sessions="sessions"
               :active-session-key="activeSessionKey"
-              @send="(content) => emit('send', content)"
+              @send="(content, attachments) => emit('send', content, attachments)"
               @clear="handleClearSession"
               @stop="emit('stop')"
               @select-session="(key) => emit('load-session', key)"

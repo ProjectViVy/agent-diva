@@ -1,0 +1,35 @@
+[package]
+name = "agent-diva-sandbox"
+version = "0.5.0"
+authors = ["mastwet (projectViVY Team, undefine foundation)"]
+edition = "2021"
+rust-version = "1.80.0"
+description = "Sandbox isolation for agent-diva command execution"
+
+[dependencies]
+agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
+globset = "0.4"
+shell-words = "1.1"  # Shell command parsing
+toml = "0.8"  # ExecPolicy rules file parsing
+parking_lot = "0.12"  # ArcSwap dependency (for ExecPolicy)
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Threading",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"  # Landlock LSM for filesystem access control
+seccompiler = "0.4"  # Seccomp-BPF for syscall filtering
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio-test = { workspace = true }

@@ -1,15 +1,23 @@
 use super::AgentLoop;
+use crate::compaction::ContextCompactor;
 use crate::consolidation;
+use crate::context_budget::check_budget;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
-use agent_diva_core::session::ChatMessage;
+use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
+use agent_diva_core::reasoning::ThinkingMode;
+use agent_diva_core::session::{ChatMessage, CompactTrigger};
 use agent_diva_core::soul::SoulStateStore;
-use agent_diva_providers::{LLMResponse, LLMStreamEvent};
+use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderError};
+use anyhow;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
+
+/// Max size for text attachments to inline (100KB)
+const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
 
 impl AgentLoop {
     pub(super) async fn process_inbound_message_inner(
@@ -33,21 +41,115 @@ impl AgentLoop {
             msg.channel, msg.sender_id, preview, model_to_use
         );
 
+        let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
+
+        // Process attachments: load text file contents and append to message
+        let message_content = if !msg.media.is_empty() {
+            match self.load_attachment_contents(&msg.media).await {
+                Ok(attachment_text) if !attachment_text.is_empty() => {
+                    format!(
+                        "{}\n\n[Attachments]\n{}\n[/Attachments]",
+                        msg.content, attachment_text
+                    )
+                }
+                _ => msg.content.clone(),
+            }
+        } else {
+            msg.content.clone()
+        };
+
+        // Derive prefetch intent from raw user message before it's consumed.
+        let prefetch_intent = derive_prefetch_intent(&message_content);
+        let prefetch_user_message = message_content.clone();
+
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         self.clear_session_cancellation(&session_key);
-        let session = self.sessions.get_or_create(&session_key);
 
-        let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
+        // ── Build initial messages with budget-aware compaction ──
+        // Phase 1: check budget and decide if compaction is needed (release borrow before .await)
+        let (history, history_len, should_compact, budget_report) = {
+            let session = self.sessions.get_or_create(&session_key);
+            let history = session.get_history(50); // Last 50 messages
+            let history_len = history.len();
 
-        // Build initial messages
-        let history = session.get_history(50); // Last 50 messages
-        let history_len = history.len();
+            // Budget check against context window limits
+            let budget_config = self.tool_config.budget.clone();
+            let budget_report = check_budget(&history, &budget_config);
+
+            (
+                history,
+                history_len,
+                budget_report.should_compact,
+                budget_report,
+            )
+        };
+
+        // Phase 2: call async compact() if needed, then update session
+        let (compaction_history, did_compact) = if should_compact {
+            info!(
+                "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
+                budget_report.pressure_ratio * 100.0,
+                budget_report.history_estimated,
+                budget_report.total_estimated.saturating_sub(budget_report.system_estimated),
+            );
+
+            let provider = self.provider.clone();
+            let model = self.model.clone();
+            let budget_config = self.tool_config.budget.clone();
+
+            // Use immutable get() to avoid holding &mut across .await
+            let compact_result = {
+                if let Some(session) = self.sessions.get(&session_key) {
+                    ContextCompactor::compact(
+                        session,
+                        &budget_config,
+                        provider,
+                        &model,
+                        CompactTrigger::Auto,
+                        &session.compaction_history,
+                    )
+                    .await
+                } else {
+                    Err(anyhow::anyhow!("Session not found for compaction"))
+                }
+            };
+
+            match compact_result {
+                Ok(result) => {
+                    let session = self.sessions.get_or_create(&session_key);
+                    session.last_compacted = result.new_compacted_index;
+                    session.compaction_history.push(result.summary);
+                    (session.compaction_history.clone(), true)
+                }
+                Err(e) => {
+                    warn!("Compaction failed (non-blocking): {}", e);
+                    // Carry forward existing compaction history as fallback
+                    let session = self.sessions.get_or_create(&session_key);
+                    (session.compaction_history.clone(), false)
+                }
+            }
+        } else {
+            // Carry forward any existing compaction history from a previous turn
+            let session = self.sessions.get_or_create(&session_key);
+            (session.compaction_history.clone(), false)
+        };
+
+        // Persist compaction state immediately when it just occurred
+        if did_compact {
+            if let Some(s) = self.sessions.get(&session_key) {
+                if let Err(e) = self.sessions.save(s) {
+                    error!("Failed to persist compaction state: {}", e);
+                }
+            }
+        }
+
         let mut messages = self.context.build_messages(
             history,
-            msg.content.clone(),
+            message_content.clone(),
             Some(&msg.channel),
             Some(&msg.chat_id),
+            &compaction_history,
         );
         if is_cron_trigger {
             // Make trigger origin explicit so the model does not treat it as a fresh user request.
@@ -65,6 +167,40 @@ impl AgentLoop {
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
+
+        // Intent-aware prefetch: run recall search before the first LLM call
+        // when the user message provides a workable intent string.
+        if !prefetch_intent.is_empty() {
+            let prefetch_result = self
+                .memory_provider
+                .prefetch(PrefetchRequest {
+                    workspace_root: self.workspace.clone(),
+                    intent: prefetch_intent,
+                    current_room: Some(msg.channel.clone()),
+                    user_message: Some(prefetch_user_message.clone()),
+                })
+                .await;
+            match prefetch_result {
+                Ok(response) => match response.status {
+                    PrefetchStatus::Failed { reason } => {
+                        warn!("Prefetch recall failed (non-fatal): {}", reason);
+                    }
+                    _ => {
+                        if let Some(block) = response.prompt_block {
+                            // Inject recall results as an additional system message
+                            // right after the main system prompt.
+                            messages.insert(1, agent_diva_providers::Message::system(block));
+                            trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
+                        } else {
+                            trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
+                        }
+                    }
+                },
+                Err(e) => {
+                    warn!("Prefetch recall failed (non-fatal): {}", e);
+                }
+            }
+        }
 
         while iteration < self.max_iterations {
             self.drain_runtime_control_commands().await;
@@ -105,20 +241,114 @@ impl AgentLoop {
             } else {
                 self.tools.get_definitions()
             };
-            let mut stream = self
-                .provider
-                .chat_stream(
-                    messages.clone(),
-                    if !tool_defs.is_empty() {
-                        Some(tool_defs)
-                    } else {
-                        None
-                    },
-                    Some(model_to_use.clone()),
-                    4096,
-                    0.7,
-                )
-                .await?;
+            // Call LLM with reactive context-overflow safety net.
+            // On context_length_exceeded, perform emergency compaction and retry once.
+            let mut reactive_retry_attempted = false;
+            let mut stream = loop {
+                let tool_defs_for_call = if !tool_defs.is_empty() {
+                    Some(tool_defs.clone())
+                } else {
+                    None
+                };
+                match self
+                    .provider
+                    .chat_stream(
+                        messages.clone(),
+                        tool_defs_for_call,
+                        Some(model_to_use.clone()),
+                        4096,
+                        0.7,
+                    )
+                    .await
+                {
+                    Ok(s) => break s,
+                    Err(e) => {
+                        if !reactive_retry_attempted && is_context_overflow_error(&e) {
+                            warn!(
+                                "Context overflow detected from provider: {}. Triggering reactive compaction...",
+                                e
+                            );
+                            reactive_retry_attempted = true;
+
+                            // --- Reactive compaction ---
+                            let provider = self.provider.clone();
+                            let model = self.model.clone();
+                            let budget_config = self.tool_config.budget.clone();
+
+                            // Phase 1: call compact() with immutable session ref
+                            let compact_result = {
+                                if let Some(session) = self.sessions.get(&session_key) {
+                                    ContextCompactor::compact(
+                                        session,
+                                        &budget_config,
+                                        provider,
+                                        &model,
+                                        CompactTrigger::Reactive,
+                                        &session.compaction_history,
+                                    )
+                                    .await
+                                } else {
+                                    Err(anyhow::anyhow!(
+                                        "Session not found for reactive compaction"
+                                    ))
+                                }
+                            };
+
+                            // Phase 2: apply result and get updated history
+                            let (reactive_history, reactive_compaction_history) =
+                                match compact_result {
+                                    Ok(result) => {
+                                        let session = self.sessions.get_or_create(&session_key);
+                                        session.last_compacted = result.new_compacted_index;
+                                        session.compaction_history.push(result.summary);
+                                        let history = session.get_history(50);
+                                        (history, session.compaction_history.clone())
+                                    }
+                                    Err(e) => {
+                                        warn!("Reactive compaction failed (non-blocking): {}", e);
+                                        // Fallback: use existing session state without updating
+                                        let session = self.sessions.get_or_create(&session_key);
+                                        let history = session.get_history(50);
+                                        (history, session.compaction_history.clone())
+                                    }
+                                };
+
+                            // Persist compaction state
+                            if let Some(s) = self.sessions.get(&session_key) {
+                                if let Err(persist_err) = self.sessions.save(s) {
+                                    error!(
+                                        "Failed to persist reactive compaction state: {}",
+                                        persist_err
+                                    );
+                                }
+                            }
+
+                            // Rebuild messages with new compaction history
+                            messages = self.context.build_messages(
+                                reactive_history,
+                                message_content.clone(),
+                                Some(&msg.channel),
+                                Some(&msg.chat_id),
+                                &reactive_compaction_history,
+                            );
+                            if is_cron_trigger {
+                                let current_message = messages.pop();
+                                messages.push(agent_diva_providers::Message::system(
+                                    "This turn is triggered automatically by a scheduled cron job, not by a real-time user input. Do not schedule new reminders/jobs from this turn unless explicitly required by prior task design.",
+                                ));
+                                if let Some(current_message) = current_message {
+                                    messages.push(current_message);
+                                }
+                            }
+
+                            info!("Reactive compaction complete, retrying provider call...");
+                            continue; // retry once
+                        } else {
+                            return Err(e.into());
+                        }
+                    }
+                }
+            };
             let mut streamed_content = String::new();
             let mut streamed_reasoning = String::new();
             let mut response: Option<LLMResponse> = None;
@@ -336,6 +566,10 @@ impl AgentLoop {
                 }
                 final_content = response.content;
                 final_reasoning = response.reasoning_content;
+                // Honor thinking mode: Off clears reasoning, Auto/On pass through
+                if self.thinking_mode == ThinkingMode::Off {
+                    final_reasoning = None;
+                }
                 break;
             }
         }
@@ -390,12 +624,12 @@ impl AgentLoop {
         {
             let session = self.sessions.get_or_create(&session_key);
             if consolidation::should_consolidate(session, self.memory_window) {
-                let memory_manager = agent_diva_core::memory::MemoryManager::new(&self.workspace);
                 if let Err(e) = consolidation::consolidate(
                     session,
                     &self.provider,
                     &model_to_use,
-                    &memory_manager,
+                    &self.workspace,
+                    &*self.memory_provider,
                     self.memory_window,
                 )
                 .await
@@ -432,6 +666,83 @@ impl AgentLoop {
             reasoning_content: final_reasoning,
             metadata: msg.metadata,
         }))
+    }
+
+    /// Load and format attachment contents for inclusion in the message.
+    /// Only text files under MAX_INLINE_ATTACHMENT_SIZE are inlined.
+    /// For other files, adds a placeholder telling AI to use read_file tool.
+    async fn load_attachment_contents(
+        &self,
+        file_ids: &[String],
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let storage_path = dirs::data_local_dir()
+            .map(|p| p.join("agent-diva").join("files"))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+        info!("Loading attachments from: {}", storage_path.display());
+        info!("File IDs to load: {:?}", file_ids);
+        let mut parts = Vec::new();
+
+        for file_id in file_ids {
+            match self.file_manager.get(file_id).await {
+                Ok(handle) => {
+                    let size = handle.metadata.size;
+                    let mime_type = handle
+                        .metadata
+                        .mime_type
+                        .as_deref()
+                        .unwrap_or("application/octet-stream");
+                    let is_text = mime_type.starts_with("text/")
+                        || mime_type == "application/json"
+                        || mime_type == "application/javascript"
+                        || mime_type == "application/typescript"
+                        || mime_type == "application/x-yaml"
+                        || mime_type == "application/xml";
+
+                    if is_text && size <= MAX_INLINE_ATTACHMENT_SIZE {
+                        match self.file_manager.read(&handle).await {
+                            Ok(bytes) => match String::from_utf8(bytes) {
+                                Ok(content) => {
+                                    parts.push(format!(
+                                        "--- {} ---\n{}\n---",
+                                        handle.metadata.name, content
+                                    ));
+                                }
+                                Err(_) => {
+                                    parts.push(format!(
+                                        "[File: {} ({} bytes, binary)]",
+                                        handle.metadata.name, size
+                                    ));
+                                }
+                            },
+                            Err(e) => {
+                                warn!("Failed to read file {}: {}", file_id, e);
+                                parts.push(format!(
+                                    "[File: {} (error reading: {})]",
+                                    handle.metadata.name, e
+                                ));
+                            }
+                        }
+                    } else {
+                        // Non-text or too large - tell AI to use tool
+                        parts.push(format!(
+                            "[File: {} ({} bytes, {}) - Use read_file tool to access]",
+                            handle.metadata.name, size, mime_type
+                        ));
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to get file handle for {}: {}. Storage path: {}",
+                        file_id,
+                        e,
+                        storage_path.display()
+                    );
+                    parts.push(format!("[Attachment: {} (not found - {})]", file_id, e));
+                }
+            }
+        }
+
+        Ok(parts.join("\n\n"))
     }
 }
 
@@ -500,7 +811,7 @@ fn save_turn(
         for m in &messages[turn_start..] {
             match m.role.as_str() {
                 "assistant" => {
-                    if m.content.trim().is_empty()
+                    if m.content.to_text_lossy().trim().is_empty()
                         && m.tool_calls
                             .as_ref()
                             .map(|calls| calls.is_empty())
@@ -517,7 +828,7 @@ fn save_turn(
                     });
                     let mut msg = ChatMessage::with_tool_metadata(
                         "assistant",
-                        &m.content,
+                        &m.content.to_text_lossy(),
                         None,
                         tool_calls_json,
                         None,
@@ -527,10 +838,17 @@ fn save_turn(
                     session.add_full_message(msg);
                 }
                 "tool" => {
-                    let content = if m.content.chars().count() > 500 {
-                        format!("{}...", m.content.chars().take(500).collect::<String>())
+                    let content = if m.content.to_text_lossy().chars().count() > 500 {
+                        format!(
+                            "{}...",
+                            m.content
+                                .to_text_lossy()
+                                .chars()
+                                .take(500)
+                                .collect::<String>()
+                        )
                     } else {
-                        m.content.clone()
+                        m.content.to_text_lossy()
                     };
                     session.add_full_message(ChatMessage::with_tool_metadata(
                         "tool",
@@ -557,9 +875,89 @@ fn save_turn(
     }
 }
 
+/// Derive a lightweight recall intent from the user message.
+///
+/// Returns an empty string when the message is too short or lacks any
+/// action/recall-indicating words, so `prefetch` is gated on intent
+/// availability without requiring a full intent classifier.
+fn derive_prefetch_intent(message: &str) -> String {
+    let trimmed = message.trim();
+    if trimmed.len() < 4 {
+        return String::new();
+    }
+
+    let lower = trimmed.to_lowercase();
+    let recall_words = [
+        "recall",
+        "remember",
+        "summarize",
+        "summary",
+        "review",
+        "history",
+        "memory",
+        "previous",
+        "last",
+        "recent",
+        "what",
+        "how",
+        "why",
+        "when",
+        "where",
+        "who",
+        "list",
+        "find",
+        "search",
+        "look",
+        "check",
+    ];
+
+    let has_recall_signal = recall_words.iter().any(|word| lower.contains(word));
+
+    if has_recall_signal {
+        // Use a truncated version as the search intent.
+        let limit = trimmed.chars().count().min(120);
+        let chars: String = trimmed.chars().take(limit).collect();
+        chars
+    } else {
+        String::new()
+    }
+}
+
+/// Check whether a provider error indicates a context-length overflow.
+///
+/// Matches against known error patterns from various LLM providers
+/// (DeepSeek, OpenAI, Anthropic, etc.) that signal the request exceeded
+/// the model's maximum context window.
+fn is_context_overflow_error(err: &ProviderError) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("context_length_exceeded")
+        || msg.contains("prompt_too_long")
+        || msg.contains("maximum context length")
+        || msg.contains("context length")
+        || msg.contains("token limit")
+        || msg.contains("too many tokens")
+        || msg.contains("input length exceeded")
+        || msg.contains("max tokens")
+        || msg.contains("context window")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_derive_prefetch_intent_is_empty_for_non_question() {
+        assert!(derive_prefetch_intent("the sky is blue").is_empty());
+        assert!(derive_prefetch_intent("ok").is_empty());
+        assert!(derive_prefetch_intent("").is_empty());
+    }
+
+    #[test]
+    fn test_derive_prefetch_intent_has_value_for_action_words() {
+        assert!(!derive_prefetch_intent("recall all projects").is_empty());
+        assert!(!derive_prefetch_intent("what is the provider boundary?").is_empty());
+        assert!(!derive_prefetch_intent("summarize the last meeting").is_empty());
+    }
 
     #[test]
     fn test_changed_soul_file_detects_successful_updates() {
@@ -630,5 +1028,48 @@ mod tests {
         let notice = format_soul_transparency_notice(&files, true, false);
         assert!(!notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
         assert!(!notice.contains("Governance hint:"));
+    }
+
+    // ── Reactive compact: context-overflow detection ──────────────
+
+    #[test]
+    fn test_is_context_overflow_detects_known_patterns() {
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "context_length_exceeded".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "prompt_too_long".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::InvalidResponse(
+            "maximum context length exceeded".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "token limit reached".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "too many tokens in request".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "input length exceeded maximum".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "context window exceeded".into()
+        )));
+    }
+
+    #[test]
+    fn test_is_context_overflow_ignores_unrelated_errors() {
+        assert!(!is_context_overflow_error(&ProviderError::ApiError(
+            "rate limit exceeded".into()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::ApiError(
+            "invalid api key".into()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::JsonError(
+            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::ConfigError(
+            "missing config".into()
+        )));
     }
 }

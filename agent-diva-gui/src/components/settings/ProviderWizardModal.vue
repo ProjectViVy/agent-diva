@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { X, ChevronRight, LoaderCircle, Check, CircleAlert, PlugZap, Eye, EyeOff } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
@@ -41,6 +41,7 @@ const steps: Step[] = [
   { key: 'apikey', title: t('providers.wizardStepApiKey') },
   { key: 'apibase', title: t('providers.wizardStepApiBase') },
   { key: 'test', title: t('providers.wizardStepTest') },
+  { key: 'done', title: t('providers.wizardDone') },
 ];
 
 const currentStep = ref<StepKey>('select');
@@ -135,6 +136,21 @@ const resetForm = () => {
   isApiKeyVisible.value = false;
 };
 
+// Keyboard handler: Escape to close
+const onKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && props.open) {
+    close();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', onKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeydown);
+});
+
 // Watch for initial data changes
 watch(() => props.initialData, (newData) => {
   if (newData) {
@@ -155,7 +171,7 @@ watch(() => props.initialData, (newData) => {
           <!-- Header -->
           <div class="wizard-header">
             <h3 class="wizard-title">{{ t('providers.wizardTitle') }}</h3>
-            <button class="wizard-close" @click="close">
+            <button class="wizard-close" :aria-label="t('app.close')" @click="close">
               <X :size="18" />
             </button>
           </div>

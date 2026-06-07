@@ -161,6 +161,8 @@ pub struct LiteLLMClient {
     selected_provider: Option<ProviderSpec>,
     direct_openai_compatible: bool,
     default_reasoning_effort: Option<String>,
+    /// Per-provider reasoning configuration for dynamic capability detection
+    reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
 }
 
 fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -180,6 +182,27 @@ impl LiteLLMClient {
         extra_headers: Option<HashMap<String, String>>,
         provider_name: Option<String>,
         default_reasoning_effort: Option<String>,
+    ) -> Self {
+        Self::new_with_config(
+            api_key,
+            api_base,
+            default_model,
+            extra_headers,
+            provider_name,
+            default_reasoning_effort,
+            None,
+        )
+    }
+
+    /// Create a new LiteLLM client with optional reasoning configuration.
+    pub fn new_with_config(
+        api_key: Option<String>,
+        api_base: Option<String>,
+        default_model: String,
+        extra_headers: Option<HashMap<String, String>>,
+        provider_name: Option<String>,
+        default_reasoning_effort: Option<String>,
+        reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
     ) -> Self {
         tracing::info!(
             "Creating LiteLLMClient. Provider: {:?}, Base: {:?}",
@@ -215,6 +238,18 @@ impl LiteLLMClient {
         let direct_openai_compatible =
             provider_name.is_some() && selected_provider.is_none() && !api_base.trim().is_empty();
 
+        // Derive default_reasoning_effort from reasoning_config if not explicitly provided
+        let derived_reasoning_effort = default_reasoning_effort
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                reasoning_config
+                    .as_ref()
+                    .and_then(|c| c.default_effort.clone())
+                    .map(|s| s.trim().to_lowercase())
+                    .filter(|s| !s.is_empty())
+            });
+
         Self {
             client: build_api_http_client(&api_base, std::time::Duration::from_secs(300))
                 .unwrap_or_else(|_| Client::new()),
@@ -225,9 +260,8 @@ impl LiteLLMClient {
             registry,
             selected_provider,
             direct_openai_compatible,
-            default_reasoning_effort: default_reasoning_effort
-                .map(|s| s.trim().to_lowercase())
-                .filter(|s| !s.is_empty()),
+            default_reasoning_effort: derived_reasoning_effort,
+            reasoning_config,
         }
     }
 
@@ -315,6 +349,7 @@ impl LiteLLMClient {
 
     /// Apply cache_control annotations to a serialized request body.
     /// - Converts system message `content` string to structured blocks with cache_control.
+    /// - Adds cache_control to text parts when system message content is already structured.
     /// - Adds cache_control to the last tool definition.
     fn apply_cache_control(body: &mut serde_json::Value) {
         // Transform system message content
@@ -331,6 +366,15 @@ impl LiteLLMClient {
                             "text": text,
                             "cache_control": {"type": "ephemeral"}
                         }]);
+                    } else if let Some(parts) =
+                        msg.get_mut("content").and_then(|c| c.as_array_mut())
+                    {
+                        for part in parts {
+                            let is_text = part.get("type").and_then(|t| t.as_str()) == Some("text");
+                            if is_text && part.get("cache_control").is_none() {
+                                part["cache_control"] = serde_json::json!({"type": "ephemeral"});
+                            }
+                        }
                     }
                 }
             }
@@ -473,23 +517,27 @@ impl LiteLLMClient {
         messages
             .into_iter()
             .map(|mut msg| {
-                // Check if content has problematic characters
-                let has_control_chars = msg.content.chars().any(|c| {
-                    let cp = c as u32;
-                    (cp < 0x20 && cp != 0x09 && cp != 0x0A && cp != 0x0D) || cp == 0x7F
+                let has_problematic_text = msg.content.text_any(|text| {
+                    text.chars().any(|c| {
+                        let cp = c as u32;
+                        (cp < 0x20 && cp != 0x09 && cp != 0x0A && cp != 0x0D) || cp == 0x7F
+                    }) || text.contains("\x1b")
                 });
 
-                if has_control_chars || msg.content.contains("\x1b") {
-                    let sanitized = Self::sanitize_message_content(&msg.content);
-                    if sanitized != msg.content {
+                if has_problematic_text {
+                    let original = msg.content.clone();
+                    msg.content
+                        .sanitize_text(Self::sanitize_message_content);
+                    if msg.content != original {
+                        let original_len = original.to_text_lossy().len();
+                        let sanitized_len = msg.content.to_text_lossy().len();
                         warn!(
                             "Sanitized message content (role: {}, original len: {}, sanitized len: {})",
                             msg.role,
-                            msg.content.len(),
-                            sanitized.len()
+                            original_len,
+                            sanitized_len
                         );
                     }
-                    msg.content = sanitized;
                 }
 
                 // Also sanitize reasoning_content if present
@@ -750,6 +798,11 @@ impl LiteLLMClient {
                 problems.join("\n    - ")
             );
         }
+    }
+
+    /// Return the provider's reasoning configuration, if any.
+    pub fn reasoning_config(&self) -> Option<&agent_diva_core::reasoning::ReasoningConfig> {
+        self.reasoning_config.as_ref()
     }
 }
 
@@ -1347,6 +1400,27 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_cache_control_structured_system_text_parts() {
+        let mut body = serde_json::json!({
+            "messages": [
+                {
+                    "role": "system",
+                    "content": [
+                        {"type": "text", "text": "You are helpful."},
+                        {"type": "image_file", "image_file": {"file_id": "file_local_123"}}
+                    ]
+                }
+            ]
+        });
+        LiteLLMClient::apply_cache_control(&mut body);
+
+        let content = body["messages"][0]["content"].as_array().unwrap();
+        assert_eq!(content[0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(content[1]["image_file"]["file_id"], "file_local_123");
+        assert!(content[1].get("cache_control").is_none());
+    }
+
+    #[test]
     fn test_apply_cache_control_last_tool() {
         let mut body = serde_json::json!({
             "messages": [],
@@ -1435,8 +1509,11 @@ mod tests {
 
         let sanitized = LiteLLMClient::sanitize_messages(messages);
 
-        assert_eq!(sanitized[0].content, "normal text");
-        assert_eq!(sanitized[1].content, "text with  null and red");
+        assert_eq!(sanitized[0].content.as_text(), Some("normal text"));
+        assert_eq!(
+            sanitized[1].content.as_text(),
+            Some("text with  null and red")
+        );
     }
 
     #[test]
@@ -1451,7 +1528,113 @@ mod tests {
         let sanitized = LiteLLMClient::sanitize_messages(messages);
 
         // Content should be unchanged
-        assert_eq!(sanitized[0].content, "Hello, world!");
-        assert_eq!(sanitized[1].content, "This is a response.");
+        assert_eq!(sanitized[0].content.as_text(), Some("Hello, world!"));
+        assert_eq!(sanitized[1].content.as_text(), Some("This is a response."));
+    }
+
+    #[test]
+    fn test_sanitize_messages_cleans_text_parts_and_preserves_images() {
+        use crate::base::{ImageFile, Message, MessageContent, MessageContentPart};
+
+        let messages = vec![Message::user(MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "text with \x00 null".to_string(),
+            },
+            MessageContentPart::ImageFile {
+                image_file: ImageFile {
+                    file_id: "file_local_123".to_string(),
+                },
+            },
+        ]))];
+
+        let sanitized = LiteLLMClient::sanitize_messages(messages);
+        let value = serde_json::to_value(&sanitized[0]).unwrap();
+
+        assert_eq!(value["content"][0]["text"], "text with  null");
+        assert_eq!(
+            value["content"][1]["image_file"]["file_id"],
+            "file_local_123"
+        );
+    }
+
+    #[test]
+    fn test_build_request_serializes_openai_compatible_image_url_parts() {
+        use crate::base::{ImageUrl, Message, MessageContent, MessageContentPart};
+
+        let client = LiteLLMClient::default();
+        let request = client.build_request(
+            vec![Message::user(MessageContent::Parts(vec![
+                MessageContentPart::Text {
+                    text: "What's in this picture?".to_string(),
+                },
+                MessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: "data:image/png;base64,AAAA".to_string(),
+                    },
+                },
+            ]))],
+            None,
+            RequestBuildOptions {
+                resolved_model: "gpt-4o".to_string(),
+                max_tokens: 4096,
+                temperature: 0.7,
+                reasoning_effort: None,
+                stream: false,
+            },
+        );
+
+        let value = serde_json::to_value(&request).unwrap();
+
+        assert_eq!(value["model"], "gpt-4o");
+        assert_eq!(value["messages"][0]["content"][0]["type"], "text");
+        assert_eq!(
+            value["messages"][0]["content"][0]["text"],
+            "What's in this picture?"
+        );
+        assert_eq!(value["messages"][0]["content"][1]["type"], "image_url");
+        assert_eq!(
+            value["messages"][0]["content"][1]["image_url"]["url"],
+            "data:image/png;base64,AAAA"
+        );
+        assert!(!value.to_string().contains("image_file"));
+        assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[test]
+    fn test_build_stream_request_keeps_openai_compatible_image_url_parts() {
+        use crate::base::{ImageUrl, Message, MessageContent, MessageContentPart};
+
+        let client = LiteLLMClient::default();
+        let request = client.build_request(
+            vec![Message::user(MessageContent::Parts(vec![
+                MessageContentPart::Text {
+                    text: "describe".to_string(),
+                },
+                MessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: "data:image/webp;base64,AAAA".to_string(),
+                    },
+                },
+            ]))],
+            None,
+            RequestBuildOptions {
+                resolved_model: "gpt-4.1-mini".to_string(),
+                max_tokens: 4096,
+                temperature: 0.7,
+                reasoning_effort: None,
+                stream: true,
+            },
+        );
+
+        let value = serde_json::to_value(&request).unwrap();
+
+        assert_eq!(value["stream"], true);
+        assert_eq!(value["messages"][0]["content"][1]["type"], "image_url");
+        assert_eq!(
+            value["messages"][0]["content"][1]["image_url"]["url"],
+            "data:image/webp;base64,AAAA"
+        );
+        assert!(!value.to_string().contains("image_file"));
+        assert!(!value.to_string().contains("image_data"));
     }
 }

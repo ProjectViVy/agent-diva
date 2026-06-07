@@ -25,6 +25,7 @@ on:
       - 'agent-diva-gui/**'
       - 'scripts/ci/**'
       - 'docs/app-building/**'
+      - 'docs/dev/mentle-integration/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main, develop]
@@ -36,6 +37,7 @@ on:
       - 'agent-diva-gui/**'
       - 'scripts/ci/**'
       - 'docs/app-building/**'
+      - 'docs/dev/mentle-integration/**'
       - '.github/workflows/ci.yml'
 
 env:
@@ -88,6 +90,9 @@ jobs:
           just check
           just build
 
+      - name: Run Sprint 5 default-lane regressions
+        run: just sprint5-default-check
+
       - name: Run tests
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_tests == 'true'
         run: just test
@@ -99,6 +104,52 @@ jobs:
           .\target\release\agent-diva.exe service install --auto-start --dry-run
           .\target\release\agent-diva.exe service status --dry-run
           .\target\release\agent-diva.exe service uninstall --dry-run
+
+  mentle-check:
+    name: Mentle Feature (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.88
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.88.0
+
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm pkg-config
+
+      - name: Install Windows LLVM
+        if: runner.os == 'Windows'
+        run: |
+          choco install llvm -y
+          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify macOS clang
+        if: runner.os == 'macOS'
+        run: xcrun --find clang
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify frozen Mentle package policy
+        run: python scripts/ci/verify_mentle_package_policy.py
+
+      - name: Check Mentle feature
+        run: cargo check -p agent-diva-agent --features mentle
+
+      - name: Test Mentle memory core
+        run: cargo test -p agent-diva-core --features mentle memory
+
+      - name: Test Mentle agent integration
+        run: cargo test -p agent-diva-agent --features mentle mentle
 
   gui-build:
     name: GUI Build (${{ matrix.os_tag }})

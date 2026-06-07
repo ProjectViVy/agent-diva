@@ -1,7 +1,7 @@
 //! Web tools: web_search and web_fetch
 
-use crate::base::{Tool, ToolError};
 use crate::sanitize::sanitize_for_json;
+use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use regex::Regex;
 use reqwest::{header, Client};

@@ -13,8 +13,8 @@ use tracing::{debug, error, info, warn};
 
 use super::Manager;
 use crate::state::{
-    ApiRequest, ChannelUpdate, ConfigResponse, ConfigUpdate, ResetSessionRequest, StopChatRequest,
-    ToolsConfigResponse, ToolsConfigUpdate,
+    ApiRequest, ChannelUpdate, ConfigResponse, ConfigUpdate, MentleToolsListResponse,
+    ResetSessionRequest, StopChatRequest, ToolsConfigResponse, ToolsConfigUpdate,
 };
 
 impl Manager {
@@ -297,11 +297,13 @@ impl Manager {
             .load()
             .map(|config| ToolsConfigResponse {
                 web: config.tools.web.into(),
+                mentle: config.mentle,
             })
             .unwrap_or_else(|error| {
                 error!("Failed to load config for GetTools: {}", error);
                 ToolsConfigResponse {
                     web: WebToolsConfig::default().into(),
+                    mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
                 }
             });
         let _ = reply.send(response);
@@ -319,6 +321,8 @@ impl Manager {
 
         config.tools.web.search = update.web.search;
         config.tools.web.fetch = update.web.fetch;
+        config.mentle = update.mentle;
+        config.tools.builtin.mentle = config.mentle.enabled;
 
         if let Err(e) = self.loader.save(&config) {
             error!("Failed to save tools config: {}", e);
@@ -329,6 +333,16 @@ impl Manager {
             let network = Self::map_network_config(&config);
             if let Err(e) = tx.send(RuntimeControlCommand::UpdateNetwork(network)) {
                 error!("Failed to send runtime tools update: {}", e);
+            }
+            let mentle_runtime =
+                agent_diva_agent::tool_config::mentle::MentleToolRuntimeConfig::from_config(
+                    &config,
+                );
+            if let Err(e) = tx.send(RuntimeControlCommand::UpdateMentle {
+                mentle: mentle_runtime,
+                builtin_mentle: config.mentle.enabled,
+            }) {
+                error!("Failed to send runtime Mentle update: {}", e);
             }
         }
     }
@@ -538,6 +552,40 @@ impl Manager {
             .ok_or_else(|| missing_message.to_string())?;
         f(tx).await
     }
+
+    pub(super) async fn handle_list_mentle_tools(
+        &self,
+        reply: oneshot::Sender<MentleToolsListResponse>,
+    ) {
+        debug!("Processing ListMentleTools command");
+        let response = match self.loader.load() {
+            Ok(config) => {
+                let workspace = expand_tilde_path(&config.agents.defaults.workspace);
+                let tools = agent_diva_agent::discover_mentle_tool_names(&workspace).await;
+                MentleToolsListResponse {
+                    feature_available: agent_diva_agent::mentle_discovery_available(),
+                    tools,
+                }
+            }
+            Err(error) => {
+                error!("Failed to load config for ListMentleTools: {}", error);
+                MentleToolsListResponse {
+                    feature_available: agent_diva_agent::mentle_discovery_available(),
+                    tools: Vec::new(),
+                }
+            }
+        };
+        let _ = reply.send(response);
+    }
+}
+
+fn expand_tilde_path(path: &str) -> std::path::PathBuf {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(stripped);
+        }
+    }
+    std::path::PathBuf::from(path)
 }
 
 fn set_channel<T>(slot: &mut T, update: &ChannelUpdate) -> anyhow::Result<()>
@@ -579,78 +627,3 @@ impl_channel_toggle!(
     QQConfig,
     MatrixConfig,
 );
-
-// Token usage statistics handlers
-impl Manager {
-    pub(super) fn handle_get_token_usage_total(
-        &self,
-        _range: agent_diva_core::usage::TimeRange,
-        reply: oneshot::Sender<Result<agent_diva_core::usage::UsageTotal, String>>,
-    ) {
-        // TODO: Integrate with UsageQueryService when available
-        // For now return empty stats as the service is not yet initialized
-        let _ = reply.send(Ok(agent_diva_core::usage::UsageTotal {
-            total_input: 0,
-            total_output: 0,
-            total_tokens: 0,
-            total_cache_creation: 0,
-            total_cache_read: 0,
-            request_count: 0,
-            total_cost: 0.0,
-        }));
-    }
-
-    pub(super) fn handle_get_token_usage_summary(
-        &self,
-        _range: agent_diva_core::usage::TimeRange,
-        _group_by: agent_diva_core::usage::GroupBy,
-        reply: oneshot::Sender<Result<Vec<agent_diva_core::usage::UsageSummary>, String>>,
-    ) {
-        // TODO: Integrate with UsageQueryService when available
-        let _ = reply.send(Ok(Vec::new()));
-    }
-
-    pub(super) fn handle_get_token_usage_timeline(
-        &self,
-        _range: agent_diva_core::usage::TimeRange,
-        _interval: agent_diva_core::usage::TimeInterval,
-        reply: oneshot::Sender<Result<Vec<agent_diva_core::usage::types::TimelinePoint>, String>>,
-    ) {
-        // TODO: Integrate with UsageQueryService when available
-        let _ = reply.send(Ok(Vec::new()));
-    }
-
-    pub(super) fn handle_get_token_usage_sessions(
-        &self,
-        _range: agent_diva_core::usage::TimeRange,
-        _limit: u64,
-        reply: oneshot::Sender<Result<Vec<agent_diva_core::usage::SessionUsage>, String>>,
-    ) {
-        // TODO: Integrate with UsageQueryService when available
-        let _ = reply.send(Ok(Vec::new()));
-    }
-
-    pub(super) fn handle_get_token_usage_models(
-        &self,
-        _range: agent_diva_core::usage::TimeRange,
-        reply: oneshot::Sender<Result<Vec<(String, f64)>, String>>,
-    ) {
-        // TODO: Integrate with UsageQueryService when available
-        let _ = reply.send(Ok(Vec::new()));
-    }
-
-    pub(super) fn handle_get_token_usage_realtime(
-        &self,
-        reply: oneshot::Sender<Result<agent_diva_core::usage::writer::InMemoryStats, String>>,
-    ) {
-        // TODO: Integrate with InMemoryAggregator when available
-        // For now return empty real-time stats
-        let _ = reply.send(Ok(agent_diva_core::usage::writer::InMemoryStats {
-            total_tokens: 0,
-            input_tokens: 0,
-            output_tokens: 0,
-            request_count: 0,
-            total_cost: 0.0,
-        }));
-    }
-}

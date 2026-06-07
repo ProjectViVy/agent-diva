@@ -59,7 +59,7 @@ interface Step {
 const steps: Step[] = [
   { key: 'platform', title: t('channels.wizardStepPlatform') },
   { key: 'credentials', title: t('channels.wizardStepCredentials') },
-  { key: 'test', title: t('channels.wizardStepTest') },
+  { key: 'done', title: t('channels.wizardStepDone') },
 ];
 
 const currentStep = ref<StepKey>('platform');
@@ -164,8 +164,16 @@ const resetForm = () => {
 
 const selectPlatform = (platform: string) => {
   formData.value.platform = platform;
-  // Auto-generate name from platform display name
   formData.value.name = PLATFORM_DISPLAY_NAMES[platform] || platform;
+  // 用字段默认值初始化凭证
+  const defaults: Record<string, any> = {};
+  const fields = CHANNEL_PLATFORMS[platform]?.credentialFields || [];
+  for (const field of fields) {
+    if (field.default !== undefined && formData.value.credentials[field.key] === undefined) {
+      defaults[field.key] = field.default;
+    }
+  }
+  formData.value.credentials = { ...defaults, ...formData.value.credentials };
 };
 
 const toggleRevealed = (key: string) => {
@@ -323,7 +331,6 @@ watch(
                     v-model="formData.credentials[field.key]"
                     :type="field.type || 'text'"
                     :placeholder="field.placeholder"
-                    :value="formData.credentials[field.key] ?? field.default ?? ''"
                     class="credential-input"
                   />
 
