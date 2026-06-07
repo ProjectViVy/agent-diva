@@ -146,7 +146,7 @@ impl Tool for ReadAttachmentTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_files::{FileConfig, FileMetadata};
+    use agent_diva_files::{FileConfig, handle::FileMetadata};
     use tempfile::TempDir;
 
     async fn create_test_tool() -> (ReadAttachmentTool, TempDir) {
