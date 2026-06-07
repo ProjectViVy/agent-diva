@@ -8,6 +8,7 @@ pub mod cron;
 pub mod filesystem;
 pub mod mcp_sdk;
 pub mod message;
+pub mod planning;
 pub mod registry;
 pub mod sanitize;
 pub mod shell;
