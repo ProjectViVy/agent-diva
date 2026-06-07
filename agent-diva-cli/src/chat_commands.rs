@@ -102,6 +102,7 @@ async fn build_local_cli_agent(
             overflow_retry_enabled: config.agents.defaults.context_overflow_retry_enabled,
         },
         trace_logger: Some(build_runtime_trace_logger(&config.logging)),
+        debug_logger: None,
         notify_on_soul_change: config.agents.soul.notify_on_change,
         soul_governance: SoulGovernanceSettings {
             frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,

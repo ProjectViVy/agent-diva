@@ -97,6 +97,7 @@ fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRuntimeConfig {
         config,
         loader,
         port: 0,
+        debug_run: None,
     }
 }
 

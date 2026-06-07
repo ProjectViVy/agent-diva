@@ -15,7 +15,9 @@ use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::debug::{DebugEvent, DebugEventLogger, DebugRun};
 use agent_diva_core::logging::build_runtime_trace_logger;
+use agent_diva_core::trace::TraceId;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
     DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess, ProviderCatalogService,
@@ -37,6 +39,7 @@ pub struct GatewayRuntimeConfig {
     pub workspace: PathBuf,
     pub cron_store: PathBuf,
     pub port: u16,
+    pub debug_run: Option<DebugRun>,
 }
 
 pub struct EmbeddedGatewayRuntime {
@@ -63,11 +66,13 @@ struct GatewayBootstrap {
     provider_api_base: Option<String>,
     agent: AgentLoop,
     file_manager: Arc<FileManager>,
+    debug_logger: Option<Arc<DebugEventLogger>>,
 }
 
 struct ChannelBootstrap {
     channel_manager: Arc<ChannelManager>,
     inbound_bridge_handle: JoinHandle<()>,
+    debug_logger: Option<Arc<DebugEventLogger>>,
 }
 
 struct GatewayTasks {
@@ -204,8 +209,12 @@ fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
 pub async fn run_local_gateway(runtime: GatewayRuntimeConfig) -> Result<()> {
     let port = runtime.port;
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
-    let channel_bootstrap =
-        bootstrap::bootstrap_channel_runtime(&bootstrap.config, bootstrap.bus.clone()).await;
+    let channel_bootstrap = bootstrap::bootstrap_channel_runtime(
+        &bootstrap.config,
+        bootstrap.bus.clone(),
+        bootstrap.debug_logger.clone(),
+    )
+    .await;
     let mut tasks = task_runtime::start_runtime_tasks(bootstrap, channel_bootstrap).await;
     tracing::info!(
         "Gateway ready; HTTP API at http://127.0.0.1:{} (Ctrl+C to stop)",
@@ -222,8 +231,12 @@ pub async fn start_embedded_gateway_runtime(
     shutdown_rx: watch::Receiver<bool>,
 ) -> Result<EmbeddedGatewayRuntime> {
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
-    let channel_bootstrap =
-        bootstrap::bootstrap_channel_runtime(&bootstrap.config, bootstrap.bus.clone()).await;
+    let channel_bootstrap = bootstrap::bootstrap_channel_runtime(
+        &bootstrap.config,
+        bootstrap.bus.clone(),
+        bootstrap.debug_logger.clone(),
+    )
+    .await;
     let tasks = task_runtime::start_embedded_runtime_tasks(
         bootstrap,
         channel_bootstrap,
@@ -234,18 +247,29 @@ pub async fn start_embedded_gateway_runtime(
     Ok(EmbeddedGatewayRuntime { tasks: Some(tasks) })
 }
 
-async fn start_cron_service(cron_store: PathBuf, bus: MessageBus) -> Arc<CronService> {
-    let cron_service = Arc::new(CronService::new(cron_store, Some(build_cron_callback(bus))));
+async fn start_cron_service(
+    cron_store: PathBuf,
+    bus: MessageBus,
+    debug_logger: Option<Arc<DebugEventLogger>>,
+) -> Arc<CronService> {
+    let cron_service = Arc::new(CronService::new(
+        cron_store,
+        Some(build_cron_callback(bus, debug_logger)),
+    ));
     cron_service.start().await;
     cron_service
 }
 
-fn build_cron_callback(bus: MessageBus) -> JobCallback {
+fn build_cron_callback(
+    bus: MessageBus,
+    debug_logger: Option<Arc<DebugEventLogger>>,
+) -> JobCallback {
     Arc::new(
         move |job: agent_diva_core::cron::CronJob,
               cancel_token|
               -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<String>> + Send>> {
             let bus = bus.clone();
+            let debug_logger = debug_logger.clone();
             Box::pin(async move {
                 if cancel_token.is_cancelled() {
                     return Some("Error: cancelled".to_string());
@@ -276,15 +300,41 @@ fn build_cron_callback(bus: MessageBus) -> JobCallback {
                     (target_channel.clone(), target_chat_id)
                 };
 
+                let trace_id = TraceId::new();
                 let inbound = InboundMessage::new(
                     conversation_channel,
                     "cron",
                     conversation_chat_id,
                     job.payload.message,
                 )
+                .with_metadata("trace_id", trace_id.as_str().to_string())
                 .with_metadata("cron_job_id", job.id.clone())
                 .with_metadata("cron_trigger", "scheduled")
                 .with_metadata("cron_delivery_channel", target_channel);
+
+                if let Some(logger) = &debug_logger {
+                    let session_id = inbound.session_key();
+                    let _ = logger.write_event(DebugEvent::new(
+                        Some(trace_id.as_str().to_string()),
+                        Some(session_id.clone()),
+                        "gateway",
+                        "cron_inbound",
+                        serde_json::json!({
+                            "job_id": job.id,
+                            "channel": inbound.channel,
+                            "chat_id": inbound.chat_id,
+                        }),
+                    ));
+                    let _ = logger.write_raw(DebugEvent::new(
+                        Some(trace_id.as_str().to_string()),
+                        Some(session_id),
+                        "gateway",
+                        "cron_inbound_raw",
+                        serde_json::to_value(&inbound).unwrap_or_else(|error| {
+                            serde_json::json!({"serialization_error": error.to_string()})
+                        }),
+                    ));
+                }
 
                 if let Err(e) = bus.publish_inbound(inbound) {
                     error!("Failed to publish cron inbound job {}: {}", job.id, e);
@@ -300,6 +350,7 @@ fn build_cron_callback(bus: MessageBus) -> JobCallback {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn build_agent_loop(
     config: &Config,
     bus: MessageBus,
@@ -308,6 +359,7 @@ async fn build_agent_loop(
     runtime_control_rx: mpsc::UnboundedReceiver<RuntimeControlCommand>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
+    debug_logger: Option<Arc<DebugEventLogger>>,
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let tool_config = ToolConfig {
@@ -331,6 +383,7 @@ async fn build_agent_loop(
             overflow_retry_enabled: config.agents.defaults.context_overflow_retry_enabled,
         },
         trace_logger: Some(build_runtime_trace_logger(&config.logging)),
+        debug_logger,
         notify_on_soul_change: config.agents.soul.notify_on_change,
         soul_governance: SoulGovernanceSettings {
             frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,

@@ -102,6 +102,53 @@ pub fn init_logging_with_terminal_output(
     guard
 }
 
+/// Initialize raw foreground debug logging for `agent-diva gateway run --debug`.
+///
+/// This intentionally bypasses the normal redacting writer because debug mode is
+/// an explicit local diagnostic mode that records complete payloads.
+pub fn init_raw_debug_logging(
+    _config: &LoggingConfig,
+    debug_dir: &Path,
+    enable_terminal_output: bool,
+) -> WorkerGuard {
+    let log_level_str = std::env::var("RUST_LOG").unwrap_or_else(|_| "trace".to_string());
+
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&log_level_str));
+
+    let file_appender = tracing_appender::rolling::never(debug_dir, "gateway.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    let stdout_layer = enable_terminal_output.then(|| {
+        fmt::layer()
+            .with_writer(std::io::stdout)
+            .with_timer(LocalTime::rfc_3339())
+            .with_target(true)
+            .with_thread_ids(true)
+            .with_file(true)
+            .with_line_number(true)
+            .boxed()
+    });
+
+    let file_layer = fmt::layer()
+        .with_writer(non_blocking)
+        .with_timer(LocalTime::rfc_3339())
+        .with_ansi(false)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .boxed();
+
+    Registry::default()
+        .with(filter)
+        .with(stdout_layer)
+        .with(file_layer)
+        .init();
+
+    guard
+}
+
 pub fn build_runtime_trace_logger(config: &LoggingConfig) -> Arc<TraceLogger> {
     TraceLogger::from_logging_config(config)
 }

@@ -1,3 +1,4 @@
+pub mod debug_bundle;
 pub mod file_service;
 pub mod handlers;
 pub mod manager;
@@ -7,6 +8,7 @@ pub mod server;
 pub mod skill_service;
 pub mod state;
 
+pub use debug_bundle::{create_debug_bundle, DebugBundleReport};
 pub use manager::Manager;
 pub use runtime::{
     run_local_gateway, start_embedded_gateway_runtime, EmbeddedGatewayRuntime,

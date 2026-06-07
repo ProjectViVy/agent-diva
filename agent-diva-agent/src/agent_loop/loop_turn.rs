@@ -7,6 +7,7 @@ use crate::consolidation;
 use crate::context_budget::CompactionMode;
 use agent_diva_core::attachment::FileAttachmentRef;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
+use agent_diva_core::debug::DebugEvent;
 use agent_diva_core::memory::PrefetchRequest;
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
@@ -79,6 +80,30 @@ impl AgentLoop {
                 "has_attachments": !msg.media.is_empty(),
                 "preview": preview,
             }),
+        );
+        self.emit_debug_event(
+            &trace_id,
+            &session_key,
+            "gateway",
+            "inbound_message",
+            serde_json::json!({
+                "channel": msg.channel,
+                "sender_id": msg.sender_id,
+                "chat_id": msg.chat_id,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "media": msg.media,
+                "metadata": msg.metadata,
+            }),
+        );
+        self.emit_debug_raw(
+            &trace_id,
+            &session_key,
+            "gateway",
+            "channel_inbound_raw",
+            serde_json::to_value(&msg).unwrap_or_else(
+                |error| serde_json::json!({"serialization_error": error.to_string()}),
+            ),
         );
         self.clear_session_cancellation(&session_key);
         let session = self.sessions.get_or_create(&session_key)?;
@@ -254,6 +279,31 @@ impl AgentLoop {
                             "loop_index": iteration,
                         }),
                     );
+                    self.emit_debug_event(
+                        &trace_id,
+                        &session_key,
+                        "provider",
+                        "llm_request_started",
+                        serde_json::json!({
+                            "model": model_to_use,
+                            "loop_index": iteration,
+                            "message_count": provider_messages.len(),
+                            "tool_count": tool_defs.len(),
+                        }),
+                    );
+                    self.emit_debug_raw(
+                        &trace_id,
+                        &session_key,
+                        "provider",
+                        "llm_request_raw",
+                        serde_json::json!({
+                            "model": model_to_use,
+                            "messages": provider_messages,
+                            "tools": tool_defs,
+                            "max_tokens": self.request_max_tokens,
+                            "temperature": self.temperature,
+                        }),
+                    );
 
                     let mut stream = match self
                         .provider
@@ -387,6 +437,16 @@ impl AgentLoop {
                             }
                         };
 
+                        self.emit_debug_raw(
+                            &trace_id,
+                            &session_key,
+                            "provider",
+                            "llm_stream_event_raw",
+                            serde_json::to_value(&stream_event).unwrap_or_else(|error| {
+                                serde_json::json!({"serialization_error": error.to_string()})
+                            }),
+                        );
+
                         match stream_event {
                             LLMStreamEvent::TextDelta(delta) => {
                                 streamed_content.push_str(&delta);
@@ -475,6 +535,28 @@ impl AgentLoop {
                             "tool_call_count": response.tool_calls.len(),
                         }),
                     );
+                    self.emit_debug_event(
+                        &trace_id,
+                        &session_key,
+                        "provider",
+                        "llm_response_completed",
+                        serde_json::json!({
+                            "model": model_to_use,
+                            "finish_reason": response.finish_reason,
+                            "loop_index": iteration,
+                            "duration_ms": llm_started_at.elapsed().as_millis() as u64,
+                            "tool_call_count": response.tool_calls.len(),
+                        }),
+                    );
+                    self.emit_debug_raw(
+                        &trace_id,
+                        &session_key,
+                        "provider",
+                        "llm_response_raw",
+                        serde_json::to_value(&response).unwrap_or_else(
+                            |error| serde_json::json!({"serialization_error": error.to_string()}),
+                        ),
+                    );
                     break response;
                 }
             };
@@ -561,6 +643,26 @@ impl AgentLoop {
                             "call_id": tool_call.id,
                         }),
                     );
+                    let tool_component = if tool_call.name.starts_with("mcp_") {
+                        "mcp"
+                    } else {
+                        "tool_runtime"
+                    };
+                    self.emit_debug_event(
+                        &trace_id,
+                        &session_key,
+                        tool_component,
+                        if tool_call.name.starts_with("mcp_") {
+                            "mcp_call_started"
+                        } else {
+                            "tool_call_started"
+                        },
+                        serde_json::json!({
+                            "tool": tool_call.name,
+                            "call_id": tool_call.id,
+                            "loop_index": iteration,
+                        }),
+                    );
 
                     let result = match serde_json::to_value(&tool_call.arguments) {
                         Ok(mut params_value) => {
@@ -582,6 +684,22 @@ impl AgentLoop {
                                     }
                                 }
                             }
+                            self.emit_debug_raw(
+                                &trace_id,
+                                &session_key,
+                                tool_component,
+                                if tool_call.name.starts_with("mcp_") {
+                                    "mcp_request_raw"
+                                } else {
+                                    "tool_input_raw"
+                                },
+                                serde_json::json!({
+                                    "tool": tool_call.name,
+                                    "call_id": tool_call.id,
+                                    "arguments": tool_call.arguments,
+                                    "params": params_value.clone(),
+                                }),
+                            );
                             if is_cron_trigger && tool_call.name == "cron" {
                                 "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
                             } else {
@@ -658,6 +776,45 @@ impl AgentLoop {
                             format!("{} completed", tool_call.name)
                         },
                         metadata,
+                    );
+                    self.emit_debug_event(
+                        &trace_id,
+                        &session_key,
+                        tool_component,
+                        if tool_call.name.starts_with("mcp_") {
+                            if tool_failed {
+                                "mcp_call_failed"
+                            } else {
+                                "mcp_call_completed"
+                            }
+                        } else if tool_failed {
+                            "tool_call_failed"
+                        } else {
+                            "tool_call_completed"
+                        },
+                        serde_json::json!({
+                            "tool": tool_call.name,
+                            "status": if tool_failed { "error" } else { "ok" },
+                            "duration_ms": duration_ms,
+                            "loop_index": iteration,
+                            "call_id": tool_call.id,
+                        }),
+                    );
+                    self.emit_debug_raw(
+                        &trace_id,
+                        &session_key,
+                        tool_component,
+                        if tool_call.name.starts_with("mcp_") {
+                            "mcp_response_raw"
+                        } else {
+                            "tool_output_raw"
+                        },
+                        serde_json::json!({
+                            "tool": tool_call.name,
+                            "call_id": tool_call.id,
+                            "status": if tool_failed { "error" } else { "ok" },
+                            "result": result,
+                        }),
                     );
                     let stop_reason = loop_guard.record_tool_result(
                         &tool_call.name,
@@ -821,6 +978,52 @@ impl AgentLoop {
         }
     }
 
+    fn emit_debug_event(
+        &self,
+        trace_id: &TraceId,
+        session_id: &str,
+        component: &str,
+        event: &str,
+        payload: serde_json::Value,
+    ) {
+        let Some(logger) = &self.debug_logger else {
+            return;
+        };
+        let debug_event = DebugEvent::new(
+            Some(trace_id.as_str().to_string()),
+            Some(session_id.to_string()),
+            component,
+            event,
+            payload,
+        );
+        if let Err(error) = logger.write_event(debug_event) {
+            warn!(event = %event, error = %error, "Failed to write debug event");
+        }
+    }
+
+    fn emit_debug_raw(
+        &self,
+        trace_id: &TraceId,
+        session_id: &str,
+        component: &str,
+        event: &str,
+        payload: serde_json::Value,
+    ) {
+        let Some(logger) = &self.debug_logger else {
+            return;
+        };
+        let debug_event = DebugEvent::new(
+            Some(trace_id.as_str().to_string()),
+            Some(session_id.to_string()),
+            component,
+            event,
+            payload,
+        );
+        if let Err(error) = logger.write_raw(debug_event) {
+            warn!(event = %event, error = %error, "Failed to write raw debug event");
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn emit_llm_failed_event(
         &self,
@@ -846,6 +1049,31 @@ impl AgentLoop {
                 "error_kind": error.to_string(),
                 "loop_index": iteration,
                 "duration_ms": duration.as_millis() as u64,
+            }),
+        );
+        self.emit_debug_event(
+            trace_id,
+            session_id,
+            "provider",
+            "llm_response_failed",
+            serde_json::json!({
+                "model": model,
+                "loop_index": iteration,
+                "duration_ms": duration.as_millis() as u64,
+                "error": error.to_string(),
+            }),
+        );
+        self.emit_debug_raw(
+            trace_id,
+            session_id,
+            "provider",
+            "llm_error_raw",
+            serde_json::json!({
+                "model": model,
+                "loop_index": iteration,
+                "duration_ms": duration.as_millis() as u64,
+                "error": format!("{:?}", error),
+                "display": error.to_string(),
             }),
         );
     }

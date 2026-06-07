@@ -3,6 +3,7 @@
 use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::debug::DebugEventLogger;
 use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
 use agent_diva_core::session::SessionManager;
@@ -59,6 +60,8 @@ pub struct ToolConfig {
     pub context_budget: ContextBudgetPolicy,
     /// Structured runtime observability logger.
     pub trace_logger: Option<Arc<TraceLogger>>,
+    /// Explicit raw debug logger for foreground gateway debug runs.
+    pub debug_logger: Option<Arc<DebugEventLogger>>,
     /// Whether to append transparent notifications on soul updates
     pub notify_on_soul_change: bool,
     /// Governance behavior for soul evolution transparency
@@ -80,6 +83,7 @@ impl Default for ToolConfig {
             temperature: 0.7,
             context_budget: ContextBudgetPolicy::default(),
             trace_logger: None,
+            debug_logger: None,
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
         }
@@ -134,6 +138,7 @@ pub struct AgentLoop {
     /// Memory provider boundary for prefetch, sync_turn, and shutdown hooks.
     memory_provider: Arc<dyn MemoryProvider>,
     trace_logger: Option<Arc<TraceLogger>>,
+    debug_logger: Option<Arc<DebugEventLogger>>,
 }
 
 pub struct AgentLoopToolSet {
@@ -217,6 +222,7 @@ impl AgentLoop {
             file_manager,
             memory_provider,
             trace_logger: None,
+            debug_logger: None,
         })
     }
 
@@ -325,6 +331,7 @@ impl AgentLoop {
             file_manager,
             memory_provider,
             trace_logger: tool_config.trace_logger.clone(),
+            debug_logger: tool_config.debug_logger.clone(),
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -400,6 +407,7 @@ impl AgentLoop {
             file_manager,
             memory_provider,
             trace_logger: toolset.config.trace_logger.clone(),
+            debug_logger: toolset.config.debug_logger.clone(),
         })
     }
 
@@ -496,10 +504,19 @@ impl AgentLoop {
     /// Process a single inbound message
     pub async fn process_inbound_message(
         &mut self,
-        msg: InboundMessage,
+        mut msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
-        let trace_id = TraceId::new();
+        let trace_id = msg
+            .metadata
+            .get("trace_id")
+            .and_then(|value| value.as_str())
+            .map(TraceId::from)
+            .unwrap_or_default();
+        msg.metadata.insert(
+            "trace_id".to_string(),
+            serde_json::Value::String(trace_id.as_str().to_string()),
+        );
         use tracing::Instrument;
         let span = tracing::info_span!("AgentSpan", trace_id = %trace_id);
 

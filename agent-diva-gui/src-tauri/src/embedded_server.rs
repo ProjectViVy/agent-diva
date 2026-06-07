@@ -142,6 +142,7 @@ mod tests {
             workspace: PathBuf::from(workspace_dir.path()),
             cron_store: config_dir.path().join("cron.json"),
             port: 0,
+            debug_run: None,
         }
     }
 

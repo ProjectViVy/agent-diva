@@ -22,7 +22,8 @@ use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::{CronSchedule, CronService};
-use agent_diva_core::logging::build_runtime_trace_logger;
+use agent_diva_core::debug::DebugRun;
+use agent_diva_core::logging::{build_runtime_trace_logger, init_raw_debug_logging};
 use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -50,7 +51,9 @@ mod service;
 use agent_diva_cli::client::ApiClient;
 use service::{run_service_command, ServiceCommands};
 
-use agent_diva_manager::{run_local_gateway, GatewayRuntimeConfig, DEFAULT_GATEWAY_PORT};
+use agent_diva_manager::{
+    create_debug_bundle, run_local_gateway, GatewayRuntimeConfig, DEFAULT_GATEWAY_PORT,
+};
 use agent_diva_tools::wtf;
 
 #[derive(Parser)]
@@ -183,11 +186,33 @@ fn command_shows_startup_branding(command: &Commands) -> bool {
     !matches!(command, Commands::Agent { .. })
 }
 
-#[derive(Subcommand, Clone, Copy)]
+fn gateway_debug_run(command: &Commands) -> bool {
+    matches!(
+        command,
+        Commands::Gateway {
+            command: Some(GatewayCommands::Run { debug: true })
+        }
+    )
+}
+
+#[derive(Subcommand, Clone)]
 #[command(rename_all = "kebab-case")]
 enum GatewayCommands {
     /// Run the gateway in foreground mode
-    Run,
+    Run {
+        /// Print and persist complete raw debug output for this foreground run.
+        ///
+        /// WARNING: debug output may include API keys, provider payloads, tool output, MCP I/O,
+        /// channel messages, and other secrets.
+        #[arg(long)]
+        debug: bool,
+    },
+    /// Create a zip bundle from a debug gateway run
+    Bundle {
+        /// Debug run id to bundle; defaults to the latest debug run
+        #[arg(long)]
+        run_id: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -384,12 +409,18 @@ async fn main() -> Result<()> {
 
     // Load config for logging
     let config = runtime.loader().load().unwrap_or_default();
+    let debug_run = gateway_debug_run(&cli.command).then(|| DebugRun::new(runtime.config_dir()));
 
     // Initialize tracing
-    let _guard = agent_diva_core::logging::init_logging_with_terminal_output(
-        &config.logging,
-        enable_terminal_logs,
-    );
+    let _guard = if let Some(run) = &debug_run {
+        fs::create_dir_all(&run.dir)?;
+        init_raw_debug_logging(&config.logging, &run.dir, enable_terminal_logs)
+    } else {
+        agent_diva_core::logging::init_logging_with_terminal_output(
+            &config.logging,
+            enable_terminal_logs,
+        )
+    };
 
     match cli.command {
         Commands::Onboard(args) => {
@@ -398,14 +429,19 @@ async fn main() -> Result<()> {
             }
             run_onboard(&runtime, args).await?;
         }
-        Commands::Gateway { command } => match command.unwrap_or(GatewayCommands::Run) {
-            GatewayCommands::Run => {
-                if !structured_output {
-                    info!("Starting gateway");
+        Commands::Gateway { command } => {
+            match command.unwrap_or(GatewayCommands::Run { debug: false }) {
+                GatewayCommands::Run { debug } => {
+                    if !structured_output {
+                        info!("Starting gateway");
+                    }
+                    run_gateway(&runtime, debug.then(|| debug_run.clone()).flatten()).await?;
                 }
-                run_gateway(&runtime).await?;
+                GatewayCommands::Bundle { run_id } => {
+                    run_gateway_bundle(&runtime, run_id.as_deref()).await?;
+                }
             }
-        },
+        }
         Commands::Agent {
             message,
             model,
@@ -783,6 +819,7 @@ fn build_gateway_runtime_config(
     runtime: &CliRuntime,
     config: Config,
     workspace: PathBuf,
+    debug_run: Option<DebugRun>,
 ) -> GatewayRuntimeConfig {
     GatewayRuntimeConfig {
         config,
@@ -790,10 +827,11 @@ fn build_gateway_runtime_config(
         workspace,
         cron_store: runtime.cron_store_path(),
         port: DEFAULT_GATEWAY_PORT,
+        debug_run,
     }
 }
 
-async fn run_gateway(runtime: &CliRuntime) -> Result<()> {
+async fn run_gateway(runtime: &CliRuntime, debug_run: Option<DebugRun>) -> Result<()> {
     // Remote CLI flows continue to use HTTP APIs and do not cross this boundary.
     let config = runtime.load_config()?;
 
@@ -810,16 +848,47 @@ async fn run_gateway(runtime: &CliRuntime) -> Result<()> {
     println!("{}", style("Starting Agent Diva Gateway...").bold().cyan());
     println!("Model: {}", config.agents.defaults.model);
     println!("Workspace: {}", workspace.display());
+    if let Some(run) = &debug_run {
+        println!("{}", style("DEBUG MODE: RAW OUTPUT ENABLED").bold().red());
+        println!("Debug run: {}", run.run_id);
+        println!("Debug directory: {}", run.dir.display());
+        println!(
+            "{}",
+            style("WARNING: debug output may include secrets, provider payloads, tool output, MCP I/O, and channel messages.")
+                .red()
+        );
+    }
     println!(
         "{}",
         style("Bootstrapping (agent, optional MCP servers, channels, HTTP API) — please wait…",)
             .yellow()
     );
 
-    let result = run_local_gateway(build_gateway_runtime_config(runtime, config, workspace)).await;
+    let result = run_local_gateway(build_gateway_runtime_config(
+        runtime, config, workspace, debug_run,
+    ))
+    .await;
 
     println!("{}", style("Gateway stopped.").green());
     result
+}
+
+async fn run_gateway_bundle(runtime: &CliRuntime, run_id: Option<&str>) -> Result<()> {
+    let config = runtime.load_config()?;
+    let report = create_debug_bundle(runtime.config_dir(), &config, run_id)?;
+    println!("{}", style("Debug bundle created").bold().green());
+    println!("Run: {}", report.run_id);
+    println!("Bundle: {}", report.bundle_path.display());
+    println!("Included files:");
+    for file in report.included_files {
+        println!("  - {}", file);
+    }
+    println!(
+        "{}",
+        style("WARNING: this bundle may include raw secrets and full provider/tool/MCP payloads from the debug run.")
+            .red()
+    );
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -999,6 +1068,7 @@ async fn run_tui(
             overflow_retry_enabled: config.agents.defaults.context_overflow_retry_enabled,
         },
         trace_logger: Some(build_runtime_trace_logger(&config.logging)),
+        debug_logger: None,
         notify_on_soul_change: config.agents.soul.notify_on_change,
         soul_governance: SoulGovernanceSettings {
             frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
@@ -1992,6 +2062,19 @@ mod tests {
 
         assert!(!command_writes_logs_to_terminal(&command));
         assert!(!command_shows_startup_branding(&command));
+    }
+
+    #[test]
+    fn gateway_debug_run_is_detected_only_for_run_debug() {
+        assert!(gateway_debug_run(&Commands::Gateway {
+            command: Some(GatewayCommands::Run { debug: true }),
+        }));
+        assert!(!gateway_debug_run(&Commands::Gateway {
+            command: Some(GatewayCommands::Run { debug: false }),
+        }));
+        assert!(!gateway_debug_run(&Commands::Gateway {
+            command: Some(GatewayCommands::Bundle { run_id: None }),
+        }));
     }
 
     #[test]

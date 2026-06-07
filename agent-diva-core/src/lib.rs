@@ -7,6 +7,7 @@ pub mod attachment;
 pub mod bus;
 pub mod config;
 pub mod cron;
+pub mod debug;
 pub mod error;
 pub mod error_context;
 pub mod heartbeat;

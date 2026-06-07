@@ -53,13 +53,21 @@ async fn start_runtime_tasks_inner(
         provider_api_base,
         agent,
         file_manager,
+        debug_logger,
     } = bootstrap;
     let ChannelBootstrap {
         channel_manager,
         inbound_bridge_handle,
+        debug_logger: channel_debug_logger,
     } = channel_bootstrap;
 
-    subscribe_configured_outbound_channels(&bus, &channel_manager, &config).await;
+    subscribe_configured_outbound_channels(
+        &bus,
+        &channel_manager,
+        &config,
+        debug_logger.clone().or(channel_debug_logger),
+    )
+    .await;
     let neuro_link_bridge_handle = config
         .channels
         .neuro_link
@@ -128,16 +136,70 @@ async fn subscribe_configured_outbound_channels(
     bus: &MessageBus,
     channel_manager: &Arc<ChannelManager>,
     config: &Config,
+    debug_logger: Option<Arc<DebugEventLogger>>,
 ) {
     for channel_name in configured_channels(config) {
         let manager = channel_manager.clone();
         let channel_key = channel_name.clone();
+        let debug_logger = debug_logger.clone();
         bus.subscribe_outbound(channel_name, move |msg| {
             let manager = manager.clone();
             let channel_key = channel_key.clone();
+            let debug_logger = debug_logger.clone();
             async move {
-                if let Err(e) = manager.send(&channel_key, msg).await {
+                let trace_id = msg
+                    .metadata
+                    .get("trace_id")
+                    .and_then(|value| value.as_str())
+                    .map(ToString::to_string);
+                let session_id = Some(format!("{}:{}", msg.channel, msg.chat_id));
+                if let Some(logger) = &debug_logger {
+                    let _ = logger.write_event(DebugEvent::new(
+                        trace_id.clone(),
+                        session_id.clone(),
+                        "gateway",
+                        "channel_outbound_started",
+                        serde_json::json!({
+                            "channel": msg.channel,
+                            "chat_id": msg.chat_id,
+                            "adapter": channel_key,
+                        }),
+                    ));
+                    let _ = logger.write_raw(DebugEvent::new(
+                        trace_id.clone(),
+                        session_id.clone(),
+                        "gateway",
+                        "channel_outbound_raw",
+                        serde_json::to_value(&msg).unwrap_or_else(
+                            |error| serde_json::json!({"serialization_error": error.to_string()}),
+                        ),
+                    ));
+                }
+                if let Err(e) = manager.send(&channel_key, msg.clone()).await {
                     tracing::error!("Failed to send outbound message to {}: {}", channel_key, e);
+                    if let Some(logger) = &debug_logger {
+                        let _ = logger.write_event(DebugEvent::new(
+                            trace_id.clone(),
+                            session_id.clone(),
+                            "gateway",
+                            "channel_outbound_failed",
+                            serde_json::json!({
+                                "adapter": channel_key,
+                                "error": e.to_string(),
+                            }),
+                        ));
+                    }
+                } else if let Some(logger) = &debug_logger {
+                    let _ = logger.write_event(DebugEvent::new(
+                        trace_id,
+                        session_id,
+                        "gateway",
+                        "channel_outbound_completed",
+                        serde_json::json!({
+                            "adapter": channel_key,
+                            "status": "ok",
+                        }),
+                    ));
                 }
             }
         })
