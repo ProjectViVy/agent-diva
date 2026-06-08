@@ -123,6 +123,17 @@ const SCALE_MAX = 1.6
 const WHEEL_DELTA_STEP = 0.05
 const desktopPetScale = ref(petConfig.value.desktopPetScale ?? 1.0)
 
+const scaleSliderPercent = computed(() => {
+  const range = SCALE_MAX - SCALE_MIN
+  if (range <= 0) return 0
+  const percent = ((desktopPetScale.value - SCALE_MIN) / range) * 100
+  return Math.max(0, Math.min(100, percent))
+})
+
+const scaleSliderStyle = computed(() => ({
+  '--slider-progress': `${scaleSliderPercent.value}%`,
+}))
+
 function handleWheel(event: WheelEvent): void {
   // Block wheel zoom when click-through or drag mode is active
   if (isMousePassThrough.value || isDragMode.value) return
@@ -699,9 +710,18 @@ onUnmounted(() => {
         <div class="menu-item menu-item-slider">
           <span class="menu-label">缩放</span>
           <div class="menu-slider-row">
-            <input type="range" class="menu-slider" :min="SCALE_MIN" :max="SCALE_MAX"
-                   :step="WHEEL_DELTA_STEP" :value="desktopPetScale"
-                   @input="handleScaleInput" @pointerdown.stop />
+            <input
+              type="range"
+              class="menu-slider"
+              :min="SCALE_MIN"
+              :max="SCALE_MAX"
+              :step="WHEEL_DELTA_STEP"
+              :value="desktopPetScale"
+              :style="scaleSliderStyle"
+              aria-label="缩放"
+              @input="handleScaleInput"
+              @pointerdown.stop
+            />
             <span class="menu-scale-value">{{ Math.round(desktopPetScale * 100) }}%</span>
           </div>
         </div>
@@ -902,7 +922,7 @@ onUnmounted(() => {
 .menu-item-slider {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   cursor: default;
   padding: 10px 16px;
 }
@@ -910,38 +930,102 @@ onUnmounted(() => {
 .menu-slider-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .menu-slider {
   flex: 1;
-  height: 4px;
+  height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #60a5fa 0%,
+    #60a5fa var(--slider-progress, 35%),
+    rgba(255, 255, 255, 0.18) var(--slider-progress, 35%),
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  border-radius: 999px;
   outline: none;
   cursor: pointer;
+  transition: box-shadow 0.15s ease, filter 0.15s ease;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.menu-slider:hover {
+  filter: brightness(1.05);
+}
+
+.menu-slider:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(96, 165, 250, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .menu-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: #60a5fa;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.4) 35%, rgba(96, 165, 250, 0.95) 36%, #60a5fa 100%);
   cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.menu-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38);
+}
+
+.menu-slider::-webkit-slider-thumb:active {
+  transform: scale(0.98);
+}
+
+.menu-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.menu-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: #60a5fa;
+}
+
+.menu-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.4) 35%, rgba(96, 165, 250, 0.95) 36%, #60a5fa 100%);
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.menu-slider::-moz-range-thumb:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38);
 }
 
 .menu-scale-value {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.6);
-  min-width: 36px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  min-width: 42px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ── Submenu transitions ─────────────────────────────────────── */
