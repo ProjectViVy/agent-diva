@@ -9,25 +9,43 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
         "title": "Agent Diva",
-        "width": 1024,
-        "height": 768,
-        "minWidth": 640,
-        "minHeight": 480,
-        "visible": false
+        "width": 800,
+        "height": 600,
+        "visible": true,
+        "center": true,
+        "devtools": true
       },
       {
         "label": "splashscreen",
         "title": "Agent Diva",
         "url": "/splashscreen.html",
+        "visible": false,
         "width": 400,
         "height": 300,
         "resizable": false,
         "decorations": false,
         "center": true
+      },
+      {
+        "label": "desktop-pet",
+        "title": "Diva Desktop Pet",
+        "url": "/desktop-pet.html",
+        "visible": false,
+        "width": 400,
+        "height": 600,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false,
+        "devtools": true
       }
     ],
     "security": {

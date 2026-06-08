@@ -1,13 +1,13 @@
 [package]
 name = "agent-diva-sandbox"
-version = "0.4.9"
+version = "0.5.0"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 edition = "2021"
 rust-version = "1.80.0"
 description = "Sandbox isolation for agent-diva command execution"
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.4.9" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -32,6 +32,11 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
 - Install `just` and run commands from the workspace root.
 - Copy and configure local environment files if required by a crate or channel.
 - Verify toolchain and project health with `just fmt-check && just check && just test`.
+- For Mentle feature-lane work on Windows, ensure `clang-cl.exe` is discoverable.
+  If LLVM is installed at `C:\Program Files\LLVM\bin` but the current shell PATH
+  does not include it, prefix the session with
+  `$env:PATH = 'C:\Program Files\LLVM\bin;' + $env:PATH` before running
+  `cargo check -p agent-diva-agent --features mentle`.
 
 ## Development Guide
 If users request references to projects such as openclaw, nanobot, or shannon, prioritize reviewing the contents under the .workspace directory. Analyze the architectures of these sibling projects and propose a development approach suitable for the agent-diva architecture.
@@ -112,8 +117,6 @@ Write focused unit tests near the code with `#[cfg(test)]`. Add integration test
 
 Recent history follows Conventional Commit prefixes (`feat:`, `fix:`, `docs:`); keep using that style with concise imperative summaries. Before PRs, run `just ci`, describe behavioral impact, link related issues, and update docs when interfaces/channels/providers change. Keep PRs focused to a single concern for easier review.
 
-Before committing, clean up generated scratch artifacts, temporary scripts, stale archives, local test outputs, and other non-deliverable dirty-work files created during the task. Do not remove or revert unrelated user changes. After the cleanup and validation notes are complete, commit the deliverable changes when the user has requested a commit or when a repository rule explicitly requires the current delivery to be committed.
-
 **Recommended PR checklist:**
 
 - Scope is focused and commit history is readable.
@@ -131,13 +134,6 @@ Before committing, clean up generated scratch artifacts, temporary scripts, stal
   - `release.md`: Release/deployment method (if not applicable, provide a reason).
   - `acceptance.md`: Acceptance steps from user/product perspective.
 - Optional documentation: `prd.md`, `notes.md` (discussion records), `rollback.md` (rollback plan).
-
-## TODOLIST Protocol
-
-- `TODOLIST.md` at the repository root is the canonical backlog for discovered bugs, gaps, deferred work, and unfinished implementation or UX items.
-- When an issue is found during code review, implementation, validation, or documentation work, add it to `TODOLIST.md` unless it is fixed in the same iteration.
-- Entries should include enough context to recover the issue later: status checkbox, short title, reason, expected behavior, and related files or docs when available.
-- When a TODO is completed, move or mark it under the done section instead of silently deleting it.
 
 ## Command Mechanism
 
@@ -209,11 +205,11 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Execution Method: Include "update command index" in change list and acceptance items.
   - Maintainer: Current assistant.
 
-- **no-self-commit-without-request**:
-  - Constraints/Range of applicability: Do not commit or push code without user's explicit request, except when a repository rule explicitly requires committing the current delivery after cleanup.
-  - Example: Commit after the user explicitly says "help me commit", or when performing a delivery covered by the cleanup-and-commit rule below.
-  - Counterexample: Commit unrelated user changes or push without authorization.
-  - Execution Method: Confirm the commit scope, avoid unrelated files, and never push unless explicitly requested.
+- **auto-commit-each-completed-update**:
+  - Constraints/Range of applicability: After each completed update, automatically create one git commit for the files changed by that update. Do not push unless the user explicitly requests it.
+  - Example: After updating project rules in `AGENTS.md`, stage and commit only `AGENTS.md`.
+  - Counterexample: Finish an update without committing it, include unrelated pre-existing workspace changes in the commit, or push without authorization.
+  - Execution Method: Before committing, inspect `git status --short`; stage explicit paths for the current update only; verify the staged diff; commit with a concise Conventional Commit message.
   - Maintainer: Current assistant.
 
 - **use-chinese-when-communicating**:
@@ -221,20 +217,6 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Example: Use Chinese for demand clarification, scheme explanation, and feedback.
   - Counterexample: Use English directly to reply to users.
   - Execution Method: Use unison Chinese output.
-  - Maintainer: Current assistant.
-
-- **todolist-capture-required**:
-  - Constraints/Range of applicability: Any discovered bug, unfinished work, known limitation, or deferred improvement must be recorded in root `TODOLIST.md` unless it is completed in the same iteration.
-  - Example: Discover that GUI image paste is not implemented; add an open TODO with context and expected behavior.
-  - Counterexample: Mention a future fix in chat but leave no durable project backlog entry.
-  - Execution Method: Update `TODOLIST.md` before final response or commit; include related docs/files when available.
-  - Maintainer: Current assistant.
-
-- **cleanup-before-commit-required**:
-  - Constraints/Range of applicability: Before committing a delivery, remove or exclude dirty-work artifacts created by the current task, including scratch scripts, temporary data, generated archives, local logs, and non-deliverable outputs. Do not delete or revert unrelated user changes.
-  - Example: Delete a one-off validation script and commit only source/docs that are part of the requested deliverable.
-  - Counterexample: Commit temporary debugging files, or delete unrelated untracked files that preexisted the task.
-  - Execution Method: Run `git status --short --untracked-files=all`, inspect the scope, clean only current-task artifacts, stage only deliverable files, and commit when required by user instruction or repository rule.
   - Maintainer: Current assistant.
 
 ---
@@ -261,6 +243,13 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Counterexample: Modify the GUI but run Rust tests only.
   - Execution Method: Record GUI smoke test commands and results in `verification.md`.
   - Maintainer: Committer of the GUI change.
+
+- **commit-each-update-scope-only**:
+  - Constraints/Range of applicability: Each completed update must create one git commit, and the commit may include only the files changed for that specific update.
+  - Example: After updating project rules in `AGENTS.md`, stage and commit only `AGENTS.md`.
+  - Counterexample: Finish an update without a commit, or include unrelated pre-existing workspace changes in the commit.
+  - Execution Method: Before committing, inspect `git status --short`; stage explicit paths for the current update only; verify the staged diff; then commit with a concise Conventional Commit message.
+  - Maintainer: Current assistant.
 
 ---
 

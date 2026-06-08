@@ -109,6 +109,13 @@ target/doc/
 agent-diva-gui/src-tauri/resources/bin/
 agent-diva-gui/src-tauri/resources/manifests/
 
+# VRM 子包的编译产物（防止 tsc 无 outDir 时污染 src/）
+agent-diva-gui/shared-avatar-protocol/src/*.js
+agent-diva-gui/shared-avatar-protocol/src/*.d.ts
+agent-diva-gui/shared-avatar-protocol/src/*.d.ts.map
+agent-diva-gui/shared-avatar-protocol/src/*.js.map
+agent-diva-gui/avatar-runtime-vrm/demo-dist/
+
 # BMad Builder artifacts
 _bmad/
 _bmad-output/
@@ -138,3 +145,6 @@ pnpm-debug.log*
 
 # Temporary state files
 state/
+
+# Workspace temporary staging area
+temp/

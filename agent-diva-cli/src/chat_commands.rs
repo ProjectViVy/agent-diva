@@ -6,14 +6,16 @@ use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings,
     context::SoulContextSettings,
     runtime_control::RuntimeControlCommand,
+    tool_config::mentle::MentleToolRuntimeConfig,
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
-    AgentEvent, AgentLoop, ToolConfig,
+    AgentEvent, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use console::style;
@@ -49,6 +51,20 @@ pub fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
     }
 }
 
+pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
+    BuiltInToolsConfig {
+        filesystem: config.tools.builtin.filesystem,
+        shell: config.tools.builtin.shell,
+        web_search: config.tools.builtin.web_search,
+        web_fetch: config.tools.builtin.web_fetch,
+        spawn: config.tools.builtin.spawn,
+        cron: config.tools.builtin.cron,
+        mcp: config.tools.builtin.mcp,
+        attachment: config.tools.builtin.attachment,
+        mentle: config.tools.builtin.mentle,
+    }
+}
+
 async fn build_local_cli_agent(
     runtime: &CliRuntime,
     model: Option<String>,
@@ -67,7 +83,9 @@ async fn build_local_cli_agent(
     let bus = MessageBus::new();
     let provider = Arc::new(build_provider(&config, &selected_model)?);
     let tool_config = ToolConfig {
+        builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
+        mentle: MentleToolRuntimeConfig::from_config(&config),
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
@@ -83,7 +101,6 @@ async fn build_local_cli_agent(
             frequent_change_threshold: config.agents.soul.frequent_change_threshold,
             boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
         },
-        planning_store: None,
     };
 
     let (runtime_control_tx, runtime_control_rx) = if with_runtime_control {
@@ -316,7 +333,7 @@ pub async fn run_chat(
     println!("{}", style("Agent Diva Chat").bold().cyan());
     println!("  model: {}", selected_model);
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop");
+    println!("  commands: /quit /clear /new /stop /thinking auto|on|off");
 
     loop {
         let input: String = Input::new()
@@ -349,6 +366,23 @@ pub async fn run_chat(
                 }
                 continue;
             }
+            cmd if cmd.starts_with("/thinking ") => {
+                let mode_str = cmd.trim_start_matches("/thinking ").trim();
+                let mode = match mode_str {
+                    "auto" => ThinkingMode::Auto,
+                    "on" => ThinkingMode::On,
+                    "off" => ThinkingMode::Off,
+                    _ => {
+                        println!("{}", style("usage: /thinking auto|on|off").yellow());
+                        continue;
+                    }
+                };
+                if let Some(tx) = &runtime_control_tx {
+                    let _ = tx.send(RuntimeControlCommand::SetThinking { mode });
+                    println!("{}", style(format!("thinking mode -> {:?}", mode)).green());
+                }
+                continue;
+            }
             _ => {}
         }
 
@@ -370,7 +404,7 @@ pub async fn run_chat_remote(
 
     println!("{}", style("Agent Diva Chat (remote)").bold().cyan());
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop");
+    println!("  commands: /quit /clear /new /stop /thinking auto|on|off");
 
     loop {
         let input: String = Input::new()

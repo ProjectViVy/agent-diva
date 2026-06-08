@@ -15,11 +15,12 @@ use crate::handlers::{
     get_channels_handler, get_config_handler, get_cron_job_handler, get_mcps_handler,
     get_provider_handler, get_provider_models_handler, get_providers_handler,
     get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
-    heartbeat_handler, list_cron_jobs_handler, refresh_mcp_status_handler, reset_session_handler,
-    resolve_provider_handler, run_cron_job_handler, set_cron_job_enabled_handler,
-    set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler, update_channel_handler,
-    update_config_handler, update_cron_job_handler, update_mcp_handler, update_provider_handler,
-    update_tools_handler, upload_file_handler, upload_skill_handler,
+    heartbeat_handler, list_cron_jobs_handler, list_mentle_tools_handler,
+    refresh_mcp_status_handler, reset_session_handler, resolve_provider_handler,
+    run_cron_job_handler, set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
+    stop_cron_job_handler, update_channel_handler, update_config_handler, update_cron_job_handler,
+    update_mcp_handler, update_provider_handler, update_tools_handler, upload_file_handler,
+    upload_skill_handler,
 };
 use crate::state::AppState;
 
@@ -107,6 +108,10 @@ fn runtime_routes() -> Router<AppState> {
         .route(
             "/api/tools",
             get(get_tools_handler).post(update_tools_handler),
+        )
+        .route(
+            "/api/tools/mentle/available",
+            get(list_mentle_tools_handler),
         )
         .route(
             "/api/skills",

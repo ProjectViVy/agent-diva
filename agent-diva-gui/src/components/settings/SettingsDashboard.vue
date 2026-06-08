@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Bot, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, Sparkles, ShieldCheck } from 'lucide-vue-next';
+import { Bot, Cat, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, Sparkles, ShieldCheck } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'self-evolution' | 'sandbox'): void;
+  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'self-evolution' | 'sandbox' | 'pet'): void;
 }>();
 
 const cards = computed(() => [
@@ -21,6 +21,7 @@ const cards = computed(() => [
   { id: 'theme', icon: Palette, title: t('dashboard.theme'), desc: t('dashboard.themeDesc') },
   { id: 'self-evolution', icon: Sparkles, title: t('dashboard.selfEvolution'), desc: t('dashboard.selfEvolutionDesc') },
   { id: 'sandbox', icon: ShieldCheck, title: t('dashboard.sandbox'), desc: t('dashboard.sandboxDesc') },
+  { id: 'pet', icon: Cat, title: t('dashboard.pet'), desc: t('dashboard.petDesc') },
 ]);
 </script>
 

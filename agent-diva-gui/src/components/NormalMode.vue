@@ -4,6 +4,7 @@ import {
   AlarmClock,
   BookOpen,
   Bot,
+  Cat,
   Check,
   ChevronDown,
   Heart,
@@ -24,6 +25,7 @@ import ConsoleView from './ConsoleView.vue';
 import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
 import NotebookView from './NotebookView.vue';
+import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
@@ -60,6 +62,7 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
+  | 'pet'
   | 'about';
 
 interface SavedModel {
@@ -127,10 +130,10 @@ const emit = defineEmits<{
   (e: 'delete-session', sessionKey: string): void;
 }>();
 
-type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook';
+type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'pet';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | null>(null);
+const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'pet' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -437,6 +440,10 @@ defineExpose({
           <BookOpen />
           <span v-if="!sidebarCollapsed">{{ t('nav.notebook') }}</span>
         </button>
+        <button class="nav-item" :class="{ active: isSectionActive('pet') }" @click="navigateTo('pet')">
+          <Cat />
+          <span v-if="!sidebarCollapsed">{{ t('nav.pet') }}</span>
+        </button>
         <button class="nav-item" :class="{ active: isSectionActive('console') }" @click="navigateTo('console')">
           <Server />
           <span v-if="!sidebarCollapsed">{{ t('nav.console') }}</span>
@@ -678,6 +685,10 @@ defineExpose({
               </div>
             </div>
           </div>
+        </div>
+        <!-- Pet视图 -->
+        <div v-else-if="activeMenu === 'pet'" class="h-full">
+          <DivaPetView />
         </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">

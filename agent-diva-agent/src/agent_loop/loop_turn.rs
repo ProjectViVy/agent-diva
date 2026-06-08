@@ -1,7 +1,8 @@
 use super::AgentLoop;
 use crate::consolidation;
-use crate::planning::hooks;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
+use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
+use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::{LLMResponse, LLMStreamEvent};
@@ -54,6 +55,10 @@ impl AgentLoop {
             msg.content.clone()
         };
 
+        // Derive prefetch intent from raw user message before it's consumed.
+        let prefetch_intent = derive_prefetch_intent(&message_content);
+        let prefetch_user_message = message_content.clone();
+
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         self.clear_session_cancellation(&session_key);
@@ -79,50 +84,45 @@ impl AgentLoop {
             }
         }
 
-        // HOOK-1: Inject planning context if an active plan exists
-        if let Some(ref store) = self.planning_store {
-            match hooks::inject_plan_context(store.as_ref()).await {
-                Ok(Some(plan_block)) => {
-                    // Insert after system prompt (index 0) but before history
-                    messages.insert(1, agent_diva_providers::Message::system(plan_block));
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    warn!("Failed to inject plan context: {}", e);
-                }
-            }
-        }
-
-        // NAG: Check if we should nag about pending todos
-        if let Some(ref store) = self.planning_store {
-            if self.nag_tracker.should_nag() {
-                if let Ok(plan_id) = store.get_active_plan().await {
-                    if let Ok(todos) = store.get_todos(&plan_id).await {
-                        let has_pending = todos.items.iter().any(|t| {
-                            matches!(t.status, agent_diva_core::planning::model::TodoStatus::Pending
-                                | agent_diva_core::planning::model::TodoStatus::InProgress)
-                        });
-                        if has_pending {
-                            messages.insert(
-                                1,
-                                agent_diva_providers::Message::system(
-                                    self.nag_tracker.nag_message().to_string(),
-                                ),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        // Track whether any planning tool calls were made this turn
-        let mut had_planning_call = false;
-
         // Agent loop
         let mut iteration = 0;
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
+
+        // Intent-aware prefetch: run recall search before the first LLM call
+        // when the user message provides a workable intent string.
+        if !prefetch_intent.is_empty() {
+            let prefetch_result = self
+                .memory_provider
+                .prefetch(PrefetchRequest {
+                    workspace_root: self.workspace.clone(),
+                    intent: prefetch_intent,
+                    current_room: Some(msg.channel.clone()),
+                    user_message: Some(prefetch_user_message.clone()),
+                })
+                .await;
+            match prefetch_result {
+                Ok(response) => match response.status {
+                    PrefetchStatus::Failed { reason } => {
+                        warn!("Prefetch recall failed (non-fatal): {}", reason);
+                    }
+                    _ => {
+                        if let Some(block) = response.prompt_block {
+                            // Inject recall results as an additional system message
+                            // right after the main system prompt.
+                            messages.insert(1, agent_diva_providers::Message::system(block));
+                            trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
+                        } else {
+                            trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
+                        }
+                    }
+                },
+                Err(e) => {
+                    warn!("Prefetch recall failed (non-fatal): {}", e);
+                }
+            }
+        }
 
         while iteration < self.max_iterations {
             self.drain_runtime_control_commands().await;
@@ -357,24 +357,6 @@ impl AgentLoop {
                         }
                     }
 
-                    // HOOK-2: Detect planning tool calls (including lifecycle tools)
-                    if hooks::is_planning_tool_call(&tool_call.name)
-                        || matches!(tool_call.name.as_str(), "plan_create" | "plan_approve" | "plan_transition" | "plan_show")
-                    {
-                        had_planning_call = true;
-                    }
-
-                    // HOOK-3: After planning tool execution completes
-                    if hooks::is_planning_tool_call(&tool_call.name) {
-                        if let Some(ref store) = self.planning_store {
-                            if let Ok(plan_id) = store.get_active_plan().await {
-                                if let Err(e) = hooks::on_planning_tool_complete(store.as_ref(), &plan_id).await {
-                                    warn!("HOOK-3 on_planning_tool_complete failed: {}", e);
-                                }
-                            }
-                        }
-                    }
-
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
 
                     let event = AgentEvent::ToolCallFinished {
@@ -412,6 +394,10 @@ impl AgentLoop {
                 }
                 final_content = response.content;
                 final_reasoning = response.reasoning_content;
+                // Honor thinking mode: Off clears reasoning, Auto/On pass through
+                if self.thinking_mode == ThinkingMode::Off {
+                    final_reasoning = None;
+                }
                 break;
             }
         }
@@ -466,12 +452,12 @@ impl AgentLoop {
         {
             let session = self.sessions.get_or_create(&session_key);
             if consolidation::should_consolidate(session, self.memory_window) {
-                let memory_manager = agent_diva_core::memory::MemoryManager::new(&self.workspace);
                 if let Err(e) = consolidation::consolidate(
                     session,
                     &self.provider,
                     &model_to_use,
-                    &memory_manager,
+                    &self.workspace,
+                    &*self.memory_provider,
                     self.memory_window,
                 )
                 .await
@@ -483,20 +469,10 @@ impl AgentLoop {
 
         // Persist session to disk
         if let Some(session) = self.sessions.get(&session_key) {
-            // HOOK-4: Sync planning store before session save
-            if let Some(ref store) = self.planning_store {
-                if let Err(e) = hooks::on_session_save(store.as_ref()).await {
-                    warn!("HOOK-4 on_session_save failed: {}", e);
-                }
-            }
-
             if let Err(e) = self.sessions.save(session) {
                 error!("Failed to save session: {}", e);
             }
         }
-
-        // Update NAG tracker for this turn
-        self.nag_tracker.record_turn(had_planning_call);
 
         // Extract reply_to from metadata if available (critical for platforms like QQ)
         let reply_to = msg
@@ -691,7 +667,14 @@ fn save_turn(
                 }
                 "tool" => {
                     let content = if m.content.to_text_lossy().chars().count() > 500 {
-                        format!("{}...", m.content.to_text_lossy().chars().take(500).collect::<String>())
+                        format!(
+                            "{}...",
+                            m.content
+                                .to_text_lossy()
+                                .chars()
+                                .take(500)
+                                .collect::<String>()
+                        )
                     } else {
                         m.content.to_text_lossy()
                     };
@@ -720,9 +703,71 @@ fn save_turn(
     }
 }
 
+/// Derive a lightweight recall intent from the user message.
+///
+/// Returns an empty string when the message is too short or lacks any
+/// action/recall-indicating words, so `prefetch` is gated on intent
+/// availability without requiring a full intent classifier.
+fn derive_prefetch_intent(message: &str) -> String {
+    let trimmed = message.trim();
+    if trimmed.len() < 4 {
+        return String::new();
+    }
+
+    let lower = trimmed.to_lowercase();
+    let recall_words = [
+        "recall",
+        "remember",
+        "summarize",
+        "summary",
+        "review",
+        "history",
+        "memory",
+        "previous",
+        "last",
+        "recent",
+        "what",
+        "how",
+        "why",
+        "when",
+        "where",
+        "who",
+        "list",
+        "find",
+        "search",
+        "look",
+        "check",
+    ];
+
+    let has_recall_signal = recall_words.iter().any(|word| lower.contains(word));
+
+    if has_recall_signal {
+        // Use a truncated version as the search intent.
+        let limit = trimmed.chars().count().min(120);
+        let chars: String = trimmed.chars().take(limit).collect();
+        chars
+    } else {
+        String::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_derive_prefetch_intent_is_empty_for_non_question() {
+        assert!(derive_prefetch_intent("the sky is blue").is_empty());
+        assert!(derive_prefetch_intent("ok").is_empty());
+        assert!(derive_prefetch_intent("").is_empty());
+    }
+
+    #[test]
+    fn test_derive_prefetch_intent_has_value_for_action_words() {
+        assert!(!derive_prefetch_intent("recall all projects").is_empty());
+        assert!(!derive_prefetch_intent("what is the provider boundary?").is_empty());
+        assert!(!derive_prefetch_intent("summarize the last meeting").is_empty());
+    }
 
     #[test]
     fn test_changed_soul_file_detects_successful_updates() {

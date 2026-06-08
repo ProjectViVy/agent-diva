@@ -533,6 +533,7 @@ impl ConfigMigrator {
                     temperature: py.agents.defaults.temperature,
                     max_tool_iterations: py.agents.defaults.max_tool_iterations,
                     reasoning_effort: None,
+                    thinking_mode: None,
                 },
                 soul: AgentSoulConfig::default(),
             },
@@ -678,8 +679,10 @@ impl ConfigMigrator {
                     .collect(),
                 mcp_manager: MCPManagerConfig::default(),
             },
+            mentle: MentleToolConfig::default(),
             logging: LoggingConfig::default(),
             sandbox: SandboxConfig::default(),
+            pet: PetConfig::default(),
         }
     }
 

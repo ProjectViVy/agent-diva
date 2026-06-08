@@ -17,6 +17,18 @@ export interface SkillDto {
   can_delete: boolean;
 }
 
+export interface FileAttachmentDto {
+  file_id: string;
+  filename: string;
+  size: number;
+  mime_type?: string | null;
+  channel: string;
+  message_id?: string | null;
+  uploaded_by?: string | null;
+  stored_at: string;
+  ref_count: number;
+}
+
 export interface McpConnectionStatusDto {
   state: 'connected' | 'degraded' | 'disabled' | 'invalid' | string;
   connected: boolean;
@@ -115,48 +127,6 @@ export interface RuntimeConfigSnapshot {
   has_api_key: boolean;
 }
 
-// ============================================================
-// Card DTO Interfaces (Story 1.1)
-// ============================================================
-
-export interface TodoItem {
-  id: string;
-  content: string;
-  status: 'pending' | 'done';
-  completed_at?: string;
-}
-
-export interface UiCardAction {
-  id: string;
-  label: string;
-  style: 'primary' | 'secondary' | 'danger' | 'quiet';
-  payload: string;
-}
-
-export interface UiCard {
-  id: string;
-  kind: 'decision' | 'todo' | 'approval';
-  status: string;
-  title: string;
-  summary: string;
-  body_markdown: string;
-  actions: UiCardAction[];
-  evidence_refs?: string[];
-  risk_level?: 'low' | 'medium' | 'high';
-  todo_items?: TodoItem[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ApprovalRequest {
-  request_id: string;
-  operation: string;
-  risk: 'low' | 'medium' | 'high';
-  scope: string;
-  timeout_seconds: number;
-  created_at: string;
-}
-
 export const isTauriRuntime = () =>
   typeof window !== "undefined" &&
   ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
@@ -213,18 +183,53 @@ export const refreshMcpStatus = (name: string) =>
 export const uploadSkill = (fileName: string, bytes: number[]) =>
   invoke<SkillDto>("upload_skill", { fileName, bytes });
 
+export const uploadFile = (fileName: string, bytes: number[], channel: string, messageId?: string) =>
+  invoke<FileAttachmentDto>("upload_file", { fileName, bytes, channel, messageId });
+
 export const deleteSkill = (name: string) =>
   invoke<void>("delete_skill", { name });
 
-export interface FileAttachmentDto {
-  file_id: string;
-  filename: string;
-  size: number;
-  mime_type?: string | null;
+// ============================================================
+// Card DTO Interfaces (Story 1.1)
+// ============================================================
+
+export interface TodoItem {
+  id: string;
+  content: string;
+  status: 'pending' | 'done';
+  completed_at?: string;
 }
 
-export const uploadFile = (fileName: string, bytes: number[]) =>
-  invoke<FileAttachmentDto>("upload_file", { fileName, bytes });
+export interface UiCardAction {
+  id: string;
+  label: string;
+  style: 'primary' | 'secondary' | 'danger' | 'quiet';
+  payload: string;
+}
+
+export interface UiCard {
+  id: string;
+  kind: 'decision' | 'todo' | 'approval';
+  status: string;
+  title: string;
+  summary: string;
+  body_markdown: string;
+  actions: UiCardAction[];
+  evidence_refs?: string[];
+  risk_level?: 'low' | 'medium' | 'high';
+  todo_items?: TodoItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApprovalRequest {
+  request_id: string;
+  operation: string;
+  risk: 'low' | 'medium' | 'high';
+  scope: string;
+  timeout_seconds: number;
+  created_at: string;
+}
 
 // ============================================================
 // Marketplace API (skills.sh)
@@ -318,3 +323,31 @@ export async function getSandboxConfig(): Promise<SandboxConfig> {
 export async function saveSandboxConfig(config: SandboxConfig): Promise<void> {
   return invoke('save_sandbox_config', { config })
 }
+
+// ============================================================
+// VRM / Desktop GUI Preferences
+// ============================================================
+
+export interface GuiPrefs {
+  close_to_tray: boolean;
+}
+
+export interface MentleToolConfigShape {
+  enabled: boolean;
+  mode: 'off' | 'read_only' | 'full' | 'custom';
+  allowed_tools: string[];
+}
+
+export interface MentleToolsListResponse {
+  feature_available: boolean;
+  tools: string[];
+}
+
+export const getGuiPrefs = () =>
+  invoke<GuiPrefs>("get_gui_prefs");
+
+export const setGuiPrefs = (prefs: GuiPrefs) =>
+  invoke<void>("set_gui_prefs", { prefs });
+
+export const listMentleTools = () =>
+  invoke<MentleToolsListResponse>("list_mentle_tools");

@@ -11,6 +11,12 @@ impl AgentLoop {
             RuntimeControlCommand::UpdateNetwork(network) => {
                 self.apply_network_config(network).await;
             }
+            RuntimeControlCommand::UpdateMentle {
+                mentle,
+                builtin_mentle,
+            } => {
+                self.apply_mentle_config(mentle, builtin_mentle).await;
+            }
             RuntimeControlCommand::UpdateMcp { servers } => {
                 self.apply_mcp_config(servers).await;
             }
@@ -60,6 +66,10 @@ impl AgentLoop {
                     }
                 }
                 let _ = reply_tx.send(result);
+            }
+            RuntimeControlCommand::SetThinking { mode } => {
+                self.thinking_mode = mode;
+                info!("Thinking mode set to: {:?}", mode);
             }
         }
     }
