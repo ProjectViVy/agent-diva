@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Pencil, Trash2, Power, MessageSquare, type LucideIcon } from 'lucide-vue-next';
+import { computed, type Component } from 'vue';
+import { Pencil, Trash2, Power, MessageSquare } from 'lucide-vue-next';
 import { PLATFORM_ICONS, PLATFORM_DISPLAY_NAMES } from './channel-icons';
 import type { ChannelStatusSummary } from '../../api/desktop';
 
@@ -28,7 +28,7 @@ const platform = computed(() => {
   return '';
 });
 
-const IconComponent = computed<LucideIcon>(() => {
+const IconComponent = computed<Component>(() => {
   return PLATFORM_ICONS[platform.value] || MessageSquare;
 });
 
@@ -60,7 +60,7 @@ const missingFields = computed(() => {
   >
     <div class="card-header">
       <div class="platform-logo">
-        <IconComponent :size="24" />
+        <component :is="IconComponent" class="platform-icon" />
       </div>
       <div
         class="status-badge"
