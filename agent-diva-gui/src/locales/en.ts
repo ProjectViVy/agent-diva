@@ -220,6 +220,8 @@ export default {
     neuro: 'Neuro',
     notebook: 'Notebook',
     pet: 'Pet',
+    openSidebar: 'Open sidebar',
+    closeSidebar: 'Close sidebar',
     toolsGroup: 'Tools',
     comingSoon: 'Coming soon',
   },

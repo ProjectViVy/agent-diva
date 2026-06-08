@@ -18,7 +18,7 @@ import {
   Zap,
 } from 'lucide-vue-next';
 import ChatView from './ChatView.vue';
-import { FileAttachmentDto } from '../api/desktop';
+import { FileAttachmentDto, type MentleToolConfigShape } from '../api/desktop';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import ConsoleView from './ConsoleView.vue';
@@ -99,6 +99,7 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
+  mentle?: MentleToolConfigShape;
 }
 
 interface Props {
@@ -142,6 +143,7 @@ const groups = ref({ capabilities: true, tools: true });
 const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
 const activeSessionKey = ref('');
+const isPetMode = computed(() => activeMenu.value === 'pet');
 
 // 收缩状态下的弹出菜单
 const collapsedPopup = ref<{ type: 'capabilities' | 'tools' | null; x: number; y: number }>({
@@ -182,6 +184,20 @@ const selectSavedModel = async (model: SavedModel) => {
 const isSavedModelSelected = (model: SavedModel) =>
   props.config?.provider === model.provider && props.config?.model === model.model;
 
+const defaultMentleToolsConfig: MentleToolConfigShape = {
+  enabled: false,
+  mode: 'off',
+  allowed_tools: [],
+};
+
+const normalizedToolsConfig = computed(() => {
+  if (!props.toolsConfig) return undefined;
+  return {
+    ...props.toolsConfig,
+    mentle: props.toolsConfig.mentle ?? defaultMentleToolsConfig,
+  };
+});
+
 const removeSavedModel = async (model: SavedModel, event: MouseEvent) => {
   event.stopPropagation();
 
@@ -219,6 +235,14 @@ const toggleSidebar = () => {
   // when opening the drawer so they cannot block clicks on the main surface (e.g. settings).
   isModelDropdownOpen.value = false;
   emit('toggle-sidebar');
+};
+
+const togglePetSidebar = () => {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  sidebarAutoCollapsed.value = false;
+  isModelDropdownOpen.value = false;
+  collapsedPopup.value.type = null;
+  sidebarOpen.value = false;
 };
 
 const toggleGroup = (groupName: keyof typeof groups.value) => {
@@ -280,6 +304,15 @@ onUnmounted(() => {
 
 watch([activeTab, activeMenu], () => {
   isModelDropdownOpen.value = false;
+});
+
+watch(isPetMode, (enabled) => {
+  collapsedPopup.value.type = null;
+  isModelDropdownOpen.value = false;
+  if (enabled) {
+    sidebarOpen.value = false;
+    sidebarCollapsed.value = true;
+  }
 });
 
 const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
@@ -372,7 +405,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'sidebar-expanded': !sidebarCollapsed, [`theme-${themeMode}`]: true }">
+  <div class="app-shell" :class="{ 'sidebar-expanded': !sidebarCollapsed, 'pet-focus-mode': isPetMode, [`theme-${themeMode}`]: true }">
     <!-- Love主题背景装饰 -->
     <div v-if="themeMode === 'love'" class="love-hearts">
       <span
@@ -407,7 +440,7 @@ defineExpose({
           animationDelay: `${m.delay}s`,
         }"
       >
-        <img src="/miku.svg" alt="Miku" />
+        <img :src="'/miku.svg'" alt="Miku" />
       </div>
     </div>
     <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
@@ -557,7 +590,7 @@ defineExpose({
     <!-- 主内容区 -->
     <main class="main-panel">
       <!-- Topbar -->
-      <header class="topbar drag-region">
+      <header v-if="!isPetMode" class="topbar drag-region">
         <div class="topbar-left no-drag">
           <!-- DIVA 头像和状态 -->
           <div class="topbar-identity">
@@ -688,7 +721,7 @@ defineExpose({
         </div>
         <!-- Pet视图 -->
         <div v-else-if="activeMenu === 'pet'" class="h-full">
-          <DivaPetView />
+          <DivaPetView @toggle-sidebar="togglePetSidebar" />
         </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
@@ -720,10 +753,10 @@ defineExpose({
           </div>
           <div v-else class="h-full min-h-0">
             <SettingsView
-              v-if="config && toolsConfig"
+              v-if="config && normalizedToolsConfig"
               :config="config"
               :provider-configs="providerConfigs"
-              :tools-config="toolsConfig"
+              :tools-config="normalizedToolsConfig"
               :saved-models="savedModels"
               :chat-display-prefs="chatDisplayPrefs"
               :theme-mode="themeMode"

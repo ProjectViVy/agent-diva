@@ -220,6 +220,8 @@ export default {
     neuro: '神经系统',
     notebook: '记事本',
     pet: '宠物',
+    openSidebar: '打开侧边栏',
+    closeSidebar: '关闭侧边栏',
     toolsGroup: '工具管理',
     comingSoon: '敬请期待',
   },
