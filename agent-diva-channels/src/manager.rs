@@ -593,11 +593,17 @@ impl ChannelManager {
 
     /// Start all channel handlers
     pub async fn start_all(&self) -> Result<()> {
-        let handlers = self.handlers.read().await;
+        let handlers: Vec<(String, ChannelHandlerPtr)> = {
+            let handlers = self.handlers.read().await;
+            handlers
+                .iter()
+                .map(|(name, handler)| (name.clone(), handler.clone()))
+                .collect()
+        };
         let mut failed_channels = Vec::new();
 
-        for (name, handler) in handlers.iter() {
-            if let Err(e) = Self::start_handler(name, handler).await {
+        for (name, handler) in handlers {
+            if let Err(e) = Self::start_handler(&name, &handler).await {
                 failed_channels.push(format!("{}: {}", name, e));
             }
         }
@@ -615,9 +621,12 @@ impl ChannelManager {
 
     /// Stop all channel handlers
     pub async fn stop_all(&self) -> Result<()> {
-        let mut handlers = self.handlers.write().await;
+        let handlers: Vec<(String, ChannelHandlerPtr)> = {
+            let mut handlers = self.handlers.write().await;
+            handlers.drain().collect()
+        };
 
-        for (name, handler) in handlers.iter_mut() {
+        for (name, handler) in handlers {
             tracing::info!("Stopping {} channel...", name);
             let mut handler = handler.write().await;
             if let Err(e) = handler.stop().await {
@@ -625,7 +634,6 @@ impl ChannelManager {
             }
         }
 
-        handlers.clear();
         Ok(())
     }
 
@@ -637,10 +645,12 @@ impl ChannelManager {
 
     /// Send a message through a specific channel
     pub async fn send(&self, channel: &str, message: OutboundMessage) -> Result<()> {
-        let handlers = self.handlers.read().await;
-        let handler = handlers
-            .get(channel)
-            .ok_or_else(|| ChannelError::NotConfigured(format!("Channel {} not found", channel)))?;
+        let handler = {
+            let handlers = self.handlers.read().await;
+            handlers.get(channel).cloned().ok_or_else(|| {
+                ChannelError::NotConfigured(format!("Channel {} not found", channel))
+            })?
+        };
 
         let handler = handler.read().await;
         handler.send(message).await
@@ -648,17 +658,19 @@ impl ChannelManager {
 
     /// Update a specific channel configuration
     pub async fn update_channel(&self, name: &str, new_config: Config) -> Result<()> {
-        let mut handlers = self.handlers.write().await;
+        let old_handler = {
+            let mut handlers = self.handlers.write().await;
+            handlers.remove(name)
+        };
 
-        // 1. Stop and remove existing handler
-        if let Some(handler) = handlers.get(name) {
+        // 1. Stop existing handler after releasing the global handler map lock.
+        if let Some(handler) = old_handler {
             tracing::info!("Stopping {} channel for update...", name);
             let mut handler = handler.write().await;
             if let Err(e) = handler.stop().await {
                 tracing::error!("Failed to stop {} channel: {}", name, e);
             }
         }
-        handlers.remove(name);
 
         // 2. Initialize new handler if enabled
         let handler = Self::build_updated_handler(name, &new_config);
@@ -674,6 +686,7 @@ impl ChannelManager {
             // Start handler
             Self::start_handler(name, &handler).await?;
 
+            let mut handlers = self.handlers.write().await;
             handlers.insert(name.to_string(), handler);
             tracing::info!("{} channel updated and started", name);
         } else {
@@ -687,8 +700,12 @@ impl ChannelManager {
     /// Check if a channel is running
     pub async fn is_channel_running(&self, name: &str) -> bool {
         use crate::base::ChannelHandler;
-        let handlers = self.handlers.read().await;
-        if let Some(handler) = handlers.get(name) {
+        let handler = {
+            let handlers = self.handlers.read().await;
+            handlers.get(name).cloned()
+        };
+
+        if let Some(handler) = handler {
             let handler: tokio::sync::RwLockReadGuard<'_, dyn ChannelHandler> =
                 handler.read().await;
             handler.is_running()
