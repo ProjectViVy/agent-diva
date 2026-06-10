@@ -7,9 +7,9 @@ use async_trait::async_trait;
 use chrono::Utc;
 use sqlx::SqlitePool;
 
+use super::events::{PlanEvent, TodoEvent};
 use super::ids::{PlanId, TodoId};
 use super::model::{Plan, PlanStep, TodoItem, TodoList};
-use super::events::{PlanEvent, TodoEvent};
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -57,6 +57,12 @@ pub trait PlanningStore: Send + Sync {
     async fn get_todos(&self, plan_id: &PlanId) -> crate::Result<TodoList>;
     async fn update_todo(&self, plan_id: &PlanId, todo: &TodoItem) -> crate::Result<()>;
     async fn delete_todos(&self, plan_id: &PlanId) -> crate::Result<()>;
+    async fn replace_todos(
+        &self,
+        plan_id: &PlanId,
+        todos: &[TodoItem],
+        event: &TodoEvent,
+    ) -> crate::Result<()>;
 
     async fn append_event(&self, plan_id: &PlanId, event: &PlanEvent) -> crate::Result<()>;
     async fn append_todo_event(&self, plan_id: &PlanId, event: &TodoEvent) -> crate::Result<()>;
@@ -78,6 +84,10 @@ pub struct SqlitePlanningStore {
 impl SqlitePlanningStore {
     /// Create a new store, running migrations to ensure all tables exist.
     pub async fn new(pool: SqlitePool) -> Result<Self, PlanningError> {
+        configure_sqlite_connection(&pool).await?;
+
+        let mut tx = pool.begin().await?;
+
         sqlx::query(
             r#"CREATE TABLE IF NOT EXISTS plans (
                 id TEXT PRIMARY KEY,
@@ -94,7 +104,7 @@ impl SqlitePlanningStore {
                 updated_at TEXT NOT NULL
             )"#,
         )
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query(
@@ -111,7 +121,7 @@ impl SqlitePlanningStore {
                 updated_at TEXT NOT NULL
             )"#,
         )
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query(
@@ -128,7 +138,7 @@ impl SqlitePlanningStore {
                 updated_at TEXT NOT NULL
             )"#,
         )
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query(
@@ -140,7 +150,7 @@ impl SqlitePlanningStore {
                 created_at TEXT NOT NULL
             )"#,
         )
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query(
@@ -149,11 +159,26 @@ impl SqlitePlanningStore {
                 plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE
             )"#,
         )
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
+
+        tx.commit().await?;
 
         Ok(Self { pool })
     }
+}
+
+async fn configure_sqlite_connection(pool: &SqlitePool) -> Result<(), PlanningError> {
+    sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(pool)
+        .await?;
+    sqlx::query("PRAGMA journal_mode = WAL")
+        .execute(pool)
+        .await?;
+    sqlx::query("PRAGMA busy_timeout = 5000")
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 #[async_trait]
@@ -300,7 +325,10 @@ impl PlanningStore for SqlitePlanningStore {
         .await?;
 
         if result.rows_affected() == 0 {
-            return Err(crate::Error::NotFound(format!("Step not found: {}", step.id)));
+            return Err(crate::Error::NotFound(format!(
+                "Step not found: {}",
+                step.id
+            )));
         }
         Ok(())
     }
@@ -390,6 +418,54 @@ impl PlanningStore for SqlitePlanningStore {
         Ok(())
     }
 
+    async fn replace_todos(
+        &self,
+        plan_id: &PlanId,
+        todos: &[TodoItem],
+        event: &TodoEvent,
+    ) -> crate::Result<()> {
+        let payload = serde_json::to_string(event)?;
+        let now = Utc::now().to_rfc3339();
+        let mut tx = self.pool.begin().await?;
+
+        sqlx::query("DELETE FROM todo_items WHERE plan_id = ?")
+            .bind(&plan_id.0)
+            .execute(&mut *tx)
+            .await?;
+
+        for todo in todos {
+            sqlx::query(
+                r#"INSERT INTO todo_items (id, plan_id, plan_step_id, title, detail, status, priority, evidence_ref, block_reason, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            )
+            .bind(&todo.id.0)
+            .bind(&plan_id.0)
+            .bind(&todo.plan_step_id)
+            .bind(&todo.title)
+            .bind(&todo.detail)
+            .bind(todo.status.to_string())
+            .bind(todo.priority.to_string())
+            .bind(&todo.evidence_ref)
+            .bind(&todo.block_reason)
+            .bind(todo.updated_at.to_rfc3339())
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        sqlx::query(
+            r#"INSERT INTO planning_events (plan_id, event_type, payload, created_at) VALUES (?, ?, ?, ?)"#,
+        )
+        .bind(&plan_id.0)
+        .bind("TodoEvent")
+        .bind(payload)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn append_event(&self, plan_id: &PlanId, event: &PlanEvent) -> crate::Result<()> {
         let event_type = plan_event_type(event);
         let payload = serde_json::to_string(event)?;
@@ -453,9 +529,10 @@ impl PlanningStore for SqlitePlanningStore {
     }
 
     async fn get_active_plan(&self) -> crate::Result<PlanId> {
-        let row = sqlx::query_scalar::<_, String>("SELECT plan_id FROM active_plan WHERE singleton = 1")
-            .fetch_optional(&self.pool)
-            .await?;
+        let row =
+            sqlx::query_scalar::<_, String>("SELECT plan_id FROM active_plan WHERE singleton = 1")
+                .fetch_optional(&self.pool)
+                .await?;
 
         match row {
             Some(id) => Ok(PlanId(id)),
@@ -510,12 +587,26 @@ impl PlanRow {
             assumptions: serde_json::from_str(&self.assumptions)?,
             risks: serde_json::from_str(&self.risks)?,
             open_questions: serde_json::from_str(&self.open_questions)?,
-            verification_verdict: self.verification_verdict.as_deref().map(parse_verdict).transpose()?,
+            verification_verdict: self
+                .verification_verdict
+                .as_deref()
+                .map(parse_verdict)
+                .transpose()?,
             created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
-                .map_err(|e| PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?
+                .map_err(|e| {
+                    PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        e,
+                    )))
+                })?
                 .with_timezone(&chrono::Utc),
             updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
-                .map_err(|e| PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?
+                .map_err(|e| {
+                    PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        e,
+                    )))
+                })?
                 .with_timezone(&chrono::Utc),
         })
     }
@@ -548,10 +639,20 @@ impl StepRow {
             status: parse_plan_status(&self.status)?,
             evidence_ref: self.evidence_ref,
             created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
-                .map_err(|e| PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?
+                .map_err(|e| {
+                    PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        e,
+                    )))
+                })?
                 .with_timezone(&chrono::Utc),
             updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
-                .map_err(|e| PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?
+                .map_err(|e| {
+                    PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        e,
+                    )))
+                })?
                 .with_timezone(&chrono::Utc),
         })
     }
@@ -584,7 +685,12 @@ impl TodoRow {
             evidence_ref: self.evidence_ref,
             block_reason: self.block_reason,
             updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
-                .map_err(|e| PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?
+                .map_err(|e| {
+                    PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        e,
+                    )))
+                })?
                 .with_timezone(&chrono::Utc),
         })
     }
@@ -620,10 +726,12 @@ fn parse_plan_phase(s: &str) -> Result<super::model::PlanPhase, PlanningError> {
         "Completed" => Ok(super::model::PlanPhase::Completed),
         "Failed" => Ok(super::model::PlanPhase::Failed),
         "Partial" => Ok(super::model::PlanPhase::Partial),
-        other => Err(PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Unknown PlanPhase: {other}"),
-        )))),
+        other => Err(PlanningError::Serialization(serde_json::Error::io(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown PlanPhase: {other}"),
+            ),
+        ))),
     }
 }
 
@@ -636,10 +744,12 @@ fn parse_plan_status(s: &str) -> Result<super::model::PlanStatus, PlanningError>
         "Failed" => Ok(super::model::PlanStatus::Failed),
         "Partial" => Ok(super::model::PlanStatus::Partial),
         "Canceled" => Ok(super::model::PlanStatus::Canceled),
-        other => Err(PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Unknown PlanStatus: {other}"),
-        )))),
+        other => Err(PlanningError::Serialization(serde_json::Error::io(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown PlanStatus: {other}"),
+            ),
+        ))),
     }
 }
 
@@ -650,10 +760,12 @@ fn parse_todo_status(s: &str) -> Result<super::model::TodoStatus, PlanningError>
         "Blocked" => Ok(super::model::TodoStatus::Blocked),
         "Completed" => Ok(super::model::TodoStatus::Completed),
         "Canceled" => Ok(super::model::TodoStatus::Canceled),
-        other => Err(PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Unknown TodoStatus: {other}"),
-        )))),
+        other => Err(PlanningError::Serialization(serde_json::Error::io(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown TodoStatus: {other}"),
+            ),
+        ))),
     }
 }
 
@@ -662,10 +774,12 @@ fn parse_todo_priority(s: &str) -> Result<super::model::TodoPriority, PlanningEr
         "Low" => Ok(super::model::TodoPriority::Low),
         "Normal" => Ok(super::model::TodoPriority::Normal),
         "High" => Ok(super::model::TodoPriority::High),
-        other => Err(PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Unknown TodoPriority: {other}"),
-        )))),
+        other => Err(PlanningError::Serialization(serde_json::Error::io(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown TodoPriority: {other}"),
+            ),
+        ))),
     }
 }
 
@@ -674,10 +788,12 @@ fn parse_verdict(s: &str) -> Result<super::model::VerificationVerdict, PlanningE
         "Pass" => Ok(super::model::VerificationVerdict::Pass),
         "Fail" => Ok(super::model::VerificationVerdict::Fail),
         "Partial" => Ok(super::model::VerificationVerdict::Partial),
-        other => Err(PlanningError::Serialization(serde_json::Error::io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Unknown VerificationVerdict: {other}"),
-        )))),
+        other => Err(PlanningError::Serialization(serde_json::Error::io(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown VerificationVerdict: {other}"),
+            ),
+        ))),
     }
 }
 
@@ -687,10 +803,11 @@ mod tests {
     use crate::planning::ids::*;
     use crate::planning::model::*;
     use chrono::Utc;
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
     async fn test_store() -> SqlitePlanningStore {
         let pool = SqlitePoolOptions::new()
+            .max_connections(1)
             .connect("sqlite::memory:")
             .await
             .unwrap();
@@ -766,6 +883,118 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_sqlite_pragmas_are_configured() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("planning.sqlite");
+        let options = SqliteConnectOptions::new()
+            .filename(&db_path)
+            .create_if_missing(true);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .unwrap();
+
+        let store = SqlitePlanningStore::new(pool).await.unwrap();
+
+        let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+        let journal_mode: String = sqlx::query_scalar("PRAGMA journal_mode")
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+        let busy_timeout: i64 = sqlx::query_scalar("PRAGMA busy_timeout")
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+
+        assert_eq!(foreign_keys, 1);
+        assert_eq!(journal_mode, "wal");
+        assert_eq!(busy_timeout, 5000);
+    }
+
+    #[tokio::test]
+    async fn test_delete_plan_cascades_children() {
+        let store = test_store().await;
+        let plan_id = PlanId("p1".to_string());
+        store
+            .create_plan(&make_plan(&plan_id.0, "Cascading"))
+            .await
+            .unwrap();
+
+        let now = Utc::now();
+        let step = PlanStep {
+            id: "s1".to_string(),
+            plan_id: plan_id.clone(),
+            ordinal: 0,
+            title: "Step".to_string(),
+            rationale: None,
+            expected_output: None,
+            status: PlanStatus::Pending,
+            evidence_ref: None,
+            created_at: now,
+            updated_at: now,
+        };
+        store.create_step(&step).await.unwrap();
+
+        let todo = TodoItem {
+            id: TodoId("t1".to_string()),
+            plan_step_id: Some("s1".to_string()),
+            title: "Todo".to_string(),
+            detail: None,
+            status: TodoStatus::Pending,
+            priority: TodoPriority::Normal,
+            evidence_ref: None,
+            block_reason: None,
+            updated_at: now,
+        };
+        store.create_todo(&plan_id, &todo).await.unwrap();
+        store
+            .append_event(
+                &plan_id,
+                &PlanEvent::Created {
+                    plan_id: plan_id.clone(),
+                    title: "Cascading".to_string(),
+                    goal: "Test goal".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        store.set_active_plan(&plan_id).await.unwrap();
+
+        store.delete_plan(&plan_id).await.unwrap();
+
+        let steps: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM plan_steps WHERE plan_id = ?")
+            .bind(&plan_id.0)
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+        let todos: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM todo_items WHERE plan_id = ?")
+            .bind(&plan_id.0)
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+        let events: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM planning_events WHERE plan_id = ?")
+                .bind(&plan_id.0)
+                .fetch_one(&store.pool)
+                .await
+                .unwrap();
+        let active: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM active_plan WHERE plan_id = ?")
+            .bind(&plan_id.0)
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+
+        assert_eq!(steps, 0);
+        assert_eq!(todos, 0);
+        assert_eq!(events, 0);
+        assert_eq!(active, 0);
+    }
+
+    #[tokio::test]
     async fn test_get_plan_not_found() {
         let store = test_store().await;
         let result = store.get_plan(&PlanId("nope".to_string())).await;
@@ -825,7 +1054,10 @@ mod tests {
             updated_at: now,
         };
 
-        store.create_todo(&PlanId("p1".to_string()), &todo).await.unwrap();
+        store
+            .create_todo(&PlanId("p1".to_string()), &todo)
+            .await
+            .unwrap();
         let list = store.get_todos(&PlanId("p1".to_string())).await.unwrap();
         assert_eq!(list.items.len(), 1);
         assert_eq!(list.items[0].title, "Do thing");
@@ -835,7 +1067,10 @@ mod tests {
         let mut updated = todo.clone();
         updated.status = TodoStatus::Completed;
         updated.evidence_ref = Some("ref-abc".to_string());
-        store.update_todo(&PlanId("p1".to_string()), &updated).await.unwrap();
+        store
+            .update_todo(&PlanId("p1".to_string()), &updated)
+            .await
+            .unwrap();
 
         let list = store.get_todos(&PlanId("p1".to_string())).await.unwrap();
         assert_eq!(list.items[0].status, TodoStatus::Completed);
@@ -848,17 +1083,84 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_replace_todos_rolls_back_on_insert_failure() {
+        let store = test_store().await;
+        let plan_id = PlanId("p1".to_string());
+        store
+            .create_plan(&make_plan(&plan_id.0, "P"))
+            .await
+            .unwrap();
+
+        let now = Utc::now();
+        let old_todo = TodoItem {
+            id: TodoId("old".to_string()),
+            plan_step_id: None,
+            title: "Old todo".to_string(),
+            detail: None,
+            status: TodoStatus::Pending,
+            priority: TodoPriority::Normal,
+            evidence_ref: None,
+            block_reason: None,
+            updated_at: now,
+        };
+        store.create_todo(&plan_id, &old_todo).await.unwrap();
+
+        let duplicate_todo = TodoItem {
+            id: TodoId("dup".to_string()),
+            plan_step_id: None,
+            title: "Duplicate todo".to_string(),
+            detail: None,
+            status: TodoStatus::Pending,
+            priority: TodoPriority::Normal,
+            evidence_ref: None,
+            block_reason: None,
+            updated_at: now,
+        };
+        let result = store
+            .replace_todos(
+                &plan_id,
+                &[duplicate_todo.clone(), duplicate_todo],
+                &TodoEvent::Revised {
+                    plan_id: plan_id.clone(),
+                    revision: 2,
+                },
+            )
+            .await;
+
+        assert!(result.is_err());
+
+        let list = store.get_todos(&plan_id).await.unwrap();
+        assert_eq!(list.items.len(), 1);
+        assert_eq!(list.items[0].id.0, "old");
+
+        let todo_events: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM planning_events WHERE plan_id = ? AND event_type = 'TodoEvent'",
+        )
+        .bind(&plan_id.0)
+        .fetch_one(&store.pool)
+        .await
+        .unwrap();
+        assert_eq!(todo_events, 0);
+    }
+
+    #[tokio::test]
     async fn test_active_plan_singleton() {
         let store = test_store().await;
         store.create_plan(&make_plan("p1", "First")).await.unwrap();
         store.create_plan(&make_plan("p2", "Second")).await.unwrap();
 
-        store.set_active_plan(&PlanId("p1".to_string())).await.unwrap();
+        store
+            .set_active_plan(&PlanId("p1".to_string()))
+            .await
+            .unwrap();
         let active = store.get_active_plan().await.unwrap();
         assert_eq!(active.0, "p1");
 
         // Replace
-        store.set_active_plan(&PlanId("p2".to_string())).await.unwrap();
+        store
+            .set_active_plan(&PlanId("p2".to_string()))
+            .await
+            .unwrap();
         let active = store.get_active_plan().await.unwrap();
         assert_eq!(active.0, "p2");
     }
@@ -877,8 +1179,14 @@ mod tests {
             plan_id: PlanId("p1".to_string()),
         };
 
-        store.append_event(&PlanId("p1".to_string()), &event1).await.unwrap();
-        store.append_event(&PlanId("p1".to_string()), &event2).await.unwrap();
+        store
+            .append_event(&PlanId("p1".to_string()), &event1)
+            .await
+            .unwrap();
+        store
+            .append_event(&PlanId("p1".to_string()), &event2)
+            .await
+            .unwrap();
 
         let events = store.get_events(&PlanId("p1".to_string())).await.unwrap();
         assert_eq!(events.len(), 2);

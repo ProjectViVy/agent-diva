@@ -88,10 +88,7 @@ fn parse_todo_priority(s: &str) -> Result<TodoPriority, Error> {
         "low" => Ok(TodoPriority::Low),
         "normal" => Ok(TodoPriority::Normal),
         "high" => Ok(TodoPriority::High),
-        _ => Err(Error::Validation(format!(
-            "Invalid todo priority: {}",
-            s
-        ))),
+        _ => Err(Error::Validation(format!("Invalid todo priority: {}", s))),
     }
 }
 
@@ -125,11 +122,8 @@ pub async fn todo_write(store: &dyn PlanningStore, items_json: &str) -> Result<S
     let current_list = store.get_todos(&plan_id).await?;
     let new_revision = current_list.revision + 1;
 
-    // Delete all existing todos
-    store.delete_todos(&plan_id).await?;
-
-    // Create new todo items
     let now = Utc::now();
+    let mut todos = Vec::with_capacity(write_items.len());
     for item in &write_items {
         let todo = TodoItem {
             id: TodoId::new(),
@@ -142,13 +136,13 @@ pub async fn todo_write(store: &dyn PlanningStore, items_json: &str) -> Result<S
             block_reason: item.block_reason.clone(),
             updated_at: now,
         };
-        store.create_todo(&plan_id, &todo).await?;
+        todos.push(todo);
     }
 
-    // Append Revised event
     store
-        .append_todo_event(
+        .replace_todos(
             &plan_id,
+            &todos,
             &TodoEvent::Revised {
                 plan_id: plan_id.clone(),
                 revision: new_revision,
@@ -214,7 +208,9 @@ impl crate::base::Tool for TodoShowTool {
     }
 
     async fn execute(&self, _args: Value) -> crate::base::Result<String> {
-        todo_show(self.store.as_ref()).await.map_err(core_err_to_tool)
+        todo_show(self.store.as_ref())
+            .await
+            .map_err(core_err_to_tool)
     }
 }
 
@@ -344,7 +340,10 @@ impl crate::base::Tool for PlanCreateTool {
         let id = plan.id.clone();
         let title_out = plan.title.clone();
 
-        self.store.create_plan(&plan).await.map_err(core_err_to_tool)?;
+        self.store
+            .create_plan(&plan)
+            .await
+            .map_err(core_err_to_tool)?;
         self.store
             .set_active_plan(&id)
             .await
@@ -363,9 +362,7 @@ mod tests {
     use agent_diva_core::planning::ids::PlanId;
 
     async fn test_store() -> agent_diva_core::planning::store::SqlitePlanningStore {
-        let pool = sqlx::SqlitePool::connect("sqlite::memory:")
-            .await
-            .unwrap();
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
         agent_diva_core::planning::store::SqlitePlanningStore::new(pool)
             .await
             .unwrap()
@@ -422,21 +419,36 @@ mod tests {
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("t1", "Write code", TodoStatus::InProgress, TodoPriority::High),
+                &make_todo(
+                    "t1",
+                    "Write code",
+                    TodoStatus::InProgress,
+                    TodoPriority::High,
+                ),
             )
             .await
             .unwrap();
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("t2", "Write tests", TodoStatus::Pending, TodoPriority::Normal),
+                &make_todo(
+                    "t2",
+                    "Write tests",
+                    TodoStatus::Pending,
+                    TodoPriority::Normal,
+                ),
             )
             .await
             .unwrap();
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("t3", "Done task", TodoStatus::Completed, TodoPriority::Normal),
+                &make_todo(
+                    "t3",
+                    "Done task",
+                    TodoStatus::Completed,
+                    TodoPriority::Normal,
+                ),
             )
             .await
             .unwrap();
@@ -524,14 +536,24 @@ mod tests {
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("old1", "Old task 1", TodoStatus::Pending, TodoPriority::Normal),
+                &make_todo(
+                    "old1",
+                    "Old task 1",
+                    TodoStatus::Pending,
+                    TodoPriority::Normal,
+                ),
             )
             .await
             .unwrap();
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("old2", "Old task 2", TodoStatus::Pending, TodoPriority::Normal),
+                &make_todo(
+                    "old2",
+                    "Old task 2",
+                    TodoStatus::Pending,
+                    TodoPriority::Normal,
+                ),
             )
             .await
             .unwrap();
@@ -611,8 +633,7 @@ mod tests {
             .unwrap();
 
         // Blocked without block_reason
-        let items_json =
-            r#"[{"title": "Blocked task", "status": "blocked", "priority": "high"}]"#;
+        let items_json = r#"[{"title": "Blocked task", "status": "blocked", "priority": "high"}]"#;
         let result = todo_write(&store, items_json).await;
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
