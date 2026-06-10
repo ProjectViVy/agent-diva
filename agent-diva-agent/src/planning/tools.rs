@@ -6,6 +6,7 @@
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::planning::render::render_plan_md;
 use agent_diva_core::planning::store::PlanningStore;
+use agent_diva_tooling::{Result as ToolResult, Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
@@ -13,11 +14,11 @@ use tokio::sync::Mutex;
 
 use super::orchestrator::PlanOrchestrator;
 
-fn core_err(e: agent_diva_core::Error) -> agent_diva_tools::ToolError {
-    agent_diva_tools::ToolError::ExecutionFailed(e.to_string())
+fn core_err(e: agent_diva_core::Error) -> ToolError {
+    ToolError::ExecutionFailed(e.to_string())
 }
 
-fn parse_plan_phase(s: &str) -> Result<PlanPhase, agent_diva_tools::ToolError> {
+fn parse_plan_phase(s: &str) -> Result<PlanPhase, ToolError> {
     match s {
         "explore" | "Explore" => Ok(PlanPhase::Explore),
         "plan" | "Plan" => Ok(PlanPhase::Plan),
@@ -27,7 +28,7 @@ fn parse_plan_phase(s: &str) -> Result<PlanPhase, agent_diva_tools::ToolError> {
         "completed" | "Completed" => Ok(PlanPhase::Completed),
         "failed" | "Failed" => Ok(PlanPhase::Failed),
         "partial" | "Partial" => Ok(PlanPhase::Partial),
-        _ => Err(agent_diva_tools::ToolError::InvalidParams(format!(
+        _ => Err(ToolError::InvalidParams(format!(
             "Invalid phase: '{}'. Valid: explore, plan, awaiting_approval, execute, verify, completed, failed, partial",
             s
         ))),
@@ -46,12 +47,15 @@ pub struct PlanApproveTool {
 
 impl PlanApproveTool {
     pub fn new(orchestrator: Arc<Mutex<PlanOrchestrator>>, store: Arc<dyn PlanningStore>) -> Self {
-        Self { orchestrator, store }
+        Self {
+            orchestrator,
+            store,
+        }
     }
 }
 
 #[async_trait]
-impl agent_diva_tools::Tool for PlanApproveTool {
+impl Tool for PlanApproveTool {
     fn name(&self) -> &str {
         "plan_approve"
     }
@@ -68,7 +72,7 @@ impl agent_diva_tools::Tool for PlanApproveTool {
         })
     }
 
-    async fn execute(&self, _args: Value) -> agent_diva_tools::base::Result<String> {
+    async fn execute(&self, _args: Value) -> ToolResult<String> {
         let plan_id = self.store.get_active_plan().await.map_err(core_err)?;
         let plan = self.store.get_plan(&plan_id).await.map_err(core_err)?;
 
@@ -94,12 +98,15 @@ pub struct PlanTransitionTool {
 
 impl PlanTransitionTool {
     pub fn new(orchestrator: Arc<Mutex<PlanOrchestrator>>, store: Arc<dyn PlanningStore>) -> Self {
-        Self { orchestrator, store }
+        Self {
+            orchestrator,
+            store,
+        }
     }
 }
 
 #[async_trait]
-impl agent_diva_tools::Tool for PlanTransitionTool {
+impl Tool for PlanTransitionTool {
     fn name(&self) -> &str {
         "plan_transition"
     }
@@ -121,11 +128,11 @@ impl agent_diva_tools::Tool for PlanTransitionTool {
         })
     }
 
-    async fn execute(&self, args: Value) -> agent_diva_tools::base::Result<String> {
+    async fn execute(&self, args: Value) -> ToolResult<String> {
         let phase_str = args
             .get("phase")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| agent_diva_tools::ToolError::InvalidParams("Missing 'phase'".into()))?;
+            .ok_or_else(|| ToolError::InvalidParams("Missing 'phase'".into()))?;
 
         let new_phase = parse_plan_phase(phase_str)?;
         let plan_id = self.store.get_active_plan().await.map_err(core_err)?;
@@ -159,7 +166,7 @@ impl PlanShowTool {
 }
 
 #[async_trait]
-impl agent_diva_tools::Tool for PlanShowTool {
+impl Tool for PlanShowTool {
     fn name(&self) -> &str {
         "plan_show"
     }
@@ -176,7 +183,7 @@ impl agent_diva_tools::Tool for PlanShowTool {
         })
     }
 
-    async fn execute(&self, _args: Value) -> agent_diva_tools::base::Result<String> {
+    async fn execute(&self, _args: Value) -> ToolResult<String> {
         let plan_id = self.store.get_active_plan().await.map_err(core_err)?;
         let plan = self.store.get_plan(&plan_id).await.map_err(core_err)?;
         let steps = self.store.get_steps(&plan_id).await.map_err(core_err)?;

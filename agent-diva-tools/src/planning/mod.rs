@@ -11,6 +11,7 @@ use agent_diva_core::planning::model::{
 use agent_diva_core::planning::render::render_todo_md;
 use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::Error;
+use agent_diva_tooling::{Result as ToolResult, Tool, ToolError};
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::Deserialize;
@@ -174,8 +175,8 @@ pub async fn todo_write(store: &dyn PlanningStore, items_json: &str) -> Result<S
 // Tool trait implementations
 // ---------------------------------------------------------------------------
 
-fn core_err_to_tool(e: Error) -> crate::base::ToolError {
-    crate::base::ToolError::ExecutionFailed(e.to_string())
+fn core_err_to_tool(e: Error) -> ToolError {
+    ToolError::ExecutionFailed(e.to_string())
 }
 
 /// `todo_show` — read-only tool that returns the current TodoList as markdown.
@@ -190,7 +191,7 @@ impl TodoShowTool {
 }
 
 #[async_trait]
-impl crate::base::Tool for TodoShowTool {
+impl Tool for TodoShowTool {
     fn name(&self) -> &str {
         "todo_show"
     }
@@ -207,7 +208,7 @@ impl crate::base::Tool for TodoShowTool {
         })
     }
 
-    async fn execute(&self, _args: Value) -> crate::base::Result<String> {
+    async fn execute(&self, _args: Value) -> ToolResult<String> {
         todo_show(self.store.as_ref())
             .await
             .map_err(core_err_to_tool)
@@ -226,7 +227,7 @@ impl TodoWriteTool {
 }
 
 #[async_trait]
-impl crate::base::Tool for TodoWriteTool {
+impl Tool for TodoWriteTool {
     fn name(&self) -> &str {
         "todo_write"
     }
@@ -260,11 +261,11 @@ impl crate::base::Tool for TodoWriteTool {
         })
     }
 
-    async fn execute(&self, args: Value) -> crate::base::Result<String> {
+    async fn execute(&self, args: Value) -> ToolResult<String> {
         let items = args
             .get("items")
             .and_then(|v| serde_json::to_string(v).ok())
-            .ok_or_else(|| crate::base::ToolError::InvalidParams("Missing 'items' field".into()))?;
+            .ok_or_else(|| ToolError::InvalidParams("Missing 'items' field".into()))?;
         todo_write(self.store.as_ref(), &items)
             .await
             .map_err(core_err_to_tool)
@@ -283,7 +284,7 @@ impl PlanCreateTool {
 }
 
 #[async_trait]
-impl crate::base::Tool for PlanCreateTool {
+impl Tool for PlanCreateTool {
     fn name(&self) -> &str {
         "plan_create"
     }
@@ -303,20 +304,20 @@ impl crate::base::Tool for PlanCreateTool {
         })
     }
 
-    async fn execute(&self, args: Value) -> crate::base::Result<String> {
+    async fn execute(&self, args: Value) -> ToolResult<String> {
         let title = args
             .get("title")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| crate::base::ToolError::InvalidParams("Missing 'title'".into()))?
+            .ok_or_else(|| ToolError::InvalidParams("Missing 'title'".into()))?
             .to_string();
         let goal = args
             .get("goal")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| crate::base::ToolError::InvalidParams("Missing 'goal'".into()))?
+            .ok_or_else(|| ToolError::InvalidParams("Missing 'goal'".into()))?
             .to_string();
 
         if title.trim().is_empty() || goal.trim().is_empty() {
-            return Err(crate::base::ToolError::InvalidParams(
+            return Err(ToolError::InvalidParams(
                 "title and goal cannot be empty".into(),
             ));
         }
