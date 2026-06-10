@@ -244,56 +244,71 @@ impl StorageBackend for LocalStorageBackend {
     }
 }
 
-/// S3-compatible storage backend (placeholder for future implementation)
+/// S3-compatible storage backend.
 ///
-/// This is a stub that shows how to implement a remote storage backend.
-/// Uncomment and implement when needed.
-/*
+/// This backend is exposed as an explicit unsupported stub until S3 support is
+/// fully implemented. It must not panic when selected by configuration.
 pub struct S3StorageBackend {
     bucket: String,
     prefix: String,
-    client: aws_sdk_s3::Client,
+}
+
+impl S3StorageBackend {
+    /// Create a new S3 backend stub.
+    pub fn new(bucket: impl Into<String>, prefix: impl Into<String>) -> Self {
+        Self {
+            bucket: bucket.into(),
+            prefix: prefix.into(),
+        }
+    }
+
+    fn unsupported_error(&self, operation: &str) -> FileError {
+        FileError::UnsupportedBackend(format!(
+            "S3 backend is not implemented; cannot {} bucket '{}' with prefix '{}'",
+            operation, self.bucket, self.prefix
+        ))
+    }
 }
 
 #[async_trait]
 impl StorageBackend for S3StorageBackend {
     async fn initialize(&self) -> Result<()> {
-        // Ensure bucket exists or create it
-        todo!("Implement S3 initialization")
+        Err(self.unsupported_error("initialize"))
     }
 
-    async fn write(&self, key: &str, data: &[u8]) -> Result<PathBuf> {
-        // Upload to S3
-        let path = PathBuf::from(format!("{}/{}", self.prefix, key));
-        todo!("Implement S3 upload")
+    async fn write(&self, _key: &str, _data: &[u8]) -> Result<PathBuf> {
+        Err(self.unsupported_error("write to"))
     }
 
-    async fn read(&self, path: &Path) -> Result<Vec<u8>> {
-        // Download from S3
-        todo!("Implement S3 download")
+    async fn read(&self, _path: &Path) -> Result<Vec<u8>> {
+        Err(self.unsupported_error("read from"))
     }
 
-    async fn delete(&self, path: &Path) -> Result<()> {
-        // Delete from S3
-        todo!("Implement S3 delete")
+    async fn delete(&self, _path: &Path) -> Result<()> {
+        Err(self.unsupported_error("delete from"))
     }
 
-    async fn exists(&self, key: &str) -> bool {
-        // Check S3 head object
-        todo!("Implement S3 exists check")
+    async fn exists(&self, _key: &str) -> bool {
+        tracing::warn!(
+            "S3 backend is not implemented; treating object existence as false for bucket '{}'",
+            self.bucket
+        );
+        false
     }
 
     fn full_path(&self, relative_path: &Path) -> PathBuf {
-        // Return S3 URI
-        PathBuf::from(format!("s3://{}/{}", self.bucket, relative_path.display()))
+        let key = if self.prefix.is_empty() {
+            relative_path.display().to_string()
+        } else {
+            format!("{}/{}", self.prefix, relative_path.display())
+        };
+        PathBuf::from(format!("s3://{}/{}", self.bucket, key))
     }
 
     async fn stats(&self) -> Result<BackendStats> {
-        // Get S3 bucket stats
-        todo!("Implement S3 stats")
+        Err(self.unsupported_error("inspect stats for"))
     }
 }
-*/
 
 #[cfg(test)]
 mod tests {
@@ -362,5 +377,51 @@ mod tests {
         assert_eq!(backend.hash_to_path("ab"), PathBuf::from("ab"));
         assert_eq!(backend.hash_to_path("a"), PathBuf::from("a"));
         assert_eq!(backend.hash_to_path(""), PathBuf::from(""));
+    }
+
+    #[tokio::test]
+    async fn test_s3_backend_returns_unsupported_errors() {
+        let backend = S3StorageBackend::new("bucket", "prefix");
+
+        let err = backend
+            .initialize()
+            .await
+            .expect_err("S3 initialize should be unsupported");
+        assert!(matches!(err, FileError::UnsupportedBackend(_)));
+
+        let err = backend
+            .write("abc123", b"data")
+            .await
+            .expect_err("S3 write should be unsupported");
+        assert!(matches!(err, FileError::UnsupportedBackend(_)));
+
+        let err = backend
+            .read(Path::new("prefix/abc123"))
+            .await
+            .expect_err("S3 read should be unsupported");
+        assert!(matches!(err, FileError::UnsupportedBackend(_)));
+
+        let err = backend
+            .delete(Path::new("prefix/abc123"))
+            .await
+            .expect_err("S3 delete should be unsupported");
+        assert!(matches!(err, FileError::UnsupportedBackend(_)));
+
+        assert!(!backend.exists("abc123").await);
+
+        let err = backend
+            .stats()
+            .await
+            .expect_err("S3 stats should be unsupported");
+        assert!(matches!(err, FileError::UnsupportedBackend(_)));
+    }
+
+    #[test]
+    fn test_s3_backend_full_path_includes_prefix() {
+        let backend = S3StorageBackend::new("bucket", "prefix");
+        assert_eq!(
+            backend.full_path(Path::new("ab/c123")),
+            PathBuf::from("s3://bucket/prefix/ab/c123")
+        );
     }
 }

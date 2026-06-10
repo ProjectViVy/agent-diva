@@ -82,6 +82,9 @@ pub enum FileError {
     #[error("Storage error: {0}")]
     Storage(String),
 
+    #[error("Unsupported storage backend: {0}")]
+    UnsupportedBackend(String),
+
     #[error("File too large: {0} bytes (max: {1} bytes)")]
     TooLarge(u64, u64),
 
