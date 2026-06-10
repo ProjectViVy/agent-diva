@@ -1,12 +1,15 @@
 //! Subagent management for background tasks
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore};
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
@@ -28,6 +31,10 @@ use crate::tool_assembly::ToolAssembly;
 use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
+
+pub const MAX_CONCURRENT_SUBAGENTS: usize = 8;
+pub const DEFAULT_SUBAGENT_TIMEOUT_SECS: u64 = 300;
+const DEFAULT_SUBAGENT_TIMEOUT: Duration = Duration::from_secs(DEFAULT_SUBAGENT_TIMEOUT_SECS);
 
 #[derive(Debug, Clone)]
 pub struct SubagentSpawnRequest {
@@ -78,6 +85,8 @@ impl SubagentManager {
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let exec_timeout = exec_timeout.unwrap_or(30);
+        let effective_max_concurrent =
+            Self::effective_max_concurrent(subagent_policy.max_concurrent);
 
         Self {
             provider,
@@ -90,7 +99,7 @@ impl SubagentManager {
             restrict_to_workspace,
             mcp_servers: Arc::new(RwLock::new(mcp_servers)),
             running_tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
-            concurrency_limit: Arc::new(Semaphore::new(subagent_policy.max_concurrent)),
+            concurrency_limit: Arc::new(Semaphore::new(effective_max_concurrent)),
             subagent_policy,
             context_budget,
         }
@@ -232,19 +241,22 @@ impl SubagentManager {
             task_id, label, depth, origin
         );
 
-        let result = Self::execute_subagent_task(
-            &task_id,
-            &task,
-            &provider,
-            &workspace,
-            &model,
-            &builtin_tools,
-            &network_config,
-            exec_timeout,
-            restrict_to_workspace,
-            &mcp_servers,
-            &subagent_policy,
-            &context_budget,
+        let result = Self::with_subagent_timeout(
+            Self::execute_subagent_task(
+                &task_id,
+                &task,
+                &provider,
+                &workspace,
+                &model,
+                &builtin_tools,
+                &network_config,
+                exec_timeout,
+                restrict_to_workspace,
+                &mcp_servers,
+                &subagent_policy,
+                &context_budget,
+            ),
+            DEFAULT_SUBAGENT_TIMEOUT,
         )
         .await;
 
@@ -419,6 +431,18 @@ impl SubagentManager {
             .unwrap_or_else(|| "Task completed but no final response was generated.".to_string()))
     }
 
+    async fn with_subagent_timeout<T>(
+        future: impl Future<Output = Result<T>>,
+        timeout_duration: Duration,
+    ) -> Result<T> {
+        timeout(timeout_duration, future).await.map_err(|_| {
+            anyhow!(
+                "Subagent task timed out after {} seconds.",
+                timeout_duration.as_secs()
+            )
+        })?
+    }
+
     /// Announce the subagent result to the main agent via the message bus
     #[allow(clippy::too_many_arguments)]
     async fn announce_result(
@@ -567,7 +591,7 @@ When you have completed the task, provide a clear summary of your findings or ac
     fn concurrent_limit_error(&self) -> anyhow::Error {
         anyhow!(
             "Subagent spawn rejected: the concurrent subagent limit ({}) is already in use.",
-            self.subagent_policy.max_concurrent
+            Self::effective_max_concurrent(self.subagent_policy.max_concurrent)
         )
     }
 
@@ -578,11 +602,18 @@ When you have completed the task, provide a clear summary of your findings or ac
             self.subagent_policy.max_depth
         )
     }
+
+    fn effective_max_concurrent(configured: usize) -> usize {
+        configured.clamp(1, MAX_CONCURRENT_SUBAGENTS)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SubagentManager, SubagentSpawnRequest};
+    use super::{
+        SubagentManager, SubagentSpawnRequest, DEFAULT_SUBAGENT_TIMEOUT_SECS,
+        MAX_CONCURRENT_SUBAGENTS,
+    };
     use crate::subagent_policy::SubagentPolicy;
     use crate::tool_config::builtin::BuiltInToolsConfig;
     use crate::tool_config::network::{
@@ -598,7 +629,9 @@ mod tests {
     use async_trait::async_trait;
     use serde_json::json;
     use std::collections::HashMap;
+    use std::future::pending;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use tokio::sync::Notify;
 
     struct RepeatingToolProvider {
@@ -911,5 +944,31 @@ mod tests {
             .await
             .expect_err("depth violation should be rejected");
         assert!(err.to_string().contains("nesting depth"));
+    }
+
+    #[tokio::test]
+    async fn test_subagent_timeout_helper_returns_error() {
+        let err = SubagentManager::with_subagent_timeout(
+            pending::<anyhow::Result<()>>(),
+            Duration::from_millis(10),
+        )
+        .await
+        .expect_err("pending subagent future should time out");
+
+        assert!(err.to_string().contains("timed out"));
+    }
+
+    #[test]
+    fn test_subagent_default_timeout_is_300_seconds() {
+        assert_eq!(DEFAULT_SUBAGENT_TIMEOUT_SECS, 300);
+    }
+
+    #[test]
+    fn test_subagent_effective_concurrency_is_hard_capped() {
+        assert_eq!(
+            SubagentManager::effective_max_concurrent(MAX_CONCURRENT_SUBAGENTS + 1),
+            MAX_CONCURRENT_SUBAGENTS
+        );
+        assert_eq!(SubagentManager::effective_max_concurrent(0), 1);
     }
 }
