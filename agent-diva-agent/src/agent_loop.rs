@@ -1,6 +1,7 @@
 //! Agent loop: the core processing engine
 
 use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
+use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
@@ -242,6 +243,7 @@ impl AgentLoop {
             None,
             false,
             HashMap::new(),
+            ToolLimits::default(),
         ));
 
         // Initialize file manager for attachment handling
@@ -371,6 +373,7 @@ impl AgentLoop {
             Some(tool_config.exec_timeout),
             tool_config.restrict_to_workspace,
             tool_config.mcp_servers.clone(),
+            ToolLimits::default(),
         ));
 
         let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
@@ -516,6 +519,7 @@ impl AgentLoop {
             Some(toolset.config.exec_timeout),
             toolset.config.restrict_to_workspace,
             toolset.config.mcp_servers.clone(),
+            ToolLimits::default(),
         ));
 
         let memory_provider: Arc<dyn MemoryProvider> =
@@ -1049,7 +1053,7 @@ mod tests {
         assert!(!agent.mentle_active());
         assert!(!agent
             .context
-            .build_system_prompt()
+            .build_system_prompt(None)
             .contains("L2 Palace Memory"));
     }
 
@@ -1091,7 +1095,7 @@ mod tests {
         assert!(agent.mentle_active());
         assert!(agent
             .context
-            .build_system_prompt()
+            .build_system_prompt(None)
             .contains("L2 Palace Memory"));
     }
 
@@ -1130,7 +1134,7 @@ mod tests {
         .await
         .unwrap();
 
-        let prompt = agent.context.build_system_prompt();
+        let prompt = agent.context.build_system_prompt(None);
 
         assert!(agent.mentle_active());
         assert!(prompt.contains("L2 Palace Memory"));
@@ -1192,7 +1196,7 @@ mod tests {
 
         assert_eq!(agent.mentle_active(), agent.tools.has("memtle_status"));
         assert!(agent.tools.has("memtle_search"));
-        assert!(agent.context.build_system_prompt().contains("memtle_*"));
+        assert!(agent.context.build_system_prompt(None).contains("memtle_*"));
     }
 
     #[tokio::test]
@@ -1229,7 +1233,7 @@ mod tests {
         .await
         .unwrap();
 
-        let prompt = agent.context.build_system_prompt();
+        let prompt = agent.context.build_system_prompt(None);
 
         assert!(!agent.mentle_active());
         assert!(agent.tools.has("memtle_search"));
@@ -1409,7 +1413,7 @@ mod tests {
         assert!(agent.tools.has("memtle_status"));
         assert!(agent
             .context
-            .build_system_prompt()
+            .build_system_prompt(None)
             .contains("L2 Palace Memory"));
     }
 
@@ -1537,7 +1541,7 @@ mod tests {
         assert!(agent.tools.has("cron"));
         assert!(agent
             .context
-            .build_system_prompt()
+            .build_system_prompt(None)
             .contains("L2 Palace Memory"));
     }
 
@@ -1916,7 +1920,7 @@ mod tests {
         .await
         .unwrap();
 
-        let prompt = agent.context.build_system_prompt();
+        let prompt = agent.context.build_system_prompt(None);
 
         assert!(!agent.mentle_active());
         assert!(!agent.tools.has("memtle_status"));
@@ -1992,7 +1996,7 @@ mod tests {
         .await
         .unwrap();
 
-        let prompt = agent.context.build_system_prompt();
+        let prompt = agent.context.build_system_prompt(None);
 
         assert!(!agent.mentle_active());
         assert!(agent.tools.has("memtle_search"));
@@ -2322,7 +2326,7 @@ mod tests {
         // ContextBuilder with injected provider
         let builder = ContextBuilder::new(workspace).with_memory_provider(memory_provider.clone());
 
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
 
         // Startup hook should have been called synchronously.
         assert!(
