@@ -59,8 +59,7 @@ impl MemoryManager {
         if let Some(parent) = self.memory_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&self.memory_path, &memory.content)?;
-        Ok(())
+        crate::utils::atomic_write(&self.memory_path, memory.content.as_bytes())
     }
 
     /// Load history entries from `HISTORY.md`
@@ -86,8 +85,7 @@ impl MemoryManager {
         }
         content.push_str(entry.trim_end());
         content.push_str("\n\n");
-        std::fs::write(&self.history_path, content)?;
-        Ok(())
+        crate::utils::atomic_write(&self.history_path, content.as_bytes())
     }
 
     /// Load a daily note
@@ -119,8 +117,7 @@ impl MemoryManager {
     pub fn save_daily_note(&self, note: &DailyNote) -> crate::Result<()> {
         std::fs::create_dir_all(&self.notes_dir)?;
         let path = self.notes_dir.join(note.filename());
-        std::fs::write(&path, &note.content)?;
-        Ok(())
+        crate::utils::atomic_write(&path, note.content.as_bytes())
     }
 
     /// List all daily notes

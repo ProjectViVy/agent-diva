@@ -1,5 +1,6 @@
 //! Utility functions and helpers
 
+use std::io::Write;
 use std::path::Path;
 
 /// Ensure a directory exists, creating it if necessary
@@ -32,6 +33,31 @@ pub fn truncate(s: &str, max_len: usize) -> String {
         }
         format!("{}...", &s[..end])
     }
+}
+
+/// Atomically write a file by syncing a same-directory temporary file and renaming it into place.
+pub fn atomic_write(path: &Path, content: &[u8]) -> crate::Result<()> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    std::fs::create_dir_all(parent)?;
+
+    let prefix = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("file");
+    let mut temp_file = tempfile::Builder::new()
+        .prefix(&format!(".{prefix}."))
+        .suffix(".tmp")
+        .tempfile_in(parent)?;
+
+    temp_file.write_all(content)?;
+    temp_file.as_file().sync_all()?;
+    temp_file.persist(path).map_err(|error| error.error)?;
+
+    if let Ok(dir) = std::fs::File::open(parent) {
+        let _ = dir.sync_all();
+    }
+
+    Ok(())
 }
 
 const DEFAULT_MEMORY_MD: &str = "# Long-term Memory\n\nRecord durable facts here.\n";
@@ -135,6 +161,28 @@ mod tests {
         assert_eq!(truncate("hello", 10), "hello");
         assert_eq!(truncate("hello world", 8), "hello...");
         assert_eq!(truncate("test", 3), "...");
+    }
+
+    #[test]
+    fn test_atomic_write_replaces_existing_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("state.json");
+
+        atomic_write(&path, b"{\"version\":1}").unwrap();
+        atomic_write(&path, b"{\"version\":2}").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"version\":2}");
+        let temp_files = std::fs::read_dir(temp.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.ends_with(".tmp"))
+            })
+            .count();
+        assert_eq!(temp_files, 0);
     }
 
     #[test]

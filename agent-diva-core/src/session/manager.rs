@@ -2,8 +2,6 @@
 
 use super::store::Session;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -251,42 +249,8 @@ impl SessionManager {
         self.sessions_dir.join(format!("{}.jsonl.bak", safe_key))
     }
 
-    fn temp_path(&self, path: &Path) -> PathBuf {
-        let stem = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("session");
-        path.with_file_name(format!("{stem}.tmp"))
-    }
-
     fn write_session_atomically(&self, path: &Path, content: &[u8]) -> crate::Result<()> {
-        let temp_path = self.temp_path(path);
-        let backup_path = path.with_extension("jsonl.bak");
-
-        let mut temp_file = File::create(&temp_path)?;
-        temp_file.write_all(content)?;
-        temp_file.sync_all()?;
-        drop(temp_file);
-
-        if path.exists() {
-            if backup_path.exists() {
-                let _ = std::fs::remove_file(&backup_path);
-            }
-
-            std::fs::rename(path, &backup_path)?;
-            if let Err(error) = std::fs::rename(&temp_path, path) {
-                let _ = std::fs::rename(&backup_path, path);
-                let _ = std::fs::remove_file(&temp_path);
-                return Err(error.into());
-            }
-
-            let _ = std::fs::remove_file(&backup_path);
-        } else if let Err(error) = std::fs::rename(&temp_path, path) {
-            let _ = std::fs::remove_file(&temp_path);
-            return Err(error.into());
-        }
-
-        Ok(())
+        crate::utils::atomic_write(path, content)
     }
 }
 

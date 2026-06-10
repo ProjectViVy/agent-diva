@@ -43,6 +43,7 @@ uuid = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = "0.12"
+tempfile = { workspace = true }
 
 # File management
 agent-diva-files = { workspace = true }

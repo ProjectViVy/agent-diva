@@ -72,9 +72,8 @@ impl ConfigLoader {
     /// Save configuration to file
     pub fn save(&self, config: &Config) -> crate::Result<()> {
         std::fs::create_dir_all(&self.config_dir)?;
-        let content = serde_json::to_string_pretty(config)?;
-        std::fs::write(&self.config_path, content)?;
-        Ok(())
+        let content = serde_json::to_vec_pretty(config)?;
+        crate::utils::atomic_write(&self.config_path, &content)
     }
 
     /// Get the config directory path
