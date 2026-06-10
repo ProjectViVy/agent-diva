@@ -619,13 +619,13 @@ impl FileManager {
 
     /// Get storage statistics
     pub async fn stats(&self) -> Result<StorageStats> {
-        let mut stats = self.storage.stats().await?;
-
-        // Get stats from the index
+        let storage_stats = self.storage.stats().await?;
         let index_stats = self.index.stats().await?;
-        stats.total_refs = index_stats.total_refs;
 
-        Ok(stats)
+        Ok(StorageStats {
+            total_refs: index_stats.total_refs,
+            ..storage_stats
+        })
     }
 
     /// Get a reference to the config
