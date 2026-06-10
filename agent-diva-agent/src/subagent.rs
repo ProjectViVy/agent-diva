@@ -1,6 +1,6 @@
 //! Subagent management for background tasks
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -24,6 +24,8 @@ use crate::tool_assembly::ToolAssembly;
 use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
+
+const MAX_CONCURRENT_SUBAGENTS: usize = 4;
 
 /// Subagent manager for background task execution.
 ///
@@ -257,8 +259,13 @@ impl SubagentManager {
         let mcp_servers = self.mcp_servers.read().await.clone();
 
         let mut join_set = JoinSet::new();
+        let mut tasks = VecDeque::from(request.tasks);
+        let max_concurrent = MAX_CONCURRENT_SUBAGENTS.max(1);
 
-        for task in request.tasks {
+        for _ in 0..max_concurrent {
+            let Some(task) = tasks.pop_front() else {
+                break;
+            };
             let provider = Arc::clone(&provider);
             let workspace = workspace.clone();
             let model = model.clone();
@@ -301,6 +308,32 @@ impl SubagentManager {
                         tool_trace: None,
                     });
                 }
+            }
+
+            if let Some(task) = tasks.pop_front() {
+                let provider = Arc::clone(&provider);
+                let workspace = workspace.clone();
+                let model = model.clone();
+                let builtin_tools = builtin_tools.clone();
+                let network_config = network_config.clone();
+                let mcp_servers = mcp_servers.clone();
+
+                join_set.spawn(async move {
+                    Self::run_isolated_subagent(
+                        task.id,
+                        task.goal,
+                        task.context,
+                        provider,
+                        workspace,
+                        &model,
+                        &builtin_tools,
+                        &network_config,
+                        exec_timeout,
+                        restrict_to_workspace,
+                        &mcp_servers,
+                    )
+                    .await
+                });
             }
         }
 
