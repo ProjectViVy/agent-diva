@@ -344,7 +344,7 @@ mod tests {
 
     #[test]
     fn provider_error_detects_context_overflow() {
-        assert!(provider_error_indicates_context_overflow(&ProviderError::ApiError(
+        assert!(provider_error_indicates_context_overflow(&ProviderError::api_message(
             "This model's maximum context length is 8192 tokens, however you requested 12000 tokens".to_string()
         )));
         assert!(provider_error_indicates_context_overflow(
@@ -353,7 +353,7 @@ mod tests {
             )
         ));
         assert!(!provider_error_indicates_context_overflow(
-            &ProviderError::ApiError("rate limit exceeded".to_string())
+            &ProviderError::api_message("rate limit exceeded".to_string())
         ));
     }
 }

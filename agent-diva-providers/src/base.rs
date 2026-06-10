@@ -7,6 +7,34 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use thiserror::Error;
 
+/// Structured API error returned by an upstream provider.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderApiError {
+    pub status: Option<u16>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub code: Option<String>,
+    pub message: String,
+    pub error_type: Option<String>,
+    pub retry_after_secs: Option<u64>,
+    pub request_id: Option<String>,
+}
+
+impl ProviderApiError {
+    pub fn message(message: impl Into<String>) -> Self {
+        Self {
+            status: None,
+            provider: None,
+            model: None,
+            code: None,
+            message: message.into(),
+            error_type: None,
+            retry_after_secs: None,
+            request_id: None,
+        }
+    }
+}
+
 /// Error type for provider operations
 #[derive(Error, Debug)]
 pub enum ProviderError {
@@ -19,11 +47,18 @@ pub enum ProviderError {
     #[error("Invalid response: {0}")]
     InvalidResponse(String),
 
-    #[error("API error: {0}")]
-    ApiError(String),
+    #[error("API error ({status:?}): {message}", status = .0.status, message = .0.message)]
+    ApiError(Box<ProviderApiError>),
 
     #[error("Configuration error: {0}")]
     ConfigError(String),
+}
+
+impl ProviderError {
+    /// Construct an API error when only a human-readable message is available.
+    pub fn api_message(message: impl Into<String>) -> Self {
+        Self::ApiError(Box::new(ProviderApiError::message(message)))
+    }
 }
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
@@ -88,9 +123,18 @@ pub fn supports_vision_model(model: &str) -> bool {
 /// selected model cannot accept multimodal image input.
 pub fn provider_error_indicates_vision_unsupported(error: &ProviderError) -> bool {
     match error {
-        ProviderError::ApiError(message) | ProviderError::InvalidResponse(message) => {
-            message_indicates_vision_unsupported(message)
+        ProviderError::ApiError(api_error) => {
+            message_indicates_vision_unsupported(&api_error.message)
+                || api_error
+                    .code
+                    .as_deref()
+                    .is_some_and(message_indicates_vision_unsupported)
+                || api_error
+                    .error_type
+                    .as_deref()
+                    .is_some_and(message_indicates_vision_unsupported)
         }
+        ProviderError::InvalidResponse(message) => message_indicates_vision_unsupported(message),
         ProviderError::HttpError(_)
         | ProviderError::JsonError(_)
         | ProviderError::ConfigError(_) => false,
@@ -125,9 +169,18 @@ fn message_indicates_vision_unsupported(message: &str) -> bool {
 /// request exceeded the model's context or token window.
 pub fn provider_error_indicates_context_overflow(error: &ProviderError) -> bool {
     match error {
-        ProviderError::ApiError(message) | ProviderError::InvalidResponse(message) => {
-            message_indicates_context_overflow(message)
+        ProviderError::ApiError(api_error) => {
+            message_indicates_context_overflow(&api_error.message)
+                || api_error
+                    .code
+                    .as_deref()
+                    .is_some_and(message_indicates_context_overflow)
+                || api_error
+                    .error_type
+                    .as_deref()
+                    .is_some_and(message_indicates_context_overflow)
         }
+        ProviderError::InvalidResponse(message) => message_indicates_context_overflow(message),
         ProviderError::HttpError(_)
         | ProviderError::JsonError(_)
         | ProviderError::ConfigError(_) => false,
@@ -635,7 +688,7 @@ mod tests {
     #[test]
     fn provider_error_detects_vision_unsupported_messages() {
         assert!(provider_error_indicates_vision_unsupported(
-            &ProviderError::ApiError(
+            &ProviderError::api_message(
                 "Model does not support vision or image input for this endpoint".to_string()
             )
         ));
@@ -646,7 +699,7 @@ mod tests {
         ));
 
         assert!(!provider_error_indicates_vision_unsupported(
-            &ProviderError::ApiError("rate limit exceeded".to_string())
+            &ProviderError::api_message("rate limit exceeded".to_string())
         ));
         assert!(!provider_error_indicates_vision_unsupported(
             &ProviderError::InvalidResponse("unexpected response payload".to_string())
@@ -656,7 +709,7 @@ mod tests {
     #[test]
     fn provider_error_detects_context_overflow_messages() {
         assert!(provider_error_indicates_context_overflow(
-            &ProviderError::ApiError(
+            &ProviderError::api_message(
                 "This model's maximum context length is 8192 tokens, however you requested 12000 tokens".to_string()
             )
         ));
@@ -666,8 +719,23 @@ mod tests {
             )
         ));
         assert!(!provider_error_indicates_context_overflow(
-            &ProviderError::ApiError("vision unsupported".to_string())
+            &ProviderError::api_message("vision unsupported".to_string())
         ));
+    }
+
+    #[test]
+    fn api_message_constructs_unstructured_api_error() {
+        let error = ProviderError::api_message("rate limit exceeded");
+
+        match error {
+            ProviderError::ApiError(api_error) => {
+                assert_eq!(api_error.message, "rate limit exceeded");
+                assert_eq!(api_error.status, None);
+                assert_eq!(api_error.provider, None);
+                assert_eq!(api_error.model, None);
+            }
+            other => panic!("unexpected error variant: {other:?}"),
+        }
     }
 
     #[test]

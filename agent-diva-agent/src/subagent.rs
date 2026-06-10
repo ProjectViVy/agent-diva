@@ -676,7 +676,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<agent_diva_providers::ProviderEventStream> {
-            Err(ProviderError::ApiError(
+            Err(ProviderError::api_message(
                 "chat_stream should not be used".to_string(),
             ))
         }
@@ -714,7 +714,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<agent_diva_providers::ProviderEventStream> {
-            Err(ProviderError::ApiError(
+            Err(ProviderError::api_message(
                 "chat_stream should not be used".to_string(),
             ))
         }

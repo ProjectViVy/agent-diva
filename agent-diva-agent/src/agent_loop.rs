@@ -638,7 +638,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::ApiError(
+            Err(ProviderError::api_message(
                 "chat should not be used".to_string(),
             ))
         }
@@ -651,9 +651,9 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<ProviderEventStream> {
-            Ok(Box::pin(stream::iter(vec![Err(ProviderError::ApiError(
-                "simulated stream failure".to_string(),
-            ))])))
+            Ok(Box::pin(stream::iter(vec![Err(
+                ProviderError::api_message("simulated stream failure".to_string()),
+            )])))
         }
 
         fn get_default_model(&self) -> String {
@@ -671,7 +671,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::ApiError(
+            Err(ProviderError::api_message(
                 "chat should not be used".to_string(),
             ))
         }
@@ -710,7 +710,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::ApiError(
+            Err(ProviderError::api_message(
                 "chat should not be used".to_string(),
             ))
         }
@@ -725,7 +725,7 @@ mod tests {
         ) -> ProviderResult<ProviderEventStream> {
             let call_index = self.calls.fetch_add(1, Ordering::SeqCst);
             if call_index < self.fail_times {
-                return Err(ProviderError::ApiError(
+                return Err(ProviderError::api_message(
                     "This model's maximum context length is 8192 tokens, however you requested 12000 tokens".to_string(),
                 ));
             }
@@ -756,7 +756,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::ApiError(
+            Err(ProviderError::api_message(
                 "chat should not be used".to_string(),
             ))
         }
@@ -827,7 +827,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::ApiError(
+            Err(ProviderError::api_message(
                 "chat should not be used".to_string(),
             ))
         }

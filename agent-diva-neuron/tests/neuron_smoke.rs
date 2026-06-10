@@ -1,4 +1,4 @@
-﻿use agent_diva_neuron::{LlmNeuron, NeuronError, NeuronEvent, NeuronNode, NeuronRequest};
+use agent_diva_neuron::{LlmNeuron, NeuronError, NeuronEvent, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
     LLMProvider, LLMResponse, Message, ProviderError, ProviderResult, ToolCallRequest,
 };
@@ -42,7 +42,7 @@ impl LLMProvider for ErrorProvider {
         _max_tokens: i32,
         _temperature: f64,
     ) -> ProviderResult<LLMResponse> {
-        Err(ProviderError::ApiError("mock failure".to_string()))
+        Err(ProviderError::api_message("mock failure".to_string()))
     }
 
     fn get_default_model(&self) -> String {

@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use regex::Regex;
-use reqwest::Client;
+use reqwest::{header::HeaderMap, Client, StatusCode};
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -12,8 +12,8 @@ use tracing::{debug, error, warn};
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 
 use crate::base::{
-    LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
-    ProviderResult, ToolCallRequest,
+    LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderApiError, ProviderError,
+    ProviderEventStream, ProviderResult, ToolCallRequest,
 };
 use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
@@ -42,6 +42,19 @@ struct ChatCompletionResponse {
     choices: Vec<Choice>,
     #[serde(default)]
     usage: Usage,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAiErrorEnvelope {
+    error: Option<OpenAiErrorBody>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAiErrorBody {
+    message: Option<String>,
+    #[serde(rename = "type")]
+    error_type: Option<String>,
+    code: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -283,6 +296,72 @@ impl LiteLLMClient {
 
         debug!("Model unchanged: {}", model);
         model.to_string()
+    }
+
+    fn provider_name(&self) -> Option<String> {
+        self.selected_provider
+            .as_ref()
+            .map(|provider| provider.name.clone())
+    }
+
+    fn parse_retry_after_secs(headers: &HeaderMap) -> Option<u64> {
+        headers
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+    }
+
+    fn parse_request_id(headers: &HeaderMap) -> Option<String> {
+        const REQUEST_ID_HEADERS: [&str; 4] = [
+            "x-request-id",
+            "request-id",
+            "x-litellm-request-id",
+            "x-correlation-id",
+        ];
+
+        REQUEST_ID_HEADERS.iter().find_map(|name| {
+            headers
+                .get(*name)
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        })
+    }
+
+    fn parse_error_code(code: Option<serde_json::Value>) -> Option<String> {
+        match code? {
+            serde_json::Value::String(value) => Some(value),
+            serde_json::Value::Null => None,
+            other => Some(other.to_string()),
+        }
+    }
+
+    fn build_api_error(
+        &self,
+        status: StatusCode,
+        headers: &HeaderMap,
+        error_text: String,
+        resolved_model: &str,
+    ) -> ProviderApiError {
+        let parsed = serde_json::from_str::<OpenAiErrorEnvelope>(&error_text).ok();
+        let body = parsed.and_then(|envelope| envelope.error);
+        let message = body
+            .as_ref()
+            .and_then(|error| error.message.clone())
+            .filter(|message| !message.trim().is_empty())
+            .unwrap_or_else(|| error_text.clone());
+
+        ProviderApiError {
+            status: Some(status.as_u16()),
+            provider: self.provider_name(),
+            model: Some(resolved_model.to_string()),
+            code: Self::parse_error_code(body.as_ref().and_then(|error| error.code.clone())),
+            message,
+            error_type: body.and_then(|error| error.error_type),
+            retry_after_secs: Self::parse_retry_after_secs(headers),
+            request_id: Self::parse_request_id(headers),
+        }
     }
 
     fn normalize_api_base(base: &str) -> String {
@@ -844,6 +923,7 @@ impl LLMProvider for LiteLLMClient {
 
         if !response.status().is_success() {
             let status = response.status();
+            let headers = response.headers().clone();
             let error_text = response
                 .text()
                 .await
@@ -858,10 +938,12 @@ impl LLMProvider for LiteLLMClient {
                 &body_json,
                 &body,
             );
-            return Err(ProviderError::ApiError(format!(
-                "HTTP {}: {}",
-                status, error_text
-            )));
+            return Err(ProviderError::ApiError(Box::new(self.build_api_error(
+                status,
+                &headers,
+                error_text,
+                &resolved_model,
+            ))));
         }
 
         let response_text = response.text().await?;
@@ -945,6 +1027,7 @@ impl LLMProvider for LiteLLMClient {
 
         if !response.status().is_success() {
             let status = response.status();
+            let headers = response.headers().clone();
             let error_text = response
                 .text()
                 .await
@@ -959,10 +1042,12 @@ impl LLMProvider for LiteLLMClient {
                 &body_json,
                 &body,
             );
-            return Err(ProviderError::ApiError(format!(
-                "HTTP {}: {}",
-                status, error_text
-            )));
+            return Err(ProviderError::ApiError(Box::new(self.build_api_error(
+                status,
+                &headers,
+                error_text,
+                &resolved_model,
+            ))));
         }
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1169,6 +1254,62 @@ mod tests {
             None,
         );
         assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
+    }
+
+    #[test]
+    fn test_build_api_error_parses_openai_error_envelope() {
+        let client = LiteLLMClient::new(
+            Some("sk-test".to_string()),
+            Some("https://api.deepseek.com/v1".to_string()),
+            "deepseek-chat".to_string(),
+            None,
+            Some("deepseek".to_string()),
+            None,
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(reqwest::header::RETRY_AFTER, "30".parse().unwrap());
+        headers.insert("x-request-id", "req_123".parse().unwrap());
+
+        let error = client.build_api_error(
+            StatusCode::TOO_MANY_REQUESTS,
+            &headers,
+            serde_json::json!({
+                "error": {
+                    "message": "rate limit exceeded",
+                    "type": "rate_limit_error",
+                    "code": "rate_limit"
+                }
+            })
+            .to_string(),
+            "deepseek-chat",
+        );
+
+        assert_eq!(error.status, Some(429));
+        assert_eq!(error.provider.as_deref(), Some("deepseek"));
+        assert_eq!(error.model.as_deref(), Some("deepseek-chat"));
+        assert_eq!(error.message, "rate limit exceeded");
+        assert_eq!(error.error_type.as_deref(), Some("rate_limit_error"));
+        assert_eq!(error.code.as_deref(), Some("rate_limit"));
+        assert_eq!(error.retry_after_secs, Some(30));
+        assert_eq!(error.request_id.as_deref(), Some("req_123"));
+    }
+
+    #[test]
+    fn test_build_api_error_preserves_non_json_body() {
+        let client = LiteLLMClient::default();
+        let headers = HeaderMap::new();
+
+        let error = client.build_api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &headers,
+            "upstream unavailable".to_string(),
+            "gpt-4o",
+        );
+
+        assert_eq!(error.status, Some(500));
+        assert_eq!(error.message, "upstream unavailable");
+        assert_eq!(error.code, None);
+        assert_eq!(error.error_type, None);
     }
 
     #[test]
