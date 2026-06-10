@@ -71,6 +71,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sqlx",
  "tempfile",
  "thiserror 1.0.69",

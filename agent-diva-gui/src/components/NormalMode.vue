@@ -26,6 +26,7 @@ import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
 import NotebookView from './NotebookView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
+import MaskSwitcher from './MaskSwitcher.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import { useI18n } from 'vue-i18n';
@@ -594,9 +595,7 @@ defineExpose({
         <div class="topbar-left no-drag">
           <!-- DIVA 头像和状态 -->
           <div class="topbar-identity">
-            <div class="topbar-avatar">
-              {{ emotionConfig[(props.currentEmotion || 'happy') as keyof typeof emotionConfig]?.emoji || '😊' }}
-            </div>
+            <MaskSwitcher @navigate-masks="navigateTo('settings', 'general')" />
             <div class="topbar-identity-info">
               <div class="topbar-identity-name">
                 DIVA

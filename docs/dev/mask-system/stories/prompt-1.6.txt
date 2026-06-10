@@ -1,0 +1,67 @@
+Implement Story 1.6 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Create predefined mask files and the mask editor GUI components.
+
+EXISTING CODE:
+- agent-diva-agent/src/mask/mask_file.rs (MaskFile, MaskConfig)
+- agent-diva-gui/src/components/settings/ (existing settings components for reference)
+
+FILES TO CREATE:
+1. workspace/masks/researcher.md — predefined mask
+2. workspace/masks/coder.md — predefined mask
+3. workspace/masks/reviewer.md — predefined mask
+4. workspace/masks/assistant.md — predefined mask
+
+PREDEFINED MASKS:
+
+researcher.md:
+```yaml
+---
+name: "研究员"
+icon: "🔍"
+description: "专注调研与分析"
+tool_limits:
+  allow: [read_file, search_files, web_search, web_extract]
+  deny: [terminal, write_file]
+---
+你是一个专注调研与分析的研究员。擅长信息收集、对比分析、文档整理。
+```
+
+coder.md:
+```yaml
+---
+name: "程序员"
+icon: "💻"
+description: "专注代码编写与调试"
+---
+你是一个专注代码编写与调试的程序员。擅长 Rust、TypeScript，遵循最佳实践。
+```
+
+reviewer.md:
+```yaml
+---
+name: "审查员"
+icon: "📝"
+description: "代码审查，只读模式"
+tool_limits:
+  allow: [read_file, search_files, web_search]
+  deny: [terminal, write_file, patch]
+---
+你是一个代码审查员。专注于代码质量、安全性、最佳实践审查。只读模式，不修改代码。
+```
+
+assistant.md:
+```yaml
+---
+name: "助手"
+icon: "🤖"
+description: "通用助手"
+---
+你是一个通用助手，帮助用户完成各种任务。
+```
+
+NOTE: The GUI components (MaskSettings.vue, MaskEditorModal.vue) will be done in a separate story. Focus on creating the mask files first.
+
+After creating files, verify they parse correctly by checking the YAML structure.

@@ -5,6 +5,7 @@ use crate::client::ApiClient;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings,
     context::SoulContextSettings,
+    mask::{MaskFile, MaskRegistry},
     runtime_control::RuntimeControlCommand,
     tool_config::mentle::MentleToolRuntimeConfig,
     tool_config::network::{
@@ -326,14 +327,19 @@ pub async fn run_chat(
     markdown: bool,
     logs: bool,
 ) -> Result<()> {
-    let (_config, selected_model, mut agent, runtime_control_tx) =
+    let (config, selected_model, mut agent, runtime_control_tx) =
         build_local_cli_agent(runtime, model, true).await?;
     let mut current_session = session.unwrap_or_else(|| "cli:chat".to_string());
+
+    // Initialize mask registry from workspace/masks/
+    let workspace = runtime.effective_workspace(&config);
+    let masks_dir = workspace.join("masks");
+    let mut mask_registry = MaskRegistry::new(&masks_dir);
 
     println!("{}", style("Agent Diva Chat").bold().cyan());
     println!("  model: {}", selected_model);
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop /thinking auto|on|off");
+    println!("  commands: /quit /clear /new /stop /mask /thinking auto|on|off");
 
     loop {
         let input: String = Input::new()
@@ -383,6 +389,10 @@ pub async fn run_chat(
                 }
                 continue;
             }
+            cmd if cmd.starts_with("/mask") => {
+                handle_mask_command(cmd, &mut mask_registry);
+                continue;
+            }
             _ => {}
         }
 
@@ -390,6 +400,97 @@ pub async fn run_chat(
     }
 
     Ok(())
+}
+
+/// Handle `/mask` subcommands: list, wear <name>, off, status, reload.
+fn handle_mask_command(cmd: &str, registry: &mut MaskRegistry) {
+    let parts: Vec<&str> = cmd.splitn(3, ' ').collect();
+    let sub = parts.get(1).copied().unwrap_or("status");
+
+    match sub {
+        "list" => {
+            let masks = registry.list();
+            println!("{}", style("🎭 可用面具:").bold());
+            for m in &masks {
+                let icon = m.frontmatter.icon.as_deref().unwrap_or("🎭");
+                let desc = m
+                    .frontmatter
+                    .description
+                    .as_deref()
+                    .unwrap_or("（无描述）");
+                println!("  {} {} — {}", icon, m.frontmatter.name, desc);
+            }
+        }
+        "wear" => {
+            let name = match parts.get(2) {
+                Some(n) => n.trim(),
+                None => {
+                    println!("{}", style("用法: /mask wear <name>").yellow());
+                    return;
+                }
+            };
+            // Suggest context compression before switching.
+            println!(
+                "{}",
+                style("💡 建议切换前执行 /compress 以压缩上下文").dim()
+            );
+            match registry.switch_to(name) {
+                Ok(mask) => {
+                    let icon = mask.frontmatter.icon.as_deref().unwrap_or("🎭");
+                    println!(
+                        "{}",
+                        style(format!("🎭 已切换为「{}」{} 模式", name, icon)).green()
+                    );
+                }
+                Err(e) => {
+                    println!("{}", style(format!("❌ {}", e)).red());
+                    let available: Vec<&str> = registry
+                        .list()
+                        .iter()
+                        .map(|m| m.frontmatter.name.as_str())
+                        .collect();
+                    println!("  可用: {}", available.join(", "));
+                }
+            }
+        }
+        "off" => {
+            registry.switch_off();
+            println!("{}", style("🎭 已摘下面具，恢复默认模式").green());
+        }
+        "status" => {
+            match registry.current_mask_name() {
+                Some(name) => {
+                    let mask = registry.current_mask().unwrap();
+                    let icon = mask.frontmatter.icon.as_deref().unwrap_or("🎭");
+                    println!("🎭 当前面具: {} {}", icon, name);
+                }
+                None => {
+                    println!(
+                        "🎭 当前面具: {} (默认)",
+                        style(MaskFile::DEFAULT_NAME).dim()
+                    );
+                }
+            }
+        }
+        "reload" => {
+            registry.reload();
+            let count = registry.list().len();
+            println!(
+                "{}",
+                style(format!("🎭 已重新加载面具文件 ({} 个面具)", count)).green()
+            );
+        }
+        other => {
+            println!(
+                "{}",
+                style(format!(
+                    "未知子命令: {}。可用: list | wear <name> | off | status | reload",
+                    other
+                ))
+                .yellow()
+            );
+        }
+    }
 }
 
 pub async fn run_chat_remote(

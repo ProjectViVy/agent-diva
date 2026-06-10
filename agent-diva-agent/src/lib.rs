@@ -5,6 +5,7 @@
 pub mod agent_loop;
 pub mod consolidation;
 pub mod context;
+pub mod mask;
 pub mod mentle_discovery;
 #[cfg(feature = "mentle")]
 mod mentle_runtime;
