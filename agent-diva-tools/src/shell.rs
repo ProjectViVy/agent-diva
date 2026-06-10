@@ -62,7 +62,7 @@ impl ExecTool {
             working_dir: None,
             deny_patterns: Self::default_deny_patterns(),
             allow_patterns: Vec::new(),
-            restrict_to_workspace: false,
+            restrict_to_workspace: true,
         }
     }
 
