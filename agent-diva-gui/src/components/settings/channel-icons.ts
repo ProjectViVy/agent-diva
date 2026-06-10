@@ -3,15 +3,15 @@
 
 import { Mail, Globe, Hash } from 'lucide-vue-next';
 import type { Component } from 'vue';
-import TelegramIcon from '../assets/icons/channels/TelegramIcon.vue';
-import DiscordIcon from '../assets/icons/channels/DiscordIcon.vue';
-import SlackIcon from '../assets/icons/channels/SlackIcon.vue';
-import DingTalkIcon from '../assets/icons/channels/DingTalkIcon.vue';
-import QQIcon from '../assets/icons/channels/QQIcon.vue';
-import FeishuIcon from '../assets/icons/channels/FeishuIcon.vue';
-import WhatsAppIcon from '../assets/icons/channels/WhatsAppIcon.vue';
-import MattermostIcon from '../assets/icons/channels/MattermostIcon.vue';
-import NextcloudTalkIcon from '../assets/icons/channels/NextcloudTalkIcon.vue';
+import TelegramIcon from '../../assets/icons/channels/TelegramIcon.vue';
+import DiscordIcon from '../../assets/icons/channels/DiscordIcon.vue';
+import SlackIcon from '../../assets/icons/channels/SlackIcon.vue';
+import DingTalkIcon from '../../assets/icons/channels/DingTalkIcon.vue';
+import QQIcon from '../../assets/icons/channels/QQIcon.vue';
+import FeishuIcon from '../../assets/icons/channels/FeishuIcon.vue';
+import WhatsAppIcon from '../../assets/icons/channels/WhatsAppIcon.vue';
+import MattermostIcon from '../../assets/icons/channels/MattermostIcon.vue';
+import NextcloudTalkIcon from '../../assets/icons/channels/NextcloudTalkIcon.vue';
 
 /**
  * 平台图标映射

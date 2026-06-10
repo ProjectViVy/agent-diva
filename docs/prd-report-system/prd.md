@@ -238,10 +238,10 @@ Diva 将搜索结果返回给用户。Realizes UJ-2.
 
 - 日报/周报/月报的自动生成（基于 session 历史）。
 - 手动触发生成。
-- 报表查看（GUI 已就绪）。
+- 报表查看（GUI 已就绪，commit `fcf768d`，NotebookView.vue 725 行）。
 - 报表固化为 SOP/Skill/Memory。
 - Agent 智能搜索（内存遍历 + 正则匹配）。
-- Session 原子写入修复（cherry-pick main 的 `write_session_atomically`）。
+- Session 原子写入修复（当前 `SessionManager::save` 为非原子写入，直接覆写 `.jsonl` 文件；MVP 需改为临时文件写入后 rename，避免进程崩溃导致 session 数据丢失。见 `agent-diva-core/src/session/manager.rs:124`）。
 
 ### 6.2 Out of Scope for MVP
 

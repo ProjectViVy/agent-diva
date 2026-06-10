@@ -581,16 +581,28 @@ watch(
 .platform-card.selected {
   border-color: var(--accent);
   background: var(--accent);
+}
+
+.platform-card.selected .platform-wizard-icon {
+  color: white;
+}
+
+.platform-card.selected .platform-name {
   color: white;
 }
 
 .platform-card.selected .platform-desc {
-  color: rgba(255, 255, 255, 0.8);
+  color: white;
+}
+
+.platform-wizard-icon {
+  color: var(--text-muted);
 }
 
 .platform-name {
   font-size: 0.875rem;
   font-weight: 600;
+  color: var(--text-muted);
 }
 
 .platform-desc {
