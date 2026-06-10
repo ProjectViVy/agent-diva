@@ -59,6 +59,17 @@ pub struct TelegramHandler {
 }
 
 impl TelegramHandler {
+    fn sender_allowed(allow_from: &[String], sender_id: &str) -> bool {
+        if allow_from.is_empty() {
+            return false;
+        }
+
+        allow_from.contains(&sender_id.to_string())
+            || sender_id
+                .split('|')
+                .any(|part| !part.is_empty() && allow_from.contains(&part.to_string()))
+    }
+
     async fn request_stop_via_api(channel: &str, chat_id: &str) -> std::result::Result<(), String> {
         let client = HttpClient::new();
         let response = client
@@ -128,24 +139,7 @@ impl TelegramHandler {
 
     /// Check if a sender is allowed
     fn is_allowed(&self, sender_id: &str) -> bool {
-        if self.allow_from.is_empty() {
-            return true;
-        }
-
-        if self.allow_from.contains(&sender_id.to_string()) {
-            return true;
-        }
-
-        // Handle compound IDs (e.g., "12345|username")
-        if sender_id.contains('|') {
-            for part in sender_id.split('|') {
-                if !part.is_empty() && self.allow_from.contains(&part.to_string()) {
-                    return true;
-                }
-            }
-        }
-
-        false
+        Self::sender_allowed(&self.allow_from, sender_id)
     }
 
     /// Convert markdown to Telegram HTML
@@ -571,14 +565,7 @@ impl ChannelHandler for TelegramHandler {
                         };
 
                         // Check permissions
-                        let is_allowed = allow_from.is_empty()
-                            || allow_from.contains(&sender_id)
-                            || (sender_id.contains('|')
-                                && sender_id
-                                    .split('|')
-                                    .any(|p| allow_from.contains(&p.to_string())));
-
-                        if !is_allowed {
+                        if !TelegramHandler::sender_allowed(&allow_from, &sender_id) {
                             tracing::warn!(
                                 "Access denied for sender {} on channel {}",
                                 sender_id,
@@ -854,7 +841,20 @@ mod tests {
         };
 
         let handler = TelegramHandler::new(&config);
-        assert!(handler.is_allowed("anyone"));
-        assert!(handler.is_allowed("12345"));
+        assert!(!handler.is_allowed("anyone"));
+        assert!(!handler.is_allowed("12345"));
+    }
+
+    #[test]
+    fn test_telegram_handler_is_allowed_compound_username() {
+        let config = TelegramConfig {
+            enabled: true,
+            token: "test_token".to_string(),
+            allow_from: vec!["username".to_string()],
+            proxy: None,
+        };
+
+        let handler = TelegramHandler::new(&config);
+        assert!(handler.is_allowed("12345|username"));
     }
 }
