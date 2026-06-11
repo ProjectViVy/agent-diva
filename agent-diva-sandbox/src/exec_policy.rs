@@ -75,10 +75,30 @@ pub static BANNED_PREFIX_SUGGESTIONS: &[&[&str]] = &[
 
 /// Check if a command prefix is in the banned list
 pub fn is_banned_prefix(prefix: &[String]) -> bool {
-    let prefix_strs: Vec<&str> = prefix.iter().map(|s| s.as_str()).collect();
-    BANNED_PREFIX_SUGGESTIONS
-        .iter()
-        .any(|banned| banned.to_vec() == prefix_strs)
+    let Some((command, args)) = prefix.split_first() else {
+        return false;
+    };
+    let command_basename = command_basename(command);
+
+    BANNED_PREFIX_SUGGESTIONS.iter().any(|banned| {
+        let Some((banned_command, banned_args)) = banned.split_first() else {
+            return false;
+        };
+
+        command_basename == *banned_command
+            && args.len() >= banned_args.len()
+            && banned_args
+                .iter()
+                .zip(args.iter())
+                .all(|(expected, actual)| *expected == actual)
+    })
+}
+
+fn command_basename(command: &str) -> &str {
+    Path::new(command)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(command)
 }
 
 // ============================================================================
@@ -488,6 +508,16 @@ mod tests {
         assert!(is_banned_prefix(&["bash".to_string()]));
         assert!(is_banned_prefix(&["sudo".to_string()]));
         assert!(is_banned_prefix(&["node".to_string(), "-e".to_string()]));
+        assert!(is_banned_prefix(&[
+            "/usr/bin/python3".to_string(),
+            "-c".to_string(),
+            "print('ok')".to_string()
+        ]));
+        assert!(is_banned_prefix(&[
+            "/usr/local/bin/node".to_string(),
+            "-e".to_string(),
+            "console.log('ok')".to_string()
+        ]));
 
         // Safe commands are not banned
         assert!(!is_banned_prefix(&[
@@ -497,6 +527,10 @@ mod tests {
         assert!(!is_banned_prefix(&[
             "npm".to_string(),
             "install".to_string()
+        ]));
+        assert!(!is_banned_prefix(&[
+            "/usr/bin/git".to_string(),
+            "status".to_string()
         ]));
         assert!(!is_banned_prefix(&[
             "cargo".to_string(),
