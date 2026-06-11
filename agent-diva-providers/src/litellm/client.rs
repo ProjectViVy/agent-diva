@@ -3,8 +3,6 @@
 use async_trait::async_trait;
 use regex::Regex;
 use reqwest::{header::HeaderMap, Client, StatusCode};
-use serde::de::Deserializer;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use tracing::{debug, error, warn};
@@ -18,135 +16,11 @@ use crate::base::{
 use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
 
-/// LiteLLM API request format
-#[derive(Debug, Serialize)]
-struct ChatCompletionRequest {
-    model: String,
-    messages: Vec<Message>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tools: Option<Vec<serde_json::Value>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_choice: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    stream: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reasoning_effort: Option<String>,
-    max_tokens: i32,
-    temperature: f64,
-}
+use super::dto::{
+    ChatCompletionRequest, ChatCompletionResponse, OpenAiErrorEnvelope, StreamChunk, Usage,
+};
+use super::stream::{finalize_partial_response, parse_sse_events, PartialToolCall};
 
-/// LiteLLM API response format
-#[derive(Debug, Deserialize)]
-struct ChatCompletionResponse {
-    #[serde(default, deserialize_with = "deserialize_null_default")]
-    choices: Vec<Choice>,
-    #[serde(default)]
-    usage: Usage,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenAiErrorEnvelope {
-    error: Option<OpenAiErrorBody>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenAiErrorBody {
-    message: Option<String>,
-    #[serde(rename = "type")]
-    error_type: Option<String>,
-    code: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Choice {
-    message: ResponseMessage,
-    finish_reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ResponseMessage {
-    #[serde(default)]
-    content: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_null_default")]
-    tool_calls: Vec<ToolCall>,
-    #[serde(default)]
-    reasoning_content: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ToolCall {
-    id: String,
-    #[serde(rename = "type")]
-    #[allow(dead_code)]
-    call_type: String,
-    function: Function,
-}
-
-#[derive(Debug, Deserialize)]
-struct Function {
-    name: String,
-    arguments: String,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct Usage {
-    #[serde(default, deserialize_with = "deserialize_null_default")]
-    prompt_tokens: i64,
-    #[serde(default, deserialize_with = "deserialize_null_default")]
-    completion_tokens: i64,
-    #[serde(default, deserialize_with = "deserialize_null_default")]
-    total_tokens: i64,
-}
-
-#[derive(Debug, Deserialize)]
-struct StreamChunk {
-    #[serde(default, deserialize_with = "deserialize_null_default")]
-    choices: Vec<StreamChoice>,
-    #[serde(default)]
-    usage: Option<Usage>,
-}
-
-#[derive(Debug, Deserialize)]
-struct StreamChoice {
-    #[serde(default)]
-    delta: StreamDelta,
-    #[serde(default)]
-    finish_reason: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct StreamDelta {
-    #[serde(default)]
-    content: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_null_default")]
-    tool_calls: Vec<StreamToolCall>,
-    #[serde(default)]
-    reasoning_content: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct StreamToolCall {
-    #[serde(default)]
-    index: usize,
-    #[serde(default)]
-    id: Option<String>,
-    #[serde(rename = "type")]
-    #[serde(default)]
-    #[allow(dead_code)]
-    call_type: Option<String>,
-    #[serde(default)]
-    function: Option<StreamFunction>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct StreamFunction {
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    arguments: Option<String>,
-}
-
-#[derive(Debug)]
 struct RequestBuildOptions {
     resolved_model: String,
     max_tokens: i32,
@@ -155,15 +29,6 @@ struct RequestBuildOptions {
     stream: bool,
 }
 
-#[derive(Debug, Default, Clone)]
-struct PartialToolCall {
-    id: Option<String>,
-    call_type: String,
-    name: String,
-    arguments: String,
-}
-
-/// LiteLLM provider client
 pub struct LiteLLMClient {
     client: Client,
     api_base: String,
@@ -174,14 +39,6 @@ pub struct LiteLLMClient {
     selected_provider: Option<ProviderSpec>,
     direct_openai_compatible: bool,
     default_reasoning_effort: Option<String>,
-}
-
-fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de> + Default,
-{
-    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 impl LiteLLMClient {
@@ -643,97 +500,6 @@ impl LiteLLMClient {
         req_builder
     }
 
-    fn finalize_partial_response(
-        content: String,
-        reasoning_content: String,
-        partial_calls: &[PartialToolCall],
-        finish_reason: Option<String>,
-        usage: Option<Usage>,
-    ) -> LLMResponse {
-        let mut tool_calls = Vec::new();
-        for (i, call) in partial_calls.iter().enumerate() {
-            let id = call
-                .id
-                .clone()
-                .unwrap_or_else(|| format!("stream_tool_call_{}", i));
-            let call_type = if call.call_type.is_empty() {
-                "function".to_string()
-            } else {
-                call.call_type.clone()
-            };
-
-            let arguments =
-                serde_json::from_str::<HashMap<String, serde_json::Value>>(&call.arguments)
-                    .unwrap_or_else(|_| {
-                        // Try unwrapping double-encoded JSON string
-                        if let Ok(inner) = serde_json::from_str::<String>(&call.arguments) {
-                            serde_json::from_str::<HashMap<String, serde_json::Value>>(&inner)
-                                .unwrap_or_else(|_| {
-                                    HashMap::from([(
-                                        "raw".into(),
-                                        serde_json::Value::String(inner),
-                                    )])
-                                })
-                        } else {
-                            HashMap::from([(
-                                "raw".into(),
-                                serde_json::Value::String(call.arguments.clone()),
-                            )])
-                        }
-                    });
-
-            tool_calls.push(ToolCallRequest {
-                id,
-                call_type,
-                name: call.name.clone(),
-                arguments,
-            });
-        }
-
-        let mut usage_map = HashMap::new();
-        if let Some(usage) = usage {
-            usage_map.insert("prompt_tokens".to_string(), usage.prompt_tokens);
-            usage_map.insert("completion_tokens".to_string(), usage.completion_tokens);
-            usage_map.insert("total_tokens".to_string(), usage.total_tokens);
-        }
-
-        LLMResponse {
-            content: if content.is_empty() {
-                None
-            } else {
-                Some(content)
-            },
-            tool_calls,
-            finish_reason: finish_reason.unwrap_or_else(|| "stop".to_string()),
-            usage: usage_map,
-            reasoning_content: if reasoning_content.is_empty() {
-                None
-            } else {
-                Some(reasoning_content)
-            },
-        }
-    }
-
-    fn parse_sse_events(buffer: &mut String) -> Vec<String> {
-        let mut events = Vec::new();
-        while let Some(pos) = buffer.find("\n\n") {
-            let raw = buffer[..pos].to_string();
-            buffer.drain(..pos + 2);
-
-            let mut data_lines = Vec::new();
-            for line in raw.lines() {
-                if let Some(rest) = line.strip_prefix("data:") {
-                    data_lines.push(rest.trim().to_string());
-                }
-            }
-
-            if !data_lines.is_empty() {
-                events.push(data_lines.join("\n"));
-            }
-        }
-        events
-    }
-
     fn serialize_request_body(body: &serde_json::Value) -> ProviderResult<String> {
         serde_json::to_string(body).map_err(|e| {
             error!("Failed to serialize request body: {}", e);
@@ -1080,10 +846,10 @@ impl LLMProvider for LiteLLMClient {
                 let text = String::from_utf8_lossy(&chunk);
                 buffer.push_str(&text);
 
-                for payload in Self::parse_sse_events(&mut buffer) {
+                for payload in parse_sse_events(&mut buffer) {
                     if payload == "[DONE]" {
                         tracing::debug!("Stream received [DONE]");
-                        let final_response = Self::finalize_partial_response(
+                        let final_response = finalize_partial_response(
                             content.clone(),
                             reasoning_content.clone(),
                             &partial_calls,
@@ -1157,7 +923,7 @@ impl LLMProvider for LiteLLMClient {
                 }
             }
 
-            let final_response = Self::finalize_partial_response(
+            let final_response = finalize_partial_response(
                 content,
                 reasoning_content,
                 &partial_calls,
@@ -1316,7 +1082,7 @@ mod tests {
     fn test_parse_sse_events() {
         let mut buffer =
             "data: {\"a\":1}\n\ndata: {\"b\":2}\n\ndata: [DONE]\n\ntrailing".to_string();
-        let events = LiteLLMClient::parse_sse_events(&mut buffer);
+        let events = parse_sse_events(&mut buffer);
         assert_eq!(events.len(), 3);
         assert_eq!(events[0], "{\"a\":1}");
         assert_eq!(events[1], "{\"b\":2}");
@@ -1450,13 +1216,8 @@ mod tests {
             name: "search".to_string(),
             arguments: double_encoded,
         };
-        let response = LiteLLMClient::finalize_partial_response(
-            String::new(),
-            String::new(),
-            &[partial],
-            None,
-            None,
-        );
+        let response =
+            finalize_partial_response(String::new(), String::new(), &[partial], None, None);
         assert_eq!(response.tool_calls.len(), 1);
         assert_eq!(
             response.tool_calls[0]
