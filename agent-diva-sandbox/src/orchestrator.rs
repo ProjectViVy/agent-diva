@@ -663,6 +663,7 @@ impl ToolOrchestrator {
             SandboxError::Denied { .. }
                 | SandboxError::PermissionDenied { .. }
                 | SandboxError::PlatformError(_)
+                | SandboxError::PlatformUnavailable { .. }
                 | SandboxError::PlatformNotSupported
                 | SandboxError::ApprovalRequired { .. }
         )

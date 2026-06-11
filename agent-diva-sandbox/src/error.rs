@@ -42,6 +42,13 @@ pub enum SandboxError {
     #[error("Platform error: {0}")]
     PlatformError(String),
 
+    /// Platform sandbox is unavailable and direct execution must not be used implicitly
+    #[error("Sandbox unavailable on {platform}: {reason}")]
+    PlatformUnavailable {
+        platform: &'static str,
+        reason: String,
+    },
+
     /// Sandbox is disabled via environment variable
     #[error("Sandbox disabled by environment variable")]
     Disabled,

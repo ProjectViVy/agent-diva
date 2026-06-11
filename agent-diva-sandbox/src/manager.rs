@@ -557,9 +557,11 @@ impl SandboxManager {
                     )
                     .await
             } else {
-                Err(SandboxError::PlatformError(
-                    "macOS sandbox is unavailable for the configured level".to_string(),
-                ))
+                Err(SandboxError::PlatformUnavailable {
+                    platform: "macos",
+                    reason: "sandbox-exec is unavailable for the configured sandbox policy"
+                        .to_string(),
+                })
             }
         }
 
