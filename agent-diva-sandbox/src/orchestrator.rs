@@ -411,12 +411,12 @@ impl ToolOrchestrator {
     async fn preflight_guardian(
         &self,
         command: &str,
-        cwd: &PathBuf,
+        cwd: &Path,
         command_parts: &[String],
     ) -> SandboxResult<Option<OrchestratorRunResult>> {
         if let Some(guardian) = &self.guardian {
-            let approval = self.check_approval(&command_parts);
-            let guardian_decision = guardian.review(&command_parts, cwd, &approval);
+            let approval = self.check_approval(command_parts);
+            let guardian_decision = guardian.review(command_parts, cwd, &approval);
 
             match guardian_decision {
                 GuardianDecision::AutoApprove {
@@ -432,7 +432,7 @@ impl ToolOrchestrator {
                     if session_approval {
                         let key = crate::approval::CommandApprovalKey::new(
                             command.to_string(),
-                            cwd.clone(),
+                            cwd.to_path_buf(),
                         );
                         guardian.record_approval(key, ReviewDecision::ApprovedForSession);
                     }
@@ -451,10 +451,10 @@ impl ToolOrchestrator {
                     let attempt = SandboxAttempt::new(
                         self.sandbox_manager.policy(),
                         self.sandbox_manager.fs_policy(),
-                        cwd.clone(),
+                        cwd.to_path_buf(),
                     );
 
-                    let result = self.execute(&command_parts, &attempt).await;
+                    let result = self.execute(command_parts, &attempt).await;
                     return match result {
                         Ok(output) => Ok(Some(OrchestratorRunResult::success(output, true))),
                         Err(e) => Err(e),
@@ -481,11 +481,11 @@ impl ToolOrchestrator {
     fn resolve_approval(
         &self,
         command: &str,
-        cwd: &PathBuf,
+        cwd: &Path,
         command_parts: &[String],
     ) -> SandboxResult<ApprovalResolution> {
-        let approval_key = CommandApprovalKey::new(command.to_string(), cwd.clone());
-        let approval = self.check_approval(&command_parts);
+        let approval_key = CommandApprovalKey::new(command.to_string(), cwd.to_path_buf());
+        let approval = self.check_approval(command_parts);
 
         if approval.is_forbidden() {
             warn!("Command forbidden by policy: {}", command);
@@ -507,13 +507,13 @@ impl ToolOrchestrator {
 
     fn select_sandbox<'a>(
         &'a self,
-        cwd: &PathBuf,
+        cwd: &Path,
         resolution: &ApprovalResolution,
     ) -> SandboxResult<SandboxAttempt<'a>> {
         Ok(SandboxAttempt::new(
             self.sandbox_manager.policy(),
             self.sandbox_manager.fs_policy(),
-            cwd.clone(),
+            cwd.to_path_buf(),
         )
         .with_approval(resolution.approval.clone())
         .with_override(resolution.sandbox_override))
@@ -544,7 +544,7 @@ impl ToolOrchestrator {
     async fn handle_failure(
         &self,
         command: &str,
-        cwd: &PathBuf,
+        cwd: &Path,
         command_parts: &[String],
         approval_key: &CommandApprovalKey,
         approval: &ApprovalRequirement,
@@ -629,7 +629,7 @@ impl ToolOrchestrator {
     async fn retry_after_sandbox_failure(
         &self,
         command: &str,
-        cwd: &PathBuf,
+        cwd: &Path,
         command_parts: &[String],
         approval_key: &CommandApprovalKey,
         approval: &ApprovalRequirement,
@@ -641,7 +641,7 @@ impl ToolOrchestrator {
                 let escalated_attempt = SandboxAttempt::new(
                     self.sandbox_manager.policy(),
                     self.sandbox_manager.fs_policy(),
-                    cwd.clone(),
+                    cwd.to_path_buf(),
                 )
                 .with_override(SandboxOverride::BypassSandboxFirstAttempt);
 
@@ -919,8 +919,10 @@ mod tests {
     #[cfg(windows)]
     #[tokio::test]
     async fn test_on_failure_retry_requires_cached_approval() {
-        let mut config = crate::manager::SandboxConfig::default();
-        config.mode = crate::policy::SandboxMode::WorkspaceWrite;
+        let config = crate::manager::SandboxConfig {
+            mode: crate::policy::SandboxMode::WorkspaceWrite,
+            ..Default::default()
+        };
         let store = ApprovalStore::new_shared();
         let manager = Arc::new(SandboxManager::new_with_approval_store(&config, store));
         let orchestrator = ToolOrchestrator::new(manager.clone(), AskForApproval::OnFailure);
