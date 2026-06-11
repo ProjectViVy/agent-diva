@@ -2,6 +2,7 @@
 //!
 //! Core types for controlling sandbox behavior, inspired by Codex CLI.
 
+use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -57,6 +58,51 @@ impl Default for SandboxPolicy {
             network_access: false,
             exclude_tmpdir_env_var: false,
         }
+    }
+}
+
+impl SandboxPolicy {
+    /// Convert this sandbox policy into the closest `SecurityPolicy` representation.
+    ///
+    /// Mapping table:
+    /// - `DangerFullAccess` -> `SecurityLevel::Permissive`
+    /// - `ReadOnly` -> `SecurityLevel::Paranoid`
+    /// - `WorkspaceWrite` -> `SecurityLevel::Standard`
+    /// - `ExternalSandbox` -> `SecurityLevel::Standard`
+    ///
+    /// This bridge is intentionally lossy because `SecurityPolicy` does not encode
+    /// network access or external-sandbox provenance.
+    pub fn to_security_policy(&self, workspace_dir: PathBuf) -> SecurityPolicy {
+        let mut config = match self {
+            SandboxPolicy::DangerFullAccess => SecurityConfig::from_level(SecurityLevel::Permissive),
+            SandboxPolicy::ReadOnly { .. } => SecurityConfig::from_level(SecurityLevel::Paranoid),
+            SandboxPolicy::WorkspaceWrite { .. } | SandboxPolicy::ExternalSandbox { .. } => {
+                SecurityConfig::from_level(SecurityLevel::Standard)
+            }
+        };
+
+        match self {
+            SandboxPolicy::DangerFullAccess => {
+                config.workspace_only = false;
+                config.allowed_roots.clear();
+                config.read_only = Some(false);
+            }
+            SandboxPolicy::ReadOnly { access, .. } => {
+                config.workspace_only = !matches!(access, ReadOnlyAccess::FullDisk);
+                config.read_only = Some(true);
+            }
+            SandboxPolicy::WorkspaceWrite { writable_roots, .. } => {
+                config.workspace_only = true;
+                config.allowed_roots = writable_roots.clone();
+                config.read_only = Some(false);
+            }
+            SandboxPolicy::ExternalSandbox { .. } => {
+                config.workspace_only = true;
+                config.read_only = Some(false);
+            }
+        }
+
+        SecurityPolicy::with_config(workspace_dir, config)
     }
 }
 
@@ -179,6 +225,59 @@ impl AskForApproval {
     }
 }
 
+/// Bridge methods for converting the core `SecurityPolicy` into sandbox policies.
+pub trait SecurityPolicySandboxExt {
+    /// Convert a `SecurityPolicy` into the closest `SandboxPolicy` representation.
+    ///
+    /// Mapping table:
+    /// - `Permissive` with `workspace_only=false` -> `DangerFullAccess`
+    /// - read-only policies -> `ReadOnly`
+    /// - all other policies -> `WorkspaceWrite`
+    ///
+    /// The conversion is intentionally lossy because `SecurityPolicy` has no direct
+    /// network-access field and models allowed roots differently.
+    fn to_sandbox_policy(&self) -> SandboxPolicy;
+}
+
+impl SecurityPolicySandboxExt for SecurityPolicy {
+    fn to_sandbox_policy(&self) -> SandboxPolicy {
+        let config = self.config();
+        let workspace_dir = self.workspace_dir().to_path_buf();
+
+        if config.level == SecurityLevel::Permissive && !config.workspace_only && !self.is_read_only()
+        {
+            return SandboxPolicy::DangerFullAccess;
+        }
+
+        if self.is_read_only() {
+            return SandboxPolicy::ReadOnly {
+                access: if config.workspace_only {
+                    ReadOnlyAccess::Custom
+                } else {
+                    ReadOnlyAccess::FullDisk
+                },
+                network_access: false,
+            };
+        }
+
+        let mut writable_roots = config.allowed_roots.clone();
+        if !writable_roots.iter().any(|root| root == &workspace_dir) {
+            writable_roots.insert(0, workspace_dir);
+        }
+
+        SandboxPolicy::WorkspaceWrite {
+            writable_roots,
+            read_only_access: if config.workspace_only {
+                ReadOnlyAccess::Custom
+            } else {
+                ReadOnlyAccess::FullDisk
+            },
+            network_access: false,
+            exclude_tmpdir_env_var: false,
+        }
+    }
+}
+
 /// Windows sandbox level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -193,4 +292,65 @@ pub enum WindowsSandboxLevel {
     /// Elevated sandbox (requires setup)
     #[serde(rename = "elevated")]
     Elevated,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sandbox_policy_to_security_policy_danger_full_access() {
+        let security =
+            SandboxPolicy::DangerFullAccess.to_security_policy(PathBuf::from("/workspace"));
+
+        assert_eq!(security.config().level, SecurityLevel::Permissive);
+        assert!(!security.config().workspace_only);
+        assert!(!security.is_read_only());
+    }
+
+    #[test]
+    fn test_sandbox_policy_to_security_policy_workspace_write() {
+        let workspace = PathBuf::from("/workspace");
+        let other = PathBuf::from("/tmp/cache");
+        let security = SandboxPolicy::WorkspaceWrite {
+            writable_roots: vec![workspace.clone(), other.clone()],
+            read_only_access: ReadOnlyAccess::Custom,
+            network_access: false,
+            exclude_tmpdir_env_var: false,
+        }
+        .to_security_policy(workspace.clone());
+
+        assert_eq!(security.config().level, SecurityLevel::Standard);
+        assert!(security.config().workspace_only);
+        assert_eq!(security.config().allowed_roots, vec![workspace, other]);
+    }
+
+    #[test]
+    fn test_security_policy_to_sandbox_policy_read_only() {
+        let security =
+            SecurityPolicy::from_level(PathBuf::from("/workspace"), SecurityLevel::Paranoid);
+
+        assert!(matches!(
+            security.to_sandbox_policy(),
+            SandboxPolicy::ReadOnly {
+                access: ReadOnlyAccess::Custom,
+                network_access: false,
+            }
+        ));
+    }
+
+    #[test]
+    fn test_security_policy_to_sandbox_policy_workspace_write() {
+        let mut config = SecurityConfig::from_level(SecurityLevel::Standard);
+        config.allowed_roots = vec![PathBuf::from("/tmp/cache")];
+        let security = SecurityPolicy::with_config(PathBuf::from("/workspace"), config);
+
+        match security.to_sandbox_policy() {
+            SandboxPolicy::WorkspaceWrite { writable_roots, .. } => {
+                assert_eq!(writable_roots[0], PathBuf::from("/workspace"));
+                assert!(writable_roots.contains(&PathBuf::from("/tmp/cache")));
+            }
+            other => panic!("expected workspace-write policy, got {other:?}"),
+        }
+    }
 }
