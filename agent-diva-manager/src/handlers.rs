@@ -878,3 +878,150 @@ pub async fn delete_cron_job_handler(
         Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agent_diva_core::bus::MessageBus;
+
+    fn test_state() -> (AppState, mpsc::Receiver<ManagerCommand>) {
+        let (api_tx, api_rx) = mpsc::channel(8);
+        (
+            AppState {
+                api_tx,
+                bus: MessageBus::new(),
+            },
+            api_rx,
+        )
+    }
+
+    #[tokio::test]
+    async fn heartbeat_handler_returns_ok() {
+        assert_eq!(heartbeat_handler().await, "ok");
+    }
+
+    #[tokio::test]
+    async fn update_config_handler_sends_update_command() {
+        let (state, mut api_rx) = test_state();
+        let payload = ConfigUpdate {
+            api_base: Some("https://api.example.test/v1".to_string()),
+            api_key: Some("sk-test".to_string()),
+            provider: Some("example".to_string()),
+            model: Some("example-model".to_string()),
+        };
+
+        let Json(response) = update_config_handler(State(state), Json(payload)).await;
+
+        assert_eq!(response["status"], "ok");
+        match api_rx.recv().await.expect("manager command") {
+            ManagerCommand::UpdateConfig(update) => {
+                assert_eq!(update.provider.as_deref(), Some("example"));
+                assert_eq!(update.model.as_deref(), Some("example-model"));
+                assert_eq!(
+                    update.api_base.as_deref(),
+                    Some("https://api.example.test/v1")
+                );
+                assert_eq!(update.api_key.as_deref(), Some("sk-test"));
+            }
+            _ => panic!("expected UpdateConfig command"),
+        }
+    }
+
+    #[tokio::test]
+    async fn get_config_handler_returns_manager_response() {
+        let (state, mut api_rx) = test_state();
+        let manager = tokio::spawn(async move {
+            match api_rx.recv().await.expect("manager command") {
+                ManagerCommand::GetConfig(reply_tx) => {
+                    let _ = reply_tx.send(ConfigResponse {
+                        provider: Some("deepseek".to_string()),
+                        api_base: Some("https://api.deepseek.com/v1".to_string()),
+                        model: "deepseek-chat".to_string(),
+                        has_api_key: true,
+                    });
+                }
+                _ => panic!("expected GetConfig command"),
+            }
+        });
+
+        let Json(response) = get_config_handler(State(state)).await;
+        manager.await.expect("manager task");
+
+        assert_eq!(response.provider.as_deref(), Some("deepseek"));
+        assert_eq!(
+            response.api_base.as_deref(),
+            Some("https://api.deepseek.com/v1")
+        );
+        assert_eq!(response.model, "deepseek-chat");
+        assert!(response.has_api_key);
+    }
+
+    #[tokio::test]
+    async fn stop_chat_handler_returns_stopped_status() {
+        let (state, mut api_rx) = test_state();
+        let manager = tokio::spawn(async move {
+            match api_rx.recv().await.expect("manager command") {
+                ManagerCommand::StopChat(request, reply_tx) => {
+                    assert_eq!(request.channel.as_deref(), Some("api"));
+                    assert_eq!(request.chat_id.as_deref(), Some("default"));
+                    let _ = reply_tx.send(Ok(true));
+                }
+                _ => panic!("expected StopChat command"),
+            }
+        });
+
+        let Json(response) = stop_chat_handler(
+            State(state),
+            Json(StopChatRequest {
+                channel: Some("api".to_string()),
+                chat_id: Some("default".to_string()),
+            }),
+        )
+        .await;
+        manager.await.expect("manager task");
+
+        assert_eq!(response["status"], "ok");
+        assert_eq!(response["stopped"], true);
+    }
+
+    #[tokio::test]
+    async fn get_session_history_handler_prefixes_gui_for_plain_id() {
+        let (state, mut api_rx) = test_state();
+        let manager = tokio::spawn(async move {
+            match api_rx.recv().await.expect("manager command") {
+                ManagerCommand::GetSessionHistory(session_key, reply_tx) => {
+                    assert_eq!(session_key, "gui:local-chat");
+                    let _ = reply_tx.send(Ok(None));
+                }
+                _ => panic!("expected GetSessionHistory command"),
+            }
+        });
+
+        let Json(response) =
+            get_session_history_handler(State(state), Path("local-chat".to_string())).await;
+        manager.await.expect("manager task");
+
+        assert_eq!(response["status"], "error");
+        assert_eq!(response["message"], "Session not found");
+    }
+
+    #[tokio::test]
+    async fn delete_cron_job_handler_maps_success_to_ok() {
+        let (state, mut api_rx) = test_state();
+        let manager = tokio::spawn(async move {
+            match api_rx.recv().await.expect("manager command") {
+                ManagerCommand::DeleteCronJob(job_id, reply_tx) => {
+                    assert_eq!(job_id, "nightly");
+                    let _ = reply_tx.send(Ok(()));
+                }
+                _ => panic!("expected DeleteCronJob command"),
+            }
+        });
+
+        let Json(response) =
+            delete_cron_job_handler(State(state), Path("nightly".to_string())).await;
+        manager.await.expect("manager task");
+
+        assert_eq!(response["status"], "ok");
+    }
+}
