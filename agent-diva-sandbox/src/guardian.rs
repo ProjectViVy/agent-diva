@@ -49,10 +49,10 @@ impl Default for GuardianConfig {
         Self {
             max_consecutive_rejections: 5,
             rejection_window_secs: 60,
-            auto_approve_known_safe: true,
+            auto_approve_known_safe: false,
             auto_approve_read_only: false,
             min_execution_time_for_approval_ms: 100,
-            enable_auto_learning: true,
+            enable_auto_learning: false,
         }
     }
 }
@@ -672,9 +672,9 @@ mod tests {
     fn test_guardian_config_default() {
         let config = GuardianConfig::default();
         assert_eq!(config.max_consecutive_rejections, 5);
-        assert!(config.auto_approve_known_safe);
+        assert!(!config.auto_approve_known_safe);
         assert!(!config.auto_approve_read_only);
-        assert!(config.enable_auto_learning);
+        assert!(!config.enable_auto_learning);
     }
 
     #[test]
@@ -886,5 +886,23 @@ mod tests {
         let decision = manager.review(&["ls".to_string()], &PathBuf::from("/workspace"), &skip);
 
         assert!(decision.is_defer());
+    }
+
+    #[test]
+    fn test_guardian_default_does_not_auto_approve_known_safe_commands() {
+        let config = GuardianConfig::default();
+        let manager = GuardianManager::with_default_reviewer(config, AskForApproval::OnRequest);
+
+        let needs_approval = ApprovalRequirement::NeedsApproval {
+            reason: "approval required".to_string(),
+            amendment: None,
+        };
+        let decision = manager.review(
+            &["git".to_string(), "status".to_string()],
+            &PathBuf::from("/workspace"),
+            &needs_approval,
+        );
+
+        assert!(decision.requires_approval());
     }
 }
