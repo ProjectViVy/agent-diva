@@ -30,6 +30,14 @@ pub enum SandboxError {
     #[error("Command timed out after {secs} seconds")]
     Timeout { secs: u64 },
 
+    /// Command completed with a non-zero exit code
+    #[error("Command failed with exit code {code}")]
+    ExecutionFailed {
+        code: i32,
+        stdout: String,
+        stderr: String,
+    },
+
     /// Invalid command or parameters
     #[error("Invalid command: {0}")]
     InvalidCommand(String),

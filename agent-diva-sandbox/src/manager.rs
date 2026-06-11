@@ -486,10 +486,11 @@ impl SandboxManager {
             Ok(if stdout.is_empty() { stderr } else { stdout })
         } else {
             let code = output.status.code().unwrap_or(-1);
-            Ok(format!(
-                "Exit code: {}\nstdout: {}\nstderr: {}",
-                code, stdout, stderr
-            ))
+            Err(SandboxError::ExecutionFailed {
+                code,
+                stdout,
+                stderr,
+            })
         }
     }
 
@@ -678,6 +679,23 @@ mod tests {
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("hello"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_direct_non_zero_exit_returns_error() {
+        let manager = SandboxManager::disabled();
+        let command = if cfg!(windows) {
+            "Write-Error 'boom'; exit 7"
+        } else {
+            "printf 'boom' >&2; exit 7"
+        };
+        let request = SandboxExecRequest::new(command.to_string(), PathBuf::from("."));
+
+        let result = manager.execute_direct(&request).await;
+        assert!(matches!(
+            result,
+            Err(SandboxError::ExecutionFailed { code: 7, .. })
+        ));
     }
 
     #[cfg(not(windows))]

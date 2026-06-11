@@ -441,10 +441,11 @@ impl MacOsSandboxExecutor {
             Ok(if stdout.is_empty() { stderr } else { stdout })
         } else {
             let code = output.status.code().unwrap_or(-1);
-            Ok(format!(
-                "Exit code: {}\nstdout: {}\nstderr: {}",
-                code, stdout, stderr
-            ))
+            Err(SandboxError::ExecutionFailed {
+                code,
+                stdout,
+                stderr,
+            })
         }
     }
 
@@ -493,10 +494,11 @@ impl MacOsSandboxExecutor {
             Ok(if stdout.is_empty() { stderr } else { stdout })
         } else {
             let code = output.status.code().unwrap_or(-1);
-            Ok(format!(
-                "Exit code: {}\nstdout: {}\nstderr: {}",
-                code, stdout, stderr
-            ))
+            Err(SandboxError::ExecutionFailed {
+                code,
+                stdout,
+                stderr,
+            })
         }
     }
 }

@@ -131,10 +131,11 @@ impl WindowsSandboxExecutor {
             Ok(if stdout.is_empty() { stderr } else { stdout })
         } else {
             let code = output.status.code().unwrap_or(-1);
-            Ok(format!(
-                "Exit code: {}\nstdout: {}\nstderr: {}",
-                code, stdout, stderr
-            ))
+            Err(SandboxError::ExecutionFailed {
+                code,
+                stdout,
+                stderr,
+            })
         }
     }
 
@@ -182,6 +183,129 @@ impl WindowsSandboxExecutor {
                 "CreateRestrictedToken failed: {}",
                 err.0
             )))
+        }
+    }
+    fn execute_restricted_blocking(
+        command: &str,
+        cwd: &Path,
+        env: HashMap<String, String>,
+        timeout_secs: u64,
+    ) -> SandboxResult<String> {
+        info!(
+            "Executing command in Windows restricted sandbox: {}",
+            command
+        );
+
+        unsafe {
+            let token = HandleGuard::new(
+                Self::new(WindowsSandboxLevel::RestrictedToken).create_restricted_token()?,
+            );
+            let job = HandleGuard::new(create_kill_on_close_job()?);
+            let stdout_pipe = InheritedPipe::new()?;
+            let stderr_pipe = InheritedPipe::new()?;
+            let stdin_pipe = InheritedPipe::new()?;
+
+            let mut startup = STARTUPINFOW::default();
+            startup.cb = size_of::<STARTUPINFOW>() as u32;
+            startup.dwFlags = STARTF_USESTDHANDLES;
+            startup.hStdInput = stdin_pipe.read_handle();
+            startup.hStdOutput = stdout_pipe.write_handle();
+            startup.hStdError = stderr_pipe.write_handle();
+
+            let mut process_info = PROCESS_INFORMATION::default();
+            let mut command_line = to_wide_mut(&powershell_command_line(command));
+            let cwd_wide = to_wide(cwd.as_os_str());
+            let env_block = build_environment_block(env);
+
+            let creation_flags = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
+            let create_result = CreateProcessAsUserW(
+                token.handle(),
+                PCWSTR::null(),
+                PWSTR(command_line.as_mut_ptr()),
+                None,
+                None,
+                true,
+                creation_flags,
+                Some(env_block.as_ptr().cast()),
+                PCWSTR(cwd_wide.as_ptr()),
+                &startup,
+                &mut process_info,
+            )
+            .or_else(|_| {
+                CreateProcessWithTokenW(
+                    token.handle(),
+                    CREATE_PROCESS_LOGON_FLAGS(0),
+                    PCWSTR::null(),
+                    PWSTR(command_line.as_mut_ptr()),
+                    creation_flags,
+                    Some(env_block.as_ptr().cast()),
+                    PCWSTR(cwd_wide.as_ptr()),
+                    &startup,
+                    &mut process_info,
+                )
+            });
+
+            create_result.map_err(|e| SandboxError::SpawnFailed(e.to_string()))?;
+
+            let process = HandleGuard::new(process_info.hProcess);
+            let thread_handle = HandleGuard::new(process_info.hThread);
+
+            AssignProcessToJobObject(job.handle(), process.handle()).map_err(|e| {
+                SandboxError::PlatformError(format!("AssignProcessToJobObject failed: {e}"))
+            })?;
+
+            if ResumeThread(thread_handle.handle()) == u32::MAX {
+                return Err(SandboxError::SpawnFailed(format!(
+                    "ResumeThread failed: {}",
+                    GetLastError().0
+                )));
+            }
+
+            drop(thread_handle);
+            drop(stdin_pipe);
+
+            let stdout_reader = stdout_pipe.into_reader();
+            let stderr_reader = stderr_pipe.into_reader();
+
+            let wait_ms = timeout_secs.saturating_mul(1000).min(u32::MAX as u64) as u32;
+            let wait = WaitForSingleObject(process.handle(), wait_ms);
+
+            if wait == WAIT_TIMEOUT {
+                let _ = TerminateJobObject(job.handle(), 1);
+                let _ = WaitForSingleObject(process.handle(), 5_000);
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
+                return Err(SandboxError::Timeout { secs: timeout_secs });
+            }
+
+            if wait != WAIT_OBJECT_0 {
+                let _ = TerminateJobObject(job.handle(), 1);
+                return Err(SandboxError::PlatformError(format!(
+                    "WaitForSingleObject failed: {:?}",
+                    wait
+                )));
+            }
+
+            let stdout = stdout_reader.join()?;
+            let stderr = stderr_reader.join()?;
+
+            let mut exit_code = 0;
+            GetExitCodeProcess(process.handle(), &mut exit_code).map_err(|e| {
+                SandboxError::PlatformError(format!("GetExitCodeProcess failed: {e}"))
+            })?;
+
+            let stdout = String::from_utf8_lossy(&stdout).into_owned();
+            let stderr = String::from_utf8_lossy(&stderr).into_owned();
+
+            if exit_code == 0 {
+                Ok(if stdout.is_empty() { stderr } else { stdout })
+            } else {
+                Err(SandboxError::ExecutionFailed {
+                    code: i32::try_from(exit_code).unwrap_or(-1),
+                    stdout,
+                    stderr,
+                })
+            }
         }
     }
 }
