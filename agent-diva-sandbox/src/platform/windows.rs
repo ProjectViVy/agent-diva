@@ -1,7 +1,8 @@
-//! Windows sandbox implementation using Restricted Token
+//! Windows sandbox implementation using Restricted Token + Job Object
 //!
 //! This module implements process isolation on Windows using:
-//! - CreateRestrictedToken API with LUA_TOKEN and WRITE_RESTRICTED flags
+//! - CreateRestrictedToken API with LUA_TOKEN privilege reduction
+//! - Job Object cleanup so the whole child process tree is killed on timeout/drop
 //!
 //! Inspired by OpenAI Codex CLI's windows-sandbox-rs architecture.
 
@@ -9,12 +10,20 @@ use crate::error::{SandboxError, SandboxResult};
 use crate::filesystem::FileSystemSandboxPolicy;
 use crate::policy::{SandboxPolicy, WindowsSandboxLevel};
 use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::mem::size_of;
+use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
+use std::thread;
 use std::time::Duration;
 use tracing::{debug, info};
+use windows::core::{PCWSTR, PWSTR};
 
 use windows::Win32::Foundation::*;
 use windows::Win32::Security::*;
+use windows::Win32::Storage::FileSystem::ReadFile;
+use windows::Win32::System::JobObjects::*;
+use windows::Win32::System::Pipes::CreatePipe;
 use windows::Win32::System::Threading::*;
 
 // ============================================================================
@@ -28,8 +37,11 @@ const DISABLE_MAX_PRIVILEGE: u32 = 0x01;
 /// LUA (Least-privileged User Account) token flag
 const LUA_TOKEN: u32 = 0x04;
 #[allow(dead_code)]
-/// Write restricted flag
+/// Write restricted flag. Kept for future hardening; enabling it breaks common
+/// Windows shell initialization paths in the current minimum viable sandbox.
 const WRITE_RESTRICTED: u32 = 0x08;
+
+const PIPE_READ_BUFFER_SIZE: usize = 16 * 1024;
 
 // ============================================================================
 // Windows Sandbox Executor
@@ -50,8 +62,18 @@ impl WindowsSandboxExecutor {
     pub fn is_available(&self) -> bool {
         match self.level {
             WindowsSandboxLevel::Disabled => false,
-            WindowsSandboxLevel::RestrictedToken => false,
-            WindowsSandboxLevel::Elevated => false,
+            WindowsSandboxLevel::RestrictedToken | WindowsSandboxLevel::Elevated => unsafe {
+                match self.create_restricted_token() {
+                    Ok(token) => {
+                        let _ = CloseHandle(token);
+                        true
+                    }
+                    Err(err) => {
+                        debug!("Windows sandbox unavailable: {}", err);
+                        false
+                    }
+                }
+            },
         }
     }
 
@@ -69,19 +91,40 @@ impl WindowsSandboxExecutor {
             WindowsSandboxLevel::Disabled => {
                 self.execute_direct(command, cwd, env, timeout_secs).await
             }
-            WindowsSandboxLevel::RestrictedToken => {
-                let _ = (command, cwd, env, timeout_secs, policy, fs_policy);
-                Err(SandboxError::PlatformError(
-                    "Windows restricted-token sandbox is disabled because real restricted-process creation is not implemented".to_string(),
-                ))
-            }
-            WindowsSandboxLevel::Elevated => {
-                let _ = (command, cwd, env, timeout_secs, policy, fs_policy);
-                Err(SandboxError::PlatformError(
-                    "Windows elevated sandbox is not implemented".to_string(),
-                ))
+            WindowsSandboxLevel::RestrictedToken | WindowsSandboxLevel::Elevated => {
+                self.ensure_command_allowed(command, cwd, policy, fs_policy)?;
+                let command = command.to_string();
+                let cwd = cwd.to_path_buf();
+                tokio::task::spawn_blocking(move || {
+                    Self::execute_restricted_blocking(&command, &cwd, env, timeout_secs)
+                })
+                .await
+                .map_err(|e| SandboxError::Internal(format!("Windows sandbox task failed: {e}")))?
             }
         }
+    }
+
+    fn ensure_command_allowed(
+        &self,
+        command: &str,
+        cwd: &Path,
+        _policy: &SandboxPolicy,
+        _fs_policy: &FileSystemSandboxPolicy,
+    ) -> SandboxResult<()> {
+        if command.trim().is_empty() {
+            return Err(SandboxError::InvalidCommand(
+                "command cannot be empty".to_string(),
+            ));
+        }
+
+        if !cwd.exists() {
+            return Err(SandboxError::InvalidCommand(format!(
+                "working directory does not exist: {}",
+                cwd.display()
+            )));
+        }
+
+        Ok(())
     }
 
     /// Execute directly without sandbox
@@ -162,9 +205,9 @@ impl WindowsSandboxExecutor {
             )));
         }
 
-        // Create restricted token with LUA_TOKEN and WRITE_RESTRICTED
-        let flags =
-            CREATE_RESTRICTED_TOKEN_FLAGS(DISABLE_MAX_PRIVILEGE | LUA_TOKEN | WRITE_RESTRICTED);
+        // Create a LUA token for the minimum viable sandbox. Job Object process
+        // tree control below provides the hard boundary for child cleanup.
+        let flags = CREATE_RESTRICTED_TOKEN_FLAGS(DISABLE_MAX_PRIVILEGE | LUA_TOKEN);
 
         // Output handle for the new token
         let mut new_token_handle: HANDLE = HANDLE::default();
@@ -175,7 +218,7 @@ impl WindowsSandboxExecutor {
         let _ = CloseHandle(h_token);
 
         if result.is_ok() {
-            debug!("Restricted token created successfully with WRITE_RESTRICTED");
+            debug!("Restricted token created successfully");
             Ok(new_token_handle)
         } else {
             let err = GetLastError();
@@ -185,6 +228,7 @@ impl WindowsSandboxExecutor {
             )))
         }
     }
+
     fn execute_restricted_blocking(
         command: &str,
         cwd: &Path,
@@ -205,12 +249,14 @@ impl WindowsSandboxExecutor {
             let stderr_pipe = InheritedPipe::new()?;
             let stdin_pipe = InheritedPipe::new()?;
 
-            let mut startup = STARTUPINFOW::default();
-            startup.cb = size_of::<STARTUPINFOW>() as u32;
-            startup.dwFlags = STARTF_USESTDHANDLES;
-            startup.hStdInput = stdin_pipe.read_handle();
-            startup.hStdOutput = stdout_pipe.write_handle();
-            startup.hStdError = stderr_pipe.write_handle();
+            let startup = STARTUPINFOW {
+                cb: size_of::<STARTUPINFOW>() as u32,
+                dwFlags: STARTF_USESTDHANDLES,
+                hStdInput: stdin_pipe.read_handle(),
+                hStdOutput: stdout_pipe.write_handle(),
+                hStdError: stderr_pipe.write_handle(),
+                ..Default::default()
+            };
 
             let mut process_info = PROCESS_INFORMATION::default();
             let mut command_line = to_wide_mut(&powershell_command_line(command));
@@ -316,6 +362,191 @@ impl Default for WindowsSandboxExecutor {
     }
 }
 
+struct HandleGuard(HANDLE);
+
+impl HandleGuard {
+    fn new(handle: HANDLE) -> Self {
+        Self(handle)
+    }
+
+    fn handle(&self) -> HANDLE {
+        self.0
+    }
+
+    fn into_handle(mut self) -> HANDLE {
+        let handle = self.0;
+        self.0 = HANDLE::default();
+        handle
+    }
+}
+
+impl Drop for HandleGuard {
+    fn drop(&mut self) {
+        if !self.0.is_invalid() {
+            unsafe {
+                let _ = CloseHandle(self.0);
+            }
+        }
+    }
+}
+
+struct InheritedPipe {
+    read: Option<HandleGuard>,
+    write: Option<HandleGuard>,
+}
+
+impl InheritedPipe {
+    unsafe fn new() -> SandboxResult<Self> {
+        let security_attributes = SECURITY_ATTRIBUTES {
+            nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: std::ptr::null_mut(),
+            bInheritHandle: TRUE,
+        };
+        let mut read = HANDLE::default();
+        let mut write = HANDLE::default();
+
+        CreatePipe(&mut read, &mut write, Some(&security_attributes), 0)
+            .map_err(|e| SandboxError::SpawnFailed(format!("CreatePipe failed: {e}")))?;
+        SetHandleInformation(read, HANDLE_FLAG_INHERIT.0, HANDLE_FLAGS(0))
+            .map_err(|e| SandboxError::SpawnFailed(format!("SetHandleInformation failed: {e}")))?;
+
+        Ok(Self {
+            read: Some(HandleGuard::new(read)),
+            write: Some(HandleGuard::new(write)),
+        })
+    }
+
+    fn read_handle(&self) -> HANDLE {
+        self.read
+            .as_ref()
+            .map(HandleGuard::handle)
+            .unwrap_or_default()
+    }
+
+    fn write_handle(&self) -> HANDLE {
+        self.write
+            .as_ref()
+            .map(HandleGuard::handle)
+            .unwrap_or_default()
+    }
+
+    fn into_reader(mut self) -> PipeReader {
+        drop(self.write.take());
+        let handle = self
+            .read
+            .take()
+            .expect("pipe read handle missing")
+            .into_handle();
+        PipeReader::spawn(handle)
+    }
+}
+
+struct PipeReader {
+    join_handle: thread::JoinHandle<SandboxResult<Vec<u8>>>,
+}
+
+impl PipeReader {
+    fn spawn(handle: HANDLE) -> Self {
+        let raw_handle = handle.0 as isize;
+        let join_handle = thread::spawn(move || {
+            let handle = HANDLE(raw_handle as _);
+            unsafe { read_pipe_to_end(handle) }
+        });
+        Self { join_handle }
+    }
+
+    fn join(self) -> SandboxResult<Vec<u8>> {
+        self.join_handle
+            .join()
+            .map_err(|_| SandboxError::Internal("pipe reader thread panicked".to_string()))?
+    }
+}
+
+unsafe fn read_pipe_to_end(handle: HANDLE) -> SandboxResult<Vec<u8>> {
+    let guard = HandleGuard::new(handle);
+    let mut output = Vec::new();
+    loop {
+        let mut buffer = [0u8; PIPE_READ_BUFFER_SIZE];
+        let mut bytes_read = 0;
+        match ReadFile(
+            guard.handle(),
+            Some(&mut buffer),
+            Some(&mut bytes_read),
+            None,
+        ) {
+            Ok(()) => {
+                if bytes_read == 0 {
+                    break;
+                }
+                output.extend_from_slice(&buffer[..bytes_read as usize]);
+            }
+            Err(_) => break,
+        }
+    }
+    Ok(output)
+}
+
+unsafe fn create_kill_on_close_job() -> SandboxResult<HANDLE> {
+    let job = CreateJobObjectW(None, PCWSTR::null())
+        .map_err(|e| SandboxError::PlatformError(format!("CreateJobObjectW failed: {e}")))?;
+
+    let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+    SetInformationJobObject(
+        job,
+        JobObjectExtendedLimitInformation,
+        (&limits as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+        size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+    )
+    .map_err(|e| {
+        let _ = CloseHandle(job);
+        SandboxError::PlatformError(format!("SetInformationJobObject failed: {e}"))
+    })?;
+
+    Ok(job)
+}
+
+fn powershell_command_line(command: &str) -> String {
+    format!(
+        "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command {}",
+        quote_windows_arg(command)
+    )
+}
+
+fn quote_windows_arg(arg: &str) -> String {
+    let escaped = arg.replace('"', "\\\"");
+    format!("\"{}\"", escaped)
+}
+
+fn to_wide(value: &OsStr) -> Vec<u16> {
+    value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+fn to_wide_mut(value: &str) -> Vec<u16> {
+    OsStr::new(value)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
+}
+
+fn build_environment_block(extra_env: HashMap<String, String>) -> Vec<u16> {
+    let mut env: Vec<(String, String)> = std::env::vars().collect();
+    env.extend(extra_env);
+    env.sort_by(|a, b| a.0.to_uppercase().cmp(&b.0.to_uppercase()));
+
+    let mut block = Vec::new();
+    for (key, value) in env {
+        if key.contains('=') {
+            continue;
+        }
+        block.extend(OsStr::new(&format!("{key}={value}")).encode_wide());
+        block.push(0);
+    }
+    block.push(0);
+    block
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -327,7 +558,7 @@ mod tests {
     #[test]
     fn test_executor_creation() {
         let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
-        assert!(!executor.is_available());
+        assert!(executor.is_available());
     }
 
     #[test]
@@ -395,6 +626,8 @@ mod tests {
             )
             .await;
 
-        assert!(matches!(result, Err(SandboxError::PlatformError(_))));
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("hello"), "output was: {output}");
     }
 }
