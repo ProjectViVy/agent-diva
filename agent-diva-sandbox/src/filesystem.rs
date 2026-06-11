@@ -343,9 +343,28 @@ pub fn default_protected_paths() -> Vec<String> {
         ".diva".to_string(),
         ".agents".to_string(),
         ".env".to_string(),
+        ".env.*".to_string(),
+        ".npmrc".to_string(),
+        ".yarnrc".to_string(),
+        ".pnpmrc".to_string(),
         "*.pem".to_string(),
         "*.key".to_string(),
         "*.secret".to_string(),
+        "*.tfvars".to_string(),
+        "*.tfstate".to_string(),
+        "*.tfstate.backup".to_string(),
+        "credentials".to_string(),
+        "credentials.json".to_string(),
+        "*.credentials".to_string(),
+        "id_rsa".to_string(),
+        "id_rsa.pub".to_string(),
+        "id_ed25519".to_string(),
+        "id_ed25519.pub".to_string(),
+        ".aws/credentials".to_string(),
+        ".aws/config".to_string(),
+        ".docker/config.json".to_string(),
+        ".netrc".to_string(),
+        ".pypirc".to_string(),
     ]
 }
 
@@ -441,5 +460,40 @@ mod tests {
         assert!(matches!(policy, AskForApproval::OnFailure));
         assert!(policy.allows_sandbox_failure_retry());
         assert!(!policy.should_ask_before_first_attempt());
+    }
+
+    #[test]
+    fn test_default_protected_paths_deny_new_secret_patterns() {
+        let matcher = ReadDenyMatcher::with_defaults();
+        let denied_paths = [
+            ".env.local",
+            ".env.production",
+            ".env.development",
+            ".npmrc",
+            ".yarnrc",
+            ".pnpmrc",
+            "terraform.tfvars",
+            "terraform.tfstate",
+            "terraform.tfstate.backup",
+            "credentials",
+            "credentials.json",
+            "service.credentials",
+            "id_rsa",
+            "id_rsa.pub",
+            "id_ed25519",
+            "id_ed25519.pub",
+            ".aws/credentials",
+            ".aws/config",
+            ".docker/config.json",
+            ".netrc",
+            ".pypirc",
+        ];
+
+        for path in denied_paths {
+            assert!(
+                matcher.is_read_denied(Path::new(path)),
+                "expected {path} to be denied"
+            );
+        }
     }
 }
