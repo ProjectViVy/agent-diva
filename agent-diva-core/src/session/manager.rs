@@ -304,7 +304,7 @@ mod tests {
         let key = session.key.clone();
 
         // Save the session
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
         // Clear cache and reload
         manager.cache.clear();
@@ -325,14 +325,14 @@ mod tests {
         let key = session.key.clone();
 
         // Save it so it exists on disk
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
         // Archive it
         let archived = manager.archive_and_reset(&key).unwrap();
         assert!(archived);
 
         // Check it's removed from cache
-        assert!(manager.cache.get(&key).is_none());
+        assert!(!manager.cache.contains_key(&key));
 
         // Get or create should now be empty
         let new_session = manager.get_or_create("archive:789").unwrap();
@@ -364,7 +364,7 @@ mod tests {
         let session = manager.get_or_create("gui:chat-1").unwrap();
         session.add_message("user", "Hello");
         let key = session.key.clone();
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
         // Session is in cache; get_or_load should return it
         let loaded = manager.get_or_load("gui:chat-1").unwrap();
@@ -382,7 +382,7 @@ mod tests {
         let session = manager.get_or_create("gui:chat-2").unwrap();
         session.add_message("user", "From disk");
         let key = session.key.clone();
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
         // Clear cache to simulate "not loaded this run"
         manager.cache.clear();
@@ -422,7 +422,7 @@ mod tests {
         ));
         let key = session.key.clone();
 
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
         let content = std::fs::read_to_string(manager.session_path(&key)).unwrap();
         assert!(content.contains("\"attachments\""));
         assert!(content.contains("\"file_id\":\"sha256:image123\""));
@@ -451,7 +451,7 @@ mod tests {
         let session = manager.get_or_create("gui:backup").unwrap();
         session.add_message("user", "from backup");
         let key = session.key.clone();
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
         let primary_path = manager.session_path(&key);
         let backup_path = manager.backup_path(&key);

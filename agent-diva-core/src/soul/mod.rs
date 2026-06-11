@@ -113,8 +113,10 @@ mod tests {
         let store = SoulStateStore::new(temp.path());
         assert!(!store.is_bootstrap_completed());
 
-        let mut state = SoulState::default();
-        state.bootstrap_completed_at = Some(Utc::now());
+        let state = SoulState {
+            bootstrap_completed_at: Some(Utc::now()),
+            ..Default::default()
+        };
         store.save(&state).unwrap();
         assert!(store.is_bootstrap_completed());
     }
