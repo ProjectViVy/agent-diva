@@ -6,6 +6,18 @@ edition = "2021"
 rust-version = "1.80.0"
 description = "Sandbox isolation for agent-diva command execution"
 
+[features]
+default = ["manager", "platform"]
+manager = []
+orchestrator = ["manager", "approval", "guardian"]
+platform = ["platform-windows", "platform-macos", "platform-linux"]
+platform-windows = []
+platform-macos = []
+platform-linux = []
+approval = []
+guardian = []
+filesystem = []
+
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
 tokio = { workspace = true }

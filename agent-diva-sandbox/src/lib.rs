@@ -24,37 +24,60 @@
 //! let result = manager.execute_sandboxed("echo hello", &cwd).await;
 //! ```
 
+#[cfg(any(feature = "approval", feature = "manager", feature = "orchestrator"))]
 pub mod approval;
 pub mod decision;
 pub mod error;
+#[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
 pub mod exec_policy;
+#[cfg(any(
+    feature = "filesystem",
+    feature = "manager",
+    feature = "orchestrator",
+    feature = "platform"
+))]
 pub mod filesystem;
+#[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
 pub mod guardian;
+#[cfg(feature = "manager")]
 pub mod manager;
+#[cfg(any(feature = "manager", feature = "orchestrator"))]
 pub mod orchestrator;
+#[cfg(feature = "platform")]
 pub mod platform;
 pub mod policy;
 pub mod rules;
 
 // Re-export public API
+#[cfg(any(feature = "approval", feature = "manager", feature = "orchestrator"))]
 pub use approval::{
     ApprovalStore, CommandApprovalKey, ExecApprovalRequirement, ReviewDecision, SharedApprovalStore,
 };
 pub use decision::{Decision, Evaluation, RuleMatch};
 pub use error::{SandboxError, SandboxResult};
+#[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
 pub use exec_policy::{
     is_banned_prefix, ApprovalRequirement, ExecPolicyAmendment, ExecPolicyError, ExecPolicyManager,
     BANNED_PREFIX_SUGGESTIONS,
 };
+#[cfg(any(
+    feature = "filesystem",
+    feature = "manager",
+    feature = "orchestrator",
+    feature = "platform"
+))]
 pub use filesystem::{
     default_protected_paths, FileSystemAccessMode, FileSystemSandboxEntry, FileSystemSandboxKind,
     FileSystemSandboxPolicy, WritableRoot,
 };
+#[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
 pub use guardian::{
     DefaultGuardianReviewer, GuardianConfig, GuardianDecision, GuardianManager,
     GuardianRejectionCircuitBreaker, GuardianReviewer,
 };
+#[cfg(feature = "manager")]
 pub use manager::{SandboxCommand, SandboxExecRequest, SandboxManager};
+#[cfg(any(feature = "manager", feature = "orchestrator"))]
 pub use orchestrator::{
     Approvable, OrchestratorRunResult, SandboxAttempt, SandboxOverride, SandboxPermissions,
     Sandboxable, ToolOrchestrator,
