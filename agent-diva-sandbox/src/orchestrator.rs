@@ -644,17 +644,11 @@ impl ToolOrchestrator {
     }
 
     fn cached_decision(&self, approval_key: &CommandApprovalKey) -> Option<ReviewDecision> {
-        let store = self.sandbox_manager.approval_store();
-        let store = store.lock().unwrap();
-        store.get(approval_key)
+        self.sandbox_manager.check_cached_decision(approval_key)
     }
 
     fn consume_approved_once(&self, approval_key: &CommandApprovalKey) {
-        let store = self.sandbox_manager.approval_store();
-        let mut store = store.lock().unwrap();
-        if matches!(store.get(approval_key), Some(ReviewDecision::ApprovedOnce)) {
-            let _ = store.remove(approval_key);
-        }
+        self.sandbox_manager.consume_approved_once(approval_key);
     }
 
     fn should_offer_escalation(&self, error: &SandboxError) -> bool {

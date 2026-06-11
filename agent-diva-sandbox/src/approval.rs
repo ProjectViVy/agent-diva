@@ -132,6 +132,26 @@ impl ExecApprovalRequirement {
     }
 }
 
+// TODO(sandbox): merge ExecApprovalRequirement with exec_policy::ApprovalRequirement
+// once manager/orchestrator approval flows share one canonical representation.
+impl From<crate::exec_policy::ApprovalRequirement> for ExecApprovalRequirement {
+    fn from(value: crate::exec_policy::ApprovalRequirement) -> Self {
+        match value {
+            crate::exec_policy::ApprovalRequirement::Skip { bypass_sandbox, .. } => {
+                ExecApprovalRequirement::Skip { bypass_sandbox }
+            }
+            crate::exec_policy::ApprovalRequirement::NeedsApproval { reason, .. } => {
+                ExecApprovalRequirement::NeedsApproval {
+                    reason: Some(reason),
+                }
+            }
+            crate::exec_policy::ApprovalRequirement::Forbidden { reason } => {
+                ExecApprovalRequirement::Forbidden { reason }
+            }
+        }
+    }
+}
+
 /// Approval cache store.
 ///
 /// Stores user approval decisions for commands to avoid repeated prompts.
