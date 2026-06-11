@@ -59,12 +59,31 @@ impl SandboxCommand {
 
     /// Convert to command string
     pub fn to_command_string(&self) -> String {
-        if self.args.is_empty() {
-            self.program.clone()
+        if cfg!(windows) {
+            self.to_powershell_command_string()
         } else {
-            format!("{} {}", self.program, self.args.join(" "))
+            self.to_posix_command_string()
         }
     }
+
+    fn to_posix_command_string(&self) -> String {
+        std::iter::once(self.program.as_str())
+            .chain(self.args.iter().map(String::as_str))
+            .map(shell_words::quote)
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn to_powershell_command_string(&self) -> String {
+        let mut parts = Vec::with_capacity(self.args.len() + 1);
+        parts.push(format!("& {}", quote_for_powershell(&self.program)));
+        parts.extend(self.args.iter().map(|arg| quote_for_powershell(arg)));
+        parts.join(" ")
+    }
+}
+
+fn quote_for_powershell(input: &str) -> String {
+    format!("'{}'", input.replace('\'', "''"))
 }
 
 /// Sandbox execution request
@@ -609,7 +628,35 @@ mod tests {
             vec!["build".to_string()],
             PathBuf::from("."),
         );
-        assert_eq!(cmd.to_command_string(), "cargo build");
+        let expected = if cfg!(windows) {
+            "& 'cargo' 'build'"
+        } else {
+            "cargo build"
+        };
+        assert_eq!(cmd.to_command_string(), expected);
+    }
+
+    #[test]
+    fn test_sandbox_command_quotes_metacharacters() {
+        let dangerous = "value;|&$`<>".to_string();
+        let cmd = SandboxCommand::new(
+            "echo".to_string(),
+            vec![dangerous.clone(), "with space".to_string()],
+            PathBuf::from("."),
+        );
+
+        if cfg!(windows) {
+            assert_eq!(
+                cmd.to_command_string(),
+                "& 'echo' 'value;|&$`<>' 'with space'"
+            );
+        } else {
+            let parsed = shell_words::split(&cmd.to_command_string()).unwrap();
+            assert_eq!(
+                parsed,
+                vec!["echo".to_string(), dangerous, "with space".to_string()]
+            );
+        }
     }
 
     #[test]
@@ -629,5 +676,39 @@ mod tests {
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("hello"));
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn test_to_command_string_prevents_shell_injection() {
+        let manager = SandboxManager::disabled();
+        let dangerous_arg = "safe; printf injected".to_string();
+        let command = SandboxCommand::new(
+            "printf".to_string(),
+            vec!["%s".to_string(), dangerous_arg.clone()],
+            PathBuf::from("."),
+        );
+        let request = SandboxExecRequest::new(command.to_command_string(), PathBuf::from("."));
+
+        let output = manager.execute_direct(&request).await.unwrap();
+        assert_eq!(output, dangerous_arg);
+        assert!(!output.contains("injected"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn test_to_command_string_prevents_powershell_injection() {
+        let manager = SandboxManager::disabled();
+        let dangerous_arg = "safe; Write-Output injected".to_string();
+        let command = SandboxCommand::new(
+            "Write-Output".to_string(),
+            vec![dangerous_arg.clone()],
+            PathBuf::from("."),
+        );
+        let request = SandboxExecRequest::new(command.to_command_string(), PathBuf::from("."));
+
+        let output = manager.execute_direct(&request).await.unwrap();
+        assert_eq!(output.trim(), dangerous_arg);
+        assert!(!output.contains("\ninjected"));
     }
 }
