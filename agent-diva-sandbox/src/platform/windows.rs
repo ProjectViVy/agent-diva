@@ -37,7 +37,6 @@ const DISABLE_MAX_PRIVILEGE: u32 = 0x01;
 /// LUA (Least-privileged User Account) token flag
 const LUA_TOKEN: u32 = 0x04;
 #[allow(dead_code)]
-#[allow(dead_code)]
 /// Write restricted flag. Kept for future hardening; enabling it breaks common
 /// Windows shell initialization paths in the current minimum viable sandbox.
 const WRITE_RESTRICTED: u32 = 0x08;
@@ -250,12 +249,14 @@ impl WindowsSandboxExecutor {
             let stderr_pipe = InheritedPipe::new()?;
             let stdin_pipe = InheritedPipe::new()?;
 
-            let mut startup = STARTUPINFOW::default();
-            startup.cb = size_of::<STARTUPINFOW>() as u32;
-            startup.dwFlags = STARTF_USESTDHANDLES;
-            startup.hStdInput = stdin_pipe.read_handle();
-            startup.hStdOutput = stdout_pipe.write_handle();
-            startup.hStdError = stderr_pipe.write_handle();
+            let startup = STARTUPINFOW {
+                cb: size_of::<STARTUPINFOW>() as u32,
+                dwFlags: STARTF_USESTDHANDLES,
+                hStdInput: stdin_pipe.read_handle(),
+                hStdOutput: stdout_pipe.write_handle(),
+                hStdError: stderr_pipe.write_handle(),
+                ..Default::default()
+            };
 
             let mut process_info = PROCESS_INFORMATION::default();
             let mut command_line = to_wide_mut(&powershell_command_line(command));
@@ -358,91 +359,6 @@ impl WindowsSandboxExecutor {
 impl Default for WindowsSandboxExecutor {
     fn default() -> Self {
         Self::new(WindowsSandboxLevel::default())
-    }
-}
-
-// ============================================================================
-// Tests
-// ============================================================================
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_executor_creation() {
-        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
-        assert!(executor.is_available());
-    }
-
-    #[test]
-    fn test_executor_disabled() {
-        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::Disabled);
-        assert!(!executor.is_available());
-    }
-
-    #[test]
-    fn test_executor_default() {
-        let executor = WindowsSandboxExecutor::default();
-        assert!(!executor.is_available());
-    }
-
-    #[tokio::test]
-    async fn test_direct_execution() {
-        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::Disabled);
-        let result = executor
-            .execute_direct("echo hello", Path::new("."), HashMap::new(), 10)
-            .await;
-
-        assert!(result.is_ok());
-        let output = result.unwrap();
-        assert!(output.contains("hello"));
-    }
-
-    #[tokio::test]
-    async fn test_direct_execution_with_env() {
-        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::Disabled);
-        let env = HashMap::from([("TEST_VAR".to_string(), "test_value".to_string())]);
-        let result = executor
-            .execute_direct("echo $env:TEST_VAR", Path::new("."), env, 10)
-            .await;
-
-        assert!(result.is_ok());
-        let output = result.unwrap();
-        assert!(output.contains("test_value"));
-    }
-
-    #[test]
-    fn test_token_creation() {
-        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
-
-        unsafe {
-            if let Ok(token) = executor.create_restricted_token() {
-                let _ = CloseHandle(token);
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_restricted_token_execution() {
-        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
-        let policy = SandboxPolicy::default();
-        let fs_policy = FileSystemSandboxPolicy::unrestricted();
-
-        let result = executor
-            .execute(
-                "echo hello",
-                Path::new("."),
-                HashMap::new(),
-                30,
-                &policy,
-                &fs_policy,
-            )
-            .await;
-
-        assert!(result.is_ok());
-        let output = result.unwrap();
-        assert!(output.contains("hello"), "output was: {output}");
     }
 }
 
@@ -629,4 +545,89 @@ fn build_environment_block(extra_env: HashMap<String, String>) -> Vec<u16> {
     }
     block.push(0);
     block
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_executor_creation() {
+        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
+        assert!(executor.is_available());
+    }
+
+    #[test]
+    fn test_executor_disabled() {
+        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::Disabled);
+        assert!(!executor.is_available());
+    }
+
+    #[test]
+    fn test_executor_default() {
+        let executor = WindowsSandboxExecutor::default();
+        assert!(!executor.is_available());
+    }
+
+    #[tokio::test]
+    async fn test_direct_execution() {
+        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::Disabled);
+        let result = executor
+            .execute_direct("echo hello", Path::new("."), HashMap::new(), 10)
+            .await;
+
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("hello"));
+    }
+
+    #[tokio::test]
+    async fn test_direct_execution_with_env() {
+        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::Disabled);
+        let env = HashMap::from([("TEST_VAR".to_string(), "test_value".to_string())]);
+        let result = executor
+            .execute_direct("echo $env:TEST_VAR", Path::new("."), env, 10)
+            .await;
+
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("test_value"));
+    }
+
+    #[test]
+    fn test_token_creation() {
+        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
+
+        unsafe {
+            if let Ok(token) = executor.create_restricted_token() {
+                let _ = CloseHandle(token);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_restricted_token_execution() {
+        let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
+        let policy = SandboxPolicy::default();
+        let fs_policy = FileSystemSandboxPolicy::unrestricted();
+
+        let result = executor
+            .execute(
+                "echo hello",
+                Path::new("."),
+                HashMap::new(),
+                30,
+                &policy,
+                &fs_policy,
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("hello"), "output was: {output}");
+    }
 }
