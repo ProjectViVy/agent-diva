@@ -175,10 +175,11 @@ impl WindowsSandboxExecutor {
             Ok(if stdout.is_empty() { stderr } else { stdout })
         } else {
             let code = output.status.code().unwrap_or(-1);
-            Ok(format!(
-                "Exit code: {}\nstdout: {}\nstderr: {}",
-                code, stdout, stderr
-            ))
+            Err(SandboxError::ExecutionFailed {
+                code,
+                stdout,
+                stderr,
+            })
         }
     }
 
@@ -344,10 +345,11 @@ impl WindowsSandboxExecutor {
             if exit_code == 0 {
                 Ok(if stdout.is_empty() { stderr } else { stdout })
             } else {
-                Ok(format!(
-                    "Exit code: {}\nstdout: {}\nstderr: {}",
-                    exit_code, stdout, stderr
-                ))
+                Err(SandboxError::ExecutionFailed {
+                    code: i32::try_from(exit_code).unwrap_or(-1),
+                    stdout,
+                    stderr,
+                })
             }
         }
     }
