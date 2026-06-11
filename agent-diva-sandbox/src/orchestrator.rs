@@ -383,11 +383,37 @@ impl ToolOrchestrator {
     pub async fn run(&self, command: &str, cwd: &PathBuf) -> SandboxResult<OrchestratorRunResult> {
         info!("ToolOrchestrator.run: '{}' in {:?}", command, cwd);
 
-        // Parse command
         let command_parts =
             shell_words::split(command).map_err(|e| SandboxError::InvalidCommand(e.to_string()))?;
+        if let Some(result) = self.preflight_guardian(command, cwd, &command_parts).await? {
+            return Ok(result);
+        }
 
-        // Phase 0: Guardian Auto-Approval (if available)
+        let resolution = self.resolve_approval(command, cwd, &command_parts)?;
+        let attempt = self.select_sandbox(cwd, &resolution)?;
+        let result = self.execute(&command_parts, &attempt).await;
+
+        match result {
+            Ok(output) => Ok(self.build_success_result(output, &attempt, &resolution.approval)),
+            Err(error) => self
+                .handle_failure(
+                    command,
+                    cwd,
+                    &command_parts,
+                    &resolution.approval_key,
+                    &resolution.approval,
+                    error,
+                )
+                .await,
+        }
+    }
+
+    async fn preflight_guardian(
+        &self,
+        command: &str,
+        cwd: &PathBuf,
+        command_parts: &[String],
+    ) -> SandboxResult<Option<OrchestratorRunResult>> {
         if let Some(guardian) = &self.guardian {
             let approval = self.check_approval(&command_parts);
             let guardian_decision = guardian.review(&command_parts, cwd, &approval);
@@ -415,7 +441,7 @@ impl ToolOrchestrator {
                     if create_rule {
                         if let Some(_policy) = &self.exec_policy {
                             let _amendment =
-                                crate::exec_policy::ExecPolicyAmendment::new(command_parts.clone());
+                                crate::exec_policy::ExecPolicyAmendment::new(command_parts.to_vec());
                             // Note: This would need mutable access, skip for now
                             debug!("Would create Allow rule for: {}", command_parts.join(" "));
                         }
@@ -428,9 +454,9 @@ impl ToolOrchestrator {
                         cwd.clone(),
                     );
 
-                    let result = self.execute_attempt(&command_parts, &attempt).await;
+                    let result = self.execute(&command_parts, &attempt).await;
                     return match result {
-                        Ok(output) => Ok(OrchestratorRunResult::success(output, true)),
+                        Ok(output) => Ok(Some(OrchestratorRunResult::success(output, true))),
                         Err(e) => Err(e),
                     };
                 }
@@ -449,9 +475,16 @@ impl ToolOrchestrator {
             }
         }
 
-        let approval_key = CommandApprovalKey::new(command.to_string(), cwd.clone());
+        Ok(None)
+    }
 
-        // Phase 1: Approval
+    fn resolve_approval(
+        &self,
+        command: &str,
+        cwd: &PathBuf,
+        command_parts: &[String],
+    ) -> SandboxResult<ApprovalResolution> {
+        let approval_key = CommandApprovalKey::new(command.to_string(), cwd.clone());
         let approval = self.check_approval(&command_parts);
 
         if approval.is_forbidden() {
@@ -465,64 +498,28 @@ impl ToolOrchestrator {
         }
 
         let sandbox_override = self.resolve_initial_override(&approval_key, &approval)?;
+        Ok(ApprovalResolution {
+            approval_key,
+            approval,
+            sandbox_override,
+        })
+    }
 
-        // Phase 2: First Attempt
-        let attempt = SandboxAttempt::new(
+    fn select_sandbox<'a>(
+        &'a self,
+        cwd: &PathBuf,
+        resolution: &ApprovalResolution,
+    ) -> SandboxResult<SandboxAttempt<'a>> {
+        Ok(SandboxAttempt::new(
             self.sandbox_manager.policy(),
             self.sandbox_manager.fs_policy(),
             cwd.clone(),
         )
-        .with_approval(approval.clone())
-        .with_override(sandbox_override);
-
-        let result = self.execute_attempt(&command_parts, &attempt).await;
-
-        // Phase 3: Sandbox Denial Handling
-        match result {
-            Ok(output) => {
-                // Success!
-                let amendment = match approval {
-                    ApprovalRequirement::NeedsApproval { amendment, .. } => {
-                        amendment.map(|a| a.command)
-                    }
-                    _ => None,
-                };
-                Ok(
-                    OrchestratorRunResult::success(output, !attempt.should_bypass_sandbox())
-                        .with_amendment(amendment.unwrap_or_default()),
-                )
-            }
-            Err(SandboxError::Denied { reason }) => {
-                // Sandbox denied - check escalation
-                debug!("Sandbox denied: {}", reason);
-
-                self.retry_after_sandbox_failure(
-                    command,
-                    cwd,
-                    &command_parts,
-                    &approval_key,
-                    &approval,
-                    SandboxError::Denied { reason },
-                )
-                .await
-            }
-            Err(err) if self.should_offer_escalation(&err) => {
-                self.retry_after_sandbox_failure(
-                    command,
-                    cwd,
-                    &command_parts,
-                    &approval_key,
-                    &approval,
-                    err,
-                )
-                .await
-            }
-            Err(e) => Err(e), // Other errors pass through
-        }
+        .with_approval(resolution.approval.clone())
+        .with_override(resolution.sandbox_override))
     }
 
-    /// Execute an attempt
-    async fn execute_attempt(
+    async fn execute(
         &self,
         command_parts: &[String],
         attempt: &SandboxAttempt<'_>,
@@ -542,6 +539,60 @@ impl ToolOrchestrator {
             debug!("Executing with sandbox");
             self.sandbox_manager.execute_sandboxed(&request).await
         }
+    }
+
+    async fn handle_failure(
+        &self,
+        command: &str,
+        cwd: &PathBuf,
+        command_parts: &[String],
+        approval_key: &CommandApprovalKey,
+        approval: &ApprovalRequirement,
+        error: SandboxError,
+    ) -> SandboxResult<OrchestratorRunResult> {
+        match error {
+            SandboxError::Denied { reason } => {
+                debug!("Sandbox denied: {}", reason);
+                self.retry_after_sandbox_failure(
+                    command,
+                    cwd,
+                    command_parts,
+                    approval_key,
+                    approval,
+                    SandboxError::Denied { reason },
+                )
+                .await
+            }
+            err if self.should_offer_escalation(&err) => {
+                self.retry_after_sandbox_failure(
+                    command,
+                    cwd,
+                    command_parts,
+                    approval_key,
+                    approval,
+                    err,
+                )
+                .await
+            }
+            err => Err(err),
+        }
+    }
+
+    fn build_success_result(
+        &self,
+        output: String,
+        attempt: &SandboxAttempt<'_>,
+        approval: &ApprovalRequirement,
+    ) -> OrchestratorRunResult {
+        let amendment = match approval {
+            ApprovalRequirement::NeedsApproval { amendment, .. } => amendment
+                .as_ref()
+                .map(|candidate| candidate.command.clone()),
+            _ => None,
+        };
+
+        OrchestratorRunResult::success(output, !attempt.should_bypass_sandbox())
+            .with_amendment(amendment.unwrap_or_default())
     }
 
     fn resolve_initial_override(
@@ -594,7 +645,7 @@ impl ToolOrchestrator {
                 )
                 .with_override(SandboxOverride::BypassSandboxFirstAttempt);
 
-                self.execute_attempt(command_parts, &escalated_attempt)
+                self.execute(command_parts, &escalated_attempt)
                     .await
                     .map(|output| OrchestratorRunResult::success(output, false))
             }
@@ -674,6 +725,12 @@ enum RetryPermission {
     RetryDirect,
     NeedsApproval(String),
     Forbidden,
+}
+
+struct ApprovalResolution {
+    approval_key: CommandApprovalKey,
+    approval: ApprovalRequirement,
+    sandbox_override: SandboxOverride,
 }
 
 // ============================================================================
