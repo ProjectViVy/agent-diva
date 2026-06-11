@@ -357,14 +357,14 @@ impl SandboxManager {
 
         // Check approval cache first
         let key = CommandApprovalKey::new(command.to_string(), cwd.to_path_buf());
-        {
-            let store = self.approval_store.lock().unwrap();
-            if store.is_approved_for_session(&key) {
-                return ExecApprovalRequirement::skip();
-            }
-            if store.is_denied(&key) {
-                return ExecApprovalRequirement::forbidden("Previously denied by user".to_string());
-            }
+        if let Some(decision) = self.check_cached_decision(&key) {
+            return match decision {
+                ReviewDecision::ApprovedForSession => ExecApprovalRequirement::skip(),
+                ReviewDecision::Denied => {
+                    ExecApprovalRequirement::forbidden("Previously denied by user".to_string())
+                }
+                ReviewDecision::ApprovedOnce => ExecApprovalRequirement::skip(),
+            };
         }
 
         // Check approval policy
@@ -575,8 +575,27 @@ impl SandboxManager {
 
     /// Record an approval decision
     pub fn record_approval(&self, key: CommandApprovalKey, decision: ReviewDecision) {
+        self.record_decision(key, decision);
+    }
+
+    /// Check the cached approval decision for a command, if present.
+    pub fn check_cached_decision(&self, key: &CommandApprovalKey) -> Option<ReviewDecision> {
+        let store = self.approval_store.lock().unwrap();
+        store.get(key)
+    }
+
+    /// Record an approval decision in the cache.
+    pub fn record_decision(&self, key: CommandApprovalKey, decision: ReviewDecision) {
         let mut store = self.approval_store.lock().unwrap();
         store.put(key, decision);
+    }
+
+    /// Consume a one-time approval decision, leaving session approvals intact.
+    pub fn consume_approved_once(&self, key: &CommandApprovalKey) {
+        let mut store = self.approval_store.lock().unwrap();
+        if matches!(store.get(key), Some(ReviewDecision::ApprovedOnce)) {
+            let _ = store.remove(key);
+        }
     }
 
     /// Get the approval store

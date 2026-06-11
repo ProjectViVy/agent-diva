@@ -414,6 +414,30 @@ impl ApprovalRequirement {
     }
 }
 
+// TODO(sandbox): collapse ApprovalRequirement and approval::ExecApprovalRequirement
+// after the manager-side approval cache owns the shared translation boundary.
+impl From<crate::approval::ExecApprovalRequirement> for ApprovalRequirement {
+    fn from(value: crate::approval::ExecApprovalRequirement) -> Self {
+        match value {
+            crate::approval::ExecApprovalRequirement::Skip { bypass_sandbox } => {
+                ApprovalRequirement::Skip {
+                    bypass_sandbox,
+                    amendment: None,
+                }
+            }
+            crate::approval::ExecApprovalRequirement::NeedsApproval { reason } => {
+                ApprovalRequirement::NeedsApproval {
+                    reason: reason.unwrap_or_else(|| "Approval required".to_string()),
+                    amendment: None,
+                }
+            }
+            crate::approval::ExecApprovalRequirement::Forbidden { reason } => {
+                ApprovalRequirement::Forbidden { reason }
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
