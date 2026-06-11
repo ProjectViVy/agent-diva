@@ -90,6 +90,35 @@ impl MemoryManager {
         Ok(())
     }
 
+    fn save_memory_to_path(path: PathBuf, content: String) -> crate::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+
+    fn append_history_to_path(path: PathBuf, entry: String) -> crate::Result<()> {
+        if entry.trim().is_empty() {
+            return Ok(());
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut content = if path.exists() {
+            std::fs::read_to_string(&path).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        if !content.is_empty() && !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str(entry.trim_end());
+        content.push_str("\n\n");
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+
     /// Load a daily note
     pub fn load_daily_note(&self, date: impl AsRef<str>) -> DailyNote {
         let date = date.as_ref();
@@ -264,8 +293,14 @@ impl MemoryProvider for MemoryManager {
 
         if let Some(memory_update) = request.memory_update_markdown.as_deref() {
             if !memory_update.trim().is_empty() {
-                let memory = Memory::with_content(memory_update);
-                if let Err(err) = self.save_memory(&memory) {
+                let path = self.memory_path.clone();
+                let content = memory_update.to_string();
+                let write_result =
+                    tokio::task::spawn_blocking(move || Self::save_memory_to_path(path, content))
+                        .await
+                        .map_err(|err| crate::Error::Internal(err.to_string()))
+                        .and_then(|result| result);
+                if let Err(err) = write_result {
                     return Ok(SyncTurnResponse {
                         status: SyncTurnStatus::Failed {
                             reason: format!("failed to persist MEMORY.md: {err}"),
@@ -278,7 +313,14 @@ impl MemoryProvider for MemoryManager {
 
         if let Some(history_entry) = request.history_entry.as_deref() {
             if !history_entry.trim().is_empty() {
-                if let Err(err) = self.append_history(history_entry) {
+                let path = self.history_path.clone();
+                let entry = history_entry.to_string();
+                let append_result =
+                    tokio::task::spawn_blocking(move || Self::append_history_to_path(path, entry))
+                        .await
+                        .map_err(|err| crate::Error::Internal(err.to_string()))
+                        .and_then(|result| result);
+                if let Err(err) = append_result {
                     return Ok(SyncTurnResponse {
                         status: SyncTurnStatus::Failed {
                             reason: format!("failed to append HISTORY.md: {err}"),

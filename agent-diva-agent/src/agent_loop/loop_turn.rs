@@ -15,6 +15,7 @@ use tracing::{debug, error, info, trace, warn};
 
 /// Max size for text attachments to inline (100KB)
 const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
+const TOOL_EVENT_RESULT_PREVIEW_CHARS: usize = 4_000;
 
 impl AgentLoop {
     pub(super) async fn process_inbound_message_inner(
@@ -89,6 +90,23 @@ impl AgentLoop {
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
+        let tool_definitions = self.tools.get_definitions();
+        let cron_tool_definitions = if msg.channel == "cron" || is_cron_trigger {
+            Some(
+                tool_definitions
+                    .iter()
+                    .filter(|def| {
+                        def.get("function")
+                            .and_then(|f| f.get("name"))
+                            .and_then(|n| n.as_str())
+                            != Some("cron")
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            None
+        };
 
         // Intent-aware prefetch: run recall search before the first LLM call
         // when the user message provides a workable intent string.
@@ -149,26 +167,17 @@ impl AgentLoop {
             // Call LLM (streaming when provider supports it)
             // For cron-triggered turns, keep normal tools available but hide cron tool
             // to prevent recursive schedule creation loops.
-            let tool_defs = if msg.channel == "cron" || is_cron_trigger {
-                self.tools
-                    .get_definitions()
-                    .into_iter()
-                    .filter(|def| {
-                        def.get("function")
-                            .and_then(|f| f.get("name"))
-                            .and_then(|n| n.as_str())
-                            != Some("cron")
-                    })
-                    .collect()
+            let active_tool_definitions = if msg.channel == "cron" || is_cron_trigger {
+                cron_tool_definitions.as_deref().unwrap_or(&[])
             } else {
-                self.tools.get_definitions()
+                &tool_definitions
             };
             let mut stream = self
                 .provider
                 .chat_stream(
                     messages.clone(),
-                    if !tool_defs.is_empty() {
-                        Some(tool_defs)
+                    if !active_tool_definitions.is_empty() {
+                        Some(active_tool_definitions.to_vec())
                     } else {
                         None
                     },
@@ -362,7 +371,7 @@ impl AgentLoop {
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),
                         is_error: result.starts_with("Error"),
-                        result: result.clone(),
+                        result: truncate_event_result(&result),
                         call_id: tool_call.id.clone(),
                     };
                     if let Some(tx) = event_tx {
@@ -594,6 +603,22 @@ fn changed_soul_file(
         .find(|name| file_name.eq_ignore_ascii_case(name))
 }
 
+fn truncate_event_result(result: &str) -> String {
+    let char_count = result.chars().count();
+    if char_count <= TOOL_EVENT_RESULT_PREVIEW_CHARS {
+        return result.to_string();
+    }
+
+    let preview = result
+        .chars()
+        .take(TOOL_EVENT_RESULT_PREVIEW_CHARS)
+        .collect::<String>();
+    format!(
+        "{}\n\n[Tool result truncated for event stream: {} chars total, showing first {} chars]",
+        preview, char_count, TOOL_EVENT_RESULT_PREVIEW_CHARS
+    )
+}
+
 fn format_soul_transparency_notice(
     changed_files: &HashSet<String>,
     boundary_confirmation_hint: bool,
@@ -767,6 +792,24 @@ mod tests {
         assert!(!derive_prefetch_intent("recall all projects").is_empty());
         assert!(!derive_prefetch_intent("what is the provider boundary?").is_empty());
         assert!(!derive_prefetch_intent("summarize the last meeting").is_empty());
+    }
+
+    #[test]
+    fn test_truncate_event_result_keeps_small_results() {
+        assert_eq!(truncate_event_result("small result"), "small result");
+    }
+
+    #[test]
+    fn test_truncate_event_result_limits_large_results() {
+        let large_result = format!(
+            "{}tail-marker",
+            "x".repeat(TOOL_EVENT_RESULT_PREVIEW_CHARS + 50)
+        );
+        let truncated = truncate_event_result(&large_result);
+
+        assert!(!truncated.contains("tail-marker"));
+        assert!(truncated.contains("Tool result truncated for event stream"));
+        assert!(truncated.contains(&large_result.chars().count().to_string()));
     }
 
     #[test]
