@@ -331,12 +331,33 @@ impl MacOsSandboxExecutor {
         policy: &SandboxPolicy,
         fs_policy: &FileSystemSandboxPolicy,
     ) -> SandboxResult<String> {
+        self.execute_with_availability(
+            command,
+            cwd,
+            env,
+            timeout_secs,
+            policy,
+            fs_policy,
+            self.is_available(),
+        )
+        .await
+    }
+
+    async fn execute_with_availability(
+        &self,
+        command: &str,
+        cwd: &Path,
+        env: HashMap<String, String>,
+        timeout_secs: u64,
+        policy: &SandboxPolicy,
+        fs_policy: &FileSystemSandboxPolicy,
+        sandbox_available: bool,
+    ) -> SandboxResult<String> {
         info!("Executing command in macOS Seatbelt sandbox: {}", command);
 
         // Check if sandbox-exec is available
-        if !self.is_available() {
-            warn!("sandbox-exec not available, executing directly");
-            return self.execute_direct(command, cwd, env, timeout_secs).await;
+        if !sandbox_available {
+            return Err(Self::platform_unavailable_error());
         }
 
         // Generate Seatbelt policy
@@ -364,6 +385,13 @@ impl MacOsSandboxExecutor {
         }
 
         result
+    }
+
+    fn platform_unavailable_error() -> SandboxError {
+        SandboxError::PlatformUnavailable {
+            platform: "macos",
+            reason: "sandbox-exec is not available".to_string(),
+        }
     }
 
     /// Execute via sandbox-exec
@@ -547,6 +575,27 @@ mod tests {
         assert_eq!(args[2], "--");
         assert_eq!(args[3], "ls");
         assert_eq!(args[4], "-la");
+    }
+
+    #[tokio::test]
+    async fn test_execute_returns_err_when_sandbox_exec_unavailable() {
+        let executor = MacOsSandboxExecutor::new();
+        let result = executor
+            .execute_with_availability(
+                "echo hello",
+                Path::new("."),
+                HashMap::new(),
+                5,
+                &SandboxPolicy::DangerFullAccess,
+                &FileSystemSandboxPolicy::unrestricted(),
+                false,
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(SandboxError::PlatformUnavailable { platform: "macos", .. })
+        ));
     }
 
     #[test]
