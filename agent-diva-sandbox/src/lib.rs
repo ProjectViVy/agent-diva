@@ -82,7 +82,10 @@ pub use orchestrator::{
     Approvable, OrchestratorRunResult, SandboxAttempt, SandboxOverride, SandboxPermissions,
     Sandboxable, ToolOrchestrator,
 };
-pub use policy::{AskForApproval, NetworkAccess, ReadOnlyAccess, SandboxMode, SandboxPolicy};
+pub use policy::{
+    AskForApproval, NetworkAccess, ReadOnlyAccess, SandboxMode, SandboxPolicy,
+    SecurityPolicySandboxExt,
+};
 pub use rules::{Policy, PrefixRule, RulesFile};
 
 /// Environment variable to completely disable sandbox
