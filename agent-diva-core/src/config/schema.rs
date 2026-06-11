@@ -6,7 +6,7 @@ use std::collections::HashMap;
 // ── Sandbox configuration types (used by agent-diva-sandbox) ────────────────
 
 /// Sandbox execution mode
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SandboxMode {
     /// No sandbox isolation — full host access
@@ -14,17 +14,12 @@ pub enum SandboxMode {
     /// Read-only filesystem access
     ReadOnly,
     /// Write access limited to the workspace directory
+    #[default]
     WorkspaceWrite,
 }
 
-impl Default for SandboxMode {
-    fn default() -> Self {
-        Self::WorkspaceWrite
-    }
-}
-
 /// When to ask the user for approval before executing a command
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AskForApproval {
     /// Never ask — auto-approve everything
@@ -34,31 +29,21 @@ pub enum AskForApproval {
     /// Ask for every command
     OnRequest,
     /// Ask unless the command is in a trusted list
+    #[default]
     UnlessTrusted,
 }
 
-impl Default for AskForApproval {
-    fn default() -> Self {
-        Self::UnlessTrusted
-    }
-}
-
 /// Windows-specific sandbox isolation level
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum WindowsSandboxLevel {
     /// No Windows sandbox — rely on general sandbox mode only
     Disabled,
     /// Run with a restricted token (reduced privileges)
+    #[default]
     RestrictedToken,
     /// Run with elevated isolation (AppContainer-like)
     Elevated,
-}
-
-impl Default for WindowsSandboxLevel {
-    fn default() -> Self {
-        Self::RestrictedToken
-    }
 }
 
 /// Sandbox section in the root configuration file
