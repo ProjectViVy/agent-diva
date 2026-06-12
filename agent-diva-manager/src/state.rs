@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::mcp_service::{McpServerDto, McpServerUpsert};
+use crate::planning_service::{CreatePlanRequest, PlanDetail, PlanSummary, UpdatePlanRequest};
 use crate::skill_service::SkillDto;
 
 #[derive(Clone)]
@@ -100,6 +101,19 @@ pub enum ManagerCommand {
         FileUploadRequest,
         oneshot::Sender<Result<agent_diva_core::attachment::FileAttachment, String>>,
     ),
+    // Planning commands
+    ListPlans(oneshot::Sender<Result<Vec<PlanSummary>, String>>),
+    GetPlan(String, oneshot::Sender<Result<Option<PlanDetail>, String>>),
+    CreatePlan(
+        CreatePlanRequest,
+        oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
+    ),
+    UpdatePlan(
+        String,
+        UpdatePlanRequest,
+        oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
+    ),
+    DeletePlan(String, oneshot::Sender<Result<(), String>>),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),
 }

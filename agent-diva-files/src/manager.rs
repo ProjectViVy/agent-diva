@@ -10,6 +10,7 @@ use crate::index::SqliteIndex;
 use crate::storage::{compute_hash, FileStorage, StorageStats};
 use crate::{FileError, Result};
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
@@ -245,6 +246,7 @@ impl FileManager {
     pub async fn clone_ref(&self, handle: &FileHandle) -> Result<FileHandle> {
         if let Some(new_count) = self.index.update_ref_count(&handle.id, 1).await? {
             let cloned = handle.clone();
+            cloned.ref_count.store(new_count, Ordering::SeqCst);
 
             debug!(
                 "Cloned file {} reference, new count: {}",

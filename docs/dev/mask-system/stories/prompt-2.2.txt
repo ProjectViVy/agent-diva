@@ -1,0 +1,31 @@
+Implement Story 2.2 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Enforce reviewer mode as true read-only behavior.
+
+EXISTING CODE:
+- agent-diva-agent/src/mask/tool_policy.rs (ToolPolicy)
+- agent-diva-core/src/config/schema.rs (MaskConfig, ToolLimits)
+- agent-diva-agent/src/mask/mask_file.rs (MaskFile)
+
+FILES TO MODIFY:
+1. agent-diva-core/src/config/schema.rs — add AgentMode enum to MaskConfig
+2. agent-diva-agent/src/mask/tool_policy.rs — add read-only enforcement
+
+REQUIREMENTS:
+- Add AgentMode enum: Normal, Assist (reviewer read-only)
+- MaskConfig gains mode: Option<AgentMode> field
+- ToolPolicy gains:
+  - is_read_only_mode(mask: &MaskFile) -> bool
+  - filter_read_only_tools(tools: &[String]) -> Vec<String>
+- Read-only tools excluded: terminal, write_file, patch
+- Read-only tools allowed: read_file, search_files, web_search, web_extract
+
+TESTS:
+- Reviewer mask with Assist mode is read-only
+- Normal mask is not read-only
+- filter_read_only_tools removes write tools
+- is_read_only_mode with None mode returns false
+
+After creating files, run: cargo check -p agent-diva-core -p agent-diva-agent

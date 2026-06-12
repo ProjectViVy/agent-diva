@@ -94,6 +94,140 @@ impl Default for SandboxConfig {
     }
 }
 
+// ── Mask configuration types ───────────────────────────────────────────────
+
+/// Tool access limits for a mask
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct ToolLimits {
+    /// Tools explicitly allowed (empty = all allowed)
+    #[serde(default)]
+    pub allow: Vec<String>,
+    /// Tools explicitly denied
+    #[serde(default)]
+    pub deny: Vec<String>,
+}
+
+/// Default settings for subagents spawned under a mask
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct SubagentDefaults {
+    /// Model override for subagents
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Maximum iteration count for subagents
+    #[serde(default)]
+    pub max_iterations: Option<u32>,
+}
+
+/// Agent operating mode for a mask.
+///
+/// Controls the behavioral envelope of the agent — whether it operates
+/// normally or is restricted to a read-only reviewer posture.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentMode {
+    /// Default mode — full read/write tool access.
+    #[default]
+    Normal,
+    /// Reviewer mode — read-only tools only; write tools are excluded.
+    Assist,
+}
+
+/// Configuration for a single mask (loaded from a .md file with YAML frontmatter)
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct MaskConfig {
+    /// Display name (required)
+    pub name: String,
+    /// Emoji icon
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Short description
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Agent operating mode (Normal or Assist/reviewer)
+    #[serde(default)]
+    pub mode: Option<AgentMode>,
+    /// Model override when this mask is active
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Default settings for subagents
+    #[serde(default)]
+    pub subagent_defaults: SubagentDefaults,
+    /// Tool access limits
+    #[serde(default)]
+    pub tool_limits: ToolLimits,
+}
+
+// ── Subagent batch-spawn contracts ────────────────────────────────────────
+
+/// Token usage statistics from an LLM call
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TokenUsage {
+    /// Tokens consumed in the prompt
+    #[serde(default)]
+    pub prompt_tokens: u32,
+    /// Tokens generated in the completion
+    #[serde(default)]
+    pub completion_tokens: u32,
+    /// Total tokens used
+    #[serde(default)]
+    pub total_tokens: u32,
+}
+
+/// Terminal status of a subagent task
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SubAgentStatus {
+    /// Task completed successfully
+    Ok,
+    /// Task failed with an error
+    Error,
+    /// Task exceeded its time budget
+    Timeout,
+    /// Task was cancelled externally
+    Cancelled,
+}
+
+/// Result produced by a single subagent after it finishes
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SubAgentResult {
+    /// Correlates back to the originating SubAgentTask.id
+    pub task_id: String,
+    /// Terminal status
+    pub status: SubAgentStatus,
+    /// Human-readable summary of what the subagent did (LLM-generated)
+    #[serde(default)]
+    pub summary: Option<String>,
+    /// Wall-clock time in milliseconds
+    pub elapsed_ms: u64,
+    /// Number of tool calls the subagent made
+    pub tool_call_count: u32,
+    /// Token usage breakdown (may be absent if the provider doesn't report it)
+    #[serde(default)]
+    pub token_usage: Option<TokenUsage>,
+    /// Ordered list of tool names that were invoked during execution
+    #[serde(default)]
+    pub tool_trace: Option<Vec<String>>,
+}
+
+/// A single task inside a batch spawn request
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SubAgentTask {
+    /// Caller-assigned unique identifier for this task
+    pub id: String,
+    /// High-level goal the subagent should accomplish
+    pub goal: String,
+    /// Optional additional context (e.g. prior conversation, file contents)
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
+/// Request to spawn multiple subagents in a single call
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BatchSpawnRequest {
+    /// The tasks to execute concurrently
+    pub tasks: Vec<SubAgentTask>,
+}
+
 /// Root configuration for agent-diva
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
@@ -1125,6 +1259,7 @@ pub struct BuiltInToolsConfig {
     #[serde(default = "default_enabled")]
     pub attachment: bool,
     #[serde(default)]
+    pub planning: bool,
     pub mentle: bool,
 }
 
@@ -1139,6 +1274,7 @@ impl Default for BuiltInToolsConfig {
             cron: false,
             mcp: true,
             attachment: true,
+            planning: false,
             mentle: false,
         }
     }
@@ -1387,7 +1523,134 @@ impl Default for PetConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, MentleToolConfig, MentleToolMode};
+    use super::*;
+
+    // ── SubAgentStatus tests ───────────────────────────────────────────────
+
+    #[test]
+    fn subagent_status_variants_serialize_correctly() {
+        let cases = vec![
+            (SubAgentStatus::Ok, "\"ok\""),
+            (SubAgentStatus::Error, "\"error\""),
+            (SubAgentStatus::Timeout, "\"timeout\""),
+            (SubAgentStatus::Cancelled, "\"cancelled\""),
+        ];
+        for (variant, expected_json) in cases {
+            let json = serde_json::to_string(&variant).unwrap();
+            assert_eq!(json, expected_json, "failed for {:?}", variant);
+
+            let back: SubAgentStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, variant);
+        }
+    }
+
+    #[test]
+    fn subagent_status_unknown_variant_errors() {
+        let result = serde_json::from_str::<SubAgentStatus>("\"unknown\"");
+        assert!(result.is_err());
+    }
+
+    // ── SubAgentResult tests ───────────────────────────────────────────────
+
+    #[test]
+    fn subagent_result_round_trips_json() {
+        let result = SubAgentResult {
+            task_id: "task-001".to_string(),
+            status: SubAgentStatus::Ok,
+            summary: Some("Completed analysis".to_string()),
+            elapsed_ms: 1523,
+            tool_call_count: 7,
+            token_usage: Some(TokenUsage {
+                prompt_tokens: 1200,
+                completion_tokens: 340,
+                total_tokens: 1540,
+            }),
+            tool_trace: Some(vec![
+                "read_file".to_string(),
+                "write_file".to_string(),
+            ]),
+        };
+
+        let json = serde_json::to_string_pretty(&result).unwrap();
+        let back: SubAgentResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, result);
+    }
+
+    #[test]
+    fn subagent_result_minimal_json() {
+        let result = SubAgentResult {
+            task_id: "t1".to_string(),
+            status: SubAgentStatus::Error,
+            summary: None,
+            elapsed_ms: 0,
+            tool_call_count: 0,
+            token_usage: None,
+            tool_trace: None,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let back: SubAgentResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, result);
+    }
+
+    #[test]
+    fn subagent_result_deserializes_from_partial_json() {
+        // Simulates a provider that omits optional fields entirely
+        let json = r#"{
+            "task_id": "t2",
+            "status": "timeout",
+            "elapsed_ms": 30000,
+            "tool_call_count": 3
+        }"#;
+        let result: SubAgentResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.task_id, "t2");
+        assert_eq!(result.status, SubAgentStatus::Timeout);
+        assert_eq!(result.summary, None);
+        assert_eq!(result.token_usage, None);
+        assert_eq!(result.tool_trace, None);
+    }
+
+    // ── BatchSpawnRequest tests ────────────────────────────────────────────
+
+    #[test]
+    fn batch_spawn_request_multiple_tasks() {
+        let req = BatchSpawnRequest {
+            tasks: vec![
+                SubAgentTask {
+                    id: "a".to_string(),
+                    goal: "Summarize the file".to_string(),
+                    context: None,
+                },
+                SubAgentTask {
+                    id: "b".to_string(),
+                    goal: "Find bugs".to_string(),
+                    context: Some("Focus on edge cases".to_string()),
+                },
+                SubAgentTask {
+                    id: "c".to_string(),
+                    goal: "Write tests".to_string(),
+                    context: None,
+                },
+            ],
+        };
+
+        let json = serde_json::to_string_pretty(&req).unwrap();
+        let back: BatchSpawnRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, req);
+        assert_eq!(back.tasks.len(), 3);
+        assert_eq!(back.tasks[1].context.as_deref(), Some("Focus on edge cases"));
+    }
+
+    #[test]
+    fn batch_spawn_request_empty_tasks() {
+        let req = BatchSpawnRequest { tasks: vec![] };
+        let json = serde_json::to_string(&req).unwrap();
+        assert_eq!(json, r#"{"tasks":[]}"#);
+        let back: BatchSpawnRequest = serde_json::from_str(&json).unwrap();
+        assert!(back.tasks.is_empty());
+    }
+
+    // ── Legacy tests (kept from original) ──────────────────────────────────
 
     #[test]
     fn mentle_config_defaults_to_off() {

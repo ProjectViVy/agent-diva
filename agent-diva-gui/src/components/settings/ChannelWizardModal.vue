@@ -234,13 +234,13 @@ watch(
               <label class="wizard-label">{{ t('channels.choosePlatform') }}</label>
               <div class="platform-grid">
                 <div
-                  v-for="(Icon, platform) in PLATFORM_ICONS"
+                  v-for="(IconComponent, platform) in PLATFORM_ICONS"
                   :key="platform"
                   class="platform-card"
                   :class="{ selected: formData.platform === platform }"
                   @click="selectPlatform(platform)"
                 >
-                  <Icon :size="32" />
+                  <component :is="IconComponent" class="platform-wizard-icon" />
                   <span class="platform-name">{{ PLATFORM_DISPLAY_NAMES[platform] }}</span>
                   <span class="platform-desc">{{ PLATFORM_DESCRIPTIONS[platform] }}</span>
                 </div>
@@ -581,16 +581,28 @@ watch(
 .platform-card.selected {
   border-color: var(--accent);
   background: var(--accent);
+}
+
+.platform-card.selected .platform-wizard-icon {
+  color: white;
+}
+
+.platform-card.selected .platform-name {
   color: white;
 }
 
 .platform-card.selected .platform-desc {
-  color: rgba(255, 255, 255, 0.8);
+  color: white;
+}
+
+.platform-wizard-icon {
+  color: var(--text-muted);
 }
 
 .platform-name {
   font-size: 0.875rem;
   font-weight: 600;
+  color: var(--text-muted);
 }
 
 .platform-desc {

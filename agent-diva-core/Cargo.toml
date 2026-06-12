@@ -47,6 +47,9 @@ parking_lot = "0.12"
 # File management
 agent-diva-files = { workspace = true }
 
+# Database
+sqlx = { workspace = true }
+
 [dependencies.memtle]
 workspace = true
 optional = true

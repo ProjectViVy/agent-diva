@@ -1,38 +1,36 @@
 // 通道平台图标映射表
 // 用于在卡片视图和向导中显示各平台的专属图标
 
-import {
-  MessageSquare,
-  Send,
-  Users,
-  Phone,
-  Mail,
-  Slack,
-  Globe,
-  MessageCircle,
-  Video,
-  Hash,
-  type LucideIcon,
-} from 'lucide-vue-next';
+import { Mail, Globe, Hash } from 'lucide-vue-next';
+import type { Component } from 'vue';
+import TelegramIcon from '../../assets/icons/channels/TelegramIcon.vue';
+import DiscordIcon from '../../assets/icons/channels/DiscordIcon.vue';
+import SlackIcon from '../../assets/icons/channels/SlackIcon.vue';
+import DingTalkIcon from '../../assets/icons/channels/DingTalkIcon.vue';
+import QQIcon from '../../assets/icons/channels/QQIcon.vue';
+import FeishuIcon from '../../assets/icons/channels/FeishuIcon.vue';
+import WhatsAppIcon from '../../assets/icons/channels/WhatsAppIcon.vue';
+import MattermostIcon from '../../assets/icons/channels/MattermostIcon.vue';
+import NextcloudTalkIcon from '../../assets/icons/channels/NextcloudTalkIcon.vue';
 
 /**
  * 平台图标映射
  * key: 通道类型名称（与后端配置一致）
- * value: Lucide 图标组件
+ * value: Vue 图标组件
  */
-export const PLATFORM_ICONS: Record<string, LucideIcon> = {
-  telegram: Send,
-  discord: Users,
-  whatsapp: Phone,
-  feishu: MessageCircle, // 飞书 - 使用消息图标
-  dingtalk: MessageCircle, // 钉钉 - 使用消息图标
-  email: Mail,
-  slack: Slack,
-  qq: Users,
-  'neuro-link': Globe,
-  irc: Hash,
-  mattermost: MessageSquare,
-  nextcloud_talk: Video,
+export const PLATFORM_ICONS: Record<string, Component> = {
+  telegram: TelegramIcon,
+  discord: DiscordIcon,
+  whatsapp: WhatsAppIcon,
+  feishu: FeishuIcon, // 飞书
+  dingtalk: DingTalkIcon, // 钉钉
+  email: Mail, // Email 使用 Lucide Mail 图标
+  slack: SlackIcon,
+  qq: QQIcon,
+  'neuro-link': Globe, // Neuro-Link 使用 Lucide Globe 图标
+  irc: Hash, // IRC 使用 Lucide Hash 图标
+  mattermost: MattermostIcon,
+  nextcloud_talk: NextcloudTalkIcon,
 };
 
 /**

@@ -77,6 +77,7 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(runtime_routes())
         .merge(provider_routes())
+        .merge(planning_routes())
         .merge(misc_routes())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -166,6 +167,24 @@ fn provider_routes() -> Router<AppState> {
         .route(
             "/api/providers/:name/models/:model_id",
             delete(delete_provider_model_handler),
+        )
+}
+
+fn planning_routes() -> Router<AppState> {
+    use crate::handlers::planning::{
+        create_plan_handler, delete_plan_handler, get_plan_handler, list_plans_handler,
+        update_plan_handler,
+    };
+    Router::new()
+        .route(
+            "/api/plans",
+            get(list_plans_handler).post(create_plan_handler),
+        )
+        .route(
+            "/api/plans/:plan_id",
+            get(get_plan_handler)
+                .put(update_plan_handler)
+                .delete(delete_plan_handler),
         )
 }
 

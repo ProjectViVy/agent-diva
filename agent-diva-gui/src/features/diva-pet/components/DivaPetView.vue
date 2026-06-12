@@ -338,7 +338,7 @@ watch(
     <div class="avatar-section relative h-full min-h-0">
       <button
         class="pet-edge-button absolute top-4 left-4 z-20"
-        title="打开菜单"
+        :title="t('nav.openSidebar')"
         @click="emit('toggle-sidebar')"
       >
         <Menu :size="16" />

@@ -1,0 +1,35 @@
+Implement Story 2.1 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Create ToolPolicy for computing effective capabilities from mask tool limits.
+
+EXISTING CODE (Story 1.1 already done):
+- agent-diva-core/src/config/schema.rs — MaskConfig, ToolLimits structs
+- agent-diva-agent/src/mask/error.rs — MaskError
+
+FILES TO CREATE/MODIFY:
+1. agent-diva-agent/src/mask/tool_policy.rs — NEW ToolPolicy struct
+2. agent-diva-agent/src/mask/mod.rs — ADD pub mod tool_policy
+
+REQUIREMENTS:
+- ToolPolicy computes effective tool set from global tools + mask allow/deny
+- Formula: effective = global_builtin ∩ allow − deny
+- If allow is None/empty, all global tools are allowed (except denied)
+- If deny is None/empty, no tools are denied
+- Unknown tools in allow/deny are ignored gracefully
+- Deterministic computation (use BTreeSet or sorted Vec)
+- Methods:
+  - resolve(global_tools: &[String], tool_limits: &ToolLimits) -> Vec<String>
+  - is_tool_allowed(tool_name: &str, global_tools: &[String], tool_limits: &ToolLimits) -> bool
+
+TESTS:
+- No limits: all global tools allowed
+- Allow list only: only allowed tools
+- Deny list only: all except denied
+- Both allow and deny: allow ∩ - deny
+- Unknown tools in lists: ignored
+- Empty global tools: empty result
+- Deterministic ordering
+
+After creating files, run: cargo check -p agent-diva-agent

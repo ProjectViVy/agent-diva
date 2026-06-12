@@ -1,0 +1,35 @@
+Implement Story 3.4 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Stream child lifecycle events to GUI sub-agent panel.
+
+EXISTING CODE:
+- agent-diva-agent/src/subagent.rs (SubagentManager with spawn_batch)
+- agent-diva-gui/src/components/ (existing components)
+- agent-diva-core/src/config/schema.rs (SubAgentResult, SubAgentStatus)
+
+FILES TO CREATE:
+1. agent-diva-gui/src/components/SubAgentPanel.vue — sub-agent status panel
+
+FILES TO MODIFY:
+1. agent-diva-agent/src/subagent.rs — add event emission (optional, can use polling for now)
+
+REQUIREMENTS:
+- SubAgentPanel.vue:
+  - Shows list of active/completed child agents
+  - Each child shows: task_id, status icon, summary, elapsed time
+  - Status icons: ✅ Ok, ❌ Error, ⏱️ Timeout, 🚫 Cancelled
+  - Empty state when no children active
+  - Uses existing CSS variables
+
+- For now, use polling approach (simpler):
+  - Component polls for SubAgentResult list
+  - Can be upgraded to event streaming later
+
+TESTS:
+- Component renders empty state
+- Component renders child list
+- Status icons display correctly
+
+After creating files, verify: cd agent-diva-gui && bun run build (or npm run build)

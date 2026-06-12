@@ -231,6 +231,18 @@
     grid-template-columns: var(--sidebar-width) 1fr;
   }
 
+  .app-shell.pet-focus-mode {
+    grid-template-columns: 0 1fr;
+  }
+
+  .app-shell.pet-focus-mode.sidebar-expanded {
+    grid-template-columns: var(--sidebar-width) 1fr;
+  }
+
+  .app-shell.pet-focus-mode .content-area {
+    height: 100vh;
+  }
+
   /* ========================================
      侧边栏样式
      ======================================== */
@@ -244,6 +256,12 @@
     padding: 12px 8px;
     overflow: hidden;
     transition: padding 0.2s ease;
+  }
+
+  .pet-focus-mode:not(.sidebar-expanded) .sidebar {
+    padding: 0;
+    border-right: 0;
+    pointer-events: none;
   }
 
   .sidebar-expanded .sidebar {

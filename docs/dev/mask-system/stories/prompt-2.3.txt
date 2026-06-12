@@ -1,0 +1,31 @@
+Implement Story 2.3 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Restrict child agent capabilities to parent bounds.
+
+EXISTING CODE:
+- agent-diva-agent/src/mask/tool_policy.rs (ToolPolicy with resolve())
+- agent-diva-agent/src/subagent.rs (SubagentManager - read this first!)
+- agent-diva-core/src/config/schema.rs (MaskConfig, ToolLimits)
+
+FILES TO MODIFY:
+1. agent-diva-agent/src/subagent.rs — use ToolPolicy for child creation
+2. agent-diva-agent/src/mask/tool_policy.rs — add child capability resolution
+
+REQUIREMENTS:
+- Add ToolPolicy::resolve_child(parent_tools, child_limits) -> Vec<String>
+  - child capabilities = parent_effective ∩ child_allow − child_deny
+  - child ⊆ parent always holds
+- Modify SubagentManager to pass reduced tool set when creating child agents
+- When spawning child, compute effective tools using parent's tools + child's mask limits
+
+IMPORTANT: Read subagent.rs first to understand current structure. Only modify the tool set creation path.
+
+TESTS:
+- Child with no limits gets all parent tools
+- Child with allow list gets intersection
+- Child cannot access tools not in parent set
+- child ⊆ parent invariant holds for all combinations
+
+After creating files, run: cargo check -p agent-diva-agent

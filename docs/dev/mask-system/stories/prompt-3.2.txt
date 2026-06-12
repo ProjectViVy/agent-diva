@@ -1,0 +1,29 @@
+Implement Story 3.2 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Execute isolated parallel child agents.
+
+EXISTING CODE:
+- agent-diva-agent/src/subagent.rs (SubagentManager with parent_tool_limits)
+- agent-diva-core/src/config/schema.rs (SubAgentResult, BatchSpawnRequest, SubAgentTask)
+
+FILES TO MODIFY:
+1. agent-diva-agent/src/subagent.rs — add spawn_batch() method
+
+REQUIREMENTS:
+- SubagentManager::spawn_batch(request: BatchSpawnRequest) -> Vec<SubAgentResult>
+- Spawns all tasks in parallel using tokio::JoinSet
+- Each child gets isolated context (no personality, only task)
+- Children don't communicate directly
+- Partial failure: returns all results (successes + failures)
+- Each result includes elapsed_ms, tool_call_count
+- Timeout handling: if child exceeds limit, mark as Timeout
+
+TESTS:
+- Spawn single task
+- Spawn multiple tasks in parallel
+- Partial failure returns all results
+- Timeout handling
+
+After creating files, run: cargo check -p agent-diva-agent

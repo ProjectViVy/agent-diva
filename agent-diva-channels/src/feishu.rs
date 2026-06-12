@@ -237,7 +237,7 @@ impl FeishuHandler {
 
         let should_cleanup = {
             let last_cleanup = self.recent_event_cleanup_at.read().await;
-            now.duration_since(*last_cleanup) >= EVENT_DEDUP_CLEANUP_INTERVAL
+            now.checked_duration_since(*last_cleanup).unwrap_or(Duration::ZERO) >= EVENT_DEDUP_CLEANUP_INTERVAL
         };
 
         let mut seen = self.recent_event_keys.write().await;
@@ -246,7 +246,7 @@ impl FeishuHandler {
         }
 
         if should_cleanup {
-            seen.retain(|_, t| now.duration_since(*t) < EVENT_DEDUP_TTL);
+            seen.retain(|_, t| now.checked_duration_since(*t).unwrap_or(Duration::ZERO) < EVENT_DEDUP_TTL);
             let mut last_cleanup = self.recent_event_cleanup_at.write().await;
             *last_cleanup = now;
         }

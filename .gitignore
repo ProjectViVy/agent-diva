@@ -78,7 +78,8 @@ coverage.xml
 Thumbs.db
 *.DS_Store?
 ehthumbs.db
-Icon?
+# macOS Icon? files (not src/assets/icons)
+/[Ii]con?
 Thumbs.db
 desktop.ini
 

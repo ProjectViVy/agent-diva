@@ -582,7 +582,15 @@ mod tests {
     #[test]
     fn test_default_builtin_dir_loads_skills() {
         let workspace = TempDir::new().unwrap();
-        let loader = SkillsLoader::new(workspace.path(), None);
+        let builtin = TempDir::new().unwrap();
+
+        create_test_skill(
+            builtin.path(),
+            "hello",
+            "---\nname: hello\ndescription: Builtin Hello Skill\n---\n\n# Hello\n",
+        );
+
+        let loader = SkillsLoader::new(workspace.path(), Some(builtin.path().to_path_buf()));
         let skills = loader.list_skills(false);
 
         assert!(skills.iter().any(|s| s.source == SkillSource::Builtin));
