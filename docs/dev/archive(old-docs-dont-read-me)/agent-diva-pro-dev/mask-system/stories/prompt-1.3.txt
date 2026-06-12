@@ -1,0 +1,34 @@
+Implement Story 1.3 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Integrate mask prompt injection into ContextBuilder.
+
+EXISTING CODE:
+- agent-diva-agent/src/mask/mask_file.rs (MaskFile)
+- agent-diva-agent/src/mask/mask_registry.rs (MaskRegistry)
+- agent-diva-agent/src/context.rs (ContextBuilder - read this file first!)
+
+FILES TO MODIFY:
+1. agent-diva-agent/src/mask/mask_prompt_composer.rs — NEW MaskPromptComposer
+2. agent-diva-agent/src/context.rs — add mask parameter to build_system_prompt()
+3. agent-diva-agent/src/mask/mod.rs — add pub mod mask_prompt_composer
+
+REQUIREMENTS:
+- MaskPromptComposer::compose(mask: Option<&MaskFile>) -> Option<String>
+  - If mask is None or is default mask, return None (no extra prompt)
+  - Otherwise return Some(mask.body.clone())
+- ContextBuilder::build_system_prompt() gains optional mask parameter
+- Prompt hierarchy: system base → SOUL/IDENTITY → mask prompt (mask at top, 方案 A)
+- When no mask active, behavior unchanged (backward compatible)
+
+IMPORTANT: Read context.rs first to understand current structure before modifying.
+
+TESTS:
+- compose with None returns None
+- compose with default mask returns None
+- compose with custom mask returns body content
+- build_system_prompt includes mask prompt when provided
+- build_system_prompt unchanged when mask is None
+
+After creating files, run: cargo check -p agent-diva-agent

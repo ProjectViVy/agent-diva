@@ -1,0 +1,40 @@
+Implement Story 1.4 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Implement mask switching with context compression and CLI commands.
+
+EXISTING CODE:
+- agent-diva-agent/src/mask/mask_registry.rs (MaskRegistry with list, get, reload)
+- agent-diva-agent/src/mask/mask_prompt_composer.rs (MaskPromptComposer)
+- agent-diva-cli/src/chat_commands.rs (read this file first to understand command structure)
+
+FILES TO MODIFY:
+1. agent-diva-agent/src/mask/mask_registry.rs — add switch_to(), switch_off(), current_mask() methods
+2. agent-diva-cli/src/chat_commands.rs — add /mask command handling
+
+REQUIREMENTS:
+- MaskRegistry gains:
+  - current_mask: Option<String> (name of active mask)
+  - switch_to(name: &str) -> Result<&MaskFile, MaskError>
+  - switch_off() -> resets to default
+  - current_mask() -> Option<&MaskFile>
+- CLI commands:
+  - `/mask list` — show available masks
+  - `/mask wear <name>` — switch to mask (print confirmation)
+  - `/mask off` — switch back to default
+  - `/mask status` — show current mask
+  - `/mask reload` — reload mask files
+- Context compression note: print a message suggesting /compress before switching
+- Switch notification: print "🎭 已切换为「{name}」模式"
+
+IMPORTANT: Read chat_commands.rs first to understand the existing command pattern. Follow the same structure.
+
+TESTS:
+- switch_to valid mask
+- switch_to invalid mask returns error
+- switch_off resets to default
+- current_mask returns active mask
+- list shows all masks including default
+
+After creating files, run: cargo check -p agent-diva-agent -p agent-diva-cli

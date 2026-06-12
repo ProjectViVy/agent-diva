@@ -1,0 +1,32 @@
+Implement Story 1.2 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Build Mask Registry that scans workspace/masks/ directory.
+
+EXISTING CODE (Story 1.1 already done):
+- agent-diva-agent/src/mask/mod.rs
+- agent-diva-agent/src/mask/error.rs (MaskError)
+- agent-diva-agent/src/mask/mask_file.rs (MaskFile, MaskConfig)
+
+FILES TO CREATE/MODIFY:
+1. agent-diva-agent/src/mask/mask_registry.rs — NEW MaskRegistry struct
+2. agent-diva-agent/src/mask/mod.rs — ADD pub mod mask_registry
+
+REQUIREMENTS:
+- MaskRegistry scans workspace/masks/ directory for .md files
+- Parses YAML frontmatter using existing MaskFile::parse()
+- Supports nested subdirectories (coding/rust-coder.md)
+- Invalid files skipped with tracing::warn!
+- In-memory HashMap cache: key=path, value=MaskFile
+- Methods: new(masks_dir), list() -> Vec<&MaskFile>, get(name) -> Option<&MaskFile>, reload()
+- Default mask "我就是我" always available (from MaskFile::default_mask())
+
+TESTS:
+- Load masks from directory
+- Handle missing directory (return empty list + default mask)
+- Skip invalid files with warning
+- Nested subdirectory support
+- Reload refreshes cache
+
+After creating files, run: cargo check -p agent-diva-agent

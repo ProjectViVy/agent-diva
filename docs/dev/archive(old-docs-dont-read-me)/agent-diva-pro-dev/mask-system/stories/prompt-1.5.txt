@@ -1,0 +1,40 @@
+Implement Story 1.5 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Add mask switcher to GUI topbar.
+
+EXISTING CODE:
+- agent-diva-gui/src/components/NormalMode.vue (read this first! ~786 lines)
+- agent-diva-gui/src/styles.css (theme variables)
+- agent-diva-gui/src/composables/ (existing composables for reference)
+
+FILES TO CREATE:
+1. agent-diva-gui/src/composables/useMask.ts — mask state management composable
+2. agent-diva-gui/src/components/MaskSwitcher.vue — popover component
+
+FILES TO MODIFY:
+1. agent-diva-gui/src/components/NormalMode.vue — add mask switcher to topbar
+
+REQUIREMENTS:
+- useMask.ts composable:
+  - currentMask: ref with name, icon, description
+  - masks: ref array of available masks
+  - switchMask(name): function
+  - loadMasks(): function
+  - Uses Tauri invoke for backend calls (or mock for now)
+
+- MaskSwitcher.vue:
+  - Clickable emoji button in topbar-avatar area
+  - Popover with mask list
+  - Current mask highlighted
+  - "管理面具" link at bottom
+  - Uses existing CSS variables (--panel, --accent, etc.)
+
+- NormalMode.vue modifications:
+  - Import and use MaskSwitcher component
+  - Place near topbar-avatar area
+
+STYLE: Follow existing Love/Dark theme CSS variables. Glass morphism effect.
+
+After creating files, run: cd agent-diva-gui && bun run build (or npm run build)
