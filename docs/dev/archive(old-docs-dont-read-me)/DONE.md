@@ -164,8 +164,30 @@ archive(old-docs-dont-read-me)/
 以下旧架构/决策与当前 `agent-diva-pro` 主架构冲突，**不应再引用**：
 
 1. **外部 gateway 进程模式** — 已替换为嵌入式模式
-2. **`agent-diva-nano` 内嵌方案** — 已外化为独立仓库
+2. **`agent-diva-nano` 内嵌 monorepo** — 已外化为独立仓库
 3. **前端/产品 UI 规划（main closeout 排除项）** — 已移至 pro 分支独立演进
 4. **Mentle 全量集成计划（S1-S6）** — 已完成，S7+ 在 pro 分支继续
 5. **旧版 provider 配置链** — 已重构为统一 Provider trait + LiteLLM 兼容
 6. **旧版 skill 加载机制** — 已迁移至 SkillLoader + 缓存体系
+
+---
+
+## 十、已完成的决策（PD-02 ~ PD-14）
+
+> 2026-06-13 由大湿确认完成，从 PENDING-DECISIONS.md 移入。
+
+| 编号 | 事项 | 备注 |
+|------|------|------|
+| PD-02 | 自研 Skill 进化系统（周报提取） | 方向已定，独立 crate 方案 |
+| PD-03 | 上下文压缩管线实现 | Phase 1.1 已完成 |
+| PD-04 | 子 Agent 安全三件套 | 黑名单 + depth 控制已落地 |
+| PD-05 | 记忆写入安全扫描 | 威胁模式扫描已实现 |
+| PD-06 | 沙箱审批 UI 实现 | 前后端已连通 |
+| PD-07 | 上下文健康状态行 | TokenBudget 指示已集成 |
+| PD-08 | 分层记忆架构 | L1 索引层已落地 |
+| PD-09 | 图像识别 Phase 2 | image_url 内容块已实现 |
+| PD-10 | Mentle S7 范围 | S7 已完成，无 S8 |
+| PD-11 | Nano 运行时打包策略 | crates.io + GitHub Release 并行 |
+| PD-12 | Diva Pet 3D 背景集成 | 方案已定，资源到位后可开工 |
+| PD-13 | Hermes 学习融合 | 已取消，专注自研 skill 进化 |
+| PD-14 | Thin Observability Layer | tracing + 结构化日志已落地 |
