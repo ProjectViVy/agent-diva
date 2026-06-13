@@ -1,0 +1,84 @@
+# generated: 2026-06-13T04:54:00+08:00
+# last_updated: 2026-06-14T00:00:00+08:00
+# project: agent-diva-pro
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+#
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-06-13T04:54:00+08:00
+last_updated: 2026-06-14T00:00:00+08:00
+project: agent-diva-pro
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  1-1-define-governance-domain-types: ready-for-dev
+  1-2-create-laputa-file-first-authority-storage: ready-for-dev
+  1-3-implement-proposal-crud-and-state-transitions: ready-for-dev
+  1-4-apply-proposal-through-governance-gates: ready-for-dev
+  1-5-expose-laputa-read-changelog-rollback-and-event-apis: ready-for-dev
+  1-6-make-session-saves-atomic: ready-for-dev
+  epic-1-retrospective: optional
+  epic-2: backlog
+  2-1-add-evolution-workspace-shell: backlog
+  2-2-build-proposal-inbox-list-and-filters: backlog
+  2-3-build-proposal-detail-and-governance-actions: backlog
+  2-4-build-runs-audit-and-policy-views: backlog
+  2-5-connect-chat-and-settings-to-governance: backlog
+  epic-2-retrospective: optional
+  epic-3: backlog
+  3-1-implement-manual-run-lifecycle: backlog
+  3-2-collect-reflection-inputs-with-limits: backlog
+  3-3-execute-restricted-reflection-prompt: backlog
+  3-4-emit-proposal-and-run-output-artifacts: backlog
+  3-5-generate-daily-and-weekly-reports: backlog
+  epic-3-retrospective: optional
+  epic-4: backlog
+  4-1-consume-autodream-and-report-owned-paths-correctly: backlog
+  4-2-replace-notebook-direct-solidification-with-proposal-creation: backlog
+  4-3-preserve-session-search-as-evidence-only: backlog
+  4-4-add-solidification-regression-coverage: backlog
+  epic-4-retrospective: optional
+  epic-5: backlog
+  5-1-plug-applied-laputa-reads-into-memoryprovider: backlog
+  5-2-enforce-mentle-governance-exclusion: backlog
+  5-3-keep-context-compaction-session-local: backlog
+  epic-5-retrospective: optional
+  epic-6: backlog
+  6-1-implement-legacy-schema-migration: backlog
+  6-2-implement-recovery-conflict-and-typed-error-handling: backlog
+  6-3-add-direct-write-and-filesystem-tests: backlog
+  6-4-add-end-to-end-governance-proof-loop: backlog
+  6-5-add-metrics-and-release-gate-validation: backlog
+  epic-6-retrospective: optional
