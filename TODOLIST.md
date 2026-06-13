@@ -4,6 +4,16 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Fix pre-existing `agent-diva-agent` clippy failures blocking `just check`.
+  - Context: During Story 1.3 validation on 2026-06-14, `just check` failed outside the Laputa proposal changes. Reported issues include unused `ToolPolicy` import and unread `parent_tool_limits` in `agent-diva-agent/src/subagent.rs`, needless borrows in `agent-diva-agent/src/agent_loop/loop_turn.rs` and `agent-diva-agent/src/context.rs`, and manual char comparison in `agent-diva-agent/src/mask/mask_file.rs`.
+  - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass after unrelated pre-existing lint cleanup.
+  - Related files/docs: `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/mask/mask_file.rs`; `docs/logs/2026-06-laputa-proposals/v0.0.1-proposal-crud-state-transitions/verification.md`.
+
+- [ ] Fix pre-existing `agent-diva-sandbox` compile failures blocking `just test`.
+  - Context: During Story 1.3 validation on 2026-06-14, `just test` failed outside the Laputa proposal changes. Errors include missing `lock_exclusive` method for `std::fs::File` in `agent-diva-sandbox/src/exec_policy.rs` and `bool`/`&bool` match arm mismatch in `agent-diva-sandbox/src/platform/macos.rs`.
+  - Expected behavior: Workspace `cargo test --all` should compile all crates and run tests without unrelated sandbox failures.
+  - Related files/docs: `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`; `docs/logs/2026-06-laputa-proposals/v0.0.1-proposal-crud-state-transitions/verification.md`.
+
 - [ ] Clean pre-existing workspace rustfmt drift.
   - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
   - Expected behavior: Workspace-wide format check should pass without requiring unrelated formatting churn during focused story work.

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use agent_diva_core::evolution::ProposalState;
 use thiserror::Error;
 
 /// Result type used by Laputa storage primitives.
@@ -20,6 +21,21 @@ pub enum LaputaError {
 
     #[error("timed out acquiring lock {path}")]
     LockTimeout { path: PathBuf },
+
+    #[error("proposal not found: {id}")]
+    ProposalNotFound { id: String },
+
+    #[error("proposal already exists: {id}")]
+    ProposalAlreadyExists { id: String },
+
+    #[error("invalid proposal {id}: {reason}")]
+    InvalidProposal { id: String, reason: String },
+
+    #[error("invalid proposal transition: {from:?} -> {to:?}")]
+    InvalidProposalTransition {
+        from: ProposalState,
+        to: ProposalState,
+    },
 }
 
 impl LaputaError {
