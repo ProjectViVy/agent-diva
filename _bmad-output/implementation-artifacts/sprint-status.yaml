@@ -43,7 +43,7 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   epic-1: in-progress
-  1-1-define-governance-domain-types: ready-for-dev
+  1-1-define-governance-domain-types: review
   1-2-create-laputa-file-first-authority-storage: ready-for-dev
   1-3-implement-proposal-crud-and-state-transitions: ready-for-dev
   1-4-apply-proposal-through-governance-gates: ready-for-dev

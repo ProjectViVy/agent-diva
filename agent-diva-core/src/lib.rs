@@ -9,6 +9,7 @@ pub mod config;
 pub mod cron;
 pub mod error;
 pub mod error_context;
+pub mod evolution;
 pub mod heartbeat;
 pub mod logging;
 pub mod memory;

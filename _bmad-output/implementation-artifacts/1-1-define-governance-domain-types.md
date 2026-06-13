@@ -1,6 +1,10 @@
+---
+baseline_commit: 49d85e4636db2d7f5704b9b3c67f9be7b5d2e654
+---
+
 # Story 1.1: Define Governance Domain Types
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -16,11 +20,11 @@ so that Laputa, AutoDream, Report System, and Evolution UI use one contract.
 
 ## Tasks / Subtasks
 
-- [ ] Add `agent-diva-core/src/evolution/` and export it from `agent-diva-core/src/lib.rs`. (AC: 1)
-- [ ] Define the shared governance structs/enums with `serde`, `Clone`, `Debug`, and equality traits where useful. (AC: 1, 2)
-- [ ] Implement proposal-to-section routing for all v1 proposal types. (AC: 3)
-- [ ] Add focused unit tests for serde round trips, route mapping, and unknown-type errors. (AC: 2, 3)
-- [ ] Keep the module independent from manager, GUI, provider, and Laputa crate implementation details. (AC: 1)
+- [x] Add `agent-diva-core/src/evolution/` and export it from `agent-diva-core/src/lib.rs`. (AC: 1)
+- [x] Define the shared governance structs/enums with `serde`, `Clone`, `Debug`, and equality traits where useful. (AC: 1, 2)
+- [x] Implement proposal-to-section routing for all v1 proposal types. (AC: 3)
+- [x] Add focused unit tests for serde round trips, route mapping, and unknown-type errors. (AC: 2, 3)
+- [x] Keep the module independent from manager, GUI, provider, and Laputa crate implementation details. (AC: 1)
 
 ## Dev Notes
 
@@ -75,6 +79,31 @@ TBD by dev agent.
 
 ### Debug Log References
 
+- 2026-06-14: Loaded bmad config, project context, sprint status, story 1.1, EVO-DIVA architecture, Laputa PRD routing/section references, and core crate patterns.
+- 2026-06-14: Validation passed: `cargo test -p agent-diva-core evolution`, `cargo clippy -p agent-diva-core -- -D warnings`, `cargo test -p agent-diva-core`, `rustfmt --edition 2021 --check agent-diva-core/src/evolution/mod.rs agent-diva-core/src/evolution/types.rs`.
+- 2026-06-14: Workspace-wide `cargo fmt --all -- --check` still fails on pre-existing unrelated formatting diffs; captured in `TODOLIST.md`.
+
 ### Completion Notes List
 
+- Added the `agent_diva_core::evolution` module with shared governance domain contracts for evidence refs, proposals, Laputa sections, changelog records, audit events, rollback requests, and AutoDream run records.
+- Implemented snake_case serde variants and stable field names for persistence-friendly JSON contracts.
+- Added v1 proposal routing from all eight `ProposalType` variants to `LaputaSectionName`, plus typed `EvolutionError::UnknownProposalType` handling for raw proposal type strings.
+- Kept implementation domain-only in `agent-diva-core`; no manager, GUI, provider, storage, or Laputa crate dependencies were added.
+- Added focused unit tests for proposal JSON round trip, all v1 route mappings, and unknown proposal type errors.
+
 ### File List
+
+- `agent-diva-core/src/lib.rs`
+- `agent-diva-core/src/evolution/mod.rs`
+- `agent-diva-core/src/evolution/types.rs`
+- `_bmad-output/implementation-artifacts/1-1-define-governance-domain-types.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/summary.md`
+- `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`
+- `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/release.md`
+- `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/acceptance.md`
+- `TODOLIST.md`
+
+### Change Log
+
+- 2026-06-14: Implemented Story 1.1 governance domain types and moved story to review.

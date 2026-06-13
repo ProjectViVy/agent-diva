@@ -2,6 +2,13 @@
 
 This file is the project-level backlog for bugs, gaps, and unfinished work found during development or review.
 
+## Open
+
+- [ ] Clean pre-existing workspace rustfmt drift.
+  - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
+  - Expected behavior: Workspace-wide format check should pass without requiring unrelated formatting churn during focused story work.
+  - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
+
 ## Done
 
 - [x] Improve GUI image input experience for multimodal vision.
