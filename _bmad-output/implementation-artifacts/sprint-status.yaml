@@ -1,5 +1,5 @@
 # generated: 2026-06-13T04:54:00+08:00
-# last_updated: 2026-06-14T14:41:55+08:00
+# last_updated: 2026-06-14T15:27:57+08:00
 # project: agent-diva-pro
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-13T04:54:00+08:00
-last_updated: 2026-06-14T14:41:55+08:00
+last_updated: 2026-06-14T15:27:57+08:00
 project: agent-diva-pro
 project_key: NOKEY
 tracking_system: file-system
@@ -57,12 +57,12 @@ development_status:
   2-4-build-runs-audit-and-policy-views: ready-for-dev
   2-5-connect-chat-and-settings-to-governance: ready-for-dev
   epic-2-retrospective: optional
-  epic-3: backlog
-  3-1-implement-manual-run-lifecycle: backlog
-  3-2-collect-reflection-inputs-with-limits: backlog
-  3-3-execute-restricted-reflection-prompt: backlog
-  3-4-emit-proposal-and-run-output-artifacts: backlog
-  3-5-generate-daily-and-weekly-reports: backlog
+  epic-3: in-progress
+  3-1-implement-manual-run-lifecycle: ready-for-dev
+  3-2-collect-reflection-inputs-with-limits: ready-for-dev
+  3-3-execute-restricted-reflection-prompt: ready-for-dev
+  3-4-emit-proposal-and-run-output-artifacts: ready-for-dev
+  3-5-generate-daily-and-weekly-reports: ready-for-dev
   epic-3-retrospective: optional
   epic-4: backlog
   4-1-consume-autodream-and-report-owned-paths-correctly: backlog
