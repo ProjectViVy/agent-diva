@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   AlertTriangle,
@@ -12,10 +12,24 @@ import {
   ShieldCheck,
 } from 'lucide-vue-next';
 import {
+  applyLaputaProposal,
+  editLaputaProposal,
+  getLaputaSection,
+  listLaputaChangelog,
   listLaputaProposals,
   pollLaputaEvents,
+  rollbackLaputaChangelog,
+  transitionLaputaProposal,
 } from '../api/desktop';
-import type { EvolutionProposal, LaputaEvent } from '../api/desktop';
+import type {
+  ChangelogRecord,
+  EvolutionProposal,
+  LaputaEvent,
+  LaputaSection,
+} from '../api/desktop';
+import ProposalDetail from './evolution/ProposalDetail.vue';
+import { appConfirm } from '../utils/appDialog';
+import { showAppToast } from '../utils/appToast';
 
 type EvolutionTab = 'inbox' | 'runs' | 'audit' | 'policy';
 type CountTone = 'none' | 'accent' | 'warning' | 'danger';
@@ -44,18 +58,55 @@ const proposals = ref<EvolutionProposal[]>([]);
 const proposalEvents = ref<LaputaEvent[]>([]);
 const changelogEvents = ref<LaputaEvent[]>([]);
 const errorEvents = ref<LaputaEvent[]>([]);
+const selectedProposalId = ref<string | null>(null);
+const selectedSection = ref<LaputaSection | null>(null);
+const selectedChangelog = ref<ChangelogRecord | null>(null);
+const detailLoading = ref(false);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
+const detailError = ref<string | null>(null);
+const actionError = ref<string | null>(null);
+const busyAction = ref<string | null>(null);
+const evidenceOpen = ref(false);
+
+const selectedProposal = computed(() =>
+  proposals.value.find((proposal) => proposal.id === selectedProposalId.value) ?? null,
+);
 
 const pendingProposals = computed(() =>
   proposals.value.filter((proposal) => proposal.state === 'pending_review')
 );
 
 const attentionProposals = computed(() =>
-  proposals.value.filter((proposal) =>
-    proposal.state === 'needs_attention' || proposal.state === 'run_failed'
+  proposals.value.filter(
+    (proposal) => proposal.state === 'needs_attention' || proposal.state === 'run_failed',
   )
 );
+
+const missingEvidence = computed(() => (selectedProposal.value?.evidence_refs.length ?? 0) === 0);
+
+const rollbackEligible = computed(
+  () =>
+    Boolean(
+      selectedChangelog.value &&
+        !selectedChangelog.value.reverted &&
+        !selectedChangelog.value.stale,
+    ),
+);
+
+const rollbackReason = computed(() => {
+  if (!selectedProposal.value) return null;
+  if (!selectedChangelog.value) {
+    return t('evolution.actions.rollbackRequiresApplied');
+  }
+  if (selectedChangelog.value.reverted) {
+    return t('evolution.actions.rollbackAlreadyUsed');
+  }
+  if (selectedChangelog.value.stale) {
+    return t('evolution.actions.rollbackStale');
+  }
+  return null;
+});
 
 const countPayload = computed<EvolutionCountPayload>(() => {
   const dangerCount = attentionProposals.value.length + errorEvents.value.length;
@@ -70,7 +121,6 @@ const countPayload = computed<EvolutionCountPayload>(() => {
       tooltip: t('evolution.badge.danger', { count: dangerCount }),
     };
   }
-
   if (pendingCount > 0) {
     return {
       total,
@@ -78,7 +128,6 @@ const countPayload = computed<EvolutionCountPayload>(() => {
       tooltip: t('evolution.badge.warning', { count: pendingCount }),
     };
   }
-
   if (infoCount > 0) {
     return {
       total,
@@ -86,7 +135,6 @@ const countPayload = computed<EvolutionCountPayload>(() => {
       tooltip: t('evolution.badge.accent', { count: infoCount }),
     };
   }
-
   return {
     total: 0,
     tone: 'none',
@@ -94,11 +142,43 @@ const countPayload = computed<EvolutionCountPayload>(() => {
   };
 });
 
-const emitCount = () => {
+function emitCount() {
   emit('count-change', countPayload.value);
-};
+}
 
-const refresh = async () => {
+function normalizeError(error: unknown) {
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function loadDetail(id: string) {
+  const proposal = proposals.value.find((item) => item.id === id);
+  if (!proposal) return;
+
+  detailLoading.value = true;
+  detailError.value = null;
+  actionError.value = null;
+  evidenceOpen.value = proposal.risk_level === 'high' || proposal.risk_level === 'critical';
+
+  try {
+    const [section, changelogPage] = await Promise.all([
+      getLaputaSection(proposal.target_section),
+      listLaputaChangelog(1, 5, proposal.id),
+    ]);
+    selectedSection.value = section;
+    selectedChangelog.value = changelogPage.items[0] ?? null;
+  } catch (error) {
+    detailError.value = normalizeError(error);
+    selectedSection.value = null;
+    selectedChangelog.value = null;
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+async function refresh() {
   loading.value = true;
   loadError.value = null;
 
@@ -114,9 +194,17 @@ const refresh = async () => {
     proposalEvents.value = proposalEventList;
     changelogEvents.value = changelogEventList;
     errorEvents.value = errorEventList;
+
+    if (!selectedProposalId.value && proposalList.length > 0) {
+      selectedProposalId.value = proposalList[0].id;
+    } else if (
+      selectedProposalId.value &&
+      !proposalList.some((proposal) => proposal.id === selectedProposalId.value)
+    ) {
+      selectedProposalId.value = proposalList[0]?.id ?? null;
+    }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    loadError.value = message;
+    loadError.value = normalizeError(error);
     proposals.value = [];
     proposalEvents.value = [];
     changelogEvents.value = [];
@@ -125,10 +213,147 @@ const refresh = async () => {
     loading.value = false;
     emitCount();
   }
-};
+}
 
-onMounted(() => {
-  refresh();
+function updateLocalProposal(next: EvolutionProposal) {
+  proposals.value = proposals.value.map((proposal) =>
+    proposal.id === next.id ? next : proposal,
+  );
+}
+
+async function withAction(name: string, run: () => Promise<void>) {
+  busyAction.value = name;
+  actionError.value = null;
+  try {
+    await run();
+  } catch (error) {
+    actionError.value = normalizeError(error);
+    showAppToast(actionError.value, 'error', 3600);
+  } finally {
+    busyAction.value = null;
+  }
+}
+
+async function handleApproveOnly() {
+  if (!selectedProposal.value) return;
+  if (
+    missingEvidence.value &&
+    (selectedProposal.value.risk_level === 'high' || selectedProposal.value.risk_level === 'critical')
+  ) {
+    actionError.value = t('evolution.actions.highRiskMissingEvidence');
+    return;
+  }
+  await withAction('approve-only', async () => {
+    const next = await transitionLaputaProposal(selectedProposal.value!.id, {
+      state: 'approved',
+    });
+    updateLocalProposal(next);
+    showAppToast(t('evolution.actions.approveOnlySuccess'), 'success');
+    await loadDetail(next.id);
+  });
+}
+
+async function handleApproveAndApply() {
+  if (!selectedProposal.value) return;
+  if (
+    missingEvidence.value &&
+    (selectedProposal.value.risk_level === 'high' || selectedProposal.value.risk_level === 'critical')
+  ) {
+    actionError.value = t('evolution.actions.highRiskMissingEvidence');
+    return;
+  }
+  const target = selectedProposal.value.target_section;
+  const confirmed = await appConfirm(t('evolution.confirm.apply', { target }), {
+    title: t('evolution.confirm.title'),
+  });
+  if (!confirmed) return;
+
+  await withAction('approve-apply', async () => {
+    if (selectedProposal.value!.state !== 'approved') {
+      const approved = await transitionLaputaProposal(selectedProposal.value!.id, {
+        state: 'approved',
+      });
+      updateLocalProposal(approved);
+    }
+    const result = await applyLaputaProposal(selectedProposal.value!.id, {});
+    updateLocalProposal(result.proposal);
+    selectedChangelog.value = result.changelog;
+    showAppToast(t('evolution.actions.approveApplySuccess'), 'success');
+    await loadDetail(result.proposal.id);
+    await refresh();
+  });
+}
+
+async function handleReject() {
+  if (!selectedProposal.value) return;
+  const target = selectedProposal.value.target_section;
+  const confirmed = await appConfirm(t('evolution.confirm.reject', { target }), {
+    title: t('evolution.confirm.title'),
+  });
+  if (!confirmed) return;
+
+  await withAction('reject', async () => {
+    const next = await transitionLaputaProposal(selectedProposal.value!.id, {
+      state: 'rejected',
+    });
+    updateLocalProposal(next);
+    showAppToast(t('evolution.actions.rejectSuccess'), 'success');
+    await loadDetail(next.id);
+  });
+}
+
+async function handleRollback() {
+  if (!selectedProposal.value || !selectedChangelog.value) return;
+  const target = selectedProposal.value.target_section;
+  const confirmed = await appConfirm(t('evolution.confirm.rollback', { target }), {
+    title: t('evolution.confirm.title'),
+  });
+  if (!confirmed) return;
+
+  await withAction('rollback', async () => {
+    await rollbackLaputaChangelog(selectedChangelog.value!.id, {
+      reason: `GUI rollback for ${target}`,
+      expected_current:
+        typeof selectedSection.value?.content === 'string'
+          ? selectedSection.value.content
+          : JSON.stringify(selectedSection.value?.content ?? null),
+    });
+    showAppToast(t('evolution.actions.rollbackSuccess'), 'success');
+    await refresh();
+    if (selectedProposal.value) {
+      await loadDetail(selectedProposal.value.id);
+    }
+  });
+}
+
+async function handleEdit() {
+  if (!selectedProposal.value) return;
+  await withAction('edit', async () => {
+    const next = await editLaputaProposal(selectedProposal.value!.id, {
+      updated_at: selectedProposal.value!.updated_at,
+    });
+    updateLocalProposal(next);
+    showAppToast(t('evolution.actions.editRouted'), 'success');
+    await loadDetail(next.id);
+  });
+}
+
+async function handleDefer() {
+  actionError.value = t('evolution.actions.deferUnsupported');
+  showAppToast(actionError.value, 'error');
+}
+
+watch(selectedProposalId, async (id) => {
+  if (id) {
+    await loadDetail(id);
+  } else {
+    selectedSection.value = null;
+    selectedChangelog.value = null;
+  }
+});
+
+onMounted(async () => {
+  await refresh();
 });
 </script>
 
@@ -176,10 +401,7 @@ onMounted(() => {
     </div>
 
     <div v-if="activeTab === 'inbox'" class="evolution-panel">
-      <div
-        class="evolution-inbox-shell evolution-inbox-responsive"
-        data-testid="evolution-inbox-shell"
-      >
+      <div class="evolution-inbox-shell evolution-inbox-responsive" data-testid="evolution-inbox-shell">
         <aside class="evolution-list-pane">
           <div class="evolution-pane-header">
             <div>
@@ -204,7 +426,10 @@ onMounted(() => {
               v-for="proposal in proposals"
               :key="proposal.id"
               class="evolution-proposal-row"
+              :class="{ active: selectedProposalId === proposal.id }"
               type="button"
+              :data-testid="`proposal-row-${proposal.id}`"
+              @click="selectedProposalId = proposal.id"
             >
               <span class="evolution-proposal-main">
                 <strong>{{ proposal.proposal_type }}</strong>
@@ -224,10 +449,27 @@ onMounted(() => {
               <p>{{ t('evolution.detail.desc') }}</p>
             </div>
           </div>
-          <div class="evolution-detail-placeholder">
-            <ClipboardList :size="28" />
-            <strong>{{ t('evolution.detail.placeholderTitle') }}</strong>
-            <span>{{ t('evolution.detail.placeholderDesc') }}</span>
+          <div v-if="detailLoading" class="evolution-detail-loading">{{ t('evolution.detail.loading') }}</div>
+          <div v-else class="evolution-detail-body">
+            <ProposalDetail
+              :proposal="selectedProposal"
+              :section="selectedSection"
+              :changelog="selectedChangelog"
+              :busy-action="busyAction"
+              :load-error="detailError"
+              :action-error="actionError"
+              :evidence-open="evidenceOpen"
+              :missing-evidence="missingEvidence"
+              :rollback-eligible="rollbackEligible"
+              :rollback-reason="rollbackReason"
+              @toggle-evidence="evidenceOpen = !evidenceOpen"
+              @approve-apply="handleApproveAndApply"
+              @approve-only="handleApproveOnly"
+              @edit="handleEdit"
+              @reject="handleReject"
+              @defer="handleDefer"
+              @rollback="handleRollback"
+            />
           </div>
         </section>
       </div>
@@ -235,10 +477,7 @@ onMounted(() => {
 
     <div v-else class="evolution-panel">
       <div class="evolution-placeholder-panel">
-        <component
-          :is="tabs.find((tab) => tab.key === activeTab)?.icon"
-          :size="30"
-        />
+        <component :is="tabs.find((tab) => tab.key === activeTab)?.icon" :size="30" />
         <strong>{{ t(`evolution.placeholders.${activeTab}.title`) }}</strong>
         <span>{{ t(`evolution.placeholders.${activeTab}.desc`) }}</span>
       </div>
@@ -431,7 +670,8 @@ onMounted(() => {
 }
 
 .evolution-skeleton-list,
-.evolution-proposal-list {
+.evolution-proposal-list,
+.evolution-detail-body {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -441,6 +681,12 @@ onMounted(() => {
   padding: 12px;
 }
 
+.evolution-detail-loading {
+  padding: 18px;
+  color: #64748b;
+  font-size: 13px;
+}
+
 .evolution-skeleton-row {
   height: 58px;
   border-radius: 7px;
@@ -448,7 +694,6 @@ onMounted(() => {
 }
 
 .evolution-empty-state,
-.evolution-detail-placeholder,
 .evolution-placeholder-panel {
   display: flex;
   min-height: 220px;
@@ -463,7 +708,6 @@ onMounted(() => {
 }
 
 .evolution-empty-state strong,
-.evolution-detail-placeholder strong,
 .evolution-placeholder-panel strong {
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -472,7 +716,6 @@ onMounted(() => {
 }
 
 .evolution-empty-state span,
-.evolution-detail-placeholder span,
 .evolution-placeholder-panel span {
   max-width: 520px;
   overflow-wrap: anywhere;
@@ -494,7 +737,8 @@ onMounted(() => {
   text-align: left;
 }
 
-.evolution-proposal-row:hover {
+.evolution-proposal-row:hover,
+.evolution-proposal-row.active {
   border-color: #bfdbfe;
   background: #f8fafc;
 }

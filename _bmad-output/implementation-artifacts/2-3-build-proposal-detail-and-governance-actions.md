@@ -4,7 +4,7 @@ baseline_commit: 1c02af7f
 
 # Story 2.3: Build Proposal Detail and Governance Actions
 
-Status: ready-for-dev
+Status: in-progress
 
 ## Story
 
@@ -22,15 +22,15 @@ so that durable authority changes remain user-controlled.
 
 ## Tasks / Subtasks
 
-- [ ] Add `ProposalDetail` and `GovernanceActionBar` components under `agent-diva-gui/src/components/evolution/`. (AC: 1, 2)
-- [ ] Render all required proposal fields from the selected `EvolutionProposal`, including proposed patch and evidence refs. (AC: 1)
-- [ ] Add diff/current-proposed presentation. If current section data is needed, read it through `laputa_get_section`. (AC: 1)
-- [ ] Implement evidence drawer or inline preview with explicit missing/unavailable evidence state. (AC: 4, 5)
-- [ ] Implement Approve and Apply, Approve Only, Edit Proposal, Reject, Defer, and Rollback action flows through typed Tauri wrappers. (AC: 2)
-- [ ] Add confirmation dialogs for Reject, Rollback, and any action that applies or reverts durable authority; confirmation copy must name the target section. (AC: 3)
-- [ ] Block high-risk approval when required evidence is missing. (AC: 5)
-- [ ] Preserve failed apply proposals and render recoverable error details. (AC: 2, 5)
-- [ ] Add focused tests/smoke for action enablement, missing evidence blocking, and confirmation flows. (AC: 2-5)
+- [x] Add `ProposalDetail` and `GovernanceActionBar` components under `agent-diva-gui/src/components/evolution/`. (AC: 1, 2)
+- [x] Render all required proposal fields from the selected `EvolutionProposal`, including proposed patch and evidence refs. (AC: 1)
+- [x] Add diff/current-proposed presentation. If current section data is needed, read it through `laputa_get_section`. (AC: 1)
+- [x] Implement evidence drawer or inline preview with explicit missing/unavailable evidence state. (AC: 4, 5)
+- [x] Implement Approve and Apply, Approve Only, Edit Proposal, Reject, Defer, and Rollback action flows through typed Tauri wrappers. (AC: 2)
+- [x] Add confirmation dialogs for Reject, Rollback, and any action that applies or reverts durable authority; confirmation copy must name the target section. (AC: 3)
+- [x] Block high-risk approval when required evidence is missing. (AC: 5)
+- [x] Preserve failed apply proposals and render recoverable error details. (AC: 2, 5)
+- [x] Add focused tests/smoke for action enablement, missing evidence blocking, and confirmation flows. (AC: 2-5)
 
 ## Dev Notes
 
@@ -102,21 +102,38 @@ so that durable authority changes remain user-controlled.
 
 ### Agent Model Used
 
-TBD by dev agent.
+GPT-5 Codex
 
 ### Debug Log References
 
 - 2026-06-14: Story context prepared from Epic 2, Proposal Detail UX, core proposal/changelog DTOs, Tauri Laputa commands, and Laputa apply/rollback service behavior.
+- 2026-06-14: Added Tauri wrappers for proposal edit/transition plus changelog proposal filtering; wired Evolution detail pane to section/changelog reads and governance actions.
+- 2026-06-14: Added focused Vitest coverage for high-risk missing-evidence blocking, target-naming confirmations, and apply-failure detail retention.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Detail pane now shows proposal metadata, summary, evidence, current/proposed content, diff fallback, safety checks, and governance actions.
+- High-risk and critical proposals default evidence open and block approval when evidence is missing.
+- `Defer` remains UI-explained only because Laputa still has no durable deferred state; the button surfaces the limitation instead of mutating authority state.
+- Story 2.2 dependencies remain incomplete in the current tree, so this story lands on top of a simpler inbox shell rather than the full filtered/keyboard-driven inbox described upstream.
+- Workspace-wide `vue-tsc` and `cargo check -p agent-diva-gui` are currently blocked by pre-existing unrelated errors outside this story's changed files.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/2-3-build-proposal-detail-and-governance-actions.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `agent-diva-gui/src/api/desktop.ts`
+- `agent-diva-gui/src/components/EvolutionView.vue`
+- `agent-diva-gui/src/components/EvolutionView.test.ts`
+- `agent-diva-gui/src/components/evolution/GovernanceActionBar.vue`
+- `agent-diva-gui/src/components/evolution/ProposalDetail.vue`
+- `agent-diva-gui/src/locales/en.ts`
+- `agent-diva-gui/src/locales/zh.ts`
+- `agent-diva-gui/src-tauri/src/commands.rs`
+- `agent-diva-gui/src-tauri/src/lib.rs`
 
 ### Change Log
 
 - 2026-06-14: Created ready-for-dev story for proposal detail and governance actions.
+- 2026-06-14: Implemented proposal detail pane, governance actions, Tauri wrappers, and focused GUI tests for story 2.3.

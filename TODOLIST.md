@@ -39,6 +39,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Workspace-wide format check should pass without requiring unrelated formatting churn during focused story work.
   - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
+- [ ] Complete Story 2.2 inbox behavior that Story 2.3 still depends on.
+  - Context: During Story 2.3 implementation on 2026-06-14, the proposal detail pane and governance actions were added on top of the existing Evolution inbox shell, but Story 2.2 requirements remain incomplete: row metadata density, filters, keyboard navigation, and batch actions are not fully implemented in the current tree.
+  - Expected behavior: Evolution inbox should satisfy Story 2.2 before Epic 2 GUI acceptance relies on Story 2.3 detail flow.
+  - Related files/docs: `_bmad-output/implementation-artifacts/2-2-build-proposal-inbox-list-and-filters.md`, `agent-diva-gui/src/components/EvolutionView.vue`.
+
 ## Done
 
 - [x] Improve GUI image input experience for multimodal vision.

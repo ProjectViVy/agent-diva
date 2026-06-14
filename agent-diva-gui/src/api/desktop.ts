@@ -264,6 +264,15 @@ export interface EvolutionProposal {
   source_run_id?: string | null;
 }
 
+export interface LaputaSection {
+  name: LaputaSectionName;
+  status: string;
+  content: unknown;
+  metadata: Record<string, unknown>;
+  last_modified: string;
+  version: string;
+}
+
 export type ChangelogAction = 'apply' | 'revert' | 'rollback';
 
 export interface ChangelogRecord {
@@ -279,6 +288,69 @@ export interface ChangelogRecord {
   stale: boolean;
   created_at: string;
   applied_by: string;
+}
+
+export interface ChangelogPage {
+  items: ChangelogRecord[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
+export interface RollbackOutcome {
+  changelog: ChangelogRecord;
+  audit_event: {
+    id: string;
+    kind: string;
+    actor: string;
+    proposal_id?: string | null;
+    target_section?: LaputaSectionName | null;
+    message: string;
+    created_at: string;
+  };
+}
+
+export interface ProposalApplyResult {
+  proposal: EvolutionProposal;
+  changelog: ChangelogRecord;
+  audit_event: {
+    id: string;
+    kind: string;
+    actor: string;
+    proposal_id?: string | null;
+    target_section?: LaputaSectionName | null;
+    message: string;
+    created_at: string;
+  };
+  rollback_request: {
+    changelog_id: string;
+    requested_by: string;
+    reason: string;
+    requested_at: string;
+  };
+}
+
+export interface ProposalEditPayload {
+  proposed_patch?: string | null;
+  evidence_refs?: EvidenceRef[] | null;
+  risk_level?: RiskLevel | null;
+  updated_at?: string | null;
+}
+
+export interface ProposalTransitionPayload {
+  state: ProposalState;
+  updated_at?: string | null;
+}
+
+export interface ApplyProposalPayload {
+  actor?: string | null;
+  applied_at?: string | null;
+}
+
+export interface RollbackChangelogPayload {
+  reason: string;
+  expected_current?: string | null;
 }
 
 export type AutoDreamRunState = 'pending' | 'running' | 'cancelled' | 'completed' | 'failed';
@@ -308,14 +380,40 @@ export interface LaputaEvent {
 export const listLaputaProposals = (since?: string) =>
   invoke<EvolutionProposal[]>("laputa_list_proposals", { since: since ?? null });
 
+export const getLaputaProposal = (id: string) =>
+  invoke<EvolutionProposal>("laputa_get_proposal", { id });
+
+export const editLaputaProposal = (id: string, payload: ProposalEditPayload) =>
+  invoke<EvolutionProposal>("laputa_edit_proposal", { id, payload });
+
+export const transitionLaputaProposal = (id: string, payload: ProposalTransitionPayload) =>
+  invoke<EvolutionProposal>("laputa_transition_proposal", { id, payload });
+
+export const applyLaputaProposal = (id: string, payload: ApplyProposalPayload = {}) =>
+  invoke<ProposalApplyResult>("laputa_apply_proposal", { id, payload });
+
+export const getLaputaSection = (name: LaputaSectionName) =>
+  invoke<LaputaSection>("laputa_get_section", { name });
+
 export const pollLaputaEvents = (kind: LaputaEventKind, since?: string) =>
   invoke<LaputaEvent[]>("laputa_poll_events", { kind, since: since ?? null });
 
-export const listLaputaChangelog = (page?: number, pageSize?: number) =>
-  invoke<ChangelogRecord[]>("laputa_list_changelog", {
+export const listLaputaChangelog = (
+  page?: number,
+  pageSize?: number,
+  proposalId?: string,
+) =>
+  invoke<ChangelogPage>("laputa_list_changelog", {
     page: page ?? null,
     pageSize: pageSize ?? null,
+    proposalId: proposalId ?? null,
   });
+
+export const getLaputaChangelog = (id: string) =>
+  invoke<ChangelogRecord>("laputa_get_changelog", { id });
+
+export const rollbackLaputaChangelog = (id: string, payload: RollbackChangelogPayload) =>
+  invoke<RollbackOutcome>("laputa_rollback_changelog", { id, payload });
 
 export const triggerAutoDream = (trigger = 'manual') =>
   invoke<AutoDreamRunRecord>("trigger_autodream", {

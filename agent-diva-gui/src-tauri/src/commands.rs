@@ -188,6 +188,22 @@ pub struct LaputaRollbackPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LaputaEditPayload {
+    pub proposed_patch: Option<String>,
+    pub evidence_refs: Option<serde_json::Value>,
+    pub risk_level: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaputaTransitionPayload {
+    pub state: String,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AutoDreamTriggerPayload {
     pub trigger: Option<String>,
 }
@@ -361,9 +377,48 @@ pub async fn laputa_apply_proposal(
 }
 
 #[tauri::command]
+pub async fn laputa_edit_proposal(
+    id: String,
+    payload: LaputaEditPayload,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/laputa/proposals/{}",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    let payload = serde_json::json!({
+        "proposed_patch": payload.proposed_patch,
+        "evidence_refs": payload.evidence_refs,
+        "risk_level": payload.risk_level,
+        "updated_at": payload.updated_at,
+    });
+    put_laputa_payload(&state, &url, &payload, "proposal").await
+}
+
+#[tauri::command]
+pub async fn laputa_transition_proposal(
+    id: String,
+    payload: LaputaTransitionPayload,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/laputa/proposals/{}/transition",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    let payload = serde_json::json!({
+        "state": payload.state,
+        "updated_at": payload.updated_at,
+    });
+    post_laputa_payload(&state, &url, &payload, "proposal").await
+}
+
+#[tauri::command]
 pub async fn laputa_list_changelog(
     page: Option<usize>,
     page_size: Option<usize>,
+    proposal_id: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let mut query = Vec::new();
@@ -372,6 +427,9 @@ pub async fn laputa_list_changelog(
     }
     if let Some(page_size) = page_size {
         query.push(format!("page_size={page_size}"));
+    }
+    if let Some(proposal_id) = non_empty_query_value(proposal_id) {
+        query.push(format!("proposal_id={}", urlencoding::encode(&proposal_id)));
     }
     let suffix = if query.is_empty() {
         String::new()
@@ -501,6 +559,22 @@ async fn post_laputa_payload<T: Serialize + ?Sized>(
     let response = state
         .client
         .post(url)
+        .json(payload)
+        .send()
+        .await
+        .map_err(|e| laputa_transport_error(format!("Failed to call Laputa API: {e}")))?;
+    parse_laputa_response(response, field).await
+}
+
+async fn put_laputa_payload<T: Serialize + ?Sized>(
+    state: &State<'_, AgentState>,
+    url: &str,
+    payload: &T,
+    field: &str,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let response = state
+        .http_client()
+        .put(url)
         .json(payload)
         .send()
         .await
