@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineExpose, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
   BookOpen,
@@ -7,6 +7,7 @@ import {
   Cat,
   Check,
   ChevronDown,
+  GitBranch,
   Heart,
   Menu,
   MessageSquare,
@@ -15,16 +16,24 @@ import {
   Trash2,
   WandSparkles,
   Wrench,
+  X,
   Zap,
 } from 'lucide-vue-next';
 import ChatView from './ChatView.vue';
-import { FileAttachmentDto } from '../api/desktop';
+import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
+import type {
+  FileAttachmentDto,
+  LaputaEvent,
+  MentleToolConfigShape,
+  ProposalState,
+} from '../api/desktop';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import ConsoleView from './ConsoleView.vue';
 import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
 import NotebookView from './NotebookView.vue';
+import EvolutionView from './EvolutionView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
@@ -99,6 +108,7 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
+  mentle?: MentleToolConfigShape;
 }
 
 interface Props {
@@ -130,10 +140,21 @@ const emit = defineEmits<{
   (e: 'delete-session', sessionKey: string): void;
 }>();
 
-type SidebarSection = 'chat' | 'settings' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'pet';
+type SidebarSection =
+  | 'chat'
+  | 'settings'
+  | 'evolution'
+  | 'console'
+  | 'neuro'
+  | 'cron'
+  | 'mcp'
+  | 'skills'
+  | 'notebook'
+  | 'pet';
+type EvolutionBadgeTone = 'none' | 'accent' | 'warning' | 'danger';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'pet' | null>(null);
+const activeMenu = ref<'evolution' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'pet' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -145,6 +166,11 @@ const groups = ref({ capabilities: true, tools: true });
 const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
 const activeSessionKey = ref('');
+const evolutionBadge = ref({
+  total: 0,
+  tone: 'none' as EvolutionBadgeTone,
+  tooltip: '',
+});
 
 // 收缩状态下的弹出菜单
 const collapsedPopup = ref<{ type: 'capabilities' | 'tools' | null; x: number; y: number }>({
@@ -274,6 +300,7 @@ watch(sidebarCollapsed, (collapsed) => {
 onMounted(() => {
   handleResize();
   window.addEventListener('resize', handleResize);
+  refreshEvolutionBadge();
 });
 
 onUnmounted(() => {
@@ -375,6 +402,75 @@ const isSectionActive = (section: SidebarSection) => {
     return activeMenu.value === null && activeTab.value === section;
   }
   return activeMenu.value === section;
+};
+
+const normalizeEvolutionCount = (count: number) => {
+  if (count > 99) {
+    return '99+';
+  }
+  return String(count);
+};
+
+const updateEvolutionBadge = (payload: {
+  total: number;
+  tone: EvolutionBadgeTone;
+  tooltip: string;
+}) => {
+  evolutionBadge.value = payload;
+};
+
+const isAttentionState = (state: ProposalState) =>
+  state === 'needs_attention' || state === 'run_failed';
+
+const countEvents = (events: LaputaEvent[]) => events.length;
+
+const refreshEvolutionBadge = async () => {
+  try {
+    const [proposals, proposalEvents, changelogEvents, errorEvents] = await Promise.all([
+      listLaputaProposals(),
+      pollLaputaEvents('proposals'),
+      pollLaputaEvents('changelog'),
+      pollLaputaEvents('errors'),
+    ]);
+    const dangerCount =
+      proposals.filter((proposal) => isAttentionState(proposal.state)).length +
+      countEvents(errorEvents);
+    const pendingCount = proposals.filter((proposal) => proposal.state === 'pending_review').length;
+    const infoCount = countEvents(proposalEvents) + countEvents(changelogEvents);
+    const total = dangerCount + pendingCount + infoCount;
+
+    if (dangerCount > 0) {
+      updateEvolutionBadge({
+        total,
+        tone: 'danger',
+        tooltip: t('evolution.badge.danger', { count: dangerCount }),
+      });
+    } else if (pendingCount > 0) {
+      updateEvolutionBadge({
+        total,
+        tone: 'warning',
+        tooltip: t('evolution.badge.warning', { count: pendingCount }),
+      });
+    } else if (infoCount > 0) {
+      updateEvolutionBadge({
+        total,
+        tone: 'accent',
+        tooltip: t('evolution.badge.accent', { count: infoCount }),
+      });
+    } else {
+      updateEvolutionBadge({
+        total: 0,
+        tone: 'none',
+        tooltip: t('evolution.badge.empty'),
+      });
+    }
+  } catch (_) {
+    updateEvolutionBadge({
+      total: 0,
+      tone: 'none',
+      tooltip: t('evolution.badge.unavailable'),
+    });
+  }
 };
 
 const hearts = [
@@ -514,6 +610,29 @@ defineExpose({
             :class="chatBadgeSizeClass"
           >
             {{ chatBadgeValue }}
+          </span>
+        </button>
+        <button
+          class="nav-item"
+          :class="{ active: isSectionActive('evolution') }"
+          :title="evolutionBadge.tooltip"
+          @click="navigateTo('evolution')"
+        >
+          <GitBranch />
+          <span v-if="!sidebarCollapsed">{{ t('nav.evolution') }}</span>
+          <span
+            v-if="evolutionBadge.total > 0"
+            class="evolution-nav-badge ml-auto text-white text-[10px] rounded-full flex items-center justify-center leading-none"
+            :class="[
+              evolutionBadge.total < 10 ? 'w-4 h-4 px-0' : 'min-w-[20px] h-4 px-2',
+              evolutionBadge.tone === 'danger'
+                ? 'bg-red-600'
+                : evolutionBadge.tone === 'warning'
+                  ? 'bg-amber-500'
+                  : 'bg-blue-500',
+            ]"
+          >
+            {{ normalizeEvolutionCount(evolutionBadge.total) }}
           </span>
         </button>
         <button class="nav-item" :class="{ active: isSectionActive('notebook') }" @click="navigateTo('notebook')">
@@ -728,8 +847,12 @@ defineExpose({
 
       <!-- 内容区域 -->
       <div class="content-area">
+        <!-- Evolution视图 -->
+        <div v-if="activeMenu === 'evolution'" class="h-full">
+          <EvolutionView @count-change="updateEvolutionBadge" />
+        </div>
         <!-- Console视图 -->
-        <div v-if="activeMenu === 'console'" class="h-full">
+        <div v-else-if="activeMenu === 'console'" class="h-full">
           <ConsoleView />
         </div>
         <!-- Cron视图 -->
@@ -799,7 +922,7 @@ defineExpose({
               </div>
               <nav class="space-y-1">
                 <button
-                  v-for="section in ['chat', 'notebook', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
+                  v-for="section in ['chat', 'evolution', 'notebook', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
                   :key="section"
                   class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   :class="{ 'bg-pink-50 text-pink-600 font-medium': isSectionActive(section as SidebarSection) }"

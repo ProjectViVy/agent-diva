@@ -218,6 +218,7 @@ export default {
     chat: '聊天',
     settings: '设置',
     console: '中控台',
+    evolution: '进化',
     capabilities: '功能',
     neuro: '神经系统',
     notebook: '记事本',
@@ -226,6 +227,51 @@ export default {
     closeSidebar: '关闭侧边栏',
     toolsGroup: '工具管理',
     comingSoon: '敬请期待',
+  },
+  evolution: {
+    title: '进化',
+    subtitle: '审查自主学习提案、运行诊断、审计记录和策略边界',
+    refresh: '刷新',
+    tabs: {
+      inbox: '收件箱',
+      runs: '运行',
+      audit: '审计',
+      policy: '策略',
+    },
+    badge: {
+      danger: '{count} 个失败或阻塞项需要处理',
+      warning: '{count} 个提案等待审查',
+      accent: '{count} 个新治理事件',
+      empty: '暂无待处理治理事项',
+      unavailable: '暂时无法读取治理状态',
+    },
+    errorTitle: '进化数据加载失败',
+    inbox: {
+      title: '提案收件箱',
+      count: '{count} 个待审查提案',
+      emptyTitle: '暂无待审查提案',
+      emptyDesc: '当 Diva 生成需要人工确认的记忆、身份、SOP 或策略变更时，它们会出现在这里。',
+    },
+    detail: {
+      title: '提案详情',
+      desc: '详细审查流将在后续故事中接入。',
+      placeholderTitle: '选择提案后查看详情',
+      placeholderDesc: '此 shell 已预留 520px 详情面板和窄屏折叠布局，后续会接入证据、diff 与治理动作。',
+    },
+    placeholders: {
+      runs: {
+        title: '运行诊断',
+        desc: 'AutoDream 与 SelfImprove 运行历史将在后续故事中接入。',
+      },
+      audit: {
+        title: '审计与回滚',
+        desc: '已应用变更、changelog 和 rollback 流程将在后续故事中接入。',
+      },
+      policy: {
+        title: '策略摘要',
+        desc: '持久人格、记忆、SOP、技能和策略变更必须先审查再应用。',
+      },
+    },
   },
   general: {
     title: '通用',

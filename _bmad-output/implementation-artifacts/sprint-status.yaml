@@ -1,5 +1,5 @@
 # generated: 2026-06-13T04:54:00+08:00
-# last_updated: 2026-06-14T15:27:57+08:00
+# last_updated: 2026-06-14T16:43:05+08:00
 # project: agent-diva-pro
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-13T04:54:00+08:00
-last_updated: 2026-06-14T15:27:57+08:00
+last_updated: 2026-06-14T16:43:05+08:00
 project: agent-diva-pro
 project_key: NOKEY
 tracking_system: file-system
@@ -51,7 +51,7 @@ development_status:
   1-6-make-session-saves-atomic: done
   epic-1-retrospective: optional
   epic-2: in-progress
-  2-1-add-evolution-workspace-shell: ready-for-dev
+  2-1-add-evolution-workspace-shell: review
   2-2-build-proposal-inbox-list-and-filters: ready-for-dev
   2-3-build-proposal-detail-and-governance-actions: ready-for-dev
   2-4-build-runs-audit-and-policy-views: ready-for-dev

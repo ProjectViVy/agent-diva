@@ -190,6 +190,134 @@ export const deleteSkill = (name: string) =>
   invoke<void>("delete_skill", { name });
 
 // ============================================================
+// Laputa / Evolution Governance API
+// ============================================================
+
+export type EvidenceSource =
+  | 'session'
+  | 'report'
+  | 'auto_dream_run'
+  | 'laputa_section'
+  | 'user_input'
+  | 'file'
+  | 'context_compaction';
+
+export interface EvidenceRef {
+  id: string;
+  source: EvidenceSource;
+  uri: string;
+  excerpt?: string | null;
+  hash?: string | null;
+  created_at: string;
+}
+
+export type ProposalType =
+  | 'memory_patch'
+  | 'journal_note'
+  | 'learning_note'
+  | 'identity_patch'
+  | 'relationship_update'
+  | 'commitment_set'
+  | 'sop_create'
+  | 'deprecation';
+
+export type ProposalState =
+  | 'pending_review'
+  | 'approved'
+  | 'rejected'
+  | 'edited'
+  | 'applied'
+  | 'reverted'
+  | 'superseded'
+  | 'needs_attention'
+  | 'run_failed';
+
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export type LaputaSectionName =
+  | 'identity'
+  | 'relationship'
+  | 'commitment'
+  | 'preferences'
+  | 'memory_md'
+  | 'history_md'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'journal_reflective'
+  | 'proposal_inbox'
+  | 'changelog'
+  | 'report_indexes'
+  | 'aaak_summaries';
+
+export interface EvolutionProposal {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  proposal_type: ProposalType;
+  target_section: LaputaSectionName;
+  evidence_refs: EvidenceRef[];
+  proposed_patch: string;
+  risk_level: RiskLevel;
+  state: ProposalState;
+  source_run_id?: string | null;
+}
+
+export type ChangelogAction = 'apply' | 'revert' | 'rollback';
+
+export interface ChangelogRecord {
+  id: string;
+  action: ChangelogAction;
+  target_section: LaputaSectionName;
+  before: string;
+  after: string;
+  diff: string;
+  proposal_id?: string | null;
+  audit_event_id?: string | null;
+  reverted: boolean;
+  stale: boolean;
+  created_at: string;
+  applied_by: string;
+}
+
+export type AutoDreamRunState = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface AutoDreamRunRecord {
+  id: string;
+  started_at: string;
+  completed_at?: string | null;
+  state: AutoDreamRunState;
+  trigger: string;
+  summary?: string | null;
+  proposal_ids: string[];
+  error?: string | null;
+}
+
+export type LaputaEventKind = 'proposals' | 'changelog' | 'errors';
+
+export interface LaputaEvent {
+  id?: string;
+  kind?: string;
+  payload?: unknown;
+  message?: string;
+  created_at?: string;
+  [key: string]: unknown;
+}
+
+export const listLaputaProposals = (since?: string) =>
+  invoke<EvolutionProposal[]>("laputa_list_proposals", { since: since ?? null });
+
+export const pollLaputaEvents = (kind: LaputaEventKind, since?: string) =>
+  invoke<LaputaEvent[]>("laputa_poll_events", { kind, since: since ?? null });
+
+export const listLaputaChangelog = (page?: number, pageSize?: number) =>
+  invoke<ChangelogRecord[]>("laputa_list_changelog", {
+    page: page ?? null,
+    pageSize: pageSize ?? null,
+  });
+
+// ============================================================
 // Card DTO Interfaces (Story 1.1)
 // ============================================================
 

@@ -4,7 +4,7 @@ baseline_commit: 1c02af7f
 
 # Story 2.1: Add Evolution Workspace Shell
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,13 +21,13 @@ so that governance review is visible and separate from settings or Notebook cont
 
 ## Tasks / Subtasks
 
-- [ ] Add `Evolution` as a top-level sidebar section in `agent-diva-gui/src/components/NormalMode.vue`. (AC: 1)
-- [ ] Create `agent-diva-gui/src/components/EvolutionView.vue` as the shell component with tabs `Inbox`, `Runs`, `Audit`, and `Policy`. (AC: 2, 3)
-- [ ] Add typed Laputa DTOs and invoke wrappers in `agent-diva-gui/src/api/desktop.ts` for proposal list and event polling. (AC: 1)
-- [ ] Load pending proposal/event counts through existing Tauri commands and show a badge on the Evolution nav item. (AC: 1)
-- [ ] Implement desktop split layout and narrow-width list/detail layout guardrails in the shell, even if child panels are placeholders in this story. (AC: 4)
-- [ ] Add i18n keys in `agent-diva-gui/src/locales/zh.ts` and `agent-diva-gui/src/locales/en.ts`. (AC: 1, 2)
-- [ ] Add or update focused GUI smoke/unit coverage where available; at minimum run a GUI build/typecheck path and a real Tauri command smoke if the environment supports it. (AC: 1-4)
+- [x] Add `Evolution` as a top-level sidebar section in `agent-diva-gui/src/components/NormalMode.vue`. (AC: 1)
+- [x] Create `agent-diva-gui/src/components/EvolutionView.vue` as the shell component with tabs `Inbox`, `Runs`, `Audit`, and `Policy`. (AC: 2, 3)
+- [x] Add typed Laputa DTOs and invoke wrappers in `agent-diva-gui/src/api/desktop.ts` for proposal list and event polling. (AC: 1)
+- [x] Load pending proposal/event counts through existing Tauri commands and show a badge on the Evolution nav item. (AC: 1)
+- [x] Implement desktop split layout and narrow-width list/detail layout guardrails in the shell, even if child panels are placeholders in this story. (AC: 4)
+- [x] Add i18n keys in `agent-diva-gui/src/locales/zh.ts` and `agent-diva-gui/src/locales/en.ts`. (AC: 1, 2)
+- [x] Add or update focused GUI smoke/unit coverage where available; at minimum run a GUI build/typecheck path and a real Tauri command smoke if the environment supports it. (AC: 1-4)
 
 ## Dev Notes
 
@@ -108,21 +108,43 @@ so that governance review is visible and separate from settings or Notebook cont
 
 ### Agent Model Used
 
-TBD by dev agent.
+GPT-5 Codex
 
 ### Debug Log References
 
 - 2026-06-14: Story context prepared from Epic 2, EVO-DIVA architecture, Evolution UX design, existing GUI shell, and Story 1.5 Laputa API exposure.
+- 2026-06-14: Implemented Evolution navigation, shell, typed Laputa wrappers, badge loading, i18n, and focused tests.
+- 2026-06-14: Targeted GUI tests passed; full GUI build/test and Tauri smoke are blocked by pre-existing unrelated issues recorded in `TODOLIST.md` and iteration verification logs.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added `Evolution` as a first-class GUI workspace between Chat and Notebook, including pet overlay navigation.
+- Added `EvolutionView.vue` with default Inbox tab and Runs, Audit, Policy tabs.
+- Added typed frontend Laputa/Evolution DTOs and wrappers for proposal list, event polling, and changelog reads.
+- Loaded proposal/event counts through existing Tauri commands and displayed priority-colored sidebar badges.
+- Added responsive Inbox split/list-detail guardrail classes and placeholder panels without introducing detailed proposal behavior from later stories.
+- Added Chinese and English i18n entries and focused component tests.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/2-1-add-evolution-workspace-shell.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `TODOLIST.md`
+- `agent-diva-gui/src/api/desktop.ts`
+- `agent-diva-gui/src/components/EvolutionView.vue`
+- `agent-diva-gui/src/components/EvolutionView.test.ts`
+- `agent-diva-gui/src/components/NormalMode.vue`
+- `agent-diva-gui/src/components/NormalMode.test.ts`
+- `agent-diva-gui/src/components/SettingsView.vue`
+- `agent-diva-gui/src/locales/en.ts`
+- `agent-diva-gui/src/locales/zh.ts`
+- `docs/logs/2026-06-evolution-workspace/v0.0.1-evolution-workspace-shell/acceptance.md`
+- `docs/logs/2026-06-evolution-workspace/v0.0.1-evolution-workspace-shell/release.md`
+- `docs/logs/2026-06-evolution-workspace/v0.0.1-evolution-workspace-shell/summary.md`
+- `docs/logs/2026-06-evolution-workspace/v0.0.1-evolution-workspace-shell/verification.md`
 
 ### Change Log
 
 - 2026-06-14: Created ready-for-dev story for Evolution workspace shell.
+- 2026-06-14: Implemented Evolution workspace shell and moved story to review.

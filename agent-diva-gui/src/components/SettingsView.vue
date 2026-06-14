@@ -59,7 +59,7 @@ interface ToolsConfigShape {
       enabled: boolean;
     };
   };
-  mentle: MentleToolConfigShape;
+  mentle?: MentleToolConfigShape;
 }
 
 type SettingsSubview =
@@ -214,7 +214,7 @@ watch(
             />
 
             <div v-else-if="currentView === 'theme'">
-              <ThemeSettings :current-theme="themeMode" @change-theme="emit('change-theme', $event)" />
+              <ThemeSettings :current-theme="themeMode || 'love'" @change-theme="emit('change-theme', $event)" />
             </div>
             <div v-else-if="currentView === 'self-evolution'">
               <SelfEvolutionSettings />

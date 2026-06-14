@@ -218,6 +218,7 @@ export default {
     chat: 'Chat',
     settings: 'Settings',
     console: 'Console',
+    evolution: 'Evolution',
     capabilities: 'Capabilities',
     neuro: 'Neuro',
     notebook: 'Notebook',
@@ -226,6 +227,51 @@ export default {
     closeSidebar: 'Close sidebar',
     toolsGroup: 'Tools',
     comingSoon: 'Coming soon',
+  },
+  evolution: {
+    title: 'Evolution',
+    subtitle: 'Review autonomous learning proposals, run diagnostics, audit records, and policy boundaries',
+    refresh: 'Refresh',
+    tabs: {
+      inbox: 'Inbox',
+      runs: 'Runs',
+      audit: 'Audit',
+      policy: 'Policy',
+    },
+    badge: {
+      danger: '{count} failed or blocked items need attention',
+      warning: '{count} proposals pending review',
+      accent: '{count} new governance events',
+      empty: 'No governance items need attention',
+      unavailable: 'Governance status is unavailable',
+    },
+    errorTitle: 'Evolution data could not be loaded',
+    inbox: {
+      title: 'Proposal Inbox',
+      count: '{count} proposals pending review',
+      emptyTitle: 'No proposals pending review',
+      emptyDesc: 'When Diva creates memory, identity, SOP, or policy changes that require confirmation, they will appear here.',
+    },
+    detail: {
+      title: 'Proposal Detail',
+      desc: 'Detailed review flow will be connected in a later story.',
+      placeholderTitle: 'Select a proposal to inspect it',
+      placeholderDesc: 'This shell reserves a 520px detail panel and narrow-width collapsed layout for evidence, diffs, and governance actions.',
+    },
+    placeholders: {
+      runs: {
+        title: 'Run Diagnostics',
+        desc: 'AutoDream and SelfImprove run history will be connected in a later story.',
+      },
+      audit: {
+        title: 'Audit and Rollback',
+        desc: 'Applied changes, changelog records, and rollback flows will be connected in a later story.',
+      },
+      policy: {
+        title: 'Policy Summary',
+        desc: 'Durable personality, memory, SOP, skill, and policy changes require review before they are applied.',
+      },
+    },
   },
   general: {
     title: 'General',
