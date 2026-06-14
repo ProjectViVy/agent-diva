@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-13T04:54:00+08:00
-last_updated: 2026-06-14T16:43:05+08:00
+last_updated: 2026-06-14T18:10:00+08:00
 project: agent-diva-pro
 project_key: NOKEY
 tracking_system: file-system
@@ -70,15 +70,15 @@ development_status:
   4-3-preserve-session-search-as-evidence-only: backlog
   4-4-add-solidification-regression-coverage: backlog
   epic-4-retrospective: optional
-  epic-5: backlog
-  5-1-plug-applied-laputa-reads-into-memoryprovider: backlog
-  5-2-enforce-mentle-governance-exclusion: backlog
-  5-3-keep-context-compaction-session-local: backlog
+  epic-5: in-progress
+  5-1-plug-applied-laputa-reads-into-memoryprovider: ready-for-dev
+  5-2-enforce-mentle-governance-exclusion: ready-for-dev
+  5-3-keep-context-compaction-session-local: ready-for-dev
   epic-5-retrospective: optional
-  epic-6: backlog
-  6-1-implement-legacy-schema-migration: backlog
-  6-2-implement-recovery-conflict-and-typed-error-handling: backlog
-  6-3-add-direct-write-and-filesystem-tests: backlog
-  6-4-add-end-to-end-governance-proof-loop: backlog
-  6-5-add-metrics-and-release-gate-validation: backlog
+  epic-6: in-progress
+  6-1-implement-legacy-schema-migration: ready-for-dev
+  6-2-implement-recovery-conflict-and-typed-error-handling: ready-for-dev
+  6-3-add-direct-write-and-filesystem-tests: ready-for-dev
+  6-4-add-end-to-end-governance-proof-loop: ready-for-dev
+  6-5-add-metrics-and-release-gate-validation: ready-for-dev
   epic-6-retrospective: optional
