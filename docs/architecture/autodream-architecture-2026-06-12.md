@@ -89,7 +89,7 @@ AutoDream 是独立的后台反思机制，与 agent loop、memory、GUI 都有�
 
 | Command | 输入 | 输出 | 用途 |
 |-----------|------|------|------|
-| `trigger_autodream` | `{ trigger_type: 'manual' \| 'scheduled' }` | `{ task_id: string, status: 'running' \| 'queued' }` | 手动触发 |
+| `trigger_autodream` | `{ trigger_type: 'manual' \| 'auto' }` | `{ task_id: string, status: 'running' \| 'queued' }` | 手动触发或 auto 模式会话门触发 |
 | `get_autodream_status` | `{ task_id: string }` | `{ status, progress?, error? }` | 轮询状态 |
 | `get_autodream_candidates` | `{ status?, limit? }` | `MemoryCandidate[]` | 获取候选 |
 | `review_candidate` | `{ candidate_id, action, modified_content? }` | `{ success }` | 审查候选 |
@@ -98,7 +98,7 @@ AutoDream 是独立的后台反思机制，与 agent loop、memory、GUI 都有�
 
 ### 理由
 
-复用现有 Tauri command 模式（如 `SelfEvolutionSettings.vue` 中的 `get_self_evolution_config`），保持前后端一致性。
+复用现有 Tauri command 模式（如 `SelfEvolutionSettings.vue` 中的 `get_self_evolution_config`），保持前后端一致性。`trigger_type` 仅支持 `manual` 和 `auto` 两种，时间门（`scheduled`）归日报/周报/月报系统负责（见 ADR-009）。
 
 ### 影响
 
@@ -312,6 +312,107 @@ pub enum RhythmPeriod {
 | 事件总线 + 订阅 | 解耦 + 实时性 | 增加事件流复杂度、GUI 需订阅 |
 
 选定文件路径契约的核心理由：**AutoDream 是异步后台任务，Report System 是用户交互层，两者的运行时机不一致，文件路径契约最符合"产出-消费"的时间解耦语义**。
+
+---
+
+## ADR-009: auto 模式 — 会话门触发（v1.2 新增）
+
+### 决策
+
+新增 auto 模式：基于会话门（≥ 20 sessions）自动触发 AutoDream，默认 off，独立 toggle。时间门（24h）不属于 AutoDream 职责，归日报/周报/月报系统负责。
+
+### 触发条件
+
+| 条件 | 阈值 | 说明 |
+|------|------|------|
+| 会话门 | 累计 sessions ≥ session_threshold（默认 20） | 单门触发 |
+| 开关 | `auto_mode_enabled` toggle | 默认 false（opt-in） |
+
+### 触发逻辑
+
+```
+auto_mode_enabled == true
+  && (current_sessions - last_run_sessions) >= session_threshold
+  && no_active_lock
+  => trigger AutoDream with trigger_type='auto'
+```
+
+### 理由
+
+按大湿原话：
+> "auto 的 autodream 模式，默认不开启，设定阈值比较高一些，大概 20 轮对话...本质就是多轮对话了之后自动跨对话总结习惯，对于日报月报来说会生成更多的上下文"
+> "24h 这个功能要还给日周月报系统做处理，不是自动的"
+
+**与 Claude Code Auto Dream 的对标**：
+- 共同理念：跨会话整理，deduplication + contradiction removal
+- 差异：
+  - 阈值：20 sessions（更高）vs Claude Code 5 sessions
+  - 触发：单门（仅会话门）vs Claude Code 双门（24h + 5 sessions）
+  - 产物：需用户审查（agent-diva 决策）vs Claude Code 直接整理 MEMORY.md
+  - 安全：read-only on code + 用户审查（agent-diva 决策）
+
+### SelfEvolutionConfig 扩展
+
+```rust
+// agent-diva-core/src/config/self_evolution.rs
+pub struct SelfEvolutionConfig {
+    pub enabled: bool,
+    pub autodream_frequency: AutoDreamFrequency,  // 保留向后兼容
+    pub trigger_threshold_sessions: u32,         // 保留
+    pub trigger_threshold_messages: u32,         // 保留
+    pub auto_merge_confidence: f32,              // 保留
+    pub require_confirmation_for: Vec<String>,    // 保留
+
+    // 新增 (v1.2)
+    pub auto_mode_enabled: bool,                 // 默认 false
+    pub session_threshold: u32,                  // 默认 20
+}
+```
+
+### 数据流
+
+```
+每次 session 结束
+  ↓
+递增 current_sessions（持久化在 `.agent-diva/autodream/session_counter`）
+  ↓
+auto 模式检测：
+  current_sessions - last_run_sessions >= 20
+  ↓
+触发 `trigger_autodream(trigger_type='auto')`
+  ↓
+Check Checkpoint（FR-4 扩展）：包含 `last_run_sessions` 字段
+  ↓
+成功完成后更新 Checkpoint
+```
+
+### Checkpoint 扩展
+
+```json
+// .agent-diva/autodream/checkpoint
+{
+  "last_run_timestamp": "2026-06-12T10:30:00Z",
+  "last_run_sessions": 145,
+  "last_run_status": "completed"
+}
+```
+
+### 影响
+
+- `agent-diva-core/src/config/self_evolution.rs` 新增 `auto_mode_enabled` + `session_threshold` 字段
+- `agent-diva-autodream/src/trigger.rs` 新增 `auto_mode_check()` 函数
+- `agent-diva-autodream/src/checkpoint.rs` 扩展 Checkpoint schema
+- `agent-diva-gui/src/components/settings/SelfEvolutionSettings.vue` 新增 auto 模式 UI（toggle + 阈值输入）
+- Session 计数持久化在 `.agent-diva/autodream/session_counter`
+- 边界声明：与日报/周报/月报系统职责清晰划分（时间门归 Report System）
+
+### 边界声明
+
+| 系统 | 负责 |
+|------|------|
+| **AutoDream (auto 模式)** | 会话门（≥ 20 sessions）触发 |
+| **Report System** | 时间门（24h 周期）+ 月报 + 展示层 |
+| **数据流** | AutoDream 产物（rhythm reports）作为 Report System 输入（见 ADR-008） |
 
 ---
 

@@ -89,8 +89,10 @@ AutoDream 是 Agent-Diva 的节律性反思蒸馏机制。它在后台定期审�
 - **Journal Entry** — AutoDream 产出的交互记录条目
 - **Rhythm Report** — 日报/周报，呈现交互趋势和主题
 - **Lock File** — 并发控制文件，防止多实例同时运行 AutoDream
-- **Checkpoint** — 记录上次蒸馏时间戳，用于时间门判断
+- **Checkpoint** — 记录上次蒸馏状态（成功时间戳 + 累计 sessions 数）
 - **Forked Subagent** — 独立运行的子代理，不阻塞主循环
+- **Session Threshold** — auto 模式会话门阈值，默认 20 sessions
+- **Auto Mode** — AutoDream 的会话门触发模式，独立 toggle，默认 off
 
 ---
 
@@ -98,7 +100,7 @@ AutoDream 是 Agent-Diva 的节律性反思蒸馏机制。它在后台定期审�
 
 ### 4.1 触发与调度
 
-**Description:** AutoDream 支持手动触发和时间门自动触发。MVP 只支持这两种，会话门放 P1。
+**Description:** AutoDream 支持手动触发和 auto 模式会话门触发（≥ 20 sessions）。MVP 不包含时间门，时间门归日报/周报/月报系统负责（系统级产品决策，见 §边界声明）。
 
 **Functional Requirements:**
 
@@ -112,15 +114,17 @@ AutoDream 是 Agent-Diva 的节律性反思蒸馏机制。它在后台定期审�
 - 手动触发成功后，返回 task ID 供轮询
 - 手动触发支持取消操作
 
-#### FR-2: 时间门自动触发
+#### FR-2: auto 模式会话门触发
 
-系统根据 **SelfEvolutionSettings.vue** 中配置的频率（daily/weekly/manual）自动触发 AutoDream。
+系统根据 **SelfEvolutionSettings.vue** 中的 `auto_mode_enabled` 开关和 `session_threshold` 阈值，在累计 ≥ 20 sessions 后自动触发 AutoDream。
 
 **Consequences (testable):**
-- SelfEvolutionSettings.vue 提供频率选择：daily / weekly / manual
-- 距上次蒸馏 ≥ 配置间隔且距上次检查期间有新会话时触发
-- 自动触发不阻塞用户当前对话
-- 自动触发失败时记录日志并通知用户
+- SelfEvolutionSettings.vue 提供 `auto_mode_enabled` toggle（默认 false）
+- SelfEvolutionSettings.vue 提供 `session_threshold` 数值（默认 20）
+- 累计 sessions 数 ≥ 阈值时自动触发
+- 触发时不阻塞用户当前对话（forked subagent）
+- 触发失败时记录日志并通知用户
+- `[边界声明]` 时间门（24h）不属于 AutoDream 职责，归日报/周报/月报系统负责
 
 ### 4.2 并发控制
 
@@ -140,12 +144,14 @@ AutoDream 运行前获取 lock，运行后释放。
 
 #### FR-4: Checkpoint 机制
 
-记录上次成功蒸馏的时间戳，用于时间门判断。
+记录上次成功蒸馏状态（时间戳 + 累计 sessions 数），用于 auto 模式会话门判断和重跑控制。
 
 **Consequences (testable):**
 - Checkpoint 文件路径：`.agent-diva/autodream/checkpoint`
+- Checkpoint 内容：上次成功时间戳 + 上次累计 sessions 数
 - 成功运行后更新 checkpoint
 - 失败时不更新 checkpoint，下次触发可重跑
+- auto 模式触发条件：当前累计 sessions - 上次累计 sessions ≥ session_threshold
 
 ### 4.3 输入收集
 
@@ -314,7 +320,8 @@ AutoDream 运行失败时通过 GUI 通知用户。
 
 ### 6.1 In Scope
 
-- 手动触发 + 时间门自动触发
+- 手动触发
+- auto 模式会话门触发（默认 off，阈值 20 sessions）
 - Lock/checkpoint 机制
 - Forked subagent 执行
 - 结构化产物输出（JSON）
@@ -324,7 +331,7 @@ AutoDream 运行失败时通过 GUI 通知用户。
 
 ### 6.2 Out of Scope for MVP
 
-- 会话门触发（P1）
+- 时间门触发（归日报/周报/月报系统负责）
 - Mentle 召回（P1）
 - Mask 隔离蒸馏（P1）
 - 自动接受高置信度候选（P2）
@@ -350,16 +357,25 @@ AutoDream 运行失败时通过 GUI 通知用户。
 
 ## 8. Open Questions
 
-1. 时间门 24h 是否可配置？默认是多少？
-2. 用户未审查的候选如何处理？过期自动清理还是保留？
-3. 节律报告的展示形式？纯文本还是富文本？
-4. AutoDream 与 Plan Mode 的关系？Plan Mode 运行期间是否暂停 AutoDream？
+1. 用户未审查的候选如何处理？过期自动清理还是保留？
+2. 节律报告的展示形式？纯文本还是富文本？
+3. AutoDream 与 Plan Mode 的关系？Plan Mode 运行期间是否暂停 AutoDream？
+4. auto 模式的 session_threshold 是否可配置？默认 20 合理吗？
 
 ---
 
 ## 9. Assumptions Index
 
-- `[ASSUMPTION: §4.1]` 时间门 24h 是合理的默认间隔
+- `[ASSUMPTION: §4.1]` auto 模式会话门阈值 20 sessions 是合理的高阈值
 - `[ASSUMPTION: §4.3]` 输入源按优先级截断的策略不会丢失关键信息
 - `[ASSUMPTION: §4.6]` 用户愿意定期审查候选
 - `[ASSUMPTION: §4.7]` 日报/周报对用户有价值
+
+---
+
+## 10. 边界声明
+
+- **AutoDream 职责**：手动触发 + auto 模式会话门触发（≥ 20 sessions）
+- **日报/周报/月报系统职责**：时间门（24h）周期产出报告
+- **不重叠原则**：两个系统职责清晰划分，不存在重复触发
+- **数据流协调**：AutoDream 的跨会话记忆候选可供日报/周报系统作为输入源（FR-12/FR-13）
