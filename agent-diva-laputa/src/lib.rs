@@ -13,4 +13,7 @@ pub use atomic::{atomic_write, atomic_write_json};
 pub use error::{LaputaError, Result};
 pub use layout::{LaputaPaths, LaputaStorage};
 pub use lock::{LaputaLock, LockOptions};
-pub use proposals::{ProposalEdit, ProposalFilter, ProposalRepository, ProposalSummary};
+pub use proposals::{
+    ApplyFailurePoint, ApplyOptions, ApplyOutcome, ProposalEdit, ProposalFilter,
+    ProposalRepository, ProposalSummary,
+};

@@ -4,7 +4,8 @@ use std::{
 };
 
 use agent_diva_core::evolution::{
-    EvidenceRef, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType, RiskLevel,
+    AuditEvent, AuditEventKind, ChangelogAction, ChangelogRecord, EvidenceRef, EvolutionProposal,
+    LaputaSectionName, ProposalState, ProposalType, RiskLevel, RollbackRequest,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -42,6 +43,28 @@ pub struct ProposalEdit {
     pub evidence_refs: Option<Vec<EvidenceRef>>,
     pub risk_level: Option<RiskLevel>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Optional apply behavior used by tests and failure-injection validation.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ApplyOptions {
+    pub failure_point: Option<ApplyFailurePoint>,
+}
+
+/// Deterministic failure points for apply transaction tests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplyFailurePoint {
+    AfterSectionWriteBeforeChangelog,
+    AfterChangelogBeforeAudit,
+}
+
+/// Durable result produced by a successful proposal apply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplyOutcome {
+    pub proposal: EvolutionProposal,
+    pub changelog: ChangelogRecord,
+    pub audit_event: AuditEvent,
+    pub rollback_request: RollbackRequest,
 }
 
 /// File-first repository for proposal persistence and lifecycle transitions.
@@ -144,6 +167,120 @@ impl ProposalRepository {
         Ok(proposal)
     }
 
+    pub fn apply_proposal(
+        &self,
+        id: &str,
+        actor: impl Into<String>,
+        applied_at: DateTime<Utc>,
+    ) -> Result<ApplyOutcome> {
+        self.apply_proposal_with_options(id, actor, applied_at, ApplyOptions::default())
+    }
+
+    pub fn apply_proposal_with_options(
+        &self,
+        id: &str,
+        actor: impl Into<String>,
+        applied_at: DateTime<Utc>,
+        options: ApplyOptions,
+    ) -> Result<ApplyOutcome> {
+        let _guard =
+            LaputaLock::acquire(self.storage.paths().lock_file("apply"), self.lock_options)?;
+        let actor = actor.into();
+        let mut proposal = self.get_proposal(id)?;
+
+        ensure_transition_allowed(&proposal.state, &ProposalState::Applied)?;
+        validate_apply_contract(&proposal)?;
+
+        let changelog_id = format!("changelog-{}-{}", proposal.id, applied_at.timestamp());
+        let audit_event_id = format!("audit-{}-{}", proposal.id, applied_at.timestamp());
+        let section_path = self
+            .storage
+            .paths()
+            .section_file(proposal.target_section.clone());
+        let before = fs::read_to_string(&section_path).unwrap_or_default();
+        let rollback_request = RollbackRequest {
+            changelog_id: changelog_id.clone(),
+            requested_by: actor.clone(),
+            reason: format!("staged before applying proposal {}", proposal.id),
+            requested_at: applied_at,
+        };
+        let changelog = ChangelogRecord {
+            id: changelog_id.clone(),
+            action: ChangelogAction::Apply,
+            target_section: proposal.target_section.clone(),
+            before: before.clone(),
+            after: proposal.proposed_patch.clone(),
+            diff: proposal.proposed_patch.clone(),
+            proposal_id: Some(proposal.id.clone()),
+            audit_event_id: Some(audit_event_id.clone()),
+            created_at: applied_at,
+            applied_by: actor.clone(),
+        };
+        let audit_event = AuditEvent {
+            id: audit_event_id,
+            kind: AuditEventKind::ProposalApplied,
+            actor,
+            proposal_id: Some(proposal.id.clone()),
+            target_section: Some(proposal.target_section.clone()),
+            message: format!("applied proposal {}", proposal.id),
+            created_at: applied_at,
+        };
+
+        self.write_rollback_request(&rollback_request)?;
+
+        let wrote_section = proposal.proposal_type != ProposalType::Deprecation;
+        if wrote_section {
+            atomic_write_json(&section_path, &parse_json_patch(&proposal)?)?;
+        }
+
+        if options.failure_point == Some(ApplyFailurePoint::AfterSectionWriteBeforeChangelog) {
+            let failure = LaputaError::InjectedApplyFailure {
+                point: ApplyFailurePoint::AfterSectionWriteBeforeChangelog,
+            };
+            self.rollback_apply_failure(
+                &mut proposal,
+                wrote_section,
+                &section_path,
+                &before,
+                failure,
+            )?;
+        }
+
+        self.write_changelog_record(&changelog).map_err(|error| {
+            self.rollback_apply_failure(&mut proposal, wrote_section, &section_path, &before, error)
+                .unwrap_err()
+        })?;
+
+        if options.failure_point == Some(ApplyFailurePoint::AfterChangelogBeforeAudit) {
+            let failure = LaputaError::InjectedApplyFailure {
+                point: ApplyFailurePoint::AfterChangelogBeforeAudit,
+            };
+            self.rollback_apply_failure(
+                &mut proposal,
+                wrote_section,
+                &section_path,
+                &before,
+                failure,
+            )?;
+        }
+
+        self.write_audit_event(&audit_event).map_err(|error| {
+            self.rollback_apply_failure(&mut proposal, wrote_section, &section_path, &before, error)
+                .unwrap_err()
+        })?;
+
+        proposal.state = ProposalState::Applied;
+        proposal.updated_at = applied_at;
+        self.write_proposal(&proposal)?;
+
+        Ok(ApplyOutcome {
+            proposal,
+            changelog,
+            audit_event,
+            rollback_request,
+        })
+    }
+
     fn read_all_proposals(&self) -> Result<Vec<EvolutionProposal>> {
         let proposals_dir = self.storage.paths().proposals_dir();
         let mut proposals = Vec::new();
@@ -167,6 +304,68 @@ impl ProposalRepository {
 
     fn write_proposal(&self, proposal: &EvolutionProposal) -> Result<()> {
         atomic_write_json(self.proposal_path(&proposal.id), proposal)
+    }
+
+    fn write_changelog_record(&self, record: &ChangelogRecord) -> Result<()> {
+        atomic_write_json(
+            self.storage
+                .paths()
+                .changelog_dir()
+                .join(format!("{}.json", record.id)),
+            record,
+        )
+    }
+
+    fn write_audit_event(&self, event: &AuditEvent) -> Result<()> {
+        atomic_write_json(
+            self.storage
+                .paths()
+                .audit_dir()
+                .join(format!("{}.json", event.id)),
+            event,
+        )
+    }
+
+    fn write_rollback_request(&self, request: &RollbackRequest) -> Result<()> {
+        atomic_write_json(
+            self.storage
+                .paths()
+                .rollback_dir()
+                .join(format!("{}.json", request.changelog_id)),
+            request,
+        )
+    }
+
+    fn rollback_apply_failure(
+        &self,
+        proposal: &mut EvolutionProposal,
+        wrote_section: bool,
+        section_path: &Path,
+        before: &str,
+        failure: LaputaError,
+    ) -> Result<ApplyOutcome> {
+        if wrote_section {
+            let rollback_result = if before.is_empty() {
+                match fs::remove_file(section_path) {
+                    Ok(()) => Ok(()),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    Err(source) => Err(LaputaError::io(section_path, source)),
+                }
+            } else {
+                crate::atomic_write(section_path, before.as_bytes())
+            };
+
+            if let Err(source) = rollback_result {
+                return Err(LaputaError::RollbackFailed {
+                    id: proposal.id.clone(),
+                    source: Box::new(source),
+                });
+            }
+        }
+
+        proposal.state = ProposalState::NeedsAttention;
+        self.write_proposal(proposal)?;
+        Err(failure)
     }
 
     fn proposal_path(&self, id: &str) -> PathBuf {
@@ -257,6 +456,83 @@ fn validate_new_proposal(proposal: &EvolutionProposal) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn validate_apply_contract(proposal: &EvolutionProposal) -> Result<()> {
+    if proposal.target_section != proposal.proposal_type.target_section() {
+        return Err(LaputaError::UnauthorizedTarget {
+            id: proposal.id.clone(),
+            proposal_type: proposal.proposal_type.clone(),
+            target_section: proposal.target_section.clone(),
+        });
+    }
+
+    if !is_writable_apply_target(&proposal.proposal_type, &proposal.target_section) {
+        return Err(LaputaError::UnauthorizedTarget {
+            id: proposal.id.clone(),
+            proposal_type: proposal.proposal_type.clone(),
+            target_section: proposal.target_section.clone(),
+        });
+    }
+
+    parse_json_patch(proposal)?;
+    reject_unresolved_conflicts(proposal)?;
+
+    Ok(())
+}
+
+fn is_writable_apply_target(
+    proposal_type: &ProposalType,
+    target_section: &LaputaSectionName,
+) -> bool {
+    match proposal_type {
+        ProposalType::Deprecation => *target_section == LaputaSectionName::Changelog,
+        _ => matches!(
+            target_section,
+            LaputaSectionName::Identity
+                | LaputaSectionName::Relationship
+                | LaputaSectionName::Commitment
+                | LaputaSectionName::Preferences
+                | LaputaSectionName::MemoryMd
+                | LaputaSectionName::HistoryMd
+                | LaputaSectionName::Daily
+                | LaputaSectionName::Weekly
+                | LaputaSectionName::Monthly
+                | LaputaSectionName::JournalReflective
+        ),
+    }
+}
+
+fn parse_json_patch(proposal: &EvolutionProposal) -> Result<serde_json::Value> {
+    serde_json::from_str(&proposal.proposed_patch).map_err(|source| LaputaError::SchemaMismatch {
+        id: proposal.id.clone(),
+        reason: source.to_string(),
+    })
+}
+
+fn reject_unresolved_conflicts(proposal: &EvolutionProposal) -> Result<()> {
+    let value = parse_json_patch(proposal)?;
+    let has_conflict_flag = value
+        .get("unresolved_conflict")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+        || value
+            .get("unresolved_conflicts")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+    let has_conflict_list = value
+        .get("conflicts")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|conflicts| !conflicts.is_empty());
+
+    if has_conflict_flag || has_conflict_list {
+        Err(LaputaError::UnresolvedConflict {
+            id: proposal.id.clone(),
+            reason: "proposal contains unresolved conflict markers".to_string(),
+        })
+    } else {
+        Ok(())
+    }
 }
 
 fn ensure_transition_allowed(from: &ProposalState, to: &ProposalState) -> Result<()> {

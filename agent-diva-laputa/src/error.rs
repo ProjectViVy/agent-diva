@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use agent_diva_core::evolution::ProposalState;
+use crate::proposals::ApplyFailurePoint;
+use agent_diva_core::evolution::{LaputaSectionName, ProposalState, ProposalType};
 use thiserror::Error;
 
 /// Result type used by Laputa storage primitives.
@@ -36,6 +37,31 @@ pub enum LaputaError {
         from: ProposalState,
         to: ProposalState,
     },
+
+    #[error(
+        "unauthorized target for proposal {id}: {proposal_type:?} cannot write {target_section:?}"
+    )]
+    UnauthorizedTarget {
+        id: String,
+        proposal_type: ProposalType,
+        target_section: LaputaSectionName,
+    },
+
+    #[error("schema mismatch for proposal {id}: {reason}")]
+    SchemaMismatch { id: String, reason: String },
+
+    #[error("unresolved conflict for proposal {id}: {reason}")]
+    UnresolvedConflict { id: String, reason: String },
+
+    #[error("rollback failed for proposal {id}: {source}")]
+    RollbackFailed {
+        id: String,
+        #[source]
+        source: Box<LaputaError>,
+    },
+
+    #[error("injected apply failure at {point:?}")]
+    InjectedApplyFailure { point: ApplyFailurePoint },
 }
 
 impl LaputaError {

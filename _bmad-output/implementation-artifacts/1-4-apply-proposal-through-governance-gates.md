@@ -1,6 +1,10 @@
+---
+baseline_commit: 91f07911fb031d119efbbcb5d87b8fb78c176fdd
+---
+
 # Story 1.4: Apply Proposal Through Governance Gates
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -16,11 +20,11 @@ so that subject, memory, SOP, skill, identity, relationship, commitment, prefere
 
 ## Tasks / Subtasks
 
-- [ ] Implement `apply_proposal` as the only authority mutation entrypoint in `agent-diva-laputa`. (AC: 1)
-- [ ] Validate proposal state, proposal type, target section, and write authority before mutation. (AC: 1, 3)
-- [ ] Stage rollback data before changing authority state. (AC: 1, 2)
-- [ ] Append changelog and audit records as part of the apply transaction. (AC: 1, 2)
-- [ ] Add failure injection tests proving rollback on mid-apply failure. (AC: 2, 3)
+- [x] Implement `apply_proposal` as the only authority mutation entrypoint in `agent-diva-laputa`. (AC: 1)
+- [x] Validate proposal state, proposal type, target section, and write authority before mutation. (AC: 1, 3)
+- [x] Stage rollback data before changing authority state. (AC: 1, 2)
+- [x] Append changelog and audit records as part of the apply transaction. (AC: 1, 2)
+- [x] Add failure injection tests proving rollback on mid-apply failure. (AC: 2, 3)
 
 ## Dev Notes
 
@@ -71,10 +75,37 @@ so that subject, memory, SOP, skill, identity, relationship, commitment, prefere
 
 ### Agent Model Used
 
-TBD by dev agent.
+GPT-5 Codex
 
 ### Debug Log References
 
+- 2026-06-14: Loaded bmad-dev-story configuration, project context, sprint status, Story 1.4, Story 1.3 implementation context, and Laputa storage/proposal modules.
+- 2026-06-14: Added red-phase apply tests for successful apply, non-approved rejection, unauthorized target/schema mismatch, unresolved conflicts, deprecation flow, rollback on injected mid-apply failure, and lock timeout.
+- 2026-06-14: Implemented `ProposalRepository::apply_proposal` and `apply_proposal_with_options` under the Laputa apply lock, with validation, rollback staging, section write, changelog, audit, proposal applied state, and needs-attention rollback behavior on mid-apply failure.
+- 2026-06-14: Validation passed: `cargo fmt -p agent-diva-laputa -- --check`, `cargo test -p agent-diva-laputa`, `cargo check -p agent-diva-laputa`, `cargo clippy -p agent-diva-laputa -- -D warnings`.
+- 2026-06-14: Workspace validation attempted. `just fmt-check`, `just check`, and `just test` remain blocked by pre-existing unrelated workspace issues already tracked in `TODOLIST.md`.
+
 ### Completion Notes List
 
+- Added the backend-only Laputa apply entrypoint that enforces approved-state mutation and keeps authority writes behind the file-first Laputa repository.
+- Added apply-time contract validation for proposal type routing, explicit writable targets, JSON schema compatibility, and unresolved conflict markers.
+- Staged rollback requests before authority mutation, wrote authority section JSON, appended changelog and audit records, and marked proposals applied only after the full apply sequence completes.
+- Implemented deprecation apply as changelog/audit flow without mutating arbitrary authority section content.
+- Added deterministic failure injection for mid-apply rollback tests and ensured failed section writes restore prior content and mark the proposal `needs_attention`.
+
 ### File List
+
+- `agent-diva-laputa/src/error.rs`
+- `agent-diva-laputa/src/lib.rs`
+- `agent-diva-laputa/src/proposals.rs`
+- `agent-diva-laputa/tests/apply.rs`
+- `_bmad-output/implementation-artifacts/1-4-apply-proposal-through-governance-gates.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `docs/logs/2026-06-laputa-apply/v0.0.1-proposal-apply-governance-gates/summary.md`
+- `docs/logs/2026-06-laputa-apply/v0.0.1-proposal-apply-governance-gates/verification.md`
+- `docs/logs/2026-06-laputa-apply/v0.0.1-proposal-apply-governance-gates/release.md`
+- `docs/logs/2026-06-laputa-apply/v0.0.1-proposal-apply-governance-gates/acceptance.md`
+
+### Change Log
+
+- 2026-06-14: Implemented Story 1.4 proposal apply governance gates and moved story to review.
