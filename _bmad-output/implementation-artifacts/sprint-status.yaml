@@ -1,5 +1,5 @@
 # generated: 2026-06-13T04:54:00+08:00
-# last_updated: 2026-06-14T19:32:15+08:00
+# last_updated: 2026-06-14T21:00:00+08:00
 # project: agent-diva-pro
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-13T04:54:00+08:00
-last_updated: 2026-06-14T19:32:15+08:00
+last_updated: 2026-06-14T21:00:00+08:00
 project: agent-diva-pro
 project_key: NOKEY
 tracking_system: file-system
@@ -76,7 +76,7 @@ development_status:
   5-3-keep-context-compaction-session-local: ready-for-dev
   epic-5-retrospective: optional
   epic-6: in-progress
-  6-1-implement-legacy-schema-migration: ready-for-dev
+  6-1-implement-legacy-schema-migration: review
   6-2-implement-recovery-conflict-and-typed-error-handling: ready-for-dev
   6-3-add-direct-write-and-filesystem-tests: ready-for-dev
   6-4-add-end-to-end-governance-proof-loop: ready-for-dev

@@ -67,6 +67,15 @@ pub struct ApplyOutcome {
     pub rollback_request: RollbackRequest,
 }
 
+struct ApplyFailureRollback<'a> {
+    wrote_section: bool,
+    section_path: &'a Path,
+    before: &'a str,
+    rollback_request: Option<&'a RollbackRequest>,
+    changelog: Option<&'a ChangelogRecord>,
+    audit_event: Option<&'a AuditEvent>,
+}
+
 /// File-first repository for proposal persistence and lifecycle transitions.
 #[derive(Debug, Clone)]
 pub struct ProposalRepository {
@@ -244,12 +253,14 @@ impl ProposalRepository {
             };
             self.rollback_apply_failure(
                 &mut proposal,
-                wrote_section,
-                &section_path,
-                &before,
-                Some(&rollback_request),
-                None,
-                None,
+                ApplyFailureRollback {
+                    wrote_section,
+                    section_path: &section_path,
+                    before: &before,
+                    rollback_request: Some(&rollback_request),
+                    changelog: None,
+                    audit_event: None,
+                },
                 failure,
             )?;
         }
@@ -257,12 +268,14 @@ impl ProposalRepository {
         self.write_changelog_record(&changelog).map_err(|error| {
             self.rollback_apply_failure(
                 &mut proposal,
-                wrote_section,
-                &section_path,
-                &before,
-                Some(&rollback_request),
-                None,
-                None,
+                ApplyFailureRollback {
+                    wrote_section,
+                    section_path: &section_path,
+                    before: &before,
+                    rollback_request: Some(&rollback_request),
+                    changelog: None,
+                    audit_event: None,
+                },
                 error,
             )
             .unwrap_err()
@@ -274,12 +287,14 @@ impl ProposalRepository {
             };
             self.rollback_apply_failure(
                 &mut proposal,
-                wrote_section,
-                &section_path,
-                &before,
-                Some(&rollback_request),
-                Some(&changelog),
-                None,
+                ApplyFailureRollback {
+                    wrote_section,
+                    section_path: &section_path,
+                    before: &before,
+                    rollback_request: Some(&rollback_request),
+                    changelog: Some(&changelog),
+                    audit_event: None,
+                },
                 failure,
             )?;
         }
@@ -287,12 +302,14 @@ impl ProposalRepository {
         self.write_audit_event(&audit_event).map_err(|error| {
             self.rollback_apply_failure(
                 &mut proposal,
-                wrote_section,
-                &section_path,
-                &before,
-                Some(&rollback_request),
-                Some(&changelog),
-                None,
+                ApplyFailureRollback {
+                    wrote_section,
+                    section_path: &section_path,
+                    before: &before,
+                    rollback_request: Some(&rollback_request),
+                    changelog: Some(&changelog),
+                    audit_event: None,
+                },
                 error,
             )
             .unwrap_err()
@@ -387,23 +404,18 @@ impl ProposalRepository {
     fn rollback_apply_failure(
         &self,
         proposal: &mut EvolutionProposal,
-        wrote_section: bool,
-        section_path: &Path,
-        before: &str,
-        rollback_request: Option<&RollbackRequest>,
-        changelog: Option<&ChangelogRecord>,
-        audit_event: Option<&AuditEvent>,
+        rollback: ApplyFailureRollback<'_>,
         failure: LaputaError,
     ) -> Result<ApplyOutcome> {
-        if wrote_section {
-            let rollback_result = if before.is_empty() {
-                match fs::remove_file(section_path) {
+        if rollback.wrote_section {
+            let rollback_result = if rollback.before.is_empty() {
+                match fs::remove_file(rollback.section_path) {
                     Ok(()) => Ok(()),
                     Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                    Err(source) => Err(LaputaError::io(section_path, source)),
+                    Err(source) => Err(LaputaError::io(rollback.section_path, source)),
                 }
             } else {
-                crate::atomic_write(section_path, before.as_bytes())
+                crate::atomic_write(rollback.section_path, rollback.before.as_bytes())
             };
 
             if let Err(source) = rollback_result {
@@ -414,7 +426,7 @@ impl ProposalRepository {
             }
         }
 
-        if let Some(request) = rollback_request {
+        if let Some(request) = rollback.rollback_request {
             let _ = fs::remove_file(
                 self.storage
                     .paths()
@@ -422,7 +434,7 @@ impl ProposalRepository {
                     .join(format!("{}.json", request.changelog_id)),
             );
         }
-        if let Some(record) = changelog {
+        if let Some(record) = rollback.changelog {
             let _ = fs::remove_file(
                 self.storage
                     .paths()
@@ -430,7 +442,7 @@ impl ProposalRepository {
                     .join(format!("{}.json", record.id)),
             );
         }
-        if let Some(event) = audit_event {
+        if let Some(event) = rollback.audit_event {
             let _ = fs::remove_file(
                 self.storage
                     .paths()

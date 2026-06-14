@@ -289,12 +289,11 @@ impl LaputaService {
             }
             Ok(None)
         })()
-        .map_err(|error| {
+        .inspect_err(|_error| {
             let _ = crate::atomic_write(&section_path, original_before_update.after.as_bytes());
             let _ = fs::remove_file(&rollback_changelog_path);
             let _ = fs::remove_file(&rollback_audit_path);
             let _ = atomic_write_json(&original_changelog_path, &original_before_update);
-            error
         })?;
 
         if let Some(proposal) = proposal_event {

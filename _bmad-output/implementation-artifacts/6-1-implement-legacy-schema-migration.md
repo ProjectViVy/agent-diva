@@ -4,7 +4,7 @@ baseline_commit: 8a1114d
 
 # Story 6.1: Implement Legacy Schema Migration
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -22,13 +22,13 @@ so that the new authority spine can start without losing existing state.
 
 ## Tasks / Subtasks
 
-- [ ] Add a Laputa migration module, likely `agent-diva-laputa/src/migration.rs`, and expose it through `agent-diva-laputa/src/lib.rs`. (AC: 1-4)
-- [ ] Extend `LaputaPaths` with staging and timestamped legacy backup helpers under `.laputa/staging/` and `.laputa/legacy/{timestamp}/`. (AC: 1, 4)
-- [ ] Implement legacy source discovery for the current workspace templates and authority files without deleting or rewriting those sources. (AC: 1, 5)
-- [ ] Map supported legacy material into the existing 14 sections from `agent-diva-core::evolution::LaputaSectionName`. (AC: 2)
-- [ ] Preserve unsupported or future-owned material as explicit TBD section payloads with metadata describing the original path and reason. (AC: 3)
-- [ ] Write migration outputs through temp-file plus rename and only swap committed state after all section writes succeed. (AC: 4)
-- [ ] Add migration tests covering new install, legacy upgrade, unsupported material, simulated mid-migration failure, and idempotent rerun. (AC: 1-5)
+- [x] Add a Laputa migration module, likely `agent-diva-laputa/src/migration.rs`, and expose it through `agent-diva-laputa/src/lib.rs`. (AC: 1-4)
+- [x] Extend `LaputaPaths` with staging and timestamped legacy backup helpers under `.laputa/staging/` and `.laputa/legacy/{timestamp}/`. (AC: 1, 4)
+- [x] Implement legacy source discovery for the current workspace templates and authority files without deleting or rewriting those sources. (AC: 1, 5)
+- [x] Map supported legacy material into the existing 14 sections from `agent-diva-core::evolution::LaputaSectionName`. (AC: 2)
+- [x] Preserve unsupported or future-owned material as explicit TBD section payloads with metadata describing the original path and reason. (AC: 3)
+- [x] Write migration outputs through temp-file plus rename and only swap committed state after all section writes succeed. (AC: 4)
+- [x] Add migration tests covering new install, legacy upgrade, unsupported material, simulated mid-migration failure, and idempotent rerun. (AC: 1-5)
 
 ## Dev Notes
 
@@ -75,8 +75,34 @@ so that the new authority spine can start without losing existing state.
 
 ### Debug Log References
 
+- 2026-06-14: Started story 6.1 implementation from baseline commit 8a1114d. Current workspace contains unrelated pre-existing dirty changes; scoped work to Laputa migration files and story tracking.
+- 2026-06-14: Red-green-refactor cycle used for `agent-diva-laputa/tests/migration.rs`; initial missing API failure confirmed before implementation.
+- 2026-06-14: Validated with `cargo test -p agent-diva-laputa migration`, `cargo test -p agent-diva-laputa`, and `cargo clippy -p agent-diva-laputa -- -D warnings`.
+
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added explicit `LaputaMigration` API that discovers legacy workspace templates, backs them up under `.laputa/legacy/{timestamp}/`, stages writes under `.laputa/staging/`, and updates state only after staged writes succeed.
+- Mapped supported legacy material into canonical `LaputaSectionName` targets; `BOOTSTRAP.md` is backed up as one-time initialization input but not persisted as runtime prompt authority.
+- Preserved unsupported and TBD material with `status=tbd`, `content_type=tbd`, original path entries, and reason metadata.
+- Added migration regression tests for new install, legacy upgrade, unsupported material, failure injection, idempotent rerun, and template discovery.
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `agent-diva-laputa/src/error.rs`
+- `agent-diva-laputa/src/layout.rs`
+- `agent-diva-laputa/src/lib.rs`
+- `agent-diva-laputa/src/migration.rs`
+- `agent-diva-laputa/src/proposals.rs`
+- `agent-diva-laputa/src/service.rs`
+- `agent-diva-laputa/tests/migration.rs`
+- `docs/logs/2026-06-laputa-legacy-migration/v0.0.1-legacy-schema-migration/acceptance.md`
+- `docs/logs/2026-06-laputa-legacy-migration/v0.0.1-legacy-schema-migration/release.md`
+- `docs/logs/2026-06-laputa-legacy-migration/v0.0.1-legacy-schema-migration/summary.md`
+- `docs/logs/2026-06-laputa-legacy-migration/v0.0.1-legacy-schema-migration/verification.md`
+
+### Change Log
+
+- 2026-06-14: Implemented legacy schema migration and moved story to review.

@@ -68,6 +68,14 @@ impl LaputaPaths {
         self.laputa_dir.join("legacy")
     }
 
+    pub fn staging_dir(&self) -> PathBuf {
+        self.laputa_dir.join("staging")
+    }
+
+    pub fn legacy_backup_dir(&self, timestamp: &str) -> PathBuf {
+        self.legacy_dir().join(timestamp)
+    }
+
     pub fn events_jsonl(&self) -> PathBuf {
         self.laputa_dir.join("events.jsonl")
     }
@@ -82,7 +90,7 @@ impl LaputaPaths {
             .join(format!("{}.json", section_file_stem(section)))
     }
 
-    fn directories(&self) -> [PathBuf; 9] {
+    fn directories(&self) -> [PathBuf; 10] {
         [
             self.laputa_dir.clone(),
             self.proposals_dir(),
@@ -92,6 +100,7 @@ impl LaputaPaths {
             self.migrations_dir(),
             self.locks_dir(),
             self.legacy_dir(),
+            self.staging_dir(),
             self.laputa_dir.join("sections"),
         ]
     }

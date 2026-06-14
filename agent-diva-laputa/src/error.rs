@@ -77,6 +77,11 @@ pub enum LaputaError {
 
     #[error("injected apply failure at {point:?}")]
     InjectedApplyFailure { point: ApplyFailurePoint },
+
+    #[error("injected migration failure at {point:?}")]
+    InjectedMigrationFailure {
+        point: crate::migration::LaputaMigrationTestFailure,
+    },
 }
 
 impl LaputaError {
