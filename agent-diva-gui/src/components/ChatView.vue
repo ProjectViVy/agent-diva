@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted } from 'vue';
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
@@ -15,9 +15,12 @@ import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
 import {
   triggerAutoDream,
+  getAutoDreamRunStatus,
+  getLaputaProposal,
   uploadFile,
   FileAttachmentDto,
   type AutoDreamRunRecord,
+  type EvolutionProposal,
   type UiCard,
   type ApprovalRequest,
 } from '../api/desktop';
@@ -164,6 +167,7 @@ const isRecording = ref(false);
 const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
 const localGovernanceCards = ref<ChatGovernanceCardModel[]>([]);
 const autoDreamTriggering = ref(false);
+const autoDreamPollTimers = new Set<ReturnType<typeof setTimeout>>();
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -213,6 +217,11 @@ watch(() => props.messages, (newMessages, oldMessages) => {
 onMounted(() => {
   scrollToBottom();
   inputRef.value?.focus();
+});
+
+onBeforeUnmount(() => {
+  autoDreamPollTimers.forEach((timer) => clearTimeout(timer));
+  autoDreamPollTimers.clear();
 });
 
 const handleSend = () => {
@@ -298,18 +307,80 @@ const toRunCard = (run: AutoDreamRunRecord): ChatGovernanceCardModel => ({
   state: run.state,
   trigger: run.trigger,
   summary: run.summary,
-  proposal_ids: run.proposal_ids,
+  proposal_ids: Array.isArray(run.proposal_ids) ? run.proposal_ids : [],
   error: run.error,
   source_run_id: run.id,
   created_at: run.started_at,
   updated_at: run.completed_at ?? run.started_at,
 });
 
+const toProposalCard = (proposal: EvolutionProposal): ChatGovernanceCardModel => ({
+  kind: 'evolution_proposal',
+  id: proposal.id,
+  proposal_type: proposal.proposal_type,
+  state: proposal.state,
+  risk_level: proposal.risk_level,
+  target_section: proposal.target_section,
+  summary: proposal.proposed_patch.split('\n').find((line) => line.trim().length > 0) ?? proposal.proposed_patch,
+  evidence_count: Array.isArray(proposal.evidence_refs) ? proposal.evidence_refs.length : 0,
+  source_run_id: proposal.source_run_id,
+});
+
 const normalizeError = (error: unknown) => {
   if (error && typeof error === 'object' && 'message' in error) {
     return String((error as { message: unknown }).message);
   }
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  if (error === null || error === undefined) return t('chatGovernance.backendUnavailable');
+  return String(error);
+};
+
+const replaceGovernanceCard = (id: string, next: ChatGovernanceCardModel) => {
+  localGovernanceCards.value = localGovernanceCards.value.map((card) => (card.id === id ? next : card));
+};
+
+const appendProposalCards = async (run: AutoDreamRunRecord) => {
+  const proposalIds = Array.isArray(run.proposal_ids) ? run.proposal_ids : [];
+  if (proposalIds.length === 0) return;
+  const existing = new Set(localGovernanceCards.value.map((card) => card.id));
+  const proposals = await Promise.allSettled(proposalIds.map((id) => getLaputaProposal(id)));
+  const cards = proposals
+    .filter((result): result is PromiseFulfilledResult<EvolutionProposal> => result.status === 'fulfilled')
+    .map((result) => toProposalCard(result.value))
+    .filter((card) => !existing.has(card.id));
+  if (cards.length > 0) {
+    localGovernanceCards.value = [...localGovernanceCards.value, ...cards];
+    scrollToBottom();
+  }
+};
+
+const pollAutoDreamRun = (runId: string, cardId: string, attempt = 0) => {
+  const timer = setTimeout(async () => {
+    autoDreamPollTimers.delete(timer);
+    try {
+      const run = await getAutoDreamRunStatus(runId);
+      replaceGovernanceCard(cardId, toRunCard(run));
+      scrollToBottom();
+      if (run.state === 'pending' || run.state === 'running') {
+        pollAutoDreamRun(runId, cardId, attempt + 1);
+      } else {
+        await appendProposalCards(run);
+      }
+    } catch (error) {
+      replaceGovernanceCard(cardId, {
+        kind: 'autodream_run',
+        id: runId,
+        state: 'unavailable',
+        trigger: 'manual',
+        summary: t('chatGovernance.backendUnavailable'),
+        proposal_ids: [],
+        error: normalizeError(error),
+        source_run_id: runId,
+      });
+      scrollToBottom();
+    }
+  }, Math.min(1000 + attempt * 500, 5000));
+  autoDreamPollTimers.add(timer);
 };
 
 const handleAutoDreamTrigger = async () => {
@@ -326,12 +397,17 @@ const handleAutoDreamTrigger = async () => {
     created_at: new Date().toISOString(),
   };
   localGovernanceCards.value = [...localGovernanceCards.value, pendingCard];
+  scrollToBottom();
 
   try {
     const run = await triggerAutoDream('manual');
-    localGovernanceCards.value = localGovernanceCards.value.map((card) =>
-      card.id === pendingId ? toRunCard(run) : card,
-    );
+    replaceGovernanceCard(pendingId, toRunCard(run));
+    scrollToBottom();
+    if (run.state === 'pending' || run.state === 'running') {
+      pollAutoDreamRun(run.id, run.id);
+    } else {
+      await appendProposalCards(run);
+    }
   } catch (error) {
     localGovernanceCards.value = localGovernanceCards.value.map((card) =>
       card.id === pendingId
@@ -343,6 +419,7 @@ const handleAutoDreamTrigger = async () => {
           }
         : card,
     );
+    scrollToBottom();
   } finally {
     autoDreamTriggering.value = false;
   }

@@ -27,7 +27,7 @@ pub use provider_companion::{
 
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::InboundMessage;
-use agent_diva_core::config::schema::ChannelsConfig;
+use agent_diva_core::config::schema::{ChannelsConfig, SelfEvolutionConfig};
 use axum::{
     extract::{Multipart, Path, Query, State},
     response::sse::{Event, Sse},
@@ -405,6 +405,62 @@ pub async fn update_config_handler(
     }
 
     Json(serde_json::json!({ "status": "ok" }))
+}
+
+pub async fn get_self_evolution_config_handler(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::GetSelfEvolutionConfig(tx))
+        .await
+    {
+        tracing::error!("Failed to send GetSelfEvolutionConfig request: {}", e);
+        return Json(serde_json::json!({
+            "status": "error",
+            "message": e.to_string(),
+        }));
+    }
+
+    match rx.await {
+        Ok(Ok(config)) => Json(serde_json::json!({ "status": "ok", "config": config })),
+        Ok(Err(message)) => Json(serde_json::json!({ "status": "error", "message": message })),
+        Err(e) => {
+            tracing::error!("Failed to receive GetSelfEvolutionConfig response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
+}
+
+pub async fn update_self_evolution_config_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<SelfEvolutionConfig>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UpdateSelfEvolutionConfig(payload, tx))
+        .await
+    {
+        tracing::error!("Failed to send UpdateSelfEvolutionConfig request: {}", e);
+        return Json(serde_json::json!({
+            "status": "error",
+            "message": e.to_string(),
+        }));
+    }
+
+    match rx.await {
+        Ok(Ok(config)) => Json(serde_json::json!({ "status": "ok", "config": config })),
+        Ok(Err(message)) => Json(serde_json::json!({ "status": "error", "message": message })),
+        Err(e) => {
+            tracing::error!(
+                "Failed to receive UpdateSelfEvolutionConfig response: {}",
+                e
+            );
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
 }
 
 pub async fn get_channels_handler(State(state): State<AppState>) -> Json<ChannelsConfig> {

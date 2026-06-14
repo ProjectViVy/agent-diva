@@ -201,6 +201,27 @@ describe('EvolutionView governance detail', () => {
     expect(transitionLaputaProposal).toHaveBeenCalledWith('proposal-1', { state: 'rejected' });
   });
 
+  it('defers proposal through the durable backend transition', async () => {
+    vi.mocked(listLaputaProposals).mockResolvedValue([
+      { ...baseProposal, evidence_refs: [{ id: 'e1', source: 'report', uri: 'file://x', created_at: '2026-06-14T00:00:00Z' }] },
+    ]);
+    vi.mocked(transitionLaputaProposal).mockResolvedValue({
+      ...baseProposal,
+      state: 'deferred',
+    });
+    const wrapper = mountView();
+    await flushPromises();
+
+    const deferButton = wrapper.findAll('button').find((button) =>
+      button.text().includes('evolution.actions.defer'),
+    );
+    await deferButton?.trigger('click');
+    await flushPromises();
+
+    expect(transitionLaputaProposal).toHaveBeenCalledWith('proposal-1', { state: 'deferred' });
+    expect(showAppToast).toHaveBeenCalledWith('evolution.actions.deferSuccess', 'success');
+  });
+
   it('keeps detail visible when apply fails', async () => {
     vi.mocked(listLaputaProposals).mockResolvedValue([
       { ...baseProposal, evidence_refs: [{ id: 'e1', source: 'report', uri: 'file://x', created_at: '2026-06-14T00:00:00Z' }], risk_level: 'medium' },
@@ -299,6 +320,33 @@ describe('EvolutionView governance detail', () => {
     expect(transitionLaputaProposal).not.toHaveBeenCalled();
   });
 
+  it('confirms batch reject and reports partial backend failures', async () => {
+    vi.mocked(listLaputaProposals).mockResolvedValue([
+      { ...baseProposal, id: 'proposal-1', state: 'pending_review', risk_level: 'medium' },
+      { ...baseProposal, id: 'proposal-2', state: 'pending_review', risk_level: 'medium' },
+    ]);
+    vi.mocked(transitionLaputaProposal)
+      .mockResolvedValueOnce({ ...baseProposal, id: 'proposal-1', state: 'rejected' })
+      .mockRejectedValueOnce(new Error('reject failed'));
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="batch-select-visible"]').trigger('click');
+    await wrapper.find('[data-testid="batch-reject"]').trigger('click');
+    await flushPromises();
+
+    expect(appConfirm).toHaveBeenCalledWith(
+      'evolution.confirm.batchReject:{"count":2,"target":"proposal-1 (memory_md), proposal-2 (memory_md)"}',
+      { title: 'evolution.confirm.title' },
+    );
+    expect(transitionLaputaProposal).toHaveBeenCalledTimes(2);
+    expect(showAppToast).toHaveBeenCalledWith(
+      'evolution.actions.batchPartialFailure:{"total":2,"success":1,"failed":1}',
+      'error',
+      3600,
+    );
+  });
+
   it('renders audit changelog records with rollback availability', async () => {
     const wrapper = mountView();
     await flushPromises();
@@ -360,7 +408,7 @@ describe('EvolutionView governance detail', () => {
     await wrapper.find('[data-testid="evolution-tab-runs"]').trigger('click');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('No AutoDream runs are available yet');
+    expect(wrapper.text()).toContain('evolution.runs.emptyDesc');
   });
 
   it('opens a proposal from a Chat deep link and filters by source run', async () => {

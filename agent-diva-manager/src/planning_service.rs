@@ -4,7 +4,7 @@
 //! along with DTO types suitable for JSON serialization.
 
 use agent_diva_core::planning::ids::PlanId;
-use agent_diva_core::planning::model::{Plan, PlanPhase, PlanStatus, TodoPriority, TodoStatus};
+use agent_diva_core::planning::model::{Plan, PlanPhase, PlanStatus, TodoStatus};
 use agent_diva_core::planning::store::{PlanningStore, SqlitePlanningStore};
 use anyhow::Context;
 use chrono::Utc;

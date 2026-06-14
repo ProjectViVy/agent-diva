@@ -300,6 +300,12 @@ impl Manager {
                         ManagerCommand::GetConfig(reply) => {
                             self.handle_get_config(reply);
                         }
+                        ManagerCommand::GetSelfEvolutionConfig(reply) => {
+                            self.handle_get_self_evolution_config(reply);
+                        }
+                        ManagerCommand::UpdateSelfEvolutionConfig(config, reply) => {
+                            self.handle_update_self_evolution_config(config, reply);
+                        }
                         ManagerCommand::GetChannels(reply) => {
                             self.handle_get_channels(reply);
                         }

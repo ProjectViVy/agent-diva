@@ -59,6 +59,7 @@ interface EvolutionCountPayload {
 
 const emit = defineEmits<{
   (event: 'count-change', payload: EvolutionCountPayload): void;
+  (event: 'open-settings', view: 'self-evolution'): void;
 }>();
 
 const { t } = useI18n();
@@ -155,6 +156,9 @@ const rollbackReason = computed(() => {
 
 const policySummaryRows = computed(() => {
   const config = policyConfig.value;
+  const requiredFor = Array.isArray(config?.require_confirmation_for)
+    ? config.require_confirmation_for
+    : [];
   return [
     {
       label: t('evolution.policy.enabled'),
@@ -175,8 +179,8 @@ const policySummaryRows = computed(() => {
     {
       label: t('evolution.policy.reviewRequiredFor'),
       value:
-        config && config.require_confirmation_for.length > 0
-          ? config.require_confirmation_for.join(', ')
+        requiredFor.length > 0
+          ? requiredFor.join(', ')
           : t('evolution.policy.reviewAllDurable'),
     },
   ];
@@ -239,7 +243,11 @@ function loadMarkerList(key: string) {
 
 function persistMarkerList(key: string, ids: string[]) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(key, JSON.stringify(Array.from(new Set(ids))));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(Array.from(new Set(ids))));
+  } catch (error) {
+    showAppToast(normalizeError(error), 'error', 3000);
+  }
 }
 
 function addMarkers(current: string[], ids: string[]) {
@@ -332,11 +340,12 @@ async function loadRuns() {
   runsError.value = null;
   try {
     runs.value = await listAutoDreamRunRecords();
+    runsLoaded.value = true;
   } catch (error) {
     runs.value = [];
     runsError.value = normalizeError(error);
+    runsLoaded.value = false;
   } finally {
-    runsLoaded.value = true;
     runsLoading.value = false;
   }
 }
@@ -346,11 +355,12 @@ async function loadPolicy() {
   policyError.value = null;
   try {
     policyConfig.value = await getSelfEvolutionConfig();
+    policyLoaded.value = true;
   } catch (error) {
     policyConfig.value = null;
     policyError.value = normalizeError(error);
+    policyLoaded.value = false;
   } finally {
-    policyLoaded.value = true;
     policyLoading.value = false;
   }
 }
@@ -365,10 +375,13 @@ async function ensureActiveTabLoaded(tab: EvolutionTab) {
   }
 }
 
+let detailRequestId = 0;
+
 async function loadDetail(id: string) {
   const proposal = proposals.value.find((item) => item.id === id);
   if (!proposal) return;
 
+  const requestId = ++detailRequestId;
   detailLoading.value = true;
   detailError.value = null;
   actionError.value = null;
@@ -379,14 +392,18 @@ async function loadDetail(id: string) {
       getLaputaSection(proposal.target_section),
       listLaputaChangelog(1, 5, proposal.id),
     ]);
+    if (requestId !== detailRequestId) return;
     selectedSection.value = section;
     selectedChangelog.value = changelogPage.items[0] ?? null;
   } catch (error) {
+    if (requestId !== detailRequestId) return;
     detailError.value = normalizeError(error);
     selectedSection.value = null;
     selectedChangelog.value = null;
   } finally {
-    detailLoading.value = false;
+    if (requestId === detailRequestId) {
+      detailLoading.value = false;
+    }
   }
 }
 
@@ -411,7 +428,10 @@ async function refresh() {
       ? proposalList.filter((proposal) => proposal.source_run_id === activeSourceRunId.value)
       : proposalList;
 
-    if (props.initialProposalId && proposalList.some((proposal) => proposal.id === props.initialProposalId)) {
+    if (
+      props.initialProposalId &&
+      candidateList.some((proposal) => proposal.id === props.initialProposalId)
+    ) {
       selectedProposalId.value = props.initialProposalId;
     } else if (!selectedProposalId.value && candidateList.length > 0) {
       selectedProposalId.value = candidateList[0].id;
@@ -464,22 +484,56 @@ async function withAction(name: string, run: () => Promise<void>) {
   }
 }
 
-async function transitionProposalIds(ids: string[], state: 'approved' | 'rejected') {
+async function transitionProposalIds(ids: string[], state: 'approved' | 'rejected' | 'deferred') {
   if (ids.length === 0) return;
+  if (state === 'rejected') {
+    const targets = ids
+      .map((id) => proposals.value.find((proposal) => proposal.id === id))
+      .filter((proposal): proposal is EvolutionProposal => Boolean(proposal))
+      .map((proposal) => `${proposal.id} (${proposal.target_section})`)
+      .join(', ');
+    const confirmed = await appConfirm(t('evolution.confirm.batchReject', { count: ids.length, target: targets }), {
+      title: t('evolution.confirm.title'),
+    });
+    if (!confirmed) return;
+  }
   await withAction(`batch-${state}`, async () => {
-    for (const id of ids) {
-      const proposal = proposals.value.find((item) => item.id === id);
-      if (!proposal) continue;
-      const next = await transitionLaputaProposal(id, { state });
-      updateLocalProposal(next);
-    }
-    showAppToast(
-      t(state === 'approved' ? 'evolution.actions.approveOnlySuccess' : 'evolution.actions.rejectSuccess'),
-      'success',
+    const results = await Promise.allSettled(
+      ids.map(async (id) => {
+        const proposal = proposals.value.find((item) => item.id === id);
+        if (!proposal) return null;
+        return transitionLaputaProposal(id, { state });
+      }),
     );
+    const updated = results
+      .filter((result): result is PromiseFulfilledResult<EvolutionProposal | null> => result.status === 'fulfilled')
+      .map((result) => result.value)
+      .filter((proposal): proposal is EvolutionProposal => Boolean(proposal));
+    updated.forEach(updateLocalProposal);
+    const failed = results.length - updated.length;
+    if (failed > 0) {
+      actionError.value = t('evolution.actions.batchPartialFailure', {
+        total: results.length,
+        success: updated.length,
+        failed,
+      });
+      showAppToast(actionError.value, 'error', 3600);
+    } else {
+      showAppToast(
+        t(
+          state === 'approved'
+            ? 'evolution.actions.approveOnlySuccess'
+            : state === 'rejected'
+              ? 'evolution.actions.rejectSuccess'
+              : 'evolution.actions.deferSuccess',
+        ),
+        'success',
+      );
+    }
     if (selectedProposalId.value) {
       await loadDetail(selectedProposalId.value);
     }
+    await refresh();
   });
 }
 
@@ -490,17 +544,7 @@ function markRead(ids: string[]) {
 
 function markUnread(ids: string[]) {
   readProposalIds.value = removeMarkers(readProposalIds.value, ids);
-  deferredProposalIds.value = removeMarkers(deferredProposalIds.value, ids);
   persistMarkerList(READ_MARKERS_KEY, readProposalIds.value);
-  persistMarkerList(DEFERRED_MARKERS_KEY, deferredProposalIds.value);
-}
-
-function deferProposals(ids: string[]) {
-  deferredProposalIds.value = addMarkers(deferredProposalIds.value, ids);
-  readProposalIds.value = addMarkers(readProposalIds.value, ids);
-  persistMarkerList(DEFERRED_MARKERS_KEY, deferredProposalIds.value);
-  persistMarkerList(READ_MARKERS_KEY, readProposalIds.value);
-  showAppToast(t('evolution.actions.deferLocalSuccess'), 'success');
 }
 
 async function handleApproveOnly() {
@@ -609,7 +653,7 @@ async function handleEdit() {
 
 async function handleDefer() {
   if (!selectedProposal.value) return;
-  deferProposals([selectedProposal.value.id]);
+  await transitionProposalIds([selectedProposal.value.id], 'deferred');
   actionError.value = null;
 }
 
@@ -685,6 +729,12 @@ onMounted(async () => {
     </div>
 
     <div v-if="activeTab === 'inbox'" class="evolution-panel">
+      <div v-if="activeSourceRunId" class="evolution-source-filter">
+        <span>{{ t('evolution.inbox.sourceRunFilter', { runId: activeSourceRunId }) }}</span>
+        <button type="button" @click="activeSourceRunId = null; refresh()">
+          {{ t('evolution.inbox.clearSourceRunFilter') }}
+        </button>
+      </div>
       <div class="evolution-inbox-shell evolution-inbox-responsive" data-testid="evolution-inbox-shell">
         <ProposalInbox
           :proposals="visibleProposals"
@@ -699,7 +749,7 @@ onMounted(async () => {
           @approve="transitionProposalIds($event, 'approved')"
           @reject="transitionProposalIds($event, 'rejected')"
           @edit="selectedProposalId = $event; handleEdit()"
-          @defer="deferProposals"
+          @defer="transitionProposalIds($event, 'deferred')"
           @mark-read="markRead"
           @mark-unread="markUnread"
           @retry="refresh"
@@ -756,7 +806,7 @@ onMounted(async () => {
         <div v-else-if="runs.length === 0" class="evolution-empty-state">
           <FileClock :size="24" />
           <strong>{{ t('evolution.runs.emptyTitle') }}</strong>
-          <span>No AutoDream runs are available yet</span>
+          <span>{{ t('evolution.runs.emptyDesc') }}</span>
         </div>
         <div v-else class="evolution-card-grid">
           <article v-for="run in runs" :key="run.id" class="evolution-record-card">
@@ -779,7 +829,7 @@ onMounted(async () => {
               </div>
               <div>
                 <dt>{{ t('evolution.runs.proposalCount') }}</dt>
-                <dd>{{ run.proposal_ids.length }}</dd>
+                <dd>{{ Array.isArray(run.proposal_ids) ? run.proposal_ids.length : 0 }}</dd>
               </div>
               <div>
                 <dt>{{ t('evolution.runs.inputs') }}</dt>
@@ -884,9 +934,9 @@ onMounted(async () => {
             </div>
           </dl>
 
-          <a class="evolution-settings-link" href="#settings/self-evolution">
+          <button class="evolution-settings-link" type="button" @click="emit('open-settings', 'self-evolution')">
             {{ t('evolution.policy.settingsLink') }}
-          </a>
+          </button>
         </div>
       </section>
     </div>
@@ -1020,6 +1070,39 @@ onMounted(async () => {
   min-height: 0;
   flex: 1;
   padding: 18px;
+}
+
+.evolution-source-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  padding: 10px 12px;
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.evolution-source-filter span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.evolution-source-filter button {
+  min-height: 28px;
+  border: 1px solid #93c5fd;
+  border-radius: 7px;
+  background: #ffffff;
+  padding: 0 10px;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .evolution-inbox-shell {
@@ -1282,8 +1365,10 @@ onMounted(async () => {
   justify-content: center;
   border: 1px solid #d1d5db;
   border-radius: 7px;
+  background: #ffffff;
   padding: 8px 11px;
   color: #374151;
+  cursor: pointer;
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;

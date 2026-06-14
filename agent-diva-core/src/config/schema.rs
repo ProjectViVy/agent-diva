@@ -244,6 +244,9 @@ pub struct Config {
     /// Mentle memory tool selection configuration
     #[serde(default)]
     pub mentle: MentleToolConfig,
+    /// Self-evolution and AutoDream governance policy.
+    #[serde(default)]
+    pub self_evolution: SelfEvolutionConfig,
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
@@ -253,6 +256,52 @@ pub struct Config {
     /// Pet (desktop avatar) configuration
     #[serde(default)]
     pub pet: PetConfig,
+}
+
+/// Self-evolution policy configuration used by Evolution and AutoDream UI.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SelfEvolutionConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_autodream_frequency")]
+    pub autodream_frequency: String,
+    #[serde(default = "default_trigger_threshold_sessions")]
+    pub trigger_threshold_sessions: u32,
+    #[serde(default = "default_trigger_threshold_messages")]
+    pub trigger_threshold_messages: u32,
+    #[serde(default = "default_auto_merge_confidence")]
+    pub auto_merge_confidence: f32,
+    #[serde(default)]
+    pub require_confirmation_for: Vec<String>,
+}
+
+fn default_autodream_frequency() -> String {
+    "manual".to_string()
+}
+
+fn default_trigger_threshold_sessions() -> u32 {
+    10
+}
+
+fn default_trigger_threshold_messages() -> u32 {
+    50
+}
+
+fn default_auto_merge_confidence() -> f32 {
+    0.95
+}
+
+impl Default for SelfEvolutionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            autodream_frequency: default_autodream_frequency(),
+            trigger_threshold_sessions: default_trigger_threshold_sessions(),
+            trigger_threshold_messages: default_trigger_threshold_messages(),
+            auto_merge_confidence: default_auto_merge_confidence(),
+            require_confirmation_for: Vec::new(),
+        }
+    }
 }
 
 /// Mentle tool selection configuration.

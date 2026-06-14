@@ -249,7 +249,8 @@ export default {
     inbox: {
       title: '提案收件箱',
       count: '{count} 个待审查提案',
-      sourceRunFilter: '正在查看运行 {id} 生成的提案',
+      sourceRunFilter: '正在查看运行 {runId} 生成的提案',
+      clearSourceRunFilter: '清除筛选',
       emptyTitle: '暂无待审查提案',
       emptyDesc: '当 Diva 生成需要人工确认的记忆、身份、SOP 或策略变更时，它们会出现在这里。',
     },
@@ -303,12 +304,14 @@ export default {
       rejectSuccess: '提案已拒绝。',
       rollbackSuccess: '回滚已执行。',
       editRouted: '已路由到 Laputa 编辑流；在完整编辑 UI 落地前，不会直接改写补丁内容。',
-      deferUnsupported: 'Laputa 当前还没有可持久化的 defer 状态。',
+      deferSuccess: '提案已暂缓。',
+      batchPartialFailure: '{total} 个提案中有 {failed} 个未能更新。',
     },
     confirm: {
       title: '确认治理动作',
       apply: '确认对 {target} 应用持久 authority 变更？',
       reject: '确认拒绝目标为 {target} 的提案？',
+      batchReject: '确认拒绝目标为 {target} 的 {count} 个提案？',
       rollback: '确认回滚目标为 {target} 的持久 authority 变更？',
     },
     runs: {
@@ -317,6 +320,7 @@ export default {
       loading: '正在加载运行记录…',
       unavailableTitle: '运行 API 暂不可用',
       emptyTitle: '暂无 AutoDream 运行',
+      emptyDesc: '后端记录手动或计划 AutoDream 运行后，会在这里显示。',
       startedAt: '开始时间',
       completedAt: '结束时间',
       inProgress: '仍在运行或未记录',

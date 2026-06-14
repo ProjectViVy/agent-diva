@@ -636,6 +636,7 @@ fn ensure_transition_allowed(from: &ProposalState, to: &ProposalState) -> Result
             ProposalState::Approved
                 | ProposalState::Rejected
                 | ProposalState::Edited
+                | ProposalState::Deferred
                 | ProposalState::NeedsAttention
                 | ProposalState::Superseded
         ),
@@ -644,6 +645,7 @@ fn ensure_transition_allowed(from: &ProposalState, to: &ProposalState) -> Result
             ProposalState::Approved
                 | ProposalState::Rejected
                 | ProposalState::Edited
+                | ProposalState::Deferred
                 | ProposalState::NeedsAttention
                 | ProposalState::Superseded
         ),
@@ -655,6 +657,14 @@ fn ensure_transition_allowed(from: &ProposalState, to: &ProposalState) -> Result
             matches!(to, ProposalState::Reverted | ProposalState::Superseded)
         }
         ProposalState::NeedsAttention => matches!(
+            to,
+            ProposalState::PendingReview
+                | ProposalState::Rejected
+                | ProposalState::Edited
+                | ProposalState::Deferred
+                | ProposalState::Superseded
+        ),
+        ProposalState::Deferred => matches!(
             to,
             ProposalState::PendingReview
                 | ProposalState::Rejected

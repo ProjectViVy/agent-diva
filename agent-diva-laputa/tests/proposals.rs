@@ -150,6 +150,36 @@ fn proposals_valid_transitions_follow_architecture_state_machine() {
 }
 
 #[test]
+fn proposals_defer_and_resume_through_durable_state_machine() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+    let repo = ProposalRepository::new(storage);
+
+    repo.create_proposal(proposal("proposal-1", ProposalState::PendingReview))
+        .unwrap();
+
+    let deferred = repo
+        .transition_proposal("proposal-1", ProposalState::Deferred, ts(3))
+        .unwrap();
+    assert_eq!(deferred.state, ProposalState::Deferred);
+
+    let resumed = repo
+        .transition_proposal("proposal-1", ProposalState::PendingReview, ts(4))
+        .unwrap();
+    assert_eq!(resumed.state, ProposalState::PendingReview);
+
+    let deferred_again = repo
+        .transition_proposal("proposal-1", ProposalState::Deferred, ts(5))
+        .unwrap();
+    assert_eq!(deferred_again.state, ProposalState::Deferred);
+
+    let rejected = repo
+        .transition_proposal("proposal-1", ProposalState::Rejected, ts(6))
+        .unwrap();
+    assert_eq!(rejected.state, ProposalState::Rejected);
+}
+
+#[test]
 fn proposals_invalid_transition_returns_typed_error_without_mutating_state() {
     let temp = tempfile::tempdir().unwrap();
     let storage = LaputaStorage::open(temp.path()).unwrap();

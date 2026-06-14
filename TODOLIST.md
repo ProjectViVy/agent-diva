@@ -14,10 +14,10 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Full `agent-diva-gui` build and vitest suite should pass so Evolution stories can be promoted without unrelated waivers.
   - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`, `agent-diva-gui/src/components/DecisionCard.vue`, `agent-diva-gui/src/components/NotebookView.vue`, `agent-diva-gui/src/components/TodoCard.vue`, `docs/logs/2026-06-evolution-runs-audit-policy/v0.0.1-runs-audit-policy-views/verification.md`.
 
-- [ ] Fix pre-existing `agent-diva-manager` AutoDream error match compile blocker.
-  - Context: During Story 5.1 validation on 2026-06-14, `cargo check -p agent-diva-manager` reached unrelated existing code and failed because `agent-diva-manager/src/handlers/autodream.rs` does not handle `AutoDreamError::InputCollection(_)` and `AutoDreamError::ProposalPersistence(_)`.
-  - Expected behavior: Manager crate checks should compile cleanly after the AutoDream error response mapping covers all variants.
-  - Related files/docs: `agent-diva-manager/src/handlers/autodream.rs`, `agent-diva-autodream/src/error.rs`; `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
+- [ ] Fix `agent-diva-manager` skill service unit tests under the current built-in skill fixture set.
+  - Context: During Epic 2/3 review remediation validation on 2026-06-15, `cargo test -p agent-diva-core -p agent-diva-laputa -p agent-diva-manager` passed core/Laputa tests but failed two unrelated manager tests: `skill_service::tests::delete_workspace_skill_and_restore_builtin_view` unwraps a missing `weather` built-in skill, and `skill_service::tests::delete_builtin_skill_is_rejected` no longer receives a "builtin" error message.
+  - Expected behavior: `agent-diva-manager` unit tests should either create the built-in fixture they assert against or assert against a built-in skill that exists in the current test fixture set.
+  - Related files/docs: `agent-diva-manager/src/skill_service.rs`, `docs/logs/2026-06-epic23-review-remediation/v0.0.1-evolution-governance-remediation/verification.md`.
 
 - [ ] Fix pre-existing `agent-diva-laputa` clippy failures blocking `just check`.
   - Context: During Story 3.3 validation on 2026-06-14, `just check` failed outside the AutoDream worker changes. Reported issues include `too_many_arguments` in proposal rollback handling and `manual_inspect` in rollback cleanup error handling.
@@ -60,6 +60,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
 ## Done
+
+- [x] Fix pre-existing `agent-diva-manager` AutoDream error match compile blocker.
+  - Context: During Story 5.1 validation on 2026-06-14, `cargo check -p agent-diva-manager` reached unrelated existing code and failed because `agent-diva-manager/src/handlers/autodream.rs` did not handle `AutoDreamError::InputCollection(_)` and `AutoDreamError::ProposalPersistence(_)`.
+  - Completed: Epic 2/3 review remediation mapped both variants to the existing AutoDream internal error response class, and `cargo check -p agent-diva-core -p agent-diva-laputa -p agent-diva-manager -p agent-diva-migration` passed on 2026-06-15.
+  - Related files/docs: `agent-diva-manager/src/handlers/autodream.rs`, `agent-diva-autodream/src/error.rs`; `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
 
 - [x] Complete Story 2.2 inbox behavior that Story 2.3 still depends on.
   - Context: During Story 2.3 implementation on 2026-06-14, the proposal detail pane and governance actions were added on top of the existing Evolution inbox shell, but Story 2.2 requirements remained incomplete: row metadata density, filters, keyboard navigation, and batch actions.

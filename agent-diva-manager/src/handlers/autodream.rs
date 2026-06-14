@@ -68,7 +68,10 @@ fn autodream_error_response(error: AutoDreamError) -> (StatusCode, Json<serde_js
         AutoDreamError::ActiveRunExists { .. } => (StatusCode::CONFLICT, "active_run_exists"),
         AutoDreamError::RunNotCancellable { .. } => (StatusCode::CONFLICT, "run_not_cancellable"),
         AutoDreamError::InvalidState(_) => (StatusCode::BAD_REQUEST, "invalid_state"),
-        AutoDreamError::Io { .. } | AutoDreamError::Json(_) => {
+        AutoDreamError::Io { .. }
+        | AutoDreamError::Json(_)
+        | AutoDreamError::InputCollection(_)
+        | AutoDreamError::ProposalPersistence(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, "autodream_storage_error")
         }
     };

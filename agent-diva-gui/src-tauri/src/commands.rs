@@ -208,6 +208,16 @@ pub struct AutoDreamTriggerPayload {
     pub trigger: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SelfEvolutionConfigPayload {
+    pub enabled: bool,
+    pub autodream_frequency: String,
+    pub trigger_threshold_sessions: u32,
+    pub trigger_threshold_messages: u32,
+    pub auto_merge_confidence: f32,
+    pub require_confirmation_for: Vec<String>,
+}
+
 // Manager API bridge commands. These proxy companion/runtime HTTP APIs without
 // depending on manager internals from the GUI host process.
 #[tauri::command]
@@ -528,6 +538,23 @@ pub async fn list_autodream_run_records(
 ) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!("{}/autodream/runs", state.api_base_url());
     get_laputa_payload(&state, &url, "runs").await
+}
+
+#[tauri::command]
+pub async fn get_self_evolution_config(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/config/self-evolution", state.api_base_url());
+    get_laputa_payload(&state, &url, "config").await
+}
+
+#[tauri::command]
+pub async fn save_self_evolution_config(
+    config: SelfEvolutionConfigPayload,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/config/self-evolution", state.api_base_url());
+    post_laputa_payload(&state, &url, &config, "config").await
 }
 
 fn non_empty_query_value(value: Option<String>) -> Option<String> {

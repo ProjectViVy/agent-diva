@@ -5,7 +5,7 @@ use agent_diva_agent::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::AgentEvent;
 use agent_diva_core::config::schema::{
     ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, MatrixConfig,
-    QQConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
+    QQConfig, SelfEvolutionConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
 };
 use agent_diva_providers::{LiteLLMClient, ProviderAccess, ProviderCatalogService};
 use tokio::sync::oneshot;
@@ -275,6 +275,42 @@ impl Manager {
             model: self.current_model.clone(),
             has_api_key: self.current_api_key.is_some(),
         });
+    }
+
+    pub(super) fn handle_get_self_evolution_config(
+        &self,
+        reply: oneshot::Sender<Result<SelfEvolutionConfig, String>>,
+    ) {
+        debug!("Processing GetSelfEvolutionConfig command");
+        let response = self
+            .loader
+            .load()
+            .map(|config| config.self_evolution)
+            .map_err(|error| {
+                error!("Failed to load self-evolution config: {}", error);
+                error.to_string()
+            });
+        let _ = reply.send(response);
+    }
+
+    pub(super) fn handle_update_self_evolution_config(
+        &self,
+        self_evolution: SelfEvolutionConfig,
+        reply: oneshot::Sender<Result<SelfEvolutionConfig, String>>,
+    ) {
+        info!("Processing UpdateSelfEvolutionConfig request");
+        let response = (|| {
+            let mut config = self.loader.load().map_err(|error| error.to_string())?;
+            config.self_evolution = self_evolution;
+            self.loader
+                .save(&config)
+                .map_err(|error| error.to_string())?;
+            Ok(config.self_evolution)
+        })();
+        if let Err(error) = &response {
+            error!("Failed to save self-evolution config: {}", error);
+        }
+        let _ = reply.send(response);
     }
 
     pub(super) fn handle_get_channels(&self, reply: oneshot::Sender<ChannelsConfig>) {

@@ -59,8 +59,8 @@ const checkedIds = ref<string[]>([]);
 const searchInput = ref<HTMLInputElement | null>(null);
 
 const terminalStates = new Set<ProposalState>(['approved', 'rejected', 'applied', 'reverted', 'superseded']);
-const approveStates = new Set<ProposalState>(['pending_review', 'edited']);
-const rejectStates = new Set<ProposalState>(['pending_review', 'edited', 'needs_attention', 'run_failed']);
+const approveStates = new Set<ProposalState>(['pending_review', 'edited', 'deferred']);
+const rejectStates = new Set<ProposalState>(['pending_review', 'edited', 'deferred', 'needs_attention', 'run_failed']);
 
 const readableSource = (proposal: EvolutionProposal) => proposal.source_run_id || proposal.created_by;
 const isRead = (id: string) => props.readIds.includes(id);
@@ -92,6 +92,7 @@ const filteredProposals = computed(() => {
       readableSource(proposal),
       proposal.proposed_patch,
     ]
+      .map((value) => String(value ?? ''))
       .join(' ')
       .toLowerCase();
     return haystack.includes(query);
@@ -194,6 +195,7 @@ function moveSelection(delta: number) {
 }
 
 function runBatch(action: BatchAction) {
+  if (props.busyAction !== null) return;
   const ids = selectedActionIds.value;
   if (ids.length === 0) return;
   if (action === 'approve' && canApproveSelection.value) emit('approve', ids);
@@ -341,7 +343,12 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="proposal-inbox__batch" aria-label="Batch proposal actions">
-      <button type="button" :disabled="filteredProposals.length === 0" @click="toggleAllFiltered">
+      <button
+        type="button"
+        data-testid="batch-select-visible"
+        :disabled="filteredProposals.length === 0"
+        @click="toggleAllFiltered"
+      >
         <Filter :size="14" />
         <span>{{ allFilteredChecked ? t('evolution.inbox.clearSelection') : t('evolution.inbox.selectVisible') }}</span>
       </button>
@@ -440,7 +447,7 @@ onBeforeUnmount(() => {
           <span class="proposal-inbox__row-meta">
             <span>{{ proposal.target_section }}</span>
             <span>{{ readableSource(proposal) }}</span>
-            <span>{{ t('evolution.inbox.evidenceCount', { count: proposal.evidence_refs.length }) }}</span>
+            <span>{{ t('evolution.inbox.evidenceCount', { count: Array.isArray(proposal.evidence_refs) ? proposal.evidence_refs.length : 0 }) }}</span>
             <span>{{ ageLabel(proposal.created_at) }}</span>
           </span>
           <span v-if="blockedReason(proposal)" class="proposal-inbox__blocked">

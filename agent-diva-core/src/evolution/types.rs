@@ -184,6 +184,7 @@ pub enum ProposalState {
     Approved,
     Rejected,
     Edited,
+    Deferred,
     Applied,
     Reverted,
     Superseded,
@@ -438,5 +439,14 @@ mod tests {
             error,
             EvolutionError::UnknownProposalType("unsupported_change".to_string())
         );
+    }
+
+    #[test]
+    fn test_deferred_proposal_state_uses_stable_snake_case_variant() {
+        let json = serde_json::to_string(&ProposalState::Deferred).unwrap();
+        assert_eq!(json, "\"deferred\"");
+
+        let decoded: ProposalState = serde_json::from_str("\"deferred\"").unwrap();
+        assert_eq!(decoded, ProposalState::Deferred);
     }
 }

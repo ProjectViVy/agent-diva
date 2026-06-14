@@ -681,6 +681,7 @@ impl ConfigMigrator {
                 budget: Default::default(),
             },
             mentle: MentleToolConfig::default(),
+            self_evolution: SelfEvolutionConfig::default(),
             logging: LoggingConfig::default(),
             sandbox: SandboxConfig::default(),
             pet: PetConfig::default(),

@@ -73,7 +73,11 @@ type SettingsSubview =
   | 'network'
   | 'language'
   | 'pet'
-  | 'about';
+  | 'about'
+  | 'theme'
+  | 'self-evolution'
+  | 'sandbox'
+  | 'compaction';
 
 interface SavedModel {
   id: string;
@@ -411,6 +415,11 @@ const openEvolutionDeepLink = (payload: ChatGovernanceDeepLink) => {
   navigateTo('evolution');
 };
 
+const openEvolutionDefault = () => {
+  evolutionDeepLink.value = null;
+  navigateTo('evolution');
+};
+
 const normalizeEvolutionCount = (count: number) => {
   if (count > 99) {
     return '99+';
@@ -623,7 +632,7 @@ defineExpose({
           class="nav-item"
           :class="{ active: isSectionActive('evolution') }"
           :title="evolutionBadge.tooltip"
-          @click="navigateTo('evolution')"
+          @click="openEvolutionDefault"
         >
           <GitBranch />
           <span v-if="!sidebarCollapsed">{{ t('nav.evolution') }}</span>
@@ -861,6 +870,7 @@ defineExpose({
             :initial-proposal-id="evolutionDeepLink?.proposalId"
             :initial-source-run-id="evolutionDeepLink?.sourceRunId"
             @count-change="updateEvolutionBadge"
+            @open-settings="navigateTo('settings', $event)"
           />
         </div>
         <!-- Console视图 -->

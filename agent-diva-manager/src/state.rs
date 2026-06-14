@@ -2,8 +2,8 @@ use agent_diva_agent::AgentEvent;
 use agent_diva_autodream::AutoDreamService;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
-    ChannelsConfig, MCPServerConfig, MentleToolConfig, WebFetchConfig, WebSearchConfig,
-    WebToolsConfig,
+    ChannelsConfig, MCPServerConfig, MentleToolConfig, SelfEvolutionConfig, WebFetchConfig,
+    WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_laputa::LaputaService;
@@ -75,6 +75,11 @@ pub enum ManagerCommand {
     UpdateConfig(ConfigUpdate),
     UpdateChannel(ChannelUpdate),
     GetConfig(oneshot::Sender<ConfigResponse>),
+    GetSelfEvolutionConfig(oneshot::Sender<Result<SelfEvolutionConfig, String>>),
+    UpdateSelfEvolutionConfig(
+        SelfEvolutionConfig,
+        oneshot::Sender<Result<SelfEvolutionConfig, String>>,
+    ),
     GetChannels(oneshot::Sender<ChannelsConfig>),
     GetTools(oneshot::Sender<ToolsConfigResponse>),
     UpdateTools(ToolsConfigUpdate),

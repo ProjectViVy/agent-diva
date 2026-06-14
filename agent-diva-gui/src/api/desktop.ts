@@ -226,6 +226,7 @@ export type ProposalState =
   | 'approved'
   | 'rejected'
   | 'edited'
+  | 'deferred'
   | 'applied'
   | 'reverted'
   | 'superseded'
@@ -463,7 +464,7 @@ export const getSelfEvolutionConfig = () =>
   invoke<SelfEvolutionConfig>("get_self_evolution_config");
 
 export const saveSelfEvolutionConfig = (config: SelfEvolutionConfig) =>
-  invoke<void>("save_self_evolution_config", { config });
+  invoke<SelfEvolutionConfig>("save_self_evolution_config", { config });
 
 // ============================================================
 // Card DTO Interfaces (Story 1.1)
