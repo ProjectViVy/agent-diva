@@ -8,6 +8,7 @@ pub mod error;
 pub mod layout;
 pub mod lock;
 pub mod proposals;
+pub mod service;
 
 pub use atomic::{atomic_write, atomic_write_json};
 pub use error::{LaputaError, Result};
@@ -16,4 +17,8 @@ pub use lock::{LaputaLock, LockOptions};
 pub use proposals::{
     ApplyFailurePoint, ApplyOptions, ApplyOutcome, ProposalEdit, ProposalFilter,
     ProposalRepository, ProposalSummary,
+};
+pub use service::{
+    ChangelogFilter, ChangelogPage, LaputaEvent, LaputaEventKind, LaputaSection, LaputaService,
+    LaputaSnapshot, RollbackChangelogRequest, RollbackOutcome, SectionStatus,
 };

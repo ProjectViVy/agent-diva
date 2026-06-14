@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::proposals::ApplyFailurePoint;
-use agent_diva_core::evolution::{LaputaSectionName, ProposalState, ProposalType};
+use agent_diva_core::evolution::{ChangelogAction, LaputaSectionName, ProposalState, ProposalType};
 use thiserror::Error;
 
 /// Result type used by Laputa storage primitives.
@@ -29,6 +29,12 @@ pub enum LaputaError {
     #[error("proposal already exists: {id}")]
     ProposalAlreadyExists { id: String },
 
+    #[error("changelog record not found: {id}")]
+    ChangelogNotFound { id: String },
+
+    #[error("unknown Laputa section: {name}")]
+    UnknownSection { name: String },
+
     #[error("invalid proposal {id}: {reason}")]
     InvalidProposal { id: String, reason: String },
 
@@ -52,6 +58,15 @@ pub enum LaputaError {
 
     #[error("unresolved conflict for proposal {id}: {reason}")]
     UnresolvedConflict { id: String, reason: String },
+
+    #[error("rollback expired for changelog {id}")]
+    RollbackExpired { id: String },
+
+    #[error("changelog {id} cannot be rolled back because action {action:?} is not eligible")]
+    RollbackIneligible { id: String, action: ChangelogAction },
+
+    #[error("rollback conflict for changelog {id}: {reason}")]
+    RollbackConflict { id: String, reason: String },
 
     #[error("rollback failed for proposal {id}: {source}")]
     RollbackFailed {

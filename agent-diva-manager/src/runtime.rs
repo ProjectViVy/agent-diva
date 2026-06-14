@@ -57,6 +57,7 @@ struct GatewayBootstrap {
     bus: MessageBus,
     cron_service: Arc<CronService>,
     dynamic_provider: Arc<DynamicProvider>,
+    workspace: PathBuf,
     runtime_control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
     provider_api_key: Option<String>,
     provider_api_base: Option<String>,

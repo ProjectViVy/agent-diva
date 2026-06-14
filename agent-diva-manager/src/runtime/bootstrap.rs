@@ -41,6 +41,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         bus,
         cron_service,
         dynamic_provider,
+        workspace,
         runtime_control_tx,
         provider_api_key,
         provider_api_base,

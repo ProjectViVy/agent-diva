@@ -213,6 +213,8 @@ impl ProposalRepository {
             diff: proposal.proposed_patch.clone(),
             proposal_id: Some(proposal.id.clone()),
             audit_event_id: Some(audit_event_id.clone()),
+            reverted: false,
+            stale: false,
             created_at: applied_at,
             applied_by: actor.clone(),
         };

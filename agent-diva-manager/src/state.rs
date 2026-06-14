@@ -5,9 +5,11 @@ use agent_diva_core::config::schema::{
     WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
+use agent_diva_laputa::LaputaService;
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::mcp_service::{McpServerDto, McpServerUpsert};
@@ -18,6 +20,25 @@ use crate::skill_service::SkillDto;
 pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
     pub bus: MessageBus,
+    pub workspace_root: PathBuf,
+    pub laputa: LaputaService,
+}
+
+impl AppState {
+    pub fn new(
+        api_tx: mpsc::Sender<ManagerCommand>,
+        bus: MessageBus,
+        workspace_root: impl Into<PathBuf>,
+    ) -> Result<Self, agent_diva_laputa::LaputaError> {
+        let workspace_root = workspace_root.into();
+        let laputa = LaputaService::open(workspace_root.clone())?;
+        Ok(Self {
+            api_tx,
+            bus,
+            workspace_root,
+            laputa,
+        })
+    }
 }
 
 pub enum ProviderCommand {

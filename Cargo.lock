@@ -242,6 +242,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "agent-diva-laputa"
+version = "0.5.0"
+dependencies = [
+ "agent-diva-core",
+ "chrono",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "agent-diva-manager"
 version = "0.5.0"
 dependencies = [
@@ -249,6 +262,7 @@ dependencies = [
  "agent-diva-channels",
  "agent-diva-core",
  "agent-diva-files",
+ "agent-diva-laputa",
  "agent-diva-providers",
  "agent-diva-tools",
  "anyhow",

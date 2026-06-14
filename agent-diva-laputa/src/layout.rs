@@ -68,6 +68,10 @@ impl LaputaPaths {
         self.laputa_dir.join("legacy")
     }
 
+    pub fn events_jsonl(&self) -> PathBuf {
+        self.laputa_dir.join("events.jsonl")
+    }
+
     pub fn lock_file(&self, name: &str) -> PathBuf {
         self.locks_dir().join(format!("{name}.lock"))
     }

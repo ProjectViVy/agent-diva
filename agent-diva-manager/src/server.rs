@@ -9,18 +9,23 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
-    add_provider_model_handler, chat_handler, create_cron_job_handler, create_mcp_handler,
+    add_provider_model_handler, apply_laputa_proposal_handler, chat_handler,
+    create_cron_job_handler, create_laputa_proposal_handler, create_mcp_handler,
     create_provider_handler, delete_cron_job_handler, delete_mcp_handler, delete_provider_handler,
-    delete_provider_model_handler, delete_session_handler, delete_skill_handler, events_handler,
-    get_channels_handler, get_config_handler, get_cron_job_handler, get_mcps_handler,
+    delete_provider_model_handler, delete_session_handler, delete_skill_handler,
+    edit_laputa_proposal_handler, events_handler, get_channels_handler, get_config_handler,
+    get_cron_job_handler, get_laputa_changelog_handler, get_laputa_proposal_handler,
+    get_laputa_section_handler, get_laputa_snapshot_handler, get_mcps_handler,
     get_provider_handler, get_provider_models_handler, get_providers_handler,
     get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
-    heartbeat_handler, list_cron_jobs_handler, list_mentle_tools_handler,
+    heartbeat_handler, list_cron_jobs_handler, list_laputa_changelog_handler,
+    list_laputa_proposals_handler, list_mentle_tools_handler, poll_laputa_events_handler,
     refresh_mcp_status_handler, reset_session_handler, resolve_provider_handler,
-    run_cron_job_handler, set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
-    stop_cron_job_handler, update_channel_handler, update_config_handler, update_cron_job_handler,
-    update_mcp_handler, update_provider_handler, update_tools_handler, upload_file_handler,
-    upload_skill_handler,
+    rollback_laputa_changelog_handler, run_cron_job_handler, set_cron_job_enabled_handler,
+    set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler,
+    stream_laputa_events_handler, transition_laputa_proposal_handler, update_channel_handler,
+    update_config_handler, update_cron_job_handler, update_mcp_handler, update_provider_handler,
+    update_tools_handler, upload_file_handler, upload_skill_handler,
 };
 use crate::state::AppState;
 
@@ -78,10 +83,50 @@ pub fn build_router(state: AppState) -> Router {
         .merge(runtime_routes())
         .merge(provider_routes())
         .merge(planning_routes())
+        .merge(laputa_routes())
         .merge(misc_routes())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+fn laputa_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/laputa/proposals",
+            get(list_laputa_proposals_handler).post(create_laputa_proposal_handler),
+        )
+        .route(
+            "/api/laputa/proposals/:id",
+            get(get_laputa_proposal_handler).put(edit_laputa_proposal_handler),
+        )
+        .route(
+            "/api/laputa/proposals/:id/transition",
+            post(transition_laputa_proposal_handler),
+        )
+        .route(
+            "/api/laputa/proposals/:id/apply",
+            post(apply_laputa_proposal_handler),
+        )
+        .route("/api/laputa/snapshot", get(get_laputa_snapshot_handler))
+        .route("/api/laputa/section/:name", get(get_laputa_section_handler))
+        .route("/api/laputa/changelog", get(list_laputa_changelog_handler))
+        .route(
+            "/api/laputa/changelog/:id",
+            get(get_laputa_changelog_handler),
+        )
+        .route(
+            "/api/laputa/changelog/:id/rollback",
+            post(rollback_laputa_changelog_handler),
+        )
+        .route(
+            "/api/laputa/events/:kind",
+            get(stream_laputa_events_handler),
+        )
+        .route(
+            "/api/laputa/events/:kind/poll",
+            get(poll_laputa_events_handler),
+        )
 }
 
 fn runtime_routes() -> Router<AppState> {
@@ -213,10 +258,9 @@ mod tests {
                 }
             }
         });
-        let state = AppState {
-            api_tx,
-            bus: agent_diva_core::bus::MessageBus::new(),
-        };
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
 
         let app = build_router(state.clone());
 
@@ -242,5 +286,27 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(skills_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn build_router_exposes_laputa_routes() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+
+        let app = build_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/laputa/snapshot")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

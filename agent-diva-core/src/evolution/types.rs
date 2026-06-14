@@ -11,6 +11,10 @@ pub enum EvolutionError {
     /// The proposal type string is not part of the v1 governance contract.
     #[error("unknown proposal type: {0}")]
     UnknownProposalType(String),
+
+    /// The Laputa section string is not part of the v1 governance contract.
+    #[error("unknown Laputa section: {0}")]
+    UnknownLaputaSection(String),
 }
 
 /// Evidence origin for a governance proposal.
@@ -63,6 +67,78 @@ impl ProposalType {
             Self::CommitmentSet => LaputaSectionName::Commitment,
             Self::Deprecation => LaputaSectionName::Changelog,
         }
+    }
+}
+
+impl LaputaSectionName {
+    /// Return all v1 Laputa sections in canonical order.
+    pub const fn all_v1() -> [Self; 14] {
+        [
+            Self::Identity,
+            Self::Relationship,
+            Self::Commitment,
+            Self::Preferences,
+            Self::MemoryMd,
+            Self::HistoryMd,
+            Self::Daily,
+            Self::Weekly,
+            Self::Monthly,
+            Self::JournalReflective,
+            Self::ProposalInbox,
+            Self::Changelog,
+            Self::ReportIndexes,
+            Self::AaakSummaries,
+        ]
+    }
+
+    /// Stable snake_case section name used by file paths and APIs.
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Identity => "identity",
+            Self::Relationship => "relationship",
+            Self::Commitment => "commitment",
+            Self::Preferences => "preferences",
+            Self::MemoryMd => "memory_md",
+            Self::HistoryMd => "history_md",
+            Self::Daily => "daily",
+            Self::Weekly => "weekly",
+            Self::Monthly => "monthly",
+            Self::JournalReflective => "journal_reflective",
+            Self::ProposalInbox => "proposal_inbox",
+            Self::Changelog => "changelog",
+            Self::ReportIndexes => "report_indexes",
+            Self::AaakSummaries => "aaak_summaries",
+        }
+    }
+}
+
+impl FromStr for LaputaSectionName {
+    type Err = EvolutionError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "identity" => Ok(Self::Identity),
+            "relationship" => Ok(Self::Relationship),
+            "commitment" => Ok(Self::Commitment),
+            "preferences" => Ok(Self::Preferences),
+            "memory_md" => Ok(Self::MemoryMd),
+            "history_md" => Ok(Self::HistoryMd),
+            "daily" => Ok(Self::Daily),
+            "weekly" => Ok(Self::Weekly),
+            "monthly" => Ok(Self::Monthly),
+            "journal_reflective" => Ok(Self::JournalReflective),
+            "proposal_inbox" => Ok(Self::ProposalInbox),
+            "changelog" => Ok(Self::Changelog),
+            "report_indexes" => Ok(Self::ReportIndexes),
+            "aaak_summaries" => Ok(Self::AaakSummaries),
+            other => Err(EvolutionError::UnknownLaputaSection(other.to_string())),
+        }
+    }
+}
+
+impl fmt::Display for LaputaSectionName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -181,6 +257,10 @@ pub struct ChangelogRecord {
     pub diff: String,
     pub proposal_id: Option<String>,
     pub audit_event_id: Option<String>,
+    #[serde(default)]
+    pub reverted: bool,
+    #[serde(default)]
+    pub stale: bool,
     pub created_at: DateTime<Utc>,
     pub applied_by: String,
 }
