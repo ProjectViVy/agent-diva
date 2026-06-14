@@ -10,6 +10,7 @@ description = "File-first authority storage boundary for Agent Diva Laputa"
 
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core" }
+async-trait = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

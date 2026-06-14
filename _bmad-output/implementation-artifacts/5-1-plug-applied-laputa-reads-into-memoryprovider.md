@@ -4,7 +4,7 @@ baseline_commit: 8a1114d
 
 # Story 5.1: Plug Applied Laputa Reads into MemoryProvider
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -23,13 +23,13 @@ so that prompts use reviewed state without depending on Laputa internals.
 
 ## Tasks / Subtasks
 
-- [ ] Add a read-only Laputa-backed `MemoryProvider` adapter, keeping storage-specific types outside runtime prompt assembly. (AC: 1, 5)
-- [ ] Wire `ContextBuilder` and `AgentLoop` construction to prefer the Laputa adapter when available. (AC: 1, 3)
-- [ ] Render applied authority sections through explicit prompt blocks that distinguish authority content from untrusted evidence. (AC: 1, 2)
-- [ ] Remove default authority reads from legacy `SOUL.md`, `IDENTITY.md`, `USER.md`, `memory/MEMORY.md`, and `memory/HISTORY.md` in runtime prompt paths. (AC: 3)
-- [ ] Add a compatibility/migration read path for legacy files that marks legacy provenance and remains excluded from default authority prompt context unless migrated/applied. (AC: 4)
-- [ ] Ensure Laputa read errors produce degraded prompts and diagnostics without writes, proposal creation, or fallback authority mutation. (AC: 5)
-- [ ] Add tests for applied snapshot rendering, unapplied proposal exclusion, legacy-file non-authority behavior, and read-failure degradation. (AC: 1-6)
+- [x] Add a read-only Laputa-backed `MemoryProvider` adapter, keeping storage-specific types outside runtime prompt assembly. (AC: 1, 5)
+- [x] Wire `ContextBuilder` and `AgentLoop` construction to prefer the Laputa adapter when available. (AC: 1, 3)
+- [x] Render applied authority sections through explicit prompt blocks that distinguish authority content from untrusted evidence. (AC: 1, 2)
+- [x] Remove default authority reads from legacy `SOUL.md`, `IDENTITY.md`, `USER.md`, `memory/MEMORY.md`, and `memory/HISTORY.md` in runtime prompt paths. (AC: 3)
+- [x] Add a compatibility/migration read path for legacy files that marks legacy provenance and remains excluded from default authority prompt context unless migrated/applied. (AC: 4)
+- [x] Ensure Laputa read errors produce degraded prompts and diagnostics without writes, proposal creation, or fallback authority mutation. (AC: 5)
+- [x] Add tests for applied snapshot rendering, unapplied proposal exclusion, legacy-file non-authority behavior, and read-failure degradation. (AC: 1-6)
 
 ## Dev Notes
 
@@ -85,21 +85,43 @@ so that prompts use reviewed state without depending on Laputa internals.
 
 ### Agent Model Used
 
-TBD by dev agent.
+Codex GPT-5.
 
 ### Debug Log References
 
 - 2026-06-14: Story context prepared from Epic 5, EVO-DIVA architecture sections 5.7 and 12 Phase 5, Governance PRD FR-2xx, Laputa PRD read boundaries, and existing `ContextBuilder`/`AgentLoop` prompt wiring.
+- 2026-06-14: Started implementation for story 5.1; preserving existing `baseline_commit: 8a1114d` per workflow rule.
+- 2026-06-15: Implemented read-only `LaputaMemoryProvider`, wired default agent/manager runtime selection, removed legacy authority prompt reads, and validated targeted agent/laputa tests.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added `agent_diva_laputa::LaputaMemoryProvider`, a read-only `MemoryProvider` adapter that renders applied Laputa authority sections and degrades safely on empty/read-failure states.
+- Wired `ContextBuilder`, `AgentLoop`, `with_toolset`, and manager runtime construction to prefer the Laputa adapter when `.laputa` exists, with fallback to `MemoryManager`.
+- Removed default prompt authority reads from legacy `SOUL.md`, `IDENTITY.md`, `USER.md`, `memory/MEMORY.md`, and `memory/HISTORY.md`; legacy files remain migration/compatibility inputs through Laputa migration.
+- Updated subagent prompt assembly to use applied Laputa authority context instead of inherited legacy identity files.
+- Added/updated tests for applied section rendering, pending proposal exclusion, legacy non-authority behavior, and read-failure degradation.
+- Validation note: `cargo check -p agent-diva-manager` remains blocked by a pre-existing unrelated AutoDream error-match exhaustiveness issue captured in `TODOLIST.md`.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `Cargo.lock`
+- `TODOLIST.md`
+- `agent-diva-agent/Cargo.toml`
+- `agent-diva-agent/src/agent_loop.rs`
+- `agent-diva-agent/src/context.rs`
+- `agent-diva-agent/src/subagent.rs`
+- `agent-diva-laputa/Cargo.toml`
+- `agent-diva-laputa/src/lib.rs`
+- `agent-diva-laputa/src/memory_provider.rs`
+- `agent-diva-manager/src/runtime.rs`
+- `docs/logs/2026-06-laputa-memory-provider/v0.0.1-applied-laputa-memory-provider/acceptance.md`
+- `docs/logs/2026-06-laputa-memory-provider/v0.0.1-applied-laputa-memory-provider/release.md`
+- `docs/logs/2026-06-laputa-memory-provider/v0.0.1-applied-laputa-memory-provider/summary.md`
+- `docs/logs/2026-06-laputa-memory-provider/v0.0.1-applied-laputa-memory-provider/verification.md`
 
 ### Change Log
 
 - 2026-06-14: Created ready-for-dev story for applied Laputa prompt consumption through `MemoryProvider`.
+- 2026-06-15: Implemented applied Laputa `MemoryProvider` runtime consumption and moved story to review.

@@ -4,6 +4,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Fix pre-existing `agent-diva-manager` AutoDream error match compile blocker.
+  - Context: During Story 5.1 validation on 2026-06-14, `cargo check -p agent-diva-manager` reached unrelated existing code and failed because `agent-diva-manager/src/handlers/autodream.rs` does not handle `AutoDreamError::InputCollection(_)` and `AutoDreamError::ProposalPersistence(_)`.
+  - Expected behavior: Manager crate checks should compile cleanly after the AutoDream error response mapping covers all variants.
+  - Related files/docs: `agent-diva-manager/src/handlers/autodream.rs`, `agent-diva-autodream/src/error.rs`; `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
+
 - [ ] Fix pre-existing `agent-diva-laputa` clippy failures blocking `just check`.
   - Context: During Story 3.3 validation on 2026-06-14, `just check` failed outside the AutoDream worker changes. Reported issues include `too_many_arguments` in proposal rollback handling and `manual_inspect` in rollback cleanup error handling.
   - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass after unrelated Laputa lint cleanup.

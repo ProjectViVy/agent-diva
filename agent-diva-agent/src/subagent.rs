@@ -13,12 +13,12 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use agent_diva_core::bus::{InboundMessage, MessageBus};
-use agent_diva_core::config::schema::{BatchSpawnRequest, MaskConfig, SubAgentResult, SubAgentStatus, ToolLimits};
-use agent_diva_core::utils::truncate;
+use agent_diva_core::config::schema::{
+    BatchSpawnRequest, MaskConfig, SubAgentResult, SubAgentStatus, ToolLimits,
+};
+use agent_diva_core::memory::{MemoryProvider, SystemPromptRequest};
 use agent_diva_providers::base::{LLMProvider, Message};
 use agent_diva_tooling::ToolRegistry;
-
-use crate::mask::tool_policy::ToolPolicy;
 
 use crate::tool_assembly::ToolAssembly;
 use crate::tool_config::builtin::BuiltInToolsConfig;
@@ -42,6 +42,7 @@ pub struct SubagentManager {
     exec_timeout: u64,
     restrict_to_workspace: bool,
     mcp_servers: Arc<RwLock<HashMap<String, MCPServerConfig>>>,
+    #[allow(dead_code)]
     parent_tool_limits: ToolLimits,
     running_tasks: Arc<tokio::sync::Mutex<HashMap<String, JoinHandle<()>>>>,
 }
@@ -130,10 +131,7 @@ impl SubagentManager {
     ///   1. Explicit spawn request limit
     ///   2. Mask subagent_defaults.max_iterations
     ///   3. Default (30)
-    pub fn resolve_max_iterations(
-        spawn_limit: Option<u32>,
-        mask: Option<&MaskConfig>,
-    ) -> u32 {
+    pub fn resolve_max_iterations(spawn_limit: Option<u32>, mask: Option<&MaskConfig>) -> u32 {
         const DEFAULT_MAX_ITERATIONS: u32 = 30;
 
         // 1. Explicit spawn request
@@ -421,10 +419,7 @@ impl SubagentManager {
                 SubAgentResult {
                     task_id,
                     status: SubAgentStatus::Timeout,
-                    summary: Some(format!(
-                        "Task timed out after {}s",
-                        exec_timeout
-                    )),
+                    summary: Some(format!("Task timed out after {}s", exec_timeout)),
                     elapsed_ms,
                     tool_call_count: 0,
                     token_usage: None,
@@ -640,7 +635,7 @@ impl SubagentManager {
 
     /// Build a focused system prompt for the subagent
     fn build_subagent_prompt(task: &str, workspace: &Path) -> String {
-        let soul_summary = Self::build_identity_summary(workspace);
+        let authority_context = Self::build_applied_authority_context(workspace);
         format!(
             r#"# Subagent
 
@@ -649,7 +644,7 @@ You are a subagent spawned by the main agent to complete a specific task.
 ## Your Task
 {}
 
-## Inherited Identity
+## Applied Authority Context
 {}
 
 ## Rules
@@ -674,7 +669,7 @@ Your workspace is at: {}
 
 When you have completed the task, provide a clear summary of your findings or actions."#,
             task,
-            soul_summary,
+            authority_context,
             workspace.display()
         )
     }
@@ -712,29 +707,23 @@ When you have completed the task, provide a clear summary of your findings or ac
         )
     }
 
-    fn build_identity_summary(workspace: &Path) -> String {
-        let mut sections = Vec::new();
-        for file in ["SOUL.md", "IDENTITY.md", "USER.md"] {
-            let path = workspace.join(file);
-            let Ok(raw) = std::fs::read_to_string(path) else {
-                continue;
-            };
-            let trimmed = raw.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            let content = if trimmed.chars().count() > 800 {
-                truncate(trimmed, 3200)
-            } else {
-                trimmed.to_string()
-            };
-            sections.push(format!("### {}\n{}", file, content));
+    fn build_applied_authority_context(workspace: &Path) -> String {
+        if !workspace.join(".laputa").is_dir() {
+            return "No applied Laputa authority context is available. Follow the task faithfully, remain concise, and preserve user intent.".to_string();
         }
 
-        if sections.is_empty() {
-            "No persisted soul identity found. Follow the task faithfully, remain concise, and preserve user intent.".to_string()
-        } else {
-            sections.join("\n\n")
+        let Ok(provider) = agent_diva_laputa::LaputaMemoryProvider::open(workspace) else {
+            return "Applied Laputa authority context could not be read. Continue with the assigned task and do not treat legacy authority files as inherited identity.".to_string();
+        };
+
+        match provider.system_prompt_block(&SystemPromptRequest {
+            workspace_root: workspace.to_path_buf(),
+        }) {
+            Ok(response) => response.prompt_block.map_or_else(
+                || "No applied Laputa authority context is available.".to_string(),
+                |block| block.markdown,
+            ),
+            Err(_) => "Applied Laputa authority context could not be read. Continue with the assigned task and do not treat legacy authority files as inherited identity.".to_string(),
         }
     }
 
@@ -829,11 +818,8 @@ mod tests {
             },
             ..Default::default()
         };
-        let result = SubagentManager::resolve_model(
-            Some("explicit-model"),
-            Some(&mask),
-            "global-default",
-        );
+        let result =
+            SubagentManager::resolve_model(Some("explicit-model"), Some(&mask), "global-default");
         assert_eq!(result, "explicit-model");
     }
 
@@ -933,7 +919,26 @@ mod tests {
     }
 
     #[test]
-    fn test_build_subagent_prompt_includes_identity_summary() {
+    fn test_build_subagent_prompt_includes_applied_laputa_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        agent_diva_laputa::LaputaStorage::open(temp.path()).unwrap();
+        std::fs::write(
+            temp.path()
+                .join(".laputa")
+                .join("sections")
+                .join("identity.json"),
+            r#""Applied identity context""#,
+        )
+        .unwrap();
+
+        let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
+        assert!(prompt.contains("## Applied Authority Context"));
+        assert!(prompt.contains("## Applied Laputa Authority"));
+        assert!(prompt.contains("Applied identity context"));
+    }
+
+    #[test]
+    fn test_build_subagent_prompt_excludes_legacy_identity_files() {
         let temp = tempfile::tempdir().unwrap();
         std::fs::write(temp.path().join("SOUL.md"), "# Soul\n\nKeep concise.").unwrap();
         std::fs::write(temp.path().join("IDENTITY.md"), "# Identity\n\nAgent Diva.").unwrap();
@@ -944,17 +949,12 @@ mod tests {
         .unwrap();
 
         let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
-        assert!(prompt.contains("## Inherited Identity"));
-        assert!(prompt.contains("### SOUL.md"));
-        assert!(prompt.contains("### IDENTITY.md"));
-        assert!(prompt.contains("### USER.md"));
-    }
-
-    #[test]
-    fn test_build_subagent_prompt_fallback_without_identity_files() {
-        let temp = tempfile::tempdir().unwrap();
-        let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
-        assert!(prompt.contains("No persisted soul identity found"));
+        assert!(prompt.contains("No applied Laputa authority context is available"));
+        assert!(!prompt.contains("### SOUL.md"));
+        assert!(!prompt.contains("### IDENTITY.md"));
+        assert!(!prompt.contains("### USER.md"));
+        assert!(!prompt.contains("Keep concise."));
+        assert!(!prompt.contains("Agent Diva."));
     }
 
     #[test]
@@ -974,11 +974,10 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         std::fs::write(temp.path().join("SOUL.md"), "# Soul\n\nYou are Diva.").unwrap();
 
-        let prompt =
-            SubagentManager::build_isolated_subagent_prompt("summarize file", temp.path());
+        let prompt = SubagentManager::build_isolated_subagent_prompt("summarize file", temp.path());
         assert!(!prompt.contains("SOUL.md"));
         assert!(!prompt.contains("You are Diva"));
-        assert!(!prompt.contains("Inherited Identity"));
+        assert!(!prompt.contains("Applied Authority Context"));
         assert!(prompt.contains("no personality"));
         assert!(prompt.contains("summarize file"));
     }
@@ -986,8 +985,7 @@ mod tests {
     #[test]
     fn test_isolated_prompt_includes_workspace_path() {
         let temp = tempfile::tempdir().unwrap();
-        let prompt =
-            SubagentManager::build_isolated_subagent_prompt("task", temp.path());
+        let prompt = SubagentManager::build_isolated_subagent_prompt("task", temp.path());
         assert!(prompt.contains(&temp.path().display().to_string()));
     }
 

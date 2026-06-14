@@ -333,39 +333,27 @@ async fn build_agent_loop(
         budget: config.tools.budget.clone().into(),
     };
 
-    // Memory provider wiring — Task 6 (Phase 4).
-    //
-    // Nano-style controlled harness: when a `.laputa` state directory
-    // exists in the workspace, the runtime is prepared to inject
-    // `LaputaMemoryProvider` as the active provider through
-    // `with_tools_and_memory_provider`.
-    //
-    // To activate Laputa-backed continuity:
-    //   1. Add `laputa-core` as a dependency of `agent-diva-manager`
-    //      (path = "../../../laputa-work/laputa-next/crates/laputa-core")
-    //   2. Uncomment the block below.
-    //
-    // ```rust,ignore
-    // let laputa_state_dir = workspace.join(".laputa");
-    // let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
-    //     if laputa_state_dir.is_dir() {
-    //         tracing::info!("Laputa state directory detected; injecting LaputaMemoryProvider");
-    //         Some(Arc::new(laputa_core::provider::LaputaMemoryProvider::new(
-    //             workspace.join(".laputa").join("mempalace.db"),
-    //         )))
-    //     } else {
-    //         None
-    //     };
-    // ```
     let laputa_state_dir = workspace.join(".laputa");
-    if laputa_state_dir.is_dir() {
-        tracing::info!(
-            "Laputa state directory detected at {}, but LaputaMemoryProvider injection is deferred (nano-style controlled harness)",
-            laputa_state_dir.display()
-        );
-    }
-
-    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> = None;
+    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
+        if laputa_state_dir.is_dir() {
+            tracing::info!(
+                "Laputa state directory detected at {}; injecting read-only LaputaMemoryProvider",
+                laputa_state_dir.display()
+            );
+            match agent_diva_laputa::LaputaMemoryProvider::open(&workspace) {
+                Ok(provider) => Some(Arc::new(provider)),
+                Err(error) => {
+                    tracing::warn!(
+                        "LaputaMemoryProvider unavailable for {}: {}; falling back to default MemoryManager",
+                        workspace.display(),
+                        error
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
     AgentLoop::with_tools_and_memory_provider(
         bus,

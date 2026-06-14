@@ -225,6 +225,23 @@ fn build_agent_tools(
     assembly.build()
 }
 
+fn default_memory_provider(workspace: &std::path::Path) -> Arc<dyn MemoryProvider> {
+    if workspace.join(".laputa").is_dir() {
+        match agent_diva_laputa::LaputaMemoryProvider::open(workspace) {
+            Ok(provider) => return Arc::new(provider),
+            Err(error) => {
+                warn!(
+                    "Laputa memory provider unavailable for {}: {}; falling back to MemoryManager",
+                    workspace.display(),
+                    error
+                );
+            }
+        }
+    }
+
+    Arc::new(agent_diva_core::memory::MemoryManager::new(workspace))
+}
+
 impl AgentLoop {
     pub(crate) fn load_active_mask(&self) -> Option<MaskFile> {
         let registry = MaskRegistry::new(self.workspace.join("masks"));
@@ -279,8 +296,7 @@ impl AgentLoop {
         let file_config = FileConfig::with_path(&storage_path);
         let file_manager = Arc::new(FileManager::new(file_config).await?);
 
-        let memory_provider: Arc<dyn MemoryProvider> =
-            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace));
+        let memory_provider = default_memory_provider(&workspace);
 
         Ok(Self {
             bus,
@@ -454,8 +470,8 @@ impl AgentLoop {
             (false, Vec::<Arc<dyn Tool>>::new(), memory_provider)
         };
 
-        let memory_provider = active_memory_provider
-            .unwrap_or_else(|| Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)));
+        let memory_provider =
+            active_memory_provider.unwrap_or_else(|| default_memory_provider(&workspace));
         let mentle_tool_names = custom_tools
             .iter()
             .map(|tool| tool.name().to_string())
@@ -550,8 +566,7 @@ impl AgentLoop {
             ToolLimits::default(),
         ));
 
-        let memory_provider: Arc<dyn MemoryProvider> =
-            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace));
+        let memory_provider = default_memory_provider(&workspace);
         let mentle_tool_names = toolset
             .registry
             .tool_names()

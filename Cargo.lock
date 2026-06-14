@@ -59,6 +59,7 @@ version = "0.5.0"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",
+ "agent-diva-laputa",
  "agent-diva-providers",
  "agent-diva-tooling",
  "agent-diva-tools",
@@ -88,6 +89,7 @@ name = "agent-diva-autodream"
 version = "0.5.0"
 dependencies = [
  "agent-diva-core",
+ "agent-diva-laputa",
  "chrono",
  "serde",
  "serde_json",
@@ -259,6 +261,7 @@ name = "agent-diva-laputa"
 version = "0.5.0"
 dependencies = [
  "agent-diva-core",
+ "async-trait",
  "chrono",
  "serde",
  "serde_json",

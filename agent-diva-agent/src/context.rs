@@ -50,7 +50,7 @@ impl ContextBuilder {
     /// Create a new context builder
     pub fn new(workspace: PathBuf) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, None);
-        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(MemoryManager::new(&workspace));
+        let memory_provider = default_memory_provider(&workspace);
         Self {
             workspace,
             skills_loader,
@@ -64,7 +64,7 @@ impl ContextBuilder {
     /// Create a new context builder with skills
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
-        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(MemoryManager::new(&workspace));
+        let memory_provider = default_memory_provider(&workspace);
         Self {
             workspace,
             skills_loader,
@@ -136,8 +136,8 @@ You have access to tools that allow you to:
 
 ## Workspace
 Your workspace is at: {workspace_path}
-- Memory files: {workspace_path}/memory/MEMORY.md
-- Memory history log: {workspace_path}/memory/HISTORY.md"#
+- Applied authority is consumed through the configured MemoryProvider boundary.
+- Legacy authority files are compatibility/migration inputs only, not default authority."#
         ));
 
         if self.mentle_enabled {
@@ -159,9 +159,7 @@ Your workspace is at: {workspace_path}
             );
         }
 
-        if self.soul_settings.enabled {
-            self.append_soul_sections(&mut prompt);
-        }
+        self.append_agent_rules_and_bootstrap(&mut prompt);
 
         // Skills - progressive loading
         // 1) Always-loaded skills (full content)
@@ -216,8 +214,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
             );
         } else {
             prompt.push_str(&format!(
-                "\nWhen remembering something, write to {}/memory/MEMORY.md",
-                workspace_path
+                "\nWhen remembering something, create or update governed memory through the available memory tools or compatibility path; do not treat legacy authority files as default prompt authority."
             ));
         }
 
@@ -251,21 +248,12 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         )
     }
 
-    fn append_soul_sections(&self, prompt: &mut String) {
-        let sections = [
-            ("AGENTS.md", "Agent Rules"),
-            ("SOUL.md", "Soul"),
-            ("IDENTITY.md", "Identity"),
-            ("USER.md", "User Profile"),
-        ];
-
-        for (rel, title) in sections {
-            if let Some(content) = self.read_soul_file(rel) {
-                self.append_section(prompt, title, &content);
-            }
+    fn append_agent_rules_and_bootstrap(&self, prompt: &mut String) {
+        if let Some(content) = self.read_soul_file("AGENTS.md") {
+            self.append_section(prompt, "Agent Rules", &content);
         }
 
-        if self.should_include_bootstrap() {
+        if self.soul_settings.enabled && self.should_include_bootstrap() {
             if let Some(content) = self.read_soul_file("BOOTSTRAP.md") {
                 let _ = SoulStateStore::new(&self.workspace).mark_bootstrap_seeded();
                 self.append_section(prompt, "Bootstrap", &content);
@@ -294,25 +282,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 
     fn load_identity_header(&self) -> String {
-        let Some(content) = self.read_soul_file("IDENTITY.md") else {
-            return default_identity_header();
-        };
-
-        let name = parse_identity_field(&content, &["name", "agent", "assistant"])
-            .unwrap_or_else(|| DEFAULT_AGENT_NAME.to_string());
-        let emoji = parse_identity_field(&content, &["emoji", "icon", "signature"])
-            .unwrap_or_else(|| DEFAULT_AGENT_EMOJI.to_string());
-        let role = parse_identity_field(&content, &["role", "nature", "type"])
-            .unwrap_or_else(|| DEFAULT_AGENT_ROLE.to_string());
-        let voice = parse_identity_field(&content, &["voice", "style", "vibe"]);
-
-        let mut header = format!("# {} {}\n\nYou are {}, a {}.", name, emoji, name, role);
-        if let Some(voice) = voice {
-            header.push_str(" Preferred communication style: ");
-            header.push_str(&voice);
-            header.push('.');
-        }
-        header
+        default_identity_header()
     }
 
     /// Build the complete message list for an LLM call.
@@ -475,6 +445,23 @@ impl Default for ContextBuilder {
     }
 }
 
+fn default_memory_provider(workspace: &Path) -> Arc<dyn MemoryProvider> {
+    if workspace.join(".laputa").is_dir() {
+        match agent_diva_laputa::LaputaMemoryProvider::open(workspace) {
+            Ok(provider) => return Arc::new(provider),
+            Err(error) => {
+                tracing::warn!(
+                    "Laputa memory provider unavailable for {}: {}; falling back to MemoryManager",
+                    workspace.display(),
+                    error
+                );
+            }
+        }
+    }
+
+    Arc::new(MemoryManager::new(workspace))
+}
+
 fn read_trimmed_markdown(path: &Path, max_chars: usize) -> Option<String> {
     let content = std::fs::read_to_string(path).ok()?;
     let trimmed = content.trim();
@@ -497,6 +484,7 @@ fn read_trimmed_markdown(path: &Path, max_chars: usize) -> Option<String> {
     Some(out)
 }
 
+#[cfg(test)]
 fn parse_identity_field(content: &str, keys: &[&str]) -> Option<String> {
     for line in content.lines() {
         let line = line.trim().trim_start_matches(&['-', '*'][..]).trim();
@@ -738,7 +726,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_system_prompt_includes_soul_sections_in_order() {
+    fn test_build_system_prompt_excludes_legacy_authority_sections_by_default() {
         let workspace = TempDir::new().unwrap();
         fs::write(workspace.path().join("AGENTS.md"), "# Repo Rules").unwrap();
         fs::write(workspace.path().join("SOUL.md"), "# Core Traits").unwrap();
@@ -749,16 +737,14 @@ mod tests {
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
         let prompt = builder.build_system_prompt(None);
 
-        let idx_agents = prompt.find("## Agent Rules").unwrap();
-        let idx_soul = prompt.find("## Soul").unwrap();
-        let idx_identity = prompt.find("## Identity").unwrap();
-        let idx_user = prompt.find("## User Profile").unwrap();
-        let idx_bootstrap = prompt.find("## Bootstrap").unwrap();
-
-        assert!(idx_agents < idx_soul);
-        assert!(idx_soul < idx_identity);
-        assert!(idx_identity < idx_user);
-        assert!(idx_user < idx_bootstrap);
+        assert!(prompt.contains("## Agent Rules"));
+        assert!(prompt.contains("# Repo Rules"));
+        assert!(prompt.contains("## Bootstrap"));
+        assert!(!prompt.contains("## Soul"));
+        assert!(!prompt.contains("## Identity"));
+        assert!(!prompt.contains("## User Profile"));
+        assert!(!prompt.contains("# Core Traits"));
+        assert!(!prompt.contains("# Preferences"));
     }
 
     #[test]
@@ -787,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_system_prompt_uses_identity_file_for_header() {
+    fn test_build_system_prompt_does_not_use_identity_file_for_header() {
         let workspace = TempDir::new().unwrap();
         fs::write(
             workspace.path().join("IDENTITY.md"),
@@ -796,9 +782,11 @@ mod tests {
         .unwrap();
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
         let prompt = builder.build_system_prompt(None);
-        assert!(prompt.contains("# Nova ✨"));
-        assert!(prompt.contains("You are Nova, a strategic coding partner."));
-        assert!(prompt.contains("Preferred communication style: concise and direct."));
+        assert!(prompt.contains("# agent-diva 🐈"));
+        assert!(prompt.contains("You are agent-diva, a helpful AI assistant."));
+        assert!(!prompt.contains("# Nova ✨"));
+        assert!(!prompt.contains("strategic coding partner"));
+        assert!(!prompt.contains("Preferred communication style: concise and direct."));
     }
 
     #[test]
@@ -820,7 +808,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_system_prompt_long_identity_is_trimmed_by_max_chars() {
+    fn test_build_system_prompt_long_identity_file_is_not_rendered() {
         let workspace = TempDir::new().unwrap();
         let long_name = "N".repeat(6000);
         fs::write(
@@ -835,8 +823,8 @@ mod tests {
             bootstrap_once: true,
         });
         let prompt = builder.build_system_prompt(None);
-        assert!(prompt.contains("You are "));
-        assert!(prompt.chars().count() > 120);
+        assert!(prompt.contains("You are agent-diva, a helpful AI assistant."));
+        assert!(!prompt.contains(&"N".repeat(120)));
     }
 
     #[test]
@@ -882,8 +870,8 @@ mod tests {
         let prompt = builder.build_system_prompt(Some(&mask));
 
         // Default mask should produce the same prompt as None.
-        let baseline = ContextBuilder::new(workspace.path().to_path_buf())
-            .build_system_prompt(None);
+        let baseline =
+            ContextBuilder::new(workspace.path().to_path_buf()).build_system_prompt(None);
         assert_eq!(prompt, baseline);
     }
 
@@ -907,7 +895,7 @@ name: "研究员"
     }
 
     #[test]
-    fn test_build_system_prompt_mask_does_not_replace_identity() {
+    fn test_build_system_prompt_mask_does_not_replace_default_identity() {
         let workspace = TempDir::new().unwrap();
         fs::write(
             workspace.path().join("IDENTITY.md"),
@@ -924,8 +912,9 @@ You are a technical writer."#;
         let mask = MaskFile::parse(content).unwrap();
         let prompt = builder.build_system_prompt(Some(&mask));
 
-        // Both mask and identity should be present.
+        // Mask and default identity should both be present; legacy IDENTITY.md is not authority.
         assert!(prompt.starts_with("You are a technical writer."));
-        assert!(prompt.contains("You are Nova, a partner."));
+        assert!(prompt.contains("You are agent-diva, a helpful AI assistant."));
+        assert!(!prompt.contains("You are Nova, a partner."));
     }
 }
