@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use agent_diva_core::evolution::AutoDreamRunState;
+use agent_diva_laputa::LaputaError;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, AutoDreamError>;
@@ -31,6 +32,12 @@ pub enum AutoDreamError {
 
     #[error("invalid AutoDream state: {0}")]
     InvalidState(String),
+
+    #[error("input collection failed: {0}")]
+    InputCollection(String),
+
+    #[error("proposal persistence failed: {0}")]
+    ProposalPersistence(#[from] LaputaError),
 }
 
 impl AutoDreamError {

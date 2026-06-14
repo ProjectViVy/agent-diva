@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use agent_diva_autodream::{AutoDreamService, ManualRunTriggerRequest};
-use agent_diva_core::evolution::AutoDreamRunState;
+use agent_diva_core::evolution::{AutoDreamRunRecord, AutoDreamRunState, LaputaSectionName};
+use agent_diva_laputa::{atomic_write_json, LaputaStorage};
+use serde_json::Value;
 
 #[test]
 fn manual_run_creation_persists_record_and_lock() {
@@ -92,4 +94,54 @@ fn checkpoint_defaults_keep_auto_modes_off() {
     assert!(!checkpoint.session_threshold_enabled);
     assert!(raw.contains("\"auto_mode_enabled\": false"));
     assert!(raw.contains("\"session_threshold_enabled\": false"));
+}
+
+#[test]
+fn collect_inputs_persists_summary_into_run_record() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path()).unwrap();
+    seed_session(temp.path(), "chat:1", "session evidence");
+    seed_laputa(
+        temp.path(),
+        LaputaSectionName::MemoryMd,
+        "authority evidence",
+    );
+
+    let status = service
+        .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
+        .unwrap();
+
+    let collected = service.collect_inputs(&status.run.id).unwrap();
+    let raw = std::fs::read_to_string(
+        temp.path()
+            .join(".agent-diva/autodream/runs")
+            .join(&status.run.id)
+            .join("record.json"),
+    )
+    .unwrap();
+    let record: AutoDreamRunRecord = serde_json::from_str(&raw).unwrap();
+
+    assert!(collected.summary.total_items >= 2);
+    assert!(record.input_summary.is_some());
+    assert!(record
+        .summary
+        .as_deref()
+        .unwrap_or_default()
+        .contains("collected"));
+}
+
+fn seed_session(workspace: &std::path::Path, key: &str, content: &str) {
+    let mut manager = agent_diva_core::session::SessionManager::new(workspace);
+    let session = manager.get_or_create(key);
+    session.add_message("user", content);
+    let cloned = session.clone();
+    manager.save(&cloned).unwrap();
+}
+
+fn seed_laputa(workspace: &std::path::Path, section: LaputaSectionName, content: &str) {
+    let path = LaputaStorage::open(workspace)
+        .unwrap()
+        .paths()
+        .section_file(section);
+    atomic_write_json(&path, &Value::String(content.to_string())).unwrap();
 }

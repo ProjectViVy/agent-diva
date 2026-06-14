@@ -10,7 +10,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{atomic::atomic_write_json, AutoDreamError, AutoDreamStorage, Result};
+use crate::{
+    atomic::atomic_write_json, AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
+    AutoDreamStorage, Result,
+};
 
 const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
 
@@ -110,6 +113,7 @@ impl AutoDreamService {
             state: AutoDreamRunState::Running,
             trigger: trigger.clone(),
             summary: Some("manual run started".to_string()),
+            input_summary: None,
             proposal_ids: Vec::new(),
             error: None,
         };
@@ -196,6 +200,24 @@ impl AutoDreamService {
 
     pub fn checkpoint(&self) -> Result<AutoDreamCheckpoint> {
         self.read_checkpoint()
+    }
+
+    pub fn collect_inputs(&self, run_id: &str) -> Result<AutoDreamCollectedInputs> {
+        let mut run = self.read_run(run_id)?;
+        let collector = AutoDreamInputCollector::new(
+            self.storage.clone(),
+            agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
+                .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
+        );
+        let collected = collector.collect(run_id)?;
+        run.input_summary = Some(collected.summary.clone());
+        run.summary = Some(format!(
+            "collected {} inputs with {} omissions",
+            collected.summary.total_items,
+            collected.summary.omissions.len()
+        ));
+        self.write_run(&run)?;
+        Ok(collected)
     }
 
     fn status_from_run(

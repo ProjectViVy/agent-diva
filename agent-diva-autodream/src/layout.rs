@@ -57,6 +57,22 @@ impl AutoDreamPaths {
         self.run_dir(run_id).join("record.json")
     }
 
+    pub fn run_artifact_file(&self, run_id: &str) -> PathBuf {
+        self.run_dir(run_id).join("autodream_run.json")
+    }
+
+    pub fn compact_dir(&self) -> PathBuf {
+        self.workspace_root.join(".agent-diva").join("compact")
+    }
+
+    pub fn compact_capsules_dir(&self) -> PathBuf {
+        self.compact_dir().join("capsules")
+    }
+
+    pub fn sessions_dir(&self) -> PathBuf {
+        self.workspace_root.join("sessions")
+    }
+
     fn directories(&self) -> [PathBuf; 2] {
         [self.autodream_dir.clone(), self.runs_dir()]
     }

@@ -10,6 +10,7 @@ description = "Manual AutoDream run lifecycle and file-first storage for Agent D
 
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core" }
+agent-diva-laputa = { path = "../agent-diva-laputa" }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

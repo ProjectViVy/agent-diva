@@ -4,7 +4,7 @@ baseline_commit: 5d072f6
 
 # Story 3.2: Collect Reflection Inputs with Limits
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,13 +21,13 @@ so that reflection has context without over-reading or mutating authority.
 
 ## Tasks / Subtasks
 
-- [ ] Add `agent-diva-autodream/src/inputs.rs` with a bounded input collection service. (AC: 1-4)
-- [ ] Read recent sessions through existing session storage APIs or stable session files; do not parse partially written temp files. (AC: 1, 2)
-- [ ] Read Laputa snapshot/sections through the Laputa service/API boundary, not by reading `.laputa/` files directly. (AC: 1, 4)
-- [ ] Add optional source capsule discovery under the existing compact/capsule locations when present, with omission records when absent. (AC: 1, 2)
-- [ ] Enforce configurable per-source count/size limits and total budget truncation in priority order. (AC: 1)
-- [ ] Persist an input summary into the current run record or run output metadata. (AC: 3)
-- [ ] Add tests for priority order, truncation, missing-source omissions, corrupt session omission, and direct-write/Mentle exclusion. (AC: 1-4)
+- [x] Add `agent-diva-autodream/src/inputs.rs` with a bounded input collection service. (AC: 1-4)
+- [x] Read recent sessions through existing session storage APIs or stable session files; do not parse partially written temp files. (AC: 1, 2)
+- [x] Read Laputa snapshot/sections through the Laputa service/API boundary, not by reading `.laputa/` files directly. (AC: 1, 4)
+- [x] Add optional source capsule discovery under the existing compact/capsule locations when present, with omission records when absent. (AC: 1, 2)
+- [x] Enforce configurable per-source count/size limits and total budget truncation in priority order. (AC: 1)
+- [x] Persist an input summary into the current run record or run output metadata. (AC: 3)
+- [x] Add tests for priority order, truncation, missing-source omissions, corrupt session omission, and direct-write/Mentle exclusion. (AC: 1-4)
 
 ## Dev Notes
 
@@ -65,3 +65,46 @@ so that reflection has context without over-reading or mutating authority.
 ## Completion Note
 
 Ultimate context engine analysis completed - comprehensive developer guide created.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Debug Log References
+
+- 2026-06-14: Loaded `bmad-dev-story` workflow, sprint status, Story 3.2 requirements, AutoDream PRD notes, and existing Story 3.1 lifecycle implementation.
+- 2026-06-14: Added bounded AutoDream input collection across recent sessions, Laputa read APIs, and optional compact capsules with omission tracking and priority-budget truncation.
+- 2026-06-14: Persisted input summaries back into AutoDream run records and added crate tests for omissions, truncation, read-only authority safety, and service integration.
+
+### Completion Notes List
+
+- Added `agent-diva-autodream/src/inputs.rs` with a read-only bounded collector that reads recent stable session files, Laputa sections through `LaputaService`, and optional compact capsules.
+- Enforced per-source limits plus a total byte budget in priority order and recorded non-fatal omissions for missing/corrupt sessions, absent Laputa sections, and missing capsules.
+- Extended `agent_diva_core::evolution::AutoDreamRunRecord` with typed `input_summary` metadata and wrote collection summaries back into the run record through `AutoDreamService::collect_inputs`.
+- Added focused collector tests and a service integration test proving run record persistence, while preserving the no-direct-write boundary for `.laputa`, `MEMORY.md`, and Mentle paths.
+- Restored the pre-existing `outputs` module implementation to keep `agent-diva-autodream` crate tests green while limiting Story 3.2 scope to input collection and run metadata.
+
+### File List
+
+- `agent-diva-autodream/Cargo.toml`
+- `agent-diva-autodream/src/error.rs`
+- `agent-diva-autodream/src/inputs.rs`
+- `agent-diva-autodream/src/layout.rs`
+- `agent-diva-autodream/src/lib.rs`
+- `agent-diva-autodream/src/outputs.rs`
+- `agent-diva-autodream/src/service.rs`
+- `agent-diva-autodream/tests/outputs.rs`
+- `agent-diva-autodream/tests/service.rs`
+- `agent-diva-core/src/evolution/types.rs`
+- `_bmad-output/implementation-artifacts/3-2-collect-reflection-inputs-with-limits.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `docs/logs/2026-06-autodream-input-collection/v0.0.1-reflection-input-collection/summary.md`
+- `docs/logs/2026-06-autodream-input-collection/v0.0.1-reflection-input-collection/verification.md`
+- `docs/logs/2026-06-autodream-input-collection/v0.0.1-reflection-input-collection/release.md`
+- `docs/logs/2026-06-autodream-input-collection/v0.0.1-reflection-input-collection/acceptance.md`
+
+### Change Log
+
+- 2026-06-14: Implemented bounded AutoDream reflection input collection and moved story to review.

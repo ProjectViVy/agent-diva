@@ -322,8 +322,36 @@ pub struct AutoDreamRunRecord {
     pub state: AutoDreamRunState,
     pub trigger: String,
     pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub input_summary: Option<AutoDreamInputSummary>,
     pub proposal_ids: Vec<String>,
     pub error: Option<String>,
+}
+
+/// Bounded AutoDream input collection summary persisted on the run record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutoDreamInputSummary {
+    pub total_items: usize,
+    pub included_sources: Vec<AutoDreamInputSourceSummary>,
+    pub omissions: Vec<AutoDreamInputOmission>,
+    pub truncated: bool,
+    pub total_bytes: usize,
+}
+
+/// Per-source input accounting for a single AutoDream run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutoDreamInputSourceSummary {
+    pub source: String,
+    pub included_items: usize,
+    pub total_bytes: usize,
+    pub truncated: bool,
+}
+
+/// Structured omission captured during AutoDream input collection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutoDreamInputOmission {
+    pub source: String,
+    pub detail: String,
 }
 
 /// Route a raw proposal type string to its canonical v1 Laputa section.
