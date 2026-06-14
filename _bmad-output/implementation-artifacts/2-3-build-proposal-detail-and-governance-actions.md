@@ -4,7 +4,7 @@ baseline_commit: 1c02af7f
 
 # Story 2.3: Build Proposal Detail and Governance Actions
 
-Status: in-progress
+Status: review
 
 ## Story
 
