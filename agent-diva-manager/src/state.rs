@@ -1,4 +1,5 @@
 use agent_diva_agent::AgentEvent;
+use agent_diva_autodream::AutoDreamService;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
     ChannelsConfig, MCPServerConfig, MentleToolConfig, WebFetchConfig, WebSearchConfig,
@@ -21,6 +22,7 @@ pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
     pub bus: MessageBus,
     pub workspace_root: PathBuf,
+    pub autodream: AutoDreamService,
     pub laputa: LaputaService,
 }
 
@@ -29,13 +31,15 @@ impl AppState {
         api_tx: mpsc::Sender<ManagerCommand>,
         bus: MessageBus,
         workspace_root: impl Into<PathBuf>,
-    ) -> Result<Self, agent_diva_laputa::LaputaError> {
+    ) -> anyhow::Result<Self> {
         let workspace_root = workspace_root.into();
+        let autodream = AutoDreamService::open(workspace_root.clone())?;
         let laputa = LaputaService::open(workspace_root.clone())?;
         Ok(Self {
             api_tx,
             bus,
             workspace_root,
+            autodream,
             laputa,
         })
     }

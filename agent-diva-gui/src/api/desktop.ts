@@ -281,7 +281,7 @@ export interface ChangelogRecord {
   applied_by: string;
 }
 
-export type AutoDreamRunState = 'pending' | 'running' | 'completed' | 'failed';
+export type AutoDreamRunState = 'pending' | 'running' | 'cancelled' | 'completed' | 'failed';
 
 export interface AutoDreamRunRecord {
   id: string;
@@ -316,6 +316,20 @@ export const listLaputaChangelog = (page?: number, pageSize?: number) =>
     page: page ?? null,
     pageSize: pageSize ?? null,
   });
+
+export const triggerAutoDream = (trigger = 'manual') =>
+  invoke<AutoDreamRunRecord>("trigger_autodream", {
+    payload: { trigger },
+  });
+
+export const getAutoDreamRunStatus = (id: string) =>
+  invoke<AutoDreamRunRecord>("get_autodream_run_status", { id });
+
+export const cancelAutoDreamRun = (id: string) =>
+  invoke<AutoDreamRunRecord>("cancel_autodream_run", { id });
+
+export const listAutoDreamRunRecords = () =>
+  invoke<AutoDreamRunRecord[]>("list_autodream_run_records");
 
 // ============================================================
 // Card DTO Interfaces (Story 1.1)

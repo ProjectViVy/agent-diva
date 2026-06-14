@@ -308,6 +308,7 @@ pub struct RollbackRequest {
 pub enum AutoDreamRunState {
     Pending,
     Running,
+    Cancelled,
     Completed,
     Failed,
 }

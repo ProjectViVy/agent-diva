@@ -1,7 +1,12 @@
+pub mod autodream;
 pub mod laputa;
 pub mod planning;
 mod provider_companion;
 
+pub use autodream::{
+    cancel_autodream_run_handler, get_autodream_run_handler, list_autodream_runs_handler,
+    trigger_autodream_run_handler,
+};
 pub use laputa::{
     apply_laputa_proposal_handler, create_laputa_proposal_handler, edit_laputa_proposal_handler,
     get_laputa_changelog_handler, get_laputa_proposal_handler, get_laputa_section_handler,
