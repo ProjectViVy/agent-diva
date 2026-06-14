@@ -61,6 +61,26 @@ impl AutoDreamPaths {
         self.run_dir(run_id).join("autodream_run.json")
     }
 
+    pub fn reports_dir(&self) -> PathBuf {
+        self.autodream_dir.join("reports")
+    }
+
+    pub fn daily_reports_dir(&self) -> PathBuf {
+        self.reports_dir().join("daily")
+    }
+
+    pub fn weekly_reports_dir(&self) -> PathBuf {
+        self.reports_dir().join("weekly")
+    }
+
+    pub fn daily_report_file(&self, date: &str) -> PathBuf {
+        self.daily_reports_dir().join(format!("{date}.md"))
+    }
+
+    pub fn weekly_report_file(&self, week: &str) -> PathBuf {
+        self.weekly_reports_dir().join(format!("{week}.md"))
+    }
+
     pub fn compact_dir(&self) -> PathBuf {
         self.workspace_root.join(".agent-diva").join("compact")
     }

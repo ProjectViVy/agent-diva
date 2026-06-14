@@ -62,7 +62,7 @@ development_status:
   3-2-collect-reflection-inputs-with-limits: review
   3-3-execute-restricted-reflection-prompt: review
   3-4-emit-proposal-and-run-output-artifacts: ready-for-dev
-  3-5-generate-daily-and-weekly-reports: ready-for-dev
+  3-5-generate-daily-and-weekly-reports: review
   epic-3-retrospective: optional
   epic-4: backlog
   4-1-consume-autodream-and-report-owned-paths-correctly: backlog

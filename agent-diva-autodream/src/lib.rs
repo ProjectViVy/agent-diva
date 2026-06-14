@@ -5,6 +5,7 @@ mod error;
 mod inputs;
 mod layout;
 mod outputs;
+mod reports;
 mod service;
 mod worker;
 
@@ -18,6 +19,10 @@ pub use outputs::{
     AutoDreamArtifactSummary, AutoDreamOutputEmitter, AutoDreamOutputEvent,
     AutoDreamOutputEventKind, AutoDreamOutputRequest, AutoDreamProposalCandidateDraft,
     AutoDreamRunArtifact, EmitOutputsResult, EmittedProposalCandidate,
+};
+pub use reports::{
+    AutoDreamReportWriter, RhythmReportContent, RhythmReportPeriod, RhythmReportWriteRequest,
+    RhythmReportWriteResult,
 };
 pub use service::{
     AutoDreamCheckpoint, AutoDreamEvent, AutoDreamLockRecord, AutoDreamRunList, AutoDreamRunStatus,

@@ -21,6 +21,7 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
             .map_err(|source| AutoDreamError::io(&temp, source))?;
     }
     fs::rename(&temp, path).map_err(|source| AutoDreamError::io(path, source))?;
+    sync_parent_dir(parent);
     Ok(())
 }
 
@@ -35,4 +36,10 @@ fn temp_path(path: &Path) -> PathBuf {
         .and_then(|value| value.to_str())
         .unwrap_or("autodream");
     path.with_file_name(format!(".{file_name}.tmp"))
+}
+
+fn sync_parent_dir(parent: &Path) {
+    if let Ok(dir) = fs::File::open(parent) {
+        let _ = dir.sync_all();
+    }
 }

@@ -4,7 +4,7 @@ baseline_commit: 5d072f6
 
 # Story 3.5: Generate Daily and Weekly Reports
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,13 +21,13 @@ so that Report System can display reflection summaries without owning those outp
 
 ## Tasks / Subtasks
 
-- [ ] Add report generation/write APIs under `agent-diva-autodream/src/reports.rs` or `outputs.rs`. (AC: 1, 2)
-- [ ] Implement daily report path writes: `.agent-diva/autodream/reports/daily/{YYYY-MM-DD}.md`. (AC: 1)
-- [ ] Implement weekly report path writes: `.agent-diva/autodream/reports/weekly/{YYYY-Www}.md`. (AC: 2)
-- [ ] Include v1 frontmatter with `period`, `date` or `week`, `generated_at`, `generated_by: agent-diva-autodream`, and `schema_version: 1`. (AC: 1, 2)
-- [ ] Include bounded evidence references in the markdown body or metadata so later Notebook solidification can create proposals. (AC: 3)
-- [ ] Write reports atomically using temp-file plus rename and parent-directory sync where supported. (AC: 1, 2)
-- [ ] Add tests proving daily/weekly path writes, frontmatter schema, evidence refs, atomic replacement, and no monthly/report-system authority writes. (AC: 1-4)
+- [x] Add report generation/write APIs under `agent-diva-autodream/src/reports.rs` or `outputs.rs`. (AC: 1, 2)
+- [x] Implement daily report path writes: `.agent-diva/autodream/reports/daily/{YYYY-MM-DD}.md`. (AC: 1)
+- [x] Implement weekly report path writes: `.agent-diva/autodream/reports/weekly/{YYYY-Www}.md`. (AC: 2)
+- [x] Include v1 frontmatter with `period`, `date` or `week`, `generated_at`, `generated_by: agent-diva-autodream`, and `schema_version: 1`. (AC: 1, 2)
+- [x] Include bounded evidence references in the markdown body or metadata so later Notebook solidification can create proposals. (AC: 3)
+- [x] Write reports atomically using temp-file plus rename and parent-directory sync where supported. (AC: 1, 2)
+- [x] Add tests proving daily/weekly path writes, frontmatter schema, evidence refs, atomic replacement, and no monthly/report-system authority writes. (AC: 1-4)
 
 ## Dev Notes
 
@@ -67,3 +67,37 @@ so that Report System can display reflection summaries without owning those outp
 ## Completion Note
 
 Ultimate context engine analysis completed - comprehensive developer guide created.
+
+## Dev Agent Record
+
+### Debug Log
+
+- 2026-06-14: Implemented `AutoDreamReportWriter` with daily/weekly report APIs, strict date/week validation, v1 markdown frontmatter, bounded evidence refs, and atomic write reuse.
+- 2026-06-14: Added report path helpers under `AutoDreamPaths` and parent-directory sync after atomic rename.
+- 2026-06-14: Added integration tests covering daily/weekly writes, frontmatter, evidence refs, replacement behavior, unsupported monthly period rejection, path traversal rejection, and readback without AutoDream internals.
+- 2026-06-14: `cargo test -p agent-diva-autodream reports` completed but matched 0 tests because Cargo treated `reports` as a test-name filter. Follow-up targeted command `cargo test -p agent-diva-autodream --test reports` ran all report tests.
+
+### Completion Notes
+
+- AutoDream now exposes typed report generation/write APIs via `agent-diva-autodream/src/reports.rs`.
+- Daily reports write to `.agent-diva/autodream/reports/daily/{YYYY-MM-DD}.md`; weekly reports write to `.agent-diva/autodream/reports/weekly/{YYYY-Www}.md`.
+- Report markdown includes v1 frontmatter, bounded evidence references, and content readable through plain filesystem access so Report System does not need AutoDream internals.
+- Monthly/report-system authority writes remain outside AutoDream scope and are covered by regression tests.
+
+### File List
+
+- `agent-diva-autodream/src/atomic.rs`
+- `agent-diva-autodream/src/layout.rs`
+- `agent-diva-autodream/src/lib.rs`
+- `agent-diva-autodream/src/reports.rs`
+- `agent-diva-autodream/tests/reports.rs`
+- `_bmad-output/implementation-artifacts/3-5-generate-daily-and-weekly-reports.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `docs/logs/2026-06-autodream-reports/v0.0.1-daily-weekly-report-writes/acceptance.md`
+- `docs/logs/2026-06-autodream-reports/v0.0.1-daily-weekly-report-writes/release.md`
+- `docs/logs/2026-06-autodream-reports/v0.0.1-daily-weekly-report-writes/summary.md`
+- `docs/logs/2026-06-autodream-reports/v0.0.1-daily-weekly-report-writes/verification.md`
+
+### Change Log
+
+- 2026-06-14: Added AutoDream daily/weekly rhythm report writer and coverage; moved story to review.
