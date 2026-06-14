@@ -1565,10 +1565,7 @@ mod tests {
                 completion_tokens: 340,
                 total_tokens: 1540,
             }),
-            tool_trace: Some(vec![
-                "read_file".to_string(),
-                "write_file".to_string(),
-            ]),
+            tool_trace: Some(vec!["read_file".to_string(), "write_file".to_string()]),
         };
 
         let json = serde_json::to_string_pretty(&result).unwrap();
@@ -1638,7 +1635,10 @@ mod tests {
         let back: BatchSpawnRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(back, req);
         assert_eq!(back.tasks.len(), 3);
-        assert_eq!(back.tasks[1].context.as_deref(), Some("Focus on edge cases"));
+        assert_eq!(
+            back.tasks[1].context.as_deref(),
+            Some("Focus on edge cases")
+        );
     }
 
     #[test]

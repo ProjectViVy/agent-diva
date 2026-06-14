@@ -24,9 +24,7 @@ pub async fn list_plans_handler(
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
     match rx.await {
-        Ok(Ok(plans)) => Ok(Json(
-            serde_json::json!({ "status": "ok", "plans": plans }),
-        )),
+        Ok(Ok(plans)) => Ok(Json(serde_json::json!({ "status": "ok", "plans": plans }))),
         Ok(Err(e)) => {
             tracing::error!("ListPlans failed: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -46,12 +44,18 @@ pub async fn create_plan_handler(
     if payload.title.trim().is_empty() || payload.goal.trim().is_empty() {
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({ "status": "error", "message": "title and goal are required" })),
+            Json(
+                serde_json::json!({ "status": "error", "message": "title and goal are required" }),
+            ),
         ));
     }
 
     let (tx, rx) = oneshot::channel();
-    if let Err(e) = state.api_tx.send(ManagerCommand::CreatePlan(payload, tx)).await {
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::CreatePlan(payload, tx))
+        .await
+    {
         tracing::error!("Failed to send CreatePlan request: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -89,9 +93,7 @@ pub async fn get_plan_handler(
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
     match rx.await {
-        Ok(Ok(Some(detail))) => Ok(Json(
-            serde_json::json!({ "status": "ok", "plan": detail }),
-        )),
+        Ok(Ok(Some(detail))) => Ok(Json(serde_json::json!({ "status": "ok", "plan": detail }))),
         Ok(Ok(None)) => Err(StatusCode::NOT_FOUND),
         Ok(Err(e)) => {
             tracing::error!("GetPlan failed: {}", e);
@@ -123,9 +125,7 @@ pub async fn update_plan_handler(
         ));
     }
     match rx.await {
-        Ok(Ok(plan)) => Ok(Json(
-            serde_json::json!({ "status": "ok", "plan": plan }),
-        )),
+        Ok(Ok(plan)) => Ok(Json(serde_json::json!({ "status": "ok", "plan": plan }))),
         Ok(Err(e)) => {
             if e.contains("not found") || e.contains("NotFound") {
                 Err((

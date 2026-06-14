@@ -596,7 +596,10 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(SandboxError::PlatformUnavailable { platform: "macos", .. })
+            Err(SandboxError::PlatformUnavailable {
+                platform: "macos",
+                ..
+            })
         ));
     }
 

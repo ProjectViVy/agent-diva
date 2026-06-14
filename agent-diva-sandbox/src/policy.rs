@@ -74,7 +74,9 @@ impl SandboxPolicy {
     /// network access or external-sandbox provenance.
     pub fn to_security_policy(&self, workspace_dir: PathBuf) -> SecurityPolicy {
         let mut config = match self {
-            SandboxPolicy::DangerFullAccess => SecurityConfig::from_level(SecurityLevel::Permissive),
+            SandboxPolicy::DangerFullAccess => {
+                SecurityConfig::from_level(SecurityLevel::Permissive)
+            }
             SandboxPolicy::ReadOnly { .. } => SecurityConfig::from_level(SecurityLevel::Paranoid),
             SandboxPolicy::WorkspaceWrite { .. } | SandboxPolicy::ExternalSandbox { .. } => {
                 SecurityConfig::from_level(SecurityLevel::Standard)
@@ -244,7 +246,9 @@ impl SecurityPolicySandboxExt for SecurityPolicy {
         let config = self.config();
         let workspace_dir = self.workspace_dir().to_path_buf();
 
-        if config.level == SecurityLevel::Permissive && !config.workspace_only && !self.is_read_only()
+        if config.level == SecurityLevel::Permissive
+            && !config.workspace_only
+            && !self.is_read_only()
         {
             return SandboxPolicy::DangerFullAccess;
         }

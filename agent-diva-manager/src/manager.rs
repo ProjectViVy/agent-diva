@@ -399,7 +399,9 @@ impl Manager {
 
 // --- Planning command handlers ---
 impl Manager {
-    async fn ensure_planning_service(&mut self) -> Option<Arc<crate::planning_service::PlanningService>> {
+    async fn ensure_planning_service(
+        &mut self,
+    ) -> Option<Arc<crate::planning_service::PlanningService>> {
         if let Some(ref svc) = self.planning_service {
             return Some(Arc::clone(svc));
         }
@@ -410,19 +412,17 @@ impl Manager {
         }
         let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
         match sqlx::SqlitePool::connect(&db_url).await {
-            Ok(pool) => {
-                match crate::planning_service::PlanningService::new_from_pool(pool).await {
-                    Ok(svc) => {
-                        let arc = Arc::new(svc);
-                        self.planning_service = Some(Arc::clone(&arc));
-                        Some(arc)
-                    }
-                    Err(e) => {
-                        error!("Failed to create PlanningService: {}", e);
-                        None
-                    }
+            Ok(pool) => match crate::planning_service::PlanningService::new_from_pool(pool).await {
+                Ok(svc) => {
+                    let arc = Arc::new(svc);
+                    self.planning_service = Some(Arc::clone(&arc));
+                    Some(arc)
                 }
-            }
+                Err(e) => {
+                    error!("Failed to create PlanningService: {}", e);
+                    None
+                }
+            },
             Err(e) => {
                 error!("Failed to connect to planning DB: {}", e);
                 None
@@ -430,7 +430,10 @@ impl Manager {
         }
     }
 
-    async fn handle_list_plans(&mut self, reply: oneshot::Sender<Result<Vec<crate::planning_service::PlanSummary>, String>>) {
+    async fn handle_list_plans(
+        &mut self,
+        reply: oneshot::Sender<Result<Vec<crate::planning_service::PlanSummary>, String>>,
+    ) {
         let Some(svc) = self.ensure_planning_service().await else {
             let _ = reply.send(Err("Planning service unavailable".into()));
             return;
@@ -439,7 +442,11 @@ impl Manager {
         let _ = reply.send(result);
     }
 
-    async fn handle_get_plan(&mut self, plan_id: String, reply: oneshot::Sender<Result<Option<crate::planning_service::PlanDetail>, String>>) {
+    async fn handle_get_plan(
+        &mut self,
+        plan_id: String,
+        reply: oneshot::Sender<Result<Option<crate::planning_service::PlanDetail>, String>>,
+    ) {
         let Some(svc) = self.ensure_planning_service().await else {
             let _ = reply.send(Err("Planning service unavailable".into()));
             return;
@@ -448,25 +455,49 @@ impl Manager {
         let _ = reply.send(result);
     }
 
-    async fn handle_create_plan(&mut self, request: crate::planning_service::CreatePlanRequest, reply: oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>) {
+    async fn handle_create_plan(
+        &mut self,
+        request: crate::planning_service::CreatePlanRequest,
+        reply: oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
+    ) {
         let Some(svc) = self.ensure_planning_service().await else {
             let _ = reply.send(Err("Planning service unavailable".into()));
             return;
         };
-        let result = svc.create_plan(&request.title, &request.goal).await.map_err(|e| e.to_string());
+        let result = svc
+            .create_plan(&request.title, &request.goal)
+            .await
+            .map_err(|e| e.to_string());
         let _ = reply.send(result);
     }
 
-    async fn handle_update_plan(&mut self, plan_id: String, request: crate::planning_service::UpdatePlanRequest, reply: oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>) {
+    async fn handle_update_plan(
+        &mut self,
+        plan_id: String,
+        request: crate::planning_service::UpdatePlanRequest,
+        reply: oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
+    ) {
         let Some(svc) = self.ensure_planning_service().await else {
             let _ = reply.send(Err("Planning service unavailable".into()));
             return;
         };
-        let result = svc.update_plan(&plan_id, request.title.as_deref(), request.goal.as_deref(), request.strategy.as_deref()).await.map_err(|e| e.to_string());
+        let result = svc
+            .update_plan(
+                &plan_id,
+                request.title.as_deref(),
+                request.goal.as_deref(),
+                request.strategy.as_deref(),
+            )
+            .await
+            .map_err(|e| e.to_string());
         let _ = reply.send(result);
     }
 
-    async fn handle_delete_plan(&mut self, plan_id: String, reply: oneshot::Sender<Result<(), String>>) {
+    async fn handle_delete_plan(
+        &mut self,
+        plan_id: String,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
         let Some(svc) = self.ensure_planning_service().await else {
             let _ = reply.send(Err("Planning service unavailable".into()));
             return;

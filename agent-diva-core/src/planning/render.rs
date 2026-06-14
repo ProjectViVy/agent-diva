@@ -2,7 +2,7 @@
 
 use std::fmt::Write;
 
-use super::model::{Plan, PlanStep, TodoItem, TodoList, TodoStatus, TodoPriority};
+use super::model::{Plan, PlanStep, TodoItem, TodoList, TodoPriority, TodoStatus};
 
 /// Render a [`TodoList`] as a deterministic markdown checklist.
 ///
@@ -170,8 +170,18 @@ mod tests {
             plan_id: PlanId("p1".to_string()),
             revision: 1,
             items: vec![
-                make_todo("t1", "Active task", TodoStatus::InProgress, TodoPriority::Normal),
-                make_todo("t2", "Waiting task", TodoStatus::Pending, TodoPriority::High),
+                make_todo(
+                    "t1",
+                    "Active task",
+                    TodoStatus::InProgress,
+                    TodoPriority::Normal,
+                ),
+                make_todo(
+                    "t2",
+                    "Waiting task",
+                    TodoStatus::Pending,
+                    TodoPriority::High,
+                ),
                 make_todo("t3", "Done task", TodoStatus::Completed, TodoPriority::Low),
             ],
             created_at: Utc::now(),
@@ -192,7 +202,12 @@ mod tests {
 
     #[test]
     fn test_render_blocked_with_reason() {
-        let mut item = make_todo("t1", "Blocked task", TodoStatus::Blocked, TodoPriority::Normal);
+        let mut item = make_todo(
+            "t1",
+            "Blocked task",
+            TodoStatus::Blocked,
+            TodoPriority::Normal,
+        );
         item.block_reason = Some("Waiting on API".to_string());
 
         let list = TodoList {
@@ -296,7 +311,12 @@ mod tests {
 
     #[test]
     fn test_render_evidence_ref_todo() {
-        let mut item = make_todo("t1", "Task with ref", TodoStatus::Completed, TodoPriority::Normal);
+        let mut item = make_todo(
+            "t1",
+            "Task with ref",
+            TodoStatus::Completed,
+            TodoPriority::Normal,
+        );
         item.evidence_ref = Some("commit-abc123".to_string());
 
         let list = TodoList {

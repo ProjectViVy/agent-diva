@@ -436,11 +436,7 @@ fn handle_mask_command(cmd: &str, registry: &mut MaskRegistry) {
             println!("{}", style("🎭 可用面具:").bold());
             for m in &masks {
                 let icon = m.frontmatter.icon.as_deref().unwrap_or("🎭");
-                let desc = m
-                    .frontmatter
-                    .description
-                    .as_deref()
-                    .unwrap_or("（无描述）");
+                let desc = m.frontmatter.description.as_deref().unwrap_or("（无描述）");
                 println!("  {} {} — {}", icon, m.frontmatter.name, desc);
             }
         }
@@ -480,21 +476,19 @@ fn handle_mask_command(cmd: &str, registry: &mut MaskRegistry) {
             registry.switch_off();
             println!("{}", style("🎭 已摘下面具，恢复默认模式").green());
         }
-        "status" => {
-            match registry.current_mask_name() {
-                Some(name) => {
-                    let mask = registry.current_mask().unwrap();
-                    let icon = mask.frontmatter.icon.as_deref().unwrap_or("🎭");
-                    println!("🎭 当前面具: {} {}", icon, name);
-                }
-                None => {
-                    println!(
-                        "🎭 当前面具: {} (默认)",
-                        style(MaskFile::DEFAULT_NAME).dim()
-                    );
-                }
+        "status" => match registry.current_mask_name() {
+            Some(name) => {
+                let mask = registry.current_mask().unwrap();
+                let icon = mask.frontmatter.icon.as_deref().unwrap_or("🎭");
+                println!("🎭 当前面具: {} {}", icon, name);
             }
-        }
+            None => {
+                println!(
+                    "🎭 当前面具: {} (默认)",
+                    style(MaskFile::DEFAULT_NAME).dim()
+                );
+            }
+        },
         "reload" => {
             registry.reload();
             let count = registry.list().len();

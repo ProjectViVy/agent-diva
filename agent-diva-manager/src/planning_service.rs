@@ -111,8 +111,12 @@ impl PlanningService {
 
     /// Create a new PlanningService from a raw SqlitePool, auto-migrating the schema.
     pub async fn new_from_pool(pool: SqlitePool) -> anyhow::Result<Self> {
-        let store = SqlitePlanningStore::new(pool).await.context("failed to create planning store")?;
-        Ok(Self { store: Arc::new(store) })
+        let store = SqlitePlanningStore::new(pool)
+            .await
+            .context("failed to create planning store")?;
+        Ok(Self {
+            store: Arc::new(store),
+        })
     }
 
     /// List all plans as lightweight summaries.
@@ -123,12 +127,7 @@ impl PlanningService {
             .await
             .context("failed to list plans")?;
 
-        let active_plan_id = self
-            .store
-            .get_active_plan()
-            .await
-            .ok()
-            .map(|id| id.0);
+        let active_plan_id = self.store.get_active_plan().await.ok().map(|id| id.0);
 
         let mut summaries = Vec::with_capacity(plans.len());
         for plan in plans {
@@ -190,11 +189,7 @@ impl PlanningService {
     }
 
     /// Create a new plan.
-    pub async fn create_plan(
-        &self,
-        title: &str,
-        goal: &str,
-    ) -> anyhow::Result<Plan> {
+    pub async fn create_plan(&self, title: &str, goal: &str) -> anyhow::Result<Plan> {
         let now = Utc::now();
         let plan = Plan {
             id: PlanId::new(),

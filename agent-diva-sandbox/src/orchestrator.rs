@@ -385,7 +385,10 @@ impl ToolOrchestrator {
 
         let command_parts =
             shell_words::split(command).map_err(|e| SandboxError::InvalidCommand(e.to_string()))?;
-        if let Some(result) = self.preflight_guardian(command, cwd, &command_parts).await? {
+        if let Some(result) = self
+            .preflight_guardian(command, cwd, &command_parts)
+            .await?
+        {
             return Ok(result);
         }
 
@@ -395,8 +398,8 @@ impl ToolOrchestrator {
 
         match result {
             Ok(output) => Ok(self.build_success_result(output, &attempt, &resolution.approval)),
-            Err(error) => self
-                .handle_failure(
+            Err(error) => {
+                self.handle_failure(
                     command,
                     cwd,
                     &command_parts,
@@ -404,7 +407,8 @@ impl ToolOrchestrator {
                     &resolution.approval,
                     error,
                 )
-                .await,
+                .await
+            }
         }
     }
 
@@ -440,8 +444,9 @@ impl ToolOrchestrator {
                     // Create Allow rule if configured
                     if create_rule {
                         if let Some(_policy) = &self.exec_policy {
-                            let _amendment =
-                                crate::exec_policy::ExecPolicyAmendment::new(command_parts.to_vec());
+                            let _amendment = crate::exec_policy::ExecPolicyAmendment::new(
+                                command_parts.to_vec(),
+                            );
                             // Note: This would need mutable access, skip for now
                             debug!("Would create Allow rule for: {}", command_parts.join(" "));
                         }

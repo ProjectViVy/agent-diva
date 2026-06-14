@@ -106,14 +106,38 @@ mod tests {
     fn test_all_plan_event_variants() {
         let pid = PlanId("p1".to_string());
         let events = vec![
-            PlanEvent::Created { plan_id: pid.clone(), title: "T".to_string(), goal: "G".to_string() },
-            PlanEvent::Drafted { plan_id: pid.clone() },
-            PlanEvent::PhaseTransition { plan_id: pid.clone(), from: PlanPhase::Explore, to: PlanPhase::Plan },
-            PlanEvent::StatusChanged { plan_id: pid.clone(), from: PlanStatus::Pending, to: PlanStatus::InProgress },
-            PlanEvent::VerificationRecorded { plan_id: pid.clone(), verdict: VerificationVerdict::Pass },
-            PlanEvent::Completed { plan_id: pid.clone() },
-            PlanEvent::Failed { plan_id: pid.clone(), reason: "oops".to_string() },
-            PlanEvent::Partial { plan_id: pid.clone() },
+            PlanEvent::Created {
+                plan_id: pid.clone(),
+                title: "T".to_string(),
+                goal: "G".to_string(),
+            },
+            PlanEvent::Drafted {
+                plan_id: pid.clone(),
+            },
+            PlanEvent::PhaseTransition {
+                plan_id: pid.clone(),
+                from: PlanPhase::Explore,
+                to: PlanPhase::Plan,
+            },
+            PlanEvent::StatusChanged {
+                plan_id: pid.clone(),
+                from: PlanStatus::Pending,
+                to: PlanStatus::InProgress,
+            },
+            PlanEvent::VerificationRecorded {
+                plan_id: pid.clone(),
+                verdict: VerificationVerdict::Pass,
+            },
+            PlanEvent::Completed {
+                plan_id: pid.clone(),
+            },
+            PlanEvent::Failed {
+                plan_id: pid.clone(),
+                reason: "oops".to_string(),
+            },
+            PlanEvent::Partial {
+                plan_id: pid.clone(),
+            },
         ];
         for event in &events {
             let json = serde_json::to_string(event).unwrap();
