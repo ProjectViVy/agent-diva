@@ -4,6 +4,16 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Fix current Story 2.4 workspace validation blockers outside Evolution GUI.
+  - Context: During Story 2.4 validation on 2026-06-15, `just check` and `just test` failed outside the Evolution GUI changes. Current errors include missing `lock_exclusive` support and unused `FileExt` import in `agent-diva-sandbox/src/exec_policy.rs`, `bool`/`&bool` mismatch and unused `WritableRoot` import in `agent-diva-sandbox/src/platform/macos.rs`, plus `clippy::single-char-add-str` in `agent-diva-laputa/src/memory_provider.rs`.
+  - Expected behavior: `just check` and `just test` should pass without unrelated sandbox/laputa compile or lint blockers.
+  - Related files/docs: `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`, `agent-diva-laputa/src/memory_provider.rs`, `docs/logs/2026-06-evolution-runs-audit-policy/v0.0.1-runs-audit-policy-views/verification.md`.
+
+- [ ] Fix current Story 2.4 GUI validation blockers outside Evolution views.
+  - Context: During Story 2.4 validation on 2026-06-15, `pnpm build` failed on unrelated unused symbols/import-path errors, and full `pnpm test` failed in unrelated suites: `SubAgentPanel.test.ts` needs an i18n install/mock and `DivaPetView.test.ts` needs `ChevronDown` in its lucide mock.
+  - Expected behavior: Full `agent-diva-gui` build and vitest suite should pass so Evolution stories can be promoted without unrelated waivers.
+  - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`, `agent-diva-gui/src/components/DecisionCard.vue`, `agent-diva-gui/src/components/NotebookView.vue`, `agent-diva-gui/src/components/TodoCard.vue`, `docs/logs/2026-06-evolution-runs-audit-policy/v0.0.1-runs-audit-policy-views/verification.md`.
+
 - [ ] Fix pre-existing `agent-diva-manager` AutoDream error match compile blocker.
   - Context: During Story 5.1 validation on 2026-06-14, `cargo check -p agent-diva-manager` reached unrelated existing code and failed because `agent-diva-manager/src/handlers/autodream.rs` does not handle `AutoDreamError::InputCollection(_)` and `AutoDreamError::ProposalPersistence(_)`.
   - Expected behavior: Manager crate checks should compile cleanly after the AutoDream error response mapping covers all variants.
@@ -49,12 +59,12 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Workspace-wide format check should pass without requiring unrelated formatting churn during focused story work.
   - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
-- [ ] Complete Story 2.2 inbox behavior that Story 2.3 still depends on.
-  - Context: During Story 2.3 implementation on 2026-06-14, the proposal detail pane and governance actions were added on top of the existing Evolution inbox shell, but Story 2.2 requirements remain incomplete: row metadata density, filters, keyboard navigation, and batch actions are not fully implemented in the current tree.
-  - Expected behavior: Evolution inbox should satisfy Story 2.2 before Epic 2 GUI acceptance relies on Story 2.3 detail flow.
-  - Related files/docs: `_bmad-output/implementation-artifacts/2-2-build-proposal-inbox-list-and-filters.md`, `agent-diva-gui/src/components/EvolutionView.vue`.
-
 ## Done
+
+- [x] Complete Story 2.2 inbox behavior that Story 2.3 still depends on.
+  - Context: During Story 2.3 implementation on 2026-06-14, the proposal detail pane and governance actions were added on top of the existing Evolution inbox shell, but Story 2.2 requirements remained incomplete: row metadata density, filters, keyboard navigation, and batch actions.
+  - Completed: Story 2.2 now has a dedicated `ProposalInbox.vue` with dense row metadata, filters, keyboard navigation, legal batch actions, local read/defer markers, visible loading/empty/error states, and focused GUI tests.
+  - Related files/docs: `_bmad-output/implementation-artifacts/2-2-build-proposal-inbox-list-and-filters.md`, `agent-diva-gui/src/components/EvolutionView.vue`, `agent-diva-gui/src/components/evolution/ProposalInbox.vue`, `docs/logs/2026-06-epic-2-inbox/v0.0.1-proposal-inbox-list-and-filters/verification.md`.
 
 - [x] Improve GUI image input experience for multimodal vision.
   - Context: The current image recognition path supports image file attachments, but direct clipboard image paste in the GUI composer is not implemented.

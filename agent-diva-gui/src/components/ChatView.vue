@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -10,9 +10,21 @@ import ConversationSidebar from './ConversationSidebar.vue';
 import DecisionCard from './DecisionCard.vue';
 import TodoCard from './TodoCard.vue';
 import ApprovalBanner from './ApprovalBanner.vue';
+import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
-import { uploadFile, FileAttachmentDto, type UiCard, type ApprovalRequest } from '../api/desktop';
+import {
+  triggerAutoDream,
+  uploadFile,
+  FileAttachmentDto,
+  type AutoDreamRunRecord,
+  type UiCard,
+  type ApprovalRequest,
+} from '../api/desktop';
+import type {
+  ChatGovernanceCard as ChatGovernanceCardModel,
+  ChatGovernanceDeepLink,
+} from './chat/governanceCards';
 
 const { t } = useI18n();
 
@@ -125,6 +137,7 @@ const emit = defineEmits<{
   (e: 'new-session'): void;
   (e: 'toggle-pin', sessionKey: string): void;
   (e: 'rename-session', sessionKey: string, title: string): void;
+  (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
 }>();
 
 const input = ref('');
@@ -149,6 +162,8 @@ const permissionMode = ref<'cautious' | 'smart' | 'trusted'>('smart');
 const isRecording = ref(false);
 // const recordingDuration = ref(0); // 预留
 const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
+const localGovernanceCards = ref<ChatGovernanceCardModel[]>([]);
+const autoDreamTriggering = ref(false);
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -277,6 +292,62 @@ const handleStop = () => {
   emit('stop');
 };
 
+const toRunCard = (run: AutoDreamRunRecord): ChatGovernanceCardModel => ({
+  kind: 'autodream_run',
+  id: run.id,
+  state: run.state,
+  trigger: run.trigger,
+  summary: run.summary,
+  proposal_ids: run.proposal_ids,
+  error: run.error,
+  source_run_id: run.id,
+  created_at: run.started_at,
+  updated_at: run.completed_at ?? run.started_at,
+});
+
+const normalizeError = (error: unknown) => {
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return error instanceof Error ? error.message : String(error);
+};
+
+const handleAutoDreamTrigger = async () => {
+  if (autoDreamTriggering.value) return;
+  autoDreamTriggering.value = true;
+  const pendingId = `autodream-local-${Date.now()}`;
+  const pendingCard: ChatGovernanceCardModel = {
+    kind: 'autodream_run',
+    id: pendingId,
+    state: 'running',
+    trigger: 'manual',
+    summary: t('chatGovernance.triggerStarted'),
+    proposal_ids: [],
+    created_at: new Date().toISOString(),
+  };
+  localGovernanceCards.value = [...localGovernanceCards.value, pendingCard];
+
+  try {
+    const run = await triggerAutoDream('manual');
+    localGovernanceCards.value = localGovernanceCards.value.map((card) =>
+      card.id === pendingId ? toRunCard(run) : card,
+    );
+  } catch (error) {
+    localGovernanceCards.value = localGovernanceCards.value.map((card) =>
+      card.id === pendingId
+        ? {
+            ...card,
+            state: 'unavailable',
+            summary: t('chatGovernance.backendUnavailable'),
+            error: normalizeError(error),
+          }
+        : card,
+    );
+  } finally {
+    autoDreamTriggering.value = false;
+  }
+};
+
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -357,6 +428,21 @@ const parseCard = (content: string): Record<string, unknown> | null => {
   } catch {
     return null;
   }
+};
+
+const asGovernanceCard = (card: Record<string, unknown> | null): ChatGovernanceCardModel | null => {
+  if (!card || (card.kind !== 'autodream_run' && card.kind !== 'evolution_proposal')) {
+    return null;
+  }
+  return card as unknown as ChatGovernanceCardModel;
+};
+
+const isGovernanceCard = (card: Record<string, unknown> | null) => {
+  return card?.kind === 'autodream_run' || card?.kind === 'evolution_proposal';
+};
+
+const emitOpenEvolution = (payload: ChatGovernanceDeepLink) => {
+  emit('open-evolution', payload);
 };
 
 /** Cache for parseCard results, keyed by message index. Cleared on message reset. */
@@ -458,7 +544,15 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
             <!-- Tool Message -->
             <template v-if="msg.role === 'tool'">
               <!-- Card rendering: plan_create / todo_write / approval_request -->
-              <template v-if="msg.toolName === 'plan_create' && getCachedCard(index, msg.content)">
+              <template v-if="isGovernanceCard(getCachedCard(index, msg.content))">
+                <div class="min-w-0">
+                  <ChatGovernanceCard
+                    :card="asGovernanceCard(getCachedCard(index, msg.content))!"
+                    @open-evolution="emitOpenEvolution"
+                  />
+                </div>
+              </template>
+              <template v-else-if="msg.toolName === 'plan_create' && getCachedCard(index, msg.content)">
                 <div class="min-w-0">
                   <DecisionCard
                     :card="(getCachedCard(index, msg.content) as unknown as UiCard)"
@@ -669,6 +763,22 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         </div>
       </div>
 
+      <div
+        v-for="card in localGovernanceCards"
+        :key="card.id"
+        class="flex mb-4 justify-start"
+      >
+        <div class="flex max-w-[85%] items-start space-x-2">
+          <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-blue-50 text-blue-600 border border-blue-100">
+            <GitBranch :size="16" />
+          </div>
+          <div class="flex flex-col min-w-0 max-w-full">
+            <ChatGovernanceCard :card="card" @open-evolution="emitOpenEvolution" />
+            <span class="text-[10px] text-gray-400 mt-1 text-left">{{ formatTime(Date.now()) }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Typing Indicator -->
       <!-- Removed separate Typing Indicator as it is now integrated into the message bubble -->
       
@@ -750,6 +860,16 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 
           <!-- 思考模式选择 -->
           <ThinkingToggle v-model="thinkingMode" />
+
+          <button
+            class="toolbar-btn"
+            :title="autoDreamTriggering ? t('chatGovernance.triggering') : t('chatGovernance.triggerManual')"
+            :disabled="autoDreamTriggering"
+            @click="handleAutoDreamTrigger"
+          >
+            <Loader2 v-if="autoDreamTriggering" :size="14" class="animate-spin" />
+            <GitBranch v-else :size="14" />
+          </button>
 
           <!-- 桌面宠物按钮 -->
           <button

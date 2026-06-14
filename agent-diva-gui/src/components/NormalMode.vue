@@ -27,6 +27,7 @@ import type {
   MentleToolConfigShape,
   ProposalState,
 } from '../api/desktop';
+import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import ConsoleView from './ConsoleView.vue';
@@ -171,6 +172,7 @@ const evolutionBadge = ref({
   tone: 'none' as EvolutionBadgeTone,
   tooltip: '',
 });
+const evolutionDeepLink = ref<ChatGovernanceDeepLink | null>(null);
 
 // 收缩状态下的弹出菜单
 const collapsedPopup = ref<{ type: 'capabilities' | 'tools' | null; x: number; y: number }>({
@@ -402,6 +404,11 @@ const isSectionActive = (section: SidebarSection) => {
     return activeMenu.value === null && activeTab.value === section;
   }
   return activeMenu.value === section;
+};
+
+const openEvolutionDeepLink = (payload: ChatGovernanceDeepLink) => {
+  evolutionDeepLink.value = payload;
+  navigateTo('evolution');
 };
 
 const normalizeEvolutionCount = (count: number) => {
@@ -849,7 +856,12 @@ defineExpose({
       <div class="content-area">
         <!-- Evolution视图 -->
         <div v-if="activeMenu === 'evolution'" class="h-full">
-          <EvolutionView @count-change="updateEvolutionBadge" />
+          <EvolutionView
+            :initial-tab="evolutionDeepLink?.tab"
+            :initial-proposal-id="evolutionDeepLink?.proposalId"
+            :initial-source-run-id="evolutionDeepLink?.sourceRunId"
+            @count-change="updateEvolutionBadge"
+          />
         </div>
         <!-- Console视图 -->
         <div v-else-if="activeMenu === 'console'" class="h-full">
@@ -960,6 +972,7 @@ defineExpose({
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
               @rename-session="(_key, _title) => {}"
+              @open-evolution="openEvolutionDeepLink"
             />
           </div>
           <div v-else class="h-full min-h-0">

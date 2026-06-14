@@ -2,20 +2,12 @@
 import { ref, computed, onMounted } from 'vue';
 import { Sparkles, LoaderCircle, BrainCircuit, ShieldQuestion } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
-import { invoke } from '@tauri-apps/api/core';
 import { showAppToast } from '../../utils/appToast';
+import { getSelfEvolutionConfig, saveSelfEvolutionConfig } from '../../api/desktop';
+import type { SelfEvolutionConfig } from '../../api/desktop';
 
 
 const { t } = useI18n();
-
-interface SelfEvolutionConfig {
-  enabled: boolean;
-  autodream_frequency: 'daily' | 'weekly' | 'manual';
-  trigger_threshold_sessions: number;
-  trigger_threshold_messages: number;
-  auto_merge_confidence: number;
-  require_confirmation_for: string[];
-}
 
 const FREQUENCY_OPTIONS: SelfEvolutionConfig['autodream_frequency'][] = ['daily', 'weekly', 'manual'];
 const CONFIRM_ACTION_OPTIONS = ['identity', 'relationship', 'commitment', 'sop', 'deprecation'];
@@ -35,13 +27,11 @@ const originalSnapshot = ref('');
 
 const isDirty = computed(() => JSON.stringify(config.value) !== originalSnapshot.value);
 
-const autoMergeConfidencePercent = computed(() => Math.round(config.value.auto_merge_confidence * 100));
-
 const loadConfig = async () => {
   loading.value = true;
   loadError.value = null;
   try {
-    const data = await invoke<SelfEvolutionConfig>('get_self_evolution_config');
+    const data = await getSelfEvolutionConfig();
     config.value = { ...data };
     originalSnapshot.value = JSON.stringify(data);
   } catch {
@@ -64,7 +54,7 @@ const saveConfig = async () => {
   if (saving.value || !isDirty.value) return;
   saving.value = true;
   try {
-    await invoke('save_self_evolution_config', { config: { ...config.value } });
+    await saveSelfEvolutionConfig({ ...config.value });
     originalSnapshot.value = JSON.stringify(config.value);
     showAppToast(t('selfEvolution.saved'), 'success');
   } catch (e) {
@@ -198,23 +188,22 @@ onMounted(loadConfig);
           <span>{{ t('selfEvolution.trustGroup') }}</span>
         </div>
 
-        <!-- Auto-Merge Confidence Slider -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <label class="text-xs font-medium settings-muted uppercase tracking-wider">
-              {{ t('selfEvolution.autoMergeConfidence') }}
-            </label>
-            <span class="text-xs font-mono" :style="{ color: 'var(--accent)' }">{{ autoMergeConfidencePercent }}%</span>
+        <div class="self-evo-governance-notice" data-testid="self-evo-governance-notice">
+          <ShieldQuestion :size="16" />
+          <div>
+            <strong>{{ t('selfEvolution.reviewRequiredTitle') }}</strong>
+            <p>{{ t('selfEvolution.reviewRequiredStatement') }}</p>
           </div>
-          <input
-            v-model.number="config.auto_merge_confidence"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            class="self-evo-slider"
-          />
-          <p class="text-xs settings-muted">{{ t('selfEvolution.autoMergeConfidenceHint') }}</p>
+        </div>
+
+        <div class="space-y-1" data-testid="self-evo-auto-merge-disabled">
+          <label class="block text-xs font-medium settings-muted uppercase tracking-wider">
+            {{ t('selfEvolution.autoMergeConfidence') }}
+          </label>
+          <div class="self-evo-readonly-policy">
+            <span>{{ t('selfEvolution.autoMergeDisabled') }}</span>
+          </div>
+          <p class="text-xs settings-muted">{{ t('selfEvolution.autoMergeDisabledHint') }}</p>
         </div>
 
         <!-- Require Confirmation For Checkboxes -->
@@ -283,39 +272,42 @@ onMounted(loadConfig);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+.self-evo-governance-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  padding: 12px;
+  color: var(--text);
+}
+
+.self-evo-governance-notice strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.self-evo-governance-notice p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.self-evo-readonly-policy {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .self-evo-toggle.active .self-evo-toggle-thumb {
   transform: translateX(20px);
 }
 
-.self-evo-slider {
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  appearance: none;
-  -webkit-appearance: none;
-  background: var(--line);
-  outline: none;
-  cursor: pointer;
-}
-
-.self-evo-slider::-webkit-slider-thumb {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--accent);
-  cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-.self-evo-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--accent);
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
 </style>

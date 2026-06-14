@@ -5,6 +5,8 @@ import {
   applyLaputaProposal,
   editLaputaProposal,
   getLaputaSection,
+  getSelfEvolutionConfig,
+  listAutoDreamRunRecords,
   listLaputaChangelog,
   listLaputaProposals,
   pollLaputaEvents,
@@ -27,15 +29,22 @@ vi.mock('lucide-vue-next', () => ({
   Archive: { name: 'Archive', template: '<span class="Archive" />' },
   Check: { name: 'Check', template: '<span class="Check" />' },
   ClipboardList: { name: 'ClipboardList', template: '<span class="ClipboardList" />' },
+  Clock3: { name: 'Clock3', template: '<span class="Clock3" />' },
   Edit3: { name: 'Edit3', template: '<span class="Edit3" />' },
+  Eye: { name: 'Eye', template: '<span class="Eye" />' },
+  EyeOff: { name: 'EyeOff', template: '<span class="EyeOff" />' },
   ExternalLink: { name: 'ExternalLink', template: '<span class="ExternalLink" />' },
   FileClock: { name: 'FileClock', template: '<span class="FileClock" />' },
   FileDiff: { name: 'FileDiff', template: '<span class="FileDiff" />' },
   FileSearch: { name: 'FileSearch', template: '<span class="FileSearch" />' },
+  Filter: { name: 'Filter', template: '<span class="Filter" />' },
   GitBranch: { name: 'GitBranch', template: '<span class="GitBranch" />' },
   History: { name: 'History', template: '<span class="History" />' },
+  Inbox: { name: 'Inbox', template: '<span class="Inbox" />' },
+  Pencil: { name: 'Pencil', template: '<span class="Pencil" />' },
   RefreshCw: { name: 'RefreshCw', template: '<span class="RefreshCw" />' },
   RotateCcw: { name: 'RotateCcw', template: '<span class="RotateCcw" />' },
+  Search: { name: 'Search', template: '<span class="Search" />' },
   ShieldAlert: { name: 'ShieldAlert', template: '<span class="ShieldAlert" />' },
   ShieldCheck: { name: 'ShieldCheck', template: '<span class="ShieldCheck" />' },
   X: { name: 'X', template: '<span class="X" />' },
@@ -51,6 +60,8 @@ vi.mock('../utils/appToast', () => ({
 
 vi.mock('../api/desktop', () => ({
   listLaputaProposals: vi.fn(),
+  listAutoDreamRunRecords: vi.fn(),
+  getSelfEvolutionConfig: vi.fn(),
   pollLaputaEvents: vi.fn(),
   getLaputaSection: vi.fn(),
   listLaputaChangelog: vi.fn(),
@@ -113,7 +124,17 @@ function mountView() {
 describe('EvolutionView governance detail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     vi.mocked(listLaputaProposals).mockResolvedValue([baseProposal]);
+    vi.mocked(listAutoDreamRunRecords).mockRejectedValue(new Error('not implemented'));
+    vi.mocked(getSelfEvolutionConfig).mockResolvedValue({
+      enabled: true,
+      autodream_frequency: 'weekly',
+      trigger_threshold_sessions: 10,
+      trigger_threshold_messages: 50,
+      auto_merge_confidence: 0.95,
+      require_confirmation_for: ['identity', 'sop'],
+    });
     vi.mocked(pollLaputaEvents).mockResolvedValue([]);
     vi.mocked(getLaputaSection).mockResolvedValue(section);
     vi.mocked(listLaputaChangelog).mockResolvedValue(changelogPage);
@@ -165,7 +186,7 @@ describe('EvolutionView governance detail', () => {
     expect(approveButtons[0]?.attributes('disabled')).toBeDefined();
   });
 
-  it('includes target section in reject confirmation', async () => {
+  it('rejects proposal through the inbox action', async () => {
     vi.mocked(listLaputaProposals).mockResolvedValue([
       { ...baseProposal, evidence_refs: [{ id: 'e1', source: 'report', uri: 'file://x', created_at: '2026-06-14T00:00:00Z' }] },
     ]);
@@ -177,10 +198,7 @@ describe('EvolutionView governance detail', () => {
     );
     await rejectButton?.trigger('click');
 
-    expect(appConfirm).toHaveBeenCalledWith(
-      expect.stringContaining('"target":"memory_md"'),
-      expect.any(Object),
-    );
+    expect(transitionLaputaProposal).toHaveBeenCalledWith('proposal-1', { state: 'rejected' });
   });
 
   it('keeps detail visible when apply fails', async () => {
@@ -208,5 +226,160 @@ describe('EvolutionView governance detail', () => {
     const inbox = wrapper.find('[data-testid="evolution-inbox-shell"]');
     expect(inbox.classes()).toContain('evolution-inbox-shell');
     expect(inbox.classes()).toContain('evolution-inbox-responsive');
+  });
+
+  it('filters proposals by status, risk, and search text', async () => {
+    vi.mocked(listLaputaProposals).mockResolvedValue([
+      {
+        ...baseProposal,
+        id: 'proposal-1',
+        state: 'pending_review',
+        risk_level: 'high',
+        proposed_patch: 'append alpha memory',
+      },
+      {
+        ...baseProposal,
+        id: 'proposal-2',
+        state: 'needs_attention',
+        risk_level: 'medium',
+        target_section: 'identity',
+        proposed_patch: 'update beta identity',
+      },
+    ]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="proposal-status-filter"]').setValue('needs_attention');
+    await wrapper.find('[data-testid="proposal-risk-filter"]').setValue('medium');
+    await wrapper.find('[data-testid="proposal-search"]').setValue('beta');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="proposal-row-proposal-1"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="proposal-row-proposal-2"]').exists()).toBe(true);
+  });
+
+  it('uses keyboard navigation outside inputs and ignores action shortcuts inside search', async () => {
+    vi.mocked(listLaputaProposals).mockResolvedValue([
+      { ...baseProposal, id: 'proposal-1', proposed_patch: 'first' },
+      {
+        ...baseProposal,
+        id: 'proposal-2',
+        risk_level: 'medium',
+        target_section: 'identity',
+        proposed_patch: 'second',
+      },
+    ]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }));
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="proposal-row-proposal-2"]').classes()).toContain('active');
+
+    const search = wrapper.find<HTMLInputElement>('[data-testid="proposal-search"]');
+    await search.trigger('keydown', { key: 'r' });
+    await flushPromises();
+
+    expect(transitionLaputaProposal).not.toHaveBeenCalled();
+  });
+
+  it('disables illegal batch approve and prevents backend transition calls', async () => {
+    vi.mocked(listLaputaProposals).mockResolvedValue([
+      { ...baseProposal, id: 'proposal-1', state: 'applied', risk_level: 'medium' },
+    ]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    const approveButton = wrapper.find('[data-testid="batch-approve"]');
+    expect(approveButton.attributes('disabled')).toBeDefined();
+    await approveButton.trigger('click');
+    await flushPromises();
+
+    expect(transitionLaputaProposal).not.toHaveBeenCalled();
+  });
+
+  it('renders audit changelog records with rollback availability', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="evolution-tab-audit"]').trigger('click');
+    await flushPromises();
+
+    expect(listLaputaChangelog).toHaveBeenCalledWith(1, 25);
+    expect(wrapper.text()).toContain('tester');
+    expect(wrapper.text()).toContain('proposal-1');
+    expect(wrapper.text()).toContain('memory_md');
+    expect(wrapper.text()).toContain('evolution.audit.rollbackAvailable');
+  });
+
+  it('shows rollback unavailable reason for stale audit records', async () => {
+    vi.mocked(listLaputaChangelog).mockResolvedValue({
+      ...changelogPage,
+      items: [{ ...changelogPage.items[0], stale: true }],
+    });
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="evolution-tab-audit"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('evolution.audit.rollbackStale');
+  });
+
+  it('renders policy exact copy and settings link', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="evolution-tab-policy"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain(
+      'Durable personality, memory, SOP, skill, and policy changes require review before they are applied.',
+    );
+    expect(wrapper.text()).toContain('evolution.policy.settingsLink');
+  });
+
+  it('renders runs unavailable state without spinner-only UI', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="evolution-tab-runs"]').trigger('click');
+    await flushPromises();
+
+    expect(listAutoDreamRunRecords).toHaveBeenCalled();
+    expect(wrapper.text()).toContain('evolution.runs.unavailableTitle');
+    expect(wrapper.text()).toContain('not implemented');
+  });
+
+  it('renders runs empty state when backend returns no records', async () => {
+    vi.mocked(listAutoDreamRunRecords).mockResolvedValue([]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="evolution-tab-runs"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('No AutoDream runs are available yet');
+  });
+
+  it('opens a proposal from a Chat deep link and filters by source run', async () => {
+    vi.mocked(listLaputaProposals).mockResolvedValue([
+      { ...baseProposal, id: 'proposal-1', source_run_id: 'run-1' },
+      { ...baseProposal, id: 'proposal-2', source_run_id: 'run-2' },
+    ]);
+
+    const wrapper = mount(EvolutionView, {
+      props: {
+        initialTab: 'inbox',
+        initialProposalId: 'proposal-1',
+        initialSourceRunId: 'run-1',
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="proposal-row-proposal-1"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="proposal-row-proposal-2"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="proposal-row-proposal-1"]').classes()).toContain('active');
   });
 });

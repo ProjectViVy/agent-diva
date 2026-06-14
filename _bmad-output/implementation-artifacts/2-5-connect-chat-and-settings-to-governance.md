@@ -4,7 +4,7 @@ baseline_commit: 1c02af7f
 
 # Story 2.5: Connect Chat and Settings to Governance
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,14 +21,14 @@ so that manual triggers and policy edits stay understandable.
 
 ## Tasks / Subtasks
 
-- [ ] Add Chat-side card models/components for AutoDream run status and compact Evolution proposal cards. (AC: 1, 2)
-- [ ] Wire Chat card links into the Evolution workspace tabs and filters from Stories 2.1-2.4. (AC: 1, 2)
-- [ ] Connect proposal cards to existing proposal detail/governance action flow instead of duplicating review UI inside Chat. (AC: 2)
-- [ ] Update `SelfEvolutionSettings.vue` so policy options are clear and no enabled auto-merge durable-change affordance is exposed. (AC: 3)
-- [ ] Ensure apply failures from proposal cards preserve proposal state, show recoverable error, and offer open-in-Evolution retry/review. (AC: 4)
-- [ ] If AutoDream backend commands are not available yet, implement Chat trigger UI as disabled/unavailable with clear status, or behind the backend capability check. Do not fake a successful run. (AC: 1)
-- [ ] Add i18n strings for Chat run/proposal cards and Settings governance copy. (AC: 1-4)
-- [ ] Add smoke coverage for Chat card rendering, Evolution deep links, Settings no-auto-merge state, and apply failure preservation. (AC: 1-4)
+- [x] Add Chat-side card models/components for AutoDream run status and compact Evolution proposal cards. (AC: 1, 2)
+- [x] Wire Chat card links into the Evolution workspace tabs and filters from Stories 2.1-2.4. (AC: 1, 2)
+- [x] Connect proposal cards to existing proposal detail/governance action flow instead of duplicating review UI inside Chat. (AC: 2)
+- [x] Update `SelfEvolutionSettings.vue` so policy options are clear and no enabled auto-merge durable-change affordance is exposed. (AC: 3)
+- [x] Ensure apply failures from proposal cards preserve proposal state, show recoverable error, and offer open-in-Evolution retry/review. (AC: 4)
+- [x] If AutoDream backend commands are not available yet, implement Chat trigger UI as disabled/unavailable with clear status, or behind the backend capability check. Do not fake a successful run. (AC: 1)
+- [x] Add i18n strings for Chat run/proposal cards and Settings governance copy. (AC: 1-4)
+- [x] Add smoke coverage for Chat card rendering, Evolution deep links, Settings no-auto-merge state, and apply failure preservation. (AC: 1-4)
 
 ## Dev Notes
 
@@ -111,21 +111,44 @@ so that manual triggers and policy edits stay understandable.
 
 ### Agent Model Used
 
-TBD by dev agent.
+Codex GPT-5
 
 ### Debug Log References
 
 - 2026-06-14: Story context prepared from Epic 2, prior 2.x story dependencies, Chat/Settings entry points, and supervised autonomy UX rules.
+- 2026-06-15: Implemented Chat governance cards, AutoDream trigger unavailable/success card handling, Evolution deep links, Settings no-auto-merge copy, and focused GUI smoke coverage.
+- 2026-06-15: Validation passed for focused GUI smoke tests. Full GUI/Rust validation is blocked by pre-existing unrelated failures recorded in iteration verification.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added compact AutoDream run and Evolution proposal card rendering in Chat.
+- Chat manual AutoDream trigger now renders a run card and shows backend-unavailable state on command failure without faking success.
+- Chat governance cards route to Evolution Runs or Inbox with proposal/source-run context; Chat does not duplicate review/governance actions.
+- Self Evolution settings now show the review-before-apply safety boundary and do not expose an enabled durable-change auto-merge control.
+- Added focused smoke coverage for governance card links, Evolution deep-link filtering, Settings no-auto-merge behavior, and retained apply-failure preservation coverage.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/2-5-connect-chat-and-settings-to-governance.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `agent-diva-gui/src/components/chat/governanceCards.ts`
+- `agent-diva-gui/src/components/chat/ChatGovernanceCard.vue`
+- `agent-diva-gui/src/components/chat/ChatGovernanceCard.test.ts`
+- `agent-diva-gui/src/components/ChatView.vue`
+- `agent-diva-gui/src/components/NormalMode.vue`
+- `agent-diva-gui/src/components/EvolutionView.vue`
+- `agent-diva-gui/src/components/EvolutionView.test.ts`
+- `agent-diva-gui/src/components/settings/SelfEvolutionSettings.vue`
+- `agent-diva-gui/src/components/settings/SelfEvolutionSettings.test.ts`
+- `agent-diva-gui/src/locales/zh.ts`
+- `agent-diva-gui/src/locales/en.ts`
+- `docs/logs/2026-06-chat-settings-governance/v0.0.1-chat-settings-governance/summary.md`
+- `docs/logs/2026-06-chat-settings-governance/v0.0.1-chat-settings-governance/verification.md`
+- `docs/logs/2026-06-chat-settings-governance/v0.0.1-chat-settings-governance/acceptance.md`
+- `docs/logs/2026-06-chat-settings-governance/v0.0.1-chat-settings-governance/release.md`
 
 ### Change Log
 
 - 2026-06-14: Created ready-for-dev story for Chat and Settings governance connections.
+- 2026-06-15: Implemented Chat and Settings governance connections; story marked ready for review.

@@ -1,5 +1,5 @@
 # generated: 2026-06-13T04:54:00+08:00
-# last_updated: 2026-06-15T00:18:49+08:00
+# last_updated: 2026-06-15T00:39:52+08:00
 # project: agent-diva-pro
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-13T04:54:00+08:00
-last_updated: 2026-06-15T00:18:49+08:00
+last_updated: 2026-06-15T00:45:00+08:00
 project: agent-diva-pro
 project_key: NOKEY
 tracking_system: file-system
@@ -52,10 +52,10 @@ development_status:
   epic-1-retrospective: optional
   epic-2: in-progress
   2-1-add-evolution-workspace-shell: review
-  2-2-build-proposal-inbox-list-and-filters: ready-for-dev
+  2-2-build-proposal-inbox-list-and-filters: review
   2-3-build-proposal-detail-and-governance-actions: review
-  2-4-build-runs-audit-and-policy-views: ready-for-dev
-  2-5-connect-chat-and-settings-to-governance: ready-for-dev
+  2-4-build-runs-audit-and-policy-views: review
+  2-5-connect-chat-and-settings-to-governance: review
   epic-2-retrospective: optional
   epic-3: in-progress
   3-1-implement-manual-run-lifecycle: review

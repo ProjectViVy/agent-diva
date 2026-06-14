@@ -355,6 +355,26 @@ export interface RollbackChangelogPayload {
 
 export type AutoDreamRunState = 'pending' | 'running' | 'cancelled' | 'completed' | 'failed';
 
+export interface AutoDreamInputSourceSummary {
+  source: string;
+  included_items: number;
+  total_bytes: number;
+  truncated: boolean;
+}
+
+export interface AutoDreamInputOmission {
+  source: string;
+  detail: string;
+}
+
+export interface AutoDreamInputSummary {
+  total_items: number;
+  included_sources: AutoDreamInputSourceSummary[];
+  omissions: AutoDreamInputOmission[];
+  truncated: boolean;
+  total_bytes: number;
+}
+
 export interface AutoDreamRunRecord {
   id: string;
   started_at: string;
@@ -362,8 +382,18 @@ export interface AutoDreamRunRecord {
   state: AutoDreamRunState;
   trigger: string;
   summary?: string | null;
+  input_summary?: AutoDreamInputSummary | null;
   proposal_ids: string[];
   error?: string | null;
+}
+
+export interface SelfEvolutionConfig {
+  enabled: boolean;
+  autodream_frequency: 'daily' | 'weekly' | 'manual';
+  trigger_threshold_sessions: number;
+  trigger_threshold_messages: number;
+  auto_merge_confidence: number;
+  require_confirmation_for: string[];
 }
 
 export type LaputaEventKind = 'proposals' | 'changelog' | 'errors';
@@ -428,6 +458,12 @@ export const cancelAutoDreamRun = (id: string) =>
 
 export const listAutoDreamRunRecords = () =>
   invoke<AutoDreamRunRecord[]>("list_autodream_run_records");
+
+export const getSelfEvolutionConfig = () =>
+  invoke<SelfEvolutionConfig>("get_self_evolution_config");
+
+export const saveSelfEvolutionConfig = (config: SelfEvolutionConfig) =>
+  invoke<void>("save_self_evolution_config", { config });
 
 // ============================================================
 // Card DTO Interfaces (Story 1.1)

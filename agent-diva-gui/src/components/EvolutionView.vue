@@ -3,7 +3,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   AlertTriangle,
-  Archive,
   ClipboardList,
   FileClock,
   GitBranch,
@@ -15,6 +14,8 @@ import {
   applyLaputaProposal,
   editLaputaProposal,
   getLaputaSection,
+  getSelfEvolutionConfig,
+  listAutoDreamRunRecords,
   listLaputaChangelog,
   listLaputaProposals,
   pollLaputaEvents,
@@ -23,16 +24,32 @@ import {
 } from '../api/desktop';
 import type {
   ChangelogRecord,
+  AutoDreamRunRecord,
   EvolutionProposal,
   LaputaEvent,
   LaputaSection,
+  SelfEvolutionConfig,
 } from '../api/desktop';
 import ProposalDetail from './evolution/ProposalDetail.vue';
+import ProposalInbox from './evolution/ProposalInbox.vue';
 import { appConfirm } from '../utils/appDialog';
 import { showAppToast } from '../utils/appToast';
 
 type EvolutionTab = 'inbox' | 'runs' | 'audit' | 'policy';
 type CountTone = 'none' | 'accent' | 'warning' | 'danger';
+
+const props = withDefaults(
+  defineProps<{
+    initialTab?: EvolutionTab;
+    initialProposalId?: string | null;
+    initialSourceRunId?: string | null;
+  }>(),
+  {
+    initialTab: 'inbox',
+    initialProposalId: null,
+    initialSourceRunId: null,
+  },
+);
 
 interface EvolutionCountPayload {
   total: number;
@@ -53,7 +70,7 @@ const tabs = [
   { key: 'policy', labelKey: 'evolution.tabs.policy', icon: ShieldCheck },
 ] as const;
 
-const activeTab = ref<EvolutionTab>('inbox');
+const activeTab = ref<EvolutionTab>(props.initialTab);
 const proposals = ref<EvolutionProposal[]>([]);
 const proposalEvents = ref<LaputaEvent[]>([]);
 const changelogEvents = ref<LaputaEvent[]>([]);
@@ -68,6 +85,25 @@ const detailError = ref<string | null>(null);
 const actionError = ref<string | null>(null);
 const busyAction = ref<string | null>(null);
 const evidenceOpen = ref(false);
+const activeSourceRunId = ref<string | null>(props.initialSourceRunId ?? null);
+const readProposalIds = ref<string[]>([]);
+const deferredProposalIds = ref<string[]>([]);
+const auditRecords = ref<ChangelogRecord[]>([]);
+const auditLoading = ref(false);
+const auditError = ref<string | null>(null);
+const runs = ref<AutoDreamRunRecord[]>([]);
+const runsLoading = ref(false);
+const runsError = ref<string | null>(null);
+const runsLoaded = ref(false);
+const policyConfig = ref<SelfEvolutionConfig | null>(null);
+const policyLoading = ref(false);
+const policyError = ref<string | null>(null);
+const policyLoaded = ref(false);
+
+const REQUIRED_POLICY_COPY =
+  'Durable personality, memory, SOP, skill, and policy changes require review before they are applied.';
+const READ_MARKERS_KEY = 'agent-diva:evolution:proposal-read-markers';
+const DEFERRED_MARKERS_KEY = 'agent-diva:evolution:proposal-deferred-markers';
 
 const selectedProposal = computed(() =>
   proposals.value.find((proposal) => proposal.id === selectedProposalId.value) ?? null,
@@ -76,6 +112,11 @@ const selectedProposal = computed(() =>
 const pendingProposals = computed(() =>
   proposals.value.filter((proposal) => proposal.state === 'pending_review')
 );
+
+const visibleProposals = computed(() => {
+  if (!activeSourceRunId.value) return proposals.value;
+  return proposals.value.filter((proposal) => proposal.source_run_id === activeSourceRunId.value);
+});
 
 const attentionProposals = computed(() =>
   proposals.value.filter(
@@ -89,6 +130,7 @@ const rollbackEligible = computed(
   () =>
     Boolean(
       selectedChangelog.value &&
+        isRollbackEligible(selectedChangelog.value) &&
         !selectedChangelog.value.reverted &&
         !selectedChangelog.value.stale,
     ),
@@ -105,7 +147,39 @@ const rollbackReason = computed(() => {
   if (selectedChangelog.value.stale) {
     return t('evolution.actions.rollbackStale');
   }
+  if (!isRollbackActionEligible(selectedChangelog.value)) {
+    return t('evolution.actions.rollbackActionUnsupported');
+  }
   return null;
+});
+
+const policySummaryRows = computed(() => {
+  const config = policyConfig.value;
+  return [
+    {
+      label: t('evolution.policy.enabled'),
+      value: config ? String(config.enabled) : t('evolution.policy.unavailableValue'),
+    },
+    {
+      label: t('evolution.policy.frequency'),
+      value: config?.autodream_frequency ?? t('evolution.policy.unavailableValue'),
+    },
+    {
+      label: t('evolution.policy.sessionThreshold'),
+      value: config ? String(config.trigger_threshold_sessions) : t('evolution.policy.unavailableValue'),
+    },
+    {
+      label: t('evolution.policy.messageThreshold'),
+      value: config ? String(config.trigger_threshold_messages) : t('evolution.policy.unavailableValue'),
+    },
+    {
+      label: t('evolution.policy.reviewRequiredFor'),
+      value:
+        config && config.require_confirmation_for.length > 0
+          ? config.require_confirmation_for.join(', ')
+          : t('evolution.policy.reviewAllDurable'),
+    },
+  ];
 });
 
 const countPayload = computed<EvolutionCountPayload>(() => {
@@ -153,6 +227,144 @@ function normalizeError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function loadMarkerList(key: string) {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistMarkerList(key: string, ids: string[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(key, JSON.stringify(Array.from(new Set(ids))));
+}
+
+function addMarkers(current: string[], ids: string[]) {
+  return Array.from(new Set([...current, ...ids]));
+}
+
+function removeMarkers(current: string[], ids: string[]) {
+  const remove = new Set(ids);
+  return current.filter((id) => !remove.has(id));
+}
+
+function isRollbackActionEligible(record: ChangelogRecord) {
+  return record.action === 'apply';
+}
+
+function isRollbackEligible(record: ChangelogRecord) {
+  return isRollbackActionEligible(record) && !record.reverted && !record.stale;
+}
+
+function rollbackAvailabilityLabel(record: ChangelogRecord) {
+  if (isRollbackEligible(record)) {
+    return t('evolution.audit.rollbackAvailable');
+  }
+  if (record.reverted) {
+    return t('evolution.audit.rollbackAlreadyUsed');
+  }
+  if (record.stale) {
+    return t('evolution.audit.rollbackStale');
+  }
+  if (!isRollbackActionEligible(record)) {
+    return t('evolution.audit.rollbackActionUnsupported');
+  }
+  return t('evolution.audit.rollbackUnavailable');
+}
+
+function changelogSummary(record: ChangelogRecord) {
+  const trimmedDiff = record.diff.trim();
+  if (trimmedDiff.length > 0) {
+    return trimmedDiff.length > 120 ? `${trimmedDiff.slice(0, 117)}...` : trimmedDiff;
+  }
+  return `${record.action} ${record.target_section}`;
+}
+
+function formatDuration(run: AutoDreamRunRecord) {
+  if (!run.completed_at) {
+    return t('evolution.runs.durationUnavailable');
+  }
+  const started = Date.parse(run.started_at);
+  const completed = Date.parse(run.completed_at);
+  if (!Number.isFinite(started) || !Number.isFinite(completed) || completed < started) {
+    return t('evolution.runs.durationUnavailable');
+  }
+  const seconds = Math.round((completed - started) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+function runInputSummary(run: AutoDreamRunRecord) {
+  if (!run.input_summary) {
+    return t('evolution.runs.inputsUnavailable');
+  }
+  return t('evolution.runs.inputSummary', {
+    count: run.input_summary.total_items,
+    bytes: run.input_summary.total_bytes,
+  });
+}
+
+function runOutputSummary(run: AutoDreamRunRecord) {
+  return run.summary || t('evolution.runs.outputsUnavailable');
+}
+
+async function loadAudit() {
+  auditLoading.value = true;
+  auditError.value = null;
+  try {
+    const page = await listLaputaChangelog(1, 25);
+    auditRecords.value = page.items;
+  } catch (error) {
+    auditRecords.value = [];
+    auditError.value = normalizeError(error);
+  } finally {
+    auditLoading.value = false;
+  }
+}
+
+async function loadRuns() {
+  runsLoading.value = true;
+  runsError.value = null;
+  try {
+    runs.value = await listAutoDreamRunRecords();
+  } catch (error) {
+    runs.value = [];
+    runsError.value = normalizeError(error);
+  } finally {
+    runsLoaded.value = true;
+    runsLoading.value = false;
+  }
+}
+
+async function loadPolicy() {
+  policyLoading.value = true;
+  policyError.value = null;
+  try {
+    policyConfig.value = await getSelfEvolutionConfig();
+  } catch (error) {
+    policyConfig.value = null;
+    policyError.value = normalizeError(error);
+  } finally {
+    policyLoaded.value = true;
+    policyLoading.value = false;
+  }
+}
+
+async function ensureActiveTabLoaded(tab: EvolutionTab) {
+  if (tab === 'audit') {
+    await loadAudit();
+  } else if (tab === 'runs' && !runsLoaded.value) {
+    await loadRuns();
+  } else if (tab === 'policy' && !policyLoaded.value) {
+    await loadPolicy();
+  }
+}
+
 async function loadDetail(id: string) {
   const proposal = proposals.value.find((item) => item.id === id);
   if (!proposal) return;
@@ -195,13 +407,19 @@ async function refresh() {
     changelogEvents.value = changelogEventList;
     errorEvents.value = errorEventList;
 
-    if (!selectedProposalId.value && proposalList.length > 0) {
-      selectedProposalId.value = proposalList[0].id;
+    const candidateList = activeSourceRunId.value
+      ? proposalList.filter((proposal) => proposal.source_run_id === activeSourceRunId.value)
+      : proposalList;
+
+    if (props.initialProposalId && proposalList.some((proposal) => proposal.id === props.initialProposalId)) {
+      selectedProposalId.value = props.initialProposalId;
+    } else if (!selectedProposalId.value && candidateList.length > 0) {
+      selectedProposalId.value = candidateList[0].id;
     } else if (
       selectedProposalId.value &&
-      !proposalList.some((proposal) => proposal.id === selectedProposalId.value)
+      !candidateList.some((proposal) => proposal.id === selectedProposalId.value)
     ) {
-      selectedProposalId.value = proposalList[0]?.id ?? null;
+      selectedProposalId.value = candidateList[0]?.id ?? null;
     }
   } catch (error) {
     loadError.value = normalizeError(error);
@@ -213,12 +431,24 @@ async function refresh() {
     loading.value = false;
     emitCount();
   }
+
+  if (activeTab.value !== 'inbox') {
+    await ensureActiveTabLoaded(activeTab.value);
+  }
 }
 
 function updateLocalProposal(next: EvolutionProposal) {
   proposals.value = proposals.value.map((proposal) =>
     proposal.id === next.id ? next : proposal,
   );
+}
+
+function applyDeepLink() {
+  activeTab.value = props.initialTab;
+  activeSourceRunId.value = props.initialSourceRunId ?? null;
+  if (props.initialProposalId) {
+    selectedProposalId.value = props.initialProposalId;
+  }
 }
 
 async function withAction(name: string, run: () => Promise<void>) {
@@ -232,6 +462,45 @@ async function withAction(name: string, run: () => Promise<void>) {
   } finally {
     busyAction.value = null;
   }
+}
+
+async function transitionProposalIds(ids: string[], state: 'approved' | 'rejected') {
+  if (ids.length === 0) return;
+  await withAction(`batch-${state}`, async () => {
+    for (const id of ids) {
+      const proposal = proposals.value.find((item) => item.id === id);
+      if (!proposal) continue;
+      const next = await transitionLaputaProposal(id, { state });
+      updateLocalProposal(next);
+    }
+    showAppToast(
+      t(state === 'approved' ? 'evolution.actions.approveOnlySuccess' : 'evolution.actions.rejectSuccess'),
+      'success',
+    );
+    if (selectedProposalId.value) {
+      await loadDetail(selectedProposalId.value);
+    }
+  });
+}
+
+function markRead(ids: string[]) {
+  readProposalIds.value = addMarkers(readProposalIds.value, ids);
+  persistMarkerList(READ_MARKERS_KEY, readProposalIds.value);
+}
+
+function markUnread(ids: string[]) {
+  readProposalIds.value = removeMarkers(readProposalIds.value, ids);
+  deferredProposalIds.value = removeMarkers(deferredProposalIds.value, ids);
+  persistMarkerList(READ_MARKERS_KEY, readProposalIds.value);
+  persistMarkerList(DEFERRED_MARKERS_KEY, deferredProposalIds.value);
+}
+
+function deferProposals(ids: string[]) {
+  deferredProposalIds.value = addMarkers(deferredProposalIds.value, ids);
+  readProposalIds.value = addMarkers(readProposalIds.value, ids);
+  persistMarkerList(DEFERRED_MARKERS_KEY, deferredProposalIds.value);
+  persistMarkerList(READ_MARKERS_KEY, readProposalIds.value);
+  showAppToast(t('evolution.actions.deferLocalSuccess'), 'success');
 }
 
 async function handleApproveOnly() {
@@ -339,8 +608,9 @@ async function handleEdit() {
 }
 
 async function handleDefer() {
-  actionError.value = t('evolution.actions.deferUnsupported');
-  showAppToast(actionError.value, 'error');
+  if (!selectedProposal.value) return;
+  deferProposals([selectedProposal.value.id]);
+  actionError.value = null;
 }
 
 watch(selectedProposalId, async (id) => {
@@ -352,7 +622,21 @@ watch(selectedProposalId, async (id) => {
   }
 });
 
+watch(activeTab, async (tab) => {
+  await ensureActiveTabLoaded(tab);
+});
+
+watch(
+  () => [props.initialTab, props.initialProposalId, props.initialSourceRunId] as const,
+  () => {
+    applyDeepLink();
+  },
+);
+
 onMounted(async () => {
+  readProposalIds.value = loadMarkerList(READ_MARKERS_KEY);
+  deferredProposalIds.value = loadMarkerList(DEFERRED_MARKERS_KEY);
+  applyDeepLink();
   await refresh();
 });
 </script>
@@ -402,45 +686,24 @@ onMounted(async () => {
 
     <div v-if="activeTab === 'inbox'" class="evolution-panel">
       <div class="evolution-inbox-shell evolution-inbox-responsive" data-testid="evolution-inbox-shell">
-        <aside class="evolution-list-pane">
-          <div class="evolution-pane-header">
-            <div>
-              <h2>{{ t('evolution.inbox.title') }}</h2>
-              <p>{{ t('evolution.inbox.count', { count: pendingProposals.length }) }}</p>
-            </div>
-            <span class="evolution-count-pill">{{ countPayload.total }}</span>
-          </div>
-
-          <div v-if="loading" class="evolution-skeleton-list">
-            <div v-for="row in 3" :key="row" class="evolution-skeleton-row" />
-          </div>
-
-          <div v-else-if="proposals.length === 0" class="evolution-empty-state">
-            <Archive :size="24" />
-            <strong>{{ t('evolution.inbox.emptyTitle') }}</strong>
-            <span>{{ t('evolution.inbox.emptyDesc') }}</span>
-          </div>
-
-          <div v-else class="evolution-proposal-list">
-            <button
-              v-for="proposal in proposals"
-              :key="proposal.id"
-              class="evolution-proposal-row"
-              :class="{ active: selectedProposalId === proposal.id }"
-              type="button"
-              :data-testid="`proposal-row-${proposal.id}`"
-              @click="selectedProposalId = proposal.id"
-            >
-              <span class="evolution-proposal-main">
-                <strong>{{ proposal.proposal_type }}</strong>
-                <span>{{ proposal.target_section }}</span>
-              </span>
-              <span class="evolution-proposal-meta">
-                {{ proposal.state }} · {{ proposal.risk_level }}
-              </span>
-            </button>
-          </div>
-        </aside>
+        <ProposalInbox
+          :proposals="visibleProposals"
+          :selected-proposal-id="selectedProposalId"
+          :loading="loading"
+          :load-error="loadError"
+          :read-ids="readProposalIds"
+          :deferred-ids="deferredProposalIds"
+          :busy-action="busyAction"
+          @select="selectedProposalId = $event"
+          @open="selectedProposalId = $event"
+          @approve="transitionProposalIds($event, 'approved')"
+          @reject="transitionProposalIds($event, 'rejected')"
+          @edit="selectedProposalId = $event; handleEdit()"
+          @defer="deferProposals"
+          @mark-read="markRead"
+          @mark-unread="markUnread"
+          @retry="refresh"
+        />
 
         <section class="evolution-detail-pane">
           <div class="evolution-pane-header">
@@ -475,12 +738,157 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else class="evolution-panel">
-      <div class="evolution-placeholder-panel">
-        <component :is="tabs.find((tab) => tab.key === activeTab)?.icon" :size="30" />
-        <strong>{{ t(`evolution.placeholders.${activeTab}.title`) }}</strong>
-        <span>{{ t(`evolution.placeholders.${activeTab}.desc`) }}</span>
-      </div>
+    <div v-else-if="activeTab === 'runs'" class="evolution-panel">
+      <section class="evolution-data-panel" data-testid="evolution-runs-panel">
+        <div class="evolution-pane-header">
+          <div>
+            <h2>{{ t('evolution.runs.title') }}</h2>
+            <p>{{ t('evolution.runs.desc') }}</p>
+          </div>
+        </div>
+
+        <div v-if="runsLoading" class="evolution-detail-loading">{{ t('evolution.runs.loading') }}</div>
+        <div v-else-if="runsError" class="evolution-empty-state">
+          <FileClock :size="24" />
+          <strong>{{ t('evolution.runs.unavailableTitle') }}</strong>
+          <span>{{ runsError }}</span>
+        </div>
+        <div v-else-if="runs.length === 0" class="evolution-empty-state">
+          <FileClock :size="24" />
+          <strong>{{ t('evolution.runs.emptyTitle') }}</strong>
+          <span>No AutoDream runs are available yet</span>
+        </div>
+        <div v-else class="evolution-card-grid">
+          <article v-for="run in runs" :key="run.id" class="evolution-record-card">
+            <div class="evolution-record-card__header">
+              <strong>{{ run.trigger }}</strong>
+              <span>{{ run.state }}</span>
+            </div>
+            <dl class="evolution-record-grid">
+              <div>
+                <dt>{{ t('evolution.runs.startedAt') }}</dt>
+                <dd>{{ run.started_at }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.runs.completedAt') }}</dt>
+                <dd>{{ run.completed_at || t('evolution.runs.inProgress') }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.runs.duration') }}</dt>
+                <dd>{{ formatDuration(run) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.runs.proposalCount') }}</dt>
+                <dd>{{ run.proposal_ids.length }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.runs.inputs') }}</dt>
+                <dd>{{ runInputSummary(run) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.runs.outputs') }}</dt>
+                <dd>{{ runOutputSummary(run) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.runs.errors') }}</dt>
+                <dd>{{ run.error || t('evolution.runs.noErrors') }}</dd>
+              </div>
+            </dl>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <div v-else-if="activeTab === 'audit'" class="evolution-panel">
+      <section class="evolution-data-panel" data-testid="evolution-audit-panel">
+        <div class="evolution-pane-header">
+          <div>
+            <h2>{{ t('evolution.audit.title') }}</h2>
+            <p>{{ t('evolution.audit.desc') }}</p>
+          </div>
+        </div>
+
+        <div v-if="auditLoading" class="evolution-detail-loading">{{ t('evolution.audit.loading') }}</div>
+        <div v-else-if="auditError" class="evolution-error evolution-error-inline" role="status">
+          <AlertTriangle :size="17" />
+          <div>
+            <strong>{{ t('evolution.audit.errorTitle') }}</strong>
+            <p>{{ auditError }}</p>
+          </div>
+        </div>
+        <div v-else-if="auditRecords.length === 0" class="evolution-empty-state">
+          <History :size="24" />
+          <strong>{{ t('evolution.audit.emptyTitle') }}</strong>
+          <span>{{ t('evolution.audit.emptyDesc') }}</span>
+        </div>
+        <div v-else class="evolution-audit-list">
+          <article v-for="record in auditRecords" :key="record.id" class="evolution-audit-row">
+            <div class="evolution-audit-row__main">
+              <div class="evolution-audit-row__title">
+                <strong>{{ record.action }}</strong>
+                <span>{{ record.target_section }}</span>
+              </div>
+              <p>{{ changelogSummary(record) }}</p>
+            </div>
+            <dl class="evolution-audit-meta">
+              <div>
+                <dt>{{ t('evolution.audit.timestamp') }}</dt>
+                <dd>{{ record.created_at }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.audit.actor') }}</dt>
+                <dd>{{ record.applied_by }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.audit.sourceProposal') }}</dt>
+                <dd>{{ record.proposal_id || '-' }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.audit.rollbackAvailability') }}</dt>
+                <dd>{{ rollbackAvailabilityLabel(record) }}</dd>
+              </div>
+            </dl>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <div v-else-if="activeTab === 'policy'" class="evolution-panel">
+      <section class="evolution-data-panel" data-testid="evolution-policy-panel">
+        <div class="evolution-pane-header">
+          <div>
+            <h2>{{ t('evolution.policy.title') }}</h2>
+            <p>{{ t('evolution.policy.desc') }}</p>
+          </div>
+        </div>
+
+        <div v-if="policyLoading" class="evolution-detail-loading">{{ t('evolution.policy.loading') }}</div>
+        <div v-else class="evolution-policy-body">
+          <div class="evolution-policy-copy">
+            <ShieldCheck :size="20" />
+            <p>{{ REQUIRED_POLICY_COPY }}</p>
+          </div>
+
+          <div v-if="policyError" class="evolution-error evolution-error-inline" role="status">
+            <AlertTriangle :size="17" />
+            <div>
+              <strong>{{ t('evolution.policy.errorTitle') }}</strong>
+              <p>{{ policyError }}</p>
+            </div>
+          </div>
+
+          <dl class="evolution-policy-grid">
+            <div v-for="row in policySummaryRows" :key="row.label">
+              <dt>{{ row.label }}</dt>
+              <dd>{{ row.value }}</dd>
+            </div>
+          </dl>
+
+          <a class="evolution-settings-link" href="#settings/self-evolution">
+            {{ t('evolution.policy.settingsLink') }}
+          </a>
+        </div>
+      </section>
     </div>
   </section>
 </template>
@@ -602,6 +1010,12 @@ onMounted(async () => {
   overflow-wrap: anywhere;
 }
 
+.evolution-error-inline {
+  margin: 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+}
+
 .evolution-panel {
   min-height: 0;
   flex: 1;
@@ -619,6 +1033,7 @@ onMounted(async () => {
 
 .evolution-list-pane,
 .evolution-detail-pane,
+.evolution-data-panel,
 .evolution-placeholder-panel {
   min-width: 0;
   overflow: hidden;
@@ -628,7 +1043,8 @@ onMounted(async () => {
 }
 
 .evolution-list-pane,
-.evolution-detail-pane {
+.evolution-detail-pane,
+.evolution-data-panel {
   display: flex;
   flex-direction: column;
 }
@@ -671,7 +1087,10 @@ onMounted(async () => {
 
 .evolution-skeleton-list,
 .evolution-proposal-list,
-.evolution-detail-body {
+.evolution-detail-body,
+.evolution-audit-list,
+.evolution-card-grid,
+.evolution-policy-body {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -762,6 +1181,117 @@ onMounted(async () => {
   flex: 0 0 auto;
   align-items: flex-end;
   color: #6b7280;
+}
+
+.evolution-record-card,
+.evolution-audit-row {
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.evolution-record-card__header,
+.evolution-audit-row__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #111827;
+  font-size: 13px;
+}
+
+.evolution-record-card__header span,
+.evolution-audit-row__title span {
+  border-radius: 999px;
+  background: #f3f4f6;
+  padding: 3px 8px;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.evolution-record-grid,
+.evolution-audit-meta,
+.evolution-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
+}
+
+.evolution-record-grid div,
+.evolution-audit-meta div,
+.evolution-policy-grid div {
+  min-width: 0;
+}
+
+.evolution-record-grid dt,
+.evolution-audit-meta dt,
+.evolution-policy-grid dt {
+  margin: 0 0 3px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.evolution-record-grid dd,
+.evolution-audit-meta dd,
+.evolution-policy-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #111827;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.evolution-audit-row__main p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.evolution-policy-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  padding: 12px;
+  color: #1d4ed8;
+}
+
+.evolution-policy-copy p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.evolution-settings-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  padding: 8px 11px;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.evolution-settings-link:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
 }
 
 @media (max-width: 1180px) {
