@@ -2,7 +2,13 @@
 
 use super::store::Session;
 use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Manages conversation sessions
 #[derive(Debug)]
@@ -127,7 +133,14 @@ impl SessionManager {
 
     /// Save a session to disk
     pub fn save(&self, session: &Session) -> crate::Result<()> {
-        std::fs::create_dir_all(&self.sessions_dir)?;
+        self.save_atomic(session, |_| Ok(()))
+    }
+
+    fn save_atomic<F>(&self, session: &Session, before_rename: F) -> crate::Result<()>
+    where
+        F: FnOnce(&Path) -> io::Result<()>,
+    {
+        fs::create_dir_all(&self.sessions_dir)?;
         let path = self.session_path(&session.key);
 
         let mut lines = Vec::new();
@@ -149,8 +162,17 @@ impl SessionManager {
             lines.push(serde_json::to_string(msg)?);
         }
 
-        std::fs::write(&path, lines.join("\n"))?;
+        let content = lines.join("\n");
+        atomic_replace(&path, content.as_bytes(), before_rename)?;
         Ok(())
+    }
+
+    #[cfg(test)]
+    fn save_with_hook<F>(&self, session: &Session, before_rename: F) -> crate::Result<()>
+    where
+        F: FnOnce(&Path) -> io::Result<()>,
+    {
+        self.save_atomic(session, before_rename)
     }
 
     /// Delete a session
@@ -233,6 +255,58 @@ impl SessionManager {
     }
 }
 
+fn atomic_replace<F>(path: &Path, bytes: &[u8], before_rename: F) -> crate::Result<()>
+where
+    F: FnOnce(&Path) -> io::Result<()>,
+{
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "target path has no parent"))?;
+    fs::create_dir_all(parent)?;
+
+    let temp_path = temp_path_for(path);
+    let write_result = (|| -> crate::Result<()> {
+        write_temp_file(&temp_path, bytes)?;
+        before_rename(&temp_path)?;
+        fs::rename(&temp_path, path)?;
+        Ok(())
+    })();
+
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+
+    write_result
+}
+
+fn write_temp_file(path: &Path, bytes: &[u8]) -> crate::Result<()> {
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
+}
+
+fn temp_path_for(path: &Path) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("session-write");
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let counter = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    path.with_file_name(format!(
+        ".{}.{}.{}.tmp",
+        file_name,
+        std::process::id(),
+        nanos + u128::from(counter)
+    ))
+}
+
 /// Information about a session
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SessionInfo {
@@ -281,7 +355,12 @@ mod tests {
         let key = session.key.clone();
 
         // Save the session
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager
+            .save_with_hook(&manager.cache.get(&key).unwrap(), |temp_path| {
+                assert_eq!(temp_path.parent(), Some(temp_dir.path().join("sessions").as_path()));
+                Ok(())
+            })
+            .unwrap();
 
         // Clear cache and reload
         manager.cache.clear();
@@ -379,5 +458,65 @@ mod tests {
         // Session never created; no file on disk
         let loaded = manager.get_or_load("gui:nonexistent");
         assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn test_replace_existing_session_keeps_latest_content() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let session = manager.get_or_create("replace:1");
+        session.add_message("user", "first");
+        let key = session.key.clone();
+        let snapshot = manager.cache.get(&key).unwrap().clone();
+        manager.save(&snapshot).unwrap();
+
+        let mut updated = snapshot.clone();
+        updated.add_message("assistant", "second");
+        manager.save(&updated).unwrap();
+
+        manager.cache.clear();
+        let loaded = manager.get_or_load("replace:1").unwrap();
+        assert_eq!(loaded.messages.len(), 2);
+        assert_eq!(loaded.messages[0].content, "first");
+        assert_eq!(loaded.messages[1].content, "second");
+    }
+
+    #[test]
+    fn test_failed_atomic_save_preserves_previous_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let session = manager.get_or_create("atomic:fail");
+        session.add_message("user", "before");
+        let key = session.key.clone();
+        let snapshot = manager.cache.get(&key).unwrap().clone();
+        manager.save(&snapshot).unwrap();
+
+        let mut updated = snapshot.clone();
+        updated.add_message("assistant", "after");
+
+        let err = manager
+            .save_with_hook(&updated, |temp_path| {
+                assert_eq!(
+                    temp_path.parent(),
+                    Some(temp_dir.path().join("sessions").as_path())
+                );
+                Err(io::Error::other("rename blocked"))
+            })
+            .unwrap_err();
+        assert!(matches!(err, crate::Error::Io(_)));
+
+        let final_path = temp_dir.path().join("sessions").join("atomic_fail.jsonl");
+        let content = std::fs::read_to_string(&final_path).unwrap();
+        assert!(content.contains("\"before\""));
+        assert!(!content.contains("\"after\""));
+
+        let temp_entries: Vec<_> = std::fs::read_dir(temp_dir.path().join("sessions"))
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(temp_entries.is_empty());
     }
 }
