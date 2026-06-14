@@ -4,7 +4,7 @@ baseline_commit: 5d072f6
 
 # Story 3.4: Emit Proposal and Run Output Artifacts
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -21,13 +21,13 @@ so that reflection can suggest changes without applying them.
 
 ## Tasks / Subtasks
 
-- [ ] Add `agent-diva-autodream/src/outputs.rs` for run artifact and event writing. (AC: 1, 3)
-- [ ] Define a versioned `autodream_run.json` artifact schema with bounded evidence refs, output summary, confidence, proposal candidates, and `review_required: true`. (AC: 1)
-- [ ] Convert proposal candidates into `agent_diva_core::evolution::EvolutionProposal` values with `state = PendingReview` and `source_run_id = run_id`. (AC: 2)
-- [ ] Persist proposals through the Laputa proposal API/service, never by writing `.laputa/proposals` directly. (AC: 2)
-- [ ] Append structured AutoDream events to `.agent-diva/autodream/events.jsonl` with atomic or locked append behavior. (AC: 3)
-- [ ] Update the run record with created proposal IDs and output summary. (AC: 4)
-- [ ] Add tests for artifact schema, proposal conversion/routing, event append, run-proposal linking, and no direct authority writes. (AC: 1-4)
+- [x] Add `agent-diva-autodream/src/outputs.rs` for run artifact and event writing. (AC: 1, 3)
+- [x] Define a versioned `autodream_run.json` artifact schema with bounded evidence refs, output summary, confidence, proposal candidates, and `review_required: true`. (AC: 1)
+- [x] Convert proposal candidates into `agent_diva_core::evolution::EvolutionProposal` values with `state = PendingReview` and `source_run_id = run_id`. (AC: 2)
+- [x] Persist proposals through the Laputa proposal API/service, never by writing `.laputa/proposals` directly. (AC: 2)
+- [x] Append structured AutoDream events to `.agent-diva/autodream/events.jsonl` with atomic or locked append behavior. (AC: 3)
+- [x] Update the run record with created proposal IDs and output summary. (AC: 4)
+- [x] Add tests for artifact schema, proposal conversion/routing, event append, run-proposal linking, and no direct authority writes. (AC: 1-4)
 
 ## Dev Notes
 
@@ -66,3 +66,30 @@ so that reflection can suggest changes without applying them.
 ## Completion Note
 
 Ultimate context engine analysis completed - comprehensive developer guide created.
+
+## Dev Agent Record
+
+### Debug Log
+
+- Added `agent-diva-autodream/src/outputs.rs` to serialize `autodream_run.json`, convert proposal drafts into shared `EvolutionProposal` values, persist via `LaputaService`, and append structured output events.
+- Extended `AutoDreamPaths` with `run_artifact_file`, exported the new output types from `lib.rs`, and mapped Laputa failures through `AutoDreamError`.
+- Added integration tests for artifact shape, proposal routing, event append behavior, run-to-proposal linking, and rejection of unknown proposal types before persistence.
+
+### Completion Notes
+
+- `autodream_run.json` now records schema version, bounded evidence refs, confidence, output summary, emitted proposal candidates, proposal IDs, and `review_required: true`.
+- Persisted proposals always use `ProposalState::PendingReview` and `source_run_id = run_id`.
+- Validation passed with `cargo test -p agent-diva-autodream outputs` and `cargo check -p agent-diva-autodream`.
+
+### File List
+
+- `agent-diva-autodream/src/error.rs`
+- `agent-diva-autodream/src/layout.rs`
+- `agent-diva-autodream/src/lib.rs`
+- `agent-diva-autodream/src/outputs.rs`
+- `agent-diva-autodream/tests/outputs.rs`
+- `_bmad-output/implementation-artifacts/3-4-emit-proposal-and-run-output-artifacts.md`
+
+### Change Log
+
+- Implemented AutoDream output artifact emission and proposal persistence for Story 3.4.
