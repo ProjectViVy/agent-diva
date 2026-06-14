@@ -20,6 +20,8 @@ export interface MaskEntry {
   name: string;
   icon: string;
   description: string;
+  mode: 'normal' | 'assist';
+  readOnly: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -31,6 +33,8 @@ const currentMask = ref<MaskEntry>({
   name: '我就是我',
   icon: '😊',
   description: '默认身份，无特殊设定',
+  mode: 'normal',
+  readOnly: false,
 });
 
 /** All available masks (including default). */
@@ -44,10 +48,11 @@ const loaded = ref(false);
 // ---------------------------------------------------------------------------
 
 const MOCK_MASKS: MaskEntry[] = [
-  { name: '我就是我', icon: '😊', description: '默认身份，无特殊设定' },
-  { name: '研究员', icon: '🔍', description: '专注调研与分析' },
-  { name: 'Rust Coder', icon: '🦀', description: 'Rust 编程专家' },
-  { name: '助手', icon: '🤖', description: '通用助手' },
+  { name: '我就是我', icon: '😊', description: '默认身份，无特殊设定', mode: 'normal', readOnly: false },
+  { name: '研究员', icon: '🔍', description: '专注调研与分析', mode: 'normal', readOnly: false },
+  { name: 'Rust Coder', icon: '🦀', description: 'Rust 编程专家', mode: 'normal', readOnly: false },
+  { name: '助手', icon: '🤖', description: '通用助手', mode: 'normal', readOnly: false },
+  { name: '审查员', icon: '📝', description: '代码审查，只读模式', mode: 'assist', readOnly: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -86,10 +91,7 @@ export function useMask() {
 
     // Load current mask
     try {
-      const current = await invoke<MaskEntry | null>('get_current_mask');
-      if (current) {
-        currentMask.value = current;
-      }
+      currentMask.value = await invoke<MaskEntry>('get_current_mask');
     } catch {
       // Keep default
     }
@@ -114,7 +116,7 @@ export function useMask() {
     }
 
     try {
-      await invoke('switch_mask', { name });
+      currentMask.value = await invoke<MaskEntry>('switch_mask', { name });
     } catch {
       // Revert on failure
       currentMask.value = previous;

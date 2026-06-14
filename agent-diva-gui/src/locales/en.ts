@@ -949,6 +949,12 @@ export default {
     expand: 'Expand',
     markAllDone: 'Mark all done',
   },
+  mask: {
+    mode: {
+      normal: 'Standard',
+      readOnly: 'Read-Only Review',
+    },
+  },
   tokenStats: {
     title: 'Token Statistics',
     subtitle: 'View token usage and cost analysis',

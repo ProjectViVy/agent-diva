@@ -22,6 +22,7 @@ use uuid::Uuid;
 use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
 use crate::context_budget::BudgetConfig;
+use crate::mask::{MaskFile, MaskRegistry};
 #[cfg(feature = "mentle")]
 use crate::mentle_runtime::MentleRuntime;
 use crate::runtime_control::RuntimeControlCommand;
@@ -204,6 +205,7 @@ fn build_agent_tools(
     file_manager: Arc<FileManager>,
     custom_tools: Vec<Arc<dyn Tool>>,
     cron_service: Option<Arc<CronService>>,
+    active_mask: Option<&MaskFile>,
 ) -> ToolRegistry {
     let mut assembly = ToolAssembly::new(workspace)
         .builtin(tool_config.builtin.clone())
@@ -213,7 +215,8 @@ fn build_agent_tools(
         .mcp_servers(tool_config.mcp_servers.clone())
         .with_subagent_spawner(spawner)
         .with_file_manager(file_manager)
-        .with_tools(custom_tools);
+        .with_tools(custom_tools)
+        .with_mask_config(active_mask.map(|mask| mask.frontmatter.clone()));
 
     if let Some(cron_service) = cron_service {
         assembly = assembly.with_cron_service(cron_service);
@@ -223,6 +226,25 @@ fn build_agent_tools(
 }
 
 impl AgentLoop {
+    pub(crate) fn load_active_mask(&self) -> Option<MaskFile> {
+        let registry = MaskRegistry::new(self.workspace.join("masks"));
+        registry.current_mask().cloned()
+    }
+
+    pub(crate) fn rebuild_tools_for_mask(&mut self, active_mask: Option<&MaskFile>) {
+        self.tools = build_agent_tools(
+            self.workspace.clone(),
+            &self.tool_config,
+            Arc::new(SubagentManagerSpawner {
+                manager: self.subagent_manager.clone(),
+            }),
+            self.file_manager.clone(),
+            self.custom_tools.clone(),
+            self.tool_config.cron_service.clone(),
+            active_mask,
+        );
+    }
+
     /// Create a new agent loop
     pub async fn new(
         bus: MessageBus,
@@ -450,6 +472,7 @@ impl AgentLoop {
             file_manager.clone(),
             custom_tools.clone(),
             tool_config.cron_service.clone(),
+            None,
         );
 
         let mut agent = Self {
@@ -488,6 +511,7 @@ impl AgentLoop {
                 agent.file_manager.clone(),
                 agent.custom_tools.clone(),
                 Some(cron_service),
+                None,
             );
         }
 
@@ -1316,6 +1340,7 @@ mod tests {
                 name: "memtle_status",
             })],
             Some(cron_service),
+            None,
         );
 
         assert!(registry.has("memtle_status"));

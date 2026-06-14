@@ -4,6 +4,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Resolve pre-existing Story 3.1 validation blockers outside AutoDream.
+  - Context: During Story 3.1 validation on 2026-06-14, `cargo fmt --check` failed on unrelated existing rustfmt drift in `agent-diva-agent`, and `cargo check -p agent-diva-gui` failed on unrelated existing `agent-diva-sandbox` compile errors.
+  - Expected behavior: workspace formatting and GUI Tauri compile validation should pass after unrelated rustfmt and sandbox compile blockers are fixed.
+  - Related files/docs: `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/mask/*`, `agent-diva-agent/src/planning/*`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`; `docs/logs/2026-06-autodream-manual-run-lifecycle/v0.0.1-manual-run-lifecycle/verification.md`.
+
 - [ ] Fix pre-existing GUI build blockers outside Evolution workspace work.
   - Context: During Story 2.1 validation on 2026-06-14, `pnpm build` in `agent-diva-gui` failed after touched-file type issues were fixed. Remaining failures are unrelated existing issues: unused imports/variables in `DecisionCard.vue`, `NotebookView.vue`, several settings components, and an invalid `../../api/desktop` import in `TodoCard.vue`.
   - Expected behavior: `agent-diva-gui` should pass `vue-tsc --noEmit && vite build` without unrelated no-unused and path-resolution failures.
@@ -23,6 +28,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Context: During Story 1.3 validation on 2026-06-14, `just test` failed outside the Laputa proposal changes. Errors include missing `lock_exclusive` method for `std::fs::File` in `agent-diva-sandbox/src/exec_policy.rs` and `bool`/`&bool` match arm mismatch in `agent-diva-sandbox/src/platform/macos.rs`.
   - Expected behavior: Workspace `cargo test --all` should compile all crates and run tests without unrelated sandbox failures.
   - Related files/docs: `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`; `docs/logs/2026-06-laputa-proposals/v0.0.1-proposal-crud-state-transitions/verification.md`.
+
+- [ ] Fix pre-existing mask/runtime warnings in `agent-diva-agent` blocking warning-free validation.
+  - Context: During Story 2.2 validation on 2026-06-14, targeted `cargo test -p agent-diva-agent mask::mask_registry` and `mask::tool_policy` passed, but both surfaced unrelated existing warnings: an unused `ToolPolicy` import and unread `parent_tool_limits` field in `agent-diva-agent/src/subagent.rs`.
+  - Expected behavior: Focused agent crate validation for mask stories should run without unrelated warnings so stricter `-D warnings` checks can be trusted.
+  - Related files/docs: `agent-diva-agent/src/subagent.rs`; `docs/logs/2026-06-reviewer-assist-readonly/v0.0.1-reviewer-assist-readonly/verification.md`.
 
 - [ ] Clean pre-existing workspace rustfmt drift.
   - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.

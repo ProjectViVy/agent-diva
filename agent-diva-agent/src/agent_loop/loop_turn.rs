@@ -2,6 +2,7 @@ use super::AgentLoop;
 use crate::compaction::ContextCompactor;
 use crate::consolidation;
 use crate::context_budget::check_budget;
+use crate::mask::ToolPolicy;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
@@ -42,6 +43,8 @@ impl AgentLoop {
         );
 
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
+        let active_mask = self.load_active_mask();
+        self.rebuild_tools_for_mask(active_mask.as_ref());
 
         // Process attachments: load text file contents and append to message
         let message_content = if !msg.media.is_empty() {
@@ -151,6 +154,13 @@ impl AgentLoop {
             Some(&msg.chat_id),
             &compaction_history,
         );
+        if let Some(mask) = active_mask.as_ref() {
+            if let Some(first) = messages.first_mut() {
+                *first = agent_diva_providers::Message::system(
+                    self.context.build_system_prompt(Some(mask)),
+                );
+            }
+        }
         if is_cron_trigger {
             // Make trigger origin explicit so the model does not treat it as a fresh user request.
             let current_message = messages.pop();
@@ -482,28 +492,41 @@ impl AgentLoop {
 
                     let result = match serde_json::to_value(&tool_call.arguments) {
                         Ok(mut params_value) => {
-                            if tool_call.name == "cron" {
-                                if let Some(params_obj) = params_value.as_object_mut() {
-                                    params_obj.insert(
-                                        "context_channel".to_string(),
-                                        serde_json::Value::String(msg.channel.clone()),
-                                    );
-                                    params_obj.insert(
-                                        "context_chat_id".to_string(),
-                                        serde_json::Value::String(msg.chat_id.clone()),
-                                    );
-                                    if msg.channel == "cron" || is_cron_trigger {
+                            let read_only_rejected = active_mask
+                                .as_ref()
+                                .is_some_and(ToolPolicy::is_read_only_mode)
+                                && !ToolPolicy::is_read_only_tool(&tool_call.name);
+
+                            if read_only_rejected {
+                                format!(
+                                    "Error: tool '{}' is disabled in reviewer read-only mode",
+                                    tool_call.name
+                                )
+                            } else {
+                                if tool_call.name == "cron" {
+                                    if let Some(params_obj) = params_value.as_object_mut() {
                                         params_obj.insert(
-                                            "_in_cron_context".to_string(),
-                                            serde_json::Value::Bool(true),
+                                            "context_channel".to_string(),
+                                            serde_json::Value::String(msg.channel.clone()),
                                         );
+                                        params_obj.insert(
+                                            "context_chat_id".to_string(),
+                                            serde_json::Value::String(msg.chat_id.clone()),
+                                        );
+                                        if msg.channel == "cron" || is_cron_trigger {
+                                            params_obj.insert(
+                                                "_in_cron_context".to_string(),
+                                                serde_json::Value::Bool(true),
+                                            );
+                                        }
                                     }
                                 }
-                            }
-                            if is_cron_trigger && tool_call.name == "cron" {
-                                "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
-                            } else {
-                                self.tools.execute(&tool_call.name, params_value).await
+
+                                if is_cron_trigger && tool_call.name == "cron" {
+                                    "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
+                                } else {
+                                    self.tools.execute(&tool_call.name, params_value).await
+                                }
                             }
                         }
                         Err(e) => {

@@ -9,6 +9,7 @@ use super::mask_file::MaskFile;
 
 /// Static default mask — allocated once.
 static DEFAULT_MASK: LazyLock<MaskFile> = LazyLock::new(MaskFile::default_mask);
+const ACTIVE_MASK_FILE: &str = ".active-mask";
 
 /// In-memory registry of all masks discovered under a directory.
 ///
@@ -39,10 +40,11 @@ impl MaskRegistry {
     pub fn new(masks_dir: impl Into<PathBuf>) -> Self {
         let masks_dir = masks_dir.into();
         let cache = scan_masks(&masks_dir);
+        let current_mask_name = load_active_mask_name(&masks_dir, &cache);
         Self {
             masks_dir,
             cache,
-            current_mask_name: None,
+            current_mask_name,
         }
     }
 
@@ -66,6 +68,7 @@ impl MaskRegistry {
     /// Re-scan the masks directory, replacing the in-memory cache.
     pub fn reload(&mut self) {
         self.cache = scan_masks(&self.masks_dir);
+        self.current_mask_name = load_active_mask_name(&self.masks_dir, &self.cache);
     }
 
     /// Switch to a mask by its frontmatter `name` field.
@@ -73,15 +76,19 @@ impl MaskRegistry {
     /// Returns a reference to the activated [`MaskFile`], or
     /// [`MaskError::MaskNotFound`] if no mask with that name exists.
     pub fn switch_to(&mut self, name: &str) -> Result<&MaskFile, MaskError> {
+        if name == MaskFile::DEFAULT_NAME {
+            self.switch_off();
+            return Ok(&DEFAULT_MASK);
+        }
+
         // Verify the mask exists (immutable borrow — ends after this block).
-        if name != MaskFile::DEFAULT_NAME
-            && !self.cache.values().any(|m| m.frontmatter.name == name)
-        {
+        if !self.cache.values().any(|m| m.frontmatter.name == name) {
             return Err(MaskError::MaskNotFound {
                 name: name.to_string(),
             });
         }
         self.current_mask_name = Some(name.to_string());
+        persist_active_mask_name(&self.masks_dir, Some(name));
         // Borrow of current_mask_name is done; get() borrows &self only.
         Ok(self.get(name).unwrap())
     }
@@ -89,6 +96,7 @@ impl MaskRegistry {
     /// Switch off the current mask, returning to the default identity.
     pub fn switch_off(&mut self) {
         self.current_mask_name = None;
+        persist_active_mask_name(&self.masks_dir, None);
     }
 
     /// Return a reference to the currently active mask.
@@ -190,6 +198,57 @@ fn scan_dir(root: &Path, current: &Path, cache: &mut HashMap<String, MaskFile>) 
     }
 }
 
+fn active_mask_file_path(masks_dir: &Path) -> PathBuf {
+    masks_dir.join(ACTIVE_MASK_FILE)
+}
+
+fn load_active_mask_name(masks_dir: &Path, cache: &HashMap<String, MaskFile>) -> Option<String> {
+    let path = active_mask_file_path(masks_dir);
+    let raw = std::fs::read_to_string(path).ok()?;
+    let name = raw.trim();
+    if name.is_empty() || name == MaskFile::DEFAULT_NAME {
+        return None;
+    }
+    cache
+        .values()
+        .find(|mask| mask.frontmatter.name == name)
+        .map(|mask| mask.frontmatter.name.clone())
+}
+
+fn persist_active_mask_name(masks_dir: &Path, name: Option<&str>) {
+    let path = active_mask_file_path(masks_dir);
+
+    if let Some(name) = name {
+        if let Err(error) = std::fs::create_dir_all(masks_dir) {
+            tracing::warn!(
+                dir = %masks_dir.display(),
+                error = %error,
+                "failed to create masks directory while persisting active mask"
+            );
+            return;
+        }
+
+        if let Err(error) = std::fs::write(&path, format!("{name}\n")) {
+            tracing::warn!(
+                path = %path.display(),
+                error = %error,
+                "failed to persist active mask name"
+            );
+        }
+        return;
+    }
+
+    if let Err(error) = std::fs::remove_file(&path) {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            tracing::warn!(
+                path = %path.display(),
+                error = %error,
+                "failed to clear active mask name"
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,7 +332,10 @@ mod tests {
 
         // The nested mask should be discoverable
         let rust_coder = registry.get("Rust Coder").expect("nested mask");
-        assert_eq!(rust_coder.frontmatter.model.as_deref(), Some("deepseek-chat"));
+        assert_eq!(
+            rust_coder.frontmatter.model.as_deref(),
+            Some("deepseek-chat")
+        );
     }
 
     #[test]
@@ -360,8 +422,52 @@ mod tests {
 
         let masks = registry.list();
         let names: Vec<&str> = masks.iter().map(|m| m.frontmatter.name.as_str()).collect();
-        assert!(names.contains(&"我就是我"), "default mask missing from list");
+        assert!(
+            names.contains(&"我就是我"),
+            "default mask missing from list"
+        );
         assert!(names.contains(&"助手"), "助手 mask missing from list");
-        assert!(names.contains(&"Rust Coder"), "Rust Coder mask missing from list");
+        assert!(
+            names.contains(&"Rust Coder"),
+            "Rust Coder mask missing from list"
+        );
+    }
+
+    #[test]
+    fn switch_to_persists_active_mask_name() {
+        let dir = setup_masks_dir();
+        let mut registry = MaskRegistry::new(dir.path());
+
+        registry.switch_to("助手").expect("switch should persist");
+
+        let persisted = std::fs::read_to_string(dir.path().join(ACTIVE_MASK_FILE)).unwrap();
+        assert_eq!(persisted.trim(), "助手");
+    }
+
+    #[test]
+    fn new_registry_restores_active_mask_from_disk() {
+        let dir = setup_masks_dir();
+        std::fs::write(dir.path().join(ACTIVE_MASK_FILE), "Rust Coder\n").unwrap();
+
+        let registry = MaskRegistry::new(dir.path());
+
+        assert_eq!(registry.current_mask_name(), Some("Rust Coder"));
+        assert_eq!(
+            registry
+                .current_mask()
+                .map(|mask| mask.frontmatter.name.as_str()),
+            Some("Rust Coder")
+        );
+    }
+
+    #[test]
+    fn switch_off_removes_persisted_active_mask_name() {
+        let dir = setup_masks_dir();
+        let mut registry = MaskRegistry::new(dir.path());
+        registry.switch_to("助手").expect("switch on");
+
+        registry.switch_off();
+
+        assert!(!dir.path().join(ACTIVE_MASK_FILE).exists());
     }
 }

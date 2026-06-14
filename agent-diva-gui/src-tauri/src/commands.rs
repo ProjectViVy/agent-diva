@@ -2,6 +2,7 @@ use crate::app_state::AgentState;
 use crate::gateway_status::GatewayStatus;
 use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
+use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
@@ -109,6 +110,16 @@ pub struct SkillDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MaskEntryDto {
+    pub name: String,
+    pub icon: String,
+    pub description: String,
+    pub mode: String,
+    pub read_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileAttachmentDto {
     pub file_id: String,
     pub filename: String,
@@ -173,6 +184,12 @@ pub struct LaputaApplyPayload {
 pub struct LaputaRollbackPayload {
     pub reason: String,
     pub expected_current: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoDreamTriggerPayload {
+    pub trigger: Option<String>,
 }
 
 // Manager API bridge commands. These proxy companion/runtime HTTP APIs without
@@ -407,6 +424,52 @@ pub async fn laputa_poll_events(
         url.push_str(&format!("?since={}", urlencoding::encode(&since)));
     }
     get_laputa_payload(&state, &url, "events").await
+}
+
+#[tauri::command]
+pub async fn trigger_autodream(
+    payload: Option<AutoDreamTriggerPayload>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/autodream/runs", state.api_base_url());
+    let payload = payload.unwrap_or(AutoDreamTriggerPayload {
+        trigger: Some("manual".to_string()),
+    });
+    post_laputa_payload(&state, &url, &payload, "run").await
+}
+
+#[tauri::command]
+pub async fn get_autodream_run_status(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/autodream/runs/{}",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    get_laputa_payload(&state, &url, "run").await
+}
+
+#[tauri::command]
+pub async fn cancel_autodream_run(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/autodream/runs/{}/cancel",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    post_laputa_payload(&state, &url, &serde_json::json!({}), "run").await
+}
+
+#[tauri::command]
+pub async fn list_autodream_run_records(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/autodream/runs", state.api_base_url());
+    get_laputa_payload(&state, &url, "runs").await
 }
 
 fn non_empty_query_value(value: Option<String>) -> Option<String> {
@@ -1451,6 +1514,46 @@ pub async fn get_skills(state: State<'_, AgentState>) -> Result<Vec<SkillDto>, S
 }
 
 #[tauri::command]
+pub fn list_masks() -> Result<Vec<MaskEntryDto>, String> {
+    let registry = load_mask_registry();
+    let mut items: Vec<MaskEntryDto> = registry
+        .list()
+        .into_iter()
+        .map(mask_entry_from_file)
+        .collect();
+    items.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(items)
+}
+
+#[tauri::command]
+pub fn get_current_mask() -> Result<MaskEntryDto, String> {
+    let registry = load_mask_registry();
+    let mask = registry
+        .current_mask()
+        .cloned()
+        .unwrap_or_else(agent_diva_agent::mask::MaskFile::default_mask);
+    Ok(mask_entry_from_file(&mask))
+}
+
+#[tauri::command]
+pub fn switch_mask(name: String) -> Result<MaskEntryDto, String> {
+    let mut registry = load_mask_registry();
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed == agent_diva_agent::mask::MaskFile::DEFAULT_NAME {
+        registry.switch_off();
+        return Ok(mask_entry_from_file(
+            &agent_diva_agent::mask::MaskFile::default_mask(),
+        ));
+    }
+
+    let mask = registry
+        .switch_to(trimmed)
+        .map_err(|error| error.to_string())?
+        .clone();
+    Ok(mask_entry_from_file(&mask))
+}
+
+#[tauri::command]
 pub async fn get_mcps(state: State<'_, AgentState>) -> Result<Vec<McpServerDto>, String> {
     let value = state.get_mcps().await?;
     serde_json::from_value(value).map_err(|e| format!("Invalid MCP payload: {}", e))
@@ -1932,6 +2035,42 @@ fn cli_runtime_from_loader(loader: &ConfigLoader) -> CliRuntime {
         Some(loader.config_dir().to_path_buf()),
         None,
     )
+}
+
+fn mask_workspace_dir() -> PathBuf {
+    let loader = config_loader();
+    let config = loader.load().unwrap_or_default();
+    let runtime = cli_runtime_from_loader(&loader);
+    runtime.effective_workspace(&config).join("masks")
+}
+
+fn load_mask_registry() -> MaskRegistry {
+    MaskRegistry::new(mask_workspace_dir())
+}
+
+fn mask_entry_from_file(mask: &agent_diva_agent::mask::MaskFile) -> MaskEntryDto {
+    let read_only = ToolPolicy::is_read_only_mode(mask);
+    MaskEntryDto {
+        name: mask.frontmatter.name.clone(),
+        icon: mask.frontmatter.icon.clone().unwrap_or_else(|| {
+            if read_only {
+                "📝".to_string()
+            } else {
+                "😊".to_string()
+            }
+        }),
+        description: mask.frontmatter.description.clone().unwrap_or_default(),
+        mode: mask
+            .frontmatter
+            .mode
+            .map(|mode| match mode {
+                agent_diva_core::config::schema::AgentMode::Normal => "normal",
+                agent_diva_core::config::schema::AgentMode::Assist => "assist",
+            })
+            .unwrap_or("normal")
+            .to_string(),
+        read_only,
+    }
 }
 
 fn provider_access_for_test(

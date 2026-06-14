@@ -1,4 +1,6 @@
+use crate::mask::{MaskFile, ToolPolicy};
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
+use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
@@ -34,6 +36,7 @@ pub struct ToolAssembly {
     custom_tools: Vec<Arc<dyn Tool>>,
     subagent_spawner: Option<Arc<dyn SubagentSpawner>>,
     file_manager: Option<Arc<FileManager>>,
+    mask_config: Option<MaskConfig>,
 }
 
 impl ToolAssembly {
@@ -49,6 +52,7 @@ impl ToolAssembly {
             custom_tools: Vec::new(),
             subagent_spawner: None,
             file_manager: None,
+            mask_config: None,
         }
     }
 
@@ -102,6 +106,11 @@ impl ToolAssembly {
         self
     }
 
+    pub fn with_mask_config(mut self, mask_config: Option<MaskConfig>) -> Self {
+        self.mask_config = mask_config;
+        self
+    }
+
     pub fn build(self) -> ToolRegistry {
         self.build_internal(false)
     }
@@ -116,6 +125,13 @@ impl ToolAssembly {
     }
 
     fn build_internal(self, subagent_mode: bool) -> ToolRegistry {
+        let mask_file = self.mask_config.clone().map(|frontmatter| MaskFile {
+            frontmatter,
+            body: String::new(),
+        });
+        let read_only_mode = mask_file
+            .as_ref()
+            .is_some_and(ToolPolicy::is_read_only_mode);
         let mut registry = ToolRegistry::new();
 
         if self.builtin_config.filesystem {
@@ -128,14 +144,26 @@ impl ToolAssembly {
             } else {
                 SecurityConfig::default()
             };
+            let security_config = if read_only_mode {
+                SecurityConfig {
+                    level: SecurityLevel::Paranoid,
+                    workspace_only: true,
+                    read_only: Some(true),
+                    ..security_config
+                }
+            } else {
+                security_config
+            };
             let security = Arc::new(SecurityPolicy::with_config(
                 self.workspace.clone(),
                 security_config,
             ));
             registry.register(Arc::new(ReadFileTool::new(security.clone())));
-            registry.register(Arc::new(WriteFileTool::new(security.clone())));
-            registry.register(Arc::new(EditFileTool::new(security.clone())));
-            registry.register(Arc::new(ListDirTool::new(security)));
+            registry.register(Arc::new(ListDirTool::new(security.clone())));
+            if !read_only_mode {
+                registry.register(Arc::new(WriteFileTool::new(security.clone())));
+                registry.register(Arc::new(EditFileTool::new(security)));
+            }
         }
 
         if self.builtin_config.attachment {
@@ -144,7 +172,7 @@ impl ToolAssembly {
             }
         }
 
-        if self.builtin_config.shell {
+        if self.builtin_config.shell && !read_only_mode {
             registry.register(Arc::new(ExecTool::with_config(
                 self.exec_timeout,
                 Some(self.workspace.clone()),
@@ -164,7 +192,7 @@ impl ToolAssembly {
             registry.register(Arc::new(WebFetchTool::new()));
         }
 
-        if self.builtin_config.spawn && !subagent_mode {
+        if self.builtin_config.spawn && !subagent_mode && !read_only_mode {
             if let Some(spawner) = self.subagent_spawner {
                 registry.register(Arc::new(SpawnTool::new(
                     move |task, label, channel, chat_id| {
@@ -175,13 +203,13 @@ impl ToolAssembly {
             }
         }
 
-        if self.builtin_config.mcp && !self.mcp_servers.is_empty() {
+        if self.builtin_config.mcp && !self.mcp_servers.is_empty() && !read_only_mode {
             for tool in load_mcp_tools_sync(&self.mcp_servers) {
                 registry.register(tool);
             }
         }
 
-        if self.builtin_config.cron && !subagent_mode {
+        if self.builtin_config.cron && !subagent_mode && !read_only_mode {
             if let Some(cron_service) = self.cron_service {
                 registry.register(Arc::new(CronTool::new(cron_service)));
             }
@@ -189,6 +217,14 @@ impl ToolAssembly {
 
         for tool in self.custom_tools {
             registry.register(tool);
+        }
+
+        if read_only_mode {
+            for tool_name in registry.tool_names() {
+                if !ToolPolicy::is_read_only_tool(&tool_name) {
+                    registry.unregister(&tool_name);
+                }
+            }
         }
 
         registry
@@ -296,6 +332,26 @@ mod tests {
 
         assert!(registry.has("read_file"));
         assert!(!registry.has("memtle_status"));
+        assert!(!registry.has("spawn"));
+        assert!(!registry.has("cron"));
+    }
+
+    #[test]
+    fn test_tool_assembly_assist_mode_is_read_only() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .with_mask_config(Some(MaskConfig {
+                name: "Reviewer".to_string(),
+                mode: Some(agent_diva_core::config::schema::AgentMode::Assist),
+                ..Default::default()
+            }))
+            .build();
+
+        assert!(registry.has("read_file"));
+        assert!(registry.has("list_dir"));
+        assert!(!registry.has("write_file"));
+        assert!(!registry.has("edit_file"));
+        assert!(!registry.has("exec"));
         assert!(!registry.has("spawn"));
         assert!(!registry.has("cron"));
     }

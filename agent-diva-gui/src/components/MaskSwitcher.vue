@@ -34,6 +34,11 @@ const handleManageMasks = () => {
   closePopover();
   emit('navigate-masks');
 };
+
+const maskModeLabel = (mask: MaskEntry) =>
+  mask.readOnly
+    ? t('mask.mode.readOnly', '只读审查')
+    : t('mask.mode.normal', '标准模式');
 </script>
 
 <template>
@@ -71,7 +76,10 @@ const handleManageMasks = () => {
           >
             <span class="mask-item-icon">{{ mask.icon }}</span>
             <div class="mask-item-info">
-              <span class="mask-item-name">{{ mask.name }}</span>
+              <div class="mask-item-title-row">
+                <span class="mask-item-name">{{ mask.name }}</span>
+                <span v-if="mask.readOnly" class="mask-item-badge">{{ maskModeLabel(mask) }}</span>
+              </div>
               <span v-if="mask.description" class="mask-item-desc">{{ mask.description }}</span>
             </div>
             <span v-if="mask.name === currentMask.name" class="mask-item-check">✓</span>
@@ -200,6 +208,13 @@ const handleManageMasks = () => {
   gap: 1px;
 }
 
+.mask-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .mask-item-name {
   font-size: 13px;
   font-weight: 500;
@@ -219,6 +234,17 @@ const handleManageMasks = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.mask-item-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg-hover);
+  color: var(--accent);
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .mask-item-check {

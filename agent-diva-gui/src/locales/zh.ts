@@ -892,6 +892,12 @@ export default {
     expand: '展开',
     markAllDone: '全部完成',
   },
+  mask: {
+    mode: {
+      normal: '标准模式',
+      readOnly: '只读审查',
+    },
+  },
   tokenStats: {
     title: 'Token 统计',
     subtitle: '查看 Token 使用情况与费用分析',

@@ -22,6 +22,15 @@ use super::mask_file::MaskFile;
 pub struct ToolPolicy;
 
 impl ToolPolicy {
+    /// Names of tools considered safe in reviewer/assist mode.
+    pub const READ_ONLY_TOOLS: &'static [&'static str] = &[
+        "read_file",
+        "list_dir",
+        "read_attachment",
+        "web_search",
+        "web_fetch",
+    ];
+
     /// Compute the effective tool list given global tools and mask limits.
     pub fn resolve(global_tools: &[String], tool_limits: &ToolLimits) -> Vec<String> {
         let global_set: BTreeSet<&str> = global_tools.iter().map(|s| s.as_str()).collect();
@@ -32,8 +41,7 @@ impl ToolPolicy {
             global_set.clone()
         } else {
             // Allow list → intersection with global (unknown entries ignored).
-            let allow_set: BTreeSet<&str> =
-                tool_limits.allow.iter().map(|s| s.as_str()).collect();
+            let allow_set: BTreeSet<&str> = tool_limits.allow.iter().map(|s| s.as_str()).collect();
             global_set.intersection(&allow_set).copied().collect()
         };
 
@@ -65,8 +73,7 @@ impl ToolPolicy {
             parent_set.clone()
         } else {
             // Allow list → intersection with parent (unknown entries ignored).
-            let allow_set: BTreeSet<&str> =
-                child_limits.allow.iter().map(|s| s.as_str()).collect();
+            let allow_set: BTreeSet<&str> = child_limits.allow.iter().map(|s| s.as_str()).collect();
             parent_set.intersection(&allow_set).copied().collect()
         };
 
@@ -90,9 +97,7 @@ impl ToolPolicy {
         }
 
         // Check allow list.
-        if !tool_limits.allow.is_empty()
-            && !tool_limits.allow.iter().any(|t| t == tool_name)
-        {
+        if !tool_limits.allow.is_empty() && !tool_limits.allow.iter().any(|t| t == tool_name) {
             return false;
         }
 
@@ -119,23 +124,23 @@ impl ToolPolicy {
     /// excluded from the available set. This function removes any tool
     /// that is not in the read-safe allowlist.
     ///
-    /// **Read-safe tools**: `read_file`, `search_files`, `web_search`, `web_extract`
-    /// **Excluded tools**: everything else (notably `terminal`, `write_file`, `patch`)
+    /// **Read-safe tools**: `read_file`, `list_dir`, `read_attachment`,
+    /// `web_search`, `web_fetch`
+    /// **Excluded tools**: everything else (notably `exec`, `write_file`,
+    /// `edit_file`, `spawn`, `cron`)
     pub fn filter_read_only_tools(tools: &[String]) -> Vec<String> {
-        const READ_ONLY_TOOLS: &[&str] = &[
-            "read_file",
-            "search_files",
-            "web_search",
-            "web_extract",
-        ];
-
-        let read_set: BTreeSet<&str> = READ_ONLY_TOOLS.iter().copied().collect();
+        let read_set: BTreeSet<&str> = Self::READ_ONLY_TOOLS.iter().copied().collect();
 
         tools
             .iter()
             .filter(|t| read_set.contains(t.as_str()))
             .cloned()
             .collect()
+    }
+
+    /// Returns `true` when a tool is safe to expose in assist/read-only mode.
+    pub fn is_read_only_tool(tool_name: &str) -> bool {
+        Self::READ_ONLY_TOOLS.contains(&tool_name)
     }
 }
 
@@ -482,41 +487,45 @@ mod tests {
     fn filter_read_only_tools_removes_write_tools() {
         let tools = sv(&[
             "read_file",
-            "search_files",
+            "list_dir",
             "web_search",
-            "web_extract",
-            "terminal",
+            "web_fetch",
+            "exec",
             "write_file",
-            "patch",
+            "edit_file",
+            "spawn",
         ]);
 
         let filtered = ToolPolicy::filter_read_only_tools(&tools);
 
-        assert_eq!(filtered, sv(&["read_file", "search_files", "web_search", "web_extract"]));
+        assert_eq!(
+            filtered,
+            sv(&["read_file", "list_dir", "web_search", "web_fetch"])
+        );
     }
 
     #[test]
     fn filter_read_only_tools_keeps_only_read_tools() {
         let tools = sv(&[
-            "terminal",
-            "write_file",
-            "patch",
-            "spawn",
-            "mcp",
+            "read_file",
+            "list_dir",
+            "read_attachment",
+            "web_search",
+            "web_fetch",
         ]);
 
         let filtered = ToolPolicy::filter_read_only_tools(&tools);
-        assert!(filtered.is_empty());
+        assert_eq!(filtered, tools);
     }
 
     #[test]
     fn filter_read_only_tools_preserves_order() {
-        let tools = sv(&["web_search", "terminal", "read_file", "write_file", "search_files"]);
+        let tools = sv(&["web_search", "exec", "read_file", "edit_file", "list_dir"]);
 
         let filtered = ToolPolicy::filter_read_only_tools(&tools);
 
         // Input order is preserved since we iterate linearly.
-        assert_eq!(filtered, sv(&["web_search", "read_file", "search_files"]));
+        assert_eq!(filtered, sv(&["web_search", "read_file", "list_dir"]));
     }
 
     #[test]
@@ -524,5 +533,13 @@ mod tests {
         let tools: Vec<String> = vec![];
         let filtered = ToolPolicy::filter_read_only_tools(&tools);
         assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn is_read_only_tool_uses_safe_allowlist() {
+        assert!(ToolPolicy::is_read_only_tool("read_file"));
+        assert!(ToolPolicy::is_read_only_tool("web_fetch"));
+        assert!(!ToolPolicy::is_read_only_tool("write_file"));
+        assert!(!ToolPolicy::is_read_only_tool("exec"));
     }
 }
