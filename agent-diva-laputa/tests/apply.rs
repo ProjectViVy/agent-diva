@@ -292,14 +292,119 @@ fn apply_rolls_back_section_when_changelog_write_fails_after_section_write() {
         repo.get_proposal("proposal-1").unwrap().state,
         ProposalState::NeedsAttention
     );
+    assert_eq!(
+        fs::read_dir(storage.paths().rollback_dir())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
+            .count(),
+        0
+    );
+    assert_eq!(
+        fs::read_dir(storage.paths().changelog_dir())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn apply_cleans_changelog_when_audit_fails_after_changelog_write() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+    let repo = ProposalRepository::new(storage.clone());
+    let section_path = storage.paths().section_file(LaputaSectionName::MemoryMd);
+    fs::write(&section_path, r#"{"items":["old"]}"#).unwrap();
+
+    repo.create_proposal(proposal(
+        "proposal-1",
+        ProposalType::MemoryPatch,
+        ProposalState::PendingReview,
+    ))
+    .unwrap();
+    repo.transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+        .unwrap();
+
+    let error = repo
+        .apply_proposal_with_options(
+            "proposal-1",
+            "reviewer",
+            ts(4),
+            ApplyOptions {
+                failure_point: Some(ApplyFailurePoint::AfterChangelogBeforeAudit),
+            },
+        )
+        .unwrap_err();
+
+    assert!(matches!(
+        error,
+        LaputaError::InjectedApplyFailure {
+            point: ApplyFailurePoint::AfterChangelogBeforeAudit
+        }
+    ));
+    assert_eq!(
+        fs::read_to_string(section_path).unwrap(),
+        r#"{"items":["old"]}"#
+    );
+    assert_eq!(
+        fs::read_dir(storage.paths().rollback_dir())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
+            .count(),
+        0
+    );
+    assert_eq!(
+        fs::read_dir(storage.paths().changelog_dir())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn apply_allows_raw_tbd_section_writes() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+    let repo = ProposalRepository::new(storage.clone());
+
+    let mut proposal = proposal(
+        "proposal-1",
+        ProposalType::JournalNote,
+        ProposalState::PendingReview,
+    );
+    proposal.proposed_patch = "raw reflective note".to_string();
+    repo.create_proposal(proposal).unwrap();
+    repo.transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+        .unwrap();
+
+    repo.apply_proposal("proposal-1", "reviewer", ts(4))
+        .unwrap();
+
+    assert_eq!(
+        fs::read_to_string(
+            storage
+                .paths()
+                .section_file(LaputaSectionName::JournalReflective)
+        )
+        .unwrap(),
+        "raw reflective note"
+    );
 }
 
 #[test]
 fn apply_honors_lock_acquisition_timeout() {
     let temp = tempfile::tempdir().unwrap();
     let storage = LaputaStorage::open(temp.path()).unwrap();
-    let _guard =
-        LaputaLock::acquire(storage.paths().lock_file("apply"), LockOptions::default()).unwrap();
+    let _guard = LaputaLock::acquire(
+        storage.paths().lock_file("proposals"),
+        LockOptions::default(),
+    )
+    .unwrap();
     let repo = ProposalRepository::with_lock_options(
         storage,
         LockOptions {

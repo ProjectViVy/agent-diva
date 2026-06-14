@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -22,8 +22,11 @@ pub fn atomic_write(path: impl AsRef<Path>, bytes: &[u8]) -> Result<()> {
     fs::create_dir_all(parent).map_err(|source| LaputaError::io(parent, source))?;
 
     let temp_path = temp_path_for(path);
-    let write_result = write_temp_file(&temp_path, bytes)
-        .and_then(|_| fs::rename(&temp_path, path).map_err(|source| LaputaError::io(path, source)));
+    let write_result = write_temp_file(&temp_path, bytes).and_then(|_| {
+        fs::rename(&temp_path, path).map_err(|source| LaputaError::io(path, source))?;
+        sync_parent_dir(parent);
+        Ok(())
+    });
 
     if write_result.is_err() {
         let _ = fs::remove_file(&temp_path);
@@ -52,6 +55,12 @@ fn write_temp_file(path: &Path, bytes: &[u8]) -> Result<()> {
     file.sync_all()
         .map_err(|source| LaputaError::io(path, source))?;
     Ok(())
+}
+
+fn sync_parent_dir(parent: &Path) {
+    if let Ok(dir) = File::open(parent) {
+        let _ = dir.sync_all();
+    }
 }
 
 fn temp_path_for(path: &Path) -> PathBuf {

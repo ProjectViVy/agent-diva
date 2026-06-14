@@ -4,7 +4,7 @@ baseline_commit: 49d85e4636db2d7f5704b9b3c67f9be7b5d2e654
 
 # Story 1.1: Define Governance Domain Types
 
-Status: review
+Status: done
 
 ## Story
 
@@ -107,3 +107,4 @@ TBD by dev agent.
 ### Change Log
 
 - 2026-06-14: Implemented Story 1.1 governance domain types and moved story to review.
+- 2026-06-14: Epic 1 评审未发现 Story 1.1 额外补丁项；状态更新为 done。

@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
-    fs,
+    fs::{self, OpenOptions},
+    io::Write,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
@@ -16,12 +17,12 @@ use serde_json::json;
 use tokio::sync::broadcast;
 
 use crate::{
-    atomic_write_json, LaputaError, LaputaLock, LaputaStorage, LockOptions, ProposalFilter,
-    ProposalRepository, Result,
+    atomic_write_json, proposals::unified_diff, LaputaError, LaputaLock, LaputaStorage,
+    LockOptions, ProposalFilter, ProposalRepository, Result,
 };
 
 const SNAPSHOT_SCHEMA_VERSION: &str = "1.0.0";
-const ROLLBACK_WINDOW: Duration = Duration::from_secs(31 * 24 * 60 * 60);
+const ROLLBACK_WINDOW: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 
 /// Stable Laputa service API used by Rust callers, manager routes, and Tauri commands.
@@ -197,10 +198,7 @@ impl LaputaService {
         actor: impl Into<String>,
         now: DateTime<Utc>,
     ) -> Result<RollbackOutcome> {
-        let _guard = LaputaLock::acquire(
-            self.storage.paths().lock_file("rollback"),
-            LockOptions::default(),
-        )?;
+        let _guard = self.proposals.acquire_write_lock()?;
         let actor = actor.into();
         let mut original = self.get_changelog(id)?;
         if original.action != ChangelogAction::Apply {
@@ -218,19 +216,18 @@ impl LaputaService {
             .paths()
             .section_file(original.target_section.clone());
         let current = fs::read_to_string(&section_path).unwrap_or_default();
-        if let Some(expected) = request.expected_current.as_ref() {
-            if expected != &current {
-                let error = LaputaError::RollbackConflict {
-                    id: id.to_string(),
-                    reason: "expected_current does not match current section content".to_string(),
-                };
-                self.record_error_event(
-                    &error,
-                    Some(original.target_section.clone()),
-                    original.proposal_id.clone(),
-                )?;
-                return Err(error);
-            }
+        let expected_current = request.expected_current.as_ref().unwrap_or(&original.after);
+        if !content_matches_expected(&current, expected_current) {
+            let error = LaputaError::RollbackConflict {
+                id: id.to_string(),
+                reason: "current section content does not match rollback expectation".to_string(),
+            };
+            self.record_error_event(
+                &error,
+                Some(original.target_section.clone()),
+                original.proposal_id.clone(),
+            )?;
+            return Err(error);
         }
 
         crate::atomic_write(&section_path, original.before.as_bytes())?;
@@ -243,7 +240,7 @@ impl LaputaService {
             target_section: original.target_section.clone(),
             before: current,
             after: original.before.clone(),
-            diff: original.before.clone(),
+            diff: unified_diff(&original.after, &original.before),
             proposal_id: original.proposal_id.clone(),
             audit_event_id: Some(audit_id.clone()),
             reverted: false,
@@ -261,36 +258,47 @@ impl LaputaService {
             created_at: now,
         };
 
-        atomic_write_json(
-            self.storage
-                .paths()
-                .changelog_dir()
-                .join(format!("{}.json", changelog.id)),
-            &changelog,
-        )?;
-        atomic_write_json(
-            self.storage
-                .paths()
-                .audit_dir()
-                .join(format!("{}.json", audit_event.id)),
-            &audit_event,
-        )?;
-        original.reverted = true;
-        atomic_write_json(
-            self.storage
-                .paths()
-                .changelog_dir()
-                .join(format!("{}.json", original.id)),
-            &original,
-        )?;
+        let original_before_update = original.clone();
+        let rollback_changelog_path = self
+            .storage
+            .paths()
+            .changelog_dir()
+            .join(format!("{}.json", changelog.id));
+        let rollback_audit_path = self
+            .storage
+            .paths()
+            .audit_dir()
+            .join(format!("{}.json", audit_event.id));
+        let original_changelog_path = self
+            .storage
+            .paths()
+            .changelog_dir()
+            .join(format!("{}.json", original.id));
 
-        if let Some(proposal_id) = original.proposal_id.as_deref() {
-            if let Ok(proposal) =
-                self.proposals
-                    .transition_proposal(proposal_id, ProposalState::Reverted, now)
-            {
-                self.record_proposal_event(&proposal)?;
+        let proposal_event = (|| -> Result<Option<EvolutionProposal>> {
+            atomic_write_json(&rollback_changelog_path, &changelog)?;
+            atomic_write_json(&rollback_audit_path, &audit_event)?;
+            original.reverted = true;
+            atomic_write_json(&original_changelog_path, &original)?;
+
+            if let Some(proposal_id) = original.proposal_id.as_deref() {
+                return self
+                    .proposals
+                    .transition_proposal_without_lock(proposal_id, ProposalState::Reverted, now)
+                    .map(Some);
             }
+            Ok(None)
+        })()
+        .map_err(|error| {
+            let _ = crate::atomic_write(&section_path, original_before_update.after.as_bytes());
+            let _ = fs::remove_file(&rollback_changelog_path);
+            let _ = fs::remove_file(&rollback_audit_path);
+            let _ = atomic_write_json(&original_changelog_path, &original_before_update);
+            error
+        })?;
+
+        if let Some(proposal) = proposal_event {
+            self.record_proposal_event(&proposal)?;
         }
         self.record_changelog_event(&changelog)?;
 
@@ -315,6 +323,14 @@ impl LaputaService {
 
     pub fn subscribe_events(&self) -> broadcast::Receiver<LaputaEvent> {
         self.events.sender.subscribe()
+    }
+
+    pub fn replay_events(
+        &self,
+        kind: LaputaEventKind,
+        last_event_id: Option<&str>,
+    ) -> Vec<LaputaEvent> {
+        self.events.replay(kind, last_event_id)
     }
 
     fn record_proposal_event(&self, proposal: &EvolutionProposal) -> Result<()> {
@@ -371,8 +387,14 @@ impl LaputaService {
     }
 
     fn record_event(&self, event: LaputaEvent) -> Result<()> {
+        let _guard = LaputaLock::acquire(
+            self.storage.paths().lock_file("events"),
+            LockOptions::default(),
+        )?;
         append_jsonl(self.storage.paths().events_jsonl(), &event)?;
-        self.events.record(event);
+        if let Some(overflow) = self.events.record(event) {
+            append_jsonl(self.storage.paths().events_jsonl(), &overflow)?;
+        }
         Ok(())
     }
 }
@@ -394,15 +416,54 @@ impl Default for LaputaEventBus {
 }
 
 impl LaputaEventBus {
-    fn record(&self, event: LaputaEvent) {
+    fn record(&self, event: LaputaEvent) -> Option<LaputaEvent> {
+        let mut overflow_event = None;
         if let Ok(mut buffer) = self.buffer.lock() {
             buffer.push(event.clone());
             if buffer.len() > 1000 {
                 let overflow = buffer.len() - 1000;
                 buffer.drain(0..overflow);
+                let event = buffer_overflow_event(event.timestamp);
+                buffer.push(event.clone());
+                overflow_event = Some(event);
             }
         }
         let _ = self.sender.send(event);
+        if let Some(event) = overflow_event.clone() {
+            let _ = self.sender.send(event);
+        }
+        overflow_event
+    }
+
+    fn replay(&self, kind: LaputaEventKind, last_event_id: Option<&str>) -> Vec<LaputaEvent> {
+        let Ok(buffer) = self.buffer.lock() else {
+            return Vec::new();
+        };
+        let mut missing_last_event = last_event_id.is_some();
+        let start = last_event_id
+            .and_then(|id| {
+                buffer
+                    .iter()
+                    .position(|event| event.event_id == id)
+                    .map(|position| {
+                        missing_last_event = false;
+                        position + 1
+                    })
+            })
+            .unwrap_or(0);
+
+        let mut events = Vec::new();
+        if missing_last_event && !buffer.is_empty() {
+            events.push(buffer_overflow_event(Utc::now()));
+        }
+        events.extend(
+            buffer
+                .iter()
+                .skip(start)
+                .filter(|event| event.kind == kind || event.kind == LaputaEventKind::BufferOverflow)
+                .cloned(),
+        );
+        events
     }
 }
 
@@ -560,19 +621,19 @@ where
 }
 
 fn append_jsonl(path: PathBuf, event: &LaputaEvent) -> Result<()> {
-    let mut events = read_jsonl_events(&path)?;
-    events.push(event.clone());
-    let body = events
-        .iter()
-        .map(serde_json::to_string)
-        .collect::<std::result::Result<Vec<_>, _>>()?
-        .join("\n");
-    let body = if body.is_empty() {
-        body
-    } else {
-        format!("{body}\n")
-    };
-    crate::atomic_write(path, body.as_bytes())
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|source| LaputaError::io(parent, source))?;
+    }
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|source| LaputaError::io(&path, source))?;
+    let line = serde_json::to_string(event)?;
+    file.write_all(line.as_bytes())
+        .and_then(|_| file.write_all(b"\n"))
+        .and_then(|_| file.sync_all())
+        .map_err(|source| LaputaError::io(path, source))
 }
 
 fn read_jsonl_events(path: &Path) -> Result<Vec<LaputaEvent>> {
@@ -599,6 +660,32 @@ where
 
 fn event_id(kind: &str, id: &str, timestamp: DateTime<Utc>) -> String {
     format!("{kind}-{id}-{}", timestamp.timestamp_millis())
+}
+
+fn buffer_overflow_event(timestamp: DateTime<Utc>) -> LaputaEvent {
+    LaputaEvent {
+        event_id: event_id("buffer_overflow", "events", timestamp),
+        kind: LaputaEventKind::BufferOverflow,
+        proposal_id: None,
+        proposal_type: None,
+        target_section: None,
+        status: Some("buffer_overflow".to_string()),
+        changelog_id: None,
+        action: None,
+        error_type: Some("buffer_overflow".to_string()),
+        conflict_reason: Some("Laputa event replay buffer overflowed".to_string()),
+        timestamp,
+    }
+}
+
+fn content_matches_expected(current: &str, expected: &str) -> bool {
+    match (
+        serde_json::from_str::<serde_json::Value>(current),
+        serde_json::from_str::<serde_json::Value>(expected),
+    ) {
+        (Ok(current), Ok(expected)) => current == expected,
+        _ => current == expected,
+    }
 }
 
 fn error_name(error: &LaputaError) -> &'static str {

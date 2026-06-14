@@ -4,7 +4,7 @@ baseline_commit: 170df68b2222387df42df117c65c08af7accf307
 
 # Story 1.3: Implement Proposal CRUD and State Transitions
 
-Status: review
+Status: done
 
 ## Story
 
@@ -110,3 +110,4 @@ TBD by dev agent.
 ### Change Log
 
 - 2026-06-14: Implemented Story 1.3 proposal CRUD, list summaries, edit behavior, state transitions, and moved story to review.
+- 2026-06-14: Epic 1 评审未发现 Story 1.3 额外补丁项；状态更新为 done。

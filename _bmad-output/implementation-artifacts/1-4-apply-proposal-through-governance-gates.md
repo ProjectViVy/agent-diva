@@ -4,7 +4,7 @@ baseline_commit: 91f07911fb031d119efbbcb5d87b8fb78c176fdd
 
 # Story 1.4: Apply Proposal Through Governance Gates
 
-Status: review
+Status: done
 
 ## Story
 
@@ -25,6 +25,12 @@ so that subject, memory, SOP, skill, identity, relationship, commitment, prefere
 - [x] Stage rollback data before changing authority state. (AC: 1, 2)
 - [x] Append changelog and audit records as part of the apply transaction. (AC: 1, 2)
 - [x] Add failure injection tests proving rollback on mid-apply failure. (AC: 2, 3)
+
+### Review Findings
+
+- [x] [Review][Patch] Apply uses an `apply` lock while proposal edit/transition uses a separate `proposals` lock, allowing concurrent state mutation during apply [`agent-diva-laputa/src/proposals.rs:186`]
+- [x] [Review][Patch] Apply failure compensation restores the section but leaves rollback requests and already-written changelog records visible, violating the atomic rollback boundary [`agent-diva-laputa/src/proposals.rs:231`]
+- [x] [Review][Patch] TBD proposal targets such as `journal_note` are forced through JSON parsing even though the PRD requires TBD sections to accept raw bytes [`agent-diva-laputa/src/proposals.rs:480`]
 
 ## Dev Notes
 

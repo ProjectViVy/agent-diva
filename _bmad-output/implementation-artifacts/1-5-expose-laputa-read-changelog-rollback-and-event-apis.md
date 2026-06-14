@@ -4,7 +4,7 @@ baseline_commit: 77f9a9f61c76d4151eff8e9fcaefe4cf58858b6a
 
 # Story 1.5: Expose Laputa Read, Changelog, Rollback, and Event APIs
 
-Status: review
+Status: done
 
 ## Story
 
@@ -25,6 +25,17 @@ so that Evolution UI and runtime consumers can read authority without bypassing 
 - [x] Add Tauri commands that mirror the manager behavior for GUI consumers. (AC: 1)
 - [x] Implement event stream and polling fallback behavior. (AC: 2)
 - [x] Add tests for route behavior, Tauri command shape where practical, and explicit TBD section reads. (AC: 1, 2, 3)
+
+### Review Findings
+
+- [x] [Review][Patch] Rollback uses a separate `rollback` lock from apply/proposal writes, so rollback can race with apply or proposal state transitions [`agent-diva-laputa/src/service.rs:200`]
+- [x] [Review][Patch] Rollback writes the authority section before changelog/audit/proposal updates and has no compensation path if later steps fail [`agent-diva-laputa/src/service.rs:236`]
+- [x] [Review][Patch] Rollback does not default-check current section content against the original applied `after` value when `expected_current` is omitted, allowing silent overwrite of newer authority content [`agent-diva-laputa/src/service.rs:220`]
+- [x] [Review][Patch] Rollback window is 31 days instead of the PRD-required 30-day UTC boundary [`agent-diva-laputa/src/service.rs:24`]
+- [x] [Review][Patch] SSE does not support `Last-Event-ID` replay and buffer overflow is only drained locally without emitting `buffer_overflow` events [`agent-diva-manager/src/handlers/laputa.rs:256`]
+- [x] [Review][Patch] Event polling persistence can lose events because `events.jsonl` is updated through an unlocked read-modify-write cycle [`agent-diva-laputa/src/service.rs:373`]
+- [x] [Review][Patch] Tauri Laputa commands flatten typed HTTP errors into plain strings, losing `code` and status semantics required by the story guardrail [`agent-diva-gui/src-tauri/src/commands.rs:463`]
+- [x] [Review][Patch] Changelog `diff` is populated with raw proposed/rollback content instead of a unified diff as required by FR-402 [`agent-diva-laputa/src/proposals.rs:213`]
 
 ## Dev Notes
 

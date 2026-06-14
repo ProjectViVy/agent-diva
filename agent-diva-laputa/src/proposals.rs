@@ -183,8 +183,7 @@ impl ProposalRepository {
         applied_at: DateTime<Utc>,
         options: ApplyOptions,
     ) -> Result<ApplyOutcome> {
-        let _guard =
-            LaputaLock::acquire(self.storage.paths().lock_file("apply"), self.lock_options)?;
+        let _guard = self.acquire_lock()?;
         let actor = actor.into();
         let mut proposal = self.get_proposal(id)?;
 
@@ -210,7 +209,7 @@ impl ProposalRepository {
             target_section: proposal.target_section.clone(),
             before: before.clone(),
             after: proposal.proposed_patch.clone(),
-            diff: proposal.proposed_patch.clone(),
+            diff: unified_diff(&before, &proposal.proposed_patch),
             proposal_id: Some(proposal.id.clone()),
             audit_event_id: Some(audit_event_id.clone()),
             reverted: false,
@@ -232,7 +231,11 @@ impl ProposalRepository {
 
         let wrote_section = proposal.proposal_type != ProposalType::Deprecation;
         if wrote_section {
-            atomic_write_json(&section_path, &parse_json_patch(&proposal)?)?;
+            if is_raw_apply_target(&proposal.target_section) {
+                crate::atomic_write(&section_path, proposal.proposed_patch.as_bytes())?;
+            } else {
+                atomic_write_json(&section_path, &parse_json_patch(&proposal)?)?;
+            }
         }
 
         if options.failure_point == Some(ApplyFailurePoint::AfterSectionWriteBeforeChangelog) {
@@ -244,13 +247,25 @@ impl ProposalRepository {
                 wrote_section,
                 &section_path,
                 &before,
+                Some(&rollback_request),
+                None,
+                None,
                 failure,
             )?;
         }
 
         self.write_changelog_record(&changelog).map_err(|error| {
-            self.rollback_apply_failure(&mut proposal, wrote_section, &section_path, &before, error)
-                .unwrap_err()
+            self.rollback_apply_failure(
+                &mut proposal,
+                wrote_section,
+                &section_path,
+                &before,
+                Some(&rollback_request),
+                None,
+                None,
+                error,
+            )
+            .unwrap_err()
         })?;
 
         if options.failure_point == Some(ApplyFailurePoint::AfterChangelogBeforeAudit) {
@@ -262,13 +277,25 @@ impl ProposalRepository {
                 wrote_section,
                 &section_path,
                 &before,
+                Some(&rollback_request),
+                Some(&changelog),
+                None,
                 failure,
             )?;
         }
 
         self.write_audit_event(&audit_event).map_err(|error| {
-            self.rollback_apply_failure(&mut proposal, wrote_section, &section_path, &before, error)
-                .unwrap_err()
+            self.rollback_apply_failure(
+                &mut proposal,
+                wrote_section,
+                &section_path,
+                &before,
+                Some(&rollback_request),
+                Some(&changelog),
+                None,
+                error,
+            )
+            .unwrap_err()
         })?;
 
         proposal.state = ProposalState::Applied;
@@ -338,12 +365,34 @@ impl ProposalRepository {
         )
     }
 
+    pub(crate) fn transition_proposal_without_lock(
+        &self,
+        id: &str,
+        to: ProposalState,
+        updated_at: DateTime<Utc>,
+    ) -> Result<EvolutionProposal> {
+        let mut proposal = self.get_proposal(id)?;
+        ensure_transition_allowed(&proposal.state, &to)?;
+
+        proposal.state = to;
+        proposal.updated_at = updated_at;
+        self.write_proposal(&proposal)?;
+        Ok(proposal)
+    }
+
+    pub(crate) fn acquire_write_lock(&self) -> Result<LaputaLock> {
+        self.acquire_lock()
+    }
+
     fn rollback_apply_failure(
         &self,
         proposal: &mut EvolutionProposal,
         wrote_section: bool,
         section_path: &Path,
         before: &str,
+        rollback_request: Option<&RollbackRequest>,
+        changelog: Option<&ChangelogRecord>,
+        audit_event: Option<&AuditEvent>,
         failure: LaputaError,
     ) -> Result<ApplyOutcome> {
         if wrote_section {
@@ -363,6 +412,31 @@ impl ProposalRepository {
                     source: Box::new(source),
                 });
             }
+        }
+
+        if let Some(request) = rollback_request {
+            let _ = fs::remove_file(
+                self.storage
+                    .paths()
+                    .rollback_dir()
+                    .join(format!("{}.json", request.changelog_id)),
+            );
+        }
+        if let Some(record) = changelog {
+            let _ = fs::remove_file(
+                self.storage
+                    .paths()
+                    .changelog_dir()
+                    .join(format!("{}.json", record.id)),
+            );
+        }
+        if let Some(event) = audit_event {
+            let _ = fs::remove_file(
+                self.storage
+                    .paths()
+                    .audit_dir()
+                    .join(format!("{}.json", event.id)),
+            );
         }
 
         proposal.state = ProposalState::NeedsAttention;
@@ -477,10 +551,16 @@ fn validate_apply_contract(proposal: &EvolutionProposal) -> Result<()> {
         });
     }
 
-    parse_json_patch(proposal)?;
-    reject_unresolved_conflicts(proposal)?;
+    if !is_raw_apply_target(&proposal.target_section) {
+        parse_json_patch(proposal)?;
+        reject_unresolved_conflicts(proposal)?;
+    }
 
     Ok(())
+}
+
+fn is_raw_apply_target(target_section: &LaputaSectionName) -> bool {
+    matches!(target_section, LaputaSectionName::JournalReflective)
 }
 
 fn is_writable_apply_target(
@@ -590,4 +670,25 @@ fn invalid_proposal(id: &str, reason: impl Into<String>) -> LaputaError {
         id: id.to_string(),
         reason: reason.into(),
     }
+}
+
+pub(crate) fn unified_diff(before: &str, after: &str) -> String {
+    let mut diff = String::from("--- before\n+++ after\n@@ -1 +1 @@\n");
+    for line in before.lines() {
+        diff.push('-');
+        diff.push_str(line);
+        diff.push('\n');
+    }
+    for line in after.lines() {
+        diff.push('+');
+        diff.push_str(line);
+        diff.push('\n');
+    }
+    if before.is_empty() {
+        diff.push_str("-\n");
+    }
+    if after.is_empty() {
+        diff.push_str("+\n");
+    }
+    diff
 }

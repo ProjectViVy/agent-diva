@@ -270,7 +270,7 @@ pub fn greet(name: &str) -> String {
 pub async fn laputa_get_snapshot(
     since: Option<String>,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let mut url = format!("{}/laputa/snapshot", state.api_base_url());
     if let Some(since) = non_empty_query_value(since) {
         url.push_str(&format!("?since={}", urlencoding::encode(&since)));
@@ -282,7 +282,7 @@ pub async fn laputa_get_snapshot(
 pub async fn laputa_get_section(
     name: String,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!(
         "{}/laputa/section/{}",
         state.api_base_url(),
@@ -295,7 +295,7 @@ pub async fn laputa_get_section(
 pub async fn laputa_list_proposals(
     since: Option<String>,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let mut url = format!("{}/laputa/proposals", state.api_base_url());
     if let Some(since) = non_empty_query_value(since) {
         url.push_str(&format!("?since={}", urlencoding::encode(&since)));
@@ -307,7 +307,7 @@ pub async fn laputa_list_proposals(
 pub async fn laputa_create_proposal(
     payload: serde_json::Value,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!("{}/laputa/proposals", state.api_base_url());
     post_laputa_payload(&state, &url, &payload, "proposal").await
 }
@@ -316,7 +316,7 @@ pub async fn laputa_create_proposal(
 pub async fn laputa_get_proposal(
     id: String,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!(
         "{}/laputa/proposals/{}",
         state.api_base_url(),
@@ -330,7 +330,7 @@ pub async fn laputa_apply_proposal(
     id: String,
     payload: LaputaApplyPayload,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!(
         "{}/laputa/proposals/{}/apply",
         state.api_base_url(),
@@ -348,7 +348,7 @@ pub async fn laputa_list_changelog(
     page: Option<usize>,
     page_size: Option<usize>,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let mut query = Vec::new();
     if let Some(page) = page {
         query.push(format!("page={page}"));
@@ -369,7 +369,7 @@ pub async fn laputa_list_changelog(
 pub async fn laputa_get_changelog(
     id: String,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!(
         "{}/laputa/changelog/{}",
         state.api_base_url(),
@@ -383,7 +383,7 @@ pub async fn laputa_rollback_changelog(
     id: String,
     payload: LaputaRollbackPayload,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!(
         "{}/laputa/changelog/{}/rollback",
         state.api_base_url(),
@@ -397,7 +397,7 @@ pub async fn laputa_poll_events(
     kind: String,
     since: Option<String>,
     state: State<'_, AgentState>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let mut url = format!(
         "{}/laputa/events/{}/poll",
         state.api_base_url(),
@@ -419,13 +419,13 @@ async fn get_laputa_payload(
     state: &State<'_, AgentState>,
     url: &str,
     field: &str,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let response = state
         .client
         .get(url)
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch Laputa API: {e}"))?;
+        .map_err(|e| laputa_transport_error(format!("Failed to fetch Laputa API: {e}")))?;
     parse_laputa_response(response, field).await
 }
 
@@ -434,14 +434,14 @@ async fn post_laputa_payload<T: Serialize + ?Sized>(
     url: &str,
     payload: &T,
     field: &str,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let response = state
         .client
         .post(url)
         .json(payload)
         .send()
         .await
-        .map_err(|e| format!("Failed to call Laputa API: {e}"))?;
+        .map_err(|e| laputa_transport_error(format!("Failed to call Laputa API: {e}")))?;
     parse_laputa_response(response, field).await
 }
 
@@ -449,37 +449,53 @@ async fn post_laputa_full_response<T: Serialize + ?Sized>(
     state: &State<'_, AgentState>,
     url: &str,
     payload: &T,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let response = state
         .client
         .post(url)
         .json(payload)
         .send()
         .await
-        .map_err(|e| format!("Failed to call Laputa API: {e}"))?;
+        .map_err(|e| laputa_transport_error(format!("Failed to call Laputa API: {e}")))?;
     parse_laputa_response(response, "").await
 }
 
 async fn parse_laputa_response(
     response: reqwest::Response,
     field: &str,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, serde_json::Value> {
     let status = response.status();
     let value: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| format!("Invalid Laputa API response: {e}"))?;
+        .map_err(|e| laputa_transport_error(format!("Invalid Laputa API response: {e}")))?;
     if !status.is_success() || value.get("status").and_then(|v| v.as_str()) != Some("ok") {
-        return Err(value
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown Laputa API error")
-            .to_string());
+        return Err(serde_json::json!({
+            "status": "error",
+            "http_status": status.as_u16(),
+            "code": value
+                .get("code")
+                .and_then(|v| v.as_str())
+                .unwrap_or("laputa_error"),
+            "message": value
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown Laputa API error"),
+            "body": value,
+        }));
     }
     if field.is_empty() {
         return Ok(value);
     }
     Ok(value.get(field).cloned().unwrap_or(serde_json::Value::Null))
+}
+
+fn laputa_transport_error(message: String) -> serde_json::Value {
+    serde_json::json!({
+        "status": "error",
+        "code": "transport_error",
+        "message": message,
+    })
 }
 
 #[derive(Deserialize, Serialize, Clone)]

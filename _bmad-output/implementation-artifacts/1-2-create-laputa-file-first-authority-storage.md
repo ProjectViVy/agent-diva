@@ -4,7 +4,7 @@ baseline_commit: 50f1c7c143e366dda0c1fb7581f9141ef1ecfc51
 
 # Story 1.2: Create Laputa File-First Authority Storage
 
-Status: review
+Status: done
 
 ## Story
 
@@ -25,6 +25,11 @@ so that durable authority is owned by one implementation boundary.
 - [x] Implement atomic write helpers using temporary files and rename. (AC: 2)
 - [x] Implement cross-platform lock abstraction with timeout and stale recovery behavior. (AC: 3)
 - [x] Add unit tests with `tempfile` for layout creation, atomic writes, and lock timeout/stale cases. (AC: 1, 2, 3)
+
+### Review Findings
+
+- [x] [Review][Patch] Parent directory is not synced after atomic rename, so rename durability is weaker than the authority-storage contract [`agent-diva-laputa/src/atomic.rs:24`]
+- [x] [Review][Patch] Stale lock recovery can delete a live long-running lock because it relies only on lock-file mtime and has no lease refresh or owner liveness check [`agent-diva-laputa/src/lock.rs:88`]
 
 ## Dev Notes
 

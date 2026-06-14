@@ -109,3 +109,28 @@ fn lock_recovers_stale_lock_file() {
     assert_eq!(guard.path(), lock_path.as_path());
     assert!(lock_path.exists());
 }
+
+#[test]
+fn lock_does_not_recover_live_owner_lock_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let lock_path = temp.path().join(".laputa/locks/state.lock");
+    fs::create_dir_all(lock_path.parent().unwrap()).unwrap();
+    fs::write(
+        &lock_path,
+        format!("pid={}\ncreated_at=stale", std::process::id()),
+    )
+    .unwrap();
+
+    let error = LaputaLock::acquire(
+        &lock_path,
+        LockOptions {
+            timeout: Duration::from_millis(20),
+            stale_after: Duration::ZERO,
+            retry_interval: Duration::from_millis(5),
+        },
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, LaputaError::LockTimeout { .. }));
+    assert!(lock_path.exists());
+}

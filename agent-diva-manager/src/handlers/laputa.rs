@@ -9,12 +9,12 @@ use agent_diva_laputa::{
 };
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::sse::{Event, Sse},
     Json,
 };
 use chrono::{DateTime, Utc};
-use futures::StreamExt;
+use futures::{stream, StreamExt};
 use serde::Deserialize;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -256,34 +256,55 @@ pub async fn poll_laputa_events_handler(
 pub async fn stream_laputa_events_handler(
     State(state): State<AppState>,
     Path(kind): Path<String>,
+    headers: HeaderMap,
 ) -> Result<
     Sse<impl futures::Stream<Item = Result<Event, Infallible>>>,
     (StatusCode, Json<serde_json::Value>),
 > {
     let kind = event_kind_from_path(&kind)?;
-    let stream = BroadcastStream::new(state.laputa.subscribe_events()).filter_map(move |event| {
+    let replay = state
+        .laputa
+        .replay_events(kind.clone(), last_event_id(&headers).as_deref())
+        .into_iter()
+        .filter_map(laputa_event_to_sse)
+        .map(Ok);
+    let live = BroadcastStream::new(state.laputa.subscribe_events()).filter_map(move |event| {
         let kind = kind.clone();
         async move {
             let Ok(event) = event else {
                 return None;
             };
-            if event.kind != kind {
+            if event.kind != kind && event.kind != LaputaEventKind::BufferOverflow {
                 return None;
             }
-            let event_name = match event.kind {
-                LaputaEventKind::Proposal => "proposal",
-                LaputaEventKind::Changelog => "changelog",
-                LaputaEventKind::Error => "error",
-                LaputaEventKind::BufferOverflow => "buffer_overflow",
-            };
-            let id = event.event_id.clone();
-            match serde_json::to_string(&event) {
-                Ok(data) => Some(Ok(Event::default().event(event_name).id(id).data(data))),
-                Err(error) => Some(Ok(Event::default().event("error").data(error.to_string()))),
-            }
+            laputa_event_to_sse(event).map(Ok)
         }
     });
-    Ok(Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default()))
+    Ok(Sse::new(stream::iter(replay).chain(live))
+        .keep_alive(axum::response::sse::KeepAlive::default()))
+}
+
+fn last_event_id(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("last-event-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn laputa_event_to_sse(event: agent_diva_laputa::LaputaEvent) -> Option<Event> {
+    let event_name = match event.kind {
+        LaputaEventKind::Proposal => "proposal",
+        LaputaEventKind::Changelog => "changelog",
+        LaputaEventKind::Error => "error",
+        LaputaEventKind::BufferOverflow => "buffer_overflow",
+    };
+    let id = event.event_id.clone();
+    match serde_json::to_string(&event) {
+        Ok(data) => Some(Event::default().event(event_name).id(id).data(data)),
+        Err(error) => Some(Event::default().event("error").data(error.to_string())),
+    }
 }
 
 fn event_kind_from_path(

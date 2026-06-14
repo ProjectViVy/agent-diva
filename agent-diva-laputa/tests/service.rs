@@ -133,4 +133,99 @@ fn apply_changelog_rollback_and_polling_events_are_available() {
         fs::read_to_string(temp.path().join(".laputa/sections/memory_md.json")).unwrap(),
         r#"{"items":["old"]}"#
     );
+    assert!(rollback
+        .changelog
+        .diff
+        .starts_with("--- before\n+++ after\n@@"));
+}
+
+#[test]
+fn rollback_rejects_when_current_content_changed_without_expected_current() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = LaputaService::open(temp.path()).unwrap();
+    let section_path = temp.path().join(".laputa/sections/memory_md.json");
+    fs::write(&section_path, r#"{"items":["old"]}"#).unwrap();
+
+    service.create_proposal(proposal("proposal-1")).unwrap();
+    service
+        .transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+        .unwrap();
+    let outcome = service
+        .apply_proposal("proposal-1", "reviewer", ts(4))
+        .unwrap();
+    fs::write(&section_path, r#"{"items":["newer"]}"#).unwrap();
+
+    let error = service
+        .rollback_changelog(
+            &outcome.changelog.id,
+            RollbackChangelogRequest {
+                reason: "undo".to_string(),
+                expected_current: None,
+            },
+            "reviewer",
+            ts(5),
+        )
+        .unwrap_err();
+
+    assert!(matches!(
+        error,
+        agent_diva_laputa::LaputaError::RollbackConflict { .. }
+    ));
+    assert_eq!(
+        fs::read_to_string(section_path).unwrap(),
+        r#"{"items":["newer"]}"#
+    );
+}
+
+#[test]
+fn rollback_uses_thirty_day_window() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = LaputaService::open(temp.path()).unwrap();
+    fs::write(
+        temp.path().join(".laputa/sections/memory_md.json"),
+        r#"{"items":["old"]}"#,
+    )
+    .unwrap();
+
+    service.create_proposal(proposal("proposal-1")).unwrap();
+    service
+        .transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+        .unwrap();
+    let outcome = service
+        .apply_proposal("proposal-1", "reviewer", ts(4))
+        .unwrap();
+
+    let error = service
+        .rollback_changelog(
+            &outcome.changelog.id,
+            RollbackChangelogRequest {
+                reason: "undo".to_string(),
+                expected_current: Some(outcome.changelog.after),
+            },
+            "reviewer",
+            ts(4) + chrono::Duration::days(30) + chrono::Duration::milliseconds(1),
+        )
+        .unwrap_err();
+
+    assert!(matches!(
+        error,
+        agent_diva_laputa::LaputaError::RollbackExpired { .. }
+    ));
+}
+
+#[test]
+fn event_replay_reports_missing_last_event_as_buffer_overflow() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = LaputaService::open(temp.path()).unwrap();
+
+    service.create_proposal(proposal("proposal-1")).unwrap();
+
+    let replay = service.replay_events(LaputaEventKind::Proposal, Some("missing-event"));
+
+    assert!(replay
+        .iter()
+        .any(|event| event.kind == LaputaEventKind::BufferOverflow));
+    assert!(replay
+        .iter()
+        .any(|event| event.proposal_id.as_deref() == Some("proposal-1")));
 }

@@ -4,7 +4,7 @@ baseline_commit: 89e6711e9d761d82a056e62eaefb42ceb35ffcd9
 
 # Story 1.6: Make Session Saves Atomic
 
-Status: review
+Status: done
 
 ## Story
 
@@ -25,6 +25,10 @@ so that reflection and search do not read partially written session files.
 - [x] Preserve existing JSONL format and load behavior. (AC: 2)
 - [x] Add failure-path tests that prove old content survives failed replacement. (AC: 2, 3)
 - [x] Add regression tests for successful save and replacement. (AC: 1, 3)
+
+### Review Findings
+
+- [x] [Review][Patch] Session atomic replacement syncs the temp file but not the parent directory after rename, so crash durability remains weaker than the evidence-reliability goal [`agent-diva-core/src/session/manager.rs:267`]
 
 ## Dev Notes
 

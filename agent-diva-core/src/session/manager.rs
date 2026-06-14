@@ -269,6 +269,7 @@ where
         write_temp_file(&temp_path, bytes)?;
         before_rename(&temp_path)?;
         fs::rename(&temp_path, path)?;
+        sync_parent_dir(parent);
         Ok(())
     })();
 
@@ -280,13 +281,16 @@ where
 }
 
 fn write_temp_file(path: &Path, bytes: &[u8]) -> crate::Result<()> {
-    let mut file = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(path)?;
+    let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
     file.write_all(bytes)?;
     file.sync_all()?;
     Ok(())
+}
+
+fn sync_parent_dir(parent: &Path) {
+    if let Ok(dir) = std::fs::File::open(parent) {
+        let _ = dir.sync_all();
+    }
 }
 
 fn temp_path_for(path: &Path) -> PathBuf {
@@ -357,7 +361,10 @@ mod tests {
         // Save the session
         manager
             .save_with_hook(&manager.cache.get(&key).unwrap(), |temp_path| {
-                assert_eq!(temp_path.parent(), Some(temp_dir.path().join("sessions").as_path()));
+                assert_eq!(
+                    temp_path.parent(),
+                    Some(temp_dir.path().join("sessions").as_path())
+                );
                 Ok(())
             })
             .unwrap();

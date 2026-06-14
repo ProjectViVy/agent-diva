@@ -94,9 +94,18 @@ fn recover_stale_lock(path: &Path, stale_after: Duration) -> Result<()> {
         .duration_since(modified)
         .unwrap_or(Duration::ZERO);
 
-    if age >= stale_after {
+    if age >= stale_after && lock_file_is_recoverable(path)? {
         fs::remove_file(path).map_err(|source| LaputaError::io(path, source))?;
     }
 
     Ok(())
+}
+
+fn lock_file_is_recoverable(path: &Path) -> Result<bool> {
+    let content = fs::read_to_string(path).map_err(|source| LaputaError::io(path, source))?;
+    Ok(content
+        .lines()
+        .find_map(|line| line.strip_prefix("pid="))
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .is_none())
 }
