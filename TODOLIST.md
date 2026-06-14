@@ -4,6 +4,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Fix pre-existing `agent-diva-laputa` clippy failures blocking `just check`.
+  - Context: During Story 3.3 validation on 2026-06-14, `just check` failed outside the AutoDream worker changes. Reported issues include `too_many_arguments` in proposal rollback handling and `manual_inspect` in rollback cleanup error handling.
+  - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass after unrelated Laputa lint cleanup.
+  - Related files/docs: `agent-diva-laputa/src/proposals.rs`, `agent-diva-laputa/src/service.rs`; `docs/logs/2026-06-autodream-restricted-worker/v0.0.1-restricted-reflection-worker/verification.md`.
+
 - [ ] Resolve pre-existing Story 3.1 validation blockers outside AutoDream.
   - Context: During Story 3.1 validation on 2026-06-14, `cargo fmt --check` failed on unrelated existing rustfmt drift in `agent-diva-agent`, and `cargo check -p agent-diva-gui` failed on unrelated existing `agent-diva-sandbox` compile errors.
   - Expected behavior: workspace formatting and GUI Tauri compile validation should pass after unrelated rustfmt and sandbox compile blockers are fixed.

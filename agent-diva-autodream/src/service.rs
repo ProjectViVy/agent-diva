@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     atomic::atomic_write_json, AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
-    AutoDreamStorage, Result,
+    AutoDreamStorage, AutoDreamWorker, AutoDreamWorkerReport, Result,
 };
 
 const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
@@ -218,6 +218,15 @@ impl AutoDreamService {
         ));
         self.write_run(&run)?;
         Ok(collected)
+    }
+
+    pub fn execute_reflection_worker(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
+        let worker = AutoDreamWorker::new(
+            self.storage.clone(),
+            agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
+                .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
+        );
+        worker.execute(run_id)
     }
 
     fn status_from_run(

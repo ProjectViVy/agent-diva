@@ -6,6 +6,7 @@ mod inputs;
 mod layout;
 mod outputs;
 mod service;
+mod worker;
 
 pub use error::{AutoDreamError, Result};
 pub use inputs::{
@@ -21,4 +22,9 @@ pub use outputs::{
 pub use service::{
     AutoDreamCheckpoint, AutoDreamEvent, AutoDreamLockRecord, AutoDreamRunList, AutoDreamRunStatus,
     AutoDreamService, ManualRunTriggerRequest,
+};
+pub use worker::{
+    AutoDreamReflectionStage, AutoDreamReflectionStageRecord, AutoDreamRestrictedAction,
+    AutoDreamRestrictedProfile, AutoDreamWorker, AutoDreamWorkerConfig, AutoDreamWorkerOutcome,
+    AutoDreamWorkerReport, AutoDreamWorkerStageStatus,
 };
