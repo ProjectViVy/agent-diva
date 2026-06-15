@@ -1,5 +1,5 @@
 # generated: 2026-06-13T04:54:00+08:00
-# last_updated: 2026-06-15T09:36:01+08:00
+# last_updated: 2026-06-15T10:15:00+08:00
 # project: agent-diva-pro
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-13T04:54:00+08:00
-last_updated: 2026-06-15T09:36:01+08:00
+last_updated: 2026-06-15T10:15:00+08:00
 project: agent-diva-pro
 project_key: NOKEY
 tracking_system: file-system
@@ -64,11 +64,11 @@ development_status:
   3-4-emit-proposal-and-run-output-artifacts: done
   3-5-generate-daily-and-weekly-reports: done
   epic-3-retrospective: optional
-  epic-4: backlog
-  4-1-consume-autodream-and-report-owned-paths-correctly: backlog
-  4-2-replace-notebook-direct-solidification-with-proposal-creation: backlog
-  4-3-preserve-session-search-as-evidence-only: backlog
-  4-4-add-solidification-regression-coverage: backlog
+  epic-4: in-progress
+  4-1-consume-autodream-and-report-owned-paths-correctly: ready-for-dev
+  4-2-replace-notebook-direct-solidification-with-proposal-creation: ready-for-dev
+  4-3-preserve-session-search-as-evidence-only: ready-for-dev
+  4-4-add-solidification-regression-coverage: ready-for-dev
   epic-4-retrospective: optional
   epic-5: in-progress
   5-1-plug-applied-laputa-reads-into-memoryprovider: review
