@@ -1,19 +1,10 @@
 # Story 5.2 Mentle Governance Exclusion Release
 
-## Release Status
+## 发布状态
 
-Not released.
+未单独发布；开发交付已完成，当前状态为 `review`。
 
-## Reason
+## 说明
 
-The guardrail changes are implemented, but the story remains `in-progress` because required full validation is blocked by unrelated current AutoDream and Laputa test failures.
-
-## Release Criteria
-
-- Resolve the validation blockers recorded in `TODOLIST.md`.
-- Re-run story-required validation:
-  - `cargo test -p agent-diva-agent mentle`
-  - `cargo test -p agent-diva-autodream`
-  - `cargo test -p agent-diva-laputa`
-  - `cargo check -p agent-diva-manager`
-- Move story status to `review` only after all required validation passes.
+- 本次改动属于治理边界守护与回归覆盖补强，无需独立发布流程。
+- Story 所需验证已全部通过，后续按正常评审/合并流程进入主线即可。

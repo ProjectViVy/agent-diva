@@ -4,7 +4,7 @@ baseline_commit: 8a1114d
 
 # Story 5.2: Enforce Mentle Governance Exclusion
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -21,12 +21,12 @@ so that v1 governance has one authority owner.
 
 ## Tasks / Subtasks
 
-- [ ] Add regression tests or compile-time guardrails showing AutoDream, Laputa, Report/Notebook proposal creation, audit, rollback, and SelfImprove governance paths do not call Mentle write/index APIs. (AC: 1-4)
-- [ ] Preserve existing feature-gated Mentle tool runtime behavior outside EVO-DIVA governance. (AC: 1)
-- [ ] Ensure proposal creation, apply, rollback, report solidification, and AutoDream output paths have no new dependency on `mentle_active()` or Mentle runtime state. (AC: 1-4)
-- [ ] Ensure governance prompt/context assembly does not inject Mentle recall by default. (AC: 4)
-- [ ] If a future on-demand recall adapter is touched, keep it read-only and explicitly user-triggered. (AC: 4)
-- [ ] Document any remaining allowed Mentle compatibility behavior in completion notes so reviewers can distinguish compatibility from governance. (AC: 1-4)
+- [x] Add regression tests or compile-time guardrails showing AutoDream, Laputa, Report/Notebook proposal creation, audit, rollback, and SelfImprove governance paths do not call Mentle write/index APIs. (AC: 1-4)
+- [x] Preserve existing feature-gated Mentle tool runtime behavior outside EVO-DIVA governance. (AC: 1)
+- [x] Ensure proposal creation, apply, rollback, report solidification, and AutoDream output paths have no new dependency on `mentle_active()` or Mentle runtime state. (AC: 1-4)
+- [x] Ensure governance prompt/context assembly does not inject Mentle recall by default. (AC: 4)
+- [x] If a future on-demand recall adapter is touched, keep it read-only and explicitly user-triggered. (AC: 4)
+- [x] Document any remaining allowed Mentle compatibility behavior in completion notes so reviewers can distinguish compatibility from governance. (AC: 1-4)
 
 ## Dev Notes
 
@@ -84,12 +84,13 @@ so that v1 governance has one authority owner.
 
 ### Agent Model Used
 
-TBD by dev agent.
+Codex GPT-5
 
 ### Debug Log References
 
 - 2026-06-14: Story context prepared from Epic 5, EVO-DIVA architecture section 9, Governance PRD FR-6xx, Laputa PRD FR-6xx, and existing Mentle runtime/prompt wiring.
-- 2026-06-15: Added Mentle exclusion guardrails for AutoDream output/report paths, Laputa governance service paths, and default agent context assembly. Full story validation is blocked by unrelated current AutoDream/Laputa test failures recorded in `TODOLIST.md`.
+- 2026-06-15: Added Mentle exclusion guardrails for AutoDream output/report paths, Laputa governance service paths, and default agent context assembly.
+- 2026-06-15: Re-ran story-required validation in isolated worktree `story-5-2-compaction-summary`; `cargo test -p agent-diva-agent mentle`, `cargo test -p agent-diva-autodream`, `cargo test -p agent-diva-laputa`, and `cargo check -p agent-diva-manager` all passed.
 
 ### Completion Notes List
 
@@ -98,7 +99,8 @@ TBD by dev agent.
 - Added dependency guardrails asserting `agent-diva-autodream` and `agent-diva-laputa` manifests do not introduce Mentle/Memtle dependencies.
 - Added default context guardrail asserting governance prompt assembly does not expose Mentle recall/routing unless Mentle prompt state is explicitly enabled.
 - Existing feature-gated Mentle runtime behavior remains allowed outside EVO-DIVA governance; no Mentle tool runtime code was removed or disabled.
-- Story remains in progress because required full validation is blocked by unrelated current failures: `cargo test -p agent-diva-autodream` fails in a compaction capsule evidence assertion, and `cargo test -p agent-diva-laputa` fails to compile unrelated migration/apply recovery tests.
+- Story-level validation now passes in the isolated worktree, so the story is ready for review.
+- Allowed Mentle compatibility remains limited to existing feature-gated runtime/tooling behavior outside EVO-DIVA governance; governance authority, proposal, report, audit, rollback, and default prompt assembly stay file-first and Mentle-free.
 
 ### File List
 
@@ -117,3 +119,4 @@ TBD by dev agent.
 
 - 2026-06-14: Created ready-for-dev story for Mentle governance exclusion.
 - 2026-06-15: Added Mentle governance exclusion guardrails; story remains in progress pending unrelated validation blocker cleanup.
+- 2026-06-15: Re-ran required validation in isolated worktree and advanced story status to review.

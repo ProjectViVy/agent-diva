@@ -14,11 +14,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: When "parallel" state is mentioned, create or switch to an isolated workspace first, develop on that branch/workspace, and keep the isolation status visible in this backlog until the process is fully operational.
   - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
 
-- [ ] Fix current Story 5.2 validation blockers outside Mentle governance exclusion.
-  - Context: During Story 5.2 validation on 2026-06-15, targeted 5.2 guardrails passed, but full story-required validation was blocked by unrelated current test failures. `cargo test -p agent-diva-autodream` fails in `inputs::tests::collector_marks_compaction_capsules_as_secondary_evidence` because the collected compaction excerpt does not contain `secondary evidence only`. `cargo test -p agent-diva-laputa` fails to compile existing tests because `LaputaMigrationTestFailure::AfterSectionCommitBeforeState` and `LaputaService::apply_proposal_with_options` are referenced by tests but absent from the current public API.
-  - Expected behavior: Story-level validation commands should pass without unrelated AutoDream compaction evidence assertion failures or Laputa migration/apply test API mismatches.
-  - Related files/docs: `agent-diva-autodream/src/inputs.rs`, `agent-diva-laputa/tests/migration.rs`, `agent-diva-laputa/tests/service.rs`, `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/service.rs`.
-
 - [ ] Fix current `agent-diva-sandbox` clippy blockers outside Story 6.2.
   - Context: During Story 6.2 validation on 2026-06-15, `just check` progressed past Laputa after the local lint fix but failed in unrelated sandbox code: `SandboxManager::windows_level` is unread, and `agent-diva-sandbox/src/platform/macos.rs::execute_with_availability` has 8 arguments, tripping `clippy::too_many_arguments`.
   - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass without unrelated sandbox warnings.
@@ -85,6 +80,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
 ## Done
+
+- [x] Revalidate Story 5.2 full validation blockers outside Mentle governance exclusion.
+  - Context: Story 5.2 previously recorded unrelated AutoDream/Laputa blockers on 2026-06-15.
+  - Completed: In isolated worktree `story-5-2-compaction-summary`, `cargo test -p agent-diva-agent mentle`, `cargo test -p agent-diva-autodream`, `cargo test -p agent-diva-laputa`, and `cargo check -p agent-diva-manager` all passed on 2026-06-15, so the prior blocker record was stale and the story advanced to `review`.
+  - Related files/docs: `_bmad-output/implementation-artifacts/5-2-enforce-mentle-governance-exclusion.md`, `docs/logs/2026-06-mentle-governance-exclusion/v0.0.1-mentle-governance-exclusion/verification.md`.
 
 - [x] Fix pre-existing `agent-diva-manager` AutoDream error match compile blocker.
   - Context: During Story 5.1 validation on 2026-06-14, `cargo check -p agent-diva-manager` reached unrelated existing code and failed because `agent-diva-manager/src/handlers/autodream.rs` did not handle `AutoDreamError::InputCollection(_)` and `AutoDreamError::ProposalPersistence(_)`.

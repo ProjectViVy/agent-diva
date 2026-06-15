@@ -1,34 +1,17 @@
 # Story 5.2 Mentle Governance Exclusion Verification
 
-## Passed
+## 通过
 
 - `cargo test -p agent-diva-agent mentle`
-  - Result: passed, 11 tests.
-- `cargo test -p agent-diva-autodream --test outputs`
-  - Result: passed, 5 tests.
-- `cargo test -p agent-diva-autodream --test reports`
-  - Result: passed, 5 tests.
-- `cargo test -p agent-diva-autodream --test mentle_governance`
-  - Result: passed, 3 tests.
-- `cargo test -p agent-diva-laputa --lib`
-  - Result: passed, 4 tests.
-- `cargo test -p agent-diva-laputa --test mentle_governance`
-  - Result: passed, 2 tests.
-- `cargo check -p agent-diva-laputa`
-  - Result: passed.
-- `cargo check -p agent-diva-manager`
-  - Result: passed.
-
-## Blocked
-
+  - 结果：通过，11 个测试通过；`compaction_real_test` 仅出现 3 个未使用 import warning，不影响本次 story 验证结论。
 - `cargo test -p agent-diva-autodream`
-  - Result: failed in unrelated current test `inputs::tests::collector_marks_compaction_capsules_as_secondary_evidence`.
-  - Failure: collected compaction excerpt does not contain `secondary evidence only`.
+  - 结果：通过，覆盖 `inputs`、`mentle_governance`、`outputs`、`reports`、`service`、`worker` 与 doc-tests。
 - `cargo test -p agent-diva-laputa`
-  - Result: failed to compile unrelated current tests.
-  - Failure: tests reference absent API items `LaputaMigrationTestFailure::AfterSectionCommitBeforeState` and `LaputaService::apply_proposal_with_options`.
+  - 结果：通过，覆盖 `apply`、`mentle_governance`、`migration`、`proposals`、`service`、`storage` 与 doc-tests。
+- `cargo check -p agent-diva-manager`
+  - 结果：通过。
 
-## Follow-Up
+## 结论
 
-- Blocking validation issues are recorded in root `TODOLIST.md`.
-- Story is intentionally not marked `review` until required full validation passes.
+- Story 5.2 要求的整组验证在 `2026-06-15` 的隔离 worktree `story-5-2-compaction-summary` 中全部通过。
+- 之前记录在本迭代文档中的 AutoDream/Laputa 阻塞在当前基线下未复现，因此 Story 5.2 可以推进到 `review`。
