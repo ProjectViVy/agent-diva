@@ -4,35 +4,26 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
-- [ ] Fix current Story 5.3 workspace validation blockers outside context compaction guardrails.
-  - Context: During Story 5.3 validation on 2026-06-15, targeted 5.3 tests passed, but workspace validation was blocked by unrelated existing issues. `just fmt-check` reports rustfmt drift in `agent-diva-laputa/src/error.rs` and `agent-diva-laputa/src/proposals.rs`; `just check` reports clippy errors in `agent-diva-laputa/src/memory_provider.rs` and `agent-diva-sandbox/src/manager.rs` / `agent-diva-sandbox/src/platform/macos.rs`; `just test` fails compiling `agent-diva-gui/src-tauri/src/commands.rs` because of unresolved `agent_diva_agent` references and missing Tauri/HTTP methods. `cargo test -p agent-diva-agent compaction` also reaches `compaction_real_test`, which requires `TEAKACLOUD_API_KEY`.
-  - Expected behavior: Workspace format, clippy, and test gates should pass without unrelated Laputa, sandbox, GUI, or external-LLM test blockers.
-  - Related files/docs: `agent-diva-laputa/src/error.rs`, `agent-diva-laputa/src/proposals.rs`, `agent-diva-laputa/src/memory_provider.rs`, `agent-diva-sandbox/src/manager.rs`, `agent-diva-sandbox/src/platform/macos.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-agent/tests/compaction_real_test.rs`, `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`.
-
 - [ ] Track and enforce isolated workspace handling when the project is in a parallel state.
   - Context: On 2026-06-15, project guidance was updated so that if a user says this project is currently in a "parallel" state, terminal work must move to an isolated branch workspace before development continues. Acceptable isolation includes a dedicated git worktree/branch or a copied sibling folder, as long as it does not affect other active partitions.
+  - Current status: The 2026-06-15 TODOLIST closeout was performed from an isolated worktree and treated root dirty-work as input rather than editing it directly. The durable backlog item remains open until this isolation behavior is enforced mechanically or documented as an operational checklist.
   - Expected behavior: When "parallel" state is mentioned, create or switch to an isolated workspace first, develop on that branch/workspace, and keep the isolation status visible in this backlog until the process is fully operational.
   - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
 
-- [ ] Fix current Story 5.2 validation blockers outside Mentle governance exclusion.
-  - Context: During Story 5.2 validation on 2026-06-15, targeted 5.2 guardrails passed, but full story-required validation was blocked by unrelated current test failures. `cargo test -p agent-diva-autodream` fails in `inputs::tests::collector_marks_compaction_capsules_as_secondary_evidence` because the collected compaction excerpt does not contain `secondary evidence only`. `cargo test -p agent-diva-laputa` fails to compile existing tests because `LaputaMigrationTestFailure::AfterSectionCommitBeforeState` and `LaputaService::apply_proposal_with_options` are referenced by tests but absent from the current public API.
-  - Expected behavior: Story-level validation commands should pass without unrelated AutoDream compaction evidence assertion failures or Laputa migration/apply test API mismatches.
-  - Related files/docs: `agent-diva-autodream/src/inputs.rs`, `agent-diva-laputa/tests/migration.rs`, `agent-diva-laputa/tests/service.rs`, `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/service.rs`.
+- [ ] Fix current Story 5.3 workspace validation blockers outside context compaction guardrails.
+  - Context: During Story 5.3 validation on 2026-06-15, targeted 5.3 tests passed, but workspace validation was blocked by unrelated existing issues. Follow-up verification in isolated TODOLIST closeout shows the Laputa fmt/clippy blockers are resolved and `cargo test -p agent-diva-laputa` passes; current dirty-work also ignores `compaction_real_test` behind `TEAKACLOUD_API_KEY` and adds the GUI `agent-diva-agent` dependency. Remaining blockers are narrower: `cargo check -p agent-diva-gui` still fails on missing `AgentState::http_client()` and unavailable `WebviewWindowBuilder::transparent`, and `cargo clippy -p agent-diva-sandbox --all-targets -- -D warnings` / `cargo test -p agent-diva-sandbox` still fail.
+  - Expected behavior: Workspace format, clippy, and test gates should pass without unrelated sandbox or GUI blockers.
+  - Related files/docs: `agent-diva-sandbox/src/manager.rs`, `agent-diva-sandbox/src/platform/macos.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-agent/tests/compaction_real_test.rs`, `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`.
 
-- [ ] Fix current `agent-diva-sandbox` clippy blockers outside Story 6.2.
-  - Context: During Story 6.2 validation on 2026-06-15, `just check` progressed past Laputa after the local lint fix but failed in unrelated sandbox code: `SandboxManager::windows_level` is unread, and `agent-diva-sandbox/src/platform/macos.rs::execute_with_availability` has 8 arguments, tripping `clippy::too_many_arguments`.
-  - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass without unrelated sandbox warnings.
+- [ ] Fix current `agent-diva-sandbox` all-target validation blockers after compile cleanup.
+  - Context: During TODOLIST closeout on 2026-06-15, dirty-work verified that the original sandbox compile blockers are resolved: `cargo check -p agent-diva-sandbox` passes after adding Unix `fs2`, importing `fs2::FileExt`, fixing `bool`/`&bool` matches, and removing an unused `WritableRoot` import. The original Story 6.2 clippy blockers (`windows_level` and `execute_with_availability`) are also handled in dirty-work, but `cargo clippy -p agent-diva-sandbox --all-targets -- -D warnings` still fails on unused test imports in `agent-diva-sandbox/src/platform/macos.rs`, and `cargo test -p agent-diva-sandbox` fails one test: `manager::tests::test_to_command_string_prevents_shell_injection`.
+  - Expected behavior: Sandbox all-target clippy and crate tests should pass without unrelated warning or injection-test blockers.
   - Related files/docs: `agent-diva-sandbox/src/manager.rs`, `agent-diva-sandbox/src/platform/macos.rs`.
 
 - [ ] Fix current `agent-diva-gui` Rust compile blockers outside Story 6.2.
-  - Context: During Story 6.2 validation on 2026-06-15, `just test` failed outside Laputa changes while compiling `agent-diva-gui`. Errors include unresolved `agent_diva_agent` imports/usages in `src-tauri/src/commands.rs`, missing `AgentState::http_client()`, an inferred error type around mask save handling, and unavailable `WebviewWindowBuilder::transparent`.
+  - Context: During Story 6.2 validation on 2026-06-15, `just test` failed outside Laputa changes while compiling `agent-diva-gui`. Current dirty-work adds the missing `agent-diva-agent` dependency, so unresolved `agent_diva_agent` imports/usages are no longer the observed blocker. `cargo check -p agent-diva-gui` still fails in `src-tauri/src/commands.rs` because `AgentState::http_client()` is missing, the response type cannot be inferred from that call chain, and `WebviewWindowBuilder::transparent` is unavailable in the current Tauri API.
   - Expected behavior: Workspace `cargo test --all` should compile `agent-diva-gui` without unrelated Tauri command compile failures.
   - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/Cargo.toml`.
-
-- [ ] Fix current Story 2.4 workspace validation blockers outside Evolution GUI.
-  - Context: During Story 2.4 validation on 2026-06-15, `just check` and `just test` failed outside the Evolution GUI changes. Current errors include missing `lock_exclusive` support and unused `FileExt` import in `agent-diva-sandbox/src/exec_policy.rs`, `bool`/`&bool` mismatch and unused `WritableRoot` import in `agent-diva-sandbox/src/platform/macos.rs`, plus `clippy::single-char-add-str` in `agent-diva-laputa/src/memory_provider.rs`.
-  - Expected behavior: `just check` and `just test` should pass without unrelated sandbox/laputa compile or lint blockers.
-  - Related files/docs: `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`, `agent-diva-laputa/src/memory_provider.rs`, `docs/logs/2026-06-evolution-runs-audit-policy/v0.0.1-runs-audit-policy-views/verification.md`.
 
 - [ ] Fix current Story 2.4 GUI validation blockers outside Evolution views.
   - Context: During Story 2.4 validation on 2026-06-15, `pnpm build` failed on unrelated unused symbols/import-path errors, and full `pnpm test` failed in unrelated suites: `SubAgentPanel.test.ts` needs an i18n install/mock and `DivaPetView.test.ts` needs `ChevronDown` in its lucide mock.
@@ -43,16 +34,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Context: During Epic 2/3 review remediation validation on 2026-06-15, `cargo test -p agent-diva-core -p agent-diva-laputa -p agent-diva-manager` passed core/Laputa tests but failed two unrelated manager tests: `skill_service::tests::delete_workspace_skill_and_restore_builtin_view` unwraps a missing `weather` built-in skill, and `skill_service::tests::delete_builtin_skill_is_rejected` no longer receives a "builtin" error message.
   - Expected behavior: `agent-diva-manager` unit tests should either create the built-in fixture they assert against or assert against a built-in skill that exists in the current test fixture set.
   - Related files/docs: `agent-diva-manager/src/skill_service.rs`, `docs/logs/2026-06-epic23-review-remediation/v0.0.1-evolution-governance-remediation/verification.md`.
-
-- [ ] Fix pre-existing `agent-diva-laputa` clippy failures blocking `just check`.
-  - Context: During Story 3.3 validation on 2026-06-14, `just check` failed outside the AutoDream worker changes. Reported issues include `too_many_arguments` in proposal rollback handling and `manual_inspect` in rollback cleanup error handling.
-  - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass after unrelated Laputa lint cleanup.
-  - Related files/docs: `agent-diva-laputa/src/proposals.rs`, `agent-diva-laputa/src/service.rs`; `docs/logs/2026-06-autodream-restricted-worker/v0.0.1-restricted-reflection-worker/verification.md`.
-
-- [ ] Resolve pre-existing Story 3.1 validation blockers outside AutoDream.
-  - Context: During Story 3.1 validation on 2026-06-14, `cargo fmt --check` failed on unrelated existing rustfmt drift in `agent-diva-agent`, and `cargo check -p agent-diva-gui` failed on unrelated existing `agent-diva-sandbox` compile errors.
-  - Expected behavior: workspace formatting and GUI Tauri compile validation should pass after unrelated rustfmt and sandbox compile blockers are fixed.
-  - Related files/docs: `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/mask/*`, `agent-diva-agent/src/planning/*`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`; `docs/logs/2026-06-autodream-manual-run-lifecycle/v0.0.1-manual-run-lifecycle/verification.md`.
 
 - [ ] Fix pre-existing GUI build blockers outside Evolution workspace work.
   - Context: During Story 2.1 validation on 2026-06-14, `pnpm build` in `agent-diva-gui` failed after touched-file type issues were fixed. Remaining failures are unrelated existing issues: unused imports/variables in `DecisionCard.vue`, `NotebookView.vue`, several settings components, and an invalid `../../api/desktop` import in `TodoCard.vue`.
@@ -69,11 +50,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass after unrelated pre-existing lint cleanup.
   - Related files/docs: `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/mask/mask_file.rs`; `docs/logs/2026-06-laputa-proposals/v0.0.1-proposal-crud-state-transitions/verification.md`.
 
-- [ ] Fix pre-existing `agent-diva-sandbox` compile failures blocking `just test`.
-  - Context: During Story 1.3 validation on 2026-06-14, `just test` failed outside the Laputa proposal changes. Errors include missing `lock_exclusive` method for `std::fs::File` in `agent-diva-sandbox/src/exec_policy.rs` and `bool`/`&bool` match arm mismatch in `agent-diva-sandbox/src/platform/macos.rs`.
-  - Expected behavior: Workspace `cargo test --all` should compile all crates and run tests without unrelated sandbox failures.
-  - Related files/docs: `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`; `docs/logs/2026-06-laputa-proposals/v0.0.1-proposal-crud-state-transitions/verification.md`.
-
 - [ ] Fix pre-existing mask/runtime warnings in `agent-diva-agent` blocking warning-free validation.
   - Context: During Story 2.2 validation on 2026-06-14, targeted `cargo test -p agent-diva-agent mask::mask_registry` and `mask::tool_policy` passed, but both surfaced unrelated existing warnings: an unused `ToolPolicy` import and unread `parent_tool_limits` field in `agent-diva-agent/src/subagent.rs`.
   - Expected behavior: Focused agent crate validation for mask stories should run without unrelated warnings so stricter `-D warnings` checks can be trusted.
@@ -85,6 +61,31 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
 ## Done
+
+- [x] Fix current Story 5.2 validation blockers outside Mentle governance exclusion.
+  - Context: During Story 5.2 validation on 2026-06-15, targeted 5.2 guardrails passed, but full story-required validation was blocked by unrelated current test failures. `cargo test -p agent-diva-autodream` failed in `inputs::tests::collector_marks_compaction_capsules_as_secondary_evidence`, and `cargo test -p agent-diva-laputa` failed to compile existing tests because `LaputaMigrationTestFailure::AfterSectionCommitBeforeState` and `LaputaService::apply_proposal_with_options` were absent.
+  - Completed: Current code includes the compaction secondary-evidence marker path and the missing Laputa migration/apply APIs. Verification on 2026-06-15 in the isolated TODOLIST closeout worktree passed: `cargo test -p agent-diva-autodream inputs::tests::collector_marks_compaction_capsules_as_secondary_evidence`; `cargo test -p agent-diva-laputa`. A read-only subagent also reported full `cargo test -p agent-diva-autodream` passing.
+  - Related files/docs: `agent-diva-autodream/src/inputs.rs`, `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/service.rs`, `agent-diva-laputa/tests/migration.rs`, `agent-diva-laputa/tests/service.rs`.
+
+- [x] Fix pre-existing `agent-diva-laputa` clippy failures blocking `just check`.
+  - Context: During Story 3.3 validation on 2026-06-14, `just check` failed outside the AutoDream worker changes. Reported issues included `too_many_arguments` in proposal rollback handling and `manual_inspect` in rollback cleanup error handling.
+  - Completed: Laputa-specific clippy cleanup is verified. Subagent validation passed `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings`; isolated closeout validation also passed `cargo test -p agent-diva-laputa`. Workspace `just check` may still be blocked by non-Laputa TODOs tracked in Open.
+  - Related files/docs: `agent-diva-laputa/src/proposals.rs`, `agent-diva-laputa/src/service.rs`; `docs/logs/2026-06-autodream-restricted-worker/v0.0.1-restricted-reflection-worker/verification.md`.
+
+- [x] Fix pre-existing `agent-diva-sandbox` compile failures blocking `just test`.
+  - Context: During Story 1.3 validation on 2026-06-14, `just test` failed outside the Laputa proposal changes. Errors included missing `lock_exclusive` method for `std::fs::File` in `agent-diva-sandbox/src/exec_policy.rs` and `bool`/`&bool` match arm mismatch in `agent-diva-sandbox/src/platform/macos.rs`.
+  - Completed: The original sandbox compile failures are resolved in current dirty-work; isolated closeout verification passed `cargo check -p agent-diva-sandbox`, and `cargo test -p agent-diva-sandbox` now gets past compilation into test execution. That test command still fails one assertion, and the remaining all-target lint/test failures are tracked under the current Open sandbox validation TODO.
+  - Related files/docs: `agent-diva-sandbox/Cargo.toml`, `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`; `docs/logs/2026-06-laputa-proposals/v0.0.1-proposal-crud-state-transitions/verification.md`.
+
+- [x] Split current Story 2.4 workspace validation blockers into active focused TODOs.
+  - Context: During Story 2.4 validation on 2026-06-15, a single workspace blocker entry mixed sandbox compile issues, Laputa lint issues, and GUI validation failures.
+  - Completed: Follow-up verification shows the named Laputa lint blocker is resolved (`cargo clippy -p agent-diva-laputa --all-targets -- -D warnings`) and the named sandbox compile blockers are resolved (`cargo check -p agent-diva-sandbox`). Remaining sandbox all-target lint/test and GUI build/test failures stay open under their focused TODOs.
+  - Related files/docs: `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-sandbox/src/platform/macos.rs`, `agent-diva-laputa/src/memory_provider.rs`, `docs/logs/2026-06-evolution-runs-audit-policy/v0.0.1-runs-audit-policy-views/verification.md`.
+
+- [x] Split pre-existing Story 3.1 validation blockers into active focused TODOs.
+  - Context: During Story 3.1 validation on 2026-06-14, one backlog entry mixed `agent-diva-agent` rustfmt drift, GUI Tauri compile failures, and sandbox compile blockers.
+  - Completed: Follow-up verification shows the sandbox compile blocker no longer applies (`cargo check -p agent-diva-sandbox` passed). Remaining agent formatting/lint and GUI compile blockers remain tracked under the current focused Open TODOs.
+  - Related files/docs: `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/mask/*`, `agent-diva-agent/src/planning/*`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-gui/src-tauri/src/commands.rs`; `docs/logs/2026-06-autodream-manual-run-lifecycle/v0.0.1-manual-run-lifecycle/verification.md`.
 
 - [x] Fix pre-existing `agent-diva-manager` AutoDream error match compile blocker.
   - Context: During Story 5.1 validation on 2026-06-14, `cargo check -p agent-diva-manager` reached unrelated existing code and failed because `agent-diva-manager/src/handlers/autodream.rs` did not handle `AutoDreamError::InputCollection(_)` and `AutoDreamError::ProposalPersistence(_)`.
