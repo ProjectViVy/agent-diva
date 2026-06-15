@@ -197,7 +197,14 @@ impl ProposalRepository {
         let mut proposal = self.get_proposal(id)?;
 
         ensure_transition_allowed(&proposal.state, &ProposalState::Applied)?;
-        validate_apply_contract(&proposal)?;
+        if let Err(error) = validate_apply_contract(&proposal) {
+            if matches!(error, LaputaError::UnresolvedConflict { .. }) {
+                proposal.state = ProposalState::NeedsAttention;
+                proposal.updated_at = applied_at;
+                self.write_proposal(&proposal)?;
+            }
+            return Err(error);
+        }
 
         let changelog_id = format!("changelog-{}-{}", proposal.id, applied_at.timestamp());
         let audit_event_id = format!("audit-{}-{}", proposal.id, applied_at.timestamp());
@@ -598,9 +605,11 @@ fn is_writable_apply_target(
 }
 
 fn parse_json_patch(proposal: &EvolutionProposal) -> Result<serde_json::Value> {
-    serde_json::from_str(&proposal.proposed_patch).map_err(|source| LaputaError::SchemaMismatch {
-        id: proposal.id.clone(),
-        reason: source.to_string(),
+    serde_json::from_str(&proposal.proposed_patch).map_err(|source| {
+        LaputaError::SchemaIncompatible {
+            id: proposal.id.clone(),
+            reason: source.to_string(),
+        }
     })
 }
 

@@ -35,6 +35,9 @@ pub enum LaputaError {
     #[error("unknown Laputa section: {name}")]
     UnknownSection { name: String },
 
+    #[error("unknown Laputa layer: {name}")]
+    UnknownLayer { name: String },
+
     #[error("invalid proposal {id}: {reason}")]
     InvalidProposal { id: String, reason: String },
 
@@ -55,6 +58,9 @@ pub enum LaputaError {
 
     #[error("schema mismatch for proposal {id}: {reason}")]
     SchemaMismatch { id: String, reason: String },
+
+    #[error("schema incompatible for proposal {id}: {reason}")]
+    SchemaIncompatible { id: String, reason: String },
 
     #[error("unresolved conflict for proposal {id}: {reason}")]
     UnresolvedConflict { id: String, reason: String },
@@ -89,6 +95,30 @@ impl LaputaError {
         Self::Io {
             path: path.into(),
             source,
+        }
+    }
+
+    /// Stable API code used by HTTP, Tauri, diagnostics, and logs.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Io { .. } => "io_error",
+            Self::Json(_) => "json_error",
+            Self::LockTimeout { .. } => "lock_timeout",
+            Self::ProposalNotFound { .. } | Self::ChangelogNotFound { .. } => "not_found",
+            Self::ProposalAlreadyExists { .. } => "proposal_already_exists",
+            Self::UnknownSection { .. } => "unknown_section",
+            Self::UnknownLayer { .. } => "unknown_layer",
+            Self::InvalidProposal { .. } => "invalid_proposal",
+            Self::InvalidProposalTransition { .. } => "invalid_proposal_transition",
+            Self::UnauthorizedTarget { .. } => "unauthorized_target",
+            Self::SchemaMismatch { .. } | Self::SchemaIncompatible { .. } => "schema_incompatible",
+            Self::UnresolvedConflict { .. } => "conflict_unresolved",
+            Self::RollbackExpired { .. } => "rollback_expired",
+            Self::RollbackIneligible { .. } => "rollback_ineligible",
+            Self::RollbackConflict { .. } => "rollback_conflict",
+            Self::RollbackFailed { .. } => "rollback_failed",
+            Self::InjectedApplyFailure { .. } => "apply_recovery_failure",
+            Self::InjectedMigrationFailure { .. } => "migration_recovery_failure",
         }
     }
 }

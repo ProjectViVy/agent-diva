@@ -132,12 +132,24 @@ impl LaputaMigration {
             });
         }
 
+        let mut section_recovery = Vec::new();
         for staged in sections {
             let section_path = self.storage.paths().section_file(staged.section.clone());
-            atomic_write_json(&section_path, &staged.payload)?;
+            section_recovery.push(FileRecovery::capture(&section_path)?);
+            atomic_write_json(&section_path, &staged.payload).inspect_err(|_| {
+                restore_files(&section_recovery);
+            })?;
             outcome
                 .written_sections
                 .push(staged.section.as_str().to_string());
+        }
+        let state_recovery = FileRecovery::capture(&self.storage.paths().state_json())?;
+        if test_failure == Some(LaputaMigrationTestFailure::AfterSectionCommitBeforeState) {
+            restore_files(&section_recovery);
+            state_recovery.restore();
+            return Err(LaputaError::InjectedMigrationFailure {
+                point: LaputaMigrationTestFailure::AfterSectionCommitBeforeState,
+            });
         }
         atomic_write_json(
             self.storage.paths().state_json(),
@@ -149,7 +161,11 @@ impl LaputaMigration {
                     "backup_dir": backup_dir,
                 }
             }),
-        )?;
+        )
+        .inspect_err(|_| {
+            restore_files(&section_recovery);
+            state_recovery.restore();
+        })?;
 
         outcome.written_sections.sort();
         outcome.written_sections.dedup();
@@ -205,6 +221,7 @@ impl LaputaMigrationSourceKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LaputaMigrationTestFailure {
     AfterStagingBeforeCommit,
+    AfterSectionCommitBeforeState,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -223,6 +240,45 @@ pub struct LaputaMigrationBackup {
 struct StagedSection {
     section: LaputaSectionName,
     payload: serde_json::Value,
+}
+
+#[derive(Debug)]
+struct FileRecovery {
+    path: PathBuf,
+    content: Option<Vec<u8>>,
+}
+
+impl FileRecovery {
+    fn capture(path: &Path) -> Result<Self> {
+        match fs::read(path) {
+            Ok(content) => Ok(Self {
+                path: path.to_path_buf(),
+                content: Some(content),
+            }),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Self {
+                path: path.to_path_buf(),
+                content: None,
+            }),
+            Err(error) => Err(LaputaError::io(path, error)),
+        }
+    }
+
+    fn restore(&self) {
+        match &self.content {
+            Some(content) => {
+                let _ = crate::atomic_write(&self.path, content);
+            }
+            None => {
+                let _ = fs::remove_file(&self.path);
+            }
+        }
+    }
+}
+
+fn restore_files(files: &[FileRecovery]) {
+    for file in files.iter().rev() {
+        file.restore();
+    }
 }
 
 #[derive(Debug, serde::Serialize)]

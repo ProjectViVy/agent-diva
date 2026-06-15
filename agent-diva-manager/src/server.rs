@@ -260,11 +260,45 @@ fn misc_routes() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::build_router;
-    use axum::body::Body;
+    use agent_diva_core::evolution::{
+        EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState,
+        ProposalType, RiskLevel,
+    };
+    use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
+    use chrono::{DateTime, Utc};
     use tower::util::ServiceExt;
 
     use crate::state::{AppState, ManagerCommand};
+
+    fn ts(seconds: u32) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(&format!("2026-06-14T00:03:{seconds:02}Z"))
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn laputa_proposal(id: &str, patch: &str) -> EvolutionProposal {
+        EvolutionProposal {
+            id: id.to_string(),
+            created_at: ts(2),
+            updated_at: ts(2),
+            created_by: "autodream".to_string(),
+            proposal_type: ProposalType::MemoryPatch,
+            target_section: LaputaSectionName::MemoryMd,
+            evidence_refs: vec![EvidenceRef {
+                id: "ev-1".to_string(),
+                source: EvidenceSource::Session,
+                uri: "session://ev-1".to_string(),
+                excerpt: Some("bounded evidence".to_string()),
+                hash: Some("hash-ev-1".to_string()),
+                created_at: ts(1),
+            }],
+            proposed_patch: patch.to_string(),
+            risk_level: RiskLevel::Medium,
+            state: ProposalState::PendingReview,
+            source_run_id: Some("run-1".to_string()),
+        }
+    }
 
     #[tokio::test]
     async fn build_router_keeps_health_and_skills_routes_without_overlap() {
@@ -328,6 +362,41 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn laputa_apply_preserves_typed_schema_incompatible_error_code() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        state
+            .laputa
+            .create_proposal(laputa_proposal("proposal-1", "not-json"))
+            .unwrap();
+        state
+            .laputa
+            .transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+            .unwrap();
+
+        let app = build_router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/laputa/proposals/proposal-1/apply")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"actor":"reviewer"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "error");
+        assert_eq!(value["code"], "schema_incompatible");
     }
 
     #[tokio::test]

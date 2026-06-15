@@ -17,8 +17,10 @@ use serde_json::json;
 use tokio::sync::broadcast;
 
 use crate::{
-    atomic_write_json, proposals::unified_diff, LaputaError, LaputaLock, LaputaStorage,
-    LockOptions, ProposalFilter, ProposalRepository, Result,
+    atomic_write_json,
+    proposals::{unified_diff, ApplyOptions},
+    LaputaError, LaputaLock, LaputaStorage, LockOptions, ProposalFilter, ProposalRepository,
+    Result,
 };
 
 const SNAPSHOT_SCHEMA_VERSION: &str = "1.0.0";
@@ -84,7 +86,22 @@ impl LaputaService {
         actor: impl Into<String>,
         applied_at: DateTime<Utc>,
     ) -> Result<crate::ApplyOutcome> {
-        let outcome = self.proposals.apply_proposal(id, actor, applied_at)?;
+        self.apply_proposal_with_options(id, actor, applied_at, ApplyOptions::default())
+    }
+
+    pub fn apply_proposal_with_options(
+        &self,
+        id: &str,
+        actor: impl Into<String>,
+        applied_at: DateTime<Utc>,
+        options: ApplyOptions,
+    ) -> Result<crate::ApplyOutcome> {
+        let outcome = self
+            .proposals
+            .apply_proposal_with_options(id, actor, applied_at, options)
+            .inspect_err(|error| {
+                let _ = self.record_error_event(error, None, Some(id.to_string()));
+            })?;
         self.record_proposal_event(&outcome.proposal)?;
         self.record_changelog_event(&outcome.changelog)?;
         Ok(outcome)
@@ -688,12 +705,5 @@ fn content_matches_expected(current: &str, expected: &str) -> bool {
 }
 
 fn error_name(error: &LaputaError) -> &'static str {
-    match error {
-        LaputaError::RollbackConflict { .. } => "rollback_conflict",
-        LaputaError::UnresolvedConflict { .. } => "unresolved_conflict",
-        LaputaError::SchemaMismatch { .. } => "schema_mismatch",
-        LaputaError::UnauthorizedTarget { .. } => "unauthorized_target",
-        LaputaError::LockTimeout { .. } => "lock_timeout",
-        _ => "laputa_error",
-    }
+    error.code()
 }

@@ -5,8 +5,8 @@ use agent_diva_core::evolution::{
     RiskLevel,
 };
 use agent_diva_laputa::{
-    ChangelogFilter, LaputaEventKind, LaputaService, ProposalFilter, RollbackChangelogRequest,
-    SectionStatus,
+    ApplyFailurePoint, ApplyOptions, ChangelogFilter, LaputaEventKind, LaputaService,
+    ProposalFilter, ProposalRepository, RollbackChangelogRequest, SectionStatus,
 };
 use chrono::{DateTime, Utc};
 
@@ -175,6 +175,49 @@ fn rollback_rejects_when_current_content_changed_without_expected_current() {
         fs::read_to_string(section_path).unwrap(),
         r#"{"items":["newer"]}"#
     );
+}
+
+#[test]
+fn recovery_apply_failure_emits_error_diagnostic_event() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = LaputaService::open(temp.path()).unwrap();
+    let repo =
+        ProposalRepository::new(agent_diva_laputa::LaputaStorage::open(temp.path()).unwrap());
+    let section_path = temp.path().join(".laputa/sections/memory_md.json");
+    fs::write(&section_path, r#"{"items":["old"]}"#).unwrap();
+
+    service.create_proposal(proposal("proposal-1")).unwrap();
+    service
+        .transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+        .unwrap();
+
+    let error = service
+        .apply_proposal_with_options(
+            "proposal-1",
+            "reviewer",
+            ts(4),
+            ApplyOptions {
+                failure_point: Some(ApplyFailurePoint::AfterSectionWriteBeforeChangelog),
+            },
+        )
+        .unwrap_err();
+
+    assert!(matches!(
+        error,
+        agent_diva_laputa::LaputaError::InjectedApplyFailure { .. }
+    ));
+    assert_eq!(
+        repo.get_proposal("proposal-1").unwrap().state,
+        ProposalState::NeedsAttention
+    );
+    let error_events = service
+        .poll_events(Some(LaputaEventKind::Error), None)
+        .unwrap();
+    assert!(error_events.iter().any(|event| {
+        event.proposal_id.as_deref() == Some("proposal-1")
+            && event.status.as_deref() == Some("needs_attention")
+            && event.error_type.as_deref() == Some("apply_recovery_failure")
+    }));
 }
 
 #[test]

@@ -349,21 +349,25 @@ fn laputa_error_response(error: LaputaError) -> (StatusCode, Json<serde_json::Va
         LaputaError::UnknownSection { .. } => {
             error_response(StatusCode::NOT_FOUND, "unknown_section", error.to_string())
         }
+        LaputaError::UnknownLayer { .. } => {
+            error_response(StatusCode::NOT_FOUND, error.code(), error.to_string())
+        }
         LaputaError::InvalidProposal { .. }
         | LaputaError::InvalidProposalTransition { .. }
         | LaputaError::UnauthorizedTarget { .. }
         | LaputaError::SchemaMismatch { .. }
+        | LaputaError::SchemaIncompatible { .. }
         | LaputaError::UnresolvedConflict { .. }
         | LaputaError::RollbackExpired { .. }
         | LaputaError::RollbackIneligible { .. }
         | LaputaError::RollbackConflict { .. } => error_response(
             StatusCode::UNPROCESSABLE_ENTITY,
-            "laputa_error",
+            error.code(),
             error.to_string(),
         ),
         _ => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "laputa_error",
+            error.code(),
             error.to_string(),
         ),
     }

@@ -14,6 +14,16 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Story-level validation commands should pass without unrelated AutoDream compaction evidence assertion failures or Laputa migration/apply test API mismatches.
   - Related files/docs: `agent-diva-autodream/src/inputs.rs`, `agent-diva-laputa/tests/migration.rs`, `agent-diva-laputa/tests/service.rs`, `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/service.rs`.
 
+- [ ] Fix current `agent-diva-sandbox` clippy blockers outside Story 6.2.
+  - Context: During Story 6.2 validation on 2026-06-15, `just check` progressed past Laputa after the local lint fix but failed in unrelated sandbox code: `SandboxManager::windows_level` is unread, and `agent-diva-sandbox/src/platform/macos.rs::execute_with_availability` has 8 arguments, tripping `clippy::too_many_arguments`.
+  - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass without unrelated sandbox warnings.
+  - Related files/docs: `agent-diva-sandbox/src/manager.rs`, `agent-diva-sandbox/src/platform/macos.rs`.
+
+- [ ] Fix current `agent-diva-gui` Rust compile blockers outside Story 6.2.
+  - Context: During Story 6.2 validation on 2026-06-15, `just test` failed outside Laputa changes while compiling `agent-diva-gui`. Errors include unresolved `agent_diva_agent` imports/usages in `src-tauri/src/commands.rs`, missing `AgentState::http_client()`, an inferred error type around mask save handling, and unavailable `WebviewWindowBuilder::transparent`.
+  - Expected behavior: Workspace `cargo test --all` should compile `agent-diva-gui` without unrelated Tauri command compile failures.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/Cargo.toml`.
+
 - [ ] Fix current Story 2.4 workspace validation blockers outside Evolution GUI.
   - Context: During Story 2.4 validation on 2026-06-15, `just check` and `just test` failed outside the Evolution GUI changes. Current errors include missing `lock_exclusive` support and unused `FileExt` import in `agent-diva-sandbox/src/exec_policy.rs`, `bool`/`&bool` mismatch and unused `WritableRoot` import in `agent-diva-sandbox/src/platform/macos.rs`, plus `clippy::single-char-add-str` in `agent-diva-laputa/src/memory_provider.rs`.
   - Expected behavior: `just check` and `just test` should pass without unrelated sandbox/laputa compile or lint blockers.

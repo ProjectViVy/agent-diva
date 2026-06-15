@@ -183,7 +183,7 @@ fn apply_rejects_unauthorized_target_and_schema_mismatch_without_mutation() {
     let error = repo
         .apply_proposal("proposal-2", "reviewer", ts(4))
         .unwrap_err();
-    assert!(matches!(error, LaputaError::SchemaMismatch { .. }));
+    assert!(matches!(error, LaputaError::SchemaIncompatible { .. }));
     assert!(!storage
         .paths()
         .section_file(LaputaSectionName::MemoryMd)
@@ -191,7 +191,7 @@ fn apply_rejects_unauthorized_target_and_schema_mismatch_without_mutation() {
 }
 
 #[test]
-fn apply_rejects_unresolved_conflicts_without_mutation() {
+fn apply_rejects_unresolved_conflicts_with_recovery_status_without_mutation() {
     let temp = tempfile::tempdir().unwrap();
     let storage = LaputaStorage::open(temp.path()).unwrap();
     let repo = ProposalRepository::new(storage.clone());
@@ -214,6 +214,10 @@ fn apply_rejects_unresolved_conflicts_without_mutation() {
         .unwrap_err();
 
     assert!(matches!(error, LaputaError::UnresolvedConflict { .. }));
+    assert_eq!(
+        repo.get_proposal("proposal-1").unwrap().state,
+        ProposalState::NeedsAttention
+    );
     assert_eq!(
         fs::read_to_string(section_path).unwrap(),
         r#"{"items":["old"]}"#
@@ -251,7 +255,7 @@ fn apply_deprecation_appends_records_without_mutating_authority_section() {
 }
 
 #[test]
-fn apply_rolls_back_section_when_changelog_write_fails_after_section_write() {
+fn apply_recovery_rolls_back_section_when_changelog_write_fails_after_section_write() {
     let temp = tempfile::tempdir().unwrap();
     let storage = LaputaStorage::open(temp.path()).unwrap();
     let repo = ProposalRepository::new(storage.clone());
@@ -311,7 +315,7 @@ fn apply_rolls_back_section_when_changelog_write_fails_after_section_write() {
 }
 
 #[test]
-fn apply_cleans_changelog_when_audit_fails_after_changelog_write() {
+fn apply_recovery_cleans_changelog_when_audit_fails_after_changelog_write() {
     let temp = tempfile::tempdir().unwrap();
     let storage = LaputaStorage::open(temp.path()).unwrap();
     let repo = ProposalRepository::new(storage.clone());

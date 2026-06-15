@@ -2,8 +2,8 @@ use std::fs;
 
 use agent_diva_core::evolution::LaputaSectionName;
 use agent_diva_laputa::{
-    LaputaMigration, LaputaMigrationOptions, LaputaMigrationOutcome, LaputaMigrationSource,
-    LaputaMigrationSourceKind, LaputaMigrationTestFailure, LaputaStorage,
+    LaputaError, LaputaMigration, LaputaMigrationOptions, LaputaMigrationOutcome,
+    LaputaMigrationSource, LaputaMigrationSourceKind, LaputaMigrationTestFailure, LaputaStorage,
 };
 use serde_json::Value;
 
@@ -146,7 +146,7 @@ fn migration_discovers_legacy_relationship_history_and_tbd_task_templates() {
 }
 
 #[test]
-fn migration_failure_before_commit_leaves_previous_state_and_sections_readable() {
+fn migration_recovery_failure_before_commit_leaves_previous_state_and_sections_readable() {
     let temp = tempfile::tempdir().unwrap();
     fs::write(temp.path().join("MEMORY.md"), "new migration content").unwrap();
     let storage = LaputaStorage::open(temp.path()).unwrap();
@@ -166,6 +166,37 @@ fn migration_failure_before_commit_leaves_previous_state_and_sections_readable()
         .paths()
         .section_file(LaputaSectionName::MemoryMd)
         .exists());
+    assert!(!storage.paths().staging_dir().exists());
+}
+
+#[test]
+fn migration_recovery_failure_after_section_commit_restores_previous_safe_state() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join("MEMORY.md"), "new migration content").unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+    let section_path = storage.paths().section_file(LaputaSectionName::MemoryMd);
+    fs::write(&section_path, r#"{"items":["old"]}"#).unwrap();
+    let state_before = fs::read_to_string(storage.paths().state_json()).unwrap();
+    let section_before = fs::read_to_string(&section_path).unwrap();
+
+    let error = LaputaMigration::new(storage.clone())
+        .run(LaputaMigrationOptions {
+            test_failure: Some(LaputaMigrationTestFailure::AfterSectionCommitBeforeState),
+            ..LaputaMigrationOptions::default()
+        })
+        .unwrap_err();
+
+    assert!(matches!(
+        error,
+        LaputaError::InjectedMigrationFailure {
+            point: LaputaMigrationTestFailure::AfterSectionCommitBeforeState
+        }
+    ));
+    assert_eq!(
+        fs::read_to_string(storage.paths().state_json()).unwrap(),
+        state_before
+    );
+    assert_eq!(fs::read_to_string(section_path).unwrap(), section_before);
     assert!(!storage.paths().staging_dir().exists());
 }
 

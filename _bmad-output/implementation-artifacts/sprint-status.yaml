@@ -77,7 +77,7 @@ development_status:
   epic-5-retrospective: optional
   epic-6: in-progress
   6-1-implement-legacy-schema-migration: review
-  6-2-implement-recovery-conflict-and-typed-error-handling: ready-for-dev
+  6-2-implement-recovery-conflict-and-typed-error-handling: review
   6-3-add-direct-write-and-filesystem-tests: ready-for-dev
   6-4-add-end-to-end-governance-proof-loop: ready-for-dev
   6-5-add-metrics-and-release-gate-validation: ready-for-dev
