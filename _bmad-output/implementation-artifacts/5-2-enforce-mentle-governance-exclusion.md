@@ -4,7 +4,7 @@ baseline_commit: 8a1114d
 
 # Story 5.2: Enforce Mentle Governance Exclusion
 
-Status: ready-for-dev
+Status: in-progress
 
 ## Story
 
@@ -89,16 +89,31 @@ TBD by dev agent.
 ### Debug Log References
 
 - 2026-06-14: Story context prepared from Epic 5, EVO-DIVA architecture section 9, Governance PRD FR-6xx, Laputa PRD FR-6xx, and existing Mentle runtime/prompt wiring.
+- 2026-06-15: Added Mentle exclusion guardrails for AutoDream output/report paths, Laputa governance service paths, and default agent context assembly. Full story validation is blocked by unrelated current AutoDream/Laputa test failures recorded in `TODOLIST.md`.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added negative guardrails that assert AutoDream output emission and rhythm report writing do not create `memory/palace.db` or `.mentle` state.
+- Added dependency guardrails asserting `agent-diva-autodream` and `agent-diva-laputa` manifests do not introduce Mentle/Memtle dependencies.
+- Added default context guardrail asserting governance prompt assembly does not expose Mentle recall/routing unless Mentle prompt state is explicitly enabled.
+- Existing feature-gated Mentle runtime behavior remains allowed outside EVO-DIVA governance; no Mentle tool runtime code was removed or disabled.
+- Story remains in progress because required full validation is blocked by unrelated current failures: `cargo test -p agent-diva-autodream` fails in a compaction capsule evidence assertion, and `cargo test -p agent-diva-laputa` fails to compile unrelated migration/apply recovery tests.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/5-2-enforce-mentle-governance-exclusion.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `TODOLIST.md`
+- `agent-diva-agent/src/context.rs`
+- `agent-diva-autodream/tests/mentle_governance.rs`
+- `agent-diva-laputa/tests/mentle_governance.rs`
+- `docs/logs/2026-06-mentle-governance-exclusion/v0.0.1-mentle-governance-exclusion/acceptance.md`
+- `docs/logs/2026-06-mentle-governance-exclusion/v0.0.1-mentle-governance-exclusion/release.md`
+- `docs/logs/2026-06-mentle-governance-exclusion/v0.0.1-mentle-governance-exclusion/summary.md`
+- `docs/logs/2026-06-mentle-governance-exclusion/v0.0.1-mentle-governance-exclusion/verification.md`
 
 ### Change Log
 
 - 2026-06-14: Created ready-for-dev story for Mentle governance exclusion.
+- 2026-06-15: Added Mentle governance exclusion guardrails; story remains in progress pending unrelated validation blocker cleanup.

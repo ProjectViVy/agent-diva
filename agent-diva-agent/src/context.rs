@@ -631,6 +631,19 @@ mod tests {
     }
 
     #[test]
+    fn governance_context_does_not_inject_mentle_recall_by_default() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+
+        let prompt = builder.build_system_prompt(None);
+
+        assert!(!prompt.contains("Memory Routing"));
+        assert!(!prompt.contains("Palace Memory"));
+        assert!(!prompt.contains("memtle_"));
+        assert!(!prompt.to_lowercase().contains("mentle recall"));
+    }
+
+    #[test]
     fn set_mentle_prompt_state_updates_prompt_exposure() {
         let workspace = TempDir::new().unwrap();
         let mut builder = ContextBuilder::new(workspace.path().to_path_buf())
