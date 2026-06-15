@@ -4,6 +4,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Fix current Story 5.3 workspace validation blockers outside context compaction guardrails.
+  - Context: During Story 5.3 validation on 2026-06-15, targeted 5.3 tests passed, but workspace validation was blocked by unrelated existing issues. `just fmt-check` reports rustfmt drift in `agent-diva-laputa/src/error.rs` and `agent-diva-laputa/src/proposals.rs`; `just check` reports clippy errors in `agent-diva-laputa/src/memory_provider.rs` and `agent-diva-sandbox/src/manager.rs` / `agent-diva-sandbox/src/platform/macos.rs`; `just test` fails compiling `agent-diva-gui/src-tauri/src/commands.rs` because of unresolved `agent_diva_agent` references and missing Tauri/HTTP methods. `cargo test -p agent-diva-agent compaction` also reaches `compaction_real_test`, which requires `TEAKACLOUD_API_KEY`.
+  - Expected behavior: Workspace format, clippy, and test gates should pass without unrelated Laputa, sandbox, GUI, or external-LLM test blockers.
+  - Related files/docs: `agent-diva-laputa/src/error.rs`, `agent-diva-laputa/src/proposals.rs`, `agent-diva-laputa/src/memory_provider.rs`, `agent-diva-sandbox/src/manager.rs`, `agent-diva-sandbox/src/platform/macos.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-agent/tests/compaction_real_test.rs`, `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`.
+
 - [ ] Track and enforce isolated workspace handling when the project is in a parallel state.
   - Context: On 2026-06-15, project guidance was updated so that if a user says this project is currently in a "parallel" state, terminal work must move to an isolated branch workspace before development continues. Acceptable isolation includes a dedicated git worktree/branch or a copied sibling folder, as long as it does not affect other active partitions.
   - Expected behavior: When "parallel" state is mentioned, create or switch to an isolated workspace first, develop on that branch/workspace, and keep the isolation status visible in this backlog until the process is fully operational.

@@ -73,7 +73,7 @@ development_status:
   epic-5: in-progress
   5-1-plug-applied-laputa-reads-into-memoryprovider: review
   5-2-enforce-mentle-governance-exclusion: in-progress
-  5-3-keep-context-compaction-session-local: ready-for-dev
+  5-3-keep-context-compaction-session-local: review
   epic-5-retrospective: optional
   epic-6: in-progress
   6-1-implement-legacy-schema-migration: review

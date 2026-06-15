@@ -41,6 +41,28 @@ pub struct EvidenceRef {
     pub created_at: DateTime<Utc>,
 }
 
+/// Return true when evidence can act as primary authority evidence.
+///
+/// Context compaction is session-local prompt survival. It can support review as
+/// secondary evidence, but cannot be the sole authority behind durable changes.
+pub fn is_primary_governance_evidence(evidence: &EvidenceRef) -> bool {
+    !matches!(evidence.source, EvidenceSource::ContextCompaction)
+}
+
+/// Validate that a proposal evidence set is not based only on context compaction.
+pub fn validate_governance_evidence(evidence_refs: &[EvidenceRef]) -> Result<(), String> {
+    if evidence_refs.is_empty() {
+        return Err("governance evidence requires at least one evidence ref".to_string());
+    }
+    if !evidence_refs.iter().any(is_primary_governance_evidence) {
+        return Err(
+            "context compaction evidence is secondary only and cannot be the sole evidence for a durable proposal"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 /// Supported EVO-DIVA governance proposal categories.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -448,5 +470,45 @@ mod tests {
 
         let decoded: ProposalState = serde_json::from_str("\"deferred\"").unwrap();
         assert_eq!(decoded, ProposalState::Deferred);
+    }
+
+    #[test]
+    fn test_compaction_only_evidence_is_not_authoritative_for_proposals() {
+        let evidence = vec![EvidenceRef {
+            id: "compact-1".to_string(),
+            source: EvidenceSource::ContextCompaction,
+            uri: "capsule://compact-1.md".to_string(),
+            excerpt: Some("current-session summary".to_string()),
+            hash: None,
+            created_at: sample_time(),
+        }];
+
+        let error = validate_governance_evidence(&evidence).unwrap_err();
+
+        assert!(error.contains("context compaction"));
+    }
+
+    #[test]
+    fn test_compaction_with_primary_evidence_is_allowed_as_secondary_support() {
+        let evidence = vec![
+            EvidenceRef {
+                id: "compact-1".to_string(),
+                source: EvidenceSource::ContextCompaction,
+                uri: "capsule://compact-1.md".to_string(),
+                excerpt: Some("current-session summary".to_string()),
+                hash: None,
+                created_at: sample_time(),
+            },
+            EvidenceRef {
+                id: "session-1".to_string(),
+                source: EvidenceSource::Session,
+                uri: "session://chat:1".to_string(),
+                excerpt: Some("primary evidence".to_string()),
+                hash: None,
+                created_at: sample_time(),
+            },
+        ];
+
+        validate_governance_evidence(&evidence).unwrap();
     }
 }

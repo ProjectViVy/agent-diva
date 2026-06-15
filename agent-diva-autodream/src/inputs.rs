@@ -27,6 +27,8 @@ const DEFAULT_TOTAL_BYTES: usize = 8192;
 const SESSION_SOURCE: &str = "recent_sessions";
 const LAPUTA_SOURCE: &str = "laputa";
 const CAPSULE_SOURCE: &str = "source_capsules";
+const COMPACTION_SECONDARY_EVIDENCE_MARKER: &str =
+    "\n\n[Context compaction summary: secondary evidence only; not durable authority.]";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutoDreamInputCollectorConfig {
@@ -261,6 +263,7 @@ impl AutoDreamInputCollector {
         for path in entries {
             match fs::read_to_string(&path) {
                 Ok(content) => {
+                    let content = format!("{content}{COMPACTION_SECONDARY_EVIDENCE_MARKER}");
                     let excerpt = truncate_text(&content, self.config.capsule_bytes);
                     items.push(AutoDreamCollectedInput {
                         source: CAPSULE_SOURCE.to_string(),
@@ -553,6 +556,44 @@ mod tests {
         assert!(!temp.path().join("MEMORY.md").exists());
         assert!(!temp.path().join(".mentle").exists());
         assert!(!result.items.is_empty());
+    }
+
+    #[test]
+    fn collector_marks_compaction_capsules_as_secondary_evidence() {
+        let temp = tempdir().unwrap();
+        seed_laputa(
+            temp.path(),
+            LaputaSectionName::MemoryMd,
+            "memory authority block",
+        );
+        seed_capsule(temp.path(), "compact-001.md", "session-local compaction");
+
+        let storage = AutoDreamStorage::open(temp.path()).unwrap();
+        let collector =
+            AutoDreamInputCollector::new(storage, LaputaService::open(temp.path()).unwrap())
+                .with_config(AutoDreamInputCollectorConfig {
+                    recent_session_limit: 0,
+                    laputa_section_limit: 1,
+                    capsule_limit: 1,
+                    laputa_sections: vec![LaputaSectionName::MemoryMd],
+                    ..AutoDreamInputCollectorConfig::default()
+                });
+
+        let result = collector.collect("run-1").unwrap();
+        let compaction = result
+            .items
+            .iter()
+            .find(|item| item.evidence.source == EvidenceSource::ContextCompaction)
+            .expect("compaction capsule should be collected");
+
+        assert_eq!(compaction.source, CAPSULE_SOURCE);
+        assert!(compaction.uri.starts_with("capsule://"));
+        assert!(compaction
+            .evidence
+            .excerpt
+            .as_deref()
+            .unwrap_or_default()
+            .contains("secondary evidence only"));
     }
 
     fn seed_session(workspace: &Path, key: &str, content: &str) {

@@ -4,7 +4,7 @@ baseline_commit: 8a1114d
 
 # Story 5.3: Keep Context Compaction Session-Local
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,12 +20,12 @@ so that compaction does not become hidden durable memory.
 
 ## Tasks / Subtasks
 
-- [ ] Audit current compaction storage and prompt injection paths to confirm summaries remain in session-local data only. (AC: 1, 2)
-- [ ] Add guardrails so AutoDream input collection and proposal generation mark compaction summaries as secondary evidence, never sole authority evidence. (AC: 1, 3)
-- [ ] Ensure no compaction code writes `.laputa`, Mentle storage, `MEMORY.md`, SOP, skill, identity, relationship, commitment, preference, or policy paths. (AC: 2)
-- [ ] Add proposal validation behavior that blocks or marks `needs_attention` when evidence contains only compaction summaries. (AC: 1, 3)
-- [ ] Preserve existing `ContextBuilder::build_messages` compaction boundary behavior for live prompt survival. (AC: 1)
-- [ ] Add tests for session-local serialization, prompt injection boundaries, no durable writes, and compaction-only evidence rejection. (AC: 1-3)
+- [x] Audit current compaction storage and prompt injection paths to confirm summaries remain in session-local data only. (AC: 1, 2)
+- [x] Add guardrails so AutoDream input collection and proposal generation mark compaction summaries as secondary evidence, never sole authority evidence. (AC: 1, 3)
+- [x] Ensure no compaction code writes `.laputa`, Mentle storage, `MEMORY.md`, SOP, skill, identity, relationship, commitment, preference, or policy paths. (AC: 2)
+- [x] Add proposal validation behavior that blocks or marks `needs_attention` when evidence contains only compaction summaries. (AC: 1, 3)
+- [x] Preserve existing `ContextBuilder::build_messages` compaction boundary behavior for live prompt survival. (AC: 1)
+- [x] Add tests for session-local serialization, prompt injection boundaries, no durable writes, and compaction-only evidence rejection. (AC: 1-3)
 
 ## Dev Notes
 
@@ -88,21 +88,33 @@ so that compaction does not become hidden durable memory.
 
 ### Agent Model Used
 
-TBD by dev agent.
+GPT-5 Codex
 
 ### Debug Log References
 
 - 2026-06-14: Story context prepared from Epic 5, EVO-DIVA architecture section 10, Governance PRD FR-7xx, and existing session/compaction implementation.
+- 2026-06-15: Audited session compaction storage (`Session.compaction_history`), prompt injection (`ContextBuilder::build_messages`), AutoDream input capsules, and proposal output emission.
+- 2026-06-15: Added core governance evidence validation so `ContextCompaction` evidence is secondary only and cannot be the sole evidence for durable proposals.
+- 2026-06-15: Validation notes: `just fmt-check`, `just check`, and `just test` remain blocked by unrelated existing workspace issues recorded in `TODOLIST.md`; targeted 5.3 checks passed.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added `validate_governance_evidence` and `is_primary_governance_evidence` helpers in the shared evolution domain contract.
+- Marked AutoDream compaction capsule excerpts with a secondary-evidence-only boundary before they enter proposal evidence.
+- Blocked AutoDream output emission before persistence when artifact or proposal candidate evidence is compaction-only.
+- Preserved existing session-local compaction serialization and prompt boundary behavior; no compaction path was moved into durable authority stores.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `agent-diva-core/src/evolution/types.rs`
+- `agent-diva-autodream/src/inputs.rs`
+- `agent-diva-autodream/src/outputs.rs`
+- `agent-diva-autodream/tests/outputs.rs`
 
 ### Change Log
 
 - 2026-06-14: Created ready-for-dev story for session-local Context Compaction boundaries.
+- 2026-06-15: Implemented session-local compaction evidence guardrails and moved story to review.

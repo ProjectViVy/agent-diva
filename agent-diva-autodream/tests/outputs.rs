@@ -39,6 +39,17 @@ fn sample_evidence() -> EvidenceRef {
     }
 }
 
+fn compaction_evidence() -> EvidenceRef {
+    EvidenceRef {
+        id: "compact-1".to_string(),
+        source: EvidenceSource::ContextCompaction,
+        uri: "capsule://compact-1.md".to_string(),
+        excerpt: Some("session-local summary; secondary evidence only".to_string()),
+        hash: None,
+        created_at: sample_time(),
+    }
+}
+
 #[test]
 fn emit_outputs_persists_artifact_links_run_and_appends_events() {
     let temp = tempfile::tempdir().unwrap();
@@ -188,6 +199,50 @@ fn emit_outputs_rejects_unknown_proposal_type_before_persistence() {
         .unwrap_err();
 
     assert!(error.to_string().contains("unknown proposal type"));
+    let proposal_dir = temp.path().join(".laputa/proposals");
+    let files = fs::read_dir(&proposal_dir)
+        .map(|iter| iter.count())
+        .unwrap_or_default();
+    assert_eq!(files, 0);
+}
+
+#[test]
+fn emit_outputs_rejects_compaction_only_proposal_evidence_before_persistence() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = AutoDreamStorage::open(temp.path()).unwrap();
+    let laputa = LaputaService::open(temp.path()).unwrap();
+    let emitter = AutoDreamOutputEmitter::new(storage, laputa);
+    let run = sample_run();
+    fs::create_dir_all(temp.path().join(".agent-diva/autodream/runs").join(&run.id)).unwrap();
+    fs::write(
+        temp.path()
+            .join(".agent-diva/autodream/runs")
+            .join(&run.id)
+            .join("record.json"),
+        serde_json::to_vec_pretty(&run).unwrap(),
+    )
+    .unwrap();
+
+    let error = emitter
+        .emit_outputs(AutoDreamOutputRequest {
+            run,
+            generated_at: sample_time(),
+            confidence: 70,
+            evidence_refs: vec![compaction_evidence()],
+            output_summary: AutoDreamArtifactSummary {
+                headline: "bad compaction-only proposal".to_string(),
+                details: Vec::new(),
+            },
+            proposal_candidates: vec![AutoDreamProposalCandidateDraft {
+                proposal_type: "memory_patch".to_string(),
+                proposed_patch: "Persist a durable memory from compaction alone.".to_string(),
+                risk_level: RiskLevel::Low,
+                evidence_refs: vec![compaction_evidence()],
+            }],
+        })
+        .unwrap_err();
+
+    assert!(error.to_string().contains("context compaction"));
     let proposal_dir = temp.path().join(".laputa/proposals");
     let files = fs::read_dir(&proposal_dir)
         .map(|iter| iter.count())

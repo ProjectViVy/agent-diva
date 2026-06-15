@@ -1,8 +1,8 @@
 use std::{fs, fs::OpenOptions, io::Write, path::Path};
 
 use agent_diva_core::evolution::{
-    AuditEvent, AuditEventKind, AutoDreamRunRecord, EvidenceRef, EvolutionProposal, ProposalState,
-    ProposalType, RiskLevel,
+    validate_governance_evidence, AuditEvent, AuditEventKind, AutoDreamRunRecord, EvidenceRef,
+    EvolutionProposal, ProposalState, ProposalType, RiskLevel,
 };
 use agent_diva_laputa::LaputaService;
 use chrono::{DateTime, Utc};
@@ -218,6 +218,7 @@ fn validate_request(request: &AutoDreamOutputRequest) -> Result<()> {
             "output artifacts require at least one evidence ref".to_string(),
         ));
     }
+    validate_governance_evidence(&request.evidence_refs).map_err(AutoDreamError::InvalidState)?;
     if request.proposal_candidates.is_empty() {
         return Err(AutoDreamError::InvalidState(
             "output artifacts require at least one proposal candidate".to_string(),
@@ -227,6 +228,10 @@ fn validate_request(request: &AutoDreamOutputRequest) -> Result<()> {
         return Err(AutoDreamError::InvalidState(
             "confidence must be within 0..=100".to_string(),
         ));
+    }
+    for candidate in &request.proposal_candidates {
+        validate_governance_evidence(&candidate.evidence_refs)
+            .map_err(AutoDreamError::InvalidState)?;
     }
     Ok(())
 }
