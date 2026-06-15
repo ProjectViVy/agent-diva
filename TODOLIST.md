@@ -11,14 +11,9 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
 
 - [ ] Fix current Story 5.3 workspace validation blockers outside context compaction guardrails.
-  - Context: During Story 5.3 validation on 2026-06-15, targeted 5.3 tests passed, but workspace validation was blocked by unrelated existing issues. Follow-up verification in isolated TODOLIST closeout shows the Laputa fmt/clippy blockers are resolved and `cargo test -p agent-diva-laputa` passes; current dirty-work also ignores `compaction_real_test` behind `TEAKACLOUD_API_KEY` and adds the GUI `agent-diva-agent` dependency. Remaining blocker is now limited to `cargo check -p agent-diva-gui`, which still fails on missing `AgentState::http_client()` and unavailable `WebviewWindowBuilder::transparent`.
-  - Expected behavior: Workspace format, clippy, and test gates should pass without unrelated sandbox or GUI blockers.
+  - Context: During Story 5.3 validation on 2026-06-15, targeted 5.3 tests passed, but workspace validation was blocked by unrelated existing issues. Follow-up verification in isolated TODOLIST closeout resolved the Laputa blockers (`cargo test -p agent-diva-laputa`), sandbox all-target blockers (`cargo clippy -p agent-diva-sandbox --all-targets -- -D warnings`, `cargo test -p agent-diva-sandbox`), and GUI Rust compile blocker (`cargo check -p agent-diva-gui`). The remaining unrelated validation failures now live in their focused backlog items instead of this aggregate note.
+  - Expected behavior: Story 5.3 validation should rely on the remaining focused workspace TODOs instead of broad aggregate blockers.
   - Related files/docs: `agent-diva-sandbox/src/manager.rs`, `agent-diva-sandbox/src/platform/macos.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-agent/tests/compaction_real_test.rs`, `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`.
-
-- [ ] Fix current `agent-diva-gui` Rust compile blockers outside Story 6.2.
-  - Context: During Story 6.2 validation on 2026-06-15, `just test` failed outside Laputa changes while compiling `agent-diva-gui`. Current dirty-work adds the missing `agent-diva-agent` dependency, so unresolved `agent_diva_agent` imports/usages are no longer the observed blocker. `cargo check -p agent-diva-gui` still fails in `src-tauri/src/commands.rs` because `AgentState::http_client()` is missing, the response type cannot be inferred from that call chain, and `WebviewWindowBuilder::transparent` is unavailable in the current Tauri API.
-  - Expected behavior: Workspace `cargo test --all` should compile `agent-diva-gui` without unrelated Tauri command compile failures.
-  - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/Cargo.toml`.
 
 - [ ] Fix current Story 2.4 GUI validation blockers outside Evolution views.
   - Context: During Story 2.4 validation on 2026-06-15, `pnpm build` failed on unrelated unused symbols/import-path errors, and full `pnpm test` failed in unrelated suites: `SubAgentPanel.test.ts` needs an i18n install/mock and `DivaPetView.test.ts` needs `ChevronDown` in its lucide mock.
@@ -76,6 +71,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Context: During TODOLIST closeout on 2026-06-15, dirty-work verified that the original sandbox compile blockers are resolved: `cargo check -p agent-diva-sandbox` passes after adding Unix `fs2`, importing `fs2::FileExt`, fixing `bool`/`&bool` matches, and removing an unused `WritableRoot` import. The remaining all-target blockers were an unused-import lint in `agent-diva-sandbox/src/platform/macos.rs` tests and a faulty shell-injection assertion in `manager::tests::test_to_command_string_prevents_shell_injection`.
   - Completed: Removed the unused test imports and corrected the injection regression test so it asserts exact literal-argument output instead of treating a literal substring as evidence of injection. Verification on 2026-06-15 passed: `cargo clippy -p agent-diva-sandbox --all-targets -- -D warnings`; `cargo test -p agent-diva-sandbox`.
   - Related files/docs: `agent-diva-sandbox/src/manager.rs`, `agent-diva-sandbox/src/platform/macos.rs`.
+
+- [x] Fix current `agent-diva-gui` Rust compile blockers outside Story 6.2.
+  - Context: During Story 6.2 validation on 2026-06-15, `just test` failed outside Laputa changes while compiling `agent-diva-gui`. Current dirty-work adds the missing `agent-diva-agent` dependency, so unresolved `agent_diva_agent` imports/usages are no longer the observed blocker. The remaining compile failures were `AgentState::http_client()` missing in `src-tauri/src/commands.rs` and `WebviewWindowBuilder::transparent` being unavailable on macOS without the matching Tauri private-API feature/config.
+  - Completed: Switched the Laputa PUT helper back to the existing `state.client` field, enabled Tauri `macos-private-api`, and aligned `tauri.conf.json` with `app.macOSPrivateApi = true` so the desktop-pet transparent window API matches the configured window behavior. Verification on 2026-06-15 passed: `cargo check -p agent-diva-gui`.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/Cargo.toml`, `agent-diva-gui/src-tauri/tauri.conf.json`.
 
 - [x] Split current Story 2.4 workspace validation blockers into active focused TODOs.
   - Context: During Story 2.4 validation on 2026-06-15, a single workspace blocker entry mixed sandbox compile issues, Laputa lint issues, and GUI validation failures.
