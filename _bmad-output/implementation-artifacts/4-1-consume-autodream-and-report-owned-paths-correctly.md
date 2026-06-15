@@ -4,7 +4,7 @@ baseline_commit: 63d1ea7
 
 # Story 4.1: Consume AutoDream and Report-Owned Paths Correctly
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,13 +21,13 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Add/extend report loading backend for Notebook so `daily` reads `.agent-diva/autodream/reports/daily/{YYYY-MM-DD}.md` and `weekly` reads `.agent-diva/autodream/reports/weekly/{YYYY-Www}.md`. (AC: 1)
-- [ ] Keep `monthly` isolated under Report-owned storage, expected path `{workspace}/reports/monthly/{YYYY-MM}.md`; do not move monthly output into AutoDream. (AC: 2)
-- [ ] Parse AutoDream v1 report frontmatter (`period`, `date` or `week`, `generated_at`, `generated_by`, `schema_version`) into the existing `NotebookReport` DTO shape. (AC: 1)
-- [ ] Add empty/missing-state payloads or UI states with trigger actions for each period; daily/weekly trigger AutoDream, monthly uses Report-owned generation. (AC: 3)
-- [ ] Enforce large-file behavior before markdown rendering: truncate to the PRD bound or add lazy detail loading with a visible truncated marker. (AC: 4)
-- [ ] Preserve existing `NotebookView.vue` split list/detail layout and polling behavior; avoid introducing overlapping text or nested card layouts. (AC: 1-4)
-- [ ] Add tests for daily path consumption, weekly path consumption, monthly path isolation, missing report placeholders, and large markdown handling. (AC: 1-4)
+- [x] Add/extend report loading backend for Notebook so `daily` reads `.agent-diva/autodream/reports/daily/{YYYY-MM-DD}.md` and `weekly` reads `.agent-diva/autodream/reports/weekly/{YYYY-Www}.md`. (AC: 1)
+- [x] Keep `monthly` isolated under Report-owned storage, expected path `{workspace}/reports/monthly/{YYYY-MM}.md`; do not move monthly output into AutoDream. (AC: 2)
+- [x] Parse AutoDream v1 report frontmatter (`period`, `date` or `week`, `generated_at`, `generated_by`, `schema_version`) into the existing `NotebookReport` DTO shape. (AC: 1)
+- [x] Add empty/missing-state payloads or UI states with trigger actions for each period; daily/weekly trigger AutoDream, monthly uses Report-owned generation. (AC: 3)
+- [x] Enforce large-file behavior before markdown rendering: truncate to the PRD bound or add lazy detail loading with a visible truncated marker. (AC: 4)
+- [x] Preserve existing `NotebookView.vue` split list/detail layout and polling behavior; avoid introducing overlapping text or nested card layouts. (AC: 1-4)
+- [x] Add tests for daily path consumption, weekly path consumption, monthly path isolation, missing report placeholders, and large markdown handling. (AC: 1-4)
 
 ## Dev Notes
 
@@ -81,20 +81,38 @@ Status: ready-for-dev
 
 ### Agent Model Used
 
-TBD by implementation agent.
+GPT-5 Codex
 
 ### Debug Log References
 
 - 2026-06-15: Story context prepared from Epic 4, Report System PRD, EVO-DIVA architecture section 7, AutoDream report writer, and current `NotebookView.vue`.
+- 2026-06-15: Added a Tauri-side notebook report loader that reads AutoDream daily/weekly markdown plus report-owned monthly markdown without importing AutoDream runtime internals.
+- 2026-06-15: Added `NotebookView` empty-state trigger affordances and truncated-report banner while preserving the existing split list/detail layout and polling behavior.
+- 2026-06-15: Validation hit machine-level disk exhaustion during `cargo test -p agent-diva-gui notebook --lib`; initial failure occurred before the new Notebook code was type-checked, and a later retry still failed in dependency build output (`libsqlite3-sys`) with `No space left on device` after monthly trigger wiring was added.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added `get_notebook_reports` and `trigger_notebook_report_generation` Tauri commands plus a local markdown/frontmatter parser for Notebook report DTOs.
+- Daily and weekly now consume `.agent-diva/autodream/reports/{period}` while monthly remains isolated under `{workspace}/reports/monthly`.
+- Large markdown payloads are truncated server-side before render, and the detail panel shows a visible truncated marker with line counts.
+- `NotebookView.test.ts` covers daily empty-state trigger affordance and truncated-report banner behavior.
+- Monthly trigger wiring now writes a Report-owned monthly markdown file directly from the Tauri backend using the report-system path contract and v1 frontmatter.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/4-1-consume-autodream-and-report-owned-paths-correctly.md`
+- `agent-diva-gui/src-tauri/Cargo.toml`
+- `agent-diva-gui/src-tauri/src/commands.rs`
+- `agent-diva-gui/src-tauri/src/lib.rs`
+- `agent-diva-gui/src-tauri/src/notebook.rs`
+- `agent-diva-gui/src/components/NotebookView.vue`
+- `agent-diva-gui/src/components/NotebookView.test.ts`
+- `agent-diva-gui/src/locales/en.ts`
+- `agent-diva-gui/src/locales/zh.ts`
+- `Cargo.lock`
 
 ### Change Log
 
 - 2026-06-15: Created ready-for-dev story for Report/Notebook path consumption.
+- 2026-06-15: Implemented Notebook report loading from AutoDream/report-owned paths, added truncated rendering guardrails, monthly trigger generation, and NotebookView component coverage.

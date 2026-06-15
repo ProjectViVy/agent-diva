@@ -4,6 +4,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Replace Notebook monthly placeholder generation with full report-system monthly synthesis.
+  - Context: During Story 4.1 on 2026-06-15, Notebook monthly trigger was closed by adding a Report-owned generation path that writes `{workspace}/reports/monthly/{YYYY-MM}.md` with v1 frontmatter and placeholder body sections. This unblocks the ownership/trigger contract, but it is not yet a true monthly synthesis pipeline with session aggregation, LLM summarization, retries, or cron scheduling.
+  - Expected behavior: Monthly trigger and scheduled generation should produce a substantive month summary that follows the Report System PRD schema, records real `session_count`/`token_used`, and handles failure markers per PRD FR-3.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `docs/prd-report-system/prd.md`, `_bmad-output/implementation-artifacts/4-1-consume-autodream-and-report-owned-paths-correctly.md`.
+
 - [ ] Fix current Story 5.3 workspace validation blockers outside context compaction guardrails.
   - Context: During Story 5.3 validation on 2026-06-15, targeted 5.3 tests passed, but workspace validation was blocked by unrelated existing issues. `just fmt-check` reports rustfmt drift in `agent-diva-laputa/src/error.rs` and `agent-diva-laputa/src/proposals.rs`; `just check` reports clippy errors in `agent-diva-laputa/src/memory_provider.rs` and `agent-diva-sandbox/src/manager.rs` / `agent-diva-sandbox/src/platform/macos.rs`; `just test` fails compiling `agent-diva-gui/src-tauri/src/commands.rs` because of unresolved `agent_diva_agent` references and missing Tauri/HTTP methods. `cargo test -p agent-diva-agent compaction` also reaches `compaction_real_test`, which requires `TEAKACLOUD_API_KEY`.
   - Expected behavior: Workspace format, clippy, and test gates should pass without unrelated Laputa, sandbox, GUI, or external-LLM test blockers.

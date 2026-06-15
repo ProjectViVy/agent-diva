@@ -1,5 +1,8 @@
 use crate::app_state::AgentState;
 use crate::gateway_status::GatewayStatus;
+use crate::notebook::{
+    generate_monthly_notebook_report, load_notebook_reports, NotebookPeriod, NotebookReportDto,
+};
 use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
 use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
@@ -507,6 +510,58 @@ pub async fn trigger_autodream(
 }
 
 #[tauri::command]
+pub async fn get_notebook_reports(period: String) -> Result<Vec<NotebookReportDto>, String> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    let runtime = CliRuntime::from_paths(None, Some(loader.config_dir().to_path_buf()), None);
+    let workspace = runtime.effective_workspace(&config);
+    let period = NotebookPeriod::parse(&period)?;
+    load_notebook_reports(&workspace, period)
+}
+
+#[tauri::command]
+pub async fn trigger_notebook_report_generation(
+    period: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let period = NotebookPeriod::parse(&period)?;
+    match period {
+        NotebookPeriod::Daily | NotebookPeriod::Weekly => {
+            let trigger = match period {
+                NotebookPeriod::Daily => "notebook-daily",
+                NotebookPeriod::Weekly => "notebook-weekly",
+                NotebookPeriod::Monthly => unreachable!(),
+            };
+            let url = format!("{}/autodream/runs", state.api_base_url());
+            post_laputa_payload(
+                &state,
+                &url,
+                &AutoDreamTriggerPayload {
+                    trigger: Some(trigger.to_string()),
+                },
+                "run",
+            )
+            .await
+            .map_err(laputa_error_message)
+        }
+        NotebookPeriod::Monthly => {
+            let loader = ConfigLoader::new();
+            let config = loader.load().unwrap_or_default();
+            let runtime =
+                CliRuntime::from_paths(None, Some(loader.config_dir().to_path_buf()), None);
+            let workspace = runtime.effective_workspace(&config);
+            let result = generate_monthly_notebook_report(&workspace)?;
+            Ok(serde_json::json!({
+                "period": "monthly",
+                "dateKey": result.date_key,
+                "path": result.path.to_string_lossy(),
+                "status": "generated",
+            }))
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn get_autodream_run_status(
     id: String,
     state: State<'_, AgentState>,
@@ -561,6 +616,14 @@ fn non_empty_query_value(value: Option<String>) -> Option<String> {
     value
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+fn laputa_error_message(value: serde_json::Value) -> String {
+    value
+        .get("message")
+        .and_then(|message| message.as_str())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| value.to_string())
 }
 
 async fn get_laputa_payload(
