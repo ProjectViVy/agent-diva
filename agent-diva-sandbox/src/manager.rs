@@ -721,7 +721,7 @@ mod tests {
     #[tokio::test]
     async fn test_to_command_string_prevents_shell_injection() {
         let manager = SandboxManager::disabled();
-        let dangerous_arg = "safe; printf injected".to_string();
+        let dangerous_arg = "safe; printf side-effect".to_string();
         let command = SandboxCommand::new(
             "printf".to_string(),
             vec!["%s".to_string(), dangerous_arg.clone()],
@@ -731,7 +731,6 @@ mod tests {
 
         let output = manager.execute_direct(&request).await.unwrap();
         assert_eq!(output, dangerous_arg);
-        assert!(!output.contains("injected"));
     }
 
     #[cfg(windows)]

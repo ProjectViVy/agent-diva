@@ -516,7 +516,7 @@ impl Default for MacOsSandboxExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filesystem::{FileSystemAccessMode, FileSystemPath, FileSystemSandboxEntry};
+    use crate::filesystem::FileSystemPath;
 
     #[test]
     fn test_seatbelt_base_policy() {
