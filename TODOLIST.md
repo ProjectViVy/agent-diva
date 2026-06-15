@@ -20,11 +20,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Full `agent-diva-gui` build and vitest suite should pass so Evolution stories can be promoted without unrelated waivers.
   - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`, `agent-diva-gui/src/components/DecisionCard.vue`, `agent-diva-gui/src/components/NotebookView.vue`, `agent-diva-gui/src/components/TodoCard.vue`, `docs/logs/2026-06-evolution-runs-audit-policy/v0.0.1-runs-audit-policy-views/verification.md`.
 
-- [ ] Fix `agent-diva-manager` skill service unit tests under the current built-in skill fixture set.
-  - Context: During Epic 2/3 review remediation validation on 2026-06-15, `cargo test -p agent-diva-core -p agent-diva-laputa -p agent-diva-manager` passed core/Laputa tests but failed two unrelated manager tests: `skill_service::tests::delete_workspace_skill_and_restore_builtin_view` unwraps a missing `weather` built-in skill, and `skill_service::tests::delete_builtin_skill_is_rejected` no longer receives a "builtin" error message.
-  - Expected behavior: `agent-diva-manager` unit tests should either create the built-in fixture they assert against or assert against a built-in skill that exists in the current test fixture set.
-  - Related files/docs: `agent-diva-manager/src/skill_service.rs`, `docs/logs/2026-06-epic23-review-remediation/v0.0.1-evolution-governance-remediation/verification.md`.
-
 - [ ] Fix pre-existing GUI build blockers outside Evolution workspace work.
   - Context: During Story 2.1 validation on 2026-06-14, `pnpm build` in `agent-diva-gui` failed after touched-file type issues were fixed. Remaining failures are unrelated existing issues: unused imports/variables in `DecisionCard.vue`, `NotebookView.vue`, several settings components, and an invalid `../../api/desktop` import in `TodoCard.vue`.
   - Expected behavior: `agent-diva-gui` should pass `vue-tsc --noEmit && vite build` without unrelated no-unused and path-resolution failures.
@@ -76,6 +71,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Context: During Story 6.2 validation on 2026-06-15, `just test` failed outside Laputa changes while compiling `agent-diva-gui`. Current dirty-work adds the missing `agent-diva-agent` dependency, so unresolved `agent_diva_agent` imports/usages are no longer the observed blocker. The remaining compile failures were `AgentState::http_client()` missing in `src-tauri/src/commands.rs` and `WebviewWindowBuilder::transparent` being unavailable on macOS without the matching Tauri private-API feature/config.
   - Completed: Switched the Laputa PUT helper back to the existing `state.client` field, enabled Tauri `macos-private-api`, and aligned `tauri.conf.json` with `app.macOSPrivateApi = true` so the desktop-pet transparent window API matches the configured window behavior. Verification on 2026-06-15 passed: `cargo check -p agent-diva-gui`.
   - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/Cargo.toml`, `agent-diva-gui/src-tauri/tauri.conf.json`.
+
+- [x] Fix `agent-diva-manager` skill service unit tests under the current built-in skill fixture set.
+  - Context: During Epic 2/3 review remediation validation on 2026-06-15, `cargo test -p agent-diva-core -p agent-diva-laputa -p agent-diva-manager` passed core/Laputa tests but failed two unrelated manager tests: `skill_service::tests::delete_workspace_skill_and_restore_builtin_view` unwraps a missing `weather` built-in skill, and `skill_service::tests::delete_builtin_skill_is_rejected` no longer receives a "builtin" error message.
+  - Completed: Added a test-only builtin-skill directory injection path for `SkillService` and updated the two skill-service tests to create their own temporary builtin `weather` fixture instead of depending on a missing repository-level builtin directory. Verification on 2026-06-15 passed: `cargo test -p agent-diva-manager delete_workspace_skill_and_restore_builtin_view`; `cargo test -p agent-diva-manager delete_builtin_skill_is_rejected`.
+  - Related files/docs: `agent-diva-manager/src/skill_service.rs`, `docs/logs/2026-06-epic23-review-remediation/v0.0.1-evolution-governance-remediation/verification.md`.
 
 - [x] Split current Story 2.4 workspace validation blockers into active focused TODOs.
   - Context: During Story 2.4 validation on 2026-06-15, a single workspace blocker entry mixed sandbox compile issues, Laputa lint issues, and GUI validation failures.
