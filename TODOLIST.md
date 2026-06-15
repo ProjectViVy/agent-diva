@@ -4,6 +4,11 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Track and enforce isolated workspace handling when the project is in a parallel state.
+  - Context: On 2026-06-15, project guidance was updated so that if a user says this project is currently in a "parallel" state, terminal work must move to an isolated branch workspace before development continues. Acceptable isolation includes a dedicated git worktree/branch or a copied sibling folder, as long as it does not affect other active partitions.
+  - Expected behavior: When "parallel" state is mentioned, create or switch to an isolated workspace first, develop on that branch/workspace, and keep the isolation status visible in this backlog until the process is fully operational.
+  - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
+
 - [ ] Fix current Story 5.2 validation blockers outside Mentle governance exclusion.
   - Context: During Story 5.2 validation on 2026-06-15, targeted 5.2 guardrails passed, but full story-required validation was blocked by unrelated current test failures. `cargo test -p agent-diva-autodream` fails in `inputs::tests::collector_marks_compaction_capsules_as_secondary_evidence` because the collected compaction excerpt does not contain `secondary evidence only`. `cargo test -p agent-diva-laputa` fails to compile existing tests because `LaputaMigrationTestFailure::AfterSectionCommitBeforeState` and `LaputaService::apply_proposal_with_options` are referenced by tests but absent from the current public API.
   - Expected behavior: Story-level validation commands should pass without unrelated AutoDream compaction evidence assertion failures or Laputa migration/apply test API mismatches.

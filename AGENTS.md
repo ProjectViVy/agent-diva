@@ -9,15 +9,28 @@ This repository is a Rust workspace. Crates are organized by responsibility:
 - `agent-diva-providers`: LLM/transcription provider abstractions and implementations.
 - `agent-diva-channels`: channel adapters (Slack, Discord, Telegram, Email, QQ, etc.).
 - `agent-diva-tools`: built-in tools (filesystem, shell, web, cron, spawn).
+- `agent-diva-files`: file indexing and file-management helpers shared by agent/tool flows.
+- `agent-diva-tooling`: shared tooling abstractions and utilities used by the workspace.
 - `agent-diva-neuron`: supporting types/helpers used heavily by the desktop GUI.
 - `agent-diva-manager`: default local gateway and HTTP control plane for **`agent-diva-cli`** (hard dependency; no `nano` feature in CLI).
-- `agent-diva-nano`: **template-line** local gateway stack in **`external/agent-diva-nano/`** (nested workspace; `cd external && cargo build -p agent-diva-nano`); not a root workspace member.
+- `agent-diva-autodream`: AutoDream manual-run, proposal, input, and output lifecycle support.
+- `agent-diva-laputa`: Laputa proposal, migration, recovery, and memory-provider services.
+- `agent-diva-sandbox`: sandbox policy, execution, platform adapters, and approval/guardian support.
+- `agent-diva-nano`: **template-line** local gateway stack in **`.workspace/agent-diva-nano/`** (nested workspace; `cd .workspace/agent-diva-nano && cargo build -p agent-diva-nano`); not a root workspace member.
 - `agent-diva-cli`: user-facing CLI entrypoint (`agent-diva` binary).
 - `agent-diva-service`: Windows service wrapper.
 - `agent-diva-gui`: optional Tauri desktop app (separate from default CLI `cargo` closure).
 - `agent-diva-migration`: migration utility from earlier versions.
 
 Use each crate's `src/` for code; add crate-level integration tests under `tests/` when needed.
+
+**Current repository state (2026-06-15):**
+
+- Root workspace package version is `0.5.0` and Rust MSRV is `1.80.0`.
+- Root workspace members include `agent-diva-autodream`, `agent-diva-files`, `agent-diva-laputa`, `agent-diva-sandbox`, and `agent-diva-tooling` in addition to the older core/agent/provider/channel/tool/CLI/service/GUI crates.
+- `.workspace/` holds sibling reference projects and research sources, including `agent-diva-nano`, `openfang`, `zeroclaw`, `nanobot`, `codex`, `memtle`, and related references.
+- Mentle integration is intentionally pinned to the published `memtle = 0.1.2` crate; do not replace it with a path/git override in the main workspace.
+- The current branch is `agent-diva-pro`; as of initialization on 2026-06-15 it is ahead of `origin/agent-diva-pro` and has active dirty-work changes from multiple stories. Preserve unrelated user/story changes.
 
 **Common workspace conventions:**
 
@@ -50,6 +63,10 @@ Prefer `just` recipes from the workspace root:
 - `just check`: run clippy with warnings denied.
 - `just fmt` and `just fmt-check`: format or verify formatting.
 - `just ci`: run formatting, lint, and tests (CI-equivalent gate).
+- `just mentle-package-policy`: verify the frozen Mentle package-source policy.
+- `just sprint5-default-check`: run default-lane Mentle assembly and failure regressions.
+- `just mentle-check`: run the Mentle feature lane; Windows shells need `clang-cl.exe` on `PATH`.
+- `just sprint5-check`: run `fmt-check`, default-lane checks, and Mentle feature-lane checks.
 - `just run -- <args>`: run `agent-diva-cli`.
 - `just migrate -- <args>`: run migration CLI.
 
@@ -166,6 +183,7 @@ Before committing, clean up generated scratch artifacts, temporary scripts, stal
 - `/new-rule`: Follow the Rulebook template for adding rules.
 - `/commit`: Execute a commit (commit message in English).
 - `/validate`: Run the project test, at minimum `just fmt-check`, `just check`, `just test`; if changes involve `agent-diva-gui`, add GUI-specific validation/smoke tests.
+- `/init`: Refresh repository guidance in `AGENTS.md` against the current workspace state and project rules.
 
 ## Rulebook Mechanism
 
@@ -233,6 +251,13 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Example: Discover that GUI image paste is not implemented; add an open TODO with context and expected behavior.
   - Counterexample: Mention a future fix in chat but leave no durable project backlog entry.
   - Execution Method: Update `TODOLIST.md` before final response or commit; include related docs/files when available.
+  - Maintainer: Current assistant.
+
+- **parallel-state-worktree-isolation**:
+  - Constraints/Range of applicability: When the user says this project is currently in a "parallel" state, do not continue development in the shared root working tree.
+  - Example: User says "现在项目处于并行状态"; create or switch to an isolated terminal workspace such as a dedicated git worktree/branch or copied sibling folder, then do the implementation there.
+  - Counterexample: Continue editing the existing root checkout while other parallel story lanes are active.
+  - Execution Method: Before code edits, switch the terminal working directory to an isolated branch workspace that does not affect other partitions; record this isolation requirement/status in `TODOLIST.md` as pending or active.
   - Maintainer: Current assistant.
 
 - **use-chinese-when-communicating**:
