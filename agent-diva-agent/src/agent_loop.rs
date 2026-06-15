@@ -1068,7 +1068,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -1108,7 +1108,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -1150,7 +1150,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -1194,7 +1194,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -1250,7 +1250,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -1293,7 +1293,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -1332,15 +1332,17 @@ mod tests {
     #[tokio::test]
     async fn test_build_agent_tools_reuses_custom_tools_with_cron() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let mut config = ToolConfig::default();
-        config.builtin = BuiltInToolsConfig {
-            cron: true,
-            ..BuiltInToolsConfig::none()
+        let config = ToolConfig {
+            builtin: BuiltInToolsConfig {
+                cron: true,
+                ..BuiltInToolsConfig::none()
+            },
+            ..Default::default()
         };
         let cron_service = Arc::new(CronService::new(temp_dir.path().join("cron.json"), None));
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -1370,7 +1372,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -1387,15 +1389,14 @@ mod tests {
         )
         .await
         .unwrap();
-        let mut config = ToolConfig::default();
-        config.builtin = BuiltInToolsConfig {
-            cron: true,
-            ..BuiltInToolsConfig::none()
+        let mut config = ToolConfig {
+            builtin: BuiltInToolsConfig {
+                cron: true,
+                ..BuiltInToolsConfig::none()
+            },
+            ..Default::default()
         };
-        config.cron_service = Some(Arc::new(CronService::new(
-            workspace.join("cron.json"),
-            None,
-        )));
+        config.cron_service = Some(Arc::new(CronService::new(workspace.join("cron.json"), None)));
 
         agent.custom_tools = vec![Arc::new(NamedTool {
             name: "memtle_status",
@@ -1415,7 +1416,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -2188,7 +2189,7 @@ mod tests {
             None,
             Arc::new(
                 agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                    &temp_dir.path().join("files"),
+                    temp_dir.path().join("files"),
                 ))
                 .await
                 .unwrap(),
@@ -2211,7 +2212,7 @@ mod tests {
         let memory_provider = Arc::new(TrackingMemoryProvider::new());
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),
@@ -2268,7 +2269,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),

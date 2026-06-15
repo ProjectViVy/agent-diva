@@ -11,10 +11,10 @@
 //!   COMPACTION_TEST_MODEL - 使用的模型（默认：MiniMax-M3）
 
 use agent_diva_agent::compaction::ContextCompactor;
-use agent_diva_agent::context_budget::{self, BudgetConfig};
+use agent_diva_agent::context_budget::BudgetConfig;
 use agent_diva_agent::token_estimate::{estimate_tokens, estimate_total_tokens};
-use agent_diva_core::session::{ChatMessage, CompactTrigger, Session};
-use agent_diva_providers::{LLMProvider, LiteLLMClient};
+use agent_diva_core::session::{CompactTrigger, Session};
+use agent_diva_providers::LiteLLMClient;
 use std::sync::Arc;
 
 /// 构造一段真实的中文对话（模拟项目开发场景）

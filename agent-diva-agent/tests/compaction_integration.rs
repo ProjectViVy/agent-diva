@@ -18,7 +18,6 @@ use agent_diva_core::session::{
     ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session,
 };
 use chrono::Utc;
-use serde_json;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -224,7 +223,7 @@ fn test_build_messages_with_compaction() {
         "你说得对，科幻确实不错。".to_string(),
         Some("telegram"),
         Some("12345"),
-        &[summary.clone()],
+        std::slice::from_ref(&summary),
     );
 
     // 验证总消息数

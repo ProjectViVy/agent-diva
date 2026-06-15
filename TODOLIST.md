@@ -30,16 +30,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Full `agent-diva-gui` vitest suite should pass after shared test setup/mocks are aligned with current components.
   - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`.
 
-- [ ] Fix pre-existing `agent-diva-agent` clippy failures blocking `just check`.
-  - Context: During Story 1.3 validation on 2026-06-14, `just check` failed outside the Laputa proposal changes. Reported issues include unused `ToolPolicy` import and unread `parent_tool_limits` in `agent-diva-agent/src/subagent.rs`, needless borrows in `agent-diva-agent/src/agent_loop/loop_turn.rs` and `agent-diva-agent/src/context.rs`, and manual char comparison in `agent-diva-agent/src/mask/mask_file.rs`.
-  - Expected behavior: Workspace `cargo clippy --all -- -D warnings` should pass after unrelated pre-existing lint cleanup.
-  - Related files/docs: `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/mask/mask_file.rs`; `docs/logs/2026-06-laputa-proposals/v0.0.1-proposal-crud-state-transitions/verification.md`.
-
-- [ ] Fix pre-existing mask/runtime warnings in `agent-diva-agent` blocking warning-free validation.
-  - Context: During Story 2.2 validation on 2026-06-14, targeted `cargo test -p agent-diva-agent mask::mask_registry` and `mask::tool_policy` passed, but both surfaced unrelated existing warnings: an unused `ToolPolicy` import and unread `parent_tool_limits` field in `agent-diva-agent/src/subagent.rs`.
-  - Expected behavior: Focused agent crate validation for mask stories should run without unrelated warnings so stricter `-D warnings` checks can be trusted.
-  - Related files/docs: `agent-diva-agent/src/subagent.rs`; `docs/logs/2026-06-reviewer-assist-readonly/v0.0.1-reviewer-assist-readonly/verification.md`.
-
 - [ ] Clean pre-existing workspace rustfmt drift.
   - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
   - Expected behavior: Workspace-wide format check should pass without requiring unrelated formatting churn during focused story work.
@@ -76,6 +66,16 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Context: During Epic 2/3 review remediation validation on 2026-06-15, `cargo test -p agent-diva-core -p agent-diva-laputa -p agent-diva-manager` passed core/Laputa tests but failed two unrelated manager tests: `skill_service::tests::delete_workspace_skill_and_restore_builtin_view` unwraps a missing `weather` built-in skill, and `skill_service::tests::delete_builtin_skill_is_rejected` no longer receives a "builtin" error message.
   - Completed: Added a test-only builtin-skill directory injection path for `SkillService` and updated the two skill-service tests to create their own temporary builtin `weather` fixture instead of depending on a missing repository-level builtin directory. Verification on 2026-06-15 passed: `cargo test -p agent-diva-manager delete_workspace_skill_and_restore_builtin_view`; `cargo test -p agent-diva-manager delete_builtin_skill_is_rejected`.
   - Related files/docs: `agent-diva-manager/src/skill_service.rs`, `docs/logs/2026-06-epic23-review-remediation/v0.0.1-evolution-governance-remediation/verification.md`.
+
+- [x] Fix pre-existing `agent-diva-agent` clippy failures blocking `just check`.
+  - Context: During Story 1.3 validation on 2026-06-14, `just check` failed outside the Laputa proposal changes. Earlier reports mentioned unused `ToolPolicy` import and unread `parent_tool_limits` in `agent-diva-agent/src/subagent.rs`, needless borrows in `agent-diva-agent/src/agent_loop/loop_turn.rs` and `agent-diva-agent/src/context.rs`, and manual char comparison in `agent-diva-agent/src/mask/mask_file.rs`. Follow-up 2026-06-15 validation in the isolated worktree showed the remaining crate-level blockers had drifted to a new set of test and helper lints in `agent_loop.rs`, `context.rs`, and compaction tests.
+  - Completed: Cleaned the remaining `agent-diva-agent` all-target clippy failures by removing redundant test imports, replacing `&[value.clone()]` with `std::slice::from_ref`, removing needless borrows for file-manager paths, and initializing default-backed test structs without field reassignment. Verification on 2026-06-15 passed: `cargo clippy -p agent-diva-agent --all-targets -- -D warnings`.
+  - Related files/docs: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/tests/compaction_integration.rs`, `agent-diva-agent/tests/compaction_real_test.rs`; `docs/logs/2026-06-laputa-proposals/v0.0.1-proposal-crud-state-transitions/verification.md`.
+
+- [x] Fix pre-existing mask/runtime warnings in `agent-diva-agent` blocking warning-free validation.
+  - Context: During Story 2.2 validation on 2026-06-14, targeted `cargo test -p agent-diva-agent mask::mask_registry` and `mask::tool_policy` passed, but both surfaced unrelated existing warnings in the agent crate. By 2026-06-15, the warning surface had shifted to compaction and helper-test imports captured by full clippy validation.
+  - Completed: The remaining warning-producing imports/helpers in the current agent crate test surface were removed as part of the all-target clippy cleanup, restoring warning-free validation under `-D warnings`. Verification on 2026-06-15 passed: `cargo clippy -p agent-diva-agent --all-targets -- -D warnings`.
+  - Related files/docs: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/tests/compaction_integration.rs`, `agent-diva-agent/tests/compaction_real_test.rs`; `docs/logs/2026-06-reviewer-assist-readonly/v0.0.1-reviewer-assist-readonly/verification.md`.
 
 - [x] Split current Story 2.4 workspace validation blockers into active focused TODOs.
   - Context: During Story 2.4 validation on 2026-06-15, a single workspace blocker entry mixed sandbox compile issues, Laputa lint issues, and GUI validation failures.
