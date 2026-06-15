@@ -248,13 +248,6 @@ const currentProviderLabel = computed(() => {
   return statusReport.value?.default_provider || t('providers.unresolved');
 });
 
-const doctorTone = computed(() => {
-  if (!statusReport.value) return 'text-muted';
-  return statusReport.value.doctor.ready
-    ? 'text-success'
-    : 'text-warning';
-});
-
 const filteredProviders = computed(() => {
   if (!searchTerm.value) return providers.value;
   const lower = searchTerm.value.toLowerCase();

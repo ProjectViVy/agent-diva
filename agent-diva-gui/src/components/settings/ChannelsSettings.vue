@@ -28,76 +28,6 @@ const isSaving = ref(false);
 
 const cloneValue = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-// 开发模式：模拟测试数据
-const USE_MOCK_DATA = import.meta.env.DEV; // 开发环境使用模拟数据
-
-function getMockChannels() {
-  return {
-    feishu: {
-      enabled: true,
-      app_id: 'cli_a3b4c5d6e7f8g9h0',
-      app_secret: 'mock_secret_123456789',
-      verification_token: 'mock_token_abc',
-    },
-    telegram: {
-      enabled: false,
-      token: '',
-    },
-    discord: {
-      enabled: true,
-      token: 'mock_discord_token',
-      gateway_url: 'wss://gateway.discord.gg/?v=10&encoding=json',
-      intents: 37377,
-      guild_id: null,
-      mention_only: false,
-      listen_to_bots: false,
-      allow_from: [],
-      group_reply_allowed_sender_ids: [],
-    },
-    dingtalk: {
-      enabled: false,
-      client_id: '',
-      client_secret: '',
-      robot_code: '',
-      dm_policy: 'open',
-      group_policy: 'open',
-    },
-  };
-}
-
-function getMockStatuses(): ChannelStatusSummary[] {
-  return [
-    {
-      name: 'feishu',
-      enabled: true,
-      ready: true,
-      missing_fields: [],
-      notes: [],
-    },
-    {
-      name: 'telegram',
-      enabled: false,
-      ready: false,
-      missing_fields: ['token'],
-      notes: [],
-    },
-    {
-      name: 'discord',
-      enabled: true,
-      ready: true,
-      missing_fields: [],
-      notes: [],
-    },
-    {
-      name: 'dingtalk',
-      enabled: false,
-      ready: false,
-      missing_fields: ['client_id', 'client_secret'],
-      notes: [],
-    },
-  ];
-}
-
 function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
   if (!d || typeof d !== 'object') return;
   if (!Array.isArray(d.allow_from)) d.allow_from = [];
@@ -202,7 +132,7 @@ const openWizard = () => {
   wizardOpen.value = true;
 };
 
-const handleWizardTest = async (data: any) => {
+const handleWizardTest = async (_data: any) => {
   // TODO: 实现真实连接测试逻辑
   return { success: false, message: t('channels.testNotImplemented') };
 };

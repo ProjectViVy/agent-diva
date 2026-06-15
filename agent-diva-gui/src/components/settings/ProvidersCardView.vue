@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Plus, Import } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import ProviderCard from './ProviderCard.vue';
@@ -30,10 +29,6 @@ const emit = defineEmits<{
   (e: 'create'): void;
   (e: 'import'): void;
 }>();
-
-const activeProvider = computed(() => 
-  props.providers.find(p => p.name === props.activeProviderName)
-);
 
 const mapToCardProps = (provider: ProviderCardItem) => ({
   name: provider.name,

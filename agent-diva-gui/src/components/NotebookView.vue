@@ -16,7 +16,6 @@ import {
   AlertCircle,
   Inbox,
 } from 'lucide-vue-next';
-import { invoke } from '@tauri-apps/api/core';
 import { appConfirm } from '../utils/appDialog';
 import { showAppToast } from '../utils/appToast';
 
@@ -57,7 +56,6 @@ const loading = ref(false);
 const error = ref('');
 const actionBusy = ref(false);
 
-const pollIntervalMs = 60_000;
 let pollHandle: ReturnType<typeof setInterval> | null = null;
 
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;

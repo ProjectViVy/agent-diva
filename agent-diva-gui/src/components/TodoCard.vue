@@ -2,7 +2,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, ChevronDown, ChevronUp } from 'lucide-vue-next'
-import type { UiCard, TodoItem } from '../../api/desktop'
+import type { UiCard, TodoItem } from '../api/desktop'
 
 const props = defineProps<{
   card: UiCard

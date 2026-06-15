@@ -100,6 +100,7 @@ vi.mock('lucide-vue-next', () => ({
   Image: { name: 'Image', template: '<span class="image-icon" />' },
   Mic: { name: 'Mic', template: '<span class="mic-icon" />' },
   Plus: { name: 'Plus', template: '<span class="plus-icon" />' },
+  ChevronDown: { name: 'ChevronDown', template: '<span class="chevron-down-icon" />' },
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -298,7 +299,7 @@ describe('DivaPetView scene picker', () => {
     expect(wrapper.find('[data-testid="pet-mood-badge"]').exists()).toBe(false)
   })
 
-  it('shows the mood badge for a new non-neutral message and clears it after one second', async () => {
+  it('updates the embedded host mood for a new non-neutral message and clears it after four seconds', async () => {
     vi.useFakeTimers()
     const messages: PetMessage[] = [{ role: 'agent', content: 'I am happy to help.', timestamp: 1 }]
     const { wrapper } = await setup({ messages: [] })
@@ -306,15 +307,14 @@ describe('DivaPetView scene picker', () => {
     await wrapper.setProps({ messages: [...messages] })
     await nextTick()
 
-    let badge = wrapper.find('[data-testid="pet-mood-badge"]')
-    expect(badge.exists()).toBe(true)
-    expect(badge.text()).toContain('happy')
+    let embedded = wrapper.getComponent({ name: 'EmbeddedPetFrame' })
+    expect(embedded.props('mood')).toBe('happy')
 
     vi.advanceTimersByTime(4000)
     await nextTick()
 
-    badge = wrapper.find('[data-testid="pet-mood-badge"]')
-    expect(badge.exists()).toBe(false)
+    embedded = wrapper.getComponent({ name: 'EmbeddedPetFrame' })
+    expect(embedded.props('mood')).toBe('neutral')
     vi.useRealTimers()
   })
 
