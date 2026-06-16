@@ -16,10 +16,12 @@ import {
   AlertCircle,
   Inbox,
 } from 'lucide-vue-next';
-import { appConfirm } from '../utils/appDialog';
 import { showAppToast } from '../utils/appToast';
 
 const { t } = useI18n();
+const emit = defineEmits<{
+  (event: 'open-evolution-proposal', proposalId: string): void;
+}>();
 
 // --- Types ---
 type ReportPeriod = 'daily' | 'weekly' | 'monthly';
@@ -38,6 +40,40 @@ interface NotebookReport {
   isTruncated?: boolean;
   originalLineCount?: number;
   displayedLineCount?: number;
+}
+
+type NotebookProposalAction = 'sop' | 'skill' | 'memory';
+type ProposalType =
+  | 'memory_patch'
+  | 'learning_note'
+  | 'identity_patch'
+  | 'relationship_update'
+  | 'sop_create';
+type ProposalState = 'pending_review' | 'needs_attention';
+type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+interface EvidenceRef {
+  id: string;
+  source: 'report' | string;
+  uri: string;
+  excerpt?: string | null;
+}
+
+interface NotebookProposalPreview {
+  action: NotebookProposalAction;
+  proposalType: ProposalType;
+  targetSection: string;
+  extractedSummary: string;
+  evidenceRefs: EvidenceRef[];
+  riskLevel: RiskLevel;
+  reviewStatus: ProposalState;
+  proposedPatch: string;
+  needsAttentionReason?: string | null;
+}
+
+interface EvolutionProposal {
+  id: string;
+  state: string;
 }
 
 // --- Markdown renderer ---
@@ -64,6 +100,10 @@ const loading = ref(false);
 const error = ref('');
 const actionBusy = ref(false);
 const generationBusy = ref(false);
+const previewBusy = ref(false);
+const proposalPreview = ref<NotebookProposalPreview | null>(null);
+const proposalPreviewAction = ref<NotebookProposalAction | null>(null);
+const createdProposalId = ref<string | null>(null);
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -103,6 +143,12 @@ const periodTabs: { key: ReportPeriod; labelKey: string }[] = [
   { key: 'monthly', labelKey: 'notebook.periodMonthly' },
 ];
 
+const proposalActionLabels: Record<NotebookProposalAction, string> = {
+  sop: 'notebook.createSopProposal',
+  skill: 'notebook.createSkillProposal',
+  memory: 'notebook.createMemoryProposal',
+};
+
 // --- Data fetching ---
 async function fetchReports() {
   loading.value = true;
@@ -136,6 +182,7 @@ async function triggerMissingReport() {
   generationBusy.value = true;
   try {
     if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
       await invoke('trigger_notebook_report_generation', {
         period: activePeriod.value,
       });
@@ -165,20 +212,49 @@ function retry() {
 }
 
 // --- Bottom bar actions ---
-async function solidifyAsSop() {
+async function openProposalPreview(action: NotebookProposalAction) {
   if (!selectedReport.value) return;
-  const confirmed = await appConfirm(
-    t('notebook.sopConfirmMessage', { title: selectedReport.value.title }),
-    { title: t('notebook.sopConfirmTitle') },
-  );
-  if (!confirmed) return;
+  previewBusy.value = true;
+  proposalPreviewAction.value = action;
+  createdProposalId.value = null;
+  try {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      proposalPreview.value = await invoke<NotebookProposalPreview>('preview_notebook_report_proposal', {
+        reportId: selectedReport.value.id,
+        action,
+      });
+    } else {
+      proposalPreview.value = buildBrowserPreview(action, selectedReport.value);
+    }
+  } catch (e: unknown) {
+    showAppToast(e instanceof Error ? e.message : String(e), 'error');
+  } finally {
+    previewBusy.value = false;
+  }
+}
+
+function closeProposalPreview() {
+  if (actionBusy.value) return;
+  proposalPreview.value = null;
+  proposalPreviewAction.value = null;
+}
+
+async function submitProposalPreview() {
+  if (!selectedReport.value || !proposalPreviewAction.value) return;
   actionBusy.value = true;
   try {
     if (isTauri()) {
       const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('solidify_report_as_sop', { reportId: selectedReport.value.id });
+      const proposal = await invoke<EvolutionProposal>('create_notebook_report_proposal', {
+        reportId: selectedReport.value.id,
+        action: proposalPreviewAction.value,
+      });
+      createdProposalId.value = proposal.id;
+    } else {
+      createdProposalId.value = `preview-${proposalPreviewAction.value}`;
     }
-    showAppToast(t('notebook.sopSuccess'), 'success');
+    showAppToast(t('notebook.proposalSuccess'), 'success');
   } catch (e: unknown) {
     showAppToast(e instanceof Error ? e.message : String(e), 'error');
   } finally {
@@ -186,46 +262,24 @@ async function solidifyAsSop() {
   }
 }
 
-async function solidifyAsSkill() {
-  if (!selectedReport.value) return;
-  const confirmed = await appConfirm(
-    t('notebook.skillConfirmMessage', { title: selectedReport.value.title }),
-    { title: t('notebook.skillConfirmTitle') },
-  );
-  if (!confirmed) return;
-  actionBusy.value = true;
-  try {
-    if (isTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('solidify_report_as_skill', { reportId: selectedReport.value.id });
-    }
-    showAppToast(t('notebook.skillSuccess'), 'success');
-  } catch (e: unknown) {
-    showAppToast(e instanceof Error ? e.message : String(e), 'error');
-  } finally {
-    actionBusy.value = false;
-  }
+function openCreatedProposal() {
+  if (!createdProposalId.value) return;
+  emit('open-evolution-proposal', createdProposalId.value);
 }
 
-async function updateLongTermMemory() {
-  if (!selectedReport.value) return;
-  const confirmed = await appConfirm(
-    t('notebook.memoryConfirmMessage', { title: selectedReport.value.title }),
-    { title: t('notebook.memoryConfirmTitle') },
-  );
-  if (!confirmed) return;
-  actionBusy.value = true;
-  try {
-    if (isTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('update_memory_from_report', { reportId: selectedReport.value.id });
-    }
-    showAppToast(t('notebook.memorySuccess'), 'success');
-  } catch (e: unknown) {
-    showAppToast(e instanceof Error ? e.message : String(e), 'error');
-  } finally {
-    actionBusy.value = false;
-  }
+function buildBrowserPreview(action: NotebookProposalAction, report: NotebookReport): NotebookProposalPreview {
+  const isMemory = action === 'memory';
+  return {
+    action,
+    proposalType: isMemory ? 'memory_patch' : 'sop_create',
+    targetSection: isMemory ? 'memory_md' : 'identity',
+    extractedSummary: report.summary || truncate(report.content, 600),
+    evidenceRefs: [{ id: `evidence-${report.id}`, source: 'report', uri: report.sourcePath || report.id }],
+    riskLevel: isMemory ? 'high' : 'medium',
+    reviewStatus: 'pending_review',
+    proposedPatch: '',
+    needsAttentionReason: null,
+  };
 }
 
 // --- Truncation helper ---
@@ -371,31 +425,108 @@ onUnmounted(() => {
     <div v-if="selectedReport" class="notebook-actions">
       <button
         class="notebook-action-btn"
-        :disabled="actionBusy"
-        @click="solidifyAsSop"
+        :disabled="actionBusy || previewBusy"
+        @click="openProposalPreview('sop')"
       >
         <ShieldCheck :size="16" />
-        <span>{{ t('notebook.solidifySop') }}</span>
+        <span>{{ t('notebook.createSopProposal') }}</span>
       </button>
       <button
         class="notebook-action-btn"
-        :disabled="actionBusy"
-        @click="solidifyAsSkill"
+        :disabled="actionBusy || previewBusy"
+        @click="openProposalPreview('skill')"
       >
         <Brain :size="16" />
-        <span>{{ t('notebook.solidifySkill') }}</span>
+        <span>{{ t('notebook.createSkillProposal') }}</span>
       </button>
       <button
         class="notebook-action-btn"
-        :disabled="actionBusy"
-        @click="updateLongTermMemory"
+        :disabled="actionBusy || previewBusy"
+        @click="openProposalPreview('memory')"
       >
         <StickyNote :size="16" />
-        <span>{{ t('notebook.updateMemory') }}</span>
+        <span>{{ t('notebook.createMemoryProposal') }}</span>
       </button>
-      <div v-if="actionBusy" class="notebook-action-loading">
+      <div v-if="actionBusy || previewBusy" class="notebook-action-loading">
         <Loader2 :size="16" class="spin" />
       </div>
+    </div>
+
+    <div v-if="proposalPreview" class="notebook-preview-backdrop" @click.self="closeProposalPreview">
+      <section class="notebook-preview" role="dialog" aria-modal="true">
+        <header class="notebook-preview-header">
+          <div>
+            <span class="notebook-preview-kicker">{{ t('notebook.previewStatus') }}</span>
+            <h3>{{ t(proposalActionLabels[proposalPreview.action]) }}</h3>
+          </div>
+          <button class="notebook-preview-close" type="button" :disabled="actionBusy" @click="closeProposalPreview">
+            &times;
+          </button>
+        </header>
+
+        <div v-if="proposalPreview.needsAttentionReason" class="notebook-preview-attention">
+          <AlertCircle :size="16" />
+          <span>{{ proposalPreview.needsAttentionReason }}</span>
+        </div>
+
+        <dl class="notebook-preview-grid">
+          <div>
+            <dt>{{ t('notebook.previewTarget') }}</dt>
+            <dd>{{ proposalPreview.targetSection }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('notebook.previewType') }}</dt>
+            <dd>{{ proposalPreview.proposalType }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('notebook.previewRisk') }}</dt>
+            <dd>{{ proposalPreview.riskLevel }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('notebook.previewReviewStatus') }}</dt>
+            <dd>{{ proposalPreview.reviewStatus }}</dd>
+          </div>
+        </dl>
+
+        <section class="notebook-preview-section">
+          <h4>{{ t('notebook.previewSummary') }}</h4>
+          <p>{{ proposalPreview.extractedSummary }}</p>
+        </section>
+
+        <section class="notebook-preview-section">
+          <h4>{{ t('notebook.previewEvidence') }}</h4>
+          <ul>
+            <li v-for="evidence in proposalPreview.evidenceRefs" :key="evidence.id">
+              <strong>{{ evidence.source }}</strong>
+              <span>{{ evidence.uri }}</span>
+            </li>
+          </ul>
+        </section>
+
+        <footer class="notebook-preview-actions">
+          <button class="notebook-preview-secondary" type="button" :disabled="actionBusy" @click="closeProposalPreview">
+            {{ t('notebook.cancelProposal') }}
+          </button>
+          <button
+            v-if="!createdProposalId"
+            class="notebook-preview-primary"
+            type="button"
+            :disabled="actionBusy"
+            @click="submitProposalPreview"
+          >
+            <Loader2 v-if="actionBusy" :size="14" class="spin" />
+            {{ t('notebook.submitProposal') }}
+          </button>
+          <button
+            v-else
+            class="notebook-preview-primary"
+            type="button"
+            @click="openCreatedProposal"
+          >
+            {{ t('notebook.openProposal') }}
+          </button>
+        </footer>
+      </section>
     </div>
   </div>
 </template>
@@ -782,8 +913,206 @@ onUnmounted(() => {
   color: var(--accent);
 }
 
+.notebook-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.notebook-preview {
+  width: min(680px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+}
+
+.notebook-preview-header,
+.notebook-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.notebook-preview-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.notebook-preview-kicker {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.notebook-preview-header h3,
+.notebook-preview-section h4 {
+  margin: 0;
+  color: var(--text);
+}
+
+.notebook-preview-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.notebook-preview-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.notebook-preview-close:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--accent-bg-light);
+}
+
+.notebook-preview-attention {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 18px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warning-border, var(--accent-border));
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg, var(--accent-bg-light));
+  color: var(--text);
+  font-size: 13px;
+}
+
+.notebook-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px 18px 4px;
+  margin: 0;
+}
+
+.notebook-preview-grid div {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+
+.notebook-preview-grid dt,
+.notebook-preview-section h4 {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.notebook-preview-grid dd {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.notebook-preview-section {
+  padding: 12px 18px;
+}
+
+.notebook-preview-section h4 {
+  margin-bottom: 8px;
+}
+
+.notebook-preview-section p {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.notebook-preview-section ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notebook-preview-section li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.notebook-preview-section li:first-child {
+  border-top: 0;
+}
+
+.notebook-preview-section li span {
+  overflow-wrap: anywhere;
+}
+
+.notebook-preview-primary,
+.notebook-preview-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.notebook-preview-primary {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+}
+
+.notebook-preview-secondary {
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  color: var(--text);
+}
+
+.notebook-preview-primary:disabled,
+.notebook-preview-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .spin {
   animation: spin 1s linear infinite;
+}
+
+@media (max-width: 720px) {
+  .notebook-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notebook-actions {
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
 }
 
 @keyframes spin {

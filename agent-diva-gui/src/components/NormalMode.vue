@@ -906,7 +906,9 @@ defineExpose({
           <div class="h-full min-h-0 flex flex-col subview-container">
             <div class="flex-1 min-h-0 overflow-hidden">
               <div class="h-full min-h-0 w-full overflow-y-auto p-6">
-                <NotebookView />
+                <NotebookView
+                  @open-evolution-proposal="(proposalId) => openEvolutionDeepLink({ tab: 'inbox', proposalId })"
+                />
               </div>
             </div>
           </div>

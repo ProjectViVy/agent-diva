@@ -1,3 +1,7 @@
+use agent_diva_core::evolution::{
+    EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType,
+    RiskLevel,
+};
 use chrono::{Datelike, Local, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -80,6 +84,38 @@ pub struct NotebookGenerationResult {
     pub date_key: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotebookProposalAction {
+    Sop,
+    Skill,
+    Memory,
+}
+
+impl NotebookProposalAction {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value.trim() {
+            "sop" => Ok(Self::Sop),
+            "skill" => Ok(Self::Skill),
+            "memory" => Ok(Self::Memory),
+            other => Err(format!("unsupported notebook proposal action: {other}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NotebookProposalPreviewDto {
+    pub action: String,
+    pub proposal_type: ProposalType,
+    pub target_section: LaputaSectionName,
+    pub extracted_summary: String,
+    pub evidence_refs: Vec<EvidenceRef>,
+    pub risk_level: RiskLevel,
+    pub review_status: ProposalState,
+    pub proposed_patch: String,
+    pub needs_attention_reason: Option<String>,
+}
+
 pub fn load_notebook_reports(
     workspace: &Path,
     period: NotebookPeriod,
@@ -115,6 +151,48 @@ pub fn load_notebook_reports(
             .then_with(|| right.id.cmp(&left.id))
     });
     Ok(reports)
+}
+
+pub fn build_notebook_report_proposal(
+    workspace: &Path,
+    report_id: &str,
+    action: NotebookProposalAction,
+    created_by: &str,
+) -> Result<EvolutionProposal, String> {
+    let report = find_notebook_report(workspace, report_id)?;
+    let preview = build_notebook_proposal_preview_for_report(&report, action)?;
+    let now = Utc::now();
+    let timestamp = now
+        .timestamp_nanos_opt()
+        .unwrap_or_else(|| now.timestamp_millis() * 1_000_000);
+    let id = format!(
+        "notebook-{}-{}-{}",
+        preview.action,
+        sanitize_id_component(&report.date),
+        timestamp
+    );
+    Ok(EvolutionProposal {
+        id,
+        created_at: now,
+        updated_at: now,
+        created_by: created_by.to_string(),
+        proposal_type: preview.proposal_type,
+        target_section: preview.target_section,
+        evidence_refs: preview.evidence_refs,
+        proposed_patch: preview.proposed_patch,
+        risk_level: preview.risk_level,
+        state: preview.review_status,
+        source_run_id: Some(report.id),
+    })
+}
+
+pub fn build_notebook_report_proposal_preview(
+    workspace: &Path,
+    report_id: &str,
+    action: NotebookProposalAction,
+) -> Result<NotebookProposalPreviewDto, String> {
+    let report = find_notebook_report(workspace, report_id)?;
+    build_notebook_proposal_preview_for_report(&report, action)
 }
 
 pub fn generate_monthly_notebook_report(
@@ -215,6 +293,190 @@ fn parse_report_file(
         original_line_count,
         displayed_line_count,
     })
+}
+
+fn find_notebook_report(workspace: &Path, report_id: &str) -> Result<NotebookReportDto, String> {
+    let Some((period, _)) = report_id.split_once(':') else {
+        return Err(format!("invalid notebook report id: {report_id}"));
+    };
+    let period = NotebookPeriod::parse(period)?;
+    load_notebook_reports(workspace, period)?
+        .into_iter()
+        .find(|report| report.id == report_id)
+        .ok_or_else(|| format!("notebook report not found: {report_id}"))
+}
+
+fn build_notebook_proposal_preview_for_report(
+    report: &NotebookReportDto,
+    action: NotebookProposalAction,
+) -> Result<NotebookProposalPreviewDto, String> {
+    let extracted_summary = bounded_summary(report);
+    let evidence_refs = vec![EvidenceRef {
+        id: format!("evidence-{}", sanitize_id_component(&report.id)),
+        source: EvidenceSource::Report,
+        uri: format!("report://{}", report.source_path),
+        excerpt: Some(extracted_summary.clone()),
+        hash: None,
+        created_at: Utc::now(),
+    }];
+    let (proposal_type, risk_level, review_status, needs_attention_reason) =
+        classify_notebook_action(action, report);
+    let target_section = proposal_type.target_section();
+    let proposed_patch = render_notebook_proposed_patch(
+        report,
+        action,
+        &proposal_type,
+        &target_section,
+        &extracted_summary,
+        needs_attention_reason.as_deref(),
+    )?;
+
+    Ok(NotebookProposalPreviewDto {
+        action: action_name(action).to_string(),
+        proposal_type,
+        target_section,
+        extracted_summary,
+        evidence_refs,
+        risk_level,
+        review_status,
+        proposed_patch,
+        needs_attention_reason,
+    })
+}
+
+fn classify_notebook_action(
+    action: NotebookProposalAction,
+    report: &NotebookReportDto,
+) -> (ProposalType, RiskLevel, ProposalState, Option<String>) {
+    match action {
+        NotebookProposalAction::Sop | NotebookProposalAction::Skill => (
+            ProposalType::SopCreate,
+            RiskLevel::Medium,
+            ProposalState::PendingReview,
+            None,
+        ),
+        NotebookProposalAction::Memory => classify_memory_report(report),
+    }
+}
+
+fn classify_memory_report(
+    report: &NotebookReportDto,
+) -> (ProposalType, RiskLevel, ProposalState, Option<String>) {
+    let content = report.content.to_lowercase();
+    if content.contains("relationship") || content.contains("关系") {
+        return (
+            ProposalType::RelationshipUpdate,
+            RiskLevel::High,
+            ProposalState::PendingReview,
+            None,
+        );
+    }
+    if content.contains("identity") || content.contains("身份") {
+        return (
+            ProposalType::IdentityPatch,
+            RiskLevel::High,
+            ProposalState::PendingReview,
+            None,
+        );
+    }
+    if content.contains("preference") || content.contains("偏好") || content.contains("learned") {
+        return (
+            ProposalType::LearningNote,
+            RiskLevel::Medium,
+            ProposalState::PendingReview,
+            None,
+        );
+    }
+    if content.contains("memory") || content.contains("记忆") || content.contains("follow-up") {
+        return (
+            ProposalType::MemoryPatch,
+            RiskLevel::Medium,
+            ProposalState::PendingReview,
+            None,
+        );
+    }
+
+    (
+        ProposalType::MemoryPatch,
+        RiskLevel::High,
+        ProposalState::NeedsAttention,
+        Some("Report content does not clearly identify the durable memory target.".to_string()),
+    )
+}
+
+fn render_notebook_proposed_patch(
+    report: &NotebookReportDto,
+    action: NotebookProposalAction,
+    proposal_type: &ProposalType,
+    target_section: &LaputaSectionName,
+    extracted_summary: &str,
+    needs_attention_reason: Option<&str>,
+) -> Result<String, String> {
+    let patch = serde_json::json!({
+        "source": "notebook_report",
+        "report_id": report.id,
+        "report_title": report.title,
+        "report_period": report.period,
+        "report_date": report.date,
+        "action": action_name(action),
+        "sub_target": match action {
+            NotebookProposalAction::Sop => "sop",
+            NotebookProposalAction::Skill => "skill",
+            NotebookProposalAction::Memory => "memory",
+        },
+        "proposal_type": proposal_type,
+        "target_section": target_section,
+        "summary": extracted_summary,
+        "review_status": needs_attention_reason.map_or("pending_review", |_| "needs_attention"),
+        "needs_attention_reason": needs_attention_reason,
+        "review_notes": [
+            "Created from Notebook report action.",
+            "Authority files must change only after Laputa approval and apply."
+        ],
+    });
+    serde_json::to_string_pretty(&patch)
+        .map_err(|error| format!("failed to render notebook proposal patch: {error}"))
+}
+
+fn bounded_summary(report: &NotebookReportDto) -> String {
+    let source = if report.summary.trim().is_empty() {
+        report.content.trim()
+    } else {
+        report.summary.trim()
+    };
+    truncate_chars(source, 600)
+}
+
+fn truncate_chars(value: &str, max_chars: usize) -> String {
+    let mut iter = value.chars();
+    let truncated: String = iter.by_ref().take(max_chars).collect();
+    if iter.next().is_some() {
+        format!("{truncated}...")
+    } else {
+        truncated
+    }
+}
+
+fn action_name(action: NotebookProposalAction) -> &'static str {
+    match action {
+        NotebookProposalAction::Sop => "sop",
+        NotebookProposalAction::Skill => "skill",
+        NotebookProposalAction::Memory => "memory",
+    }
+}
+
+fn sanitize_id_component(value: &str) -> String {
+    let mut sanitized = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            sanitized.push(ch.to_ascii_lowercase());
+        } else if ch == '-' || ch == '_' {
+            sanitized.push(ch);
+        } else {
+            sanitized.push('-');
+        }
+    }
+    sanitized.trim_matches('-').to_string()
 }
 
 fn split_frontmatter(markdown: &str) -> Result<(ReportFrontmatter, &str), String> {
@@ -462,8 +724,13 @@ fn sync_parent_dir(parent: &Path) {
 #[cfg(test)]
 mod tests {
     use super::{
+        build_notebook_report_proposal, build_notebook_report_proposal_preview,
         generate_monthly_notebook_report, generate_monthly_notebook_report_for,
-        load_notebook_reports, NotebookPeriod, MAX_RENDER_LINES, REPORT_SYSTEM_GENERATED_BY,
+        load_notebook_reports, NotebookPeriod, NotebookProposalAction, MAX_RENDER_LINES,
+        REPORT_SYSTEM_GENERATED_BY,
+    };
+    use agent_diva_core::evolution::{
+        EvidenceSource, LaputaSectionName, ProposalState, ProposalType,
     };
     use std::fs;
 
@@ -691,5 +958,133 @@ old"
                 .join("reports/monthly")
                 .join(format!("{}.md", result.date_key))
         );
+    }
+
+    #[test]
+    fn sop_report_action_creates_sop_proposal_targeting_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        write_report(
+            &temp
+                .path()
+                .join(".agent-diva/autodream/reports/daily/2026-06-14.md"),
+            "---
+period: daily
+date: 2026-06-14
+---
+
+# SOP Candidate
+
+Standard operating procedure for reviewing reports.
+",
+        );
+
+        let proposal = build_notebook_report_proposal(
+            temp.path(),
+            "daily:2026-06-14",
+            NotebookProposalAction::Sop,
+            "notebook",
+        )
+        .unwrap();
+
+        assert_eq!(proposal.proposal_type, ProposalType::SopCreate);
+        assert_eq!(proposal.target_section, LaputaSectionName::Identity);
+        assert_eq!(proposal.state, ProposalState::PendingReview);
+        assert!(proposal.proposed_patch.contains("\"sub_target\": \"sop\""));
+        assert_eq!(proposal.evidence_refs[0].source, EvidenceSource::Report);
+    }
+
+    #[test]
+    fn skill_report_action_marks_skill_sub_target_without_direct_write() {
+        let temp = tempfile::tempdir().unwrap();
+        write_report(
+            &temp
+                .path()
+                .join(".agent-diva/autodream/reports/weekly/2026-W24.md"),
+            "---
+period: weekly
+week: 2026-W24
+---
+
+# Skill Candidate
+
+Reusable behavior should be captured as a skill.
+",
+        );
+
+        let proposal = build_notebook_report_proposal(
+            temp.path(),
+            "weekly:2026-W24",
+            NotebookProposalAction::Skill,
+            "notebook",
+        )
+        .unwrap();
+
+        assert_eq!(proposal.proposal_type, ProposalType::SopCreate);
+        assert_eq!(proposal.target_section, LaputaSectionName::Identity);
+        assert!(proposal
+            .proposed_patch
+            .contains("\"sub_target\": \"skill\""));
+        assert!(!temp.path().join("SOUL.md").exists());
+        assert!(!temp.path().join(".agents/skills/Skill Candidate").exists());
+    }
+
+    #[test]
+    fn memory_report_action_routes_clear_memory_content() {
+        let temp = tempfile::tempdir().unwrap();
+        write_report(
+            &temp.path().join("reports/monthly/2026-06.md"),
+            "---
+period: monthly
+month: 2026-06
+---
+
+# June Report
+
+Memory: the user prefers concise implementation reports.
+",
+        );
+
+        let proposal = build_notebook_report_proposal(
+            temp.path(),
+            "monthly:2026-06",
+            NotebookProposalAction::Memory,
+            "notebook",
+        )
+        .unwrap();
+
+        assert_eq!(proposal.proposal_type, ProposalType::MemoryPatch);
+        assert_eq!(proposal.target_section, LaputaSectionName::MemoryMd);
+        assert_eq!(proposal.state, ProposalState::PendingReview);
+        assert!(!temp.path().join("memory/MEMORY.md").exists());
+    }
+
+    #[test]
+    fn ambiguous_memory_report_preview_returns_needs_attention() {
+        let temp = tempfile::tempdir().unwrap();
+        write_report(
+            &temp
+                .path()
+                .join(".agent-diva/autodream/reports/daily/2026-06-15.md"),
+            "---
+period: daily
+date: 2026-06-15
+---
+
+# Daily Report
+
+Several unrelated tasks were discussed.
+",
+        );
+
+        let preview = build_notebook_report_proposal_preview(
+            temp.path(),
+            "daily:2026-06-15",
+            NotebookProposalAction::Memory,
+        )
+        .unwrap();
+
+        assert_eq!(preview.proposal_type, ProposalType::MemoryPatch);
+        assert_eq!(preview.review_status, ProposalState::NeedsAttention);
+        assert!(preview.needs_attention_reason.is_some());
     }
 }

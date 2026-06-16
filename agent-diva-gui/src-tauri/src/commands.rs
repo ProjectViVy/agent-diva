@@ -1,7 +1,9 @@
 use crate::app_state::AgentState;
 use crate::gateway_status::GatewayStatus;
 use crate::notebook::{
-    generate_monthly_notebook_report, load_notebook_reports, NotebookPeriod, NotebookReportDto,
+    build_notebook_report_proposal, build_notebook_report_proposal_preview,
+    generate_monthly_notebook_report, load_notebook_reports, NotebookPeriod,
+    NotebookProposalAction, NotebookProposalPreviewDto, NotebookReportDto,
 };
 use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
@@ -562,6 +564,36 @@ pub async fn trigger_notebook_report_generation(
 }
 
 #[tauri::command]
+pub async fn preview_notebook_report_proposal(
+    report_id: String,
+    action: String,
+) -> Result<NotebookProposalPreviewDto, String> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    let runtime = CliRuntime::from_paths(None, Some(loader.config_dir().to_path_buf()), None);
+    let workspace = runtime.effective_workspace(&config);
+    let action = NotebookProposalAction::parse(&action)?;
+    build_notebook_report_proposal_preview(&workspace, &report_id, action)
+}
+
+#[tauri::command]
+pub async fn create_notebook_report_proposal(
+    report_id: String,
+    action: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    let runtime = CliRuntime::from_paths(None, Some(loader.config_dir().to_path_buf()), None);
+    let workspace = runtime.effective_workspace(&config);
+    let action = NotebookProposalAction::parse(&action).map_err(laputa_string_error)?;
+    let proposal = build_notebook_report_proposal(&workspace, &report_id, action, "notebook")
+        .map_err(laputa_string_error)?;
+    let url = format!("{}/laputa/proposals", state.api_base_url());
+    post_laputa_payload(&state, &url, &proposal, "proposal").await
+}
+
+#[tauri::command]
 pub async fn get_autodream_run_status(
     id: String,
     state: State<'_, AgentState>,
@@ -624,6 +656,10 @@ fn laputa_error_message(value: serde_json::Value) -> String {
         .and_then(|message| message.as_str())
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| value.to_string())
+}
+
+fn laputa_string_error(message: String) -> serde_json::Value {
+    serde_json::json!({ "status": "error", "message": message })
 }
 
 async fn get_laputa_payload(

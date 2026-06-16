@@ -4,7 +4,7 @@ baseline_commit: 63d1ea7
 
 # Story 4.2: Replace Notebook Direct Solidification with Proposal Creation
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,14 +21,14 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Rename visible Notebook actions and i18n copy from direct solidification to proposal creation: Create SOP Proposal, Create Skill Proposal, Create Memory Proposal. (AC: 1)
-- [ ] Add a proposal preview state/modal/panel showing target section, proposal type, extracted summary, evidence refs, risk level, and pending review status before submit. (AC: 1)
-- [ ] Add or reuse a report-to-proposal backend command that builds `EvolutionProposal` using `agent-diva-core::evolution` types and persists through Laputa `create_proposal`. (AC: 2)
-- [ ] Map SOP and Skill to `ProposalType::SopCreate` with target `identity`; include a sub-target marker in `proposed_patch` or metadata-compatible patch text for skill vs SOP. (AC: 2)
-- [ ] Map Memory update to `MemoryPatch`, `LearningNote`, `IdentityPatch`, or `RelationshipUpdate` only when the extracted content justifies that type; ambiguous extraction must return `needs_attention`-style UX instead of applying. (AC: 1, 2)
-- [ ] Convert old Tauri command semantics (`solidify_report_as_sop`, `solidify_report_as_skill`, `update_memory_from_report`) to proposal creation or replace their frontend usage; they must not write authority files. (AC: 2, 3)
-- [ ] After proposal creation, show success copy saying proposal created, and provide a link/deep-link to Evolution Inbox/proposal detail. (AC: 4)
-- [ ] Add tests proving Notebook actions create proposals and no authority files change until Laputa apply. (AC: 2-4)
+- [x] Rename visible Notebook actions and i18n copy from direct solidification to proposal creation: Create SOP Proposal, Create Skill Proposal, Create Memory Proposal. (AC: 1)
+- [x] Add a proposal preview state/modal/panel showing target section, proposal type, extracted summary, evidence refs, risk level, and pending review status before submit. (AC: 1)
+- [x] Add or reuse a report-to-proposal backend command that builds `EvolutionProposal` using `agent-diva-core::evolution` types and persists through Laputa `create_proposal`. (AC: 2)
+- [x] Map SOP and Skill to `ProposalType::SopCreate` with target `identity`; include a sub-target marker in `proposed_patch` or metadata-compatible patch text for skill vs SOP. (AC: 2)
+- [x] Map Memory update to `MemoryPatch`, `LearningNote`, `IdentityPatch`, or `RelationshipUpdate` only when the extracted content justifies that type; ambiguous extraction must return `needs_attention`-style UX instead of applying. (AC: 1, 2)
+- [x] Convert old Tauri command semantics (`solidify_report_as_sop`, `solidify_report_as_skill`, `update_memory_from_report`) to proposal creation or replace their frontend usage; they must not write authority files. (AC: 2, 3)
+- [x] After proposal creation, show success copy saying proposal created, and provide a link/deep-link to Evolution Inbox/proposal detail. (AC: 4)
+- [x] Add tests proving Notebook actions create proposals and no authority files change until Laputa apply. (AC: 2-4)
 
 ## Dev Notes
 
@@ -90,20 +90,39 @@ Status: ready-for-dev
 
 ### Agent Model Used
 
-TBD by implementation agent.
+GPT-5 Codex
 
 ### Debug Log References
 
 - 2026-06-15: Story context prepared from Epic 4, EVO-DIVA architecture section 7, current Notebook commands, and existing Laputa Tauri/manager proposal APIs.
+- 2026-06-16: Implemented Notebook report-to-proposal preview/create flow and validated with `cargo test -p agent-diva-gui notebook::tests::`, `cargo test -p agent-diva-laputa`, `pnpm --dir agent-diva-gui build`, `just fmt-check`, `just check`, and `just test`.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Replaced visible Notebook direct-write actions with Create SOP Proposal, Create Skill Proposal, and Create Memory Proposal.
+- Added preview and submit state in Notebook with target section, proposal type, extracted summary, report evidence refs, risk, and review status.
+- Added Tauri report-to-proposal preview/create commands that build `EvolutionProposal` values from `agent-diva-core::evolution` types and persist through the existing Laputa proposal endpoint.
+- Added mapping coverage for SOP/Skill `SopCreate` proposals targeting `identity`, routed memory proposals, ambiguous memory `needs_attention`, and no authority-file mutation before apply.
+- Added Evolution Inbox deep-link after proposal creation.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/4-2-replace-notebook-direct-solidification-with-proposal-creation.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `agent-diva-gui/src-tauri/src/commands.rs`
+- `agent-diva-gui/src-tauri/src/lib.rs`
+- `agent-diva-gui/src-tauri/src/notebook.rs`
+- `agent-diva-gui/src/components/NormalMode.vue`
+- `agent-diva-gui/src/components/NotebookView.vue`
+- `agent-diva-gui/src/locales/en.ts`
+- `agent-diva-gui/src/locales/zh.ts`
+- `docs/logs/2026-06-notebook-proposal-creation/v0.0.1-notebook-proposal-creation/summary.md`
+- `docs/logs/2026-06-notebook-proposal-creation/v0.0.1-notebook-proposal-creation/verification.md`
+- `docs/logs/2026-06-notebook-proposal-creation/v0.0.1-notebook-proposal-creation/release.md`
+- `docs/logs/2026-06-notebook-proposal-creation/v0.0.1-notebook-proposal-creation/acceptance.md`
 
 ### Change Log
 
 - 2026-06-15: Created ready-for-dev story for Notebook proposal creation migration.
+- 2026-06-16: Implemented Notebook proposal creation migration and moved story to review.
