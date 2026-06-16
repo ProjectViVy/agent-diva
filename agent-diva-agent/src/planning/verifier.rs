@@ -97,10 +97,7 @@ impl PlanVerifier {
     ///
     /// After updating the plan, the method tries to clear the active-plan
     /// slot by promoting the next non-terminal plan (if any).
-    pub async fn finalize(
-        store: &dyn PlanningStore,
-        plan_id: &PlanId,
-    ) -> Result<Plan, Error> {
+    pub async fn finalize(store: &dyn PlanningStore, plan_id: &PlanId) -> Result<Plan, Error> {
         let mut plan = store.get_plan(plan_id).await?;
 
         let (new_phase, new_status, terminal_event) = match &plan.verification_verdict {
@@ -214,11 +211,7 @@ mod tests {
         store.set_active_plan(&plan.id).await.unwrap();
     }
 
-    async fn add_todo(
-        store: &SqlitePlanningStore,
-        plan_id: &PlanId,
-        status: TodoStatus,
-    ) {
+    async fn add_todo(store: &SqlitePlanningStore, plan_id: &PlanId, status: TodoStatus) {
         let todo = TodoItem {
             id: TodoId::new(),
             plan_step_id: None,
@@ -241,7 +234,12 @@ mod tests {
     async fn test_verify_all_completed_returns_pass() {
         let store = make_store().await;
         let plan_id = PlanId::new();
-        let plan = make_plan(&plan_id, "All Done", PlanPhase::Verify, PlanStatus::InProgress);
+        let plan = make_plan(
+            &plan_id,
+            "All Done",
+            PlanPhase::Verify,
+            PlanStatus::InProgress,
+        );
         create_plan_in_store(&store, &plan).await;
 
         add_todo(&store, &plan_id, TodoStatus::Completed).await;
@@ -269,7 +267,12 @@ mod tests {
     async fn test_verify_blocked_returns_partial() {
         let store = make_store().await;
         let plan_id = PlanId::new();
-        let plan = make_plan(&plan_id, "Blocked", PlanPhase::Verify, PlanStatus::InProgress);
+        let plan = make_plan(
+            &plan_id,
+            "Blocked",
+            PlanPhase::Verify,
+            PlanStatus::InProgress,
+        );
         create_plan_in_store(&store, &plan).await;
 
         add_todo(&store, &plan_id, TodoStatus::Completed).await;
@@ -279,7 +282,10 @@ mod tests {
         assert_eq!(verdict, VerificationVerdict::Partial);
 
         let plan = store.get_plan(&plan_id).await.unwrap();
-        assert_eq!(plan.verification_verdict, Some(VerificationVerdict::Partial));
+        assert_eq!(
+            plan.verification_verdict,
+            Some(VerificationVerdict::Partial)
+        );
     }
 
     #[tokio::test]
@@ -306,7 +312,12 @@ mod tests {
     async fn test_finalize_with_pass_verdict() {
         let store = make_store().await;
         let plan_id = PlanId::new();
-        let plan = make_plan(&plan_id, "Pass Plan", PlanPhase::Verify, PlanStatus::InProgress);
+        let plan = make_plan(
+            &plan_id,
+            "Pass Plan",
+            PlanPhase::Verify,
+            PlanStatus::InProgress,
+        );
         create_plan_in_store(&store, &plan).await;
 
         // Run verify to set the verdict.
@@ -328,7 +339,12 @@ mod tests {
     async fn test_finalize_with_fail_verdict() {
         let store = make_store().await;
         let plan_id = PlanId::new();
-        let plan = make_plan(&plan_id, "Fail Plan", PlanPhase::Verify, PlanStatus::InProgress);
+        let plan = make_plan(
+            &plan_id,
+            "Fail Plan",
+            PlanPhase::Verify,
+            PlanStatus::InProgress,
+        );
         create_plan_in_store(&store, &plan).await;
 
         // Add a pending todo so verify yields Fail.
@@ -341,9 +357,7 @@ mod tests {
         assert_eq!(finalized.status, PlanStatus::Failed);
 
         let events = store.get_events(&plan_id).await.unwrap();
-        assert!(events
-            .iter()
-            .any(|e| matches!(e, PlanEvent::Failed { .. })));
+        assert!(events.iter().any(|e| matches!(e, PlanEvent::Failed { .. })));
     }
 
     #[tokio::test]
@@ -352,12 +366,22 @@ mod tests {
 
         // Plan A is about to be finalized.
         let plan_a_id = PlanId::new();
-        let plan_a = make_plan(&plan_a_id, "Plan A", PlanPhase::Verify, PlanStatus::InProgress);
+        let plan_a = make_plan(
+            &plan_a_id,
+            "Plan A",
+            PlanPhase::Verify,
+            PlanStatus::InProgress,
+        );
         create_plan_in_store(&store, &plan_a).await;
 
         // Plan B is still in Explore — it should become active after A finalizes.
         let plan_b_id = PlanId::new();
-        let plan_b = make_plan(&plan_b_id, "Plan B", PlanPhase::Explore, PlanStatus::Pending);
+        let plan_b = make_plan(
+            &plan_b_id,
+            "Plan B",
+            PlanPhase::Explore,
+            PlanStatus::Pending,
+        );
         store.create_plan(&plan_b).await.unwrap();
 
         // Verify + finalize plan A.

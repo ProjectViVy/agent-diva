@@ -13,9 +13,7 @@ use super::context::PlanContextBuilder;
 /// HOOK-1: Inject planning system message before the agent loop iteration starts.
 ///
 /// Returns `Ok(Some(block))` when an active plan exists, `Ok(None)` otherwise.
-pub async fn inject_plan_context(
-    store: &dyn PlanningStore,
-) -> Result<Option<String>, Error> {
+pub async fn inject_plan_context(store: &dyn PlanningStore) -> Result<Option<String>, Error> {
     PlanContextBuilder::build_context(store).await
 }
 
@@ -41,9 +39,7 @@ pub async fn on_planning_tool_complete(
 /// HOOK-4: Called when the session is about to be persisted.
 ///
 /// Currently a no-op stub; will flush any dirty planning state.
-pub async fn on_session_save(
-    _store: &dyn PlanningStore,
-) -> Result<(), Error> {
+pub async fn on_session_save(_store: &dyn PlanningStore) -> Result<(), Error> {
     // TODO: flush dirty planning writes
     Ok(())
 }
@@ -53,8 +49,7 @@ pub async fn on_session_save(
 /// Returns `true` if `content` starts with `"## Active Plan:"` or contains
 /// `"You have pending TodoList items"`.
 pub fn is_planning_message(content: &str) -> bool {
-    content.starts_with("## Active Plan:")
-        || content.contains("You have pending TodoList items")
+    content.starts_with("## Active Plan:") || content.contains("You have pending TodoList items")
 }
 
 #[cfg(test)]
@@ -144,9 +139,7 @@ mod tests {
     async fn test_on_planning_tool_complete_returns_ok() {
         let store = test_store().await;
         let plan_id = PlanId("p1".to_string());
-        on_planning_tool_complete(&store, &plan_id)
-            .await
-            .unwrap();
+        on_planning_tool_complete(&store, &plan_id).await.unwrap();
     }
 
     #[tokio::test]

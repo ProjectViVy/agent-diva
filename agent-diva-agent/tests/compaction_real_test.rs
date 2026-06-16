@@ -102,6 +102,7 @@ fn print_separator(title: &str) {
 }
 
 #[tokio::test]
+#[ignore = "requires TEAKACLOUD_API_KEY"]
 async fn test_real_compaction() {
     // ═══════════════════════════════════════════════════════════════════════
     // 阶段 1: 构建真实对话

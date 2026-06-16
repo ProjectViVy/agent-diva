@@ -2326,7 +2326,7 @@ mod tests {
         let workspace = temp_dir.path().to_path_buf();
         let file_manager = Arc::new(
             agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                &temp_dir.path().join("files"),
+                temp_dir.path().join("files"),
             ))
             .await
             .unwrap(),

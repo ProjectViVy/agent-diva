@@ -240,6 +240,7 @@ pub struct SandboxManager {
     /// File system policy
     fs_policy: FileSystemSandboxPolicy,
     /// Windows sandbox level
+    #[allow(dead_code)]
     windows_level: WindowsSandboxLevel,
     /// Approval policy
     approval_policy: AskForApproval,
