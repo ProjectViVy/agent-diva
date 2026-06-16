@@ -32,11 +32,13 @@ const STATIC_SCAN_ROOTS: &[&str] = &[
     "agent-diva-autodream/src",
     "agent-diva-manager/src",
     "agent-diva-cli/src",
+    "agent-diva-gui/src-tauri/src",
 ];
 
 const ALLOWLIST: &[&str] = &[
     "agent-diva-agent/src/context.rs",
     "agent-diva-agent/src/subagent.rs",
+    "agent-diva-gui/src-tauri/src/notebook.rs",
 ];
 
 const WRITE_CALL_MARKERS: &[&str] = &[

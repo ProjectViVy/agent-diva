@@ -4,7 +4,7 @@ baseline_commit: 63d1ea7
 
 # Story 4.4: Add Solidification Regression Coverage
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,12 +20,12 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Add regression tests for legacy Notebook command names and/or their replacement APIs, proving the observable result is proposal creation, not direct authority mutation. (AC: 1)
-- [ ] Add filesystem assertions around SOP, Skill, memory, identity, and legacy authority paths to prove no files change before `apply_proposal`. (AC: 2)
-- [ ] Add an apply-path control test proving the same proposed change only reaches authority after Laputa approval/apply. (AC: 2)
-- [ ] Add or extend grep/static guards for EVO-DIVA direct writes outside `agent-diva-laputa`, allowing explicit test fixtures and migration-only exceptions. (AC: 3)
-- [ ] Include GUI/Tauri bridge coverage if legacy command names remain registered for compatibility. (AC: 1)
-- [ ] Record any remaining allowed direct-write exceptions in `TODOLIST.md` only if they cannot be fixed in this story. (AC: 3)
+- [x] Add regression tests for legacy Notebook command names and/or their replacement APIs, proving the observable result is proposal creation, not direct authority mutation. (AC: 1)
+- [x] Add filesystem assertions around SOP, Skill, memory, identity, and legacy authority paths to prove no files change before `apply_proposal`. (AC: 2)
+- [x] Add an apply-path control test proving the same proposed change only reaches authority after Laputa approval/apply. (AC: 2)
+- [x] Add or extend grep/static guards for EVO-DIVA direct writes outside `agent-diva-laputa`, allowing explicit test fixtures and migration-only exceptions. (AC: 3)
+- [x] Include GUI/Tauri bridge coverage if legacy command names remain registered for compatibility. (AC: 1)
+- [x] Record any remaining allowed direct-write exceptions in `TODOLIST.md` only if they cannot be fixed in this story. (AC: 3)
 
 ## Dev Notes
 
@@ -82,20 +82,34 @@ Status: ready-for-dev
 
 ### Agent Model Used
 
-TBD by implementation agent.
+GPT-5 Codex
 
 ### Debug Log References
 
 - 2026-06-15: Story context prepared from Epic 4, architecture test plan, current Notebook legacy command references, and existing Laputa proxy APIs.
+- 2026-06-16: Added Notebook UI regression coverage for preview/create proposal commands, explicit pre-apply authority path assertions in Notebook tests, and extended the Laputa direct-write static guard to scan Tauri notebook sources.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Verified Notebook proposal actions use `preview_notebook_report_proposal` and `create_notebook_report_proposal` rather than legacy direct-write command names.
+- Added pre-apply filesystem assertions proving Notebook proposal preparation does not touch SOP, Skill, memory, identity, or Laputa authority files.
+- Reused existing Laputa apply-path proof coverage and extended the static direct-write guard to include `agent-diva-gui/src-tauri/src`.
+- No additional unresolved direct-write exceptions were discovered, so `TODOLIST.md` did not require a new entry for this story.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/4-4-add-solidification-regression-coverage.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `agent-diva-gui/src/components/NotebookView.test.ts`
+- `agent-diva-gui/src-tauri/src/notebook.rs`
+- `agent-diva-laputa/tests/direct_write_guard.rs`
+- `docs/logs/2026-06-solidification-regression-coverage/v0.0.1-solidification-regression-coverage/summary.md`
+- `docs/logs/2026-06-solidification-regression-coverage/v0.0.1-solidification-regression-coverage/verification.md`
+- `docs/logs/2026-06-solidification-regression-coverage/v0.0.1-solidification-regression-coverage/release.md`
+- `docs/logs/2026-06-solidification-regression-coverage/v0.0.1-solidification-regression-coverage/acceptance.md`
 
 ### Change Log
 
 - 2026-06-15: Created ready-for-dev story for Report/Notebook solidification regression coverage.
+- 2026-06-16: Added Notebook/Tauri regression coverage, pre-apply filesystem assertions, and direct-write static guard coverage; moved story to review.

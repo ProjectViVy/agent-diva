@@ -1087,4 +1087,60 @@ Several unrelated tasks were discussed.
         assert_eq!(preview.review_status, ProposalState::NeedsAttention);
         assert!(preview.needs_attention_reason.is_some());
     }
+
+    #[test]
+    fn proposal_build_does_not_mutate_any_authority_paths_before_apply() {
+        let temp = tempfile::tempdir().unwrap();
+        write_report(
+            &temp
+                .path()
+                .join(".agent-diva/autodream/reports/daily/2026-06-16.md"),
+            "---
+period: daily
+date: 2026-06-16
+---
+
+# Governance Report
+
+Memory: persist the concise report preference.
+",
+        );
+
+        let _preview = build_notebook_report_proposal_preview(
+            temp.path(),
+            "daily:2026-06-16",
+            NotebookProposalAction::Memory,
+        )
+        .unwrap();
+        let _proposal = build_notebook_report_proposal(
+            temp.path(),
+            "daily:2026-06-16",
+            NotebookProposalAction::Memory,
+            "notebook",
+        )
+        .unwrap();
+
+        let forbidden = [
+            temp.path().join("SOUL.md"),
+            temp.path().join("IDENTITY.md"),
+            temp.path().join("memory").join("MEMORY.md"),
+            temp.path().join("memory").join("HISTORY.md"),
+            temp.path()
+                .join(".laputa")
+                .join("sections")
+                .join("identity.json"),
+            temp.path()
+                .join(".laputa")
+                .join("sections")
+                .join("memory_md.json"),
+        ];
+
+        for path in forbidden {
+            assert!(
+                !path.exists(),
+                "Notebook proposal preparation must not write authority state before apply: {}",
+                path.display()
+            );
+        }
+    }
 }
