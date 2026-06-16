@@ -27,10 +27,18 @@ type ReportPeriod = 'daily' | 'weekly' | 'monthly';
 
 interface NotebookReport {
   id: string;
-  date: string;      // ISO date string, e.g. "2026-06-01"
+  period: ReportPeriod;
+  date: string;
   title: string;
   summary: string;
-  content: string;   // full markdown
+  content: string;
+  generatedAt?: string | null;
+  generatedBy?: string | null;
+  schemaVersion?: string | null;
+  sourcePath?: string;
+  isTruncated?: boolean;
+  originalLineCount?: number;
+  displayedLineCount?: number;
 }
 
 // --- Markdown renderer ---
@@ -50,12 +58,13 @@ const md = new MarkdownIt({
 });
 
 // --- State ---
-const activePeriod = ref<ReportPeriod>('weekly');
+const activePeriod = ref<ReportPeriod>('daily');
 const reports = ref<NotebookReport[]>([]);
 const selectedId = ref<string | null>(null);
 const loading = ref(false);
 const error = ref('');
 const actionBusy = ref(false);
+const generationBusy = ref(false);
 
 const pollIntervalMs = 60_000;
 let pollHandle: ReturnType<typeof setInterval> | null = null;
@@ -71,6 +80,24 @@ const renderedContent = computed(() => {
   if (!selectedReport.value) return '';
   return md.render(selectedReport.value.content);
 });
+
+const emptyActionLabel = computed(() => {
+  if (activePeriod.value === 'daily') return t('notebook.generateDaily');
+  if (activePeriod.value === 'weekly') return t('notebook.generateWeekly');
+  return t('notebook.generateMonthly');
+});
+
+const periodLabel = computed(() =>
+  t(
+    `notebook.period${
+      activePeriod.value === 'daily'
+        ? 'Daily'
+        : activePeriod.value === 'weekly'
+          ? 'Weekly'
+          : 'Monthly'
+    }`,
+  ),
+);
 
 const periodTabs: { key: ReportPeriod; labelKey: string }[] = [
   { key: 'daily', labelKey: 'notebook.periodDaily' },
@@ -104,6 +131,23 @@ async function fetchReports() {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
     loading.value = false;
+  }
+}
+
+async function triggerMissingReport() {
+  generationBusy.value = true;
+  try {
+    if (isTauri()) {
+      await invoke('trigger_notebook_report_generation', {
+        period: activePeriod.value,
+      });
+    }
+    showAppToast(t('notebook.generateTriggered', { period: periodLabel.value }), 'success');
+    await fetchReports();
+  } catch (e: unknown) {
+    showAppToast(e instanceof Error ? e.message : String(e), 'error');
+  } finally {
+    generationBusy.value = false;
   }
 }
 
@@ -254,7 +298,16 @@ onUnmounted(() => {
         <!-- Empty state -->
         <div v-else-if="reports.length === 0" class="notebook-empty-state">
           <Inbox :size="32" class="notebook-empty-icon" />
-          <p class="notebook-empty-text">{{ t('notebook.empty', { period: t(`notebook.period${activePeriod === 'daily' ? 'Daily' : activePeriod === 'weekly' ? 'Weekly' : 'Monthly'}`) }) }}</p>
+          <p class="notebook-empty-text">{{ t('notebook.empty', { period: periodLabel }) }}</p>
+          <button
+            class="notebook-retry-btn"
+            :disabled="generationBusy"
+            @click="triggerMissingReport"
+          >
+            <Loader2 v-if="generationBusy" :size="14" class="spin" />
+            <RefreshCw v-else :size="14" />
+            {{ emptyActionLabel }}
+          </button>
         </div>
 
         <!-- Report list -->
@@ -304,6 +357,12 @@ onUnmounted(() => {
               <Calendar :size="14" />
               {{ selectedReport.date }}
             </div>
+          </div>
+          <div v-if="selectedReport.isTruncated" class="notebook-truncated-banner">
+            {{ t('notebook.truncatedNotice', {
+              shown: selectedReport.displayedLineCount ?? 0,
+              total: selectedReport.originalLineCount ?? 0,
+            }) }}
           </div>
           <div class="notebook-markdown markdown-body" v-html="renderedContent" />
         </div>
@@ -504,6 +563,17 @@ onUnmounted(() => {
   font-size: 0.875rem;
   line-height: 1.7;
   color: var(--text);
+}
+
+.notebook-truncated-banner {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg-light);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .notebook-markdown :deep(p) {

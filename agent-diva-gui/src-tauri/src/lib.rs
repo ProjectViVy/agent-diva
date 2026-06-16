@@ -3,6 +3,7 @@ mod app_state;
 mod commands;
 mod embedded_server;
 mod gateway_status;
+mod notebook;
 mod process_utils;
 mod shutdown_manager;
 mod tray;
@@ -341,6 +342,8 @@ pub fn run() {
             commands::laputa_rollback_changelog,
             commands::laputa_poll_events,
             commands::trigger_autodream,
+            commands::get_notebook_reports,
+            commands::trigger_notebook_report_generation,
             commands::get_autodream_run_status,
             commands::cancel_autodream_run,
             commands::list_autodream_run_records,
