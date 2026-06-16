@@ -2,6 +2,9 @@ use agent_diva_core::evolution::{
     EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType,
     RiskLevel,
 };
+use agent_diva_core::session::{
+    SessionManager, SessionSearchHit, SessionSearchQuery, SessionSearchResponse,
+};
 use chrono::{Datelike, Local, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -116,6 +119,16 @@ pub struct NotebookProposalPreviewDto {
     pub needs_attention_reason: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NotebookSessionSearchRequest {
+    pub query: String,
+    pub max_files_scanned: Option<usize>,
+    pub max_results: Option<usize>,
+    pub max_snippet_chars: Option<usize>,
+    pub max_total_bytes: Option<usize>,
+}
+
 pub fn load_notebook_reports(
     workspace: &Path,
     period: NotebookPeriod,
@@ -158,9 +171,10 @@ pub fn build_notebook_report_proposal(
     report_id: &str,
     action: NotebookProposalAction,
     created_by: &str,
+    session_hits: Option<Vec<SessionSearchHit>>,
 ) -> Result<EvolutionProposal, String> {
     let report = find_notebook_report(workspace, report_id)?;
-    let preview = build_notebook_proposal_preview_for_report(&report, action)?;
+    let preview = build_notebook_proposal_preview_for_report(&report, action, session_hits)?;
     let now = Utc::now();
     let timestamp = now
         .timestamp_nanos_opt()
@@ -190,9 +204,32 @@ pub fn build_notebook_report_proposal_preview(
     workspace: &Path,
     report_id: &str,
     action: NotebookProposalAction,
+    session_hits: Option<Vec<SessionSearchHit>>,
 ) -> Result<NotebookProposalPreviewDto, String> {
     let report = find_notebook_report(workspace, report_id)?;
-    build_notebook_proposal_preview_for_report(&report, action)
+    build_notebook_proposal_preview_for_report(&report, action, session_hits)
+}
+
+pub fn search_notebook_session_evidence(
+    workspace: &Path,
+    request: NotebookSessionSearchRequest,
+) -> Result<SessionSearchResponse, String> {
+    let mut query = SessionSearchQuery::new(request.query);
+    if let Some(value) = request.max_files_scanned {
+        query.max_files_scanned = value;
+    }
+    if let Some(value) = request.max_results {
+        query.max_results = value;
+    }
+    if let Some(value) = request.max_snippet_chars {
+        query.max_snippet_chars = value;
+    }
+    if let Some(value) = request.max_total_bytes {
+        query.max_total_bytes = value;
+    }
+    SessionManager::new(workspace)
+        .search(query)
+        .map_err(|error| format!("failed to search session evidence: {error}"))
 }
 
 pub fn generate_monthly_notebook_report(
@@ -309,9 +346,10 @@ fn find_notebook_report(workspace: &Path, report_id: &str) -> Result<NotebookRep
 fn build_notebook_proposal_preview_for_report(
     report: &NotebookReportDto,
     action: NotebookProposalAction,
+    session_hits: Option<Vec<SessionSearchHit>>,
 ) -> Result<NotebookProposalPreviewDto, String> {
     let extracted_summary = bounded_summary(report);
-    let evidence_refs = vec![EvidenceRef {
+    let mut evidence_refs = vec![EvidenceRef {
         id: format!("evidence-{}", sanitize_id_component(&report.id)),
         source: EvidenceSource::Report,
         uri: format!("report://{}", report.source_path),
@@ -319,6 +357,9 @@ fn build_notebook_proposal_preview_for_report(
         hash: None,
         created_at: Utc::now(),
     }];
+    if let Some(session_hits) = session_hits {
+        evidence_refs.extend(session_hits.into_iter().map(|hit| hit.to_evidence_ref()));
+    }
     let (proposal_type, risk_level, review_status, needs_attention_reason) =
         classify_notebook_action(action, report);
     let target_section = proposal_type.target_section();
@@ -726,12 +767,14 @@ mod tests {
     use super::{
         build_notebook_report_proposal, build_notebook_report_proposal_preview,
         generate_monthly_notebook_report, generate_monthly_notebook_report_for,
-        load_notebook_reports, NotebookPeriod, NotebookProposalAction, MAX_RENDER_LINES,
+        load_notebook_reports, search_notebook_session_evidence, NotebookPeriod,
+        NotebookProposalAction, NotebookSessionSearchRequest, MAX_RENDER_LINES,
         REPORT_SYSTEM_GENERATED_BY,
     };
     use agent_diva_core::evolution::{
         EvidenceSource, LaputaSectionName, ProposalState, ProposalType,
     };
+    use agent_diva_core::session::SessionSearchHit;
     use std::fs;
 
     fn write_report(path: &std::path::Path, body: &str) {
@@ -983,6 +1026,7 @@ Standard operating procedure for reviewing reports.
             "daily:2026-06-14",
             NotebookProposalAction::Sop,
             "notebook",
+            None,
         )
         .unwrap();
 
@@ -1016,6 +1060,7 @@ Reusable behavior should be captured as a skill.
             "weekly:2026-W24",
             NotebookProposalAction::Skill,
             "notebook",
+            None,
         )
         .unwrap();
 
@@ -1049,6 +1094,7 @@ Memory: the user prefers concise implementation reports.
             "monthly:2026-06",
             NotebookProposalAction::Memory,
             "notebook",
+            None,
         )
         .unwrap();
 
@@ -1080,11 +1126,81 @@ Several unrelated tasks were discussed.
             temp.path(),
             "daily:2026-06-15",
             NotebookProposalAction::Memory,
+            None,
         )
         .unwrap();
 
         assert_eq!(preview.proposal_type, ProposalType::MemoryPatch);
         assert_eq!(preview.review_status, ProposalState::NeedsAttention);
         assert!(preview.needs_attention_reason.is_some());
+    }
+
+    #[test]
+    fn search_session_evidence_returns_hits_and_diagnostics() {
+        let temp = tempfile::tempdir().unwrap();
+        let sessions_dir = temp.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).unwrap();
+        fs::write(
+            sessions_dir.join("telegram_7.jsonl"),
+            r#"{"_type":"metadata","created_at":"2026-06-16T00:00:00Z","updated_at":"2026-06-16T00:00:00Z","metadata":{}}
+{"role":"user","content":"Launch discussion captured here.","timestamp":"2026-06-16T01:02:03Z"}"#,
+        )
+        .unwrap();
+        fs::write(sessions_dir.join("bad.jsonl"), "{").unwrap();
+
+        let result = search_notebook_session_evidence(
+            temp.path(),
+            NotebookSessionSearchRequest {
+                query: "launch".to_string(),
+                max_files_scanned: None,
+                max_results: Some(5),
+                max_snippet_chars: Some(120),
+                max_total_bytes: Some(2048),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(result.hits.len(), 1);
+        assert_eq!(result.hits[0].source, EvidenceSource::Session);
+        assert_eq!(result.diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn notebook_proposal_preview_can_attach_session_evidence_without_direct_write() {
+        let temp = tempfile::tempdir().unwrap();
+        write_report(
+            &temp.path().join("reports/monthly/2026-06.md"),
+            "---
+period: monthly
+month: 2026-06
+---
+
+# June Report
+
+Memory: summarize the launch preference.
+",
+        );
+        let session_hit = SessionSearchHit {
+            session_id: "telegram:9".to_string(),
+            timestamp: "2026-06-16T01:02:03Z".parse().unwrap(),
+            snippet: "launch preference confirmed in session".to_string(),
+            source_uri: "session://telegram%3A9?message_index=2".to_string(),
+            hash: "abc123".to_string(),
+            source: EvidenceSource::Session,
+            snippet_truncated: false,
+            message_index: 2,
+        };
+
+        let preview = build_notebook_report_proposal_preview(
+            temp.path(),
+            "monthly:2026-06",
+            NotebookProposalAction::Memory,
+            Some(vec![session_hit]),
+        )
+        .unwrap();
+
+        assert_eq!(preview.evidence_refs.len(), 2);
+        assert_eq!(preview.evidence_refs[1].source, EvidenceSource::Session);
+        assert!(!temp.path().join("memory/MEMORY.md").exists());
     }
 }

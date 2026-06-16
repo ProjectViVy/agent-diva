@@ -2,14 +2,16 @@ use crate::app_state::AgentState;
 use crate::gateway_status::GatewayStatus;
 use crate::notebook::{
     build_notebook_report_proposal, build_notebook_report_proposal_preview,
-    generate_monthly_notebook_report, load_notebook_reports, NotebookPeriod,
-    NotebookProposalAction, NotebookProposalPreviewDto, NotebookReportDto,
+    generate_monthly_notebook_report, load_notebook_reports, search_notebook_session_evidence,
+    NotebookPeriod, NotebookProposalAction, NotebookProposalPreviewDto, NotebookReportDto,
+    NotebookSessionSearchRequest,
 };
 use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
 use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
 use agent_diva_core::config::{Config, ConfigLoader};
+use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
     CustomProviderUpsert, LiteLLMClient, Message, ProviderAccess, ProviderCatalogService,
@@ -567,19 +569,21 @@ pub async fn trigger_notebook_report_generation(
 pub async fn preview_notebook_report_proposal(
     report_id: String,
     action: String,
+    session_hits: Option<Vec<SessionSearchHit>>,
 ) -> Result<NotebookProposalPreviewDto, String> {
     let loader = ConfigLoader::new();
     let config = loader.load().unwrap_or_default();
     let runtime = CliRuntime::from_paths(None, Some(loader.config_dir().to_path_buf()), None);
     let workspace = runtime.effective_workspace(&config);
     let action = NotebookProposalAction::parse(&action)?;
-    build_notebook_report_proposal_preview(&workspace, &report_id, action)
+    build_notebook_report_proposal_preview(&workspace, &report_id, action, session_hits)
 }
 
 #[tauri::command]
 pub async fn create_notebook_report_proposal(
     report_id: String,
     action: String,
+    session_hits: Option<Vec<SessionSearchHit>>,
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let loader = ConfigLoader::new();
@@ -587,10 +591,22 @@ pub async fn create_notebook_report_proposal(
     let runtime = CliRuntime::from_paths(None, Some(loader.config_dir().to_path_buf()), None);
     let workspace = runtime.effective_workspace(&config);
     let action = NotebookProposalAction::parse(&action).map_err(laputa_string_error)?;
-    let proposal = build_notebook_report_proposal(&workspace, &report_id, action, "notebook")
-        .map_err(laputa_string_error)?;
+    let proposal =
+        build_notebook_report_proposal(&workspace, &report_id, action, "notebook", session_hits)
+            .map_err(laputa_string_error)?;
     let url = format!("{}/laputa/proposals", state.api_base_url());
     post_laputa_payload(&state, &url, &proposal, "proposal").await
+}
+
+#[tauri::command]
+pub async fn search_notebook_session_evidence_command(
+    request: NotebookSessionSearchRequest,
+) -> Result<SessionSearchResponse, String> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    let runtime = CliRuntime::from_paths(None, Some(loader.config_dir().to_path_buf()), None);
+    let workspace = runtime.effective_workspace(&config);
+    search_notebook_session_evidence(&workspace, request)
 }
 
 #[tauri::command]

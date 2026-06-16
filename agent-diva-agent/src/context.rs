@@ -522,6 +522,7 @@ mod tests {
         SessionEndStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus, SystemPromptBlock,
         SystemPromptRequest, SystemPromptResponse,
     };
+    use agent_diva_core::session::{SessionManager, SessionSearchQuery};
     use std::fs;
     use std::sync::Arc;
     use tempfile::TempDir;
@@ -641,6 +642,26 @@ mod tests {
         assert!(!prompt.contains("Palace Memory"));
         assert!(!prompt.contains("memtle_"));
         assert!(!prompt.to_lowercase().contains("mentle recall"));
+    }
+
+    #[test]
+    fn session_search_hits_do_not_enter_default_prompt_authority() {
+        let workspace = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(workspace.path());
+        let session = manager.get_or_create("telegram:123");
+        session.add_message("user", "Secret launch evidence from old session");
+        let key = session.key.clone();
+        manager.save(manager.get(&key).unwrap()).unwrap();
+
+        let search = manager
+            .search(SessionSearchQuery::new("launch evidence"))
+            .unwrap();
+        assert_eq!(search.hits.len(), 1);
+
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let prompt = builder.build_system_prompt(None);
+        assert!(!prompt.contains("Secret launch evidence from old session"));
+        assert!(!prompt.contains("session://telegram%3A123"));
     }
 
     #[test]
