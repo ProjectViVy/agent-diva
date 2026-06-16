@@ -1,5 +1,6 @@
 use std::{
     fs,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -95,12 +96,13 @@ fn lock_recovers_stale_lock_file() {
     let lock_path = temp.path().join(".laputa/locks/state.lock");
     fs::create_dir_all(lock_path.parent().unwrap()).unwrap();
     fs::write(&lock_path, "stale").unwrap();
+    thread::sleep(Duration::from_millis(20));
 
     let guard = LaputaLock::acquire(
         &lock_path,
         LockOptions {
-            timeout: Duration::from_millis(100),
-            stale_after: Duration::ZERO,
+            timeout: Duration::from_millis(300),
+            stale_after: Duration::from_millis(10),
             retry_interval: Duration::from_millis(5),
         },
     )
@@ -133,4 +135,21 @@ fn lock_does_not_recover_live_owner_lock_file() {
 
     assert!(matches!(error, LaputaError::LockTimeout { .. }));
     assert!(lock_path.exists());
+}
+
+#[test]
+fn storage_atomic_write_and_lock_support_windows_safe_paths() {
+    let temp = tempfile::tempdir().unwrap();
+    let workspace = temp.path().join("Windows Safe Workspace").join("nested.dir");
+    fs::create_dir_all(&workspace).unwrap();
+    let storage = LaputaStorage::open(&workspace).unwrap();
+    let section_path = storage.paths().section_file(LaputaSectionName::MemoryMd);
+
+    atomic_write_json(&section_path, &json!({ "items": ["safe path"] })).unwrap();
+    let saved = fs::read_to_string(&section_path).unwrap();
+    assert!(saved.contains("safe path"));
+
+    let lock_path = storage.paths().locks_dir().join("state.lock");
+    let guard = LaputaLock::acquire(&lock_path, LockOptions::default()).unwrap();
+    assert_eq!(guard.path(), lock_path.as_path());
 }

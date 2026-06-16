@@ -221,3 +221,24 @@ fn migration_rerun_is_idempotent_for_same_legacy_sources() {
     assert_eq!(payload["entries"].as_array().unwrap().len(), 1);
     assert_eq!(payload["entries"][0]["content"], "stable memory");
 }
+
+#[test]
+fn migration_cleans_stale_staging_dir_before_committing() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join("memory")).unwrap();
+    fs::write(temp.path().join("memory/MEMORY.md"), "staged memory").unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+    let stale_stage = storage.paths().staging_dir().join("orphan.json");
+    fs::create_dir_all(storage.paths().staging_dir()).unwrap();
+    fs::write(&stale_stage, "stale staging payload").unwrap();
+
+    let outcome = LaputaMigration::new(storage.clone())
+        .run(LaputaMigrationOptions::default())
+        .unwrap();
+
+    assert!(outcome
+        .written_sections
+        .contains(&LaputaSectionName::MemoryMd.as_str().to_string()));
+    assert!(!stale_stage.exists());
+    assert!(!storage.paths().staging_dir().exists());
+}
