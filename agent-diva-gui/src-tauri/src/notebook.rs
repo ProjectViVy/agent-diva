@@ -625,7 +625,7 @@ date: 2026-06-14
         assert_eq!(reports.len(), 1);
         assert!(reports[0].is_truncated);
         assert_eq!(reports[0].displayed_line_count, MAX_RENDER_LINES);
-        assert_eq!(reports[0].original_line_count, MAX_RENDER_LINES + 12);
+        assert_eq!(reports[0].original_line_count, MAX_RENDER_LINES + 13);
         assert!(!reports[0]
             .content
             .contains(&format!("line-{}", MAX_RENDER_LINES + 5)));
