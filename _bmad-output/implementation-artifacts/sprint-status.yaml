@@ -1,5 +1,5 @@
 # generated: 2026-06-13T04:54:00+08:00
-# last_updated: 2026-06-15T10:15:00+08:00
+# last_updated: 2026-06-15T15:20:39+08:00
 # project: agent-diva-pro
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-13T04:54:00+08:00
-last_updated: 2026-06-15T10:15:00+08:00
+last_updated: 2026-06-15T15:20:39+08:00
 project: agent-diva-pro
 project_key: NOKEY
 tracking_system: file-system
@@ -72,7 +72,7 @@ development_status:
   epic-4-retrospective: optional
   epic-5: in-progress
   5-1-plug-applied-laputa-reads-into-memoryprovider: review
-  5-2-enforce-mentle-governance-exclusion: in-progress
+  5-2-enforce-mentle-governance-exclusion: review
   5-3-keep-context-compaction-session-local: review
   epic-5-retrospective: optional
   epic-6: in-progress
