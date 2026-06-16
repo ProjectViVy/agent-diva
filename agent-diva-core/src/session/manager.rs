@@ -1,6 +1,7 @@
 //! Session manager for handling multiple sessions
 
 use super::store::Session;
+use super::{search::search_sessions_in_dir, SessionSearchQuery, SessionSearchResponse};
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -246,6 +247,11 @@ impl SessionManager {
 
         sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
         sessions
+    }
+
+    /// Search session JSONL files without promoting matches into runtime authority.
+    pub fn search(&self, query: SessionSearchQuery) -> crate::Result<SessionSearchResponse> {
+        search_sessions_in_dir(&self.sessions_dir, query)
     }
 
     /// Get the file path for a session

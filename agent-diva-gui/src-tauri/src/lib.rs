@@ -344,6 +344,7 @@ pub fn run() {
             commands::trigger_autodream,
             commands::get_notebook_reports,
             commands::trigger_notebook_report_generation,
+            commands::search_notebook_session_evidence_command,
             commands::preview_notebook_report_proposal,
             commands::create_notebook_report_proposal,
             commands::get_autodream_run_status,

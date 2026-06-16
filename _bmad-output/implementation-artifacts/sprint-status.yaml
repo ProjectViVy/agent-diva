@@ -67,7 +67,7 @@ development_status:
   epic-4: in-progress
   4-1-consume-autodream-and-report-owned-paths-correctly: review
   4-2-replace-notebook-direct-solidification-with-proposal-creation: review
-  4-3-preserve-session-search-as-evidence-only: ready-for-dev
+  4-3-preserve-session-search-as-evidence-only: review
   4-4-add-solidification-regression-coverage: review
   epic-4-retrospective: optional
   epic-5: in-progress

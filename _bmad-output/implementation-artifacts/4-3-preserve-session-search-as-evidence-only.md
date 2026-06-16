@@ -4,7 +4,7 @@ baseline_commit: 63d1ea7
 
 # Story 4.3: Preserve Session Search as Evidence Only
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,12 +21,12 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Add a read-only session search service over `agent-diva-core` session JSONL files, returning session ID, timestamp, bounded snippet, source URI, and diagnostics. (AC: 1, 4)
-- [ ] Convert selected search hits into `EvidenceRef { source: Session, uri, excerpt, hash, created_at }` for report/proposal attachment. (AC: 2)
-- [ ] Expose the search path to Report/Notebook and proposal creation without routing results through `MemoryProvider` as authority. (AC: 2, 3)
-- [ ] Skip malformed/corrupted session files, collect per-file diagnostics, and continue scanning valid sessions. (AC: 4)
-- [ ] Bound search cost: limit files scanned, snippets returned, snippet length, and total response bytes; add clear truncation metadata. (AC: 1)
-- [ ] Add tests proving search results are evidence-only and do not appear in default prompt context unless later converted through an approved Laputa apply path. (AC: 3)
+- [x] Add a read-only session search service over `agent-diva-core` session JSONL files, returning session ID, timestamp, bounded snippet, source URI, and diagnostics. (AC: 1, 4)
+- [x] Convert selected search hits into `EvidenceRef { source: Session, uri, excerpt, hash, created_at }` for report/proposal attachment. (AC: 2)
+- [x] Expose the search path to Report/Notebook and proposal creation without routing results through `MemoryProvider` as authority. (AC: 2, 3)
+- [x] Skip malformed/corrupted session files, collect per-file diagnostics, and continue scanning valid sessions. (AC: 4)
+- [x] Bound search cost: limit files scanned, snippets returned, snippet length, and total response bytes; add clear truncation metadata. (AC: 1)
+- [x] Add tests proving search results are evidence-only and do not appear in default prompt context unless later converted through an approved Laputa apply path. (AC: 3)
 
 ## Dev Notes
 
@@ -83,7 +83,7 @@ Status: ready-for-dev
 
 ### Agent Model Used
 
-TBD by implementation agent.
+GPT-5 Codex
 
 ### Debug Log References
 
@@ -92,11 +92,27 @@ TBD by implementation agent.
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- 2026-06-16: Added read-only session JSONL search with bounded snippets, diagnostics, and `EvidenceRef` conversion in `agent-diva-core`.
+- 2026-06-16: Exposed session evidence search plus optional attached session hits through Notebook/Tauri proposal preview and creation paths without using `MemoryProvider`.
+- 2026-06-16: Added regression tests proving session search stays evidence-only and does not enter the default prompt authority.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/4-3-preserve-session-search-as-evidence-only.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `agent-diva-agent/src/context.rs`
+- `agent-diva-core/src/session/manager.rs`
+- `agent-diva-core/src/session/mod.rs`
+- `agent-diva-core/src/session/search.rs`
+- `agent-diva-gui/src-tauri/src/commands.rs`
+- `agent-diva-gui/src-tauri/src/lib.rs`
+- `agent-diva-gui/src-tauri/src/notebook.rs`
+- `docs/logs/2026-06-session-search-evidence-only/v0.0.1-session-search-evidence-only/summary.md`
+- `docs/logs/2026-06-session-search-evidence-only/v0.0.1-session-search-evidence-only/verification.md`
+- `docs/logs/2026-06-session-search-evidence-only/v0.0.1-session-search-evidence-only/release.md`
+- `docs/logs/2026-06-session-search-evidence-only/v0.0.1-session-search-evidence-only/acceptance.md`
 
 ### Change Log
 
 - 2026-06-15: Created ready-for-dev story for evidence-only session search.
+- 2026-06-16: Implemented evidence-only session search, Notebook/Tauri attachment plumbing, targeted authority-boundary tests, and moved story to review.
