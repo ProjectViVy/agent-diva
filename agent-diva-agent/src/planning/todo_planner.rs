@@ -60,7 +60,13 @@ mod tests {
     use agent_diva_core::planning::ids::PlanId;
     use agent_diva_core::planning::model::PlanStep;
 
-    fn make_step(id: &str, plan_id: &PlanId, ordinal: i32, title: &str, status: PlanStatus) -> PlanStep {
+    fn make_step(
+        id: &str,
+        plan_id: &PlanId,
+        ordinal: i32,
+        title: &str,
+        status: PlanStatus,
+    ) -> PlanStep {
         let now = Utc::now();
         PlanStep {
             id: id.to_string(),

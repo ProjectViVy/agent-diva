@@ -1,25 +1,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { createI18n } from 'vue-i18n';
 import SubAgentPanel from './SubAgentPanel.vue';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-// Minimal i18n stub: returns the fallback string
-function createI18nStub() {
-  return {
-    global: {
-      plugins: [
-        {
-          install(app: any) {
-            app.config.globalProperties.$t = (_key: string, fallback?: string) => fallback ?? _key;
-            app.provide('vue-i18n', { t: (_k: string, f?: string) => f ?? _k });
-          },
-        },
-      ],
+const i18n = createI18n({
+  legacy: false,
+  locale: 'zh-CN',
+  messages: {
+    'zh-CN': {
+      'subagent.title': '子代理',
+      'subagent.empty': '暂无子代理任务',
+      'subagent.toolCalls': '工具调用',
     },
-  };
-}
+  },
+});
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
@@ -29,7 +26,9 @@ describe('SubAgentPanel', () => {
   });
 
   it('renders empty state when no children', () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
 
     expect(wrapper.find('.subagent-empty').exists()).toBe(true);
     expect(wrapper.find('.subagent-empty-text').text()).toContain('暂无子代理任务');
@@ -37,21 +36,27 @@ describe('SubAgentPanel', () => {
   });
 
   it('renders header with title and badge', () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
 
     expect(wrapper.find('.subagent-panel-title').exists()).toBe(true);
     expect(wrapper.find('.subagent-panel-title').text()).toContain('子代理');
   });
 
   it('shows polling dot when polling is active', () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
 
     // After mount, startPolling is called, so the dot should appear
     expect(wrapper.find('.subagent-polling-dot').exists()).toBe(true);
   });
 
   it('renders child list when children are present', async () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
     await nextTick();
 
     // The composable uses mock data in non-Tauri mode, so children should be populated
@@ -60,7 +65,9 @@ describe('SubAgentPanel', () => {
   });
 
   it('displays correct status icons for each status', async () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
     await nextTick();
 
     const icons = wrapper.findAll('.subagent-status-icon');
@@ -74,7 +81,9 @@ describe('SubAgentPanel', () => {
   });
 
   it('displays task IDs', async () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
     await nextTick();
 
     const taskIds = wrapper.findAll('.subagent-task-id');
@@ -85,7 +94,9 @@ describe('SubAgentPanel', () => {
   });
 
   it('displays summary text', async () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
     await nextTick();
 
     const summaries = wrapper.findAll('.subagent-summary');
@@ -94,7 +105,9 @@ describe('SubAgentPanel', () => {
   });
 
   it('applies status-specific CSS class', async () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
     await nextTick();
 
     expect(wrapper.find('.subagent-status-ok').exists()).toBe(true);
@@ -104,7 +117,9 @@ describe('SubAgentPanel', () => {
   });
 
   it('renders elapsed time', async () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
     await nextTick();
 
     const elapsed = wrapper.findAll('.subagent-elapsed');
@@ -114,7 +129,9 @@ describe('SubAgentPanel', () => {
   });
 
   it('shows tool call count in meta', async () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
     await nextTick();
 
     const meta = wrapper.findAll('.subagent-meta');
@@ -123,7 +140,9 @@ describe('SubAgentPanel', () => {
   });
 
   it('shows badge with total count', async () => {
-    const wrapper = mount(SubAgentPanel, createI18nStub());
+    const wrapper = mount(SubAgentPanel, {
+      global: { plugins: [i18n] },
+    });
     await nextTick();
 
     const badge = wrapper.find('.subagent-badge');

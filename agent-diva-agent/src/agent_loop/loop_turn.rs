@@ -851,7 +851,7 @@ fn save_turn(
                     });
                     let mut msg = ChatMessage::with_tool_metadata(
                         "assistant",
-                        &m.content.to_text_lossy(),
+                        m.content.to_text_lossy(),
                         None,
                         tool_calls_json,
                         None,

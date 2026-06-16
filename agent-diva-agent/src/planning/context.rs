@@ -15,9 +15,7 @@ impl PlanContextBuilder {
     /// Build a context block from the active plan's state.
     ///
     /// Returns `Ok(None)` if no active plan exists.
-    pub async fn build_context(
-        store: &dyn PlanningStore,
-    ) -> Result<Option<String>, Error> {
+    pub async fn build_context(store: &dyn PlanningStore) -> Result<Option<String>, Error> {
         let plan_id = match store.get_active_plan().await {
             Ok(id) => id,
             Err(Error::Internal(msg)) if msg == "No active plan" => return Ok(None),
@@ -146,14 +144,26 @@ mod tests {
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("t1", "Write tests", TodoStatus::InProgress, TodoPriority::High, None),
+                &make_todo(
+                    "t1",
+                    "Write tests",
+                    TodoStatus::InProgress,
+                    TodoPriority::High,
+                    None,
+                ),
             )
             .await
             .unwrap();
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("t2", "Deploy to staging", TodoStatus::Pending, TodoPriority::Normal, None),
+                &make_todo(
+                    "t2",
+                    "Deploy to staging",
+                    TodoStatus::Pending,
+                    TodoPriority::Normal,
+                    None,
+                ),
             )
             .await
             .unwrap();
@@ -195,7 +205,10 @@ mod tests {
                     &PlanId("p1".to_string()),
                     &make_todo(
                         &format!("t{}", i),
-                        &format!("This is a fairly long todo item title number {} that takes up space", i),
+                        &format!(
+                            "This is a fairly long todo item title number {} that takes up space",
+                            i
+                        ),
                         TodoStatus::Pending,
                         TodoPriority::Normal,
                         None,
@@ -230,21 +243,39 @@ mod tests {
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("t1", "Active task", TodoStatus::InProgress, TodoPriority::Normal, None),
+                &make_todo(
+                    "t1",
+                    "Active task",
+                    TodoStatus::InProgress,
+                    TodoPriority::Normal,
+                    None,
+                ),
             )
             .await
             .unwrap();
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("t2", "Completed task", TodoStatus::Completed, TodoPriority::Normal, None),
+                &make_todo(
+                    "t2",
+                    "Completed task",
+                    TodoStatus::Completed,
+                    TodoPriority::Normal,
+                    None,
+                ),
             )
             .await
             .unwrap();
         store
             .create_todo(
                 &PlanId("p1".to_string()),
-                &make_todo("t3", "Canceled task", TodoStatus::Canceled, TodoPriority::Normal, None),
+                &make_todo(
+                    "t3",
+                    "Canceled task",
+                    TodoStatus::Canceled,
+                    TodoPriority::Normal,
+                    None,
+                ),
             )
             .await
             .unwrap();

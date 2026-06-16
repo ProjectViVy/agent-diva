@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ChevronDown, ChevronUp, CheckCircle, XCircle } from 'lucide-vue-next';
-import type { UiCard, UiCardAction } from '../api/desktop';
+import type { UiCard } from '../api/desktop';
 
 const { t } = useI18n();
 

@@ -7,7 +7,7 @@
 //! Inspired by OpenAI Codex CLI's seatbelt.rs architecture.
 
 use crate::error::{SandboxError, SandboxResult};
-use crate::filesystem::{FileSystemSandboxKind, FileSystemSandboxPolicy, WritableRoot};
+use crate::filesystem::{FileSystemSandboxKind, FileSystemSandboxPolicy};
 use crate::policy::{ReadOnlyAccess, SandboxPolicy};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -111,8 +111,8 @@ pub fn create_seatbelt_policy(
     // Add network policy
     let network_access = match sandbox_policy {
         SandboxPolicy::DangerFullAccess => true,
-        SandboxPolicy::ReadOnly { network_access, .. } => network_access,
-        SandboxPolicy::WorkspaceWrite { network_access, .. } => network_access,
+        SandboxPolicy::ReadOnly { network_access, .. } => *network_access,
+        SandboxPolicy::WorkspaceWrite { network_access, .. } => *network_access,
         SandboxPolicy::ExternalSandbox { network_access } => network_access.is_allowed(),
     };
 
@@ -343,6 +343,7 @@ impl MacOsSandboxExecutor {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn execute_with_availability(
         &self,
         command: &str,
@@ -516,7 +517,7 @@ impl Default for MacOsSandboxExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filesystem::{FileSystemAccessMode, FileSystemPath, FileSystemSandboxEntry};
+    use crate::filesystem::FileSystemPath;
 
     #[test]
     fn test_seatbelt_base_policy() {

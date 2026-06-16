@@ -74,19 +74,6 @@ function formatCount(count: number): string {
   return String(count);
 }
 
-// Trust level class
-function trustLevelClass(trustLevel: string): string {
-  switch (trustLevel) {
-    case 'official':
-      return 'skills-source-badge official';
-    case 'certified':
-      return 'skills-source-badge certified';
-    case 'community':
-    default:
-      return 'skills-source-badge';
-  }
-}
-
 // Trust level icon
 function trustLevelIcon(trustLevel: string) {
   switch (trustLevel) {

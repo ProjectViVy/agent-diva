@@ -455,7 +455,7 @@ fn blocking_append_rule_to_file(path: &Path, rule: &PrefixRule) -> Result<(), Ex
     // Lock the file (Unix file lock)
     #[cfg(unix)]
     {
-        use std::os::unix::fs::FileExt;
+        use fs2::FileExt;
         file.lock_exclusive()
             .map_err(|e| ExecPolicyError::SaveError(format!("File lock error: {}", e)))?;
     }
@@ -472,6 +472,7 @@ fn blocking_append_rule_to_file(path: &Path, rule: &PrefixRule) -> Result<(), Ex
     // Check if pattern already exists
     if existing_patterns.contains(&rule.pattern) {
         #[cfg(unix)]
+        #[allow(clippy::incompatible_msrv)]
         file.unlock().ok();
         return Err(ExecPolicyError::DuplicateRule(rule.pattern.join(" ")));
     }
@@ -493,6 +494,7 @@ fn blocking_append_rule_to_file(path: &Path, rule: &PrefixRule) -> Result<(), Ex
 
     // Unlock file
     #[cfg(unix)]
+    #[allow(clippy::incompatible_msrv)]
     file.unlock().ok();
 
     Ok(())

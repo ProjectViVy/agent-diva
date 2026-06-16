@@ -62,20 +62,23 @@ impl MaskFile {
 
         // Skip the opening delimiter line
         let after_open = &trimmed[FRONTMATTER_DELIMITER.len()..];
-        let after_open = after_open.strip_prefix('\n').or_else(|| after_open.strip_prefix("\r\n")).unwrap_or(after_open);
+        let after_open = after_open
+            .strip_prefix('\n')
+            .or_else(|| after_open.strip_prefix("\r\n"))
+            .unwrap_or(after_open);
 
         // Find the closing delimiter
-        let close_idx = after_open
-            .find(FRONTMATTER_DELIMITER)
-            .ok_or_else(|| MaskError::InvalidFrontmatter {
+        let close_idx = after_open.find(FRONTMATTER_DELIMITER).ok_or_else(|| {
+            MaskError::InvalidFrontmatter {
                 path: path.to_string(),
                 reason: "missing closing '---' delimiter".to_string(),
-            })?;
+            }
+        })?;
 
         let yaml_str = &after_open[..close_idx];
         let body_start = close_idx + FRONTMATTER_DELIMITER.len();
         let body = after_open[body_start..]
-            .trim_start_matches(|c: char| c == '\n' || c == '\r')
+            .trim_start_matches(['\n', '\r'])
             .to_string();
 
         let frontmatter: MaskConfig =
@@ -113,7 +116,10 @@ tool_limits:
 
         assert_eq!(mask.frontmatter.name, "研究员");
         assert_eq!(mask.frontmatter.icon.as_deref(), Some("🔍"));
-        assert_eq!(mask.frontmatter.description.as_deref(), Some("专注调研与分析"));
+        assert_eq!(
+            mask.frontmatter.description.as_deref(),
+            Some("专注调研与分析")
+        );
         assert_eq!(mask.frontmatter.model.as_deref(), Some("deepseek-chat"));
         assert_eq!(
             mask.frontmatter.subagent_defaults.model.as_deref(),

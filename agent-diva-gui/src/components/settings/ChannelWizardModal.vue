@@ -9,10 +9,6 @@ import {
   PlugZap,
   Eye,
   EyeOff,
-  BookOpen,
-  Monitor,
-  Terminal,
-  FileText,
   Lightbulb,
 } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';

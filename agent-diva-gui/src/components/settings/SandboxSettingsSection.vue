@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { ShieldCheck, LoaderCircle, AlertTriangle, Plus, X } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { showAppToast } from '../../utils/appToast';
@@ -81,7 +81,7 @@ const saveConfig = async () => {
     originalSnapshot.value = JSON.stringify(config.value);
     originalMode.value = config.value.mode;
     showAppToast(t('sandbox.saved'), 'success');
-  } catch (e) {
+  } catch {
     showAppToast(t('sandbox.saveFailed'), 'error');
   } finally {
     saving.value = false;

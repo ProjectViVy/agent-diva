@@ -663,7 +663,7 @@ async fn put_laputa_payload<T: Serialize + ?Sized>(
     field: &str,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let response = state
-        .http_client()
+        .client
         .put(url)
         .json(payload)
         .send()

@@ -213,9 +213,9 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
                 "\nWhen remembering something, route it by granularity: keep compact identity/relationship compass updates in MEMORY.md, and store dense factual details, long evidence, and creative/project records with the appropriate `memtle_*` tools.",
             );
         } else {
-            prompt.push_str(&format!(
-                "\nWhen remembering something, create or update governed memory through the available memory tools or compatibility path; do not treat legacy authority files as default prompt authority."
-            ));
+            prompt.push_str(
+                "\nWhen remembering something, create or update governed memory through the available memory tools or compatibility path; do not treat legacy authority files as default prompt authority.",
+            );
         }
 
         prompt
@@ -322,7 +322,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
                 ));
             } else {
                 // Subsequent compactions: shorter markers
-                messages.push(Message::system(&format!(
+                messages.push(Message::system(format!(
                     "## Context Compaction #{}\n[compacted context start]",
                     i + 1
                 )));
@@ -765,8 +765,10 @@ mod tests {
         let workspace = TempDir::new().unwrap();
         fs::write(workspace.path().join("BOOTSTRAP.md"), "# Bootstrap Steps").unwrap();
         let store = SoulStateStore::new(workspace.path());
-        let mut state = agent_diva_core::soul::SoulState::default();
-        state.bootstrap_completed_at = Some(chrono::Utc::now());
+        let state = agent_diva_core::soul::SoulState {
+            bootstrap_completed_at: Some(chrono::Utc::now()),
+            ..Default::default()
+        };
         store.save(&state).unwrap();
 
         let builder = ContextBuilder::new(workspace.path().to_path_buf());

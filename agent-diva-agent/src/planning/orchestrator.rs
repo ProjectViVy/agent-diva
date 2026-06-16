@@ -209,11 +209,7 @@ mod tests {
         store.create_plan(plan).await.unwrap();
     }
 
-    async fn add_todo(
-        store: &SqlitePlanningStore,
-        plan_id: &PlanId,
-        status: TodoStatus,
-    ) {
+    async fn add_todo(store: &SqlitePlanningStore, plan_id: &PlanId, status: TodoStatus) {
         let todo = TodoItem {
             id: TodoId::new(),
             plan_step_id: None,
@@ -485,9 +481,7 @@ mod tests {
             .unwrap();
 
         // Try transitioning from Completed → anything
-        let result = orch
-            .transition_to(&store, &plan_id, PlanPhase::Plan)
-            .await;
+        let result = orch.transition_to(&store, &plan_id, PlanPhase::Plan).await;
         assert!(result.is_err());
     }
 }
