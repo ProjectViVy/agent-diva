@@ -8,6 +8,8 @@ use serde_json::Value;
 #[test]
 fn manual_run_creation_persists_record_and_lock() {
     let temp = tempfile::tempdir().unwrap();
+    AutoDreamService::reset_metrics_for_test();
+    let before = AutoDreamService::metrics_snapshot();
     let service = AutoDreamService::open(temp.path()).unwrap();
 
     let status = service
@@ -26,6 +28,9 @@ fn manual_run_creation_persists_record_and_lock() {
         .join("record.json")
         .exists());
     assert!(temp.path().join(".agent-diva/autodream/lock").exists());
+    let metrics = AutoDreamService::metrics_snapshot();
+    assert!(metrics.autodream_runs_total >= before.autodream_runs_total + 1);
+    assert!(metrics.autodream_failures_total >= before.autodream_failures_total);
 }
 
 #[test]
@@ -62,6 +67,8 @@ fn cancellation_updates_terminal_state_and_removes_lock() {
 #[test]
 fn stale_lock_recovery_marks_previous_run_failed_and_allows_new_run() {
     let temp = tempfile::tempdir().unwrap();
+    AutoDreamService::reset_metrics_for_test();
+    let before = AutoDreamService::metrics_snapshot();
     let service = AutoDreamService::open(temp.path())
         .unwrap()
         .with_stale_lock_after(Duration::ZERO);
@@ -79,6 +86,9 @@ fn stale_lock_recovery_marks_previous_run_failed_and_allows_new_run() {
     assert_eq!(previous.run.state, AutoDreamRunState::Failed);
     assert_eq!(second.run.state, AutoDreamRunState::Running);
     assert_ne!(first.run.id, second.run.id);
+    let metrics = AutoDreamService::metrics_snapshot();
+    assert!(metrics.autodream_runs_total >= before.autodream_runs_total + 2);
+    assert!(metrics.autodream_failures_total >= before.autodream_failures_total + 1);
 }
 
 #[test]

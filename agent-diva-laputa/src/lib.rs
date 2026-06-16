@@ -8,6 +8,7 @@ pub mod error;
 pub mod layout;
 pub mod lock;
 pub mod memory_provider;
+pub mod metrics;
 pub mod migration;
 pub mod proposals;
 pub mod service;
@@ -17,6 +18,7 @@ pub use error::{LaputaError, Result};
 pub use layout::{LaputaPaths, LaputaStorage};
 pub use lock::{LaputaLock, LockOptions};
 pub use memory_provider::LaputaMemoryProvider;
+pub use metrics::{LaputaMetrics, LaputaMetricsSnapshot};
 pub use migration::{
     LaputaMigration, LaputaMigrationBackup, LaputaMigrationOptions, LaputaMigrationOutcome,
     LaputaMigrationSource, LaputaMigrationSourceKind, LaputaMigrationTestFailure,

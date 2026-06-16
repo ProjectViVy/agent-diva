@@ -2,6 +2,7 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::Path,
+    sync::OnceLock,
     time::{Duration, SystemTime},
 };
 
@@ -11,11 +12,14 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    atomic::atomic_write_json, AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
-    AutoDreamStorage, AutoDreamWorker, AutoDreamWorkerReport, Result,
+    atomic::atomic_write_json,
+    metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot},
+    AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector, AutoDreamStorage,
+    AutoDreamWorker, AutoDreamWorkerReport, Result,
 };
 
 const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
+static AUTODREAM_METRICS: OnceLock<AutoDreamMetrics> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoDreamCheckpoint {
@@ -71,6 +75,20 @@ pub struct AutoDreamService {
 }
 
 impl AutoDreamService {
+    fn metrics() -> &'static AutoDreamMetrics {
+        AUTODREAM_METRICS.get_or_init(AutoDreamMetrics::new)
+    }
+
+    #[must_use]
+    pub fn metrics_snapshot() -> AutoDreamMetricsSnapshot {
+        Self::metrics().snapshot()
+    }
+
+    #[doc(hidden)]
+    pub fn reset_metrics_for_test() {
+        Self::metrics().reset_for_test();
+    }
+
     pub fn open(workspace_root: impl Into<std::path::PathBuf>) -> Result<Self> {
         let storage = AutoDreamStorage::open(workspace_root)?;
         Ok(Self::from_storage(storage))
@@ -126,6 +144,7 @@ impl AutoDreamService {
             started_at: now,
         };
         self.write_lock(&lock)?;
+        Self::metrics().record_run();
         self.append_event(AutoDreamEvent {
             id: format!("evt-{}", Uuid::new_v4()),
             run_id: Some(run_id),
@@ -209,7 +228,9 @@ impl AutoDreamService {
             agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
                 .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
         );
-        let collected = collector.collect(run_id)?;
+        let collected = collector.collect(run_id).inspect_err(|_| {
+            Self::metrics().record_failure();
+        })?;
         run.input_summary = Some(collected.summary.clone());
         run.summary = Some(format!(
             "collected {} inputs with {} omissions",
@@ -226,7 +247,9 @@ impl AutoDreamService {
             agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
                 .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
         );
-        worker.execute(run_id)
+        worker.execute(run_id).inspect_err(|_| {
+            Self::metrics().record_failure();
+        })
     }
 
     fn status_from_run(
@@ -272,6 +295,7 @@ impl AutoDreamService {
                     run.summary = Some("stale lock recovered".to_string());
                     run.error = Some("stale lock recovered".to_string());
                     self.write_run(&run)?;
+                    Self::metrics().record_failure();
                     self.append_event(AutoDreamEvent {
                         id: format!("evt-{}", Uuid::new_v4()),
                         run_id: Some(run.id.clone()),

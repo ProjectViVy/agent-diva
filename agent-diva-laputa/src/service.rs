@@ -3,7 +3,7 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
 
@@ -18,6 +18,7 @@ use tokio::sync::broadcast;
 
 use crate::{
     atomic_write_json,
+    metrics::{LaputaMetrics, LaputaMetricsSnapshot},
     proposals::{unified_diff, ApplyOptions},
     LaputaError, LaputaLock, LaputaStorage, LockOptions, ProposalFilter, ProposalRepository,
     Result,
@@ -26,6 +27,7 @@ use crate::{
 const SNAPSHOT_SCHEMA_VERSION: &str = "1.0.0";
 const ROLLBACK_WINDOW: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const EVENT_CHANNEL_CAPACITY: usize = 256;
+static LAPUTA_METRICS: OnceLock<LaputaMetrics> = OnceLock::new();
 
 /// Stable Laputa service API used by Rust callers, manager routes, and Tauri commands.
 #[derive(Clone, Debug)]
@@ -36,6 +38,20 @@ pub struct LaputaService {
 }
 
 impl LaputaService {
+    fn metrics() -> &'static LaputaMetrics {
+        LAPUTA_METRICS.get_or_init(LaputaMetrics::new)
+    }
+
+    #[must_use]
+    pub fn metrics_snapshot() -> LaputaMetricsSnapshot {
+        Self::metrics().snapshot()
+    }
+
+    #[doc(hidden)]
+    pub fn reset_metrics_for_test() {
+        Self::metrics().reset_for_test();
+    }
+
     pub fn open(workspace_root: impl Into<PathBuf>) -> Result<Self> {
         let storage = LaputaStorage::open(workspace_root)?;
         Ok(Self::from_storage(storage))
@@ -100,8 +116,10 @@ impl LaputaService {
             .proposals
             .apply_proposal_with_options(id, actor, applied_at, options)
             .inspect_err(|error| {
+                Self::metrics().record_write_error();
                 let _ = self.record_error_event(error, None, Some(id.to_string()));
             })?;
+        Self::metrics().record_write();
         self.record_proposal_event(&outcome.proposal)?;
         self.record_changelog_event(&outcome.changelog)?;
         Ok(outcome)
@@ -235,6 +253,7 @@ impl LaputaService {
         let current = fs::read_to_string(&section_path).unwrap_or_default();
         let expected_current = request.expected_current.as_ref().unwrap_or(&original.after);
         if !content_matches_expected(&current, expected_current) {
+            Self::metrics().record_governance_failure();
             let error = LaputaError::RollbackConflict {
                 id: id.to_string(),
                 reason: "current section content does not match rollback expectation".to_string(),
@@ -316,6 +335,7 @@ impl LaputaService {
         if let Some(proposal) = proposal_event {
             self.record_proposal_event(&proposal)?;
         }
+        Self::metrics().record_rollback();
         self.record_changelog_event(&changelog)?;
 
         Ok(RollbackOutcome {
@@ -387,6 +407,7 @@ impl LaputaService {
         target_section: Option<LaputaSectionName>,
         proposal_id: Option<String>,
     ) -> Result<()> {
+        Self::metrics().record_governance_failure();
         self.record_event(LaputaEvent {
             event_id: event_id("error", "laputa", Utc::now()),
             kind: LaputaEventKind::Error,

@@ -74,6 +74,8 @@ fn section_reads_return_explicit_tbd_status_without_file() {
 #[test]
 fn apply_changelog_rollback_and_polling_events_are_available() {
     let temp = tempfile::tempdir().unwrap();
+    LaputaService::reset_metrics_for_test();
+    let before = LaputaService::metrics_snapshot();
     let service = LaputaService::open(temp.path()).unwrap();
     fs::write(
         temp.path().join(".laputa/sections/memory_md.json"),
@@ -137,6 +139,10 @@ fn apply_changelog_rollback_and_polling_events_are_available() {
         .changelog
         .diff
         .starts_with("--- before\n+++ after\n@@"));
+    let metrics = LaputaService::metrics_snapshot();
+    assert!(metrics.laputa_writes_total >= before.laputa_writes_total + 1);
+    assert!(metrics.laputa_rollbacks_total >= before.laputa_rollbacks_total + 1);
+    assert!(metrics.laputa_write_errors_total >= before.laputa_write_errors_total);
 }
 
 #[test]
@@ -180,6 +186,8 @@ fn rollback_rejects_when_current_content_changed_without_expected_current() {
 #[test]
 fn recovery_apply_failure_emits_error_diagnostic_event() {
     let temp = tempfile::tempdir().unwrap();
+    LaputaService::reset_metrics_for_test();
+    let before = LaputaService::metrics_snapshot();
     let service = LaputaService::open(temp.path()).unwrap();
     let repo =
         ProposalRepository::new(agent_diva_laputa::LaputaStorage::open(temp.path()).unwrap());
@@ -218,6 +226,11 @@ fn recovery_apply_failure_emits_error_diagnostic_event() {
             && event.status.as_deref() == Some("needs_attention")
             && event.error_type.as_deref() == Some("apply_recovery_failure")
     }));
+    let metrics = LaputaService::metrics_snapshot();
+    assert!(metrics.laputa_write_errors_total >= before.laputa_write_errors_total + 1);
+    assert!(
+        metrics.laputa_governance_failures_total >= before.laputa_governance_failures_total + 1
+    );
 }
 
 #[test]
