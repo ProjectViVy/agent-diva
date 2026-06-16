@@ -4,7 +4,7 @@ baseline_commit: 8a1114d
 
 # Story 6.3: Add Direct-Write and Filesystem Tests
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,12 +21,12 @@ so that future work does not bypass Laputa accidentally.
 
 ## Tasks / Subtasks
 
-- [ ] Add repository-level direct-write guard tests or scripts that scan EVO-DIVA crates for raw writes to `.laputa`, legacy authority files, and prompt authority paths outside `agent-diva-laputa`. (AC: 1)
-- [ ] Add direct-read guard tests for runtime prompt assembly, context assembly, Mentle integration, AutoDream, and Report System solidification boundaries. (AC: 2)
-- [ ] Extend `agent-diva-laputa/tests/storage.rs` or add focused integration tests for atomic writes, lock timeout, stale lock recovery, staging recovery, and changelog/audit creation. (AC: 3)
-- [ ] Include Windows-safe fixture paths and avoid assumptions about symlinks, `/tmp`, or Unix-only lock behavior. (AC: 4)
-- [ ] Document any intentional allowed filesystem access with an allowlist that is narrow and reviewed in tests. (AC: 1, 2)
-- [ ] Wire targeted tests into the Epic 6 release-gate story without requiring full GUI startup. (AC: 1-4)
+- [x] Add repository-level direct-write guard tests or scripts that scan EVO-DIVA crates for raw writes to `.laputa`, legacy authority files, and prompt authority paths outside `agent-diva-laputa`. (AC: 1)
+- [x] Add direct-read guard tests for runtime prompt assembly, context assembly, Mentle integration, AutoDream, and Report System solidification boundaries. (AC: 2)
+- [x] Extend `agent-diva-laputa/tests/storage.rs` or add focused integration tests for atomic writes, lock timeout, stale lock recovery, staging recovery, and changelog/audit creation. (AC: 3)
+- [x] Include Windows-safe fixture paths and avoid assumptions about symlinks, `/tmp`, or Unix-only lock behavior. (AC: 4)
+- [x] Document any intentional allowed filesystem access with an allowlist that is narrow and reviewed in tests. (AC: 1, 2)
+- [x] Wire targeted tests into the Epic 6 release-gate story without requiring full GUI startup. (AC: 1-4)
 
 ## Dev Notes
 
@@ -69,12 +69,25 @@ so that future work does not bypass Laputa accidentally.
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Codex GPT-5
 
 ### Debug Log References
 
+- `cargo test -p agent-diva-laputa --test authority_boundaries`
+- `cargo test -p agent-diva-laputa --test storage`
+- `cargo test -p agent-diva-laputa --test migration`
+- `cargo test -p agent-diva-laputa --test apply`
+- `just epic6-proof-check`
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added `agent-diva-laputa/tests/authority_boundaries.rs` to guard direct runtime reads and durable writes with a narrow allowlist for approved filesystem boundaries.
+- Extended Laputa storage and migration integration coverage for Windows-safe paths, stale-lock recovery timing, and stale staging cleanup.
+- Added `just epic6-proof-check` so Epic 6 can run the focused governance proof suite without requiring GUI startup.
 
 ### File List
+
+- `agent-diva-laputa/tests/authority_boundaries.rs`
+- `agent-diva-laputa/tests/storage.rs`
+- `agent-diva-laputa/tests/migration.rs`
+- `justfile`

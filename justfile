@@ -91,6 +91,13 @@ ci: fmt-check check test
 sprint5-check: fmt-check sprint5-default-check mentle-check
     @echo "Sprint 5 checks passed!"
 
+# Epic 6 targeted governance proof checks without starting the GUI
+epic6-proof-check:
+    cargo test -p agent-diva-laputa --test authority_boundaries
+    cargo test -p agent-diva-laputa --test storage
+    cargo test -p agent-diva-laputa --test migration
+    cargo test -p agent-diva-laputa --test apply
+
 # Install locally
 install:
     cargo install --path agent-diva-cli
