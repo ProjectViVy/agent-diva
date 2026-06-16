@@ -4,6 +4,7 @@ mod atomic;
 mod error;
 mod inputs;
 mod layout;
+mod metrics;
 mod outputs;
 mod reports;
 mod service;
@@ -15,6 +16,7 @@ pub use inputs::{
     AutoDreamInputCollectorConfig,
 };
 pub use layout::{AutoDreamPaths, AutoDreamStorage};
+pub use metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot};
 pub use outputs::{
     AutoDreamArtifactSummary, AutoDreamOutputEmitter, AutoDreamOutputEvent,
     AutoDreamOutputEventKind, AutoDreamOutputRequest, AutoDreamProposalCandidateDraft,

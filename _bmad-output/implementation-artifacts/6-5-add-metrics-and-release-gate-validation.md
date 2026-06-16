@@ -1,10 +1,10 @@
 ---
-baseline_commit: 8a1114d
+baseline_commit: 86c00ec
 ---
 
 # Story 6.5: Add Metrics and Release-Gate Validation
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,12 +20,12 @@ so that failures are visible before users rely on durable evolution.
 
 ## Tasks / Subtasks
 
-- [ ] Add a thin metrics surface for Laputa write/apply, write error, rollback, and governance failure counters. (AC: 1)
-- [ ] Add AutoDream run and failure counters at the service boundary without adding new scheduler ownership. (AC: 1)
-- [ ] Define a release-gate validation command or documented command set that includes direct-write guard, governance proof loop, rollback eligibility, manual AutoDream stability, and Evolution review surface smoke. (AC: 2)
-- [ ] Add Mentle regression tests proving existing Mentle behavior remains compatible but does not authorize, write, sync, index, or own EVO-DIVA governance flows. (AC: 3)
-- [ ] Record release-gate results in `docs/logs/.../verification.md` when the story is implemented. (AC: 2)
-- [ ] Update any operator-facing docs only if the metrics or release gate become public commands. (AC: 1, 2)
+- [x] Add a thin metrics surface for Laputa write/apply, write error, rollback, and governance failure counters. (AC: 1)
+- [x] Add AutoDream run and failure counters at the service boundary without adding new scheduler ownership. (AC: 1)
+- [x] Define a release-gate validation command or documented command set that includes direct-write guard, governance proof loop, rollback eligibility, manual AutoDream stability, and Evolution review surface smoke. (AC: 2)
+- [x] Add Mentle regression tests proving existing Mentle behavior remains compatible but does not authorize, write, sync, index, or own EVO-DIVA governance flows. (AC: 3)
+- [x] Record release-gate results in `docs/logs/.../verification.md` when the story is implemented. (AC: 2)
+- [x] Update any operator-facing docs only if the metrics or release gate become public commands. (AC: 1, 2)
 
 ## Dev Notes
 
@@ -71,12 +71,35 @@ so that failures are visible before users rely on durable evolution.
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+GPT-5 Codex
 
 ### Debug Log References
 
+- `cargo test -p agent-diva-laputa --test service`
+- `cargo test -p agent-diva-autodream --test service`
+- `cargo test -p agent-diva-agent --test mentle_governance_boundaries`
+- `just epic6-release-gate`
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added thin in-process metrics counters for Laputa governance writes/errors/rollbacks/failures and AutoDream manual runs/failures.
+- Added `just epic6-release-gate` to consolidate Story 6.5 release validation into one documented command path.
+- Added Mentle regression coverage proving v1 Mentle runtime selection remains compatible but does not own EVO-DIVA governance write flows.
+- Verified GUI review-surface availability with `cargo check -p agent-diva-gui` as part of the release gate.
 
 ### File List
+
+- agent-diva-laputa/src/metrics.rs
+- agent-diva-laputa/src/lib.rs
+- agent-diva-laputa/src/service.rs
+- agent-diva-laputa/tests/service.rs
+- agent-diva-autodream/src/metrics.rs
+- agent-diva-autodream/src/lib.rs
+- agent-diva-autodream/src/service.rs
+- agent-diva-autodream/tests/service.rs
+- agent-diva-agent/tests/mentle_governance_boundaries.rs
+- justfile
+- docs/logs/2026-06-epic6-release-gate/v0.0.1-metrics-and-release-gate-validation/summary.md
+- docs/logs/2026-06-epic6-release-gate/v0.0.1-metrics-and-release-gate-validation/verification.md
+- docs/logs/2026-06-epic6-release-gate/v0.0.1-metrics-and-release-gate-validation/release.md
+- docs/logs/2026-06-epic6-release-gate/v0.0.1-metrics-and-release-gate-validation/acceptance.md

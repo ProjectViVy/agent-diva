@@ -98,6 +98,17 @@ epic6-proof-check:
     cargo test -p agent-diva-laputa --test migration
     cargo test -p agent-diva-laputa --test apply
 
+# Story 6.5 release gate for EVO-DIVA governance readiness
+epic6-release-gate:
+    cargo test -p agent-diva-laputa --test direct_write_guard
+    cargo test -p agent-diva-laputa --test governance_proof_loop
+    cargo test -p agent-diva-laputa --test service
+    cargo test -p agent-diva-laputa --test mentle_governance
+    cargo test -p agent-diva-autodream --test service
+    cargo test -p agent-diva-autodream --test mentle_governance
+    cargo test -p agent-diva-agent --test mentle_governance_boundaries
+    cargo check -p agent-diva-gui
+
 # Install locally
 install:
     cargo install --path agent-diva-cli
