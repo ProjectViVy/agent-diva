@@ -24,9 +24,7 @@ const FORBIDDEN_PATTERNS: &[ForbiddenPattern] = &[
     ForbiddenPattern {
         needle: "IDENTITY.md",
     },
-    ForbiddenPattern {
-        needle: "SOUL.md",
-    },
+    ForbiddenPattern { needle: "SOUL.md" },
 ];
 
 const STATIC_SCAN_ROOTS: &[&str] = &[
@@ -127,7 +125,10 @@ fn collect_violations(scan_root: &Path, repo_root: &Path, violations: &mut Vec<S
                 continue;
             }
 
-            if !WRITE_CALL_MARKERS.iter().any(|marker| line.contains(marker)) {
+            if !WRITE_CALL_MARKERS
+                .iter()
+                .any(|marker| line.contains(marker))
+            {
                 continue;
             }
 

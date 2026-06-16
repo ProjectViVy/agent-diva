@@ -1,6 +1,5 @@
 use std::{
-    fs,
-    thread,
+    fs, thread,
     time::{Duration, Instant},
 };
 
@@ -140,7 +139,10 @@ fn lock_does_not_recover_live_owner_lock_file() {
 #[test]
 fn storage_atomic_write_and_lock_support_windows_safe_paths() {
     let temp = tempfile::tempdir().unwrap();
-    let workspace = temp.path().join("Windows Safe Workspace").join("nested.dir");
+    let workspace = temp
+        .path()
+        .join("Windows Safe Workspace")
+        .join("nested.dir");
     fs::create_dir_all(&workspace).unwrap();
     let storage = LaputaStorage::open(&workspace).unwrap();
     let section_path = storage.paths().section_file(LaputaSectionName::MemoryMd);

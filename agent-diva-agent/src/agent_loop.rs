@@ -1396,7 +1396,10 @@ mod tests {
             },
             ..Default::default()
         };
-        config.cron_service = Some(Arc::new(CronService::new(workspace.join("cron.json"), None)));
+        config.cron_service = Some(Arc::new(CronService::new(
+            workspace.join("cron.json"),
+            None,
+        )));
 
         agent.custom_tools = vec![Arc::new(NamedTool {
             name: "memtle_status",

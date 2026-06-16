@@ -58,8 +58,10 @@ const WRITE_ALLOWLIST: &[&str] = &[
     "agent-diva-autodream/src/worker.rs",
 ];
 
-const READ_ALLOWLIST: &[(&str, &str)] =
-    &[("agent-diva-agent/src/context.rs", "read_soul_file(\"bootstrap.md\")")];
+const READ_ALLOWLIST: &[(&str, &str)] = &[(
+    "agent-diva-agent/src/context.rs",
+    "read_soul_file(\"bootstrap.md\")",
+)];
 
 #[test]
 fn direct_write_guard_limits_authority_writes_to_allowlisted_boundaries() {
