@@ -1,10 +1,10 @@
 ---
-baseline_commit: 8a1114d
+baseline_commit: f5bbcf6
 ---
 
 # Story 6.4: Add End-to-End Governance Proof Loop
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,12 +20,12 @@ so that the core authority spine is proven before broader runtime consumption.
 
 ## Tasks / Subtasks
 
-- [ ] Add a named E2E test, for example `governance_proof_loop`, under the crate or integration test target that can exercise Laputa and manager boundaries. (AC: 1)
-- [ ] Create a valid proposal through the public service/API boundary; do not seed internal files except workspace fixtures. (AC: 1)
-- [ ] Approve and apply the proposal, then verify section content, changelog detail, audit event, and proposal state. (AC: 1)
-- [ ] Roll back the changelog, then verify section content returns to prior state, original changelog is marked reverted, and rollback audit/changelog records exist. (AC: 1)
-- [ ] Invoke or embed the direct-write guard from Story 6.3 so the proof loop fails if authority files were written outside Laputa. (AC: 2)
-- [ ] Document this test in iteration verification and the release-gate story as the minimum gate before Epic 5 prompt/report consumption is considered safe. (AC: 3)
+- [x] Add a named E2E test, for example `governance_proof_loop`, under the crate or integration test target that can exercise Laputa and manager boundaries. (AC: 1)
+- [x] Create a valid proposal through the public service/API boundary; do not seed internal files except workspace fixtures. (AC: 1)
+- [x] Approve and apply the proposal, then verify section content, changelog detail, audit event, and proposal state. (AC: 1)
+- [x] Roll back the changelog, then verify section content returns to prior state, original changelog is marked reverted, and rollback audit/changelog records exist. (AC: 1)
+- [x] Invoke or embed the direct-write guard from Story 6.3 so the proof loop fails if authority files were written outside Laputa. (AC: 2)
+- [x] Document this test in iteration verification and the release-gate story as the minimum gate before Epic 5 prompt/report consumption is considered safe. (AC: 3)
 
 ## Dev Notes
 
@@ -71,8 +71,26 @@ so that the core authority spine is proven before broader runtime consumption.
 
 ### Debug Log References
 
+- `CARGO_TARGET_DIR=/Users/mastwet/Desktop/morediva/agent-diva-pro/target CARGO_BUILD_JOBS=1 cargo test -p agent-diva-laputa governance_proof_loop`
+- `CARGO_TARGET_DIR=/Users/mastwet/Desktop/morediva/agent-diva-pro/target CARGO_BUILD_JOBS=1 cargo test -p agent-diva-laputa governance_direct_write_guard_only_allows_laputa_owned_authority_paths`
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added `agent-diva-laputa/tests/governance_proof_loop.rs` to prove create -> approve -> apply -> snapshot/changelog -> rollback -> audit event flow end to end through `LaputaService`.
+- Added `agent-diva-laputa/tests/direct_write_guard.rs` to keep EVO-DIVA authority-path writes constrained to Laputa-owned boundaries while avoiding false positives from read-only references and test fixtures.
+- Validation initially hit `No space left on device` in the isolated worktree target directory; reran targeted tests with shared `CARGO_TARGET_DIR` and single-job builds to complete verification without changing the implementation scope.
 
 ### File List
+
+- `agent-diva-laputa/tests/governance_proof_loop.rs`
+- `agent-diva-laputa/tests/direct_write_guard.rs`
+- `_bmad-output/implementation-artifacts/6-4-add-end-to-end-governance-proof-loop.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `docs/logs/2026-06-governance-proof-loop/v0.0.1-governance-proof-loop/summary.md`
+- `docs/logs/2026-06-governance-proof-loop/v0.0.1-governance-proof-loop/verification.md`
+- `docs/logs/2026-06-governance-proof-loop/v0.0.1-governance-proof-loop/release.md`
+- `docs/logs/2026-06-governance-proof-loop/v0.0.1-governance-proof-loop/acceptance.md`
+
+### Change Log
+
+- 2026-06-15: Added the named governance proof loop integration test, added the direct-write guard test, and documented the proof loop as the minimum release gate before prompt/report consumption.
