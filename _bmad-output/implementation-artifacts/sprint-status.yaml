@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-13T04:54:00+08:00
-last_updated: 2026-06-16T00:00:00+08:00
+last_updated: 2026-06-16T12:00:00+08:00
 project: agent-diva-pro
 project_key: NOKEY
 tracking_system: file-system
@@ -80,5 +80,5 @@ development_status:
   6-2-implement-recovery-conflict-and-typed-error-handling: review
   6-3-add-direct-write-and-filesystem-tests: review
   6-4-add-end-to-end-governance-proof-loop: review
-  6-5-add-metrics-and-release-gate-validation: ready-for-dev
+  6-5-add-metrics-and-release-gate-validation: review
   epic-6-retrospective: optional
