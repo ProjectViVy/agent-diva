@@ -37,6 +37,9 @@ vi.mock('lucide-vue-next', () => {
     Loader2: icon('Loader2'),
     AlertCircle: icon('AlertCircle'),
     Inbox: icon('Inbox'),
+    Search: icon('Search'),
+    Link2: icon('Link2'),
+    CheckSquare: icon('CheckSquare'),
   };
 });
 
@@ -137,6 +140,7 @@ describe('NotebookView', () => {
     expect(invokeMock).toHaveBeenCalledWith('preview_notebook_report_proposal', {
       reportId: 'daily:2026-06-14',
       action: 'sop',
+      sessionHits: [],
     });
     expect(
       invokeMock.mock.calls.some(([command]) => command === 'solidify_report_as_sop'),
@@ -156,7 +160,155 @@ describe('NotebookView', () => {
     expect(invokeMock).toHaveBeenCalledWith('create_notebook_report_proposal', {
       reportId: 'daily:2026-06-14',
       action: 'sop',
+      sessionHits: [],
     });
     expect(showAppToast).toHaveBeenCalledWith('notebook.proposalSuccess', 'success');
+  });
+
+  it('passes selected session hits into preview and creation commands', async () => {
+    invokeMock
+      .mockResolvedValueOnce([
+        {
+          id: 'daily:2026-06-14',
+          period: 'daily',
+          date: '2026-06-14',
+          title: 'Daily Reflection',
+          summary: 'Summary',
+          content: '# Daily Reflection\n\nSummary\n',
+        },
+      ])
+      .mockResolvedValueOnce({
+        hits: [
+          {
+            session_id: 'telegram:1',
+            timestamp: '2026-06-16T01:02:03Z',
+            snippet: 'launch preference confirmed',
+            source_uri: 'session://telegram%3A1?message_index=1',
+            hash: 'hash-1',
+            source: 'session',
+            snippet_truncated: false,
+            message_index: 1,
+          },
+        ],
+        diagnostics: [],
+        scanned_files: 1,
+        skipped_files: 0,
+        total_response_bytes: 120,
+        file_limit_reached: false,
+        result_limit_reached: false,
+        byte_limit_reached: false,
+      })
+      .mockResolvedValueOnce({
+        action: 'memory',
+        proposalType: 'memory_patch',
+        targetSection: 'memory_md',
+        extractedSummary: 'Summary',
+        evidenceRefs: [
+          { id: 'evidence-daily-2026-06-14', source: 'report', uri: 'report://daily' },
+          { id: 'session-evidence-hash-1', source: 'session', uri: 'session://telegram%3A1?message_index=1' },
+        ],
+        riskLevel: 'medium',
+        reviewStatus: 'pending_review',
+        proposedPatch: '{}',
+        needsAttentionReason: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'proposal-1',
+        state: 'pending_review',
+      });
+
+    const wrapper = mount(NotebookView);
+    await flushPromises();
+
+    await wrapper.find('.notebook-session-search-input').setValue('launch');
+    await wrapper.find('.notebook-session-search-btn').trigger('click');
+    await flushPromises();
+
+    await wrapper.find('.notebook-session-hit').trigger('click');
+    await flushPromises();
+
+    const buttons = wrapper.findAll('.notebook-action-btn');
+    await buttons[2].trigger('click');
+    await flushPromises();
+
+    expect(invokeMock).toHaveBeenCalledWith('preview_notebook_report_proposal', {
+      reportId: 'daily:2026-06-14',
+      action: 'memory',
+      sessionHits: [
+        {
+          session_id: 'telegram:1',
+          timestamp: '2026-06-16T01:02:03Z',
+          snippet: 'launch preference confirmed',
+          source_uri: 'session://telegram%3A1?message_index=1',
+          hash: 'hash-1',
+          source: 'session',
+          snippet_truncated: false,
+          message_index: 1,
+        },
+      ],
+    });
+
+    await wrapper.find('.notebook-preview-primary').trigger('click');
+    await flushPromises();
+
+    expect(invokeMock).toHaveBeenCalledWith('create_notebook_report_proposal', {
+      reportId: 'daily:2026-06-14',
+      action: 'memory',
+      sessionHits: [
+        {
+          session_id: 'telegram:1',
+          timestamp: '2026-06-16T01:02:03Z',
+          snippet: 'launch preference confirmed',
+          source_uri: 'session://telegram%3A1?message_index=1',
+          hash: 'hash-1',
+          source: 'session',
+          snippet_truncated: false,
+          message_index: 1,
+        },
+      ],
+    });
+  });
+
+  it('clears stale preview content when a new preview request fails', async () => {
+    invokeMock
+      .mockResolvedValueOnce([
+        {
+          id: 'daily:2026-06-14',
+          period: 'daily',
+          date: '2026-06-14',
+          title: 'Daily Reflection',
+          summary: 'Summary',
+          content: '# Daily Reflection\n\nSummary\n',
+        },
+      ])
+      .mockResolvedValueOnce({
+        action: 'sop',
+        proposalType: 'sop_create',
+        targetSection: 'identity',
+        extractedSummary: 'Summary',
+        evidenceRefs: [{ id: 'e1', source: 'report', uri: 'report://daily' }],
+        riskLevel: 'medium',
+        reviewStatus: 'pending_review',
+        proposedPatch: '{}',
+        needsAttentionReason: null,
+      })
+      .mockRejectedValueOnce(new Error('preview failed'));
+
+    const wrapper = mount(NotebookView);
+    await flushPromises();
+
+    const buttons = wrapper.findAll('.notebook-action-btn');
+    await buttons[0].trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.notebook-preview').exists()).toBe(true);
+
+    await wrapper.find('.notebook-preview-close').trigger('click');
+    await flushPromises();
+    await buttons[1].trigger('click');
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.find('.notebook-preview').exists()).toBe(false);
+    expect(showAppToast).toHaveBeenCalledWith('preview failed', 'error');
   });
 });

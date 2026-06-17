@@ -15,6 +15,9 @@ import {
   Loader2,
   AlertCircle,
   Inbox,
+  Search,
+  Link2,
+  CheckSquare,
 } from 'lucide-vue-next';
 import { showAppToast } from '../utils/appToast';
 
@@ -57,6 +60,34 @@ interface EvidenceRef {
   source: 'report' | string;
   uri: string;
   excerpt?: string | null;
+}
+
+interface SessionSearchHit {
+  session_id: string;
+  timestamp: string;
+  snippet: string;
+  source_uri: string;
+  hash: string;
+  source: 'session';
+  snippet_truncated: boolean;
+  message_index: number;
+}
+
+interface SessionSearchDiagnostic {
+  session_id?: string | null;
+  source_uri: string;
+  reason: string;
+}
+
+interface SessionSearchResponse {
+  hits: SessionSearchHit[];
+  diagnostics: SessionSearchDiagnostic[];
+  scanned_files: number;
+  skipped_files: number;
+  total_response_bytes: number;
+  file_limit_reached: boolean;
+  result_limit_reached: boolean;
+  byte_limit_reached: boolean;
 }
 
 interface NotebookProposalPreview {
@@ -104,6 +135,11 @@ const previewBusy = ref(false);
 const proposalPreview = ref<NotebookProposalPreview | null>(null);
 const proposalPreviewAction = ref<NotebookProposalAction | null>(null);
 const createdProposalId = ref<string | null>(null);
+const sessionQuery = ref('');
+const sessionSearchBusy = ref(false);
+const sessionSearchError = ref('');
+const sessionHits = ref<SessionSearchHit[]>([]);
+const selectedSessionHitKeys = ref<string[]>([]);
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -148,6 +184,10 @@ const proposalActionLabels: Record<NotebookProposalAction, string> = {
   skill: 'notebook.createSkillProposal',
   memory: 'notebook.createMemoryProposal',
 };
+
+const selectedSessionHits = computed(() =>
+  sessionHits.value.filter((hit) => selectedSessionHitKeys.value.includes(sessionHitKey(hit))),
+);
 
 // --- Data fetching ---
 async function fetchReports() {
@@ -211,6 +251,54 @@ function retry() {
   fetchReports();
 }
 
+function sessionHitKey(hit: SessionSearchHit) {
+  return hit.hash;
+}
+
+function toggleSessionHit(hit: SessionSearchHit) {
+  const key = sessionHitKey(hit);
+  if (selectedSessionHitKeys.value.includes(key)) {
+    selectedSessionHitKeys.value = selectedSessionHitKeys.value.filter((item) => item !== key);
+  } else {
+    selectedSessionHitKeys.value = [...selectedSessionHitKeys.value, key];
+  }
+}
+
+function clearSessionEvidenceSelection() {
+  selectedSessionHitKeys.value = [];
+}
+
+async function searchSessionEvidence() {
+  sessionSearchBusy.value = true;
+  sessionSearchError.value = '';
+  try {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const response = await invoke<SessionSearchResponse>('search_notebook_session_evidence_command', {
+        request: {
+          query: sessionQuery.value,
+          maxResults: 8,
+          maxSnippetChars: 180,
+          maxTotalBytes: 12_000,
+        },
+      });
+      sessionHits.value = response.hits;
+      const validKeys = new Set(response.hits.map(sessionHitKey));
+      selectedSessionHitKeys.value = selectedSessionHitKeys.value.filter((key) => validKeys.has(key));
+      if (response.diagnostics.length > 0) {
+        showAppToast(t('notebook.sessionDiagnostics', { count: response.diagnostics.length }), 'error');
+      }
+    } else {
+      sessionHits.value = [];
+    }
+  } catch (e: unknown) {
+    sessionHits.value = [];
+    sessionSearchError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    sessionSearchBusy.value = false;
+  }
+}
+
 // --- Bottom bar actions ---
 async function openProposalPreview(action: NotebookProposalAction) {
   if (!selectedReport.value) return;
@@ -223,11 +311,14 @@ async function openProposalPreview(action: NotebookProposalAction) {
       proposalPreview.value = await invoke<NotebookProposalPreview>('preview_notebook_report_proposal', {
         reportId: selectedReport.value.id,
         action,
+        sessionHits: selectedSessionHits.value,
       });
     } else {
       proposalPreview.value = buildBrowserPreview(action, selectedReport.value);
     }
   } catch (e: unknown) {
+    proposalPreview.value = null;
+    createdProposalId.value = null;
     showAppToast(e instanceof Error ? e.message : String(e), 'error');
   } finally {
     previewBusy.value = false;
@@ -249,6 +340,7 @@ async function submitProposalPreview() {
       const proposal = await invoke<EvolutionProposal>('create_notebook_report_proposal', {
         reportId: selectedReport.value.id,
         action: proposalPreviewAction.value,
+        sessionHits: selectedSessionHits.value,
       });
       createdProposalId.value = proposal.id;
     } else {
@@ -283,7 +375,8 @@ function buildBrowserPreview(action: NotebookProposalAction, report: NotebookRep
 }
 
 // --- Truncation helper ---
-function truncate(text: string, max: number): string {
+function truncate(text: string | undefined | null, max: number): string {
+  if (!text) return '';
   if (text.length <= max) return text;
   return text.slice(0, max) + '…';
 }
@@ -417,6 +510,67 @@ onUnmounted(() => {
             }) }}
           </div>
           <div class="notebook-markdown markdown-body" v-html="renderedContent" />
+
+          <section class="notebook-session-evidence">
+            <div class="notebook-session-evidence-header">
+              <div class="notebook-session-evidence-title">
+                <Link2 :size="15" />
+                <span>{{ t('notebook.sessionEvidenceTitle') }}</span>
+              </div>
+              <div v-if="selectedSessionHits.length" class="notebook-session-selection-count">
+                <CheckSquare :size="14" />
+                <span>{{ t('notebook.sessionEvidenceSelected', { count: selectedSessionHits.length }) }}</span>
+              </div>
+            </div>
+
+            <div class="notebook-session-evidence-search">
+              <input
+                v-model="sessionQuery"
+                class="notebook-session-search-input"
+                :placeholder="t('notebook.sessionEvidencePlaceholder')"
+                @keydown.enter.prevent="searchSessionEvidence"
+              />
+              <button
+                class="notebook-session-search-btn"
+                :disabled="sessionSearchBusy || !sessionQuery.trim()"
+                type="button"
+                @click="searchSessionEvidence"
+              >
+                <Loader2 v-if="sessionSearchBusy" :size="14" class="spin" />
+                <Search v-else :size="14" />
+                <span>{{ t('notebook.sessionEvidenceSearch') }}</span>
+              </button>
+              <button
+                v-if="selectedSessionHitKeys.length"
+                class="notebook-session-clear-btn"
+                type="button"
+                @click="clearSessionEvidenceSelection"
+              >
+                {{ t('notebook.sessionEvidenceClear') }}
+              </button>
+            </div>
+
+            <p v-if="sessionSearchError" class="notebook-session-error">{{ sessionSearchError }}</p>
+            <p v-else-if="!sessionSearchBusy && sessionQuery.trim() && sessionHits.length === 0" class="notebook-session-empty">
+              {{ t('notebook.sessionEvidenceEmpty') }}
+            </p>
+
+            <ul v-if="sessionHits.length" class="notebook-session-hit-list">
+              <li
+                v-for="hit in sessionHits"
+                :key="sessionHitKey(hit)"
+                class="notebook-session-hit"
+                :class="{ selected: selectedSessionHitKeys.includes(sessionHitKey(hit)) }"
+                @click="toggleSessionHit(hit)"
+              >
+                <div class="notebook-session-hit-meta">
+                  <span>{{ hit.session_id }}</span>
+                  <span>{{ hit.timestamp }}</span>
+                </div>
+                <div class="notebook-session-hit-snippet">{{ hit.snippet }}</div>
+              </li>
+            </ul>
+          </section>
         </div>
       </div>
     </div>
@@ -703,6 +857,112 @@ onUnmounted(() => {
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.notebook-session-evidence {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.notebook-session-evidence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.notebook-session-evidence-title,
+.notebook-session-selection-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notebook-session-selection-count {
+  color: var(--accent);
+}
+
+.notebook-session-evidence-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.notebook-session-search-input {
+  flex: 1;
+  min-width: 220px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.notebook-session-search-btn,
+.notebook-session-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.notebook-session-search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.notebook-session-hit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notebook-session-hit {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: var(--panel-solid);
+}
+
+.notebook-session-hit.selected {
+  border-color: var(--accent-border);
+  background: var(--accent-bg-light);
+}
+
+.notebook-session-hit-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.notebook-session-hit-snippet,
+.notebook-session-error,
+.notebook-session-empty {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 .notebook-markdown :deep(p) {

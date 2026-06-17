@@ -43,11 +43,13 @@ const props = withDefaults(
     initialTab?: EvolutionTab;
     initialProposalId?: string | null;
     initialSourceRunId?: string | null;
+    requestKey?: string | null;
   }>(),
   {
     initialTab: 'inbox',
     initialProposalId: null,
     initialSourceRunId: null,
+    requestKey: null,
   },
 );
 
@@ -87,6 +89,7 @@ const actionError = ref<string | null>(null);
 const busyAction = ref<string | null>(null);
 const evidenceOpen = ref(false);
 const activeSourceRunId = ref<string | null>(props.initialSourceRunId ?? null);
+const pendingDeepLinkProposalId = ref<string | null>(null);
 const readProposalIds = ref<string[]>([]);
 const deferredProposalIds = ref<string[]>([]);
 const auditRecords = ref<ChangelogRecord[]>([]);
@@ -428,11 +431,11 @@ async function refresh() {
       ? proposalList.filter((proposal) => proposal.source_run_id === activeSourceRunId.value)
       : proposalList;
 
-    if (
-      props.initialProposalId &&
-      candidateList.some((proposal) => proposal.id === props.initialProposalId)
-    ) {
-      selectedProposalId.value = props.initialProposalId;
+    const deepLinkId = pendingDeepLinkProposalId.value ?? props.initialProposalId;
+
+    if (deepLinkId && candidateList.some((proposal) => proposal.id === deepLinkId)) {
+      selectedProposalId.value = deepLinkId;
+      pendingDeepLinkProposalId.value = null;
     } else if (!selectedProposalId.value && candidateList.length > 0) {
       selectedProposalId.value = candidateList[0].id;
     } else if (
@@ -467,7 +470,7 @@ function applyDeepLink() {
   activeTab.value = props.initialTab;
   activeSourceRunId.value = props.initialSourceRunId ?? null;
   if (props.initialProposalId) {
-    selectedProposalId.value = props.initialProposalId;
+    pendingDeepLinkProposalId.value = props.initialProposalId;
   }
 }
 
@@ -671,10 +674,11 @@ watch(activeTab, async (tab) => {
 });
 
 watch(
-  () => [props.initialTab, props.initialProposalId, props.initialSourceRunId] as const,
-  () => {
+  () => [props.initialTab, props.initialProposalId, props.initialSourceRunId, props.requestKey] as const,
+  async () => {
     applyDeepLink();
-  },
+    await refresh();
+  }
 );
 
 onMounted(async () => {

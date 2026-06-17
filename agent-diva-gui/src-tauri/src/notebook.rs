@@ -153,8 +153,16 @@ pub fn load_notebook_reports(
             continue;
         }
 
-        let report = parse_report_file(workspace, &path, period)?;
-        reports.push(report);
+        match parse_report_file(workspace, &path, period) {
+            Ok(report) => reports.push(report),
+            Err(error) => {
+                tracing::warn!(
+                    report_path = %path.display(),
+                    report_period = %period.id_prefix(),
+                    "skipping malformed notebook report: {error}"
+                );
+            }
+        }
     }
 
     reports.sort_by(|left, right| {
@@ -196,7 +204,7 @@ pub fn build_notebook_report_proposal(
         proposed_patch: preview.proposed_patch,
         risk_level: preview.risk_level,
         state: preview.review_status,
-        source_run_id: Some(report.id),
+        source_run_id: None,
     })
 }
 
@@ -906,6 +914,41 @@ Should not be read.
     }
 
     #[test]
+    fn skips_malformed_reports_and_keeps_valid_entries_visible() {
+        let temp = tempfile::tempdir().unwrap();
+        write_report(
+            &temp
+                .path()
+                .join(".agent-diva/autodream/reports/daily/2026-06-14.md"),
+            "---
+period: daily
+date: 2026-06-14
+---
+
+# Valid Report
+
+Summary paragraph.
+",
+        );
+        write_report(
+            &temp
+                .path()
+                .join(".agent-diva/autodream/reports/daily/2026-06-15.md"),
+            "---
+period: daily
+date: [broken
+---
+
+# Broken Report
+",
+        );
+
+        let reports = load_notebook_reports(temp.path(), NotebookPeriod::Daily).unwrap();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].id, "daily:2026-06-14");
+    }
+
+    #[test]
     fn truncates_large_markdown_before_returning_to_renderer() {
         let temp = tempfile::tempdir().unwrap();
         let mut content = String::from(
@@ -1035,6 +1078,7 @@ Standard operating procedure for reviewing reports.
         assert_eq!(proposal.state, ProposalState::PendingReview);
         assert!(proposal.proposed_patch.contains("\"sub_target\": \"sop\""));
         assert_eq!(proposal.evidence_refs[0].source, EvidenceSource::Report);
+        assert_eq!(proposal.source_run_id, None);
     }
 
     #[test]
@@ -1157,6 +1201,7 @@ Memory: persist the concise report preference.
             temp.path(),
             "daily:2026-06-16",
             NotebookProposalAction::Memory,
+            None,
         )
         .unwrap();
         let _proposal = build_notebook_report_proposal(
@@ -1164,6 +1209,7 @@ Memory: persist the concise report preference.
             "daily:2026-06-16",
             NotebookProposalAction::Memory,
             "notebook",
+            None,
         )
         .unwrap();
 

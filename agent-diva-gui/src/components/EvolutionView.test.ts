@@ -121,6 +121,10 @@ function mountView() {
   return mount(EvolutionView);
 }
 
+function mountViewWithProps(props?: Record<string, unknown>) {
+  return mount(EvolutionView, { props });
+}
+
 describe('EvolutionView governance detail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -429,5 +433,30 @@ describe('EvolutionView governance detail', () => {
     expect(wrapper.find('[data-testid="proposal-row-proposal-1"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="proposal-row-proposal-2"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="proposal-row-proposal-1"]').classes()).toContain('active');
+  });
+
+  it('resolves notebook deep-link detail after proposals refresh', async () => {
+    vi.mocked(listLaputaProposals)
+      .mockResolvedValueOnce([baseProposal])
+      .mockResolvedValueOnce([
+        { ...baseProposal, id: 'proposal-2', evidence_refs: [{ id: 'e1', source: 'report', uri: 'file://x', created_at: '2026-06-14T00:00:00Z' }] },
+        baseProposal,
+      ]);
+
+    const wrapper = mountViewWithProps({
+      initialTab: 'inbox',
+      initialProposalId: 'proposal-2',
+      requestKey: 'req-1',
+    });
+    await flushPromises();
+
+    await wrapper.setProps({
+      initialTab: 'inbox',
+      initialProposalId: 'proposal-2',
+      requestKey: 'req-2',
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('proposal-2');
   });
 });

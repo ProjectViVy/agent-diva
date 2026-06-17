@@ -411,7 +411,10 @@ const isSectionActive = (section: SidebarSection) => {
 };
 
 const openEvolutionDeepLink = (payload: ChatGovernanceDeepLink) => {
-  evolutionDeepLink.value = payload;
+  evolutionDeepLink.value = {
+    ...payload,
+    requestKey: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  };
   navigateTo('evolution');
 };
 

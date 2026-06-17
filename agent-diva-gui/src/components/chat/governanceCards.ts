@@ -10,6 +10,7 @@ export interface ChatGovernanceDeepLink {
   tab: 'inbox' | 'runs' | 'audit' | 'policy';
   proposalId?: string | null;
   sourceRunId?: string | null;
+  requestKey?: string | null;
 }
 
 export interface ChatAutoDreamRunCard {
