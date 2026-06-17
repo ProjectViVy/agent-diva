@@ -9,6 +9,8 @@ use agent_diva_laputa::{
 };
 use chrono::{DateTime, Utc};
 
+mod authority_boundary_guard;
+
 fn ts(seconds: u32) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&format!("2026-06-15T00:04:{seconds:02}Z"))
         .unwrap()
@@ -144,10 +146,7 @@ fn governance_proof_loop() {
     .unwrap();
     assert_eq!(rollback_audit.kind, AuditEventKind::RollbackApplied);
 
-    assert_no_direct_authority_writes_outside_laputa(workspace);
-}
-
-fn assert_no_direct_authority_writes_outside_laputa(workspace: &std::path::Path) {
+    authority_boundary_guard::assert_authority_boundaries();
     let forbidden = [
         workspace.join("MEMORY.md"),
         workspace.join("memory").join("MEMORY.md"),

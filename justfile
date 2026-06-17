@@ -100,6 +100,7 @@ epic6-proof-check:
 
 # Story 6.5 release gate for EVO-DIVA governance readiness
 epic6-release-gate:
+    cargo test -p agent-diva-laputa --test authority_boundaries
     cargo test -p agent-diva-laputa --test direct_write_guard
     cargo test -p agent-diva-laputa --test governance_proof_loop
     cargo test -p agent-diva-laputa --test service

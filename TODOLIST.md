@@ -29,16 +29,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Laputa read APIs should surface the actual current schema version so callers do not make compatibility or migration decisions from stale version data.
   - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/service.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
 
-- [ ] Remove the broad production-file allowlist from the governance direct-write guard.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.4 direct-write guard was found to exempt whole production files including `context.rs`, `subagent.rs`, and `notebook.rs`. That allowlist can hide future forbidden authority-path writes in exactly the runtime surfaces the guard is meant to protect.
-  - Expected behavior: The direct-write guard should use narrow, justified exceptions instead of blanket production-file exemptions so new authority-path writes fail the regression suite.
-  - Related files/docs: `agent-diva-laputa/tests/direct_write_guard.rs`, `_bmad-output/implementation-artifacts/6-4-add-end-to-end-governance-proof-loop.md`.
-
-- [ ] Make the governance proof loop invoke the Story 6.3 authority-boundary guard instead of only checking a few output files.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.4 `governance_proof_loop` was found to assert only that a short list of external files was not written. It does not actually embed or call the direct-write/read boundary guard from Story 6.3, so AC2 is not fully proven.
-  - Expected behavior: The named proof loop should fail whenever the Story 6.3 authority-boundary regression suite would fail, not only when a few hand-picked files appear in the temp workspace.
-  - Related files/docs: `agent-diva-laputa/tests/governance_proof_loop.rs`, `agent-diva-laputa/tests/authority_boundaries.rs`, `agent-diva-laputa/tests/direct_write_guard.rs`, `_bmad-output/implementation-artifacts/6-4-add-end-to-end-governance-proof-loop.md`.
-
 - [ ] Add `authority_boundaries` coverage to `just epic6-release-gate`.
   - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 release-gate command was found to run `direct_write_guard` and the proof loop, but it omits the `authority_boundaries` test suite introduced by Story 6.3. The documented gate therefore does not actually verify the full direct read/write boundary before declaring release readiness.
   - Expected behavior: The Epic 6 release gate should include the direct authority-boundary regression suite alongside proof-loop, service, Mentle, AutoDream, and GUI checks.
@@ -151,6 +141,16 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
 ## Done
+
+- [x] Remove the broad production-file allowlist from the governance direct-write guard.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.4 direct-write guard was found to exempt whole production files including `context.rs`, `subagent.rs`, and `notebook.rs`. That allowlist could hide future forbidden authority-path writes in exactly the runtime surfaces the guard is meant to protect.
+  - Completed: Replaced the file allowlist with a shared authority-boundary guard and kept only the explicit bootstrap snippet exception for the legacy read path.
+  - Related files/docs: `agent-diva-laputa/tests/direct_write_guard.rs`, `agent-diva-laputa/tests/authority_boundary_guard.rs`, `agent-diva-laputa/tests/authority_boundaries.rs`, `_bmad-output/implementation-artifacts/6-4-add-end-to-end-governance-proof-loop.md`.
+
+- [x] Make the governance proof loop invoke the Story 6.3 authority-boundary guard instead of only checking a few output files.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.4 `governance_proof_loop` was found to assert only that a short list of external files was not written. It did not actually embed or call the direct-write/read boundary guard from Story 6.3, so AC2 was not fully proven.
+  - Completed: `governance_proof_loop` now calls the shared authority-boundary guard directly before the legacy file absence checks.
+  - Related files/docs: `agent-diva-laputa/tests/governance_proof_loop.rs`, `agent-diva-laputa/tests/authority_boundary_guard.rs`, `agent-diva-laputa/tests/authority_boundaries.rs`, `agent-diva-laputa/tests/direct_write_guard.rs`, `_bmad-output/implementation-artifacts/6-4-add-end-to-end-governance-proof-loop.md`.
 
 - [x] Fix current Story 5.2 validation blockers outside Mentle governance exclusion.
   - Context: During Story 5.2 validation on 2026-06-15, targeted 5.2 guardrails passed, but full story-required validation was blocked by unrelated current test failures. `cargo test -p agent-diva-autodream` failed in `inputs::tests::collector_marks_compaction_capsules_as_secondary_evidence`, and `cargo test -p agent-diva-laputa` failed to compile existing tests because `LaputaMigrationTestFailure::AfterSectionCommitBeforeState` and `LaputaService::apply_proposal_with_options` were absent.
