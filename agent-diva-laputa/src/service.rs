@@ -24,7 +24,6 @@ use crate::{
     Result,
 };
 
-const SNAPSHOT_SCHEMA_VERSION: &str = "1.0.0";
 const ROLLBACK_WINDOW: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 static LAPUTA_METRICS: OnceLock<LaputaMetrics> = OnceLock::new();
@@ -126,6 +125,7 @@ impl LaputaService {
     }
 
     pub fn read_snapshot(&self, since: Option<DateTime<Utc>>) -> Result<LaputaSnapshot> {
+        let schema_version = self.schema_version()?;
         let mut sections = BTreeMap::new();
         let mut updated_at = None;
         let mut changed_sections = Vec::new();
@@ -150,7 +150,7 @@ impl LaputaService {
         }
 
         Ok(LaputaSnapshot {
-            schema_version: SNAPSHOT_SCHEMA_VERSION.to_string(),
+            schema_version,
             sections,
             changed_sections,
             updated_at,
@@ -176,7 +176,7 @@ impl LaputaService {
                 "content_type": section_content_type(&name),
             }),
             last_modified,
-            version: SNAPSHOT_SCHEMA_VERSION.to_string(),
+            version: self.schema_version()?,
         })
     }
 
@@ -433,6 +433,15 @@ impl LaputaService {
             append_jsonl(self.storage.paths().events_jsonl(), &overflow)?;
         }
         Ok(())
+    }
+
+    fn schema_version(&self) -> Result<String> {
+        let state = read_json_file::<serde_json::Value>(self.storage.paths().state_json())?;
+        Ok(state
+            .get("schema_version")
+            .and_then(|value| value.as_str())
+            .unwrap_or("1.0.0")
+            .to_string())
     }
 }
 

@@ -4,31 +4,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
-- [ ] Hold the Laputa global write lock during legacy migration commits.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration was found to write section files and `state.json` without taking the same Laputa write lock used by apply/rollback flows. This means migration can race normal governance writes and violate the single durable authority write boundary.
-  - Expected behavior: Migration should use the same write-lock discipline as apply and rollback so section/state commits cannot interleave with normal governance mutations.
-  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/proposals.rs`, `agent-diva-laputa/src/service.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
-
-- [ ] Preserve existing `state.json` fields when updating Laputa schema version during migration.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration was found to rewrite `state.json` with a migration-only JSON payload containing `schema_version` and `legacy_migration`, instead of reading and updating the existing state document.
-  - Expected behavior: Migration should merge the new schema version and migration metadata into the existing state payload instead of silently dropping unrelated top-level state fields.
-  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
-
-- [ ] Discover and migrate root-level legacy `MEMORY.md` and `HISTORY.md` files, not only `memory/` copies.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 legacy source discovery was found to scan `memory/MEMORY.md` and `memory/HISTORY.md` but not root-level `MEMORY.md` or `HISTORY.md`, even though other governance tests still treat root-level authority files as real legacy paths.
-  - Expected behavior: Legacy discovery should back up and migrate all supported authority-file locations used by current workspaces, including root-level memory/history files where they still exist.
-  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/tests/governance_proof_loop.rs`, `agent-diva-laputa/tests/migration.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
-
-- [ ] Stop treating `BOOTSTRAP.md` as runtime prompt authority after Laputa migration/import.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 marked `BOOTSTRAP.md` as bootstrap-only migration input, but runtime prompt assembly still reads and injects `BOOTSTRAP.md` directly after migration. This leaves a legacy prompt-authority path outside Laputa.
-  - Expected behavior: Once bootstrap import/migration is complete, `BOOTSTRAP.md` should no longer act as ongoing runtime authority unless an explicit compatibility path owns that behavior.
-  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-agent/src/context.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
-
-- [ ] Return the migrated Laputa schema version through read APIs instead of hardcoding `1.0.0`.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration wrote schema version `1.1.0` into state, but `LaputaService` snapshot/section responses still report hardcoded schema version `1.0.0`.
-  - Expected behavior: Laputa read APIs should surface the actual current schema version so callers do not make compatibility or migration decisions from stale version data.
-  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/service.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
-
 - [ ] Add `authority_boundaries` coverage to `just epic6-release-gate`.
   - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 release-gate command was found to run `direct_write_guard` and the proof loop, but it omits the `authority_boundaries` test suite introduced by Story 6.3. The documented gate therefore does not actually verify the full direct read/write boundary before declaring release readiness.
   - Expected behavior: The Epic 6 release gate should include the direct authority-boundary regression suite alongside proof-loop, service, Mentle, AutoDream, and GUI checks.
@@ -141,6 +116,31 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
 ## Done
+
+- [x] Hold the Laputa global write lock during legacy migration commits.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration was found to write section files and `state.json` without taking the same Laputa write lock used by apply/rollback flows. This means migration can race normal governance writes and violate the single durable authority write boundary.
+  - Completed: Migration now acquires the Laputa proposals write lock before staging and committing section/state writes, matching the apply/rollback governance boundary.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/proposals.rs`, `agent-diva-laputa/src/service.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [x] Preserve existing `state.json` fields when updating Laputa schema version during migration.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration was found to rewrite `state.json` with a migration-only JSON payload containing `schema_version` and `legacy_migration`, instead of reading and updating the existing state document.
+  - Completed: Migration now merges the upgraded schema version and `legacy_migration` metadata into the existing state payload instead of dropping unrelated top-level fields.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [x] Discover and migrate root-level legacy `MEMORY.md` and `HISTORY.md` files, not only `memory/` copies.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 legacy source discovery was found to scan `memory/MEMORY.md` and `memory/HISTORY.md` but not root-level `MEMORY.md` or `HISTORY.md`, even though other governance tests still treat root-level authority files as real legacy paths.
+  - Completed: Legacy discovery now includes root-level `MEMORY.md` and `HISTORY.md` alongside the nested `memory/` copies.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/tests/governance_proof_loop.rs`, `agent-diva-laputa/tests/migration.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [x] Stop treating `BOOTSTRAP.md` as runtime prompt authority after Laputa migration/import.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 marked `BOOTSTRAP.md` as bootstrap-only migration input, but runtime prompt assembly still reads and injects `BOOTSTRAP.md` directly after migration. This leaves a legacy prompt-authority path outside Laputa.
+  - Completed: `BOOTSTRAP.md` is no longer injected into the runtime prompt; the builder only marks bootstrap completion state when bootstrap gating is active.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-agent/src/context.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [x] Return the migrated Laputa schema version through read APIs instead of hardcoding `1.0.0`.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration wrote schema version `1.1.0` into state, but `LaputaService` snapshot/section responses still report hardcoded schema version `1.0.0`.
+  - Completed: Laputa read APIs now surface the schema version stored in `.laputa/state.json` so callers see the migrated value.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/service.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
 
 - [x] Remove the broad production-file allowlist from the governance direct-write guard.
   - Context: During Epic 6 combined review on 2026-06-17, Story 6.4 direct-write guard was found to exempt whole production files including `context.rs`, `subagent.rs`, and `notebook.rs`. That allowlist could hide future forbidden authority-path writes in exactly the runtime surfaces the guard is meant to protect.

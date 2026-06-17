@@ -21,6 +21,58 @@ fn migration_new_install_with_no_legacy_sources_is_noop_but_records_state() {
 }
 
 #[test]
+fn migration_merges_existing_state_fields_when_upgrading_schema() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join(".laputa")).unwrap();
+    fs::write(
+        temp.path().join(".laputa/state.json"),
+        r#"{"schema_version":"1.0.0","kept":"yes","nested":{"value":1}}"#,
+    )
+    .unwrap();
+    fs::write(temp.path().join("MEMORY.md"), "remember me").unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+
+    LaputaMigration::new(storage.clone())
+        .run(LaputaMigrationOptions::default())
+        .unwrap();
+
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(storage.paths().state_json()).unwrap()).unwrap();
+    assert_eq!(state["schema_version"], "1.1.0");
+    assert_eq!(state["kept"], "yes");
+    assert_eq!(state["nested"]["value"], 1);
+    assert!(state["legacy_migration"]["source_count"].as_u64().unwrap() >= 1);
+}
+
+#[test]
+fn migration_discovers_root_level_memory_and_history_sources() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join("MEMORY.md"), "root memory").unwrap();
+    fs::write(temp.path().join("HISTORY.md"), "root history").unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+
+    let outcome = LaputaMigration::new(storage.clone())
+        .run(LaputaMigrationOptions::default())
+        .unwrap();
+
+    assert!(outcome
+        .backed_up_sources
+        .iter()
+        .any(|source| source.source_path.ends_with("MEMORY.md")));
+    assert!(outcome
+        .backed_up_sources
+        .iter()
+        .any(|source| source.source_path.ends_with("HISTORY.md")));
+
+    let memory =
+        fs::read_to_string(storage.paths().section_file(LaputaSectionName::MemoryMd)).unwrap();
+    assert!(memory.contains("root memory"));
+    let history =
+        fs::read_to_string(storage.paths().section_file(LaputaSectionName::HistoryMd)).unwrap();
+    assert!(history.contains("root history"));
+}
+
+#[test]
 fn migration_copies_legacy_sources_and_maps_supported_sections() {
     let temp = tempfile::tempdir().unwrap();
     fs::create_dir_all(temp.path().join("memory")).unwrap();
@@ -64,6 +116,24 @@ fn migration_copies_legacy_sources_and_maps_supported_sections() {
     assert!(identity.contains("explicit identity"));
     assert!(!identity.contains("bootstrap only"));
     assert!(!identity.contains("BOOTSTRAP.md"));
+}
+
+#[test]
+fn migration_marks_bootstrap_as_input_only_without_runtime_section_output() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join("BOOTSTRAP.md"), "bootstrap only").unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+
+    let outcome = LaputaMigration::new(storage.clone())
+        .run(LaputaMigrationOptions::default())
+        .unwrap();
+
+    assert!(outcome
+        .backed_up_sources
+        .iter()
+        .any(|source| source.source_path.ends_with("BOOTSTRAP.md")));
+    let section_names = outcome.written_sections;
+    assert!(!section_names.contains(&"bootstrap".to_string()));
 }
 
 #[test]

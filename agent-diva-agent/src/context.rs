@@ -254,19 +254,13 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         }
 
         if self.soul_settings.enabled && self.should_include_bootstrap() {
-            if let Some(content) = self.read_soul_file("BOOTSTRAP.md") {
-                let _ = SoulStateStore::new(&self.workspace).mark_bootstrap_seeded();
-                self.append_section(prompt, "Bootstrap", &content);
-            }
+            let _ = SoulStateStore::new(&self.workspace).mark_bootstrap_seeded();
         }
     }
 
     fn should_include_bootstrap(&self) -> bool {
-        if !self.soul_settings.bootstrap_once {
-            return true;
-        }
-        let store = SoulStateStore::new(&self.workspace);
-        !store.is_bootstrap_completed()
+        self.soul_settings.bootstrap_once
+            && !SoulStateStore::new(&self.workspace).is_bootstrap_completed()
     }
 
     fn read_soul_file(&self, rel: &str) -> Option<String> {
@@ -773,7 +767,7 @@ mod tests {
 
         assert!(prompt.contains("## Agent Rules"));
         assert!(prompt.contains("# Repo Rules"));
-        assert!(prompt.contains("## Bootstrap"));
+        assert!(!prompt.contains("## Bootstrap"));
         assert!(!prompt.contains("## Soul"));
         assert!(!prompt.contains("## Identity"));
         assert!(!prompt.contains("## User Profile"));

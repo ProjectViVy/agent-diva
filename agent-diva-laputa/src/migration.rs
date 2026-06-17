@@ -6,7 +6,7 @@ use std::{
 
 use agent_diva_core::evolution::LaputaSectionName;
 use chrono::{DateTime, Utc};
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::{atomic_write_json, LaputaError, LaputaStorage, Result};
 
@@ -58,6 +58,10 @@ impl LaputaMigration {
         migrated_at: DateTime<Utc>,
         test_failure: Option<LaputaMigrationTestFailure>,
     ) -> Result<LaputaMigrationOutcome> {
+        let _guard = crate::LaputaLock::acquire(
+            self.storage.paths().lock_file("proposals"),
+            crate::LockOptions::default(),
+        )?;
         let mut outcome = LaputaMigrationOutcome::default();
         let mut section_entries = BTreeMap::<String, (LaputaSectionName, Vec<SectionEntry>)>::new();
         let mut section_status = BTreeMap::<String, &'static str>::new();
@@ -116,14 +120,12 @@ impl LaputaMigration {
         let staged_state = staging_dir.join("state.json");
         atomic_write_json(
             &staged_state,
-            &json!({
-                "schema_version": MIGRATED_SCHEMA_VERSION,
-                "legacy_migration": {
-                    "migrated_at": migrated_at,
-                    "source_count": sources.len(),
-                    "backup_dir": backup_dir,
-                }
-            }),
+            &merged_state_json(
+                &self.storage.paths().state_json(),
+                migrated_at,
+                sources.len(),
+                backup_dir,
+            )?,
         )?;
 
         if test_failure == Some(LaputaMigrationTestFailure::AfterStagingBeforeCommit) {
@@ -153,14 +155,12 @@ impl LaputaMigration {
         }
         atomic_write_json(
             self.storage.paths().state_json(),
-            &json!({
-                "schema_version": MIGRATED_SCHEMA_VERSION,
-                "legacy_migration": {
-                    "migrated_at": migrated_at,
-                    "source_count": sources.len(),
-                    "backup_dir": backup_dir,
-                }
-            }),
+            &merged_state_json(
+                &self.storage.paths().state_json(),
+                migrated_at,
+                sources.len(),
+                backup_dir,
+            )?,
         )
         .inspect_err(|_| {
             restore_files(&section_recovery);
@@ -303,6 +303,18 @@ fn discover_legacy_sources(workspace_root: &Path) -> Result<Vec<LaputaMigrationS
             },
         ),
         (
+            "MEMORY.md",
+            LaputaMigrationSourceKind::Supported {
+                section: LaputaSectionName::MemoryMd,
+            },
+        ),
+        (
+            "HISTORY.md",
+            LaputaMigrationSourceKind::Supported {
+                section: LaputaSectionName::HistoryMd,
+            },
+        ),
+        (
             "memory/MEMORY.md",
             LaputaMigrationSourceKind::Supported {
                 section: LaputaSectionName::MemoryMd,
@@ -393,4 +405,36 @@ fn cleanup_staging_dir(staging_dir: &Path) -> Result<()> {
 
 fn windows_safe_timestamp(timestamp: DateTime<Utc>) -> String {
     timestamp.format("%Y%m%dT%H%M%SZ").to_string()
+}
+
+fn merged_state_json(
+    state_path: &Path,
+    migrated_at: DateTime<Utc>,
+    source_count: usize,
+    backup_dir: &Path,
+) -> Result<Value> {
+    let mut state = match fs::read_to_string(state_path) {
+        Ok(content) => serde_json::from_str(&content)?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => json!({}),
+        Err(source) => return Err(LaputaError::io(state_path, source)),
+    };
+
+    if !state.is_object() {
+        state = json!({ "legacy_state": state });
+    }
+
+    let obj = state.as_object_mut().expect("state normalized to object");
+    obj.insert(
+        "schema_version".to_string(),
+        Value::String(MIGRATED_SCHEMA_VERSION.to_string()),
+    );
+    obj.insert(
+        "legacy_migration".to_string(),
+        json!({
+            "migrated_at": migrated_at,
+            "source_count": source_count,
+            "backup_dir": backup_dir,
+        }),
+    );
+    Ok(state)
 }

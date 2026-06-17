@@ -38,6 +38,24 @@ fn open_creates_file_first_layout_idempotently() {
 }
 
 #[test]
+fn service_reports_schema_version_from_state_json() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+    fs::write(
+        storage.paths().state_json(),
+        r#"{"schema_version":"1.1.0","extra":"kept"}"#,
+    )
+    .unwrap();
+    let service = agent_diva_laputa::LaputaService::from_storage(storage);
+
+    let snapshot = service.read_snapshot(None).unwrap();
+    let section = service.read_section(LaputaSectionName::Identity).unwrap();
+
+    assert_eq!(snapshot.schema_version, "1.1.0");
+    assert_eq!(section.version, "1.1.0");
+}
+
+#[test]
 fn atomic_write_replaces_target_without_leaving_temp_files() {
     let temp = tempfile::tempdir().unwrap();
     let target = temp.path().join(".laputa/state.json");
