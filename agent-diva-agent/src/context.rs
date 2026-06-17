@@ -2,10 +2,11 @@
 
 use crate::mask::MaskFile;
 use crate::mask::MaskPromptComposer;
+use crate::memory_boundary::default_memory_provider;
 use crate::skills::SkillsLoader;
 use agent_diva_core::memory::{
-    MemoryManager, MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock,
-    SystemPromptRequest, SystemPromptResponse,
+    MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock, SystemPromptRequest,
+    SystemPromptResponse,
 };
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::Message;
@@ -42,8 +43,6 @@ pub struct ContextBuilder {
     skills_loader: SkillsLoader,
     memory_provider: Arc<dyn MemoryProvider>,
     soul_settings: SoulContextSettings,
-    mentle_enabled: bool,
-    mentle_tool_names: Vec<String>,
 }
 
 impl ContextBuilder {
@@ -56,8 +55,6 @@ impl ContextBuilder {
             skills_loader,
             memory_provider,
             soul_settings: SoulContextSettings::default(),
-            mentle_enabled: false,
-            mentle_tool_names: Vec::new(),
         }
     }
 
@@ -70,8 +67,6 @@ impl ContextBuilder {
             skills_loader,
             memory_provider,
             soul_settings: SoulContextSettings::default(),
-            mentle_enabled: false,
-            mentle_tool_names: Vec::new(),
         }
     }
 
@@ -82,21 +77,21 @@ impl ContextBuilder {
     }
 
     /// Enable Mentle-specific prompt routing only after runtime tools are active.
-    pub fn with_mentle(mut self, enabled: bool) -> Self {
-        self.mentle_enabled = enabled;
+    pub fn with_mentle(self, enabled: bool) -> Self {
+        let _ = enabled;
         self
     }
 
-    /// Record the post-assembly Mentle tools that may be mentioned in prompts.
-    pub fn with_mentle_tools(mut self, tool_names: Vec<String>) -> Self {
-        self.mentle_tool_names = tool_names;
+    /// Retained for compatibility with runtime refresh paths.
+    pub fn with_mentle_tools(self, tool_names: Vec<String>) -> Self {
+        let _ = tool_names;
         self
     }
 
-    /// Update Mentle prompt routing after a runtime tool refresh.
+    /// Retained for compatibility with runtime refresh paths.
     pub fn set_mentle_prompt_state(&mut self, enabled: bool, tool_names: Vec<String>) {
-        self.mentle_enabled = enabled;
-        self.mentle_tool_names = tool_names;
+        let _ = enabled;
+        let _ = tool_names;
     }
 
     /// Override soul context settings.
@@ -139,25 +134,6 @@ Your workspace is at: {workspace_path}
 - Applied authority is consumed through the configured MemoryProvider boundary.
 - Legacy authority files are compatibility/migration inputs only, not default authority."#
         ));
-
-        if self.mentle_enabled {
-            let search_guidance = self.mentle_search_guidance();
-            prompt.push_str(
-                r#"
-- L0/L1 Compass Memory: workspace Markdown memory and soul/profile files.
-- L2 Palace Memory: embedded local SQLite/Turso database, available through `memtle_*` tools.
-
-## Memory Routing
-- Store durable identity, behavior rules, relationship compass, and highest-priority summaries in `MEMORY.md`.
-- Store dense project facts, long transcripts, references, creative ideas, and detailed evidence through the enabled Mentle tools.
-"#,
-            );
-            prompt.push_str(&search_guidance);
-            prompt.push_str(
-                r#"
-- For ordinary conversation or facts already present in the current context, answer directly without forcing a memory tool call."#,
-            );
-        }
 
         self.append_agent_rules_and_bootstrap(&mut prompt);
 
@@ -208,44 +184,11 @@ When a user asks to create a reminder, timer, or recurring schedule, use the 'cr
 Always be helpful, accurate, and concise. When using tools, explain what you're doing."#,
         );
 
-        if self.mentle_enabled {
-            prompt.push_str(
-                "\nWhen remembering something, route it by granularity: keep compact identity/relationship compass updates in MEMORY.md, and store dense factual details, long evidence, and creative/project records with the appropriate `memtle_*` tools.",
-            );
-        } else {
-            prompt.push_str(
-                "\nWhen remembering something, create or update governed memory through the available memory tools or compatibility path; do not treat legacy authority files as default prompt authority.",
-            );
-        }
+        prompt.push_str(
+            "\nWhen remembering something, create or update governed memory through the available memory tools or compatibility path; do not treat legacy authority files as default prompt authority.",
+        );
 
         prompt
-    }
-
-    fn mentle_search_guidance(&self) -> String {
-        let mut search_tools = Vec::new();
-        if self
-            .mentle_tool_names
-            .iter()
-            .any(|name| name == "memtle_search")
-        {
-            search_tools.push("`memtle_search`");
-        }
-        if self
-            .mentle_tool_names
-            .iter()
-            .any(|name| name == "memtle_kg_query")
-        {
-            search_tools.push("`memtle_kg_query`");
-        }
-
-        if search_tools.is_empty() {
-            return "- Use the enabled Mentle tools only when their schemas are present in the current tool list.\n".to_string();
-        }
-
-        format!(
-            "- Before answering historical facts, user relationship details, project state, or anything uncertain, use {}.\n",
-            search_tools.join(" or ")
-        )
     }
 
     fn append_agent_rules_and_bootstrap(&self, prompt: &mut String) {
@@ -437,23 +380,6 @@ impl Default for ContextBuilder {
     fn default() -> Self {
         Self::new(PathBuf::from("."))
     }
-}
-
-fn default_memory_provider(workspace: &Path) -> Arc<dyn MemoryProvider> {
-    if workspace.join(".laputa").is_dir() {
-        match agent_diva_laputa::LaputaMemoryProvider::open(workspace) {
-            Ok(provider) => return Arc::new(provider),
-            Err(error) => {
-                tracing::warn!(
-                    "Laputa memory provider unavailable for {}: {}; falling back to MemoryManager",
-                    workspace.display(),
-                    error
-                );
-            }
-        }
-    }
-
-    Arc::new(MemoryManager::new(workspace))
 }
 
 fn read_trimmed_markdown(path: &Path, max_chars: usize) -> Option<String> {
@@ -685,9 +611,9 @@ mod tests {
 
         let prompt = builder.build_system_prompt(None);
 
-        assert!(prompt.contains("L2 Palace Memory"));
-        assert!(prompt.contains("memtle_search"));
-        assert!(prompt.contains("route it by granularity"));
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
+        assert!(!prompt.contains("route it by granularity"));
     }
 
     #[test]

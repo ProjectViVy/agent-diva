@@ -14,32 +14,32 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Release-gate Mentle coverage should fail if enabled runtime governance surfaces expose default Mentle recall/routing or otherwise reintroduce a governance role for Mentle in v1.
   - Related files/docs: `agent-diva-agent/tests/mentle_governance_boundaries.rs`, `justfile`, `_bmad-output/implementation-artifacts/6-5-add-metrics-and-release-gate-validation.md`.
 
-- [ ] Preserve session compaction persistence when Laputa becomes the default `MemoryProvider`.
+- [x] Preserve session compaction persistence when Laputa becomes the default `MemoryProvider`.
   - Context: During Epic 5 combined review on 2026-06-17, Story 5.1 was found to switch the default provider to `LaputaMemoryProvider`, but that provider returns `SyncTurnStatus::Noop` for `sync_turn`. The agent loop still runs consolidation through the active `MemoryProvider`, and the consolidation path treats `Noop` as success and advances `last_consolidated`.
   - Expected behavior: When Laputa is the authority-read provider, existing session compaction durability must either still persist through a compatible session-local path or fail loudly/degrade without falsely marking the session as consolidated.
   - Related files/docs: `agent-diva-laputa/src/memory_provider.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/consolidation.rs`, `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
 
-- [ ] Remove legacy `MemoryManager` fallback when Laputa authority provider initialization fails.
+- [x] Remove legacy `MemoryManager` fallback when Laputa authority provider initialization fails.
   - Context: During Epic 5 combined review on 2026-06-17, Story 5.1 was found to fall back to `MemoryManager` when `.laputa` exists but `LaputaMemoryProvider::open()` fails. That fallback restores legacy authority reads and legacy `MEMORY.md` / `HISTORY.md` write behavior.
   - Expected behavior: Laputa read failures should degrade safely without re-enabling legacy authority as default prompt authority and without resuming legacy authority writes outside an explicit compatibility adapter or migration path.
   - Related files/docs: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-manager/src/runtime.rs`, `agent-diva-core/src/memory/manager.rs`, `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
 
-- [ ] Route subagent authority context through the injected `MemoryProvider` boundary instead of directly instantiating `LaputaMemoryProvider`.
+- [x] Route subagent authority context through the injected `MemoryProvider` boundary instead of directly instantiating `LaputaMemoryProvider`.
   - Context: During Epic 5 combined review on 2026-06-17, Story 5.1 was found to have subagent prompt assembly directly check `.laputa` and instantiate `agent_diva_laputa::LaputaMemoryProvider`, bypassing the runtime-selected `MemoryProvider` boundary used by the main agent.
   - Expected behavior: Subagent authority context should be derived from the same runtime-selected/injected `MemoryProvider` contract as the main agent so future compatibility adapters or alternative providers do not diverge.
   - Related files/docs: `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop.rs`, `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
 
-- [ ] Remove default Mentle recall routing from governance prompt assembly when Mentle runtime is enabled.
+- [x] Remove default Mentle recall routing from governance prompt assembly when Mentle runtime is enabled.
   - Context: During Epic 5 combined review on 2026-06-17, Story 5.2 was found to still inject Mentle recall guidance into default governance prompt assembly whenever `mentle_active()` is true. `ContextBuilder` adds `memtle_search` / `memtle_kg_query` routing and dense-facts-to-Mentle guidance, which violates Story 5.2 AC4.
   - Expected behavior: Governance flows should not inject Mentle recall or default Mentle memory-routing guidance into prompts, even when feature-gated Mentle runtime/tools are enabled. Any future Mentle recall must stay explicit, read-only, and user-triggered.
   - Related files/docs: `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop.rs`, `_bmad-output/implementation-artifacts/5-2-enforce-mentle-governance-exclusion.md`.
 
-- [ ] Add enabled-runtime regression coverage for Mentle governance exclusion instead of only static/no-runtime guard tests.
+- [x] Add enabled-runtime regression coverage for Mentle governance exclusion instead of only static/no-runtime guard tests.
   - Context: During Epic 5 combined review on 2026-06-17, Story 5.2 guard tests were found to validate only static tool filtering or no-Mentle temporary-directory flows. They do not exercise the real risk path where Mentle runtime is enabled and governance prompt assembly can still expose default Mentle recall guidance.
   - Expected behavior: Regression coverage should fail if governance prompt assembly or related EVO-DIVA flows depend on enabled Mentle runtime state or expose default Mentle recall routing.
   - Related files/docs: `agent-diva-agent/tests/mentle_governance_boundaries.rs`, `agent-diva-autodream/tests/mentle_governance.rs`, `agent-diva-laputa/tests/mentle_governance.rs`, `_bmad-output/implementation-artifacts/5-2-enforce-mentle-governance-exclusion.md`.
 
-- [ ] Enforce compaction-only evidence rejection at the Laputa proposal boundary, not only in AutoDream output emission.
+- [x] Enforce compaction-only evidence rejection at the Laputa proposal boundary, not only in AutoDream output emission.
   - Context: During Epic 5 combined review on 2026-06-17, Story 5.3 was found to reject compaction-only evidence in `agent-diva-autodream/src/outputs.rs`, but `agent-diva-laputa` proposal creation/edit validation still accepts any non-empty `evidence_refs`.
   - Expected behavior: Proposal persistence and edit boundaries should reject or downgrade compaction-only evidence sets consistently, so context compaction can never become the sole durable authority basis through alternate proposal creation paths.
   - Related files/docs: `agent-diva-core/src/evolution/types.rs`, `agent-diva-autodream/src/outputs.rs`, `agent-diva-laputa/src/proposals.rs`, `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`.

@@ -4,8 +4,9 @@ use std::{
 };
 
 use agent_diva_core::evolution::{
-    AuditEvent, AuditEventKind, ChangelogAction, ChangelogRecord, EvidenceRef, EvolutionProposal,
-    LaputaSectionName, ProposalState, ProposalType, RiskLevel, RollbackRequest,
+    validate_governance_evidence, AuditEvent, AuditEventKind, ChangelogAction, ChangelogRecord,
+    EvidenceRef, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType, RiskLevel,
+    RollbackRequest,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -148,6 +149,8 @@ impl ProposalRepository {
                     "evidence_refs must not be empty",
                 ));
             }
+            validate_governance_evidence(&evidence_refs)
+                .map_err(|reason| invalid_proposal(&proposal.id, &reason))?;
             proposal.evidence_refs = evidence_refs;
         }
         if let Some(risk_level) = edit.risk_level {
@@ -534,6 +537,8 @@ fn validate_new_proposal(proposal: &EvolutionProposal) -> Result<()> {
             "evidence_refs must not be empty",
         ));
     }
+    validate_governance_evidence(&proposal.evidence_refs)
+        .map_err(|reason| invalid_proposal(&proposal.id, &reason))?;
     if proposal.target_section != proposal.proposal_type.target_section() {
         return Err(invalid_proposal(
             &proposal.id,

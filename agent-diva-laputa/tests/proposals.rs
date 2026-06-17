@@ -25,6 +25,17 @@ fn evidence(id: &str) -> EvidenceRef {
     }
 }
 
+fn compaction_evidence(id: &str) -> EvidenceRef {
+    EvidenceRef {
+        id: id.to_string(),
+        source: EvidenceSource::ContextCompaction,
+        uri: format!("compaction://{id}"),
+        excerpt: Some("compaction evidence".to_string()),
+        hash: Some(format!("hash-{id}")),
+        created_at: ts(1),
+    }
+}
+
 fn proposal(id: &str, state: ProposalState) -> EvolutionProposal {
     EvolutionProposal {
         id: id.to_string(),
@@ -227,4 +238,33 @@ fn proposals_invalid_create_rejects_unsafe_initial_state_and_bad_target_route() 
         unknown,
         EvolutionError::UnknownProposalType("not_a_v1_type".to_string())
     );
+}
+
+#[test]
+fn proposals_reject_compaction_only_evidence_on_create_and_edit() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = LaputaStorage::open(temp.path()).unwrap();
+    let repo = ProposalRepository::new(storage);
+
+    let mut compaction_only = proposal("proposal-1", ProposalState::PendingReview);
+    compaction_only.evidence_refs = vec![compaction_evidence("ev-1")];
+
+    let create_error = repo.create_proposal(compaction_only).unwrap_err();
+    assert!(matches!(create_error, LaputaError::InvalidProposal { .. }));
+
+    repo.create_proposal(proposal("proposal-2", ProposalState::PendingReview))
+        .unwrap();
+    let edit_error = repo
+        .edit_proposal(
+            "proposal-2",
+            ProposalEdit {
+                proposed_patch: Some("updated".to_string()),
+                evidence_refs: Some(vec![compaction_evidence("ev-2")]),
+                risk_level: None,
+                updated_at: ts(10),
+            },
+        )
+        .unwrap_err();
+
+    assert!(matches!(edit_error, LaputaError::InvalidProposal { .. }));
 }

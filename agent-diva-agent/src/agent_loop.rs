@@ -23,6 +23,7 @@ use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
 use crate::context_budget::BudgetConfig;
 use crate::mask::{MaskFile, MaskRegistry};
+use crate::memory_boundary::default_memory_provider;
 #[cfg(feature = "mentle")]
 use crate::mentle_runtime::MentleRuntime;
 use crate::runtime_control::RuntimeControlCommand;
@@ -225,23 +226,6 @@ fn build_agent_tools(
     assembly.build()
 }
 
-fn default_memory_provider(workspace: &std::path::Path) -> Arc<dyn MemoryProvider> {
-    if workspace.join(".laputa").is_dir() {
-        match agent_diva_laputa::LaputaMemoryProvider::open(workspace) {
-            Ok(provider) => return Arc::new(provider),
-            Err(error) => {
-                warn!(
-                    "Laputa memory provider unavailable for {}: {}; falling back to MemoryManager",
-                    workspace.display(),
-                    error
-                );
-            }
-        }
-    }
-
-    Arc::new(agent_diva_core::memory::MemoryManager::new(workspace))
-}
-
 impl AgentLoop {
     pub(crate) fn load_active_mask(&self) -> Option<MaskFile> {
         let registry = MaskRegistry::new(self.workspace.join("masks"));
@@ -275,7 +259,14 @@ impl AgentLoop {
         context.set_soul_settings(SoulContextSettings::default());
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::new();
+        let memory_provider = default_memory_provider(&workspace);
 
+        // Initialize file manager for attachment handling
+        let storage_path = dirs::data_local_dir()
+            .map(|p| p.join("agent-diva").join("files"))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+        let file_config = FileConfig::with_path(&storage_path);
+        let file_manager = Arc::new(FileManager::new(file_config).await?);
         let subagent_manager = Arc::new(SubagentManager::new(
             provider.clone(),
             workspace.clone(),
@@ -287,16 +278,8 @@ impl AgentLoop {
             false,
             HashMap::new(),
             ToolLimits::default(),
+            memory_provider.clone(),
         ));
-
-        // Initialize file manager for attachment handling
-        let storage_path = dirs::data_local_dir()
-            .map(|p| p.join("agent-diva").join("files"))
-            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
-        let file_config = FileConfig::with_path(&storage_path);
-        let file_manager = Arc::new(FileManager::new(file_config).await?);
-
-        let memory_provider = default_memory_provider(&workspace);
 
         Ok(Self {
             bus,
@@ -405,23 +388,6 @@ impl AgentLoop {
         context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
 
-        let subagent_manager = Arc::new(SubagentManager::new(
-            provider.clone(),
-            workspace.clone(),
-            bus.clone(),
-            Some(model.clone()),
-            tool_config.builtin.for_subagent(),
-            tool_config.network.clone(),
-            Some(tool_config.exec_timeout),
-            tool_config.restrict_to_workspace,
-            tool_config.mcp_servers.clone(),
-            ToolLimits::default(),
-        ));
-
-        let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
-            manager: subagent_manager.clone(),
-        });
-
         #[cfg(feature = "mentle")]
         let (mentle_active, custom_tools, active_memory_provider, mentle_runtime) = {
             let mut active_memory_provider = memory_provider;
@@ -472,6 +438,22 @@ impl AgentLoop {
 
         let memory_provider =
             active_memory_provider.unwrap_or_else(|| default_memory_provider(&workspace));
+        let subagent_manager = Arc::new(SubagentManager::new(
+            provider.clone(),
+            workspace.clone(),
+            bus.clone(),
+            Some(model.clone()),
+            tool_config.builtin.for_subagent(),
+            tool_config.network.clone(),
+            Some(tool_config.exec_timeout),
+            tool_config.restrict_to_workspace,
+            tool_config.mcp_servers.clone(),
+            ToolLimits::default(),
+            memory_provider.clone(),
+        ));
+        let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
+            manager: subagent_manager.clone(),
+        });
         let mentle_tool_names = custom_tools
             .iter()
             .map(|tool| tool.name().to_string())
@@ -553,6 +535,13 @@ impl AgentLoop {
             warn!("Mentle prompt disabled: supplied toolset does not contain memtle_status");
         }
         let sessions = SessionManager::new(workspace.clone());
+        let memory_provider = default_memory_provider(&workspace);
+        let mentle_tool_names = toolset
+            .registry
+            .tool_names()
+            .into_iter()
+            .filter(|name| name.starts_with("memtle_"))
+            .collect();
         let subagent_manager = Arc::new(SubagentManager::new(
             provider.clone(),
             workspace.clone(),
@@ -564,15 +553,8 @@ impl AgentLoop {
             toolset.config.restrict_to_workspace,
             toolset.config.mcp_servers.clone(),
             ToolLimits::default(),
+            memory_provider.clone(),
         ));
-
-        let memory_provider = default_memory_provider(&workspace);
-        let mentle_tool_names = toolset
-            .registry
-            .tool_names()
-            .into_iter()
-            .filter(|name| name.starts_with("memtle_"))
-            .collect();
         context = context
             .with_memory_provider(memory_provider.clone())
             .with_mentle(mentle_active)
@@ -1180,7 +1162,7 @@ mod tests {
         let prompt = agent.context.build_system_prompt(None);
 
         assert!(agent.mentle_active());
-        assert!(prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("L2 Palace Memory"));
         assert!(!prompt.contains("memtle_search"));
         assert!(!prompt.contains("memtle_kg_query"));
     }
@@ -1239,7 +1221,7 @@ mod tests {
 
         assert_eq!(agent.mentle_active(), agent.tools.has("memtle_status"));
         assert!(agent.tools.has("memtle_search"));
-        assert!(agent.context.build_system_prompt(None).contains("memtle_*"));
+        assert!(!agent.context.build_system_prompt(None).contains("memtle_*"));
     }
 
     #[tokio::test]

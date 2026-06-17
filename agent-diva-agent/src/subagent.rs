@@ -44,6 +44,7 @@ pub struct SubagentManager {
     mcp_servers: Arc<RwLock<HashMap<String, MCPServerConfig>>>,
     #[allow(dead_code)]
     parent_tool_limits: ToolLimits,
+    memory_provider: Arc<dyn MemoryProvider>,
     running_tasks: Arc<tokio::sync::Mutex<HashMap<String, JoinHandle<()>>>>,
 }
 
@@ -61,6 +62,7 @@ impl SubagentManager {
         restrict_to_workspace: bool,
         mcp_servers: HashMap<String, MCPServerConfig>,
         parent_tool_limits: ToolLimits,
+        memory_provider: Arc<dyn MemoryProvider>,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let exec_timeout = exec_timeout.unwrap_or(30);
@@ -76,6 +78,7 @@ impl SubagentManager {
             restrict_to_workspace,
             mcp_servers: Arc::new(RwLock::new(mcp_servers)),
             parent_tool_limits,
+            memory_provider,
             running_tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         }
     }
@@ -193,6 +196,7 @@ impl SubagentManager {
         let exec_timeout = self.exec_timeout;
         let restrict_to_workspace = self.restrict_to_workspace;
         let mcp_servers = self.mcp_servers.read().await.clone();
+        let memory_provider = Arc::clone(&self.memory_provider);
 
         let task_id_clone = task_id.clone();
         let display_label_clone = display_label.clone();
@@ -215,6 +219,7 @@ impl SubagentManager {
                 exec_timeout,
                 restrict_to_workspace,
                 mcp_servers,
+                memory_provider,
             )
             .await;
 
@@ -255,6 +260,7 @@ impl SubagentManager {
         let exec_timeout = self.exec_timeout;
         let restrict_to_workspace = self.restrict_to_workspace;
         let mcp_servers = self.mcp_servers.read().await.clone();
+        let memory_provider = Arc::clone(&self.memory_provider);
 
         let mut join_set = JoinSet::new();
         let mut tasks = VecDeque::from(request.tasks);
@@ -270,6 +276,7 @@ impl SubagentManager {
             let builtin_tools = builtin_tools.clone();
             let network_config = network_config.clone();
             let mcp_servers = mcp_servers.clone();
+            let memory_provider = Arc::clone(&memory_provider);
 
             join_set.spawn(async move {
                 Self::run_isolated_subagent(
@@ -284,6 +291,7 @@ impl SubagentManager {
                     exec_timeout,
                     restrict_to_workspace,
                     &mcp_servers,
+                    memory_provider.clone(),
                 )
                 .await
             });
@@ -315,6 +323,7 @@ impl SubagentManager {
                 let builtin_tools = builtin_tools.clone();
                 let network_config = network_config.clone();
                 let mcp_servers = mcp_servers.clone();
+                let memory_provider = Arc::clone(&memory_provider);
 
                 join_set.spawn(async move {
                     Self::run_isolated_subagent(
@@ -329,6 +338,7 @@ impl SubagentManager {
                         exec_timeout,
                         restrict_to_workspace,
                         &mcp_servers,
+                        memory_provider.clone(),
                     )
                     .await
                 });
@@ -355,6 +365,7 @@ impl SubagentManager {
         exec_timeout: u64,
         restrict_to_workspace: bool,
         mcp_servers: &HashMap<String, MCPServerConfig>,
+        memory_provider: Arc<dyn MemoryProvider>,
     ) -> SubAgentResult {
         let start = Instant::now();
         let task_prompt = match &context {
@@ -377,6 +388,7 @@ impl SubagentManager {
                 exec_timeout,
                 restrict_to_workspace,
                 mcp_servers,
+                memory_provider,
             ),
         )
         .await;
@@ -444,6 +456,7 @@ impl SubagentManager {
         exec_timeout: u64,
         restrict_to_workspace: bool,
         mcp_servers: &HashMap<String, MCPServerConfig>,
+        _memory_provider: Arc<dyn MemoryProvider>,
     ) -> Result<(String, u32, Vec<String>)> {
         let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
             .builtin(builtin_tools.clone())
@@ -527,6 +540,7 @@ impl SubagentManager {
         exec_timeout: u64,
         restrict_to_workspace: bool,
         mcp_servers: &HashMap<String, MCPServerConfig>,
+        memory_provider: Arc<dyn MemoryProvider>,
     ) -> Result<String> {
         let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
             .builtin(builtin_tools.clone())
@@ -537,7 +551,7 @@ impl SubagentManager {
             .build_subagent_registry();
 
         // Build messages with subagent-specific prompt
-        let system_prompt = Self::build_subagent_prompt(task, workspace);
+        let system_prompt = Self::build_subagent_prompt(task, workspace, memory_provider.as_ref());
         let mut messages = vec![
             Message::system(system_prompt),
             Message::user(task.to_string()),
@@ -634,8 +648,12 @@ impl SubagentManager {
     }
 
     /// Build a focused system prompt for the subagent
-    fn build_subagent_prompt(task: &str, workspace: &Path) -> String {
-        let authority_context = Self::build_applied_authority_context(workspace);
+    fn build_subagent_prompt(
+        task: &str,
+        workspace: &Path,
+        memory_provider: &dyn MemoryProvider,
+    ) -> String {
+        let authority_context = Self::build_applied_authority_context(workspace, memory_provider);
         format!(
             r#"# Subagent
 
@@ -707,16 +725,11 @@ When you have completed the task, provide a clear summary of your findings or ac
         )
     }
 
-    fn build_applied_authority_context(workspace: &Path) -> String {
-        if !workspace.join(".laputa").is_dir() {
-            return "No applied Laputa authority context is available. Follow the task faithfully, remain concise, and preserve user intent.".to_string();
-        }
-
-        let Ok(provider) = agent_diva_laputa::LaputaMemoryProvider::open(workspace) else {
-            return "Applied Laputa authority context could not be read. Continue with the assigned task and do not treat legacy authority files as inherited identity.".to_string();
-        };
-
-        match provider.system_prompt_block(&SystemPromptRequest {
+    fn build_applied_authority_context(
+        workspace: &Path,
+        memory_provider: &dyn MemoryProvider,
+    ) -> String {
+        match memory_provider.system_prompt_block(&SystemPromptRequest {
             workspace_root: workspace.to_path_buf(),
         }) {
             Ok(response) => response.prompt_block.map_or_else(
@@ -744,6 +757,7 @@ When you have completed the task, provide a clear summary of your findings or ac
         exec_timeout: u64,
         restrict_to_workspace: bool,
         mcp_servers: HashMap<String, MCPServerConfig>,
+        memory_provider: Arc<dyn MemoryProvider>,
     ) {
         info!("Subagent [{}] starting task: {}", task_id, label);
 
@@ -758,6 +772,7 @@ When you have completed the task, provide a clear summary of your findings or ac
             exec_timeout,
             restrict_to_workspace,
             &mcp_servers,
+            memory_provider,
         )
         .await;
 
@@ -804,6 +819,46 @@ mod tests {
     use agent_diva_core::config::schema::{
         BatchSpawnRequest, MaskConfig, SubAgentStatus, SubAgentTask, SubagentDefaults,
     };
+    use agent_diva_core::memory::{
+        MemoryProvider, StartupInjectionShape, SystemPromptBlock, SystemPromptRequest,
+        SystemPromptResponse,
+    };
+
+    struct TestMemoryProvider;
+
+    #[async_trait::async_trait]
+    impl MemoryProvider for TestMemoryProvider {
+        fn system_prompt_block(
+            &self,
+            _request: &SystemPromptRequest,
+        ) -> agent_diva_core::Result<SystemPromptResponse> {
+            Ok(SystemPromptResponse::ready(SystemPromptBlock {
+                shape: StartupInjectionShape::CompactRenderedMarkdown,
+                markdown: "## Applied Laputa Authority\n- provenance: test".to_string(),
+            }))
+        }
+
+        async fn prefetch(
+            &self,
+            _request: agent_diva_core::memory::PrefetchRequest,
+        ) -> agent_diva_core::Result<agent_diva_core::memory::PrefetchResponse> {
+            Ok(agent_diva_core::memory::PrefetchResponse::default())
+        }
+
+        async fn sync_turn(
+            &self,
+            _request: agent_diva_core::memory::SyncTurnRequest,
+        ) -> agent_diva_core::Result<agent_diva_core::memory::SyncTurnResponse> {
+            Ok(agent_diva_core::memory::SyncTurnResponse::default())
+        }
+
+        async fn on_session_end(
+            &self,
+            _request: agent_diva_core::memory::SessionEndRequest,
+        ) -> agent_diva_core::Result<agent_diva_core::memory::SessionEndResponse> {
+            Ok(agent_diva_core::memory::SessionEndResponse::default())
+        }
+    }
 
     // ── resolve_model tests ────────────────────────────────────────────────
 
@@ -921,20 +976,14 @@ mod tests {
     #[test]
     fn test_build_subagent_prompt_includes_applied_laputa_authority() {
         let temp = tempfile::tempdir().unwrap();
-        agent_diva_laputa::LaputaStorage::open(temp.path()).unwrap();
-        std::fs::write(
-            temp.path()
-                .join(".laputa")
-                .join("sections")
-                .join("identity.json"),
-            r#""Applied identity context""#,
-        )
-        .unwrap();
-
-        let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
+        let prompt = SubagentManager::build_subagent_prompt(
+            "analyze logs",
+            temp.path(),
+            &TestMemoryProvider,
+        );
         assert!(prompt.contains("## Applied Authority Context"));
         assert!(prompt.contains("## Applied Laputa Authority"));
-        assert!(prompt.contains("Applied identity context"));
+        assert!(prompt.contains("provenance: test"));
     }
 
     #[test]
@@ -948,7 +997,11 @@ mod tests {
         )
         .unwrap();
 
-        let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
+        let prompt = SubagentManager::build_subagent_prompt(
+            "analyze logs",
+            temp.path(),
+            &TestMemoryProvider,
+        );
         assert!(prompt.contains("No applied Laputa authority context is available"));
         assert!(!prompt.contains("### SOUL.md"));
         assert!(!prompt.contains("### IDENTITY.md"));
@@ -960,7 +1013,11 @@ mod tests {
     #[test]
     fn test_build_subagent_prompt_omits_mentle_routing() {
         let temp = tempfile::tempdir().unwrap();
-        let prompt = SubagentManager::build_subagent_prompt("analyze logs", temp.path());
+        let prompt = SubagentManager::build_subagent_prompt(
+            "analyze logs",
+            temp.path(),
+            &TestMemoryProvider,
+        );
 
         assert!(!prompt.contains("L2 Palace Memory"));
         assert!(!prompt.contains("memtle_status"));

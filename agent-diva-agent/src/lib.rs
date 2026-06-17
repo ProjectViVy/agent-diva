@@ -8,6 +8,7 @@ pub mod consolidation;
 pub mod context;
 pub mod context_budget;
 pub mod mask;
+pub mod memory_boundary;
 pub mod mentle_discovery;
 #[cfg(feature = "mentle")]
 mod mentle_runtime;
