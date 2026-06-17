@@ -27,6 +27,11 @@ so that failures are visible before users rely on durable evolution.
 - [x] Record release-gate results in `docs/logs/.../verification.md` when the story is implemented. (AC: 2)
 - [x] Update any operator-facing docs only if the metrics or release gate become public commands. (AC: 1, 2)
 
+### Review Findings
+
+- [ ] [Review][Patch] Add the Story 6.3 runtime authority-boundary test suite to `epic6-release-gate`; the current gate runs `direct_write_guard` but omits `authority_boundaries`, so it does not actually validate zero direct runtime reads/writes before declaring release readiness. [justfile:102]
+- [ ] [Review][Patch] Replace the Mentle release-gate regression with coverage that exercises enabled runtime governance boundaries instead of only `MentleToolRuntimeConfig` filtering. [agent-diva-agent/tests/mentle_governance_boundaries.rs:1]
+
 ## Dev Notes
 
 ### Architecture Context

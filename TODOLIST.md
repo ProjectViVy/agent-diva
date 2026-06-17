@@ -4,6 +4,126 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
+- [ ] Hold the Laputa global write lock during legacy migration commits.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration was found to write section files and `state.json` without taking the same Laputa write lock used by apply/rollback flows. This means migration can race normal governance writes and violate the single durable authority write boundary.
+  - Expected behavior: Migration should use the same write-lock discipline as apply and rollback so section/state commits cannot interleave with normal governance mutations.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/proposals.rs`, `agent-diva-laputa/src/service.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [ ] Preserve existing `state.json` fields when updating Laputa schema version during migration.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration was found to rewrite `state.json` with a migration-only JSON payload containing `schema_version` and `legacy_migration`, instead of reading and updating the existing state document.
+  - Expected behavior: Migration should merge the new schema version and migration metadata into the existing state payload instead of silently dropping unrelated top-level state fields.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [ ] Discover and migrate root-level legacy `MEMORY.md` and `HISTORY.md` files, not only `memory/` copies.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 legacy source discovery was found to scan `memory/MEMORY.md` and `memory/HISTORY.md` but not root-level `MEMORY.md` or `HISTORY.md`, even though other governance tests still treat root-level authority files as real legacy paths.
+  - Expected behavior: Legacy discovery should back up and migrate all supported authority-file locations used by current workspaces, including root-level memory/history files where they still exist.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/tests/governance_proof_loop.rs`, `agent-diva-laputa/tests/migration.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [ ] Stop treating `BOOTSTRAP.md` as runtime prompt authority after Laputa migration/import.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 marked `BOOTSTRAP.md` as bootstrap-only migration input, but runtime prompt assembly still reads and injects `BOOTSTRAP.md` directly after migration. This leaves a legacy prompt-authority path outside Laputa.
+  - Expected behavior: Once bootstrap import/migration is complete, `BOOTSTRAP.md` should no longer act as ongoing runtime authority unless an explicit compatibility path owns that behavior.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-agent/src/context.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [ ] Return the migrated Laputa schema version through read APIs instead of hardcoding `1.0.0`.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration wrote schema version `1.1.0` into state, but `LaputaService` snapshot/section responses still report hardcoded schema version `1.0.0`.
+  - Expected behavior: Laputa read APIs should surface the actual current schema version so callers do not make compatibility or migration decisions from stale version data.
+  - Related files/docs: `agent-diva-laputa/src/migration.rs`, `agent-diva-laputa/src/service.rs`, `_bmad-output/implementation-artifacts/6-1-implement-legacy-schema-migration.md`.
+
+- [ ] Remove the broad production-file allowlist from the governance direct-write guard.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.4 direct-write guard was found to exempt whole production files including `context.rs`, `subagent.rs`, and `notebook.rs`. That allowlist can hide future forbidden authority-path writes in exactly the runtime surfaces the guard is meant to protect.
+  - Expected behavior: The direct-write guard should use narrow, justified exceptions instead of blanket production-file exemptions so new authority-path writes fail the regression suite.
+  - Related files/docs: `agent-diva-laputa/tests/direct_write_guard.rs`, `_bmad-output/implementation-artifacts/6-4-add-end-to-end-governance-proof-loop.md`.
+
+- [ ] Make the governance proof loop invoke the Story 6.3 authority-boundary guard instead of only checking a few output files.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.4 `governance_proof_loop` was found to assert only that a short list of external files was not written. It does not actually embed or call the direct-write/read boundary guard from Story 6.3, so AC2 is not fully proven.
+  - Expected behavior: The named proof loop should fail whenever the Story 6.3 authority-boundary regression suite would fail, not only when a few hand-picked files appear in the temp workspace.
+  - Related files/docs: `agent-diva-laputa/tests/governance_proof_loop.rs`, `agent-diva-laputa/tests/authority_boundaries.rs`, `agent-diva-laputa/tests/direct_write_guard.rs`, `_bmad-output/implementation-artifacts/6-4-add-end-to-end-governance-proof-loop.md`.
+
+- [ ] Add `authority_boundaries` coverage to `just epic6-release-gate`.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 release-gate command was found to run `direct_write_guard` and the proof loop, but it omits the `authority_boundaries` test suite introduced by Story 6.3. The documented gate therefore does not actually verify the full direct read/write boundary before declaring release readiness.
+  - Expected behavior: The Epic 6 release gate should include the direct authority-boundary regression suite alongside proof-loop, service, Mentle, AutoDream, and GUI checks.
+  - Related files/docs: `justfile`, `agent-diva-laputa/tests/authority_boundaries.rs`, `docs/logs/2026-06-epic6-release-gate/v0.0.1-metrics-and-release-gate-validation/verification.md`, `_bmad-output/implementation-artifacts/6-5-add-metrics-and-release-gate-validation.md`.
+
+- [ ] Replace the static Mentle tool-filtering release-gate test with enabled-runtime governance-boundary coverage.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 Mentle regression coverage was found to validate only `MentleToolRuntimeConfig` filtering behavior. It does not exercise the higher-risk case where Mentle runtime is enabled and governance flows may still expose or depend on default Mentle routing.
+  - Expected behavior: Release-gate Mentle coverage should fail if enabled runtime governance surfaces expose default Mentle recall/routing or otherwise reintroduce a governance role for Mentle in v1.
+  - Related files/docs: `agent-diva-agent/tests/mentle_governance_boundaries.rs`, `justfile`, `_bmad-output/implementation-artifacts/6-5-add-metrics-and-release-gate-validation.md`.
+
+- [ ] Preserve session compaction persistence when Laputa becomes the default `MemoryProvider`.
+  - Context: During Epic 5 combined review on 2026-06-17, Story 5.1 was found to switch the default provider to `LaputaMemoryProvider`, but that provider returns `SyncTurnStatus::Noop` for `sync_turn`. The agent loop still runs consolidation through the active `MemoryProvider`, and the consolidation path treats `Noop` as success and advances `last_consolidated`.
+  - Expected behavior: When Laputa is the authority-read provider, existing session compaction durability must either still persist through a compatible session-local path or fail loudly/degrade without falsely marking the session as consolidated.
+  - Related files/docs: `agent-diva-laputa/src/memory_provider.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/consolidation.rs`, `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
+
+- [ ] Remove legacy `MemoryManager` fallback when Laputa authority provider initialization fails.
+  - Context: During Epic 5 combined review on 2026-06-17, Story 5.1 was found to fall back to `MemoryManager` when `.laputa` exists but `LaputaMemoryProvider::open()` fails. That fallback restores legacy authority reads and legacy `MEMORY.md` / `HISTORY.md` write behavior.
+  - Expected behavior: Laputa read failures should degrade safely without re-enabling legacy authority as default prompt authority and without resuming legacy authority writes outside an explicit compatibility adapter or migration path.
+  - Related files/docs: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-manager/src/runtime.rs`, `agent-diva-core/src/memory/manager.rs`, `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
+
+- [ ] Route subagent authority context through the injected `MemoryProvider` boundary instead of directly instantiating `LaputaMemoryProvider`.
+  - Context: During Epic 5 combined review on 2026-06-17, Story 5.1 was found to have subagent prompt assembly directly check `.laputa` and instantiate `agent_diva_laputa::LaputaMemoryProvider`, bypassing the runtime-selected `MemoryProvider` boundary used by the main agent.
+  - Expected behavior: Subagent authority context should be derived from the same runtime-selected/injected `MemoryProvider` contract as the main agent so future compatibility adapters or alternative providers do not diverge.
+  - Related files/docs: `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop.rs`, `_bmad-output/implementation-artifacts/5-1-plug-applied-laputa-reads-into-memoryprovider.md`.
+
+- [ ] Remove default Mentle recall routing from governance prompt assembly when Mentle runtime is enabled.
+  - Context: During Epic 5 combined review on 2026-06-17, Story 5.2 was found to still inject Mentle recall guidance into default governance prompt assembly whenever `mentle_active()` is true. `ContextBuilder` adds `memtle_search` / `memtle_kg_query` routing and dense-facts-to-Mentle guidance, which violates Story 5.2 AC4.
+  - Expected behavior: Governance flows should not inject Mentle recall or default Mentle memory-routing guidance into prompts, even when feature-gated Mentle runtime/tools are enabled. Any future Mentle recall must stay explicit, read-only, and user-triggered.
+  - Related files/docs: `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop.rs`, `_bmad-output/implementation-artifacts/5-2-enforce-mentle-governance-exclusion.md`.
+
+- [ ] Add enabled-runtime regression coverage for Mentle governance exclusion instead of only static/no-runtime guard tests.
+  - Context: During Epic 5 combined review on 2026-06-17, Story 5.2 guard tests were found to validate only static tool filtering or no-Mentle temporary-directory flows. They do not exercise the real risk path where Mentle runtime is enabled and governance prompt assembly can still expose default Mentle recall guidance.
+  - Expected behavior: Regression coverage should fail if governance prompt assembly or related EVO-DIVA flows depend on enabled Mentle runtime state or expose default Mentle recall routing.
+  - Related files/docs: `agent-diva-agent/tests/mentle_governance_boundaries.rs`, `agent-diva-autodream/tests/mentle_governance.rs`, `agent-diva-laputa/tests/mentle_governance.rs`, `_bmad-output/implementation-artifacts/5-2-enforce-mentle-governance-exclusion.md`.
+
+- [ ] Enforce compaction-only evidence rejection at the Laputa proposal boundary, not only in AutoDream output emission.
+  - Context: During Epic 5 combined review on 2026-06-17, Story 5.3 was found to reject compaction-only evidence in `agent-diva-autodream/src/outputs.rs`, but `agent-diva-laputa` proposal creation/edit validation still accepts any non-empty `evidence_refs`.
+  - Expected behavior: Proposal persistence and edit boundaries should reject or downgrade compaction-only evidence sets consistently, so context compaction can never become the sole durable authority basis through alternate proposal creation paths.
+  - Related files/docs: `agent-diva-core/src/evolution/types.rs`, `agent-diva-autodream/src/outputs.rs`, `agent-diva-laputa/src/proposals.rs`, `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`.
+
+- [ ] Skip malformed Notebook report files instead of failing the entire report list.
+  - Context: During Epic 4 combined review on 2026-06-17, `load_notebook_reports` was found to abort the whole Notebook load when any single report markdown/frontmatter parse fails. This breaks Story 4.1's expectation that malformed report keys/files are rejected or skipped while valid reports remain visible.
+  - Expected behavior: `get_notebook_reports` should continue listing valid daily/weekly/monthly reports, record or surface per-file diagnostics as needed, and ignore malformed report files without taking the whole Notebook screen into an error state.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-1-consume-autodream-and-report-owned-paths-correctly.md`.
+
+- [ ] Fix Evolution Inbox deep-link loading for Notebook-created proposals.
+  - Context: During Epic 4 combined review on 2026-06-17, the Notebook success deep-link was found to set `selectedProposalId` before proposals are refreshed, so opening Evolution Inbox from Notebook can leave the target proposal detail pane unloaded even though the list view opens.
+  - Expected behavior: Notebook-created proposal deep-links should reliably load both the Inbox view and the target proposal detail after refresh/order changes.
+  - Related files/docs: `agent-diva-gui/src/components/EvolutionView.vue`, `agent-diva-gui/src/components/NotebookView.vue`, `_bmad-output/implementation-artifacts/4-2-replace-notebook-direct-solidification-with-proposal-creation.md`.
+
+- [ ] Clear stale Notebook proposal preview state when a new preview request fails.
+  - Context: During Epic 4 combined review on 2026-06-17, proposal preview failures were found to leave the previous preview payload rendered while `proposalPreviewAction` advances to the newly selected action. This can mislead users about what will be submitted.
+  - Expected behavior: Failed preview requests should clear or reset the modal state so the UI never shows stale proposal content for a different action.
+  - Related files/docs: `agent-diva-gui/src/components/NotebookView.vue`, `_bmad-output/implementation-artifacts/4-2-replace-notebook-direct-solidification-with-proposal-creation.md`.
+
+- [ ] Restore correct `source_run_id` semantics for Notebook-created proposals.
+  - Context: During Epic 4 combined review on 2026-06-17, Notebook proposal creation was found to populate `source_run_id` with a report id instead of a real run identifier. This breaks source-run labeling/filtering semantics in Evolution surfaces.
+  - Expected behavior: Notebook-created proposals should either omit `source_run_id` when there is no real originating run or map it to a genuine run identifier that matches Evolution filtering semantics.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-2-replace-notebook-direct-solidification-with-proposal-creation.md`.
+
+- [ ] Expose session evidence attachment through the Notebook proposal UI.
+  - Context: During Epic 4 combined review on 2026-06-17, Story 4.3 backend support for `session_hits` and session evidence search was present, but `NotebookView.vue` did not pass any selected session search results into proposal preview or creation. The user-facing attachment path is therefore incomplete.
+  - Expected behavior: Users should be able to search session history from Notebook, select hits, and have those hits attached as `EvidenceRef` values during proposal preview/creation without routing through durable memory.
+  - Related files/docs: `agent-diva-gui/src/components/NotebookView.vue`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `agent-diva-core/src/session/search.rs`, `_bmad-output/implementation-artifacts/4-3-preserve-session-search-as-evidence-only.md`.
+
+- [ ] Remove the blanket `notebook.rs` allowlist entry from the governance direct-write guard.
+  - Context: During Epic 4 combined review on 2026-06-17, the Story 4.4 guardrail test was found to scan `agent-diva-gui/src-tauri/src` but exempt the entire `agent-diva-gui/src-tauri/src/notebook.rs` production file. That exemption allows future forbidden authority writes in Notebook code to bypass the static regression guard.
+  - Expected behavior: The direct-write guard should fail on new authority-path writes in Notebook production code, using narrower exceptions only where they are explicitly justified and test-safe.
+  - Related files/docs: `agent-diva-laputa/tests/direct_write_guard.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-4-add-solidification-regression-coverage.md`.
+
+- [ ] Fix Notebook report loading so malformed files are skipped instead of aborting the whole list.
+  - Context: During the Epic 4 review rerun on 2026-06-17, `load_notebook_reports` still propagates parse/frontmatter errors for a single bad report file. That means one malformed daily/weekly/monthly `.md` can take the entire Notebook report list down.
+  - Expected behavior: Report loading should continue past malformed files, surface per-file diagnostics if needed, and keep valid reports visible.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-1-consume-autodream-and-report-owned-paths-correctly.md`.
+
+- [ ] Fix Story 4.4 regression tests to compile after the `session_hits` parameter was added.
+  - Context: During Epic 4 combined review on 2026-06-17, the new test `proposal_build_does_not_mutate_any_authority_paths_before_apply` was verified to fail compilation because calls to `build_notebook_report_proposal_preview` and `build_notebook_report_proposal` were not updated to pass the new `session_hits` argument. Targeted validation reproduced `E0061`.
+  - Expected behavior: Story 4.4 regression tests should compile and run with the current Notebook proposal builder signatures.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-4-add-solidification-regression-coverage.md`.
+
+- [ ] Preserve session evidence attachment through the Notebook proposal UI.
+  - Context: During the Epic 4 review rerun on 2026-06-17, Story 4.3 backend support for `session_hits` existed, but the Notebook UI path still does not pass selected session search results into proposal preview or creation.
+  - Expected behavior: Notebook should allow searching session history, selecting hits, and attaching those hits as `EvidenceRef` values during proposal preview/creation.
+  - Related files/docs: `agent-diva-gui/src/components/NotebookView.vue`, `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-3-preserve-session-search-as-evidence-only.md`.
+
 - [ ] Replace Notebook monthly placeholder generation with full report-system monthly synthesis.
   - Context: During Story 4.1 on 2026-06-15, Notebook monthly trigger was closed by adding a Report-owned generation path that writes `{workspace}/reports/monthly/{YYYY-MM}.md` with v1 frontmatter and placeholder body sections. This unblocks the ownership/trigger contract, but it is not yet a true monthly synthesis pipeline with session aggregation, LLM summarization, retries, or cron scheduling.
   - Expected behavior: Monthly trigger and scheduled generation should produce a substantive month summary that follows the Report System PRD schema, records real `session_count`/`token_used`, and handles failure markers per PRD FR-3.

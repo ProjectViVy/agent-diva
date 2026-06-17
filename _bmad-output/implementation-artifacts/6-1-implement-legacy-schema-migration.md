@@ -30,6 +30,14 @@ so that the new authority spine can start without losing existing state.
 - [x] Write migration outputs through temp-file plus rename and only swap committed state after all section writes succeed. (AC: 4)
 - [x] Add migration tests covering new install, legacy upgrade, unsupported material, simulated mid-migration failure, and idempotent rerun. (AC: 1-5)
 
+### Review Findings
+
+- [ ] [Review][Patch] Hold the same Laputa write lock during migration that apply/rollback already use so migration cannot race normal governance writes. [agent-diva-laputa/src/migration.rs:26]
+- [ ] [Review][Patch] Preserve and update existing `state.json` fields instead of overwriting the file with a migration-only payload. [agent-diva-laputa/src/migration.rs:116]
+- [ ] [Review][Patch] Discover and back up root-level legacy `MEMORY.md` and `HISTORY.md` authority files in addition to `memory/` copies. [agent-diva-laputa/src/migration.rs:291]
+- [ ] [Review][Patch] Stop treating `BOOTSTRAP.md` as runtime prompt authority after migration/import has completed. [agent-diva-agent/src/context.rs:253]
+- [ ] [Review][Patch] Return the migrated schema version through snapshot/section read surfaces instead of hardcoding `1.0.0`. [agent-diva-laputa/src/service.rs:27]
+
 ## Dev Notes
 
 ### Architecture Context

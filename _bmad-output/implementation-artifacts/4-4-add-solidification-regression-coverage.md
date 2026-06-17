@@ -27,6 +27,11 @@ Status: review
 - [x] Include GUI/Tauri bridge coverage if legacy command names remain registered for compatibility. (AC: 1)
 - [x] Record any remaining allowed direct-write exceptions in `TODOLIST.md` only if they cannot be fixed in this story. (AC: 3)
 
+### Review Findings
+
+- [ ] [Review][Patch] Direct-write guard allowlists the entire `agent-diva-gui/src-tauri/src/notebook.rs`, so new forbidden authority writes in that production file would evade the regression test [`agent-diva-laputa/tests/direct_write_guard.rs:38`]
+- [ ] [Review][Patch] New regression test calls `build_notebook_report_proposal_preview` and `build_notebook_report_proposal` with missing `session_hits` arguments, so the test target does not compile [`agent-diva-gui/src-tauri/src/notebook.rs:1156`]
+
 ## Dev Notes
 
 ### Architecture Context

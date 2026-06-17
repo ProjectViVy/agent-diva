@@ -30,6 +30,12 @@ Status: review
 - [x] After proposal creation, show success copy saying proposal created, and provide a link/deep-link to Evolution Inbox/proposal detail. (AC: 4)
 - [x] Add tests proving Notebook actions create proposals and no authority files change until Laputa apply. (AC: 2-4)
 
+### Review Findings
+
+- [ ] [Review][Patch] Evolution Inbox deep-link sets `selectedProposalId` before proposals are loaded, so Notebook-created proposal links can open without loading the target detail pane [`agent-diva-gui/src/components/EvolutionView.vue:466`]
+- [ ] [Review][Patch] Failed proposal preview requests leave stale preview content visible, so the modal can show one action while submitting another [`agent-diva-gui/src/components/NotebookView.vue:215`]
+- [ ] [Review][Patch] Notebook proposals set `source_run_id` to the report id rather than an actual run identifier, which breaks source-run semantics and filtering [`agent-diva-gui/src-tauri/src/notebook.rs:188`]
+
 ## Dev Notes
 
 ### Architecture Context

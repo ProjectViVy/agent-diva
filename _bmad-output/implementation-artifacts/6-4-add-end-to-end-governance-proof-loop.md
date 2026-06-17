@@ -27,6 +27,11 @@ so that the core authority spine is proven before broader runtime consumption.
 - [x] Invoke or embed the direct-write guard from Story 6.3 so the proof loop fails if authority files were written outside Laputa. (AC: 2)
 - [x] Document this test in iteration verification and the release-gate story as the minimum gate before Epic 5 prompt/report consumption is considered safe. (AC: 3)
 
+### Review Findings
+
+- [ ] [Review][Patch] Remove the broad production-file allowlist from the direct-write guard so the proof loop cannot claim AC2 while `context.rs`, `subagent.rs`, and `notebook.rs` are exempt from the static regression check. [agent-diva-laputa/tests/direct_write_guard.rs:38]
+- [ ] [Review][Patch] Embed or call the Story 6.3 authority-boundary guard inside `governance_proof_loop` instead of only checking that a few files were not written in the temp workspace. [agent-diva-laputa/tests/governance_proof_loop.rs:147]
+
 ## Dev Notes
 
 ### Architecture Context

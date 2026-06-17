@@ -28,6 +28,10 @@ Status: review
 - [x] Bound search cost: limit files scanned, snippets returned, snippet length, and total response bytes; add clear truncation metadata. (AC: 1)
 - [x] Add tests proving search results are evidence-only and do not appear in default prompt context unless later converted through an approved Laputa apply path. (AC: 3)
 
+### Review Findings
+
+- [ ] [Review][Patch] Notebook proposal flows never pass selected session search hits into preview or creation, so session evidence cannot actually be attached from the UI [`agent-diva-gui/src/components/NotebookView.vue:223`]
+
 ## Dev Notes
 
 ### Architecture Context

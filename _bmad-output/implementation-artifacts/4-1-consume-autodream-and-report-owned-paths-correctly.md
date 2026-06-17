@@ -29,6 +29,10 @@ Status: review
 - [x] Preserve existing `NotebookView.vue` split list/detail layout and polling behavior; avoid introducing overlapping text or nested card layouts. (AC: 1-4)
 - [x] Add tests for daily path consumption, weekly path consumption, monthly path isolation, missing report placeholders, and large markdown handling. (AC: 1-4)
 
+### Review Findings
+
+- [ ] [Review][Patch] Malformed notebook report files break the entire report list load [`agent-diva-gui/src-tauri/src/notebook.rs:124`]
+
 ## Dev Notes
 
 ### Architecture Context
