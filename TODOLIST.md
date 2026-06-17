@@ -49,11 +49,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: The direct-write guard should fail on new authority-path writes in Notebook production code, using narrower exceptions only where they are explicitly justified and test-safe.
   - Related files/docs: `agent-diva-laputa/tests/direct_write_guard.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-4-add-solidification-regression-coverage.md`.
 
-- [ ] Fix Story 4.4 regression tests to compile after the `session_hits` parameter was added.
-  - Context: During Epic 4 combined review on 2026-06-17, the new test `proposal_build_does_not_mutate_any_authority_paths_before_apply` was verified to fail compilation because calls to `build_notebook_report_proposal_preview` and `build_notebook_report_proposal` were not updated to pass the new `session_hits` argument. Targeted validation reproduced `E0061`.
-  - Expected behavior: Story 4.4 regression tests should compile and run with the current Notebook proposal builder signatures.
-  - Related files/docs: `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-4-add-solidification-regression-coverage.md`.
-
 - [ ] Replace Notebook monthly placeholder generation with full report-system monthly synthesis.
   - Context: During Story 4.1 on 2026-06-15, Notebook monthly trigger was closed by adding a Report-owned generation path that writes `{workspace}/reports/monthly/{YYYY-MM}.md` with v1 frontmatter and placeholder body sections. This unblocks the ownership/trigger contract, but it is not yet a true monthly synthesis pipeline with session aggregation, LLM summarization, retries, or cron scheduling.
   - Expected behavior: Monthly trigger and scheduled generation should produce a substantive month summary that follows the Report System PRD schema, records real `session_count`/`token_used`, and handles failure markers per PRD FR-3.
@@ -87,6 +82,12 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Completed: `load_notebook_reports` now skips malformed markdown/frontmatter files with a warning instead of failing the whole list; Notebook proposal creation no longer writes a fake report id into `source_run_id`; `NotebookView.vue` now lets users search/select session hits and passes them into preview/create commands; preview failures clear stale modal state; and Evolution deep-links now carry a refresh key and resolve the target proposal after the list refreshes.
   - Verification: `cargo test -p agent-diva-gui notebook`; `pnpm test -- --run src/components/NotebookView.test.ts src/components/EvolutionView.test.ts`.
   - Related files/docs: `agent-diva-gui/src-tauri/src/notebook.rs`, `agent-diva-gui/src/components/NotebookView.vue`, `agent-diva-gui/src/components/EvolutionView.vue`, `docs/logs/2026-06-epic4-notebook-closeout/v0.0.1-notebook-ui-backend-linkage/verification.md`.
+
+- [x] Fix Story 4.4 regression tests to compile after the `session_hits` parameter was added.
+  - Context: During Epic 4 combined review on 2026-06-17, Story 4.4 was flagged because Notebook proposal preview/build call sites needed to pass the new `session_hits` argument after the session-evidence attachment work landed.
+  - Completed: Current `agent-diva-gui/src-tauri/src/notebook.rs` test call sites pass the updated signatures, including `proposal_build_does_not_mutate_any_authority_paths_before_apply`, and the Notebook test suite covers the `session_hits` path without compile drift.
+  - Verification: `cargo test -p agent-diva-gui notebook`.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/notebook.rs`, `docs/logs/2026-06-epic4-notebook-closeout/v0.0.2-notebook-low-risk-closeout/verification.md`, `_bmad-output/implementation-artifacts/4-4-add-solidification-regression-coverage.md`.
 
 - [x] Hold the Laputa global write lock during legacy migration commits.
   - Context: During Epic 6 combined review on 2026-06-17, Story 6.1 migration was found to write section files and `state.json` without taking the same Laputa write lock used by apply/rollback flows. This means migration can race normal governance writes and violate the single durable authority write boundary.
