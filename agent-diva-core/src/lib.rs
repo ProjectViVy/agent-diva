@@ -14,6 +14,7 @@ pub mod heartbeat;
 pub mod logging;
 pub mod memory;
 pub mod planning;
+pub mod reports;
 pub mod reasoning;
 pub mod security;
 pub mod session;

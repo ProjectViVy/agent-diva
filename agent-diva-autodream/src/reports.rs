@@ -45,6 +45,12 @@ pub struct RhythmReportContent {
     pub summary: String,
     pub sections: Vec<String>,
     pub evidence_refs: Vec<EvidenceRef>,
+    pub source: Option<String>,
+    pub session_count: Option<u64>,
+    pub token_used: Option<u64>,
+    pub fallback_used: Option<bool>,
+    pub daily_inputs_count: Option<u64>,
+    pub missing_daily_dates_count: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -203,6 +209,26 @@ fn render_report_markdown(request: &RhythmReportWriteRequest) -> String {
         request.generated_at.to_rfc3339()
     ));
     markdown.push_str(&format!("generated_by: {GENERATED_BY}\n"));
+    if let Some(source) = request.content.source.as_deref() {
+        markdown.push_str(&format!("source: {source}\n"));
+    }
+    if let Some(session_count) = request.content.session_count {
+        markdown.push_str(&format!("session_count: {session_count}\n"));
+    }
+    if let Some(token_used) = request.content.token_used {
+        markdown.push_str(&format!("token_used: {token_used}\n"));
+    }
+    if let Some(fallback_used) = request.content.fallback_used {
+        markdown.push_str(&format!("fallback_used: {fallback_used}\n"));
+    }
+    if let Some(daily_inputs_count) = request.content.daily_inputs_count {
+        markdown.push_str(&format!("daily_inputs_count: {daily_inputs_count}\n"));
+    }
+    if let Some(missing_daily_dates_count) = request.content.missing_daily_dates_count {
+        markdown.push_str(&format!(
+            "missing_daily_dates_count: {missing_daily_dates_count}\n"
+        ));
+    }
     markdown.push_str(&format!("schema_version: {SCHEMA_VERSION}\n"));
     markdown.push_str("---\n\n");
     markdown.push_str(&format!("# {}\n\n", request.content.title.trim()));

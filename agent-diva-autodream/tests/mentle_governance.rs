@@ -100,6 +100,12 @@ fn rhythm_report_writes_do_not_sync_to_mentle_state() {
                 summary: "Report stays in AutoDream report storage.".to_string(),
                 sections: vec!["## Signals\n\n- No Mentle sync.".to_string()],
                 evidence_refs: vec![sample_evidence("evidence-1")],
+                source: Some("session_aggregate".to_string()),
+                session_count: Some(1),
+                token_used: Some(12),
+                fallback_used: Some(false),
+                daily_inputs_count: Some(0),
+                missing_daily_dates_count: Some(0),
             },
         )
         .unwrap();

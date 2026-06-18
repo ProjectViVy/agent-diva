@@ -15,8 +15,15 @@ pub async fn trigger_autodream_run_handler(
 ) -> JsonResult {
     let status = state
         .autodream
-        .trigger_manual_run(payload)
+        .trigger_manual_run(payload.clone())
         .map_err(autodream_error_response)?;
+    let status = match payload.trigger.as_deref() {
+        Some("notebook-daily" | "notebook-weekly") => state
+            .autodream
+            .execute_report_trigger(&status.run.id)
+            .map_err(autodream_error_response)?,
+        _ => status,
+    };
     ok(
         serde_json::json!({ "status": "ok", "run": status.run, "lock": status.lock, "auto_mode_enabled": status.auto_mode_enabled, "session_threshold_enabled": status.session_threshold_enabled }),
     )

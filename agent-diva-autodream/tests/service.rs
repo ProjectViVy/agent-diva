@@ -140,6 +140,48 @@ fn collect_inputs_persists_summary_into_run_record() {
         .contains("collected"));
 }
 
+#[test]
+fn notebook_daily_trigger_generates_report_and_completes_run() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path()).unwrap();
+    seed_session(temp.path(), "chat:1", "daily report content");
+
+    let status = service
+        .trigger_manual_run(ManualRunTriggerRequest {
+            trigger: Some("notebook-daily".to_string()),
+        })
+        .unwrap();
+    let completed = service.execute_report_trigger(&status.run.id).unwrap();
+
+    assert_eq!(completed.run.state, AutoDreamRunState::Completed);
+    assert!(completed.lock.is_none());
+    assert!(temp
+        .path()
+        .join(".agent-diva/autodream/reports/daily")
+        .exists());
+}
+
+#[test]
+fn notebook_weekly_trigger_generates_report_and_completes_run() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path()).unwrap();
+    seed_session(temp.path(), "chat:1", "weekly report content");
+
+    let status = service
+        .trigger_manual_run(ManualRunTriggerRequest {
+            trigger: Some("notebook-weekly".to_string()),
+        })
+        .unwrap();
+    let completed = service.execute_report_trigger(&status.run.id).unwrap();
+
+    assert_eq!(completed.run.state, AutoDreamRunState::Completed);
+    assert!(completed.lock.is_none());
+    assert!(temp
+        .path()
+        .join(".agent-diva/autodream/reports/weekly")
+        .exists());
+}
+
 fn seed_session(workspace: &std::path::Path, key: &str, content: &str) {
     let mut manager = agent_diva_core::session::SessionManager::new(workspace);
     let session = manager.get_or_create(key);

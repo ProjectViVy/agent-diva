@@ -7,6 +7,7 @@ mod layout;
 mod metrics;
 mod outputs;
 mod reports;
+mod rhythm;
 mod service;
 mod worker;
 
@@ -26,6 +27,7 @@ pub use reports::{
     AutoDreamReportWriter, RhythmReportContent, RhythmReportPeriod, RhythmReportWriteRequest,
     RhythmReportWriteResult,
 };
+pub use rhythm::AutoDreamRhythmReportGenerator;
 pub use service::{
     AutoDreamCheckpoint, AutoDreamEvent, AutoDreamLockRecord, AutoDreamRunList, AutoDreamRunStatus,
     AutoDreamService, ManualRunTriggerRequest,

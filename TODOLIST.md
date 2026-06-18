@@ -4,12 +4,18 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
-- [ ] Replace Notebook monthly placeholder generation with full report-system monthly synthesis.
-  - Context: During Story 4.1 on 2026-06-15, Notebook monthly trigger was closed by adding a Report-owned generation path that writes `{workspace}/reports/monthly/{YYYY-MM}.md` with v1 frontmatter and placeholder body sections. This unblocks the ownership/trigger contract, but it is not yet a true monthly synthesis pipeline with session aggregation, LLM summarization, retries, or cron scheduling.
-  - Expected behavior: Monthly trigger and scheduled generation should produce a substantive month summary that follows the Report System PRD schema, records real `session_count`/`token_used`, and handles failure markers per PRD FR-3.
-  - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `docs/prd-report-system/prd.md`, `_bmad-output/implementation-artifacts/4-1-consume-autodream-and-report-owned-paths-correctly.md`.
+- [ ] Productionize monthly synthesis beyond the new daily-based aggregation path.
+  - Context: On 2026-06-18, Notebook monthly generation was upgraded from placeholder output to real daily-file aggregation with session fallback, error markers, and report metadata. This closes the core "monthly placeholder" gap, but the pipeline still uses deterministic text stitching instead of a model-backed final synthesis and still lacks scheduled retry/cron hardening.
+  - Expected behavior: Monthly generation should keep the current daily-first ownership boundary, then add production scheduling/retry behavior and, if PRD still requires it, an explicit model-backed synthesis stage with real provider token accounting instead of heuristic-only composition metadata.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/notebook.rs`, `agent-diva-core/src/reports.rs`, `docs/prd-report-system/prd.md`.
 
 ## Done
+
+- [x] Add daily-based higher-level report compression with session fallback.
+  - Context: The intended report relationship is daily -> weekly -> monthly. Before 2026-06-18, AutoDream daily/weekly notebook triggers did not generate real report files from the manager path, and monthly generation in the Report System still emitted placeholder content instead of consuming daily artifacts.
+  - Completed: Added shared daily-report parsing/session-digest utilities in `agent-diva-core`; wired AutoDream daily/weekly triggers to generate actual report files with `daily_aggregate` / `session_aggregate` metadata; upgraded monthly generation to synthesize from daily files with missing-date session fallback and error marker cleanup; and added focused regression coverage across core, AutoDream, manager, and Notebook paths.
+  - Verification: `cargo test -p agent-diva-core reports`; `cargo test -p agent-diva-autodream --test reports`; `cargo test -p agent-diva-autodream --test service`; `cargo test -p agent-diva-autodream rhythm`; `cargo test -p agent-diva-gui notebook`; `cargo check -p agent-diva-manager`; `rustfmt --check agent-diva-core/src/reports.rs agent-diva-core/src/lib.rs agent-diva-autodream/src/lib.rs agent-diva-autodream/src/reports.rs agent-diva-autodream/src/rhythm.rs agent-diva-autodream/src/service.rs agent-diva-autodream/tests/reports.rs agent-diva-autodream/tests/service.rs agent-diva-autodream/tests/mentle_governance.rs agent-diva-manager/src/handlers/autodream.rs agent-diva-gui/src-tauri/src/notebook.rs`.
+  - Related files/docs: `agent-diva-core/src/reports.rs`, `agent-diva-autodream/src/rhythm.rs`, `agent-diva-autodream/src/service.rs`, `agent-diva-manager/src/handlers/autodream.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`.
 
 - [x] Track and enforce isolated workspace handling when the project is in a parallel state.
   - Context: On 2026-06-15, project guidance was updated so that if a user says this project is currently in a "parallel" state, terminal work must move to an isolated branch workspace before development continues. Acceptable isolation includes a dedicated git worktree/branch or a copied sibling folder, as long as it does not affect other active partitions.

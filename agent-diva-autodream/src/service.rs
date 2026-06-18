@@ -14,8 +14,9 @@ use uuid::Uuid;
 use crate::{
     atomic::atomic_write_json,
     metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot},
-    AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector, AutoDreamStorage,
-    AutoDreamWorker, AutoDreamWorkerReport, Result,
+    AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
+    AutoDreamRhythmReportGenerator, AutoDreamStorage, AutoDreamWorker, AutoDreamWorkerReport,
+    Result,
 };
 
 const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
@@ -252,6 +253,52 @@ impl AutoDreamService {
         })
     }
 
+    pub fn execute_report_trigger(&self, run_id: &str) -> Result<AutoDreamRunStatus> {
+        let mut run = self.read_run(run_id)?;
+        let generator = AutoDreamRhythmReportGenerator::new(self.storage.clone());
+        match generator.generate_for_trigger(&run.trigger) {
+            Ok(result) => {
+                let now = Utc::now();
+                run.state = AutoDreamRunState::Completed;
+                run.completed_at = Some(now);
+                run.summary = Some(format!(
+                    "generated rhythm report at {}",
+                    result.path.display()
+                ));
+                run.error = None;
+                self.write_run(&run)?;
+                self.write_checkpoint_success(&run, now)?;
+                self.remove_active_lock(run_id)?;
+                self.append_event(AutoDreamEvent {
+                    id: format!("evt-{}", Uuid::new_v4()),
+                    run_id: Some(run.id.clone()),
+                    kind: "rhythm_report_generated".to_string(),
+                    message: format!("generated {}", result.path.display()),
+                    created_at: now,
+                })?;
+                self.status_from_run(run, None)
+            }
+            Err(error) => {
+                let now = Utc::now();
+                run.state = AutoDreamRunState::Failed;
+                run.completed_at = Some(now);
+                run.summary = Some("rhythm report generation failed".to_string());
+                run.error = Some(error.to_string());
+                self.write_run(&run)?;
+                self.remove_active_lock(run_id)?;
+                Self::metrics().record_failure();
+                self.append_event(AutoDreamEvent {
+                    id: format!("evt-{}", Uuid::new_v4()),
+                    run_id: Some(run.id.clone()),
+                    kind: "rhythm_report_failed".to_string(),
+                    message: error.to_string(),
+                    created_at: now,
+                })?;
+                Err(error)
+            }
+        }
+    }
+
     fn status_from_run(
         &self,
         run: AutoDreamRunRecord,
@@ -315,6 +362,14 @@ impl AutoDreamService {
         read_json_file(self.storage.paths().checkpoint_file())
     }
 
+    fn write_checkpoint_success(&self, run: &AutoDreamRunRecord, now: DateTime<Utc>) -> Result<()> {
+        let mut checkpoint: AutoDreamCheckpoint =
+            read_json_file(self.storage.paths().checkpoint_file())?;
+        checkpoint.last_completed_run_id = Some(run.id.clone());
+        checkpoint.last_completed_at = Some(now);
+        atomic_write_json(&self.storage.paths().checkpoint_file(), &checkpoint)
+    }
+
     fn read_lock(&self) -> Result<Option<AutoDreamLockRecord>> {
         let path = self.storage.paths().lock_file();
         match fs::read_to_string(&path) {
@@ -336,6 +391,19 @@ impl AutoDreamService {
             .map_err(|source| AutoDreamError::io(&path, source))?;
         file.sync_all()
             .map_err(|source| AutoDreamError::io(&path, source))?;
+        Ok(())
+    }
+
+    fn remove_active_lock(&self, run_id: &str) -> Result<()> {
+        let path = self.storage.paths().lock_file();
+        let lock = match fs::read_to_string(&path) {
+            Ok(content) => Some(serde_json::from_str::<AutoDreamLockRecord>(&content)?),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(source) => return Err(AutoDreamError::io(&path, source)),
+        };
+        if lock.as_ref().map(|lock| lock.run_id.as_str()) == Some(run_id) {
+            fs::remove_file(&path).map_err(|source| AutoDreamError::io(path, source))?;
+        }
         Ok(())
     }
 

@@ -30,6 +30,12 @@ fn sample_content() -> RhythmReportContent {
             .to_string(),
         sections: vec!["## Signals\n\n- User prefers durable governance boundaries.".to_string()],
         evidence_refs: vec![sample_evidence("evidence-1")],
+        source: Some("session_aggregate".to_string()),
+        session_count: Some(1),
+        token_used: Some(32),
+        fallback_used: Some(false),
+        daily_inputs_count: Some(0),
+        missing_daily_dates_count: Some(0),
     }
 }
 
@@ -53,6 +59,9 @@ fn writes_daily_report_to_contract_path_with_frontmatter_and_evidence() {
     assert!(markdown.contains("date: 2026-06-14"));
     assert!(markdown.contains("generated_at: 2026-06-14T10:00:00+00:00"));
     assert!(markdown.contains("generated_by: agent-diva-autodream"));
+    assert!(markdown.contains("source: session_aggregate"));
+    assert!(markdown.contains("session_count: 1"));
+    assert!(markdown.contains("token_used: 32"));
     assert!(markdown.contains("schema_version: 1"));
     assert!(markdown.contains("## Evidence References"));
     assert!(markdown.contains("autodream://runs/run-123/evidence/evidence-1"));
