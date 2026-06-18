@@ -20,12 +20,13 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Full `agent-diva-gui` vitest suite should pass after shared test setup/mocks are aligned with current components.
   - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`.
 
-- [ ] Clean pre-existing workspace rustfmt drift.
-  - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
-  - Expected behavior: Workspace-wide format check should pass without requiring unrelated formatting churn during focused story work.
-  - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
-
 ## Done
+
+- [x] Clean pre-existing workspace rustfmt drift.
+  - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
+  - Completed: Current workspace rustfmt drift no longer blocks validation. The remaining actual diff was narrowed to `agent-diva-agent/src/memory_boundary.rs`, then reformatted with `rustfmt` and revalidated through workspace-wide format checks.
+  - Verification: `rustfmt --check agent-diva-agent/src/memory_boundary.rs`; `cargo fmt --all -- --check`; `just fmt-check`.
+  - Related files/docs: `agent-diva-agent/src/memory_boundary.rs`, `TODOLIST.md`, `docs/logs/2026-06-todolist-closeout/v0.0.3-workspace-rustfmt-drift/verification.md`, `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
 - [x] Replace the static Mentle tool-filtering release-gate test with enabled-runtime governance-boundary coverage.
   - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 Mentle regression coverage was found to validate only `MentleToolRuntimeConfig` filtering behavior. It did not exercise the higher-risk case where Mentle runtime is enabled and governance flows may still expose or depend on default Mentle routing.

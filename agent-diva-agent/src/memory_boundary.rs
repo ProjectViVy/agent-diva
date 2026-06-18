@@ -75,7 +75,10 @@ impl MemoryProvider for DegradedMemoryProvider {
         })
     }
 
-    async fn sync_turn(&self, _request: SyncTurnRequest) -> agent_diva_core::Result<SyncTurnResponse> {
+    async fn sync_turn(
+        &self,
+        _request: SyncTurnRequest,
+    ) -> agent_diva_core::Result<SyncTurnResponse> {
         Ok(SyncTurnResponse {
             status: SyncTurnStatus::Failed {
                 reason: self.degraded_reason(),
