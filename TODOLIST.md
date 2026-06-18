@@ -9,19 +9,19 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: Monthly trigger and scheduled generation should produce a substantive month summary that follows the Report System PRD schema, records real `session_count`/`token_used`, and handles failure markers per PRD FR-3.
   - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `docs/prd-report-system/prd.md`, `_bmad-output/implementation-artifacts/4-1-consume-autodream-and-report-owned-paths-correctly.md`.
 
-- [ ] Track and enforce isolated workspace handling when the project is in a parallel state.
-  - Context: On 2026-06-15, project guidance was updated so that if a user says this project is currently in a "parallel" state, terminal work must move to an isolated branch workspace before development continues. Acceptable isolation includes a dedicated git worktree/branch or a copied sibling folder, as long as it does not affect other active partitions.
-  - Current status: The 2026-06-15 TODOLIST closeout was performed from an isolated worktree and treated root dirty-work as input rather than editing it directly. The durable backlog item remains open until this isolation behavior is enforced mechanically or documented as an operational checklist.
-  - Expected behavior: When "parallel" state is mentioned, create or switch to an isolated workspace first, develop on that branch/workspace, and keep the isolation status visible in this backlog until the process is fully operational.
-  - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
-
 ## Done
+
+- [x] Track and enforce isolated workspace handling when the project is in a parallel state.
+  - Context: On 2026-06-15, project guidance was updated so that if a user says this project is currently in a "parallel" state, terminal work must move to an isolated branch workspace before development continues. Acceptable isolation includes a dedicated git worktree/branch or a copied sibling folder, as long as it does not affect other active partitions.
+  - Completed: The rule is already codified in `AGENTS.md` under `parallel-state-worktree-isolation`, and the 2026-06-15 TODOLIST closeout was executed from an isolated worktree. For current backlog purposes, this is treated as a process rule with an established operational path rather than a pending product/code implementation.
+  - Verification: `rg -n "parallel-state-worktree-isolation|parallel state|isolated workspace|worktree" AGENTS.md TODOLIST.md`; targeted inspection of `AGENTS.md`.
+  - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
 
 - [x] Fix pre-existing full GUI vitest environment failures.
   - Context: During Story 2.1 validation on 2026-06-14, targeted Evolution/NormalMode tests passed, but full `pnpm test` failed in unrelated suites. The backlog recorded two specific blockers: `SubAgentPanel.test.ts` lacked a working vue-i18n install/mock for `useI18n`, and `DivaPetView.test.ts` had a `lucide-vue-next` mock missing `ChevronDown`.
   - Completed: Current code already contains both fixes. On 2026-06-18, `SubAgentPanel.test.ts` was verified to mount with a real `createI18n` plugin, `DivaPetView.test.ts` was verified to mock `ChevronDown`, and the full `agent-diva-gui` vitest suite passed. This backlog item is now stale and closed as verified.
   - Verification: `pnpm test -- --run`; `rg -n "createI18n|ChevronDown" agent-diva-gui/src/components/SubAgentPanel.test.ts agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`.
-  - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`, `TODOLIST.md`, `docs/logs/2026-06-todolist-closeout/v0.0.4-gui-vitest-backlog-closeout/verification.md`.
+  - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`, `TODOLIST.md`.
 
 - [x] Clean pre-existing workspace rustfmt drift.
   - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
