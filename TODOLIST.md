@@ -15,12 +15,13 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Expected behavior: When "parallel" state is mentioned, create or switch to an isolated workspace first, develop on that branch/workspace, and keep the isolation status visible in this backlog until the process is fully operational.
   - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
 
-- [ ] Fix pre-existing full GUI vitest environment failures.
-  - Context: During Story 2.1 validation on 2026-06-14, targeted Evolution/NormalMode tests passed, but full `pnpm test` failed in unrelated suites. `SubAgentPanel.test.ts` lacks a vue-i18n install/mock for `useI18n`, and `DivaPetView.test.ts` has a `lucide-vue-next` mock missing `ChevronDown`.
-  - Expected behavior: Full `agent-diva-gui` vitest suite should pass after shared test setup/mocks are aligned with current components.
-  - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`.
-
 ## Done
+
+- [x] Fix pre-existing full GUI vitest environment failures.
+  - Context: During Story 2.1 validation on 2026-06-14, targeted Evolution/NormalMode tests passed, but full `pnpm test` failed in unrelated suites. The backlog recorded two specific blockers: `SubAgentPanel.test.ts` lacked a working vue-i18n install/mock for `useI18n`, and `DivaPetView.test.ts` had a `lucide-vue-next` mock missing `ChevronDown`.
+  - Completed: Current code already contains both fixes. On 2026-06-18, `SubAgentPanel.test.ts` was verified to mount with a real `createI18n` plugin, `DivaPetView.test.ts` was verified to mock `ChevronDown`, and the full `agent-diva-gui` vitest suite passed. This backlog item is now stale and closed as verified.
+  - Verification: `pnpm test -- --run`; `rg -n "createI18n|ChevronDown" agent-diva-gui/src/components/SubAgentPanel.test.ts agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`.
+  - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`, `TODOLIST.md`, `docs/logs/2026-06-todolist-closeout/v0.0.4-gui-vitest-backlog-closeout/verification.md`.
 
 - [x] Clean pre-existing workspace rustfmt drift.
   - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
