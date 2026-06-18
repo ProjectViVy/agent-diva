@@ -4,11 +4,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
-- [ ] Replace the static Mentle tool-filtering release-gate test with enabled-runtime governance-boundary coverage.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 Mentle regression coverage was found to validate only `MentleToolRuntimeConfig` filtering behavior. It does not exercise the higher-risk case where Mentle runtime is enabled and governance flows may still expose or depend on default Mentle routing.
-  - Expected behavior: Release-gate Mentle coverage should fail if enabled runtime governance surfaces expose default Mentle recall/routing or otherwise reintroduce a governance role for Mentle in v1.
-  - Related files/docs: `agent-diva-agent/tests/mentle_governance_boundaries.rs`, `justfile`, `_bmad-output/implementation-artifacts/6-5-add-metrics-and-release-gate-validation.md`.
-
 - [ ] Replace Notebook monthly placeholder generation with full report-system monthly synthesis.
   - Context: During Story 4.1 on 2026-06-15, Notebook monthly trigger was closed by adding a Report-owned generation path that writes `{workspace}/reports/monthly/{YYYY-MM}.md` with v1 frontmatter and placeholder body sections. This unblocks the ownership/trigger contract, but it is not yet a true monthly synthesis pipeline with session aggregation, LLM summarization, retries, or cron scheduling.
   - Expected behavior: Monthly trigger and scheduled generation should produce a substantive month summary that follows the Report System PRD schema, records real `session_count`/`token_used`, and handles failure markers per PRD FR-3.
@@ -31,6 +26,12 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
 
 ## Done
+
+- [x] Replace the static Mentle tool-filtering release-gate test with enabled-runtime governance-boundary coverage.
+  - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 Mentle regression coverage was found to validate only `MentleToolRuntimeConfig` filtering behavior. It did not exercise the higher-risk case where Mentle runtime is enabled and governance flows may still expose or depend on default Mentle routing.
+  - Completed: Replaced the release-gate test with AgentLoop-level enabled-runtime coverage. The test now constructs enabled Mentle toolsets with `memtle_status`/`memtle_search`, verifies `mentle_active()` can be true, and fails if the assembled governance prompt exposes default Mentle recall/routing names or Palace Memory guidance.
+  - Verification: `rustfmt --check agent-diva-agent/src/agent_loop.rs agent-diva-agent/tests/mentle_governance_boundaries.rs`; `cargo test -p agent-diva-agent --test mentle_governance_boundaries`; `just epic6-release-gate`. Package-wide `cargo fmt -p agent-diva-agent -- --check` remains blocked by pre-existing `agent-diva-agent/src/memory_boundary.rs` drift tracked under the open rustfmt TODO.
+  - Related files/docs: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/tests/mentle_governance_boundaries.rs`, `justfile`, `_bmad-output/implementation-artifacts/6-5-add-metrics-and-release-gate-validation.md`, `docs/logs/2026-06-todolist-closeout/v0.0.2-mentle-release-gate-runtime-coverage/verification.md`.
 
 - [x] Close verified TODOLIST items from the 2026-06 backlog triage.
   - Context: During the 2026-06-18 TODOLIST closeout, several Open items were found to be stale because current code and focused backlog entries already cover their expected behavior.

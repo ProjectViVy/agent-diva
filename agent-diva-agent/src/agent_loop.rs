@@ -592,6 +592,11 @@ impl AgentLoop {
         self.mentle_active
     }
 
+    /// Build the current system prompt from the configured runtime context.
+    pub fn build_system_prompt(&self) -> String {
+        self.context.build_system_prompt(None)
+    }
+
     /// Run the agent loop, processing messages from the bus
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Agent loop started");
