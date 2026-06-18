@@ -10,6 +10,7 @@ use agent_diva_agent::{
     tool_config::network::WebRuntimeConfig, tool_config::network::WebSearchRuntimeConfig,
     AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
+use agent_diva_autodream::{AutoDreamService, ScheduledMonthlyReportOutcome};
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::{Config, ConfigLoader};
@@ -21,6 +22,7 @@ use agent_diva_providers::{
     ProviderRegistry,
 };
 use anyhow::Result;
+use chrono::Local;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -28,6 +30,7 @@ use tokio::task::JoinHandle;
 use tracing::error;
 
 pub const DEFAULT_GATEWAY_PORT: u16 = 3000;
+pub(crate) const NOTEBOOK_MONTHLY_CRON_KIND: &str = "notebook_monthly_report";
 
 #[derive(Clone)]
 pub struct GatewayRuntimeConfig {
@@ -235,21 +238,56 @@ pub async fn start_embedded_gateway_runtime(
     Ok(EmbeddedGatewayRuntime { tasks: Some(tasks) })
 }
 
-async fn start_cron_service(cron_store: PathBuf, bus: MessageBus) -> Arc<CronService> {
-    let cron_service = Arc::new(CronService::new(cron_store, Some(build_cron_callback(bus))));
+async fn start_cron_service(
+    cron_store: PathBuf,
+    bus: MessageBus,
+    workspace: PathBuf,
+) -> Arc<CronService> {
+    let cron_service = Arc::new(CronService::new(
+        cron_store,
+        Some(build_cron_callback(bus, workspace)),
+    ));
     cron_service.start().await;
     cron_service
 }
 
-fn build_cron_callback(bus: MessageBus) -> JobCallback {
+fn build_cron_callback(bus: MessageBus, workspace: PathBuf) -> JobCallback {
     Arc::new(
         move |job: agent_diva_core::cron::CronJob,
               cancel_token|
               -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<String>> + Send>> {
             let bus = bus.clone();
+            let workspace = workspace.clone();
             Box::pin(async move {
                 if cancel_token.is_cancelled() {
                     return Some("Error: cancelled".to_string());
+                }
+                if job.payload.kind == NOTEBOOK_MONTHLY_CRON_KIND {
+                    let service = match AutoDreamService::open(workspace) {
+                        Ok(service) => service,
+                        Err(error) => {
+                            return Some(format!(
+                                "Error: failed to initialize AutoDream monthly scheduler: {error}"
+                            ));
+                        }
+                    };
+                    return match service.execute_scheduled_monthly_report(Local::now().date_naive())
+                    {
+                        Ok(ScheduledMonthlyReportOutcome::Triggered { run_id, month_key }) => {
+                            Some(format!(
+                                "triggered monthly notebook report {month_key} via run {run_id}"
+                            ))
+                        }
+                        Ok(ScheduledMonthlyReportOutcome::AlreadyGenerated { month_key }) => {
+                            Some(format!("monthly notebook report {month_key} already exists"))
+                        }
+                        Ok(ScheduledMonthlyReportOutcome::Skipped { reason, .. }) => {
+                            Some(format!("skipped monthly notebook report: {reason}"))
+                        }
+                        Err(error) => Some(format!(
+                            "Error: monthly notebook report scheduler failed: {error}"
+                        )),
+                    };
                 }
                 let deliver = job.payload.deliver;
                 if !deliver {

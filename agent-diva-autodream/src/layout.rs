@@ -81,6 +81,19 @@ impl AutoDreamPaths {
         self.weekly_reports_dir().join(format!("{week}.md"))
     }
 
+    pub fn monthly_reports_dir(&self) -> PathBuf {
+        self.workspace_root.join("reports").join("monthly")
+    }
+
+    pub fn monthly_report_file(&self, month: &str) -> PathBuf {
+        self.monthly_reports_dir().join(format!("{month}.md"))
+    }
+
+    pub fn monthly_error_marker_file(&self, month: &str) -> PathBuf {
+        self.monthly_reports_dir()
+            .join(format!("{month}.error.json"))
+    }
+
     pub fn compact_dir(&self) -> PathBuf {
         self.workspace_root.join(".agent-diva").join("compact")
     }

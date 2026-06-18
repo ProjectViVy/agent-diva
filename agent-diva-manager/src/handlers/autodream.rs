@@ -18,7 +18,7 @@ pub async fn trigger_autodream_run_handler(
         .trigger_manual_run(payload.clone())
         .map_err(autodream_error_response)?;
     let status = match payload.trigger.as_deref() {
-        Some("notebook-daily" | "notebook-weekly") => state
+        Some("notebook-daily" | "notebook-weekly" | "notebook-monthly") => state
             .autodream
             .execute_report_trigger(&status.run.id)
             .map_err(autodream_error_response)?,

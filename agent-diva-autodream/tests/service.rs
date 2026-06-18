@@ -1,8 +1,11 @@
 use std::time::Duration;
 
-use agent_diva_autodream::{AutoDreamService, ManualRunTriggerRequest};
+use agent_diva_autodream::{
+    AutoDreamService, ManualRunTriggerRequest, ScheduledMonthlyReportOutcome,
+};
 use agent_diva_core::evolution::{AutoDreamRunRecord, AutoDreamRunState, LaputaSectionName};
 use agent_diva_laputa::{atomic_write_json, LaputaStorage};
+use chrono::NaiveDate;
 use serde_json::Value;
 
 #[test]
@@ -180,6 +183,62 @@ fn notebook_weekly_trigger_generates_report_and_completes_run() {
         .path()
         .join(".agent-diva/autodream/reports/weekly")
         .exists());
+}
+
+#[test]
+fn notebook_monthly_trigger_generates_report_and_completes_run() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path()).unwrap();
+    seed_session(temp.path(), "chat:1", "monthly report content");
+
+    let status = service
+        .trigger_manual_run(ManualRunTriggerRequest {
+            trigger: Some("notebook-monthly".to_string()),
+        })
+        .unwrap();
+    let completed = service.execute_report_trigger(&status.run.id).unwrap();
+
+    assert_eq!(completed.run.state, AutoDreamRunState::Completed);
+    assert!(completed.lock.is_none());
+    assert!(temp.path().join("reports/monthly").exists());
+}
+
+#[test]
+fn scheduled_monthly_report_runs_on_first_monday() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path()).unwrap();
+    seed_session(temp.path(), "chat:1", "scheduled monthly report");
+
+    let outcome = service
+        .execute_scheduled_monthly_report(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap())
+        .unwrap();
+
+    match outcome {
+        ScheduledMonthlyReportOutcome::Triggered { run_id, month_key } => {
+            assert!(!run_id.is_empty());
+            assert_eq!(month_key, "2026-06");
+        }
+        other => panic!("expected triggered outcome, got {other:?}"),
+    }
+    assert!(temp.path().join("reports/monthly/2026-06.md").exists());
+}
+
+#[test]
+fn scheduled_monthly_report_skips_outside_window_without_retry_marker() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path()).unwrap();
+
+    let outcome = service
+        .execute_scheduled_monthly_report(NaiveDate::from_ymd_opt(2026, 6, 10).unwrap())
+        .unwrap();
+
+    assert_eq!(
+        outcome,
+        ScheduledMonthlyReportOutcome::Skipped {
+            month_key: "2026-06".to_string(),
+            reason: "outside monthly schedule window".to_string(),
+        }
+    );
 }
 
 fn seed_session(workspace: &std::path::Path, key: &str, content: &str) {

@@ -10,7 +10,8 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     } = runtime;
 
     let bus = MessageBus::new();
-    let cron_service = start_cron_service(cron_store, bus.clone()).await;
+    let cron_service = start_cron_service(cron_store, bus.clone(), workspace.clone()).await;
+    ensure_notebook_monthly_cron_job(&cron_service).await?;
     let dynamic_provider = Arc::new(DynamicProvider::new(Arc::new(build_provider(
         &config,
         &config.agents.defaults.model,
@@ -48,6 +49,60 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         agent,
         file_manager,
     })
+}
+
+async fn ensure_notebook_monthly_cron_job(cron_service: &CronService) -> Result<()> {
+    let schedule = agent_diva_core::cron::CronSchedule::cron("5 0 * * *".to_string(), None);
+    let payload = agent_diva_core::cron::CronPayload {
+        kind: NOTEBOOK_MONTHLY_CRON_KIND.to_string(),
+        message: String::new(),
+        deliver: false,
+        channel: None,
+        to: None,
+    };
+    if let Some(existing) = cron_service
+        .list_job_views(true)
+        .await
+        .into_iter()
+        .find(|job| job.job.payload.kind == NOTEBOOK_MONTHLY_CRON_KIND)
+    {
+        let needs_update = existing.job.name != "Notebook Monthly Productionize"
+            || existing.job.payload.kind != NOTEBOOK_MONTHLY_CRON_KIND
+            || existing.job.payload.deliver
+            || existing.job.payload.channel.is_some()
+            || existing.job.payload.to.is_some()
+            || !matches!(
+                existing.job.schedule,
+                agent_diva_core::cron::CronSchedule::Cron { ref expr, .. } if expr == "5 0 * * *"
+            );
+        if needs_update {
+            cron_service
+                .update_job(
+                    &existing.job.id,
+                    agent_diva_core::cron::UpdateCronJobRequest {
+                        name: "Notebook Monthly Productionize".to_string(),
+                        schedule,
+                        payload,
+                        delete_after_run: false,
+                        enabled: true,
+                    },
+                )
+                .await
+                .map_err(anyhow::Error::msg)?;
+        }
+    } else {
+        cron_service
+            .create_job(agent_diva_core::cron::CreateCronJobRequest {
+                name: "Notebook Monthly Productionize".to_string(),
+                schedule,
+                payload,
+                delete_after_run: false,
+                enabled: true,
+            })
+            .await
+            .map_err(anyhow::Error::msg)?;
+    }
+    Ok(())
 }
 
 pub(super) async fn bootstrap_channel_runtime(

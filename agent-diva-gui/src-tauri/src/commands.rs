@@ -1,10 +1,9 @@
 use crate::app_state::AgentState;
 use crate::gateway_status::GatewayStatus;
 use crate::notebook::{
-    build_notebook_report_proposal, build_notebook_report_proposal_preview,
-    generate_monthly_notebook_report, load_notebook_reports, search_notebook_session_evidence,
-    NotebookPeriod, NotebookProposalAction, NotebookProposalPreviewDto, NotebookReportDto,
-    NotebookSessionSearchRequest,
+    build_notebook_report_proposal, build_notebook_report_proposal_preview, load_notebook_reports,
+    search_notebook_session_evidence, NotebookPeriod, NotebookProposalAction,
+    NotebookProposalPreviewDto, NotebookReportDto, NotebookSessionSearchRequest,
 };
 use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
@@ -530,11 +529,11 @@ pub async fn trigger_notebook_report_generation(
 ) -> Result<serde_json::Value, String> {
     let period = NotebookPeriod::parse(&period)?;
     match period {
-        NotebookPeriod::Daily | NotebookPeriod::Weekly => {
+        NotebookPeriod::Daily | NotebookPeriod::Weekly | NotebookPeriod::Monthly => {
             let trigger = match period {
                 NotebookPeriod::Daily => "notebook-daily",
                 NotebookPeriod::Weekly => "notebook-weekly",
-                NotebookPeriod::Monthly => unreachable!(),
+                NotebookPeriod::Monthly => "notebook-monthly",
             };
             let url = format!("{}/autodream/runs", state.api_base_url());
             post_laputa_payload(
@@ -547,20 +546,6 @@ pub async fn trigger_notebook_report_generation(
             )
             .await
             .map_err(laputa_error_message)
-        }
-        NotebookPeriod::Monthly => {
-            let loader = ConfigLoader::new();
-            let config = loader.load().unwrap_or_default();
-            let runtime =
-                CliRuntime::from_paths(None, Some(loader.config_dir().to_path_buf()), None);
-            let workspace = runtime.effective_workspace(&config);
-            let result = generate_monthly_notebook_report(&workspace)?;
-            Ok(serde_json::json!({
-                "period": "monthly",
-                "dateKey": result.date_key,
-                "path": result.path.to_string_lossy(),
-                "status": "generated",
-            }))
         }
     }
 }

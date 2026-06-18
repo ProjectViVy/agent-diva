@@ -5,6 +5,7 @@ mod error;
 mod inputs;
 mod layout;
 mod metrics;
+mod monthly;
 mod outputs;
 mod reports;
 mod rhythm;
@@ -18,6 +19,7 @@ pub use inputs::{
 };
 pub use layout::{AutoDreamPaths, AutoDreamStorage};
 pub use metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot};
+pub(crate) use monthly::{AutoDreamMonthlyReportGenerator, MonthlyReportErrorMarker};
 pub use outputs::{
     AutoDreamArtifactSummary, AutoDreamOutputEmitter, AutoDreamOutputEvent,
     AutoDreamOutputEventKind, AutoDreamOutputRequest, AutoDreamProposalCandidateDraft,
@@ -30,7 +32,7 @@ pub use reports::{
 pub use rhythm::AutoDreamRhythmReportGenerator;
 pub use service::{
     AutoDreamCheckpoint, AutoDreamEvent, AutoDreamLockRecord, AutoDreamRunList, AutoDreamRunStatus,
-    AutoDreamService, ManualRunTriggerRequest,
+    AutoDreamService, ManualRunTriggerRequest, ScheduledMonthlyReportOutcome,
 };
 pub use worker::{
     AutoDreamReflectionStage, AutoDreamReflectionStageRecord, AutoDreamRestrictedAction,
