@@ -4,15 +4,39 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
 
 ## Open
 
-- [ ] Add `authority_boundaries` coverage to `just epic6-release-gate`.
-  - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 release-gate command was found to run `direct_write_guard` and the proof loop, but it omits the `authority_boundaries` test suite introduced by Story 6.3. The documented gate therefore does not actually verify the full direct read/write boundary before declaring release readiness.
-  - Expected behavior: The Epic 6 release gate should include the direct authority-boundary regression suite alongside proof-loop, service, Mentle, AutoDream, and GUI checks.
-  - Related files/docs: `justfile`, `agent-diva-laputa/tests/authority_boundaries.rs`, `docs/logs/2026-06-epic6-release-gate/v0.0.1-metrics-and-release-gate-validation/verification.md`, `_bmad-output/implementation-artifacts/6-5-add-metrics-and-release-gate-validation.md`.
-
 - [ ] Replace the static Mentle tool-filtering release-gate test with enabled-runtime governance-boundary coverage.
   - Context: During Epic 6 combined review on 2026-06-17, Story 6.5 Mentle regression coverage was found to validate only `MentleToolRuntimeConfig` filtering behavior. It does not exercise the higher-risk case where Mentle runtime is enabled and governance flows may still expose or depend on default Mentle routing.
   - Expected behavior: Release-gate Mentle coverage should fail if enabled runtime governance surfaces expose default Mentle recall/routing or otherwise reintroduce a governance role for Mentle in v1.
   - Related files/docs: `agent-diva-agent/tests/mentle_governance_boundaries.rs`, `justfile`, `_bmad-output/implementation-artifacts/6-5-add-metrics-and-release-gate-validation.md`.
+
+- [ ] Replace Notebook monthly placeholder generation with full report-system monthly synthesis.
+  - Context: During Story 4.1 on 2026-06-15, Notebook monthly trigger was closed by adding a Report-owned generation path that writes `{workspace}/reports/monthly/{YYYY-MM}.md` with v1 frontmatter and placeholder body sections. This unblocks the ownership/trigger contract, but it is not yet a true monthly synthesis pipeline with session aggregation, LLM summarization, retries, or cron scheduling.
+  - Expected behavior: Monthly trigger and scheduled generation should produce a substantive month summary that follows the Report System PRD schema, records real `session_count`/`token_used`, and handles failure markers per PRD FR-3.
+  - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `docs/prd-report-system/prd.md`, `_bmad-output/implementation-artifacts/4-1-consume-autodream-and-report-owned-paths-correctly.md`.
+
+- [ ] Track and enforce isolated workspace handling when the project is in a parallel state.
+  - Context: On 2026-06-15, project guidance was updated so that if a user says this project is currently in a "parallel" state, terminal work must move to an isolated branch workspace before development continues. Acceptable isolation includes a dedicated git worktree/branch or a copied sibling folder, as long as it does not affect other active partitions.
+  - Current status: The 2026-06-15 TODOLIST closeout was performed from an isolated worktree and treated root dirty-work as input rather than editing it directly. The durable backlog item remains open until this isolation behavior is enforced mechanically or documented as an operational checklist.
+  - Expected behavior: When "parallel" state is mentioned, create or switch to an isolated workspace first, develop on that branch/workspace, and keep the isolation status visible in this backlog until the process is fully operational.
+  - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
+
+- [ ] Fix pre-existing full GUI vitest environment failures.
+  - Context: During Story 2.1 validation on 2026-06-14, targeted Evolution/NormalMode tests passed, but full `pnpm test` failed in unrelated suites. `SubAgentPanel.test.ts` lacks a vue-i18n install/mock for `useI18n`, and `DivaPetView.test.ts` has a `lucide-vue-next` mock missing `ChevronDown`.
+  - Expected behavior: Full `agent-diva-gui` vitest suite should pass after shared test setup/mocks are aligned with current components.
+  - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`.
+
+- [ ] Clean pre-existing workspace rustfmt drift.
+  - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
+  - Expected behavior: Workspace-wide format check should pass without requiring unrelated formatting churn during focused story work.
+  - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
+
+## Done
+
+- [x] Close verified TODOLIST items from the 2026-06 backlog triage.
+  - Context: During the 2026-06-18 TODOLIST closeout, several Open items were found to be stale because current code and focused backlog entries already cover their expected behavior.
+  - Completed: Confirmed `just epic6-release-gate` now includes `cargo test -p agent-diva-laputa --test authority_boundaries`; confirmed the governance direct-write guard now calls the shared authority-boundary guard instead of exempting `notebook.rs`; moved checked items out of the Open section; and closed the broad Story 5.3 validation aggregate because remaining blockers are tracked as focused Open items.
+  - Verification: `git status --short --untracked-files=all`; `rg -n "epic6-release-gate|authority_boundaries|direct_write_guard|notebook.rs" justfile agent-diva-laputa/tests`; targeted inspection of `TODOLIST.md`.
+  - Related files/docs: `TODOLIST.md`, `justfile`, `agent-diva-laputa/tests/direct_write_guard.rs`, `agent-diva-laputa/tests/authority_boundary_guard.rs`, `docs/logs/2026-06-todolist-closeout/v0.0.1-backlog-triage/verification.md`.
 
 - [x] Preserve session compaction persistence when Laputa becomes the default `MemoryProvider`.
   - Context: During Epic 5 combined review on 2026-06-17, Story 5.1 was found to switch the default provider to `LaputaMemoryProvider`, but that provider returns `SyncTurnStatus::Noop` for `sync_turn`. The agent loop still runs consolidation through the active `MemoryProvider`, and the consolidation path treats `Noop` as success and advances `last_consolidated`.
@@ -43,39 +67,6 @@ This file is the project-level backlog for bugs, gaps, and unfinished work found
   - Context: During Epic 5 combined review on 2026-06-17, Story 5.3 was found to reject compaction-only evidence in `agent-diva-autodream/src/outputs.rs`, but `agent-diva-laputa` proposal creation/edit validation still accepts any non-empty `evidence_refs`.
   - Expected behavior: Proposal persistence and edit boundaries should reject or downgrade compaction-only evidence sets consistently, so context compaction can never become the sole durable authority basis through alternate proposal creation paths.
   - Related files/docs: `agent-diva-core/src/evolution/types.rs`, `agent-diva-autodream/src/outputs.rs`, `agent-diva-laputa/src/proposals.rs`, `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`.
-
-- [ ] Remove the blanket `notebook.rs` allowlist entry from the governance direct-write guard.
-  - Context: During Epic 4 combined review on 2026-06-17, the Story 4.4 guardrail test was found to scan `agent-diva-gui/src-tauri/src` but exempt the entire `agent-diva-gui/src-tauri/src/notebook.rs` production file. That exemption allows future forbidden authority writes in Notebook code to bypass the static regression guard.
-  - Expected behavior: The direct-write guard should fail on new authority-path writes in Notebook production code, using narrower exceptions only where they are explicitly justified and test-safe.
-  - Related files/docs: `agent-diva-laputa/tests/direct_write_guard.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `_bmad-output/implementation-artifacts/4-4-add-solidification-regression-coverage.md`.
-
-- [ ] Replace Notebook monthly placeholder generation with full report-system monthly synthesis.
-  - Context: During Story 4.1 on 2026-06-15, Notebook monthly trigger was closed by adding a Report-owned generation path that writes `{workspace}/reports/monthly/{YYYY-MM}.md` with v1 frontmatter and placeholder body sections. This unblocks the ownership/trigger contract, but it is not yet a true monthly synthesis pipeline with session aggregation, LLM summarization, retries, or cron scheduling.
-  - Expected behavior: Monthly trigger and scheduled generation should produce a substantive month summary that follows the Report System PRD schema, records real `session_count`/`token_used`, and handles failure markers per PRD FR-3.
-  - Related files/docs: `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src-tauri/src/notebook.rs`, `docs/prd-report-system/prd.md`, `_bmad-output/implementation-artifacts/4-1-consume-autodream-and-report-owned-paths-correctly.md`.
-
-- [ ] Track and enforce isolated workspace handling when the project is in a parallel state.
-  - Context: On 2026-06-15, project guidance was updated so that if a user says this project is currently in a "parallel" state, terminal work must move to an isolated branch workspace before development continues. Acceptable isolation includes a dedicated git worktree/branch or a copied sibling folder, as long as it does not affect other active partitions.
-  - Current status: The 2026-06-15 TODOLIST closeout was performed from an isolated worktree and treated root dirty-work as input rather than editing it directly. The durable backlog item remains open until this isolation behavior is enforced mechanically or documented as an operational checklist.
-  - Expected behavior: When "parallel" state is mentioned, create or switch to an isolated workspace first, develop on that branch/workspace, and keep the isolation status visible in this backlog until the process is fully operational.
-  - Related files/docs: `AGENTS.md`, `TODOLIST.md`.
-
-- [ ] Fix current Story 5.3 workspace validation blockers outside context compaction guardrails.
-  - Context: During Story 5.3 validation on 2026-06-15, targeted 5.3 tests passed, but workspace validation was blocked by unrelated existing issues. Follow-up verification in isolated TODOLIST closeout resolved the Laputa blockers (`cargo test -p agent-diva-laputa`), sandbox all-target blockers (`cargo clippy -p agent-diva-sandbox --all-targets -- -D warnings`, `cargo test -p agent-diva-sandbox`), and GUI Rust compile blocker (`cargo check -p agent-diva-gui`). The remaining unrelated validation failures now live in their focused backlog items instead of this aggregate note.
-  - Expected behavior: Story 5.3 validation should rely on the remaining focused workspace TODOs instead of broad aggregate blockers.
-  - Related files/docs: `agent-diva-sandbox/src/manager.rs`, `agent-diva-sandbox/src/platform/macos.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-agent/tests/compaction_real_test.rs`, `_bmad-output/implementation-artifacts/5-3-keep-context-compaction-session-local.md`.
-
-- [ ] Fix pre-existing full GUI vitest environment failures.
-  - Context: During Story 2.1 validation on 2026-06-14, targeted Evolution/NormalMode tests passed, but full `pnpm test` failed in unrelated suites. `SubAgentPanel.test.ts` lacks a vue-i18n install/mock for `useI18n`, and `DivaPetView.test.ts` has a `lucide-vue-next` mock missing `ChevronDown`.
-  - Expected behavior: Full `agent-diva-gui` vitest suite should pass after shared test setup/mocks are aligned with current components.
-  - Related files/docs: `agent-diva-gui/src/components/SubAgentPanel.test.ts`, `agent-diva-gui/src/features/diva-pet/components/DivaPetView.test.ts`.
-
-- [ ] Clean pre-existing workspace rustfmt drift.
-  - Context: During Story 1.1 validation on 2026-06-14, `cargo fmt --all -- --check` failed on unrelated pre-existing formatting diffs outside the governance domain type changes, including `agent-diva-agent`, `agent-diva-core/src/planning`, `agent-diva-manager`, and `agent-diva-sandbox` files.
-  - Expected behavior: Workspace-wide format check should pass without requiring unrelated formatting churn during focused story work.
-  - Related files/docs: validation output for Story 1.1; `docs/logs/2026-06-governance-domain-types/v0.0.1-governance-domain-types/verification.md`.
-
-## Done
 
 - [x] Close Epic 4 Notebook frontend/backend linkage follow-up batch.
   - Context: During Epic 4 combined review on 2026-06-17, Notebook still had five user-visible integration gaps after Stories 4.1-4.3: malformed report files could abort the whole list, Notebook-created proposals misused `source_run_id`, session evidence search results were not attachable from the UI, failed preview requests could leave stale modal content visible, and Notebook-to-Evolution deep-links could land on the inbox without loading the target proposal detail.
