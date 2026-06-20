@@ -169,3 +169,57 @@ related:
 > 9、多开不做,这个是已经defer的蜂群实现,但是和目前diva单一人格哲学冲突。
 > 10、自我升级很重要,需要调研,这个也可以参考hermes
 > 11、插件系统也很重要,也需要调研。但是我想把它和工作台一起设计
+
+---
+
+## 6. 持续调研笔记(2026-06-18 新增)
+
+> **状态**: 提醒下次会话继续阅读历史文档以完善设计。**未完成,需要持续推进**。
+
+### 6.1 触发原因
+
+W2-W6 设计阶段(对应 `DECISION-v2-next-phase.md` Harness Engineering)发现:
+
+- **历史决策散落在 `agent-diva-agent-new/docs/logs/2026-05-*/`** 多个 log 目录
+- 这些 log 包含已被讨论但**未落地的设计**(GenericAgent L0-L4 分层压缩、Phase 1 公理、4-axiom 系统)
+- 直接重新设计会**重复造轮子 + 违背既有决策**
+
+### 6.2 必须继续看的旧文档(优先级降序)
+
+| # | 文档 | 路径 | 必读原因 |
+|---|------|------|---------|
+| 1 | **memory-architecture-deep-dive** | `agent-diva-agent-new/docs/logs/2026-05-memory-architecture-deep-dive/v0.0.1-architecture-analysis/summary.md`(已读 1/2) | GenericAgent L0-L4 设计 + Phase 1 决策"不碰 mentle" + 4 公理 + 分类决策树 |
+| 2 | **mentle-laputa-memory-role** | `agent-diva-agent-new/docs/logs/2026-05-mentle-laputa-memory-role/v0.0.1-role-decision/summary.md` | Mentle 定位("optional external semantic notebook")+ Laputa/Mentle 边界 |
+| 3 | **compression-taxonomy** | `agent-diva-agent-new/docs/logs/2026-05-compression-taxonomy/v0.0.1-context-vs-rhythm-compression/summary.md` | 三种压缩区分:context compaction vs memory consolidation vs rhythm distillation |
+| 4 | **laputa-architecture-audit** | `agent-diva-agent-new/docs/logs/2026-05-laputa-architecture-audit/v0.0.1-laputa-integration-feasibility/` | Laputa 集成可行性,state machine 太复杂被推迟 |
+| 5 | **laputa-new-architecture** | `agent-diva-agent-new/docs/logs/2026-05-laputa-new-architecture/v0.0.1-new-laputa-design/` | Laputa 新设计草案 |
+| 6 | **autodream-compression-research** | `agent-diva-agent-new/docs/logs/2026-05-autodream-compression-research/v0.0.1-compression-design/` | AutoDream 压缩设计细节 |
+| 7 | **context-compaction-research** | `agent-diva-agent-new/docs/logs/2026-05-context-compaction-research/` | context-window 压缩算法选择 |
+| 8 | **compression-taxonomy vs evolution** | `agent-diva-agent-new/docs/logs/2026-05-context-vs-evolution-decision/` | 压缩 vs 进化 边界 |
+| 9 | **shared-memory-rendering** | `agent-diva-agent-new/docs/logs/2026-05-shared-memory-rendering/` | 共享 memory 渲染 |
+| 10 | **mentle-runtime** | `agent-diva-agent-new/docs/logs/2026-05-mentle-runtime/` | Mentle runtime 集成细节 |
+
+### 6.3 已知但还没读完的
+
+- `agent-diva-agent-new/docs/logs/2026-05-memory-architecture-deep-dive/v0.0.1-architecture-analysis/` 还差 `acceptance.md` / `verification.md` / `release.md` 没看
+- `agent-diva-pro/docs/dev/archive(old-docs-dont-read-me)/morediva-root/` 整个目录是 archive(可能不读),但需确认是否有非 archive 内容
+
+### 6.4 调研优先级建议(下次会话起手)
+
+1. **先读未读完整文档**(上面 #4 #5 #6 #7 #8 #9 #10 的完整版本)
+2. **再扫 `agent-diva-pro/docs/dev/genericagent/`** 目录(可能有 4 公理 + 决策树的源文件)
+3. **检查 `agent-diva-pro/docs/dev/archive(old-docs-dont-read-me)/`** 是否真的可忽略
+4. **如发现矛盾设计,优先遵循 `2026-05-*` 的决策**,而不是自己重判
+
+### 6.5 关键约束(调研时必须遵守)
+
+> **不要违反 Phase 1 决策**: memtle 不进核心循环,laputa 状态机推到 Phase 2,纯文件 + 公理是基础。
+
+---
+
+## 7. 相关决策引用
+
+- **DECISION-v2-next-phase.md** —— Harness Engineering 6 cats(W2 Tools & permissions 是 cronjob 整合点)
+- **docs/research/alife-harness-gap-inventory.md** —— alife vs diva 14 项 gap(已通过这文件调研发现)
+- **docs/design-notes/autonomous-activity-thoughts.md** —— 4 层架构(延后到 v2+,不影响本决策)
+- **docs/research/harness-engineering-three-way-detailed-checklist.md** —— 22 维度三方对比
