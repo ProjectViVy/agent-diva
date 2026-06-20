@@ -4,13 +4,17 @@
 
 ## Open
 
-- [ ] **Plan mode 运行时未生效** — 手测失败已调查确认：ChatView 的 `execMode = 'plan'` 只改变本地 UI/placeholder，未随 `send_message` 传到后端；AgentLoop `ToolConfig` 没有 planning 配置槽，ToolAssembly 未注册 planning/todo 工具，active plan context hook 未接入主循环，GUI PlanningView 依赖的 Tauri commands/nav 也未注册。
-  - 原因：planning store/tools/hooks/manager CRUD/GUI 组件是分层脚手架，缺少端到端运行时接线。
-  - 期望行为：选择 Plan mode 后，消息携带执行模式进入后端；agent 使用同一 planning store，暴露 `plan_create`/`todo_write`/`plan_transition` 等工具，注入 active plan context，并在 GUI/Manager 可查询同一 active plan。
-  - 相关文件/证据：`agent-diva-gui/src/components/ChatView.vue`, `agent-diva-gui/src/App.vue`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-agent/src/planning/hooks.rs`, `agent-diva-manager/src/manager.rs`, `_bmad-output/implementation-artifacts/investigations/plan-mode-not-effective-investigation.md`。
+- [ ] **Workspace 全局验证门禁阻塞** — Plan mode runtime 修复期间复跑 `just check`/`just test` 发现既有全局门禁仍未清理。
+  - `just check` 阻塞：`agent-diva-gui/src-tauri/src/notebook.rs` 多个 notebook 月报相关常量/函数/结构体触发 `dead_code`，在 `cargo clippy --all -- -D warnings` 下失败。
+  - `just test` 阻塞：`agent-diva-agent` 中 `test_agent_loop_accepts_custom_memory_provider`、`test_with_toolset_memtle_status_enables_prompt`、`test_build_subagent_prompt_excludes_legacy_identity_files` 可单独复现失败。
+  - 期望行为：全局 `just check` 和 `just test` 在当前 workspace 默认配置下可通过，或将已知不可用路径隔离到明确的 feature/target 门禁。
+  - 相关文件：`agent-diva-gui/src-tauri/src/notebook.rs`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/subagent.rs`。
 
 ## Done
 
+- [x] **Plan mode 运行时生效修复** — GUI `execMode = 'plan'` 已随 `send_message` 传到 Manager；AgentLoop 接入 workspace-local planning store、Plan mode 工具限制、active plan context 注入和 planning/todo 工具注册；GUI PlanningView 依赖的 Tauri commands/nav 已注册。
+  - 修复范围：`agent-diva-gui/src/components/ChatView.vue`, `agent-diva-gui/src/App.vue`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-agent/src/tool_config/mod.rs`, `agent-diva-manager/src/handlers.rs`, `agent-diva-manager/src/manager.rs`, `agent-diva-gui/src-tauri/src/commands.rs`。
+  - 验证记录：`docs/logs/2026-06-plan-mode-runtime/v0.0.1-plan-mode-runtime-wiring/verification.md`。
 - [x] **月度报告产品化** — 月报已接入 `notebook-monthly` 触发链路、AutoDream 共享生成器、失败 error marker attempt 计数、manager 启动时自动安装的月报 cron 调度，以及 GUI 统一的 manager 触发入口（`monthly.rs`, `service.rs`, `runtime.rs`, `bootstrap.rs`, `commands.rs`）
 - [x] **日报聚合与会话回退** — AutoDream 日/周触发器生成真实报告文件；月度从日报合成，缺失日期回退到会话摘要
 - [x] **并行状态工作区隔离** — 规则已写入 `AGENTS.md`（`parallel-state-worktree-isolation`），通过 git worktree/branch 执行

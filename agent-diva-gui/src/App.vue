@@ -23,6 +23,8 @@ import {
 
 const { t } = useI18n();
 
+type ExecMode = 'agent' | 'plan' | 'ask';
+
 interface Message {
   role: 'user' | 'agent' | 'system' | 'tool';
   content: string;
@@ -579,7 +581,7 @@ function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
   };
 }
 
-async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
+async function sendMessage(content: string, attachments?: FileAttachmentDto[], mode: ExecMode = 'agent') {
   if (!content.trim() && (!attachments || attachments.length === 0)) return;
   if (isTyping.value) return;
   if (content.trim() === '/stop') {
@@ -636,6 +638,7 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
       channel: currentChannel.value,
       chatId: currentChatId.value,
       attachments: attachmentFileIds,
+      mode,
       streamRequestId,
     });
   } catch (error) {

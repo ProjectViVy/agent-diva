@@ -32,6 +32,7 @@ use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
 use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::mentle::MentleToolRuntimeConfig;
 use crate::tool_config::network::NetworkToolConfig;
+use crate::tool_config::PlanningConfig;
 
 mod loop_runtime_control;
 mod loop_tools;
@@ -46,6 +47,8 @@ pub struct ToolConfig {
     pub network: NetworkToolConfig,
     /// Mentle tool selection policy.
     pub mentle: MentleToolRuntimeConfig,
+    /// Optional planning store/tool runtime.
+    pub planning: Option<PlanningConfig>,
     /// Shell execution timeout in seconds
     pub exec_timeout: u64,
     /// Whether to restrict file access to workspace
@@ -70,6 +73,7 @@ impl Default for ToolConfig {
             builtin: BuiltInToolsConfig::default(),
             network: NetworkToolConfig::default(),
             mentle: MentleToolRuntimeConfig::default(),
+            planning: None,
             exec_timeout: 60,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
@@ -199,6 +203,12 @@ impl SubagentSpawner for SubagentManagerSpawner {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+struct ToolTurnOptions<'a> {
+    active_mask: Option<&'a MaskFile>,
+    plan_mode: bool,
+}
+
 fn build_agent_tools(
     workspace: PathBuf,
     tool_config: &ToolConfig,
@@ -206,18 +216,24 @@ fn build_agent_tools(
     file_manager: Arc<FileManager>,
     custom_tools: Vec<Arc<dyn Tool>>,
     cron_service: Option<Arc<CronService>>,
-    active_mask: Option<&MaskFile>,
+    turn_options: ToolTurnOptions<'_>,
 ) -> ToolRegistry {
     let mut assembly = ToolAssembly::new(workspace)
         .builtin(tool_config.builtin.clone())
         .with_network_config(tool_config.network.clone())
+        .with_planning_config(tool_config.planning.clone())
         .with_exec_timeout(tool_config.exec_timeout)
         .restrict_to_workspace(tool_config.restrict_to_workspace)
         .mcp_servers(tool_config.mcp_servers.clone())
         .with_subagent_spawner(spawner)
         .with_file_manager(file_manager)
         .with_tools(custom_tools)
-        .with_mask_config(active_mask.map(|mask| mask.frontmatter.clone()));
+        .with_mask_config(
+            turn_options
+                .active_mask
+                .map(|mask| mask.frontmatter.clone()),
+        )
+        .plan_mode(turn_options.plan_mode);
 
     if let Some(cron_service) = cron_service {
         assembly = assembly.with_cron_service(cron_service);
@@ -232,7 +248,11 @@ impl AgentLoop {
         registry.current_mask().cloned()
     }
 
-    pub(crate) fn rebuild_tools_for_mask(&mut self, active_mask: Option<&MaskFile>) {
+    pub(crate) fn rebuild_tools_for_turn(
+        &mut self,
+        active_mask: Option<&MaskFile>,
+        plan_mode: bool,
+    ) {
         self.tools = build_agent_tools(
             self.workspace.clone(),
             &self.tool_config,
@@ -242,7 +262,10 @@ impl AgentLoop {
             self.file_manager.clone(),
             self.custom_tools.clone(),
             self.tool_config.cron_service.clone(),
-            active_mask,
+            ToolTurnOptions {
+                active_mask,
+                plan_mode,
+            },
         );
     }
 
@@ -470,7 +493,7 @@ impl AgentLoop {
             file_manager.clone(),
             custom_tools.clone(),
             tool_config.cron_service.clone(),
-            None,
+            ToolTurnOptions::default(),
         );
 
         let mut agent = Self {
@@ -509,7 +532,7 @@ impl AgentLoop {
                 agent.file_manager.clone(),
                 agent.custom_tools.clone(),
                 Some(cron_service),
-                None,
+                ToolTurnOptions::default(),
             );
         }
 
@@ -1344,7 +1367,7 @@ mod tests {
                 name: "memtle_status",
             })],
             Some(cron_service),
-            None,
+            ToolTurnOptions::default(),
         );
 
         assert!(registry.has("memtle_status"));

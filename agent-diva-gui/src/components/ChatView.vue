@@ -132,7 +132,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string, attachments?: FileAttachmentDto[]): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'select-session', sessionKey: string): void;
@@ -229,7 +229,7 @@ const handleSend = () => {
   if (!input.value.trim() && attachments.value.length === 0) return;
   const currentAttachments = [...attachments.value];
   const text = input.value.trim() || (currentAttachments.length > 0 ? t('chat.filePlaceholder') : '');
-  emit('send', text, currentAttachments.length > 0 ? currentAttachments : undefined);
+  emit('send', text, currentAttachments.length > 0 ? currentAttachments : undefined, execMode.value);
   input.value = '';
   attachments.value = [];
   nextTick(() => {

@@ -7,6 +7,7 @@ import {
   Cat,
   Check,
   ChevronDown,
+  ClipboardList,
   GitBranch,
   Heart,
   Menu,
@@ -34,6 +35,7 @@ import ConsoleView from './ConsoleView.vue';
 import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
 import NotebookView from './NotebookView.vue';
+import PlanningView from './planning/PlanningView.vue';
 import EvolutionView from './EvolutionView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
@@ -135,7 +137,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string, attachments?: FileAttachmentDto[]): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'toggle-sidebar'): void;
@@ -155,11 +157,12 @@ type SidebarSection =
   | 'mcp'
   | 'skills'
   | 'notebook'
+  | 'planning'
   | 'pet';
 type EvolutionBadgeTone = 'none' | 'accent' | 'warning' | 'danger';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'evolution' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'pet' | null>(null);
+const activeMenu = ref<'evolution' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -658,6 +661,10 @@ defineExpose({
           <BookOpen />
           <span v-if="!sidebarCollapsed">{{ t('nav.notebook') }}</span>
         </button>
+        <button class="nav-item" :class="{ active: isSectionActive('planning') }" @click="navigateTo('planning')">
+          <ClipboardList />
+          <span v-if="!sidebarCollapsed">{{ t('nav.planning') }}</span>
+        </button>
         <button class="nav-item" :class="{ active: isSectionActive('pet') }" @click="navigateTo('pet')">
           <Cat />
           <span v-if="!sidebarCollapsed">{{ t('nav.pet') }}</span>
@@ -916,6 +923,10 @@ defineExpose({
             </div>
           </div>
         </div>
+        <!-- Planning视图 -->
+        <div v-else-if="activeMenu === 'planning'" class="h-full">
+          <PlanningView />
+        </div>
         <!-- Pet视图 -->
         <div v-else-if="activeMenu === 'pet'" class="h-full relative">
           <DivaPetView
@@ -949,7 +960,7 @@ defineExpose({
               </div>
               <nav class="space-y-1">
                 <button
-                  v-for="section in ['chat', 'evolution', 'notebook', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
+                  v-for="section in ['chat', 'evolution', 'notebook', 'planning', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
                   :key="section"
                   class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   :class="{ 'bg-pink-50 text-pink-600 font-medium': isSectionActive(section as SidebarSection) }"
@@ -979,7 +990,7 @@ defineExpose({
               :history-prefs="chatDisplayPrefs"
               :sessions="sessions"
               :active-session-key="activeSessionKey"
-              @send="(content, attachments) => emit('send', content, attachments)"
+	              @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @clear="handleClearSession"
               @stop="emit('stop')"
               @select-session="(key) => emit('load-session', key)"

@@ -11,6 +11,7 @@ use agent_diva_agent::{
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
+    tool_config::PlanningConfig,
     AgentEvent, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_core::bus::MessageBus;
@@ -83,10 +84,12 @@ async fn build_local_cli_agent(
 
     let bus = MessageBus::new();
     let provider = Arc::new(build_provider(&config, &selected_model)?);
+    let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
         mentle: MentleToolRuntimeConfig::from_config(&config),
+        planning,
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),

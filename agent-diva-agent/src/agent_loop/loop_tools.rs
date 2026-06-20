@@ -21,7 +21,7 @@ impl AgentLoop {
             self.file_manager.clone(),
             self.custom_tools.clone(),
             self.tool_config.cron_service.clone(),
-            None,
+            super::ToolTurnOptions::default(),
         );
     }
 

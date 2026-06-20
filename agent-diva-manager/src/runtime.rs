@@ -8,7 +8,7 @@ use agent_diva_agent::{
     runtime_control::RuntimeControlCommand, tool_config::mentle::MentleToolRuntimeConfig,
     tool_config::network::NetworkToolConfig, tool_config::network::WebFetchRuntimeConfig,
     tool_config::network::WebRuntimeConfig, tool_config::network::WebSearchRuntimeConfig,
-    AgentLoop, BuiltInToolsConfig, ToolConfig,
+    tool_config::PlanningConfig, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_autodream::{AutoDreamService, ScheduledMonthlyReportOutcome};
 use agent_diva_channels::ChannelManager;
@@ -349,10 +349,12 @@ async fn build_agent_loop(
     file_manager: Arc<FileManager>,
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
+    let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(config),
         network: build_network_tool_config(config),
         mentle: MentleToolRuntimeConfig::from_config(config),
+        planning,
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),

@@ -3,6 +3,7 @@ use crate::compaction::ContextCompactor;
 use crate::consolidation;
 use crate::context_budget::check_budget;
 use crate::mask::ToolPolicy;
+use crate::planning::inject_plan_context;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
@@ -19,6 +20,28 @@ use tracing::{debug, error, info, trace, warn};
 
 /// Max size for text attachments to inline (100KB)
 const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
+
+fn is_plan_mode(msg: &InboundMessage) -> bool {
+    msg.metadata
+        .get("exec_mode")
+        .and_then(|value| value.as_str())
+        .is_some_and(|mode| mode.eq_ignore_ascii_case("plan"))
+}
+
+fn is_plan_mode_allowed_tool(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "read_file"
+            | "list_dir"
+            | "read_attachment"
+            | "plan_create"
+            | "plan_show"
+            | "plan_approve"
+            | "plan_transition"
+            | "todo_show"
+            | "todo_write"
+    )
+}
 
 impl AgentLoop {
     pub(super) async fn process_inbound_message_inner(
@@ -43,8 +66,9 @@ impl AgentLoop {
         );
 
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
+        let plan_mode = is_plan_mode(&msg);
         let active_mask = self.load_active_mask();
-        self.rebuild_tools_for_mask(active_mask.as_ref());
+        self.rebuild_tools_for_turn(active_mask.as_ref(), plan_mode);
 
         // Process attachments: load text file contents and append to message
         let message_content = if !msg.media.is_empty() {
@@ -154,6 +178,27 @@ impl AgentLoop {
             Some(&msg.chat_id),
             &compaction_history,
         );
+        if let Some(planning) = &self.tool_config.planning {
+            match inject_plan_context(planning.store.as_ref()).await {
+                Ok(Some(block)) => {
+                    messages.insert(1, agent_diva_providers::Message::system(block));
+                }
+                Ok(None) if plan_mode => {
+                    messages.insert(1, agent_diva_providers::Message::system(
+                        "You are in Plan mode. Create or update a plan and TodoList only. Use planning tools such as plan_create, todo_write, plan_show, and todo_show. Do not perform implementation, file modification, shell execution, spawning, scheduling, MCP actions, or other external actions. Stop after presenting the plan and wait for user approval.",
+                    ));
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    warn!("Planning context injection failed (non-fatal): {}", e);
+                }
+            }
+        } else if plan_mode {
+            warn!("Plan mode requested but planning runtime is not configured");
+            messages.insert(1, agent_diva_providers::Message::system(
+                "You are in Plan mode, but the planning runtime is unavailable. Do not perform implementation or external actions; respond with a plan and wait for user approval.",
+            ));
+        }
         if let Some(mask) = active_mask.as_ref() {
             if let Some(first) = messages.first_mut() {
                 *first = agent_diva_providers::Message::system(
@@ -496,10 +541,17 @@ impl AgentLoop {
                                 .as_ref()
                                 .is_some_and(ToolPolicy::is_read_only_mode)
                                 && !ToolPolicy::is_read_only_tool(&tool_call.name);
+                            let plan_mode_rejected =
+                                plan_mode && !is_plan_mode_allowed_tool(&tool_call.name);
 
                             if read_only_rejected {
                                 format!(
                                     "Error: tool '{}' is disabled in reviewer read-only mode",
+                                    tool_call.name
+                                )
+                            } else if plan_mode_rejected {
+                                format!(
+                                    "Error: tool '{}' is disabled in Plan mode. Plan mode can only use planning and read-only inspection tools.",
                                     tool_call.name
                                 )
                             } else {

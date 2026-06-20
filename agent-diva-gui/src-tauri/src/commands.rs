@@ -316,6 +316,82 @@ pub fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
+pub async fn get_plans(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+    let url = format!("{}/plans", state.api_base_url());
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get plans: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Planning API returned error: {}",
+            response.status()
+        ));
+    }
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse plans response: {}", e))?;
+    Ok(value
+        .get("plans")
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::Array(vec![])))
+}
+
+#[tauri::command]
+pub async fn get_plan(
+    #[allow(non_snake_case)] planId: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/plans/{}",
+        state.api_base_url(),
+        urlencoding::encode(planId.trim())
+    );
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get plan: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Planning API returned error: {}",
+            response.status()
+        ));
+    }
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse plan response: {}", e))?;
+    Ok(value
+        .get("plan")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn get_active_plan(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+    let plans = get_plans(state.clone()).await?;
+    let Some(active_id) = plans
+        .as_array()
+        .and_then(|plans| {
+            plans
+                .iter()
+                .find(|plan| plan.get("is_active").and_then(|v| v.as_bool()) == Some(true))
+        })
+        .and_then(|plan| plan.get("id"))
+        .and_then(|id| id.as_str())
+        .map(ToString::to_string)
+    else {
+        return Ok(serde_json::Value::Null);
+    };
+    get_plan(active_id, state).await
+}
+
+#[tauri::command]
 pub async fn laputa_get_snapshot(
     since: Option<String>,
     state: State<'_, AgentState>,
@@ -815,11 +891,13 @@ struct StreamToolFinishPayload {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn send_message(
     message: String,
     channel: Option<String>,
     #[allow(non_snake_case)] chatId: Option<String>,
     attachments: Option<Vec<String>>,
+    mode: Option<String>,
     #[allow(non_snake_case)] streamRequestId: String,
     window: Window,
     state: State<'_, AgentState>,
@@ -839,7 +917,8 @@ pub async fn send_message(
             "message": message,
             "channel": channel,
             "chat_id": chat_id,
-            "attachments": attachments
+            "attachments": attachments,
+            "mode": mode
         }))
         .send()
         .await

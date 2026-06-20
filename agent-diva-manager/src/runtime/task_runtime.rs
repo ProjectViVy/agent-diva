@@ -81,6 +81,7 @@ async fn start_runtime_tasks_inner(
         Some(runtime_control_tx),
         Arc::clone(&cron_service),
         file_manager,
+        workspace.clone(),
     );
     let api_tx_keepalive = api_tx.clone();
 

@@ -47,6 +47,7 @@ uuid = { workspace = true }
 once_cell = { workspace = true }
 which = { workspace = true }
 dirs = { workspace = true }
+sqlx = { workspace = true }
 
 [dependencies.memtle]
 workspace = true
@@ -55,4 +56,3 @@ optional = true
 [dev-dependencies]
 tokio-test = { workspace = true }
 tempfile = { workspace = true }
-sqlx = { workspace = true }

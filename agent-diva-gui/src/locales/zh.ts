@@ -222,6 +222,7 @@ export default {
     capabilities: '功能',
     neuro: '神经系统',
     notebook: '记事本',
+    planning: '规划',
     pet: '宠物',
     openSidebar: '打开侧边栏',
     closeSidebar: '关闭侧边栏',

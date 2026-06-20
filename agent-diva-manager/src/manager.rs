@@ -12,6 +12,7 @@ use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
 use agent_diva_files::FileManager;
 use agent_diva_providers::{DynamicProvider, ProviderCatalogService, ProviderRegistry};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
@@ -34,6 +35,7 @@ pub struct Manager {
     runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
+    workspace: PathBuf,
     planning_service: Option<Arc<crate::planning_service::PlanningService>>,
 }
 
@@ -73,6 +75,7 @@ impl Manager {
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
         cron_service: Arc<CronService>,
         file_manager: Arc<FileManager>,
+        workspace: PathBuf,
     ) -> Self {
         Self {
             api_rx,
@@ -88,6 +91,7 @@ impl Manager {
             runtime_control_tx,
             cron_service,
             file_manager,
+            workspace,
             planning_service: None,
         }
     }
@@ -412,7 +416,7 @@ impl Manager {
             return Some(Arc::clone(svc));
         }
         // Lazy-init: create SQLite pool and PlanningService
-        let db_path = std::path::Path::new(".agent-diva").join("planning.db");
+        let db_path = self.workspace.join(".agent-diva").join("planning.db");
         if let Some(parent) = db_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }

@@ -52,6 +52,16 @@ pub struct ChatRequest {
     pub channel: Option<String>,
     pub chat_id: Option<String>,
     pub attachments: Option<Vec<String>>,
+    pub mode: Option<String>,
+}
+
+fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
+    match mode.map(str::trim) {
+        Some("agent") => Some("agent"),
+        Some("plan") => Some("plan"),
+        Some("ask") => Some("ask"),
+        _ => None,
+    }
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -99,6 +109,9 @@ pub async fn chat_handler(
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
     let mut msg = InboundMessage::new(channel, "user", chat_id, payload.message);
+    if let Some(mode) = normalized_exec_mode(payload.mode.as_deref()) {
+        msg = msg.with_metadata("exec_mode", mode);
+    }
     if let Some(attachments) = payload.attachments {
         for attachment in attachments {
             msg = msg.with_media(attachment);
@@ -976,5 +989,19 @@ pub async fn delete_cron_job_handler(
         Ok(Ok(())) => Json(serde_json::json!({ "status": "ok" })),
         Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
         Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalized_exec_mode;
+
+    #[test]
+    fn normalized_exec_mode_accepts_known_modes_only() {
+        assert_eq!(normalized_exec_mode(Some("plan")), Some("plan"));
+        assert_eq!(normalized_exec_mode(Some(" ask ")), Some("ask"));
+        assert_eq!(normalized_exec_mode(Some("agent")), Some("agent"));
+        assert_eq!(normalized_exec_mode(Some("execute")), None);
+        assert_eq!(normalized_exec_mode(None), None);
     }
 }

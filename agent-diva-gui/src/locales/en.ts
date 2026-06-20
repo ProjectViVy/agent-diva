@@ -222,6 +222,7 @@ export default {
     capabilities: 'Capabilities',
     neuro: 'Neuro',
     notebook: 'Notebook',
+    planning: 'Planning',
     pet: 'Pet',
     openSidebar: 'Open sidebar',
     closeSidebar: 'Close sidebar',
