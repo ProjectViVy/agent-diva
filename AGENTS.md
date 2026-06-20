@@ -161,6 +161,15 @@ Before committing, clean up generated scratch artifacts, temporary scripts, stal
 - Entries should include enough context to recover the issue later: status checkbox, short title, reason, expected behavior, and related files or docs when available.
 - When a TODO is completed, move or mark it under the done section instead of silently deleting it.
 
+## Parallel Lock Mechanism
+
+- `LOCK.md` at the repository root is the canonical mutex file for parallel Codex/Cursor/manual sessions.
+- Use `LOCK.md` to record the active owner, task/session, branch/worktree, exact scope, heartbeat, and expiry before editing files or running workspace-mutating commands.
+- If `LOCK.md` shows an active lock for overlapping scope, do not continue in the same working tree; either wait, coordinate handoff, or move to an isolated worktree with a non-overlapping scope.
+- `Scope` must be file-, directory-, or module-level and specific enough for another session to decide whether it conflicts.
+- `GLOBAL` scope is reserved for migrations, bulk formatting, or broad refactors that cannot safely overlap with any other task.
+- Any stale/abandoned lock must be explicitly marked and handed off in `Handoff Notes`; do not silently overwrite another session's claim.
+
 ## COMMIT Rule
 
 - Commits must use English Conventional Commit prefixes.
@@ -258,6 +267,13 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Example: User says "现在项目处于并行状态"; create or switch to an isolated terminal workspace such as a dedicated git worktree/branch or copied sibling folder, then do the implementation there.
   - Counterexample: Continue editing the existing root checkout while other parallel story lanes are active.
   - Execution Method: Before code edits, switch the terminal working directory to an isolated branch workspace that does not affect other partitions; record this isolation requirement/status in `TODOLIST.md` as pending or active.
+  - Maintainer: Current assistant.
+
+- **parallel-lock-file-required**:
+  - Constraints/Range of applicability: When Codex/Cursor/manual sessions may run in parallel, every write task must consult and update root `LOCK.md` before touching files or running worktree-mutating commands.
+  - Example: Before editing `agent-diva-manager/src/state.rs`, claim `LOCK.md` with that file/module scope, owner, heartbeat, and expiry; release it after finishing or handoff.
+  - Counterexample: Two sessions edit overlapping files with no shared lock record, or only mention progress in chat without updating `LOCK.md`.
+  - Execution Method: Read `LOCK.md`, check for conflicting active scope, claim the lock with precise scope metadata, refresh heartbeat during long tasks, and release or hand off the lock on exit.
   - Maintainer: Current assistant.
 
 - **use-chinese-when-communicating**:

@@ -12,6 +12,9 @@
 
 ## Done
 
+- [x] **Codex 并行互斥锁机制** — 新增根级 `LOCK.md` 作为并行会话互斥文件，并把锁获取/释放/过期接管流程写入 `AGENTS.md`
+  - 修复范围：`LOCK.md`, `AGENTS.md`
+  - 期望行为：并行 Codex/Cursor/人工会话在写入前先登记锁范围、心跳和工作区边界，避免覆盖同一批文件
 - [x] **Plan mode 运行时生效修复** — GUI `execMode = 'plan'` 已随 `send_message` 传到 Manager；AgentLoop 接入 workspace-local planning store、Plan mode 工具限制、active plan context 注入和 planning/todo 工具注册；GUI PlanningView 依赖的 Tauri commands/nav 已注册。
   - 修复范围：`agent-diva-gui/src/components/ChatView.vue`, `agent-diva-gui/src/App.vue`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-agent/src/tool_config/mod.rs`, `agent-diva-manager/src/handlers.rs`, `agent-diva-manager/src/manager.rs`, `agent-diva-gui/src-tauri/src/commands.rs`。
   - 验证记录：`docs/logs/2026-06-plan-mode-runtime/v0.0.1-plan-mode-runtime-wiring/verification.md`。
