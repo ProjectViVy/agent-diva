@@ -4,7 +4,10 @@
 
 ## Open
 
-- 暂无。
+- [ ] **Plan mode 运行时未生效** — 手测失败已调查确认：ChatView 的 `execMode = 'plan'` 只改变本地 UI/placeholder，未随 `send_message` 传到后端；AgentLoop `ToolConfig` 没有 planning 配置槽，ToolAssembly 未注册 planning/todo 工具，active plan context hook 未接入主循环，GUI PlanningView 依赖的 Tauri commands/nav 也未注册。
+  - 原因：planning store/tools/hooks/manager CRUD/GUI 组件是分层脚手架，缺少端到端运行时接线。
+  - 期望行为：选择 Plan mode 后，消息携带执行模式进入后端；agent 使用同一 planning store，暴露 `plan_create`/`todo_write`/`plan_transition` 等工具，注入 active plan context，并在 GUI/Manager 可查询同一 active plan。
+  - 相关文件/证据：`agent-diva-gui/src/components/ChatView.vue`, `agent-diva-gui/src/App.vue`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-agent/src/planning/hooks.rs`, `agent-diva-manager/src/manager.rs`, `_bmad-output/implementation-artifacts/investigations/plan-mode-not-effective-investigation.md`。
 
 ## Done
 
