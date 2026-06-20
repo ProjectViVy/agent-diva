@@ -231,14 +231,23 @@
     grid-template-columns: var(--sidebar-width) 1fr;
   }
 
+  .app-shell.pet-immersive {
+    grid-template-columns: 1fr;
+  }
+
   .app-shell.pet-focus-mode {
     grid-template-columns: 0 1fr;
+  }
+
+  .app-shell.pet-immersive.sidebar-expanded {
+    grid-template-columns: 1fr;
   }
 
   .app-shell.pet-focus-mode.sidebar-expanded {
     grid-template-columns: var(--sidebar-width) 1fr;
   }
 
+  .app-shell.pet-immersive .content-area,
   .app-shell.pet-focus-mode .content-area {
     height: 100vh;
   }
@@ -258,6 +267,7 @@
     transition: padding 0.2s ease;
   }
 
+  .pet-immersive:not(.sidebar-expanded) .sidebar,
   .pet-focus-mode:not(.sidebar-expanded) .sidebar {
     padding: 0;
     border-right: 0;

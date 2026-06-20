@@ -175,6 +175,8 @@ describe('NormalMode pet focus layout', () => {
     expect(wrapper.find('.app-shell').classes()).toContain('pet-immersive');
     expect(wrapper.find('.app-shell').classes()).not.toContain('sidebar-expanded');
     expect(wrapper.find('.topbar').exists()).toBe(false);
+    expect(wrapper.find('.sidebar').exists()).toBe(false);
+    expect(wrapper.find('.main-panel').exists()).toBe(true);
     expect(wrapper.findComponent({ name: 'DivaPetView' }).exists()).toBe(true);
   });
 
