@@ -22,12 +22,8 @@ import {
 } from 'lucide-vue-next';
 import ChatView from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
-import type {
-  FileAttachmentDto,
-  LaputaEvent,
-  MentleToolConfigShape,
-  ProposalState,
-} from '../api/desktop';
+import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
+import type { ToolsConfigShape } from '../types/toolsConfig';
 import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
@@ -103,21 +99,6 @@ interface ProviderConfigEntry {
   source: 'providers' | 'custom_providers';
 }
 
-interface ToolsConfigShape {
-  web: {
-    search: {
-      provider: string;
-      enabled: boolean;
-      api_key: string;
-      max_results: number;
-    };
-    fetch: {
-      enabled: boolean;
-    };
-  };
-  mentle?: MentleToolConfigShape;
-}
-
 interface Props {
   messages: Message[];
   isTyping: boolean;
@@ -126,6 +107,7 @@ interface Props {
   config?: AppConfigShape;
   providerConfigs?: Record<string, ProviderConfigEntry>;
   toolsConfig?: ToolsConfigShape;
+  currentSessionKey?: string;
   savedModels?: SavedModel[];
   sessions?: { session_key: string; chat_id: string; snippet: string; timestamp: number }[];
   chatDisplayPrefs: ChatDisplayPrefs;
@@ -173,7 +155,6 @@ const overlaySidebarTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const groups = ref({ capabilities: true, tools: true });
 const themeMode = ref('love');
 const isModelDropdownOpen = ref(false);
-const activeSessionKey = ref('');
 const evolutionBadge = ref({
   total: 0,
   tone: 'none' as EvolutionBadgeTone,
@@ -189,9 +170,10 @@ const collapsedPopup = ref<{ type: 'capabilities' | 'tools' | null; x: number; y
 });
 
 const handleClearSession = () => {
-  activeSessionKey.value = '';
   emit('clear');
 };
+
+const activeSessionKey = computed(() => props.currentSessionKey || '');
 
 const handleUpdateSavedModels = (models: SavedModel[]) => {
   emit('update-saved-models', models);
@@ -989,6 +971,7 @@ defineExpose({
               :theme-mode="themeMode"
               :history-prefs="chatDisplayPrefs"
               :sessions="sessions"
+              :tools-config="toolsConfig"
               :active-session-key="activeSessionKey"
 	              @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @clear="handleClearSession"
@@ -1010,6 +993,8 @@ defineExpose({
               :saved-models="savedModels"
               :chat-display-prefs="chatDisplayPrefs"
               :theme-mode="themeMode"
+              :current-session-key="activeSessionKey"
+              :current-messages="messages"
               :initial-view="settingsInitialView"
               :save-config-action="saveConfigAction"
               :save-tools-config-action="saveToolsConfigAction"

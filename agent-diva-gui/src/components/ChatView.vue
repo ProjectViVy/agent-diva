@@ -28,6 +28,8 @@ import type {
   ChatGovernanceCard as ChatGovernanceCardModel,
   ChatGovernanceDeepLink,
 } from './chat/governanceCards';
+import type { ToolsConfigShape } from '../types/toolsConfig';
+import { budgetPressurePercent, computeBudgetStatus } from '../utils/contextBudget';
 
 const { t } = useI18n();
 
@@ -128,6 +130,7 @@ const props = defineProps<{
   themeMode?: string;
   historyPrefs?: HistoryPrefs;
   sessions?: Session[];
+  toolsConfig?: ToolsConfigShape;
   activeSessionKey?: string;
 }>();
 
@@ -173,6 +176,29 @@ const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
   ...(props.historyPrefs ?? {}),
 }));
+
+const contextBudgetStatus = computed(() =>
+  computeBudgetStatus(props.messages, props.toolsConfig?.budget)
+);
+
+const contextUsagePercent = computed(() =>
+  Math.min(100, Math.max(0, budgetPressurePercent(contextBudgetStatus.value)))
+);
+
+const contextRingDashoffset = computed(() => {
+  const circumference = 56.5;
+  return circumference * (1 - contextUsagePercent.value / 100);
+});
+
+const contextRingColor = computed(() => {
+  if (contextUsagePercent.value >= 80) return '#f97316';
+  if (contextUsagePercent.value >= 60) return '#eab308';
+  return 'var(--brand, #ec4899)';
+});
+
+const contextUsageTitle = computed(() =>
+  `${contextBudgetStatus.value.history_estimated.toLocaleString()} / ${contextBudgetStatus.value.history_budget.toLocaleString()}`
+);
 
 const sakura = [
   { left: '6%', top: '18%', size: 16, opacity: 0.25, delay: 0 },
@@ -1004,12 +1030,23 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         <!-- 底部操作栏 -->
         <div class="chat-input-footer">
           <!-- 上下文使用指示器 -->
-          <div class="context-usage">
+          <div class="context-usage" :title="contextUsageTitle">
             <svg class="context-ring" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9" fill="none" stroke="#e5e7eb" stroke-width="2"/>
-              <circle cx="12" cy="12" r="9" fill="none" stroke="var(--brand, #ec4899)" stroke-width="2" stroke-dasharray="56.5" stroke-dashoffset="28.25" stroke-linecap="round" transform="rotate(-90 12 12)"/>
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                :stroke="contextRingColor"
+                stroke-width="2"
+                stroke-dasharray="56.5"
+                :stroke-dashoffset="contextRingDashoffset"
+                stroke-linecap="round"
+                transform="rotate(-90 12 12)"
+              />
             </svg>
-            <span class="context-text">50%</span>
+            <span class="context-text">{{ contextUsagePercent }}%</span>
           </div>
 
           <!-- 右侧按钮组 -->

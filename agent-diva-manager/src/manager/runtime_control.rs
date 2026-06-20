@@ -334,12 +334,14 @@ impl Manager {
             .map(|config| ToolsConfigResponse {
                 web: config.tools.web.into(),
                 mentle: config.mentle,
+                budget: config.tools.budget,
             })
             .unwrap_or_else(|error| {
                 error!("Failed to load config for GetTools: {}", error);
                 ToolsConfigResponse {
                     web: WebToolsConfig::default().into(),
                     mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
+                    budget: agent_diva_core::config::CompactionBudgetConfig::default(),
                 }
             });
         let _ = reply.send(response);
@@ -358,6 +360,7 @@ impl Manager {
         config.tools.web.search = update.web.search;
         config.tools.web.fetch = update.web.fetch;
         config.mentle = update.mentle;
+        config.tools.budget = update.budget;
         config.tools.builtin.mentle = config.mentle.enabled;
 
         if let Err(e) = self.loader.save(&config) {

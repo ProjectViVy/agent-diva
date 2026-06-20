@@ -498,6 +498,7 @@ pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfi
         return Json(ToolsConfigResponse {
             web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
             mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
+            budget: agent_diva_core::config::CompactionBudgetConfig::default(),
         });
     }
     match rx.await {
@@ -507,6 +508,7 @@ pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfi
             Json(ToolsConfigResponse {
                 web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
                 mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
+                budget: agent_diva_core::config::CompactionBudgetConfig::default(),
             })
         }
     }

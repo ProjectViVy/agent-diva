@@ -8,6 +8,7 @@ import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
 import { getConfigStatus, getRuntimeConfig, FileAttachmentDto } from "./api/desktop";
+import type { ToolsConfigShape } from "./types/toolsConfig";
 import {
   HISTORY_PREFS_KEY,
   SAVED_MODELS_KEY,
@@ -173,7 +174,7 @@ const config = ref({
   model: DEFAULT_DEEPSEEK_MODEL
 });
 
-const toolsConfig = ref({
+const toolsConfig = ref<ToolsConfigShape>({
   web: {
     search: {
       provider: 'bocha',
@@ -184,7 +185,18 @@ const toolsConfig = ref({
     fetch: {
       enabled: true
     }
-  }
+  },
+  mentle: {
+    enabled: false,
+    mode: 'off',
+    allowed_tools: [],
+  },
+  budget: {
+    max_tokens: 180000,
+    system_budget_ratio: 0.15,
+    compact_threshold_ratio: 0.8,
+    keep_recent_count: 10,
+  },
 });
 
 const savedModels = ref<SavedModel[]>([]);
@@ -1381,6 +1393,7 @@ onUnmounted(() => {
       :saved-models="savedModels"
       :sessions="sessions"
       :chat-display-prefs="chatDisplayPrefs"
+      :current-session-key="currentSessionKey"
       :save-config-action="saveConfig"
       :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"

@@ -3,20 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { Globe, LoaderCircle } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { openExternalUrl } from '../../utils/openExternal';
-
-interface ToolsConfigShape {
-  web: {
-    search: {
-      provider: string;
-      enabled: boolean;
-      api_key: string;
-      max_results: number;
-    };
-    fetch: {
-      enabled: boolean;
-    };
-  };
-}
+import type { ToolsConfigShape } from '../../types/toolsConfig';
 
 const { t } = useI18n();
 

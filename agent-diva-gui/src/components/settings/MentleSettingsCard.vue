@@ -3,21 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { BrainCircuit, LoaderCircle, RotateCcw } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { listMentleTools, type MentleToolConfigShape } from '../../api/desktop';
-
-interface ToolsConfigShape {
-  web: {
-    search: {
-      provider: string;
-      enabled: boolean;
-      api_key: string;
-      max_results: number;
-    };
-    fetch: {
-      enabled: boolean;
-    };
-  };
-  mentle: MentleToolConfigShape;
-}
+import type { ToolsConfigShape } from '../../types/toolsConfig';
 
 const DEFAULT_MENTLE: MentleToolConfigShape = {
   enabled: false,

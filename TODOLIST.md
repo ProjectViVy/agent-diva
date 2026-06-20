@@ -4,6 +4,12 @@
 
 ## Open
 
+- [ ] **GUI 预算状态改动后的全局验证仍受既有阻塞影响** — 本次实现后复跑验证时，仍存在与预算改动无关的仓库级失败项。
+  - `cargo fmt --all --check` 阻塞：`agent-diva-core/src/lib.rs` 当前模块顺序与 `rustfmt` 期望不一致，未在本次预算链路修复范围内。
+  - `cargo test -p agent-diva-gui --lib` 阻塞：既有测试 `embedded_server::tests::embedded_gateway_serves_health_endpoint` 返回 `502` 而非预期 `200`。
+  - 期望行为：格式检查恢复稳定通过，GUI 嵌入式网关健康检查测试在默认本地环境下返回 `200`。
+  - 相关文件：`agent-diva-core/src/lib.rs`, `agent-diva-gui/src-tauri/src/embedded_server.rs`。
+
 - [ ] **Workspace 全局验证门禁阻塞** — Plan mode runtime 修复期间复跑 `just check`/`just test` 发现既有全局门禁仍未清理。
   - `just check` 阻塞：`agent-diva-gui/src-tauri/src/notebook.rs` 多个 notebook 月报相关常量/函数/结构体触发 `dead_code`，在 `cargo clippy --all -- -D warnings` 下失败。
   - `just test` 阻塞：`agent-diva-agent` 中 `test_agent_loop_accepts_custom_memory_provider`、`test_with_toolset_memtle_status_enables_prompt`、`test_build_subagent_prompt_excludes_legacy_identity_files` 可单独复现失败。

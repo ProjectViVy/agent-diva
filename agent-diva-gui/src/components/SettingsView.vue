@@ -16,7 +16,7 @@ import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
 import CompactionSettings from './settings/CompactionSettings.vue'
 import { useI18n } from 'vue-i18n';
-import type { MentleToolConfigShape } from '../api/desktop';
+import type { ToolsConfigShape } from '../types/toolsConfig';
 
 const { t } = useI18n();
 
@@ -47,19 +47,12 @@ interface ProviderConfigEntry {
   source: 'providers' | 'custom_providers';
 }
 
-interface ToolsConfigShape {
-  web: {
-    search: {
-      provider: string;
-      enabled: boolean;
-      api_key: string;
-      max_results: number;
-    };
-    fetch: {
-      enabled: boolean;
-    };
-  };
-  mentle?: MentleToolConfigShape;
+interface SettingsMessage {
+  role: 'user' | 'agent' | 'system' | 'tool';
+  content: string;
+  reasoning?: string;
+  rawMeta?: Record<string, unknown>;
+  fromHistory?: boolean;
 }
 
 type SettingsSubview =
@@ -82,6 +75,8 @@ const props = defineProps<{
   config: AppConfigShape;
   providerConfigs?: Record<string, ProviderConfigEntry>;
   toolsConfig: ToolsConfigShape;
+  currentSessionKey?: string;
+  currentMessages: SettingsMessage[];
   savedModels?: SavedModel[];
   chatDisplayPrefs: ChatDisplayPrefs;
   themeMode?: string;
@@ -223,7 +218,12 @@ watch(
               <SandboxSettingsSection />
             </div>
             <div v-else-if="currentView === 'compaction'">
-              <CompactionSettings />
+              <CompactionSettings
+                :tools-config="toolsConfig"
+                :current-session-key="currentSessionKey"
+                :current-messages="currentMessages"
+                :save-tools-config-action="saveToolsConfigAction"
+              />
             </div>
           </div>
        </Transition>

@@ -218,6 +218,7 @@ pub struct FileUploadRequest {
 pub struct ToolsConfigResponse {
     pub web: WebToolsConfigResponse,
     pub mentle: MentleToolConfig,
+    pub budget: agent_diva_core::config::CompactionBudgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,6 +232,8 @@ pub struct ToolsConfigUpdate {
     pub web: WebToolsConfigUpdate,
     #[serde(default)]
     pub mentle: MentleToolConfig,
+    #[serde(default)]
+    pub budget: agent_diva_core::config::CompactionBudgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
