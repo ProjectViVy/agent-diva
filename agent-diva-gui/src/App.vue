@@ -14,6 +14,12 @@ import {
   SESSION_CACHE_PREFIX,
   WELCOME_STORAGE_KEY,
 } from "./utils/localStorageAgentDiva";
+import {
+  DEFAULT_DEEPSEEK_API_BASE,
+  DEFAULT_DEEPSEEK_MODEL,
+  DEFAULT_DEEPSEEK_PROVIDER,
+  buildWelcomeDeepSeekConfig,
+} from "./utils/welcomeConfig";
 
 const { t } = useI18n();
 
@@ -159,10 +165,10 @@ const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
 
 // Config state
 const config = ref({
-  provider: "deepseek",
-  apiBase: "https://api.deepseek.com/v1",
+  provider: DEFAULT_DEEPSEEK_PROVIDER,
+  apiBase: DEFAULT_DEEPSEEK_API_BASE,
   apiKey: "",
-  model: "deepseek-chat"
+  model: DEFAULT_DEEPSEEK_MODEL
 });
 
 const toolsConfig = ref({
@@ -987,10 +993,7 @@ async function handleWelcomeDone(payload: WelcomeDonePayload) {
     const dk = payload.deepseekApiKey.trim();
     const bk = payload.bochaApiKey.trim();
     if (dk) {
-      await saveConfig({
-        ...config.value,
-        apiKey: dk,
-      });
+      await saveConfig(buildWelcomeDeepSeekConfig(config.value, dk));
     }
     if (bk) {
       const nextTools = JSON.parse(JSON.stringify(toolsConfig.value)) as typeof toolsConfig.value;
