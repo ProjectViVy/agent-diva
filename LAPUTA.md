@@ -256,6 +256,122 @@ write (FR-101)
 
 ---
 
+## 10.1 报告系统逐级压缩索引关系(2026-06-21 新增)
+
+### 核心原则
+
+报告系统采用逐级压缩索引关系，避免重复召回：
+
+```
+月报生成 → 当月日记不再主动检索
+周报生成 → 当周日报不再主动检索
+日报生成 → 当日原始对话不再主动检索
+```
+
+### 索引层级与存储位置
+
+**采用 mempalace 统一索引方案**：报告系统完全在 mempalace 内管理，Laputa 不存储报告内容。
+
+| 层级 | 压缩程度 | 主动检索条件 | 存储位置 |
+|------|----------|--------------|----------|
+| **月报** | 高度压缩 | 始终可检索 | mempalace wings/monthly/ |
+| **周报** | 中度压缩 | 月报未生成时可检索 | mempalace wings/weekly/ |
+| **日报** | 轻度压缩 | 周报未生成时可检索 | mempalace wings/daily/ |
+| **原始对话** | 无压缩 | 仅在需要详细回溯时查询 | mempalace wings/conversations/ |
+
+### mempalace 统一索引结构
+
+```
+mempalace/
+├── wings/
+│   ├── daily/          ← 日报wing
+│   │   ├── 2026-06-21/
+│   │   └── 2026-06-20/
+│   ├── weekly/         ← 周报wing
+│   │   ├── week-25/
+│   │   └── week-24/
+│   ├── monthly/        ← 月报wing
+│   │   ├── 2026-06/
+│   │   └── 2026-05/
+│   └── conversations/  ← 原始对话wing
+│       └── ...
+└── projects/           ← 项目详情wing
+    └── ...
+```
+
+### 逐级检索流程
+
+```
+用户提问
+    ↓
+1. 判断时间范围
+    ↓
+2. 按优先级搜索：
+   - 月报wing（如果时间跨度大）
+   - 周报wing（如果时间跨度中）
+   - 日报wing（如果时间跨度小）
+   - 原始对话wing（如果需要细节）
+    ↓
+3. 返回结果
+```
+
+### 检索逻辑示例
+
+```python
+def recall_by_time_range(query: str, time_range: str) -> list:
+    """根据时间范围选择检索层级"""
+    
+    if time_range == "month":
+        # 先搜月报
+        results = search_wing("monthly", query)
+        if not results:
+            # 降级到周报
+            results = search_wing("weekly", query)
+    
+    elif time_range == "week":
+        # 先搜周报
+        results = search_wing("weekly", query)
+        if not results:
+            # 降级到日报
+            results = search_wing("daily", query)
+    
+    elif time_range == "day":
+        # 直接搜日报
+        results = search_wing("daily", query)
+    
+    # 如果需要细节，搜原始对话
+    if need_details:
+        results += search_wing("conversations", query)
+    
+    return results
+```
+
+### 报告系统的双重目的
+
+1. **用户视角**：让人类清楚了解AI的心路历程
+2. **记忆视角**：成为memory的重要语料
+
+### 节律性差异
+
+| 系统 | 节律性 | 原因 |
+|------|--------|------|
+| **diva** | ✅ 需要 | 自主进化系统，需要周期性反思和压缩 |
+| **hermes** | ❌ 不需要 | 有独立的进化逻辑，不需要报告系统 |
+
+### 设计决策
+
+- **D-014** (2026-06-21): 报告系统逐级压缩索引关系，避免重复召回
+- **理由**：mempalace已经索引了所有原始内容，如果报告系统也索引相同内容，会导致重复召回
+- **影响**：需要在召回逻辑中实现层级过滤，优先检索高层级报告
+
+- **D-015** (2026-06-21): 新架构在hermes-laputa-python中验证，Rust版本维持原架构
+- **理由**：新架构（报告走mempalace）需要验证可行性，但不影响现有Rust实现
+- **影响**：
+  - Rust版 (diva): 报告走Laputa section #7/#8/#9，维持原架构
+  - Python版 (hermes-laputa): 报告走mempalace wings，验证新架构
+
+---
+
 ## 11. 总规模盘点
 
   - 8 Concerns (C-1~C-8)

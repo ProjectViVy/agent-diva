@@ -366,6 +366,7 @@ Mentle             =  machine-facing semantic index and recall engine (机器索
 | **Source Capsule** | MVP capsule 不使用 Mentle, 存纯文件 `.agent-diva/compact/capsules/`; Phase 4 走 Mentle diary API 建全文索引 | `compression-research.md:514-518` + `§7.4-5` | ❌ 零覆盖 |
 | **MEMORY.md 渲染** | palace status 只放轻量统计; heavy recall 只走 `prefetch()`, **不**注入 startup prompt | `shared-memory-rendering-research.md:419-438` (Section 12) | ⚠️ §6 partial |
 | **Report System** | daily/weekly/monthly report 走 Laputa section #7/#8/#9; Mentle 可索引 AAAK summary 但 report 实体留 Laputa; 写失败时降级到 `pending.jsonl` | `prd-report-system/` + `reconcile-mentle-laputa.md:40` | ⚠️ §3 partial, `pending.jsonl` 未明示 |
+| **Report System (新架构验证)** | D-015 (2026-06-21): 新架构在hermes-laputa-python中验证，Rust版维持原架构；Python版报告走mempalace wings (daily/weekly/monthly)，Rust版报告走Laputa section #7/#8/#9 | LAPUTA.md §10.1 D-015 | 🔄 验证中 |
 | **Heartbeat / 失败降级** | Mentle 失败不阻塞 AgentLoop (4 降级规则之一); AuditEvent::ToolError 记录但不阻断 | `autonomous-evolution-simplified-architecture-decision.md:601-605` + DECISION-v2 §5 | ❌ 零覆盖 |
 | **Harness Module 生命周期** | MentleToolRuntimeConfig 是 Module trait 实现之一 (`agent-diva-tooling/src/module.rs` + `inventory` 静态注册); start/stop 走统一 lifecycle | DECISION-v2-next-phase.md §5.1 | ❌ 零覆盖 |
 | **Poke 8 事件链** | Mentle 工具调用 emit TokenUsed + ToolInvoked; 跟 5.5 行为审计配合 | DECISION-v2-next-phase.md §5.8 + §5.5 | ❌ 零覆盖 |
