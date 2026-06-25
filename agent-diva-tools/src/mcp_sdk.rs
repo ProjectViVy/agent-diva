@@ -93,6 +93,8 @@ pub struct McpClientWrapper {
     tool_timeout: u64,
 }
 
+type SharedMcpClient = Arc<RwLock<Option<Arc<McpClientWrapper>>>>;
+
 impl std::fmt::Debug for McpClientWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("McpClientWrapper")
@@ -328,7 +330,7 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> Result<S
 /// MCP tool that wraps a tool from an MCP server.
 pub struct McpSdkTool {
     server_name: String,
-    client: Arc<RwLock<Option<McpClientWrapper>>>,
+    client: SharedMcpClient,
     original_name: String,
     wrapped_name: String,
     description: String,
@@ -340,7 +342,7 @@ pub struct McpSdkTool {
 impl McpSdkTool {
     pub fn new(
         server_name: &str,
-        client: Arc<RwLock<Option<McpClientWrapper>>>,
+        client: SharedMcpClient,
         tool: DiscoveredTool,
         tool_timeout: u64,
     ) -> Self {
@@ -383,14 +385,7 @@ impl Tool for McpSdkTool {
             ));
         }
 
-        let mut guard = self.client.write().await;
-
-        let client = guard.as_mut().ok_or_else(|| {
-            ToolError::ExecutionFailed(format!(
-                "MCP server '{}' session is closed",
-                self.server_name
-            ))
-        })?;
+        let client = clone_live_client(&self.client, &self.server_name).await?;
 
         client
             .call_tool(&self.original_name, args)
@@ -406,6 +401,19 @@ fn map_mcp_error_to_tool_error(server_name: &str, error: McpError) -> ToolError 
         }
         other => ToolError::ExecutionFailed(format!("MCP server '{}': {}", server_name, other)),
     }
+}
+
+async fn clone_live_client<T>(
+    client: &Arc<RwLock<Option<Arc<T>>>>,
+    server_name: &str,
+) -> agent_diva_tooling::Result<Arc<T>>
+where
+    T: Send + Sync + 'static,
+{
+    let guard = client.read().await;
+    guard.as_ref().cloned().ok_or_else(|| {
+        ToolError::ExecutionFailed(format!("MCP server '{}' session is closed", server_name))
+    })
 }
 
 fn sanitize_identifier(input: &str) -> String {
@@ -451,7 +459,7 @@ pub async fn probe_mcp_server(
 /// Load MCP tools from configured servers.
 pub async fn load_mcp_tools(
     configs: &HashMap<String, MCPServerConfig>,
-) -> HashMap<String, (Arc<RwLock<Option<McpClientWrapper>>>, Vec<DiscoveredTool>)> {
+) -> HashMap<String, (SharedMcpClient, Vec<DiscoveredTool>)> {
     let mut result = HashMap::new();
 
     for (server_name, config) in configs {
@@ -471,7 +479,7 @@ pub async fn load_mcp_tools(
 async fn create_client_and_discover_tools(
     server_name: &str,
     config: &MCPServerConfig,
-) -> Result<(Arc<RwLock<Option<McpClientWrapper>>>, Vec<DiscoveredTool>), McpError> {
+) -> Result<(SharedMcpClient, Vec<DiscoveredTool>), McpError> {
     let client = if !config.command.trim().is_empty() {
         McpClientWrapper::new_stdio(server_name, config).await?
     } else if !config.url.trim().is_empty() {
@@ -483,7 +491,7 @@ async fn create_client_and_discover_tools(
     };
 
     let tools = client.list_tools().await?;
-    let client_arc = Arc::new(RwLock::new(Some(client)));
+    let client_arc = Arc::new(RwLock::new(Some(Arc::new(client))));
 
     Ok((client_arc, tools))
 }
@@ -571,9 +579,15 @@ pub fn load_mcp_tools_sync(configs: &HashMap<String, MCPServerConfig>) -> Vec<Ar
 
 #[cfg(test)]
 mod tests {
-    use super::{map_mcp_error_to_tool_error, render_tool_result, McpError};
+    use super::{clone_live_client, map_mcp_error_to_tool_error, render_tool_result, McpError};
     use agent_diva_tooling::ToolError;
     use rust_mcp_sdk::schema::{CallToolResult, ContentBlock, TextContent};
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    use std::time::Duration;
+    use tokio::sync::{Barrier, RwLock};
 
     #[test]
     fn render_tool_result_returns_server_error_when_is_error_is_true() {
@@ -631,5 +645,68 @@ mod tests {
             ToolError::ExecutionFailed(message)
                 if message == "MCP server 'demo': MCP request timed out"
         ));
+    }
+
+    struct FakeParallelClient {
+        barrier: Barrier,
+        active_calls: AtomicUsize,
+        max_active_calls: AtomicUsize,
+    }
+
+    impl FakeParallelClient {
+        fn new(parties: usize) -> Self {
+            Self {
+                barrier: Barrier::new(parties),
+                active_calls: AtomicUsize::new(0),
+                max_active_calls: AtomicUsize::new(0),
+            }
+        }
+
+        async fn call(&self) {
+            let active = self.active_calls.fetch_add(1, Ordering::SeqCst) + 1;
+            let _ = self.max_active_calls.fetch_update(
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+                |current| (active > current).then_some(active),
+            );
+
+            self.barrier.wait().await;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            self.active_calls.fetch_sub(1, Ordering::SeqCst);
+        }
+
+        fn max_active_calls(&self) -> usize {
+            self.max_active_calls.load(Ordering::SeqCst)
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn clone_live_client_allows_parallel_calls_on_same_server() {
+        let fake_client = Arc::new(FakeParallelClient::new(2));
+        let shared_client = Arc::new(RwLock::new(Some(fake_client.clone())));
+
+        tokio::time::timeout(Duration::from_millis(200), async {
+            let first = async {
+                let client = clone_live_client(&shared_client, "demo")
+                    .await
+                    .expect("first task should clone the live client");
+                client.call().await;
+            };
+            let second = async {
+                let client = clone_live_client(&shared_client, "demo")
+                    .await
+                    .expect("second task should clone the live client");
+                client.call().await;
+            };
+
+            tokio::join!(first, second);
+        })
+        .await
+        .expect("parallel MCP calls should not be serialized by the session lock");
+
+        assert!(
+            fake_client.max_active_calls() >= 2,
+            "expected overlapping execution on the shared MCP client"
+        );
     }
 }
