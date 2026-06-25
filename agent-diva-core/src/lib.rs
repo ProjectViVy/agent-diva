@@ -13,6 +13,7 @@ pub mod error_context;
 pub mod heartbeat;
 pub mod logging;
 pub mod memory;
+pub mod presence;
 pub mod redaction;
 pub mod security;
 pub mod session;

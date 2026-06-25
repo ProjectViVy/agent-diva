@@ -17,16 +17,19 @@ use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::debug::{DebugEvent, DebugEventLogger, DebugRun};
 use agent_diva_core::logging::build_runtime_trace_logger;
+use agent_diva_core::presence::PresenceState;
+use agent_diva_core::security::SecurityPolicy;
 use agent_diva_core::trace::TraceId;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
     DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess, ProviderCatalogService,
     ProviderRegistry,
 };
+use agent_diva_tooling::ModuleStartup;
 use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc, watch};
+use tokio::sync::{broadcast, mpsc, watch, RwLock};
 use tokio::task::JoinHandle;
 use tracing::error;
 
@@ -59,6 +62,7 @@ struct GatewayBootstrap {
     loader: ConfigLoader,
     port: u16,
     bus: MessageBus,
+    module_startup: ModuleStartup,
     cron_service: Arc<CronService>,
     dynamic_provider: Arc<DynamicProvider>,
     runtime_control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
@@ -77,7 +81,7 @@ struct ChannelBootstrap {
 
 struct GatewayTasks {
     bus: MessageBus,
-    cron_service: Arc<CronService>,
+    module_startup: ModuleStartup,
     channel_manager: Arc<ChannelManager>,
     server_shutdown_tx: broadcast::Sender<()>,
     inbound_bridge_handle: JoinHandle<()>,
@@ -245,19 +249,6 @@ pub async fn start_embedded_gateway_runtime(
     )
     .await;
     Ok(EmbeddedGatewayRuntime { tasks: Some(tasks) })
-}
-
-async fn start_cron_service(
-    cron_store: PathBuf,
-    bus: MessageBus,
-    debug_logger: Option<Arc<DebugEventLogger>>,
-) -> Arc<CronService> {
-    let cron_service = Arc::new(CronService::new(
-        cron_store,
-        Some(build_cron_callback(bus, debug_logger)),
-    ));
-    cron_service.start().await;
-    cron_service
 }
 
 fn build_cron_callback(

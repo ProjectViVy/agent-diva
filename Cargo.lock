@@ -206,6 +206,7 @@ dependencies = [
  "agent-diva-core",
  "agent-diva-files",
  "agent-diva-providers",
+ "agent-diva-tooling",
  "agent-diva-tools",
  "anyhow",
  "axum",
@@ -295,7 +296,9 @@ name = "agent-diva-tooling"
 version = "0.5.0"
 dependencies = [
  "agent-diva-core",
+ "anyhow",
  "async-trait",
+ "inventory",
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
@@ -3196,6 +3199,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.116",
+]
+
+[[package]]
+name = "inventory"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]

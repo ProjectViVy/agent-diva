@@ -47,5 +47,7 @@ pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_complet
     if let Err(e) = tasks.channel_manager.stop_all().await {
         tracing::error!("Failed to stop channels: {}", e);
     }
-    tasks.cron_service.stop().await;
+    if let Err(e) = tasks.module_startup.stop_all().await {
+        tracing::error!("Failed to stop modules cleanly: {}", e);
+    }
 }

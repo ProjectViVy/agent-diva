@@ -959,6 +959,7 @@ impl Default for LiteLLMClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::litellm::dto::{Choice, Function, ResponseMessage, ToolCall};
 
     #[test]
     fn test_resolve_model() {

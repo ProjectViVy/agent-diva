@@ -1,4 +1,6 @@
 use super::*;
+use agent_diva_core::heartbeat::{types::HeartbeatConfig, HeartbeatService};
+use agent_diva_tooling::{ModuleBuildContext, ModuleCtx, ModuleStartup};
 
 pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<GatewayBootstrap> {
     let GatewayRuntimeConfig {
@@ -11,11 +13,38 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     } = runtime;
 
     let bus = MessageBus::new();
+    let module_bus = Arc::new(bus.clone());
+    let security = Arc::new(SecurityPolicy::new(workspace.clone()));
+    let presence = Arc::new(RwLock::new(PresenceState::Active));
+    let module_ctx = ModuleCtx {
+        bus: module_bus,
+        security: security.clone(),
+        config: Arc::new(config.clone()),
+        presence,
+    };
     let debug_logger = match debug_run {
         Some(run) => Some(DebugEventLogger::new(run)?),
         None => None,
     };
-    let cron_service = start_cron_service(cron_store, bus.clone(), debug_logger.clone()).await;
+    let cron_service = Arc::new(CronService::new(
+        cron_store.clone(),
+        Some(build_cron_callback(bus.clone(), debug_logger.clone())),
+    ));
+    let heartbeat_service = Arc::new(HeartbeatService::new(
+        workspace.clone(),
+        HeartbeatConfig::default(),
+        None,
+        None,
+    ));
+    let module_build_ctx = ModuleBuildContext {
+        module_ctx: module_ctx.clone(),
+        workspace: workspace.clone(),
+        cron_store,
+        cron_service: Some(cron_service.clone()),
+        heartbeat_service: Some(heartbeat_service),
+    };
+    let module_startup = ModuleStartup::from_inventory(&module_build_ctx)?;
+    module_startup.start_all(&module_ctx).await?;
     let dynamic_provider = Arc::new(DynamicProvider::new(Arc::new(build_provider(
         &config,
         &config.agents.defaults.model,
@@ -45,6 +74,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         loader,
         port,
         bus,
+        module_startup,
         cron_service,
         dynamic_provider,
         runtime_control_tx,

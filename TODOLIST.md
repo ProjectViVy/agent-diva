@@ -85,6 +85,12 @@ Legend: 调研 ✅=已完成  🔄=进行中  ❌=未开始 | 代码 ✅=已实�
   - 现存: ToolError (5 variants, string-heavy), SecurityError (9 structured variants, has user_message + is_retryable), ErrorContext
   - 缺失: 无 error_category/ErrorKind, 无 error codes, 无 retry classification on ToolError, 无跨 crate 统一 error taxonomy
 
+ - [ ] **P1-7: Wire heartbeat cadence to PresenceState** | research complete | code partial
+  Module lifecycle now starts `PresenceService` and `HeartbeatService`, but heartbeat still uses a fixed interval and does not adapt to `PresenceState`.
+  - Current: `agent-diva-tooling/src/module.rs` updates shared presence state; `agent-diva-core/src/heartbeat/service.rs` still runs its original fixed timer loop.
+  - Expected: `Active/Distracted/Gone` should influence cadence and `Gone`-state background behavior, with tests and config coverage.
+  - Related: `agent-diva-tooling/src/module.rs`, `agent-diva-core/src/heartbeat/service.rs`, `agent-diva-core/src/presence/types.rs`
+
 ### Housekeeping
 
 - [ ] **H-1: Broken link in docs/dev/README.md** — 引用了不存在的 `nano-runtime-packaging-plan.md`

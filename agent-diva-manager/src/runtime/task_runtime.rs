@@ -46,6 +46,7 @@ async fn start_runtime_tasks_inner(
         loader,
         port,
         bus,
+        module_startup,
         cron_service,
         dynamic_provider,
         runtime_control_tx,
@@ -118,7 +119,7 @@ async fn start_runtime_tasks_inner(
 
     GatewayTasks {
         bus,
-        cron_service,
+        module_startup,
         channel_manager,
         server_shutdown_tx,
         inbound_bridge_handle,
