@@ -725,7 +725,10 @@ impl AgentLoop {
                                 });
                                 "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
                             } else {
-                                self.tools.execute(&tool_call.name, params_value).await
+                                match self.tools.execute(&tool_call.name, params_value).await {
+                                    Ok(r) => r,
+                                    Err(e) => format!("Error: {}", e),
+                                }
                             }
                         }
                         Err(e) => {

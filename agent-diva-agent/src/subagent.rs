@@ -412,7 +412,10 @@ impl SubagentManager {
                         "Subagent [{}] executing: {} with arguments: {}",
                         task_id, tool_call.name, args_str
                     );
-                    let result = tools.execute(&tool_call.name, args_json).await;
+                    let result = match tools.execute(&tool_call.name, args_json).await {
+                        Ok(r) => r,
+                        Err(e) => format!("Error: {}", e),
+                    };
                     if let Some(reason) = loop_guard.record_tool_result(
                         &tool_call.name,
                         &serde_json::json!(tool_call.arguments),
