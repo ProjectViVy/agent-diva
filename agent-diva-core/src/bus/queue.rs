@@ -3,6 +3,7 @@
 use super::events::{
     AgentBusEvent, AgentEvent, AgentEventEnvelope, InboundMessage, OutboundMessage,
 };
+use crate::audit::AuditLogger;
 use crate::presence::{PresenceConfig, PresenceState};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -94,6 +95,7 @@ impl MessageBus {
 
     /// Emit a fine-grained runtime bus event.
     pub fn emit(&self, event: AgentBusEvent) -> crate::Result<()> {
+        AuditLogger.emit_bus_event(&event);
         let _ = self.bus_event_tx.send(event);
         Ok(())
     }

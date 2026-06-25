@@ -1,5 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod app_state;
+mod audit_reader;
 mod commands;
 mod embedded_server;
 mod gateway_status;
@@ -354,7 +355,9 @@ pub fn run() {
             commands::start_service,
             commands::stop_service,
             commands::get_gui_prefs,
-            commands::set_gui_prefs
+            commands::set_gui_prefs,
+            audit_reader::get_audit_events,
+            audit_reader::get_audit_raw_log
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

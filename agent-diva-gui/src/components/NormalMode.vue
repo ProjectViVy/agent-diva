@@ -52,6 +52,7 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
+  | 'audit'
   | 'about';
 
 interface SavedModel {

@@ -10,7 +10,10 @@ use tracing_subscriber::{
     EnvFilter, Layer, Registry,
 };
 
-use crate::{config::schema::LoggingConfig, redaction::redact_secrets, trace::TraceLogger};
+use crate::{
+    audit::is_audit_log_file_name, config::schema::LoggingConfig, redaction::redact_secrets,
+    trace::TraceLogger,
+};
 
 /// Initialize the logging system
 pub fn init_logging(config: &LoggingConfig) -> WorkerGuard {
@@ -234,7 +237,7 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
 
         if path.is_file() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if name.starts_with("gateway.log") || name.starts_with("gateway-") {
+                if is_audit_log_file_name(name) {
                     if let Ok(metadata) = entry.metadata() {
                         if let Ok(modified) = metadata.modified() {
                             if let Ok(age) = now.duration_since(modified) {

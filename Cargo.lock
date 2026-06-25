@@ -176,6 +176,7 @@ dependencies = [
  "agent-diva-neuron",
  "agent-diva-providers",
  "anyhow",
+ "chrono",
  "dirs 5.0.1",
  "eventsource-stream",
  "futures",

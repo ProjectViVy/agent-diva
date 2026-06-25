@@ -9,6 +9,7 @@ import ProvidersSettings from './settings/ProvidersSettings.vue';
 import ChannelsSettings from './settings/ChannelsSettings.vue';
 import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
+import AuditView from './settings/audit/AuditView.vue';
 import AboutSettings from './settings/AboutSettings.vue';
 import { useI18n } from 'vue-i18n';
 
@@ -64,6 +65,7 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
+  | 'audit'
   | 'about';
 
 const props = defineProps<{
@@ -95,6 +97,7 @@ const pageTitle = computed(() => {
     channels: t('settings.channels'),
     network: t('settings.network'),
     language: t('settings.language'),
+    audit: 'Audit',
     about: t('settings.about')
   };
   return titles[currentView.value] || t('settings.title');
@@ -182,6 +185,10 @@ watch(
             
             <LanguageSettings 
               v-else-if="currentView === 'language'"
+            />
+
+            <AuditView
+              v-else-if="currentView === 'audit'"
             />
             
             <AboutSettings 

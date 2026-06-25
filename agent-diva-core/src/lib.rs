@@ -4,6 +4,7 @@
 //! used by all other agent-diva components.
 
 pub mod attachment;
+pub mod audit;
 pub mod bus;
 pub mod config;
 pub mod cron;

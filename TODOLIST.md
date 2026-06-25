@@ -93,6 +93,11 @@ Legend: 调研 ✅=已完成  🔄=进行中  ❌=未开始 | 代码 ✅=已实�
 
 ### Housekeeping
 
+- [ ] **H-7: Audit frontend dependency vulnerability sweep**
+  `npm ci` on 2026-06-25 reported 10 frontend dependency vulnerabilities (6 moderate, 4 high) under `agent-diva-gui`.
+  - Expected: audit the reported packages, decide whether upgrades are safe, and capture any required compatibility work before the next GUI delivery.
+  - Related: `agent-diva-gui/package.json`, `agent-diva-gui/package-lock.json`
+
 - [ ] **H-1: Broken link in docs/dev/README.md** — 引用了不存在的 `nano-runtime-packaging-plan.md`
 
 - [x] **H-6: all-targets clippy cleanup in core tests** — **2026-06-11 已修复**
