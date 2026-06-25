@@ -7,6 +7,7 @@ use std::collections::HashMap;
 pub struct SubagentPolicy {
     pub max_concurrent: usize,
     pub max_depth: usize,
+    pub max_iterations: usize,
     pub allow_shell: bool,
     pub allow_filesystem: bool,
     pub allow_web_fetch: bool,
@@ -25,6 +26,7 @@ impl From<SubagentToolsConfig> for SubagentPolicy {
         Self {
             max_concurrent: value.max_concurrent,
             max_depth: value.max_depth,
+            max_iterations: value.max_iterations,
             allow_shell: value.allow_shell,
             allow_filesystem: value.allow_filesystem,
             allow_web_fetch: value.allow_web_fetch,

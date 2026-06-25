@@ -970,6 +970,8 @@ pub struct SubagentToolsConfig {
     pub max_concurrent: usize,
     #[serde(default = "default_subagent_max_depth")]
     pub max_depth: usize,
+    #[serde(default = "default_subagent_max_iterations")]
+    pub max_iterations: usize,
     #[serde(default = "default_true")]
     pub allow_shell: bool,
     #[serde(default = "default_true")]
@@ -990,11 +992,16 @@ fn default_subagent_max_depth() -> usize {
     1
 }
 
+fn default_subagent_max_iterations() -> usize {
+    15
+}
+
 impl Default for SubagentToolsConfig {
     fn default() -> Self {
         Self {
             max_concurrent: default_subagent_max_concurrent(),
             max_depth: default_subagent_max_depth(),
+            max_iterations: default_subagent_max_iterations(),
             allow_shell: true,
             allow_filesystem: true,
             allow_web_fetch: false,

@@ -21,3 +21,4 @@ pub use runtime_control::RuntimeControlCommand;
 pub use subagent_policy::SubagentPolicy;
 pub use tool_assembly::{SubagentSpawner, ToolAssembly};
 pub use tool_config::builtin::BuiltInToolsConfig;
+pub use subagent::SubagentResult;

@@ -24,7 +24,6 @@ use crate::context_budget::{
 };
 use crate::loop_guard::{
     LoopGuard, DEFAULT_REPEATED_FAILURE_THRESHOLD, DEFAULT_SUBAGENT_LOOP_TIMEOUT,
-    DEFAULT_SUBAGENT_MAX_ITERATIONS,
 };
 use crate::subagent_policy::SubagentPolicy;
 use crate::tool_assembly::ToolAssembly;
@@ -44,6 +43,13 @@ pub struct SubagentSpawnRequest {
     pub origin_chat_id: String,
     pub current_depth: usize,
     pub origin: String,
+}
+
+/// Result from a completed subagent task, including token usage.
+#[derive(Debug, Clone)]
+pub struct SubagentResult {
+    pub content: String,
+    pub token_usage: HashMap<String, i64>,
 }
 
 /// Subagent manager for background task execution.
@@ -213,6 +219,35 @@ impl SubagentManager {
         ))
     }
 
+    /// Spawn multiple subagents in batch.
+    ///
+    /// All spawned subagents are tracked in `running_tasks`. Returns a list of
+    /// status messages for each spawn request.
+    pub async fn spawn_batch(
+        &self,
+        requests: Vec<SubagentSpawnRequest>,
+    ) -> Vec<Result<String>> {
+        let mut results = Vec::with_capacity(requests.len());
+        for request in requests {
+            results.push(self.spawn(request).await);
+        }
+        results
+    }
+
+    /// Cancel a running subagent by task ID.
+    ///
+    /// Aborts the underlying tokio task and removes it from `running_tasks`.
+    pub async fn cancel_subagent(&self, task_id: &str) -> Result<()> {
+        let mut tasks = self.running_tasks.lock().await;
+        if let Some(handle) = tasks.remove(task_id) {
+            handle.abort();
+            info!("Cancelled subagent [{}]", task_id);
+            Ok(())
+        } else {
+            Err(anyhow!("Subagent [{}] not found or already completed", task_id))
+        }
+    }
+
     /// Execute the subagent task and announce the result
     #[allow(clippy::too_many_arguments)]
     async fn run_subagent(
@@ -241,6 +276,7 @@ impl SubagentManager {
             task_id, label, depth, origin
         );
 
+        let max_iterations = subagent_policy.max_iterations;
         let result = Self::with_subagent_timeout(
             Self::execute_subagent_task(
                 &task_id,
@@ -255,20 +291,30 @@ impl SubagentManager {
                 &mcp_servers,
                 &subagent_policy,
                 &context_budget,
+                max_iterations,
             ),
             DEFAULT_SUBAGENT_TIMEOUT,
         )
         .await;
 
         let (final_result, status) = match result {
-            Ok(content) => {
+            Ok(subagent_result) => {
                 info!("Subagent [{}] completed successfully", task_id);
-                (content, "ok")
+                debug!(
+                    "Subagent [{}] token usage: {:?}",
+                    task_id, subagent_result.token_usage
+                );
+                (subagent_result.content, "ok")
             }
             Err(e) => {
                 let error_msg = format!("Error: {}", e);
-                error!("Subagent [{}] failed: {}", task_id, e);
-                (error_msg, "error")
+                if error_msg.contains("cancelled") {
+                    error!("Subagent [{}] was cancelled", task_id);
+                    (error_msg, "cancelled")
+                } else {
+                    error!("Subagent [{}] failed: {}", task_id, e);
+                    (error_msg, "error")
+                }
             }
         };
 
@@ -300,7 +346,8 @@ impl SubagentManager {
         mcp_servers: &HashMap<String, MCPServerConfig>,
         subagent_policy: &SubagentPolicy,
         context_budget: &ContextBudgetPolicy,
-    ) -> Result<String> {
+        max_iterations: usize,
+    ) -> Result<SubagentResult> {
         let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
             .builtin(builtin_tools.clone())
             .with_network_config(network_config.clone())
@@ -317,6 +364,7 @@ impl SubagentManager {
             system_prompt,
             &tools,
             context_budget,
+            max_iterations,
         )
         .await
     }
@@ -329,15 +377,17 @@ impl SubagentManager {
         system_prompt: String,
         tools: &ToolRegistry,
         context_budget: &ContextBudgetPolicy,
-    ) -> Result<String> {
+        max_iterations: usize,
+    ) -> Result<SubagentResult> {
         let mut messages = vec![
             Message::system(system_prompt),
             Message::user(task.to_string()),
         ];
 
+        let mut accumulated_usage: HashMap<String, i64> = HashMap::new();
         let mut iteration = 0;
         let mut loop_guard = LoopGuard::new(
-            DEFAULT_SUBAGENT_MAX_ITERATIONS,
+            max_iterations,
             DEFAULT_SUBAGENT_LOOP_TIMEOUT,
             DEFAULT_REPEATED_FAILURE_THRESHOLD,
         );
@@ -389,6 +439,11 @@ impl SubagentManager {
                 }
             };
 
+            // Accumulate token usage from each iteration
+            for (key, value) in &response.usage {
+                *accumulated_usage.entry(key.clone()).or_insert(0) += value;
+            }
+
             if response.has_tool_calls() {
                 // Add assistant message with tool calls
                 messages.push(Message {
@@ -430,8 +485,13 @@ impl SubagentManager {
             }
         };
 
-        Ok(final_result
-            .unwrap_or_else(|| "Task completed but no final response was generated.".to_string()))
+        let content = final_result
+            .unwrap_or_else(|| "Task completed but no final response was generated.".to_string());
+
+        Ok(SubagentResult {
+            content,
+            token_usage: accumulated_usage,
+        })
     }
 
     async fn with_subagent_timeout<T>(
@@ -458,10 +518,10 @@ impl SubagentManager {
         status: &str,
         bus: &MessageBus,
     ) {
-        let status_text = if status == "ok" {
-            "completed successfully"
-        } else {
-            "failed"
+        let status_text = match status {
+            "ok" => "completed successfully",
+            "cancelled" => "was cancelled",
+            _ => "failed",
         };
 
         let announce_content = format!(
@@ -822,6 +882,7 @@ mod tests {
             "system".to_string(),
             &registry,
             &ContextBudgetPolicy::default(),
+            15, // max_iterations
         )
         .await
         .expect_err("subagent should stop on repeated tool failures");

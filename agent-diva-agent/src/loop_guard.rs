@@ -4,7 +4,6 @@ use std::time::{Duration, Instant};
 pub(crate) const DEFAULT_AGENT_LOOP_TIMEOUT: Duration = Duration::from_secs(300);
 pub(crate) const DEFAULT_SUBAGENT_LOOP_TIMEOUT: Duration = Duration::from_secs(120);
 pub(crate) const DEFAULT_REPEATED_FAILURE_THRESHOLD: usize = 3;
-pub(crate) const DEFAULT_SUBAGENT_MAX_ITERATIONS: usize = 15;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoopStopReason {
