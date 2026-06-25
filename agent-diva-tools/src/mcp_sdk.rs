@@ -48,6 +48,16 @@ fn sanitize_json_strings(value: &mut Value) {
 #[allow(dead_code)]
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
+/// Maximum characters allowed in a tool result before truncation.
+/// Prevents oversized MCP responses from blowing up the LLM context window.
+const MAX_TOOL_RESULT_CHARS: usize = 100_000;
+
+/// Maximum number of retry attempts for transient MCP failures.
+const MAX_RETRIES: u32 = 3;
+
+/// Base delay for exponential backoff in milliseconds.
+const BACKOFF_BASE_MS: u64 = 500;
+
 // ============================================================================
 // Error Types
 // ============================================================================
@@ -243,7 +253,7 @@ impl McpClientWrapper {
             .collect())
     }
 
-    /// Call a tool on the server.
+    /// Call a tool on the server with exponential backoff retry for transient failures.
     pub async fn call_tool(&self, tool_name: &str, arguments: Value) -> Result<String, McpError> {
         let timeout_duration = Duration::from_secs(self.tool_timeout);
 
@@ -254,12 +264,43 @@ impl McpClientWrapper {
             task: None,
         };
 
-        let result = tokio::time::timeout(timeout_duration, self.client.request_tool_call(params))
+        let mut last_err: Option<McpError> = None;
+
+        for attempt in 0..=MAX_RETRIES {
+            if attempt > 0 {
+                let delay_ms = BACKOFF_BASE_MS * 2u64.pow(attempt - 1);
+                warn!(
+                    "MCP tool '{}' retry {}/{} after {}ms backoff",
+                    tool_name, attempt, MAX_RETRIES, delay_ms
+                );
+                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+            }
+
+            let result = tokio::time::timeout(
+                timeout_duration,
+                self.client.request_tool_call(params.clone()),
+            )
             .await
             .map_err(|_| McpError::Timeout)?
-            .map_err(|e| McpError::Sdk(e.to_string()))?;
+            .map_err(|e| McpError::Sdk(e.to_string()));
 
-        render_tool_result(&result)
+            match result {
+                Ok(call_result) => return render_tool_result(&call_result),
+                Err(e) => {
+                    // Only retry on transient errors (timeout, connection)
+                    let is_transient = matches!(
+                        e,
+                        McpError::Timeout | McpError::ConnectionFailed(_)
+                    );
+                    last_err = Some(e);
+                    if !is_transient {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Err(last_err.unwrap_or(McpError::Sdk("unknown retry failure".into())))
     }
 
     /// Shutdown the client.
@@ -314,6 +355,17 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> Result<S
         "(no output)".to_string()
     } else {
         parts.join("\n")
+    };
+
+    // C-5: Truncate oversized results to protect LLM context window
+    let rendered = if rendered.len() > MAX_TOOL_RESULT_CHARS {
+        let truncated: String = rendered.chars().take(MAX_TOOL_RESULT_CHARS).collect();
+        format!(
+            "{}\n\n[truncated: output exceeded {} chars]",
+            truncated, MAX_TOOL_RESULT_CHARS
+        )
+    } else {
+        rendered
     };
 
     if matches!(result.is_error, Some(true)) {
@@ -579,7 +631,10 @@ pub fn load_mcp_tools_sync(configs: &HashMap<String, MCPServerConfig>) -> Vec<Ar
 
 #[cfg(test)]
 mod tests {
-    use super::{clone_live_client, map_mcp_error_to_tool_error, render_tool_result, McpError};
+    use super::{
+        clone_live_client, map_mcp_error_to_tool_error, render_tool_result, McpError,
+        MAX_TOOL_RESULT_CHARS,
+    };
     use agent_diva_tooling::ToolError;
     use rust_mcp_sdk::schema::{CallToolResult, ContentBlock, TextContent};
     use std::sync::{
@@ -664,11 +719,11 @@ mod tests {
 
         async fn call(&self) {
             let active = self.active_calls.fetch_add(1, Ordering::SeqCst) + 1;
-            let _ = self.max_active_calls.fetch_update(
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-                |current| (active > current).then_some(active),
-            );
+            let _ =
+                self.max_active_calls
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+                        (active > current).then_some(active)
+                    });
 
             self.barrier.wait().await;
             tokio::time::sleep(Duration::from_millis(20)).await;
@@ -708,5 +763,84 @@ mod tests {
             fake_client.max_active_calls() >= 2,
             "expected overlapping execution on the shared MCP client"
         );
+    }
+
+    // =========================================================================
+    // C-5: Result size limit tests
+    // =========================================================================
+
+    #[test]
+    fn render_tool_result_truncates_output_exceeding_max_chars() {
+        let oversized = "x".repeat(MAX_TOOL_RESULT_CHARS + 1000);
+        let result = CallToolResult {
+            content: vec![ContentBlock::TextContent(TextContent::new(
+                oversized.clone(),
+                None,
+                None,
+            ))],
+            is_error: None,
+            meta: None,
+            structured_content: None,
+        };
+
+        let output = render_tool_result(&result).expect("expected success");
+
+        assert!(
+            output.len() < oversized.len(),
+            "output should be shorter than the oversized input"
+        );
+        assert!(
+            output.contains("[truncated:"),
+            "output should contain truncation notice"
+        );
+        assert!(
+            output.contains(&MAX_TOOL_RESULT_CHARS.to_string()),
+            "output should reference the limit"
+        );
+    }
+
+    #[test]
+    fn render_tool_result_does_not_truncate_output_within_limit() {
+        let normal = "hello world".to_string();
+        let result = CallToolResult {
+            content: vec![ContentBlock::TextContent(TextContent::new(
+                normal.clone(),
+                None,
+                None,
+            ))],
+            is_error: None,
+            meta: None,
+            structured_content: None,
+        };
+
+        let output = render_tool_result(&result).expect("expected success");
+
+        assert_eq!(output, normal, "normal output should not be truncated");
+    }
+
+    #[test]
+    fn render_tool_result_truncates_error_output_exceeding_max_chars() {
+        let oversized = "e".repeat(MAX_TOOL_RESULT_CHARS + 500);
+        let result = CallToolResult {
+            content: vec![ContentBlock::TextContent(TextContent::new(
+                oversized,
+                None,
+                None,
+            ))],
+            is_error: Some(true),
+            meta: None,
+            structured_content: None,
+        };
+
+        let error = render_tool_result(&result).expect_err("expected error");
+        match error {
+            McpError::Server(msg) => {
+                assert!(
+                    msg.contains("[truncated:"),
+                    "error message should be truncated"
+                );
+            }
+            other => panic!("expected Server error, got: {:?}", other),
+        }
     }
 }
