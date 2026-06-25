@@ -93,14 +93,6 @@ pub struct McpClientWrapper {
     tool_timeout: u64,
 }
 
-#[async_trait]
-trait McpToolCaller: Send + Sync {
-    async fn call_tool(&self, tool_name: &str, arguments: Value) -> Result<String, McpError>;
-    async fn shutdown(&self);
-}
-
-type SharedMcpClient = Arc<RwLock<Option<Arc<dyn McpToolCaller>>>>;
-
 impl std::fmt::Debug for McpClientWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("McpClientWrapper")
@@ -279,17 +271,6 @@ impl McpClientWrapper {
     }
 }
 
-#[async_trait]
-impl McpToolCaller for McpClientWrapper {
-    async fn call_tool(&self, tool_name: &str, arguments: Value) -> Result<String, McpError> {
-        self.call_tool(tool_name, arguments).await
-    }
-
-    async fn shutdown(&self) {
-        self.shutdown().await;
-    }
-}
-
 /// Simple client handler that handles MCP messages.
 struct SimpleClientHandler;
 
@@ -347,7 +328,7 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> Result<S
 /// MCP tool that wraps a tool from an MCP server.
 pub struct McpSdkTool {
     server_name: String,
-    client: SharedMcpClient,
+    client: Arc<RwLock<Option<McpClientWrapper>>>,
     original_name: String,
     wrapped_name: String,
     description: String,
@@ -359,7 +340,7 @@ pub struct McpSdkTool {
 impl McpSdkTool {
     pub fn new(
         server_name: &str,
-        client: SharedMcpClient,
+        client: Arc<RwLock<Option<McpClientWrapper>>>,
         tool: DiscoveredTool,
         tool_timeout: u64,
     ) -> Self {
@@ -402,15 +383,14 @@ impl Tool for McpSdkTool {
             ));
         }
 
-        let client = {
-            let guard = self.client.read().await;
-            guard.as_ref().cloned().ok_or_else(|| {
-                ToolError::ExecutionFailed(format!(
-                    "MCP server '{}' session is closed",
-                    self.server_name
-                ))
-            })?
-        };
+        let mut guard = self.client.write().await;
+
+        let client = guard.as_mut().ok_or_else(|| {
+            ToolError::ExecutionFailed(format!(
+                "MCP server '{}' session is closed",
+                self.server_name
+            ))
+        })?;
 
         client
             .call_tool(&self.original_name, args)
@@ -471,7 +451,7 @@ pub async fn probe_mcp_server(
 /// Load MCP tools from configured servers.
 pub async fn load_mcp_tools(
     configs: &HashMap<String, MCPServerConfig>,
-) -> HashMap<String, (SharedMcpClient, Vec<DiscoveredTool>)> {
+) -> HashMap<String, (Arc<RwLock<Option<McpClientWrapper>>>, Vec<DiscoveredTool>)> {
     let mut result = HashMap::new();
 
     for (server_name, config) in configs {
@@ -491,7 +471,7 @@ pub async fn load_mcp_tools(
 async fn create_client_and_discover_tools(
     server_name: &str,
     config: &MCPServerConfig,
-) -> Result<(SharedMcpClient, Vec<DiscoveredTool>), McpError> {
+) -> Result<(Arc<RwLock<Option<McpClientWrapper>>>, Vec<DiscoveredTool>), McpError> {
     let client = if !config.command.trim().is_empty() {
         McpClientWrapper::new_stdio(server_name, config).await?
     } else if !config.url.trim().is_empty() {
@@ -503,7 +483,7 @@ async fn create_client_and_discover_tools(
     };
 
     let tools = client.list_tools().await?;
-    let client_arc = Arc::new(RwLock::new(Some(Arc::new(client) as Arc<dyn McpToolCaller>)));
+    let client_arc = Arc::new(RwLock::new(Some(client)));
 
     Ok((client_arc, tools))
 }
