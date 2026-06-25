@@ -93,6 +93,14 @@ pub struct McpClientWrapper {
     tool_timeout: u64,
 }
 
+#[async_trait]
+trait McpToolCaller: Send + Sync {
+    async fn call_tool(&self, tool_name: &str, arguments: Value) -> Result<String, McpError>;
+    async fn shutdown(&self);
+}
+
+type SharedMcpClient = Arc<RwLock<Option<Arc<dyn McpToolCaller>>>>;
+
 impl std::fmt::Debug for McpClientWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("McpClientWrapper")
@@ -257,7 +265,7 @@ impl McpClientWrapper {
             .map_err(|_| McpError::Timeout)?
             .map_err(|e| McpError::Sdk(e.to_string()))?;
 
-        Ok(render_tool_result(&result))
+        render_tool_result(&result)
     }
 
     /// Shutdown the client.
@@ -268,6 +276,17 @@ impl McpClientWrapper {
     /// Get the server name.
     pub fn server_name(&self) -> &str {
         &self.server_name
+    }
+}
+
+#[async_trait]
+impl McpToolCaller for McpClientWrapper {
+    async fn call_tool(&self, tool_name: &str, arguments: Value) -> Result<String, McpError> {
+        self.call_tool(tool_name, arguments).await
+    }
+
+    async fn shutdown(&self) {
+        self.shutdown().await;
     }
 }
 
@@ -293,7 +312,7 @@ impl ClientHandler for SimpleClientHandler {
     }
 }
 
-fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> String {
+fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> Result<String, McpError> {
     let mut parts = Vec::new();
 
     for content in &result.content {
@@ -308,10 +327,16 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> String {
         }
     }
 
-    if parts.is_empty() {
+    let rendered = if parts.is_empty() {
         "(no output)".to_string()
     } else {
         parts.join("\n")
+    };
+
+    if matches!(result.is_error, Some(true)) {
+        Err(McpError::Server(rendered))
+    } else {
+        Ok(rendered)
     }
 }
 
@@ -322,7 +347,7 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> String {
 /// MCP tool that wraps a tool from an MCP server.
 pub struct McpSdkTool {
     server_name: String,
-    client: Arc<RwLock<Option<McpClientWrapper>>>,
+    client: SharedMcpClient,
     original_name: String,
     wrapped_name: String,
     description: String,
@@ -334,7 +359,7 @@ pub struct McpSdkTool {
 impl McpSdkTool {
     pub fn new(
         server_name: &str,
-        client: Arc<RwLock<Option<McpClientWrapper>>>,
+        client: SharedMcpClient,
         tool: DiscoveredTool,
         tool_timeout: u64,
     ) -> Self {
@@ -377,21 +402,29 @@ impl Tool for McpSdkTool {
             ));
         }
 
-        let mut guard = self.client.write().await;
-
-        let client = guard.as_mut().ok_or_else(|| {
-            ToolError::ExecutionFailed(format!(
-                "MCP server '{}' session is closed",
-                self.server_name
-            ))
-        })?;
+        let client = {
+            let guard = self.client.read().await;
+            guard.as_ref().cloned().ok_or_else(|| {
+                ToolError::ExecutionFailed(format!(
+                    "MCP server '{}' session is closed",
+                    self.server_name
+                ))
+            })?
+        };
 
         client
             .call_tool(&self.original_name, args)
             .await
-            .map_err(|e| {
-                ToolError::ExecutionFailed(format!("MCP server '{}': {}", self.server_name, e))
-            })
+            .map_err(|e| map_mcp_error_to_tool_error(&self.server_name, e))
+    }
+}
+
+fn map_mcp_error_to_tool_error(server_name: &str, error: McpError) -> ToolError {
+    match error {
+        McpError::Server(message) => {
+            ToolError::Error(format!("MCP server '{}': {}", server_name, message))
+        }
+        other => ToolError::ExecutionFailed(format!("MCP server '{}': {}", server_name, other)),
     }
 }
 
@@ -438,7 +471,7 @@ pub async fn probe_mcp_server(
 /// Load MCP tools from configured servers.
 pub async fn load_mcp_tools(
     configs: &HashMap<String, MCPServerConfig>,
-) -> HashMap<String, (Arc<RwLock<Option<McpClientWrapper>>>, Vec<DiscoveredTool>)> {
+) -> HashMap<String, (SharedMcpClient, Vec<DiscoveredTool>)> {
     let mut result = HashMap::new();
 
     for (server_name, config) in configs {
@@ -458,7 +491,7 @@ pub async fn load_mcp_tools(
 async fn create_client_and_discover_tools(
     server_name: &str,
     config: &MCPServerConfig,
-) -> Result<(Arc<RwLock<Option<McpClientWrapper>>>, Vec<DiscoveredTool>), McpError> {
+) -> Result<(SharedMcpClient, Vec<DiscoveredTool>), McpError> {
     let client = if !config.command.trim().is_empty() {
         McpClientWrapper::new_stdio(server_name, config).await?
     } else if !config.url.trim().is_empty() {
@@ -470,7 +503,7 @@ async fn create_client_and_discover_tools(
     };
 
     let tools = client.list_tools().await?;
-    let client_arc = Arc::new(RwLock::new(Some(client)));
+    let client_arc = Arc::new(RwLock::new(Some(Arc::new(client) as Arc<dyn McpToolCaller>)));
 
     Ok((client_arc, tools))
 }
@@ -553,5 +586,70 @@ pub fn load_mcp_tools_sync(configs: &HashMap<String, MCPServerConfig>) -> Vec<Ar
             };
             rt.block_on(run())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{map_mcp_error_to_tool_error, render_tool_result, McpError};
+    use agent_diva_tooling::ToolError;
+    use rust_mcp_sdk::schema::{CallToolResult, ContentBlock, TextContent};
+
+    #[test]
+    fn render_tool_result_returns_server_error_when_is_error_is_true() {
+        let result = CallToolResult {
+            content: vec![ContentBlock::TextContent(TextContent::new(
+                "tool failed".into(),
+                None,
+                None,
+            ))],
+            is_error: Some(true),
+            meta: None,
+            structured_content: None,
+        };
+
+        let error = render_tool_result(&result).expect_err("expected MCP tool failure");
+
+        assert!(matches!(error, McpError::Server(message) if message == "tool failed"));
+    }
+
+    #[test]
+    fn render_tool_result_returns_success_output_when_is_error_is_missing() {
+        let result = CallToolResult {
+            content: vec![ContentBlock::TextContent(TextContent::new(
+                "tool succeeded".into(),
+                None,
+                None,
+            ))],
+            is_error: None,
+            meta: None,
+            structured_content: None,
+        };
+
+        let output = render_tool_result(&result).expect("expected MCP tool success");
+
+        assert_eq!(output, "tool succeeded");
+    }
+
+    #[test]
+    fn map_mcp_error_to_tool_error_uses_tool_error_for_server_failures() {
+        let error =
+            map_mcp_error_to_tool_error("demo", McpError::Server("tool failed".to_string()));
+
+        assert!(matches!(
+            error,
+            ToolError::Error(message) if message == "MCP server 'demo': tool failed"
+        ));
+    }
+
+    #[test]
+    fn map_mcp_error_to_tool_error_keeps_execution_failed_for_transport_failures() {
+        let error = map_mcp_error_to_tool_error("demo", McpError::Timeout);
+
+        assert!(matches!(
+            error,
+            ToolError::ExecutionFailed(message)
+                if message == "MCP server 'demo': MCP request timed out"
+        ));
     }
 }
