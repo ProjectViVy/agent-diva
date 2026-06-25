@@ -31,6 +31,9 @@ pub mod pii;
 pub mod policy;
 pub mod rate_limit;
 
+#[cfg(test)]
+mod tests;
+
 // Re-export commonly used types
 pub use config::{SecurityConfig, SecurityLevel};
 pub use error::SecurityError;
