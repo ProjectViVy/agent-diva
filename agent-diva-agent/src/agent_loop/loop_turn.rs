@@ -6,9 +6,10 @@ use super::AgentLoop;
 use crate::consolidation;
 use crate::context_budget::CompactionMode;
 use agent_diva_core::attachment::FileAttachmentRef;
-use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
+use agent_diva_core::bus::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::debug::DebugEvent;
 use agent_diva_core::memory::PrefetchRequest;
+use agent_diva_core::redaction::redact_secrets;
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::trace::{TraceEvent, TraceId};
@@ -22,6 +23,7 @@ use base64::Engine;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -41,6 +43,7 @@ impl AgentLoop {
         trace_id: TraceId,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
         trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
+        emit_injection_events(&self.bus, &msg.content);
 
         // Use the default model from the current provider
         let model_to_use = self.provider.get_default_model();
@@ -568,6 +571,13 @@ impl AgentLoop {
                 "final_response"
             };
             trace!(trace_id = %trace_id, loop_index = iteration, step_name = "intent_decided", decision_type = %decision_type, "Intent decided");
+            let _ = self.bus.emit(AgentBusEvent::DecisionPoint {
+                phase: "provider_response".to_string(),
+                llm_decision: decision_type.to_string(),
+            });
+            if let Some(token_event) = token_event_from_usage(&response.usage, &model_to_use) {
+                let _ = self.bus.emit(token_event);
+            }
 
             // Handle tool calls
             if response.has_tool_calls() {
@@ -610,6 +620,7 @@ impl AgentLoop {
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_invoked", tool_name = %tool_call.name, "Tool invoked");
 
                     let args_str = serde_json::to_string(&tool_call.arguments).unwrap_or_default();
+                    let args_hash = hash_tool_args(&args_str);
                     let preview = if args_str.chars().count() > 200 {
                         format!("{}...", args_str.chars().take(200).collect::<String>())
                     } else {
@@ -701,6 +712,11 @@ impl AgentLoop {
                                 }),
                             );
                             if is_cron_trigger && tool_call.name == "cron" {
+                                let _ = self.bus.emit(AgentBusEvent::ToolDenied {
+                                    tool: tool_call.name.clone(),
+                                    reason: "cron tool is disabled during cron-triggered execution"
+                                        .to_string(),
+                                });
                                 "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
                             } else {
                                 self.tools.execute(&tool_call.name, params_value).await
@@ -711,12 +727,24 @@ impl AgentLoop {
                                 "Failed to serialize arguments for tool '{}' (call_id: {}): {}",
                                 tool_call.name, tool_call.id, e
                             );
+                            let _ = self.bus.emit(AgentBusEvent::ToolDenied {
+                                tool: tool_call.name.clone(),
+                                reason: format!("failed to serialize arguments: {}", e),
+                            });
                             format!(
                                 "Error: failed to serialize arguments for tool '{}': {}",
                                 tool_call.name, e
                             )
                         }
                     };
+                    emit_injection_events(&self.bus, &result);
+                    let (result, pii_count) = redact_pii_and_count(&result);
+                    if pii_count > 0 {
+                        let _ = self.bus.emit(AgentBusEvent::PiiRedacted {
+                            kind: "secret".to_string(),
+                            count: pii_count,
+                        });
+                    }
                     if self.notify_on_soul_change {
                         if let Some(changed_file) =
                             changed_soul_file(&tool_call.name, &tool_call.arguments, &result)
@@ -745,6 +773,11 @@ impl AgentLoop {
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                     let duration_ms = tool_started_at.elapsed().as_millis() as u64;
                     let tool_failed = is_tool_error_result(&result);
+                    let _ = self.bus.emit(AgentBusEvent::ToolInvoked {
+                        tool: tool_call.name.clone(),
+                        args_hash,
+                        duration_ms,
+                    });
                     let mut metadata = serde_json::json!({
                         "tool": tool_call.name,
                         "status": if tool_failed { "error" } else { "ok" },
@@ -1602,6 +1635,58 @@ fn derive_prefetch_intent(message: &str) -> String {
     } else {
         String::new()
     }
+}
+
+fn token_event_from_usage(usage: &HashMap<String, i64>, model: &str) -> Option<AgentBusEvent> {
+    let prompt = *usage.get("prompt_tokens").unwrap_or(&0);
+    let completion = *usage.get("completion_tokens").unwrap_or(&0);
+    let total = *usage.get("total_tokens").unwrap_or(&0);
+    if prompt == 0 && completion == 0 && total == 0 {
+        return None;
+    }
+
+    Some(AgentBusEvent::TokenUsed {
+        prompt,
+        completion,
+        total,
+        model: model.to_string(),
+    })
+}
+
+fn hash_tool_args(args: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    args.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+fn redact_pii_and_count(input: &str) -> (String, usize) {
+    let redacted = redact_secrets(input);
+    let count = redacted.matches("***REDACTED***").count();
+    (redacted, count)
+}
+
+fn emit_injection_events(bus: &agent_diva_core::bus::MessageBus, text: &str) {
+    for (pattern, severity) in detect_injection_patterns(text) {
+        let _ = bus.emit(AgentBusEvent::InjectionDetected {
+            pattern: pattern.to_string(),
+            severity: severity.to_string(),
+        });
+    }
+}
+
+fn detect_injection_patterns(text: &str) -> Vec<(&'static str, &'static str)> {
+    let normalized = text.to_ascii_lowercase();
+    let candidates = [
+        ("ignore previous instructions", "high"),
+        ("system prompt", "medium"),
+        ("developer message", "medium"),
+        ("reveal hidden prompt", "high"),
+    ];
+
+    candidates
+        .into_iter()
+        .filter(|(pattern, _)| normalized.contains(pattern))
+        .collect()
 }
 
 #[cfg(test)]

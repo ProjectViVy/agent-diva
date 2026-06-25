@@ -1,8 +1,13 @@
 //! Async message queue implementation
 
-use super::events::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
+use super::events::{
+    AgentBusEvent, AgentEvent, AgentEventEnvelope, InboundMessage, OutboundMessage,
+};
+use crate::presence::{PresenceConfig, PresenceState};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::RwLock as StdRwLock;
+use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::debug;
 
@@ -30,10 +35,16 @@ pub struct MessageBus {
     outbound_rx: Arc<RwLock<Option<mpsc::UnboundedReceiver<OutboundMessage>>>>,
     /// Outbound subscribers by channel
     subscribers: Arc<RwLock<HashMap<String, Vec<OutboundCallback>>>>,
-    /// Event broadcast channel
-    event_tx: broadcast::Sender<AgentBusEvent>,
+    /// Stream event broadcast channel.
+    event_tx: broadcast::Sender<AgentEventEnvelope>,
+    /// Fine-grained bus event broadcast channel.
+    bus_event_tx: broadcast::Sender<AgentBusEvent>,
     /// Running state
     running: Arc<RwLock<bool>>,
+    /// Presence detection state shared by inbound producers and background services.
+    presence_state: Arc<StdRwLock<PresenceState>>,
+    last_user_activity: Arc<StdRwLock<Instant>>,
+    presence_config: PresenceConfig,
 }
 
 impl MessageBus {
@@ -42,6 +53,7 @@ impl MessageBus {
         let (inbound_tx, inbound_rx) = mpsc::unbounded_channel();
         let (outbound_tx, outbound_rx) = mpsc::unbounded_channel();
         let (event_tx, _) = broadcast::channel(1024);
+        let (bus_event_tx, _) = broadcast::channel(1024);
 
         Self {
             inbound_tx,
@@ -50,7 +62,11 @@ impl MessageBus {
             outbound_rx: Arc::new(RwLock::new(Some(outbound_rx))),
             subscribers: Arc::new(RwLock::new(HashMap::new())),
             event_tx,
+            bus_event_tx,
             running: Arc::new(RwLock::new(false)),
+            presence_state: Arc::new(StdRwLock::new(PresenceState::Active)),
+            last_user_activity: Arc::new(StdRwLock::new(Instant::now())),
+            presence_config: PresenceConfig::default(),
         }
     }
 
@@ -61,7 +77,7 @@ impl MessageBus {
         chat_id: impl Into<String>,
         event: AgentEvent,
     ) -> crate::Result<()> {
-        let bus_event = AgentBusEvent {
+        let bus_event = AgentEventEnvelope {
             channel: channel.into(),
             chat_id: chat_id.into(),
             event,
@@ -72,8 +88,19 @@ impl MessageBus {
     }
 
     /// Subscribe to the event broadcast channel
-    pub fn subscribe_events(&self) -> broadcast::Receiver<AgentBusEvent> {
+    pub fn subscribe_events(&self) -> broadcast::Receiver<AgentEventEnvelope> {
         self.event_tx.subscribe()
+    }
+
+    /// Emit a fine-grained runtime bus event.
+    pub fn emit(&self, event: AgentBusEvent) -> crate::Result<()> {
+        let _ = self.bus_event_tx.send(event);
+        Ok(())
+    }
+
+    /// Subscribe to fine-grained runtime bus events.
+    pub fn subscribe(&self) -> broadcast::Receiver<AgentBusEvent> {
+        self.bus_event_tx.subscribe()
     }
 
     /// Take the inbound receiver (can only be called once)
@@ -88,6 +115,10 @@ impl MessageBus {
 
     /// Publish a message from a channel to the agent
     pub fn publish_inbound(&self, msg: InboundMessage) -> crate::Result<()> {
+        self.refresh_presence();
+        if msg.sender_id != "cron" && !msg.metadata.contains_key("cron_job_id") {
+            self.note_user_activity();
+        }
         self.inbound_tx
             .send(msg)
             .map_err(|_| crate::Error::Channel("Inbound channel closed".to_string()))
@@ -165,11 +196,67 @@ impl MessageBus {
     pub async fn is_running(&self) -> bool {
         *self.running.read().await
     }
+
+    /// Re-evaluate presence using the default thresholds and emit transitions when state changes.
+    pub fn refresh_presence(&self) {
+        let last_seen = *self
+            .last_user_activity
+            .read()
+            .expect("presence last_user_activity lock poisoned");
+        let elapsed = last_seen.elapsed();
+        let next = presence_state_for_elapsed(elapsed, &self.presence_config);
+
+        let mut state = self
+            .presence_state
+            .write()
+            .expect("presence state lock poisoned");
+        if *state != next {
+            let previous = *state;
+            *state = next;
+            let _ = self.emit(AgentBusEvent::PresenceChanged {
+                from: previous,
+                to: next,
+            });
+        }
+    }
+
+    fn note_user_activity(&self) {
+        {
+            let mut last_seen = self
+                .last_user_activity
+                .write()
+                .expect("presence last_user_activity lock poisoned");
+            *last_seen = Instant::now();
+        }
+
+        let mut state = self
+            .presence_state
+            .write()
+            .expect("presence state lock poisoned");
+        if *state != PresenceState::Active {
+            let previous = *state;
+            *state = PresenceState::Active;
+            let _ = self.emit(AgentBusEvent::PresenceChanged {
+                from: previous,
+                to: PresenceState::Active,
+            });
+        }
+    }
 }
 
 impl Default for MessageBus {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn presence_state_for_elapsed(elapsed: Duration, config: &PresenceConfig) -> PresenceState {
+    if elapsed.as_secs() >= config.distracted_timeout_s {
+        PresenceState::Gone
+    } else if elapsed.as_secs() >= config.active_timeout_s {
+        PresenceState::Distracted
+    } else {
+        PresenceState::Active
     }
 }
 
@@ -207,5 +294,50 @@ mod tests {
 
         // Check bus is not running yet
         assert!(!bus.is_running().await);
+    }
+
+    #[test]
+    fn test_emit_and_subscribe_bus_event() {
+        let bus = MessageBus::new();
+        let mut rx = bus.subscribe();
+
+        bus.emit(AgentBusEvent::DecisionPoint {
+            phase: "provider_response".to_string(),
+            llm_decision: "tool_use".to_string(),
+        })
+        .unwrap();
+
+        let event = rx.try_recv().unwrap();
+        assert_eq!(
+            event,
+            AgentBusEvent::DecisionPoint {
+                phase: "provider_response".to_string(),
+                llm_decision: "tool_use".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_refresh_presence_emits_transition() {
+        let bus = MessageBus::new();
+        let mut rx = bus.subscribe();
+        {
+            let mut last_seen = bus
+                .last_user_activity
+                .write()
+                .expect("presence last_user_activity lock poisoned");
+            *last_seen = Instant::now() - Duration::from_secs(301);
+        }
+
+        bus.refresh_presence();
+
+        let event = rx.try_recv().unwrap();
+        assert_eq!(
+            event,
+            AgentBusEvent::PresenceChanged {
+                from: PresenceState::Active,
+                to: PresenceState::Distracted,
+            }
+        );
     }
 }

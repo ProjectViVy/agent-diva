@@ -1,5 +1,6 @@
 //! Event types for the message bus
 
+use crate::presence::PresenceState;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -40,12 +41,52 @@ pub enum AgentEvent {
     },
 }
 
-/// Event with context for the bus
+/// Stream event with channel/chat context for the bus.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentBusEvent {
+pub struct AgentEventEnvelope {
     pub channel: String,
     pub chat_id: String,
     pub event: AgentEvent,
+}
+
+/// Fine-grained runtime bus events used for audit and observability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentBusEvent {
+    ToolInvoked {
+        tool: String,
+        args_hash: String,
+        duration_ms: u64,
+    },
+    ToolDenied {
+        tool: String,
+        reason: String,
+    },
+    DecisionPoint {
+        phase: String,
+        llm_decision: String,
+    },
+    InjectionDetected {
+        pattern: String,
+        severity: String,
+    },
+    PiiRedacted {
+        kind: String,
+        count: usize,
+    },
+    TokenUsed {
+        prompt: i64,
+        completion: i64,
+        total: i64,
+        model: String,
+    },
+    PresenceChanged {
+        from: PresenceState,
+        to: PresenceState,
+    },
+    HeartbeatTriggered {
+        state: String,
+        tasks: String,
+    },
 }
 
 /// Message received from a chat channel

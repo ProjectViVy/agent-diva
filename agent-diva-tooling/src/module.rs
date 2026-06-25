@@ -414,6 +414,7 @@ fn build_heartbeat_module(ctx: &ModuleBuildContext) -> Result<Arc<dyn Module>> {
         Arc::new(HeartbeatService::new(
             ctx.workspace.clone(),
             HeartbeatConfig::default(),
+            Some((*ctx.module_ctx.bus).clone()),
             None,
             None,
         ))

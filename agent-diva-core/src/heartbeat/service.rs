@@ -9,6 +9,7 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
+use crate::bus::{AgentBusEvent, MessageBus};
 use crate::heartbeat::types::{is_heartbeat_empty, HeartbeatConfig, HeartbeatDecision};
 
 /// Callback for the LLM decision phase: takes HEARTBEAT.md content and returns a HeartbeatDecision.
@@ -40,6 +41,7 @@ pub type HeartbeatExecuteCallback =
 pub struct HeartbeatService {
     workspace: PathBuf,
     config: HeartbeatConfig,
+    bus: Option<MessageBus>,
     on_decide: Option<HeartbeatDecideCallback>,
     on_execute: Option<HeartbeatExecuteCallback>,
     running: Arc<RwLock<bool>>,
@@ -51,12 +53,14 @@ impl HeartbeatService {
     pub fn new(
         workspace: PathBuf,
         config: HeartbeatConfig,
+        bus: Option<MessageBus>,
         on_decide: Option<HeartbeatDecideCallback>,
         on_execute: Option<HeartbeatExecuteCallback>,
     ) -> Self {
         Self {
             workspace,
             config,
+            bus,
             on_decide,
             on_execute,
             running: Arc::new(RwLock::new(false)),
@@ -88,6 +92,7 @@ impl HeartbeatService {
 
         let interval_s = self.config.interval_s;
         let running = Arc::clone(&self.running);
+        let bus = self.bus.clone();
         let on_decide = self.on_decide.clone();
         let on_execute = self.on_execute.clone();
         let workspace = self.workspace.clone();
@@ -95,6 +100,7 @@ impl HeartbeatService {
         let task = tokio::spawn(async move {
             let handle = HeartbeatServiceHandle {
                 workspace,
+                bus,
                 on_decide,
                 on_execute,
                 running: Arc::clone(&running),
@@ -125,9 +131,18 @@ impl HeartbeatService {
     pub async fn trigger_now(&self) -> Option<String> {
         let on_decide = self.on_decide.as_ref()?;
         let workspace = self.workspace.clone();
+        if let Some(bus) = &self.bus {
+            bus.refresh_presence();
+        }
 
         let content = read_heartbeat_file(&workspace).await;
         if is_heartbeat_empty(content.as_deref()) {
+            if let Some(bus) = &self.bus {
+                let _ = bus.emit(AgentBusEvent::HeartbeatTriggered {
+                    state: "skip".to_string(),
+                    tasks: String::new(),
+                });
+            }
             return Some("skip (empty)".to_string());
         }
 
@@ -135,6 +150,12 @@ impl HeartbeatService {
         match (on_decide)(heartbeat_content).await {
             Ok(decision) if decision.is_run() => {
                 let tasks = decision.tasks.unwrap_or_default();
+                if let Some(bus) = &self.bus {
+                    let _ = bus.emit(AgentBusEvent::HeartbeatTriggered {
+                        state: "run".to_string(),
+                        tasks: tasks.clone(),
+                    });
+                }
                 if let Some(on_execute) = &self.on_execute {
                     let result = (on_execute)(tasks).await;
                     Some(result)
@@ -142,9 +163,23 @@ impl HeartbeatService {
                     Some("run (no execute callback)".to_string())
                 }
             }
-            Ok(_) => Some("skip".to_string()),
+            Ok(_) => {
+                if let Some(bus) = &self.bus {
+                    let _ = bus.emit(AgentBusEvent::HeartbeatTriggered {
+                        state: "skip".to_string(),
+                        tasks: String::new(),
+                    });
+                }
+                Some("skip".to_string())
+            }
             Err(e) => {
                 warn!("Heartbeat decide error: {}", e);
+                if let Some(bus) = &self.bus {
+                    let _ = bus.emit(AgentBusEvent::HeartbeatTriggered {
+                        state: "error".to_string(),
+                        tasks: String::new(),
+                    });
+                }
                 Some(format!("error: {}", e))
             }
         }
@@ -187,6 +222,7 @@ async fn read_heartbeat_file(workspace: &Path) -> Option<String> {
 /// Handle for async task (to avoid circular references)
 struct HeartbeatServiceHandle {
     workspace: PathBuf,
+    bus: Option<MessageBus>,
     on_decide: Option<HeartbeatDecideCallback>,
     on_execute: Option<HeartbeatExecuteCallback>,
     running: Arc<RwLock<bool>>,
@@ -211,11 +247,20 @@ impl HeartbeatServiceHandle {
     }
 
     async fn tick(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(bus) = &self.bus {
+            bus.refresh_presence();
+        }
         let content = read_heartbeat_file(&self.workspace).await;
 
         // Skip if HEARTBEAT.md is empty or doesn't exist
         if is_heartbeat_empty(content.as_deref()) {
             debug!("Heartbeat: no tasks (HEARTBEAT.md empty)");
+            if let Some(bus) = &self.bus {
+                let _ = bus.emit(AgentBusEvent::HeartbeatTriggered {
+                    state: "skip".to_string(),
+                    tasks: String::new(),
+                });
+            }
             return Ok(());
         }
 
@@ -243,6 +288,12 @@ impl HeartbeatServiceHandle {
 
         if decision.is_run() {
             let tasks = decision.tasks.unwrap_or_default();
+            if let Some(bus) = &self.bus {
+                let _ = bus.emit(AgentBusEvent::HeartbeatTriggered {
+                    state: "run".to_string(),
+                    tasks: tasks.clone(),
+                });
+            }
             info!("Heartbeat: running tasks");
             if let Some(on_execute) = &self.on_execute {
                 let _result = (on_execute)(tasks).await;
@@ -251,6 +302,12 @@ impl HeartbeatServiceHandle {
                 warn!("Heartbeat: decision was 'run' but no execute callback");
             }
         } else {
+            if let Some(bus) = &self.bus {
+                let _ = bus.emit(AgentBusEvent::HeartbeatTriggered {
+                    state: "skip".to_string(),
+                    tasks: String::new(),
+                });
+            }
             info!("Heartbeat: OK (no action needed)");
         }
 
@@ -295,7 +352,8 @@ mod tests {
     async fn test_heartbeat_service_new() {
         let temp_dir = TempDir::new().unwrap();
         let config = HeartbeatConfig::default();
-        let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
+        let service =
+            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
         assert!(!service.is_running().await);
     }
 
@@ -306,7 +364,8 @@ mod tests {
             enabled: false,
             interval_s: 60,
         };
-        let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
+        let service =
+            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
         service.start().await;
         assert!(!service.is_running().await);
     }
@@ -318,7 +377,8 @@ mod tests {
             enabled: true,
             interval_s: 3600,
         };
-        let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
+        let service =
+            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
         service.start().await;
         assert!(service.is_running().await);
         service.stop().await;
@@ -329,7 +389,8 @@ mod tests {
     async fn test_heartbeat_service_status() {
         let temp_dir = TempDir::new().unwrap();
         let config = HeartbeatConfig::default();
-        let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
+        let service =
+            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
         let status = service.status().await;
         assert!(status["enabled"].as_bool().unwrap());
         assert!(!status["running"].as_bool().unwrap());
@@ -343,7 +404,8 @@ mod tests {
     async fn test_heartbeat_trigger_now_no_callback() {
         let temp_dir = TempDir::new().unwrap();
         let config = HeartbeatConfig::default();
-        let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
+        let service =
+            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
         let result = service.trigger_now().await;
         assert!(result.is_none());
     }
@@ -359,6 +421,7 @@ mod tests {
         let service = HeartbeatService::new(
             temp_dir.path().to_path_buf(),
             config,
+            None,
             Some(skip_decide()),
             None,
         );
@@ -387,6 +450,7 @@ mod tests {
         let service = HeartbeatService::new(
             temp_dir.path().to_path_buf(),
             config,
+            None,
             Some(run_decide("Check logs")),
             Some(on_execute),
         );
@@ -435,6 +499,7 @@ mod tests {
         let service = HeartbeatService::new(
             temp_dir.path().to_path_buf(),
             config,
+            None,
             Some(on_decide),
             Some(on_execute),
         );
@@ -473,8 +538,13 @@ mod tests {
             enabled: true,
             interval_s: 1,
         };
-        let service =
-            HeartbeatService::new(temp_dir.path().to_path_buf(), config, Some(on_decide), None);
+        let service = HeartbeatService::new(
+            temp_dir.path().to_path_buf(),
+            config,
+            None,
+            Some(on_decide),
+            None,
+        );
         service.start().await;
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         service.stop().await;
@@ -510,14 +580,43 @@ mod tests {
         let service = HeartbeatService::new(
             temp_dir.path().to_path_buf(),
             config,
+            None,
             Some(on_decide),
             Some(on_execute),
         );
+
         service.start().await;
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         service.stop().await;
 
         // Execute should NOT have been called (error defaults to skip)
         assert_eq!(execute_counter.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn test_heartbeat_emits_bus_event() {
+        let temp_dir = TempDir::new().unwrap();
+        tokio::fs::write(temp_dir.path().join("HEARTBEAT.md"), "Check logs")
+            .await
+            .unwrap();
+        let bus = MessageBus::new();
+        let mut rx = bus.subscribe();
+        let service = HeartbeatService::new(
+            temp_dir.path().to_path_buf(),
+            HeartbeatConfig::default(),
+            Some(bus),
+            Some(run_decide("Check logs")),
+            None,
+        );
+
+        let result = service.trigger_now().await.unwrap();
+        assert_eq!(result, "run (no execute callback)");
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            AgentBusEvent::HeartbeatTriggered {
+                state: "run".to_string(),
+                tasks: "Check logs".to_string(),
+            }
+        );
     }
 }

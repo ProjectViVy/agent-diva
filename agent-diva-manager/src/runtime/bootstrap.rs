@@ -33,6 +33,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     let heartbeat_service = Arc::new(HeartbeatService::new(
         workspace.clone(),
         HeartbeatConfig::default(),
+        Some(bus.clone()),
         None,
         None,
     ));
