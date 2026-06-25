@@ -9,7 +9,7 @@ use agent_diva_core::attachment::FileAttachmentRef;
 use agent_diva_core::bus::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::debug::DebugEvent;
 use agent_diva_core::memory::PrefetchRequest;
-use agent_diva_core::redaction::redact_secrets;
+use agent_diva_core::security::{redact_pii, PiiKind, PiiMatch};
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::trace::{TraceEvent, TraceId};
@@ -42,8 +42,10 @@ impl AgentLoop {
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
         trace_id: TraceId,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
+        let mut msg = msg;
         trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
         emit_injection_events(&self.bus, &msg.content);
+        msg.content = redact_text_and_emit_pii_events(&self.bus, &msg.content);
 
         // Use the default model from the current provider
         let model_to_use = self.provider.get_default_model();
@@ -61,8 +63,9 @@ impl AgentLoop {
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
 
         // Process attachments: keep images as structured parts and inline text attachments.
-        let message_content =
+        let mut message_content =
             assemble_current_message_content(&self.file_manager, &msg.content, &msg.media).await;
+        redact_message_content_and_emit_pii_events(&self.bus, &mut message_content);
 
         // Derive prefetch intent from raw user message before it's consumed.
         let prefetch_user_message = message_content.to_text_lossy();
@@ -452,6 +455,7 @@ impl AgentLoop {
 
                         match stream_event {
                             LLMStreamEvent::TextDelta(delta) => {
+                                let delta = redact_text_and_emit_pii_events(&self.bus, &delta);
                                 streamed_content.push_str(&delta);
                                 let event = AgentEvent::AssistantDelta { text: delta };
                                 if let Some(tx) = event_tx {
@@ -464,6 +468,7 @@ impl AgentLoop {
                                 );
                             }
                             LLMStreamEvent::ReasoningDelta(delta) => {
+                                let delta = redact_text_and_emit_pii_events(&self.bus, &delta);
                                 debug!("Stream ReasoningDelta: {:?}", delta);
                                 streamed_reasoning.push_str(&delta);
                                 let event = AgentEvent::ReasoningDelta { text: delta };
@@ -521,6 +526,7 @@ impl AgentLoop {
                             Some(streamed_reasoning)
                         },
                     });
+                    let response = sanitize_provider_response(&self.bus, response);
                     self.emit_runtime_trace(
                         "info",
                         &trace_id,
@@ -738,13 +744,7 @@ impl AgentLoop {
                         }
                     };
                     emit_injection_events(&self.bus, &result);
-                    let (result, pii_count) = redact_pii_and_count(&result);
-                    if pii_count > 0 {
-                        let _ = self.bus.emit(AgentBusEvent::PiiRedacted {
-                            kind: "secret".to_string(),
-                            count: pii_count,
-                        });
-                    }
+                    let result = redact_text_and_emit_pii_events(&self.bus, &result);
                     if self.notify_on_soul_change {
                         if let Some(changed_file) =
                             changed_soul_file(&tool_call.name, &tool_call.arguments, &result)
@@ -909,6 +909,9 @@ impl AgentLoop {
             );
             final_content.push_str(&notice);
         }
+        final_content = redact_text_and_emit_pii_events(&self.bus, &final_content);
+        let final_reasoning =
+            final_reasoning.map(|reasoning| redact_text_and_emit_pii_events(&self.bus, &reasoning));
 
         trace!(trace_id = %trace_id, step_name = "response_generated", "Response generated");
 
@@ -1659,10 +1662,44 @@ fn hash_tool_args(args: &str) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn redact_pii_and_count(input: &str) -> (String, usize) {
-    let redacted = redact_secrets(input);
-    let count = redacted.matches("***REDACTED***").count();
-    (redacted, count)
+fn sanitize_provider_response(
+    bus: &agent_diva_core::bus::MessageBus,
+    mut response: LLMResponse,
+) -> LLMResponse {
+    response.content = response
+        .content
+        .map(|content| redact_text_and_emit_pii_events(bus, &content));
+    response.reasoning_content = response
+        .reasoning_content
+        .map(|reasoning| redact_text_and_emit_pii_events(bus, &reasoning));
+    response
+}
+
+fn redact_message_content_and_emit_pii_events(
+    bus: &agent_diva_core::bus::MessageBus,
+    content: &mut MessageContent,
+) {
+    content.sanitize_text(|text| redact_text_and_emit_pii_events(bus, text));
+}
+
+fn redact_text_and_emit_pii_events(bus: &agent_diva_core::bus::MessageBus, input: &str) -> String {
+    let (redacted, matches) = redact_pii(input);
+    emit_pii_events(bus, &matches);
+    redacted
+}
+
+fn emit_pii_events(bus: &agent_diva_core::bus::MessageBus, matches: &[PiiMatch]) {
+    let mut counts: HashMap<PiiKind, usize> = HashMap::new();
+    for pii_match in matches {
+        *counts.entry(pii_match.kind).or_default() += 1;
+    }
+
+    for (kind, count) in counts {
+        let _ = bus.emit(AgentBusEvent::PiiRedacted {
+            kind: kind.as_str().to_string(),
+            count,
+        });
+    }
 }
 
 fn emit_injection_events(bus: &agent_diva_core::bus::MessageBus, text: &str) {
@@ -1823,6 +1860,75 @@ mod tests {
         assert_eq!(session.messages[0].content, "hello");
         assert_eq!(session.messages[1].role, "assistant");
         assert_eq!(session.messages[1].content, "done");
+    }
+
+    #[test]
+    fn test_redact_text_and_emit_pii_events_emits_kind_counts() {
+        let bus = agent_diva_core::bus::MessageBus::new();
+        let mut rx = bus.subscribe();
+
+        let redacted = redact_text_and_emit_pii_events(
+            &bus,
+            "Email me at jane@example.com or call 415-555-2671",
+        );
+
+        assert_eq!(
+            redacted,
+            "Email me at [REDACTED:Email] or call [REDACTED:Phone]"
+        );
+
+        let mut events = Vec::new();
+        while let Ok(event) = rx.try_recv() {
+            events.push(event);
+        }
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            AgentBusEvent::PiiRedacted { kind, count }
+            if kind == "Email" && *count == 1
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            AgentBusEvent::PiiRedacted { kind, count }
+            if kind == "Phone" && *count == 1
+        )));
+    }
+
+    #[test]
+    fn test_redact_message_content_and_emit_pii_events_preserves_images() {
+        let bus = agent_diva_core::bus::MessageBus::new();
+        let mut content = MessageContent::Parts(vec![
+            MessageContentPart::Text {
+                text: "Reach me at john@example.com".to_string(),
+            },
+            MessageContentPart::ImageUrl {
+                image_url: ImageUrl {
+                    url: "https://example.com/image.png".to_string(),
+                },
+            },
+        ]);
+
+        redact_message_content_and_emit_pii_events(&bus, &mut content);
+
+        match content {
+            MessageContent::Parts(parts) => {
+                assert_eq!(
+                    parts[0],
+                    MessageContentPart::Text {
+                        text: "Reach me at [REDACTED:Email]".to_string(),
+                    }
+                );
+                assert_eq!(
+                    parts[1],
+                    MessageContentPart::ImageUrl {
+                        image_url: ImageUrl {
+                            url: "https://example.com/image.png".to_string(),
+                        },
+                    }
+                );
+            }
+            other => panic!("expected parts, got {:?}", other),
+        }
     }
 
     #[tokio::test]

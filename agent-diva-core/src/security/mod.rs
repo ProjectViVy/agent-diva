@@ -26,6 +26,7 @@
 pub mod config;
 pub mod error;
 pub mod path;
+pub mod pii;
 pub mod policy;
 pub mod rate_limit;
 
@@ -33,5 +34,6 @@ pub mod rate_limit;
 pub use config::{SecurityConfig, SecurityLevel};
 pub use error::SecurityError;
 pub use path::PathValidator;
+pub use pii::{redact_pii, PiiKind, PiiMatch};
 pub use policy::{SecurityPolicy, SharedSecurityPolicy};
 pub use rate_limit::ActionTracker;

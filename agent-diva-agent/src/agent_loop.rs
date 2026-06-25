@@ -1540,7 +1540,7 @@ mod tests {
         assert!(tool_completed["metadata"]["result_summary"]
             .as_str()
             .unwrap()
-            .contains("***REDACTED***"));
+            .contains("[REDACTED:ApiKey]"));
     }
 
     #[tokio::test]
@@ -1626,7 +1626,7 @@ mod tests {
         assert!(events.iter().any(|event| matches!(
             event,
             AgentBusEvent::PiiRedacted { kind, count }
-            if kind == "secret" && *count >= 1
+            if kind == "ApiKey" && *count >= 1
         )));
     }
 
