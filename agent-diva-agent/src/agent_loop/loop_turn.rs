@@ -9,7 +9,7 @@ use agent_diva_core::attachment::FileAttachmentRef;
 use agent_diva_core::bus::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::debug::DebugEvent;
 use agent_diva_core::memory::PrefetchRequest;
-use agent_diva_core::security::{redact_pii, PiiKind, PiiMatch};
+use agent_diva_core::security::{detect_injection, redact_pii, PiiKind, PiiMatch};
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::trace::{TraceEvent, TraceId};
@@ -1703,27 +1703,12 @@ fn emit_pii_events(bus: &agent_diva_core::bus::MessageBus, matches: &[PiiMatch])
 }
 
 fn emit_injection_events(bus: &agent_diva_core::bus::MessageBus, text: &str) {
-    for (pattern, severity) in detect_injection_patterns(text) {
+    for m in detect_injection(text) {
         let _ = bus.emit(AgentBusEvent::InjectionDetected {
-            pattern: pattern.to_string(),
-            severity: severity.to_string(),
+            pattern: m.pattern.as_str().to_string(),
+            severity: m.severity,
         });
     }
-}
-
-fn detect_injection_patterns(text: &str) -> Vec<(&'static str, &'static str)> {
-    let normalized = text.to_ascii_lowercase();
-    let candidates = [
-        ("ignore previous instructions", "high"),
-        ("system prompt", "medium"),
-        ("developer message", "medium"),
-        ("reveal hidden prompt", "high"),
-    ];
-
-    candidates
-        .into_iter()
-        .filter(|(pattern, _)| normalized.contains(pattern))
-        .collect()
 }
 
 #[cfg(test)]

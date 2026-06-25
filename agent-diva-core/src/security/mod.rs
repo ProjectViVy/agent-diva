@@ -25,6 +25,7 @@
 
 pub mod config;
 pub mod error;
+pub mod injection;
 pub mod path;
 pub mod pii;
 pub mod policy;
@@ -33,6 +34,7 @@ pub mod rate_limit;
 // Re-export commonly used types
 pub use config::{SecurityConfig, SecurityLevel};
 pub use error::SecurityError;
+pub use injection::{detect_injection, InjectionMatch, InjectionPattern};
 pub use path::PathValidator;
 pub use pii::{redact_pii, PiiKind, PiiMatch};
 pub use policy::{SecurityPolicy, SharedSecurityPolicy};
