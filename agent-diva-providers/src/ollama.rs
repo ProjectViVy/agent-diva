@@ -53,6 +53,12 @@ struct OllamaStreamChunk {
     message: OllamaStreamMessage,
     #[serde(default)]
     done: bool,
+    /// Number of tokens in the prompt (present when done=true)
+    #[serde(default)]
+    prompt_eval_count: Option<i64>,
+    /// Number of tokens in the response (present when done=true)
+    #[serde(default)]
+    eval_count: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -84,6 +90,12 @@ struct OllamaStreamFunction {
 #[derive(Debug, Deserialize)]
 struct ChatResponse {
     message: ResponseMessage,
+    /// Number of tokens in the prompt
+    #[serde(default)]
+    prompt_eval_count: Option<i64>,
+    /// Number of tokens in the response
+    #[serde(default)]
+    eval_count: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -345,6 +357,21 @@ impl LLMProvider for OllamaProvider {
             chat_response.message.content
         };
 
+        // Build usage map from Ollama response
+        let mut usage = HashMap::new();
+        if let Some(prompt_tokens) = chat_response.prompt_eval_count {
+            usage.insert("prompt_tokens".to_string(), prompt_tokens);
+        }
+        if let Some(completion_tokens) = chat_response.eval_count {
+            usage.insert("completion_tokens".to_string(), completion_tokens);
+        }
+        if let (Some(prompt), Some(completion)) = (
+            chat_response.prompt_eval_count,
+            chat_response.eval_count,
+        ) {
+            usage.insert("total_tokens".to_string(), prompt + completion);
+        }
+
         Ok(LLMResponse {
             content: if content.is_empty() {
                 None
@@ -353,7 +380,7 @@ impl LLMProvider for OllamaProvider {
             },
             tool_calls,
             finish_reason: "stop".to_string(),
-            usage: Default::default(),
+            usage,
             reasoning_content: chat_response.message.thinking,
         })
     }
@@ -397,6 +424,8 @@ impl LLMProvider for OllamaProvider {
             let mut content = String::new();
             let mut reasoning_content = String::new();
             let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
+            let mut prompt_eval_count: Option<i64> = None;
+            let mut eval_count: Option<i64> = None;
 
             loop {
                 let chunk = match response.chunk().await {
@@ -451,8 +480,11 @@ impl LLMProvider for OllamaProvider {
                                     .await;
                             }
 
+                            // Capture usage info when done
                             if chunk.done {
                                 debug!("Stream chunk marked as done");
+                                prompt_eval_count = chunk.prompt_eval_count;
+                                eval_count = chunk.eval_count;
                             }
                         }
                         Err(e) => {
@@ -460,6 +492,18 @@ impl LLMProvider for OllamaProvider {
                         }
                     }
                 }
+            }
+
+            // Build usage map from Ollama response
+            let mut usage = HashMap::new();
+            if let Some(prompt_tokens) = prompt_eval_count {
+                usage.insert("prompt_tokens".to_string(), prompt_tokens);
+            }
+            if let Some(completion_tokens) = eval_count {
+                usage.insert("completion_tokens".to_string(), completion_tokens);
+            }
+            if let (Some(prompt), Some(completion)) = (prompt_eval_count, eval_count) {
+                usage.insert("total_tokens".to_string(), prompt + completion);
             }
 
             // Send completed response
@@ -471,7 +515,7 @@ impl LLMProvider for OllamaProvider {
                 },
                 tool_calls,
                 finish_reason: "stop".to_string(),
-                usage: Default::default(),
+                usage,
                 reasoning_content: if reasoning_content.is_empty() {
                     None
                 } else {

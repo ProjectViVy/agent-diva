@@ -267,6 +267,7 @@ version = "0.5.0"
 dependencies = [
  "agent-diva-core",
  "async-trait",
+ "fastrand",
  "futures",
  "mockito",
  "regex",

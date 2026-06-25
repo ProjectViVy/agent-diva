@@ -9,6 +9,7 @@ mod http_util;
 pub mod litellm;
 pub mod ollama;
 pub mod registry;
+pub mod retry;
 pub mod transcription;
 
 pub use base::{
@@ -28,6 +29,7 @@ pub use discovery::{
 pub use litellm::LiteLLMClient;
 pub use ollama::OllamaProvider;
 pub use registry::{ProviderRegistry, ProviderSpec};
+pub use retry::RetryPolicy;
 
 use async_trait::async_trait;
 use std::sync::{Arc, RwLock};

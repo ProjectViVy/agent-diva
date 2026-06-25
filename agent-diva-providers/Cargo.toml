@@ -35,6 +35,9 @@ serde_yaml.workspace = true
 regex = { workspace = true }
 uuid = { workspace = true }
 
+# Fast random number generation for retry jitter
+fastrand = "2"
+
 [dev-dependencies]
 tokio-test = { workspace = true }
 mockito = { workspace = true }
