@@ -1,5 +1,6 @@
 use super::*;
 use agent_diva_core::heartbeat::{types::HeartbeatConfig, HeartbeatService};
+use agent_diva_core::presence::PresenceManager;
 use agent_diva_tooling::{ModuleBuildContext, ModuleCtx, ModuleStartup};
 
 pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<GatewayBootstrap> {
@@ -34,6 +35,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         workspace.clone(),
         HeartbeatConfig::default(),
         Some(bus.clone()),
+        PresenceManager::with_defaults(),
         None,
         None,
     ));

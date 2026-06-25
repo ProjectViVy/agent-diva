@@ -5,7 +5,7 @@ use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::heartbeat::types::HeartbeatConfig;
 use agent_diva_core::heartbeat::HeartbeatService;
-use agent_diva_core::presence::{PresenceConfig, PresenceState};
+use agent_diva_core::presence::{PresenceConfig, PresenceManager, PresenceState};
 use agent_diva_core::security::SharedSecurityPolicy;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -415,6 +415,7 @@ fn build_heartbeat_module(ctx: &ModuleBuildContext) -> Result<Arc<dyn Module>> {
             ctx.workspace.clone(),
             HeartbeatConfig::default(),
             Some((*ctx.module_ctx.bus).clone()),
+            PresenceManager::with_defaults(),
             None,
             None,
         ))

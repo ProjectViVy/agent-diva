@@ -11,6 +11,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::bus::{AgentBusEvent, MessageBus};
 use crate::heartbeat::types::{is_heartbeat_empty, HeartbeatConfig, HeartbeatDecision};
+use crate::presence::{HeartbeatRhythm, PresenceManager};
 
 /// Callback for the LLM decision phase: takes HEARTBEAT.md content and returns a HeartbeatDecision.
 pub type HeartbeatDecideCallback = Arc<
@@ -38,10 +39,16 @@ pub type HeartbeatExecuteCallback =
 /// Two-phase design:
 /// 1. **Decide** — read HEARTBEAT.md, call the LLM with a tool to decide skip/run.
 /// 2. **Execute** — if the decision is "run", invoke the full agent loop with the tasks summary.
+///
+/// The heartbeat cadence adapts to user presence via [`HeartbeatRhythm`]:
+/// - **Normal**: user is active, heartbeat at base interval.
+/// - **Slow**: user is distracted/gone, heartbeat at reduced frequency.
+/// - **Suspended**: user is away, heartbeat paused.
 pub struct HeartbeatService {
     workspace: PathBuf,
     config: HeartbeatConfig,
     bus: Option<MessageBus>,
+    presence: PresenceManager,
     on_decide: Option<HeartbeatDecideCallback>,
     on_execute: Option<HeartbeatExecuteCallback>,
     running: Arc<RwLock<bool>>,
@@ -54,6 +61,7 @@ impl HeartbeatService {
         workspace: PathBuf,
         config: HeartbeatConfig,
         bus: Option<MessageBus>,
+        presence: PresenceManager,
         on_decide: Option<HeartbeatDecideCallback>,
         on_execute: Option<HeartbeatExecuteCallback>,
     ) -> Self {
@@ -61,6 +69,7 @@ impl HeartbeatService {
             workspace,
             config,
             bus,
+            presence,
             on_decide,
             on_execute,
             running: Arc::new(RwLock::new(false)),
@@ -93,6 +102,7 @@ impl HeartbeatService {
         let interval_s = self.config.interval_s;
         let running = Arc::clone(&self.running);
         let bus = self.bus.clone();
+        let presence = self.presence.clone();
         let on_decide = self.on_decide.clone();
         let on_execute = self.on_execute.clone();
         let workspace = self.workspace.clone();
@@ -101,6 +111,7 @@ impl HeartbeatService {
             let handle = HeartbeatServiceHandle {
                 workspace,
                 bus,
+                presence,
                 on_decide,
                 on_execute,
                 running: Arc::clone(&running),
@@ -223,17 +234,37 @@ async fn read_heartbeat_file(workspace: &Path) -> Option<String> {
 struct HeartbeatServiceHandle {
     workspace: PathBuf,
     bus: Option<MessageBus>,
+    presence: PresenceManager,
     on_decide: Option<HeartbeatDecideCallback>,
     on_execute: Option<HeartbeatExecuteCallback>,
     running: Arc<RwLock<bool>>,
 }
 
 impl HeartbeatServiceHandle {
-    async fn run_loop(&self, interval_s: i64) {
-        let interval = tokio::time::Duration::from_secs(interval_s as u64);
+    async fn run_loop(&self, base_interval_s: i64) {
+        let base_interval = tokio::time::Duration::from_secs(base_interval_s as u64);
 
         loop {
-            tokio::time::sleep(interval).await;
+            // Determine rhythm from current presence state
+            let rhythm = HeartbeatRhythm::for_presence(self.presence.state());
+
+            if !rhythm.is_active() {
+                // Suspended: check again after base interval
+                debug!("Heartbeat suspended (user away)");
+                tokio::time::sleep(base_interval).await;
+
+                let is_running = *self.running.read().await;
+                if !is_running {
+                    break;
+                }
+                continue;
+            }
+
+            // Apply rhythm multiplier to interval
+            let effective_interval =
+                tokio::time::Duration::from_secs((base_interval_s as f64 * rhythm.interval_multiplier()) as u64);
+
+            tokio::time::sleep(effective_interval).await;
 
             let is_running = *self.running.read().await;
             if !is_running {
@@ -352,8 +383,14 @@ mod tests {
     async fn test_heartbeat_service_new() {
         let temp_dir = TempDir::new().unwrap();
         let config = HeartbeatConfig::default();
-        let service =
-            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
+        let service = HeartbeatService::new(
+            temp_dir.path().to_path_buf(),
+            config,
+            None,
+            PresenceManager::with_defaults(),
+            None,
+            None,
+        );
         assert!(!service.is_running().await);
     }
 
@@ -364,8 +401,14 @@ mod tests {
             enabled: false,
             interval_s: 60,
         };
-        let service =
-            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
+        let service = HeartbeatService::new(
+            temp_dir.path().to_path_buf(),
+            config,
+            None,
+            PresenceManager::with_defaults(),
+            None,
+            None,
+        );
         service.start().await;
         assert!(!service.is_running().await);
     }
@@ -377,8 +420,14 @@ mod tests {
             enabled: true,
             interval_s: 3600,
         };
-        let service =
-            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
+        let service = HeartbeatService::new(
+            temp_dir.path().to_path_buf(),
+            config,
+            None,
+            PresenceManager::with_defaults(),
+            None,
+            None,
+        );
         service.start().await;
         assert!(service.is_running().await);
         service.stop().await;
@@ -389,8 +438,14 @@ mod tests {
     async fn test_heartbeat_service_status() {
         let temp_dir = TempDir::new().unwrap();
         let config = HeartbeatConfig::default();
-        let service =
-            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
+        let service = HeartbeatService::new(
+            temp_dir.path().to_path_buf(),
+            config,
+            None,
+            PresenceManager::with_defaults(),
+            None,
+            None,
+        );
         let status = service.status().await;
         assert!(status["enabled"].as_bool().unwrap());
         assert!(!status["running"].as_bool().unwrap());
@@ -404,8 +459,14 @@ mod tests {
     async fn test_heartbeat_trigger_now_no_callback() {
         let temp_dir = TempDir::new().unwrap();
         let config = HeartbeatConfig::default();
-        let service =
-            HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None, None);
+        let service = HeartbeatService::new(
+            temp_dir.path().to_path_buf(),
+            config,
+            None,
+            PresenceManager::with_defaults(),
+            None,
+            None,
+        );
         let result = service.trigger_now().await;
         assert!(result.is_none());
     }
@@ -422,6 +483,7 @@ mod tests {
             temp_dir.path().to_path_buf(),
             config,
             None,
+            PresenceManager::with_defaults(),
             Some(skip_decide()),
             None,
         );
@@ -451,6 +513,7 @@ mod tests {
             temp_dir.path().to_path_buf(),
             config,
             None,
+            PresenceManager::with_defaults(),
             Some(run_decide("Check logs")),
             Some(on_execute),
         );
@@ -500,6 +563,7 @@ mod tests {
             temp_dir.path().to_path_buf(),
             config,
             None,
+            PresenceManager::with_defaults(),
             Some(on_decide),
             Some(on_execute),
         );
@@ -542,6 +606,7 @@ mod tests {
             temp_dir.path().to_path_buf(),
             config,
             None,
+            PresenceManager::with_defaults(),
             Some(on_decide),
             None,
         );
@@ -581,6 +646,7 @@ mod tests {
             temp_dir.path().to_path_buf(),
             config,
             None,
+            PresenceManager::with_defaults(),
             Some(on_decide),
             Some(on_execute),
         );
@@ -605,6 +671,7 @@ mod tests {
             temp_dir.path().to_path_buf(),
             HeartbeatConfig::default(),
             Some(bus),
+            PresenceManager::with_defaults(),
             Some(run_decide("Check logs")),
             None,
         );

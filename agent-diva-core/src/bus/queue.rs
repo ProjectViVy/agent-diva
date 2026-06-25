@@ -4,11 +4,9 @@ use super::events::{
     AgentBusEvent, AgentEvent, AgentEventEnvelope, InboundMessage, OutboundMessage,
 };
 use crate::audit::AuditLogger;
-use crate::presence::{PresenceConfig, PresenceState};
+use crate::presence::{PresenceManager, PresenceTransition};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::RwLock as StdRwLock;
-use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::debug;
 
@@ -42,10 +40,8 @@ pub struct MessageBus {
     bus_event_tx: broadcast::Sender<AgentBusEvent>,
     /// Running state
     running: Arc<RwLock<bool>>,
-    /// Presence detection state shared by inbound producers and background services.
-    presence_state: Arc<StdRwLock<PresenceState>>,
-    last_user_activity: Arc<StdRwLock<Instant>>,
-    presence_config: PresenceConfig,
+    /// Presence state machine shared by inbound producers and background services.
+    presence: PresenceManager,
 }
 
 impl MessageBus {
@@ -65,9 +61,7 @@ impl MessageBus {
             event_tx,
             bus_event_tx,
             running: Arc::new(RwLock::new(false)),
-            presence_state: Arc::new(StdRwLock::new(PresenceState::Active)),
-            last_user_activity: Arc::new(StdRwLock::new(Instant::now())),
-            presence_config: PresenceConfig::default(),
+            presence: PresenceManager::with_defaults(),
         }
     }
 
@@ -199,49 +193,27 @@ impl MessageBus {
         *self.running.read().await
     }
 
+    /// Get a reference to the presence manager.
+    pub fn presence(&self) -> &PresenceManager {
+        &self.presence
+    }
+
     /// Re-evaluate presence using the default thresholds and emit transitions when state changes.
     pub fn refresh_presence(&self) {
-        let last_seen = *self
-            .last_user_activity
-            .read()
-            .expect("presence last_user_activity lock poisoned");
-        let elapsed = last_seen.elapsed();
-        let next = presence_state_for_elapsed(elapsed, &self.presence_config);
-
-        let mut state = self
-            .presence_state
-            .write()
-            .expect("presence state lock poisoned");
-        if *state != next {
-            let previous = *state;
-            *state = next;
-            let _ = self.emit(AgentBusEvent::PresenceChanged {
-                from: previous,
-                to: next,
-            });
+        match self.presence.refresh() {
+            PresenceTransition::Changed { from, to } => {
+                let _ = self.emit(AgentBusEvent::PresenceChanged { from, to });
+            }
+            PresenceTransition::None => {}
         }
     }
 
     fn note_user_activity(&self) {
-        {
-            let mut last_seen = self
-                .last_user_activity
-                .write()
-                .expect("presence last_user_activity lock poisoned");
-            *last_seen = Instant::now();
-        }
-
-        let mut state = self
-            .presence_state
-            .write()
-            .expect("presence state lock poisoned");
-        if *state != PresenceState::Active {
-            let previous = *state;
-            *state = PresenceState::Active;
-            let _ = self.emit(AgentBusEvent::PresenceChanged {
-                from: previous,
-                to: PresenceState::Active,
-            });
+        match self.presence.record_activity() {
+            PresenceTransition::Changed { from, to } => {
+                let _ = self.emit(AgentBusEvent::PresenceChanged { from, to });
+            }
+            PresenceTransition::None => {}
         }
     }
 }
@@ -252,19 +224,11 @@ impl Default for MessageBus {
     }
 }
 
-fn presence_state_for_elapsed(elapsed: Duration, config: &PresenceConfig) -> PresenceState {
-    if elapsed.as_secs() >= config.distracted_timeout_s {
-        PresenceState::Gone
-    } else if elapsed.as_secs() >= config.active_timeout_s {
-        PresenceState::Distracted
-    } else {
-        PresenceState::Active
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::presence::PresenceState;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_message_bus_creation() {
@@ -323,13 +287,9 @@ mod tests {
     fn test_refresh_presence_emits_transition() {
         let bus = MessageBus::new();
         let mut rx = bus.subscribe();
-        {
-            let mut last_seen = bus
-                .last_user_activity
-                .write()
-                .expect("presence last_user_activity lock poisoned");
-            *last_seen = Instant::now() - Duration::from_secs(301);
-        }
+
+        // Simulate 301 seconds of inactivity (just over the 5-minute threshold)
+        bus.presence().simulate_elapsed(Duration::from_secs(301));
 
         bus.refresh_presence();
 
