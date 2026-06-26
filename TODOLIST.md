@@ -57,6 +57,49 @@ Legend: 调研 ✅=已完成  🔄=进行中  ❌=未开始 | 代码 ✅=已实�
   - 已覆盖: main agent + subagent 调用路径，不引入 tokenizer 或 LLM summary compaction
   - Source: `docs/dev/awesomeagents/unknown-deficits.md` (Defect 2), `docs/logs/2026-06-agent-loop-safety/v0.0.3-p0-6-context-overflow-guardrail/`
 
+### P0 — Harness v1.1 Ultimate Research (PRD v1.1 前置)
+
+目标：在重写 Harness Engineering PRD v1.1 之前，完成对 Provider、Channel、Cron、Skill、Agent loop 可持续性、Config migration 六大领域的深度审计，确保「终极 Harness 增强」没有盲区。
+
+- [x] **P0-R1: Provider 全链路深度审计** | 调研 ✅ | 代码 ❌ | **2026-06-26 已完成**
+  为 Harness v1.1 提供 Provider 层完整现状与缺口清单，支撑 Epic 5 Provider 修复和 TokenUsed 事件设计。
+  - 输出：`docs/research/diva-providers-full-audit-v2.md`
+  - 下游：PRD v1.1 Epic 5-A
+
+- [x] **P0-R2: Channel 全链路深度审计** | 调研 ✅ | 代码 ❌ | **2026-06-26 已完成**
+  为 Harness v1.1 提供 Channel 层完整缺口清单，支撑安全与审计设计。
+  - 输出：`docs/research/diva-channels-full-audit-v2.md`
+  - 下游：PRD v1.1 Epic X
+
+- [x] **P0-R3: Cron 全链路深度审计** | 调研 ✅ | 代码 ❌ | **2026-06-26 已完成**
+  为 Harness v1.1 提供 Cron 层完整缺口清单，支撑 CronService 接入 Module trait。
+  - 输出：`docs/research/diva-cron-full-audit-v2.md`
+  - 下游：PRD v1.1 Epic 4 Cron 部分
+
+- [x] **P0-R4: Skill 系统深度审计** | 调研 ✅ | 代码 ❌ | **2026-06-26 已完成**
+  为 Harness v1.1 提供 Skill 层完整缺口清单，支撑安全与上下文质量设计。
+  - 输出：`docs/research/diva-skills-full-audit-v2.md`
+  - 下游：PRD v1.1 Epic 2
+
+- [x] **P0-R5: Agent Loop 可持续性审计** | 调研 ✅ | 代码 ❌ | **2026-06-26 已完成**
+  为 Harness v1.1 提供主 agent loop 在长会话、高负载下的可持续性分析。
+  - 输出：`docs/research/diva-agent-loop-full-audit-v2.md`
+  - 下游：PRD v1.1 Epic 7 + Epic 5-B
+
+- [x] **P0-R6: Config Migration / Versioning 审计** | 调研 ✅ | 代码 ❌ | **2026-06-26 已完成**
+  为 Harness v1.1 提供配置 schema 演进策略，支撑 Epic 4 热重载和老用户升级。
+  - 输出：`docs/research/diva-config-migration-full-audit-v2.md`
+  - 下游：PRD v1.1 Epic 4 Config 部分
+
+- [x] **P0-R7: Harness Engineering PRD v1.1 定稿** | 调研 ✅ | 代码 ❌ | **2026-06-26 终稿已完成**
+  基于 P0-R1~R6 审计结论和最终验收报告，完成 Harness Engineering PRD v1.1 终稿并归档旧 PRD。
+  - 输出：`docs/prds/prd-harness-engineering-v1.1/prd.md`
+  - 旧 PRD 归档：`docs/prds/archive/prd-harness-engineering-2026-06-24/prd.md`（已移动 + README 索引）
+  - B-8 核查结果写入 v1.1 §4.3：Module 生命周期与 Presence 状态机已实现；Audit/PII/Injection 部分实现；新增 `instruction_hierarchy.rs` 与 `tool_result_filter.rs` 作为 Epic 2 增量 story
+  - 已闭合：PC-1（Batch 2 REVISE）、PC-3（reference path）
+
+---
+
 ### P1 — Core Infrastructure
 
 - [ ] **P1-2: Phase B: Thin Observability Layer** | 调研 ✅ | 代码 🟡
@@ -86,10 +129,26 @@ Legend: 调研 ✅=已完成  🔄=进行中  ❌=未开始 | 代码 ✅=已实�
   - 缺失: 无 error_category/ErrorKind, 无 error codes, 无 retry classification on ToolError, 无跨 crate 统一 error taxonomy
 
  - [ ] **P1-7: Wire heartbeat cadence to PresenceState** | research complete | code partial
-  Module lifecycle now starts `PresenceService` and `HeartbeatService`, but heartbeat still uses a fixed interval and does not adapt to `PresenceState`.
-  - Current: `agent-diva-tooling/src/module.rs` updates shared presence state; `agent-diva-core/src/heartbeat/service.rs` still runs its original fixed timer loop.
-  - Expected: `Active/Distracted/Gone` should influence cadence and `Gone`-state background behavior, with tests and config coverage.
-  - Related: `agent-diva-tooling/src/module.rs`, `agent-diva-core/src/heartbeat/service.rs`, `agent-diva-core/src/presence/types.rs`
+   Module lifecycle now starts `PresenceService` and `HeartbeatService`, but heartbeat still uses a fixed interval and does not adapt to `PresenceState`.
+   - Current: `agent-diva-tooling/src/module.rs` updates shared presence state; `agent-diva-core/src/heartbeat/service.rs` still runs its original fixed timer loop.
+   - Expected: `Active/Distracted/Gone` should influence cadence and `Gone`-state background behavior, with tests and config coverage.
+   - Related: `agent-diva-tooling/src/module.rs`, `agent-diva-core/src/heartbeat/service.rs`, `agent-diva-core/src/presence/types.rs`
+
+- [ ] **P1-8: Provider architecture simplification** | 调研 ✅ | 代码 ❌
+  将 provider 层从 13 槽位 + 47 YAML 收敛为仅保留 Anthropic 原生 + OpenAI-compatible 两条链路，其他 provider 全部通过用户自部署转接层接入。**质量要求：生产级完整**，支持 retry/fallback/rate-limit/token usage/tool schema/完整错误分类。
+  - 决策文档：`docs/dev/provider-simplification-research-2026-06.md`
+  - 目标：删除 `providers.yaml` 中多余条目、精简 `ProvidersConfig`、新增 `AnthropicDriver`、强化 `OpenAiCompatibleDriver`、补充 retry/fallback 中间层
+  - 相关文件：`agent-diva-providers/src/litellm.rs`, `agent-diva-providers/src/base.rs`, `agent-diva-providers/src/registry.rs`, `agent-diva-providers/src/providers.yaml`, `agent-diva-core/src/config/schema.rs`, `agent-diva-manager/src/runtime.rs`
+
+- [ ] **P1-9: Channel architecture simplification** | 调研 ✅ | 代码 ❌
+  将 channel 层从 13 个硬编码 adapter 收敛为 8 个一等公民 + Matrix + Neuro-Link，其余移除或未来插件化。**质量要求：生产级完整**，每个保留 channel 必须支持群聊/频道/私聊、文件/媒体收发、完整入站/出站链路、无 OAuth 配置方式。
+  - 决策文档：`docs/dev/channel-simplification-decision-2026-06.md`
+  - 一等公民：Telegram、Discord、Slack、Email、QQ、Feishu/Lark、DingTalk、WeChat（新增）
+  - 保留：Matrix（开源联邦，未来价值）、Neuro-Link（ interim 通用入口，未来重构）
+  - 移除/插件化：WhatsApp、Mattermost、Nextcloud Talk、IRC
+  - 不做：OAuth/网页登录/云平台 IAM channel、社交/内容平台
+  - 目标：新增 WeChat adapter、移除 4 个 deprecated channel、引入 per-channel feature flag、精简 `ChannelsConfig`、全面增强保留 channel、更新 README/GUI/用户文档
+  - 相关文件：`agent-diva-channels/src/*.rs`, `agent-diva-core/src/config/schema.rs`, `README.md`, `agent-diva-gui/`
 
 ### Housekeeping
 
