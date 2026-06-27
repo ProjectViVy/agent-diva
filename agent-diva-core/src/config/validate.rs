@@ -69,6 +69,31 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     if config.tools.subagent.max_depth == 0 {
         errors.push("tools.subagent.max_depth must be > 0".to_string());
     }
+    if let Err(error) = config.security.validate() {
+        errors.push(format!("security.{error}"));
+    }
+    if config.presence.active_timeout_s == 0 {
+        errors.push("presence.active_timeout_s must be > 0".to_string());
+    }
+    if config.presence.distracted_timeout_s == 0 {
+        errors.push("presence.distracted_timeout_s must be > 0".to_string());
+    }
+    if config.presence.gone_timeout_s == 0 {
+        errors.push("presence.gone_timeout_s must be > 0".to_string());
+    }
+    if config.presence.active_timeout_s >= config.presence.distracted_timeout_s {
+        errors
+            .push("presence.active_timeout_s must be < presence.distracted_timeout_s".to_string());
+    }
+    if config.presence.distracted_timeout_s >= config.presence.gone_timeout_s {
+        errors.push("presence.distracted_timeout_s must be < presence.gone_timeout_s".to_string());
+    }
+    if config.presence.distracted_heartbeat_multiplier <= 0.0 {
+        errors.push("presence.distracted_heartbeat_multiplier must be > 0".to_string());
+    }
+    if config.heartbeat.interval_s <= 0 {
+        errors.push("heartbeat.interval_s must be > 0".to_string());
+    }
 
     for (name, server) in &config.tools.mcp_servers {
         let has_stdio = !server.command.trim().is_empty();

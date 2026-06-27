@@ -1,5 +1,6 @@
 //! Configuration loading and management
 
+use super::migrate::migrate_config_value;
 use super::schema::Config;
 use super::validate::validate_config;
 use serde_json::{Map, Value};
@@ -53,11 +54,25 @@ impl ConfigLoader {
     /// Load configuration from file and environment
     pub fn load(&self) -> crate::Result<Config> {
         let mut merged = serde_json::to_value(Config::default())?;
+        let mut persist_migrated_base = None;
 
         if self.config_path.exists() {
             let content = std::fs::read_to_string(&self.config_path)?;
             let file_value: Value = serde_json::from_str(&content)?;
-            merge_values(&mut merged, file_value);
+            let migration = migrate_config_value(file_value)?;
+            if migration.changed() {
+                merge_values(&mut merged, migration.value);
+                normalize_alias_keys(&mut merged);
+                persist_migrated_base = Some(merged.clone());
+            } else {
+                merge_values(&mut merged, migration.value);
+            }
+        }
+
+        if let Some(base_value) = persist_migrated_base {
+            let persisted_config: Config = serde_json::from_value(base_value)?;
+            validate_config(&persisted_config)?;
+            self.save(&persisted_config)?;
         }
 
         apply_alias_overrides(&mut merged);
@@ -317,6 +332,58 @@ mod tests {
         let loaded = loader.load().unwrap();
 
         assert_eq!(loaded.agents.defaults.model, "test-model");
+    }
+
+    #[test]
+    fn test_load_migrates_legacy_config_to_current_version_and_persists() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+        let config_path = temp_dir.path().join("config.json");
+
+        std::fs::write(
+            &config_path,
+            r#"{
+  "agents": {
+    "defaults": {
+      "workspace": "C:\\legacy-workspace",
+      "provider": "openai",
+      "model": "openai/gpt-4o"
+    }
+  },
+  "providers": {
+    "openai": {
+      "api_key": "sk-legacy"
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let loaded = loader.load().unwrap();
+        assert_eq!(loaded.config_version, 2);
+        assert_eq!(loaded.agents.defaults.model, "openai/gpt-4o");
+
+        let persisted: Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(persisted["config_version"], 2);
+        assert_eq!(persisted["agents"]["defaults"]["model"], "openai/gpt-4o");
+    }
+
+    #[test]
+    fn test_save_writes_current_config_version() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        let config = Config::default();
+        loader.save(&config).unwrap();
+
+        let saved: Value = serde_json::from_str(
+            &std::fs::read_to_string(temp_dir.path().join("config.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(saved["config_version"], 2);
     }
 
     #[test]

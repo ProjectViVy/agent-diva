@@ -43,6 +43,102 @@ fn write_config(root: &Path, with_api_key: bool) -> std::path::PathBuf {
     config_path
 }
 
+fn write_harness_config(root: &Path) -> std::path::PathBuf {
+    let workspace = root.join("workspace");
+    fs::create_dir_all(&workspace).unwrap();
+
+    let config = format!(
+        r#"{{
+  "agents": {{
+    "defaults": {{
+      "workspace": "{}",
+      "provider": "openai",
+      "model": "openai/gpt-4o"
+    }}
+  }},
+  "providers": {{
+    "openai": {{
+      "api_key": "sk-test"
+    }}
+  }},
+  "security": {{
+    "level": "strict",
+    "workspace_only": true,
+    "max_actions_per_hour": 42
+  }},
+  "presence": {{
+    "active_timeout_s": 11,
+    "distracted_timeout_s": 22,
+    "gone_timeout_s": 33,
+    "distracted_heartbeat_multiplier": 3.5
+  }},
+  "heartbeat": {{
+    "enabled": true,
+    "interval_s": 99
+  }},
+  "audit": {{
+    "enabled": true,
+    "emit_presence_changed": false
+  }},
+  "pii": {{
+    "enabled": true,
+    "redact_email": false
+  }},
+  "injection": {{
+    "enabled": true,
+    "detect_tool_abuse": false
+  }}
+}}"#,
+        workspace.display().to_string().replace('\\', "\\\\"),
+    );
+
+    let config_path = root.join("instance").join("config.json");
+    fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+    fs::write(&config_path, config).unwrap();
+    config_path
+}
+
+fn write_invalid_harness_config(root: &Path) -> std::path::PathBuf {
+    let workspace = root.join("workspace");
+    fs::create_dir_all(&workspace).unwrap();
+
+    let config = format!(
+        r#"{{
+  "agents": {{
+    "defaults": {{
+      "workspace": "{}",
+      "provider": "openai",
+      "model": "openai/gpt-4o"
+    }}
+  }},
+  "providers": {{
+    "openai": {{
+      "api_key": "sk-test"
+    }}
+  }},
+  "security": {{
+    "max_actions_per_hour": 0
+  }},
+  "presence": {{
+    "active_timeout_s": 0,
+    "distracted_timeout_s": 22,
+    "gone_timeout_s": 33,
+    "distracted_heartbeat_multiplier": 3.5
+  }},
+  "heartbeat": {{
+    "enabled": true,
+    "interval_s": 0
+  }}
+}}"#,
+        workspace.display().to_string().replace('\\', "\\\\"),
+    );
+
+    let config_path = root.join("instance").join("config.json");
+    fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+    fs::write(&config_path, config).unwrap();
+    config_path
+}
+
 #[test]
 fn status_json_uses_explicit_config_file() {
     let _guard = test_lock().lock().unwrap();
@@ -92,6 +188,59 @@ fn config_show_json_redacts_secrets() {
     let stdout = String::from_utf8(output.stdout).unwrap();
     let value: Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(value["providers"]["openai"]["api_key"], "***REDACTED***");
+}
+
+#[test]
+fn config_show_json_includes_harness_domain_sections() {
+    let _guard = test_lock().lock().unwrap();
+    let temp = tempdir().unwrap();
+    let config_path = write_harness_config(temp.path());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "config",
+            "show",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("failed to run config show");
+
+    assert!(output.status.success(), "{:?}", output);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let value: Value = serde_json::from_str(stdout.trim()).unwrap();
+
+    assert_eq!(value["security"]["max_actions_per_hour"], 42);
+    assert_eq!(value["presence"]["active_timeout_s"], 11);
+    assert_eq!(value["heartbeat"]["interval_s"], 99);
+    assert_eq!(value["audit"]["emit_presence_changed"], false);
+    assert_eq!(value["pii"]["redact_email"], false);
+    assert_eq!(value["injection"]["detect_tool_abuse"], false);
+}
+
+#[test]
+fn status_json_rejects_invalid_harness_config() {
+    let _guard = test_lock().lock().unwrap();
+    let temp = tempdir().unwrap();
+    let config_path = write_invalid_harness_config(temp.path());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "status",
+            "--json",
+        ])
+        .output()
+        .expect("failed to run status --json");
+
+    assert!(!output.status.success(), "{:?}", output);
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("security.max_actions_per_hour"));
+    assert!(stderr.contains("presence.active_timeout_s"));
+    assert!(stderr.contains("heartbeat.interval_s"));
 }
 
 #[test]

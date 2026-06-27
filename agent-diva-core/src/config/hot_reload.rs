@@ -109,21 +109,17 @@ pub fn compute_changed_fields(old: &Config, new: &Config) -> HashSet<HotReloadab
         changed.insert(HotReloadableField::ToolTimeout);
     }
 
-    // PresenceThresholds: presence config is not directly in Config,
-    // but we track changes to agent defaults that affect presence behavior.
-    // For now, we consider presence thresholds changed if agent defaults change.
-    if old.agents.defaults.max_tool_iterations != new.agents.defaults.max_tool_iterations {
+    if old.presence != new.presence {
         changed.insert(HotReloadableField::PresenceThresholds);
     }
 
-    // PII rules and injection patterns are not directly in the Config struct
-    // (they use static regex patterns). We mark them as changed if the
-    // security-related config fields change.
-    // In a future iteration, these could be made configurable via Config.
-    //
-    // For now, we detect changes to fields that would affect security behavior:
-    // - providers config (API keys affect security posture)
-    // - tools config (affects what tools are available)
+    if old.pii != new.pii {
+        changed.insert(HotReloadableField::PiiRules);
+    }
+
+    if old.injection != new.injection {
+        changed.insert(HotReloadableField::InjectionPatterns);
+    }
 
     changed
 }
@@ -349,13 +345,7 @@ impl ConfigWatcher {
 /// This provides a bridge between the main Config struct and the
 /// presence module's configuration format.
 pub fn extract_presence_config(config: &Config) -> PresenceConfig {
-    // For now, use defaults. In a future iteration, presence config
-    // could be added to the main Config struct.
-    //
-    // The presence module can use agent defaults to influence behavior:
-    // - max_tool_iterations affects how long presence stays active
-    let _ = config; // Suppress unused warning
-    PresenceConfig::default()
+    config.presence.clone()
 }
 
 // ---------------------------------------------------------------------------
@@ -519,12 +509,25 @@ mod tests {
     }
 
     #[test]
-    fn extract_presence_config_returns_defaults() {
+    fn extract_presence_config_returns_configured_values() {
         let config = Config::default();
         let presence_config = extract_presence_config(&config);
 
-        assert_eq!(presence_config.active_timeout_s, 300);
-        assert_eq!(presence_config.distracted_timeout_s, 1800);
-        assert_eq!(presence_config.gone_timeout_s, 7200);
+        assert_eq!(presence_config, config.presence);
+    }
+
+    #[test]
+    fn compute_changed_fields_detects_harness_domain_rule_changes() {
+        let old = Config::default();
+        let mut new = old.clone();
+        new.presence.active_timeout_s += 1;
+        new.pii.redact_email = !new.pii.redact_email;
+        new.injection.detect_tool_abuse = !new.injection.detect_tool_abuse;
+
+        let changed = compute_changed_fields(&old, &new);
+
+        assert!(changed.contains(&HotReloadableField::PresenceThresholds));
+        assert!(changed.contains(&HotReloadableField::PiiRules));
+        assert!(changed.contains(&HotReloadableField::InjectionPatterns));
     }
 }

@@ -5,6 +5,7 @@
 
 pub mod hot_reload;
 pub mod loader;
+pub mod migrate;
 pub mod schema;
 pub mod validate;
 
@@ -12,4 +13,5 @@ pub use hot_reload::{
     compute_changed_fields, ConfigChangeEvent, ConfigWatcher, HotReloadable, HotReloadableField,
 };
 pub use loader::ConfigLoader;
+pub use migrate::{migrate_config_value, MigrationOutcome, CURRENT_CONFIG_VERSION};
 pub use schema::*;

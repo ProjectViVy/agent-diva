@@ -1,11 +1,17 @@
 //! Configuration schema definitions
 
+use super::migrate::{CURRENT_CONFIG_VERSION, LEGACY_CONFIG_VERSION};
+use crate::heartbeat::HeartbeatConfig;
+use crate::presence::PresenceConfig;
+use crate::security::SecurityConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Root configuration for agent-diva
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default = "default_legacy_config_version")]
+    pub config_version: u32,
     /// Agent configuration
     pub agents: AgentsConfig,
     /// Channel configuration
@@ -19,6 +25,42 @@ pub struct Config {
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub security: SecurityConfig,
+    #[serde(default)]
+    pub presence: PresenceConfig,
+    #[serde(default)]
+    pub heartbeat: HeartbeatConfig,
+    #[serde(default)]
+    pub audit: AuditConfig,
+    #[serde(default)]
+    pub pii: PiiRulesConfig,
+    #[serde(default)]
+    pub injection: InjectionRulesConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            config_version: CURRENT_CONFIG_VERSION,
+            agents: AgentsConfig::default(),
+            channels: ChannelsConfig::default(),
+            providers: ProvidersConfig::default(),
+            gateway: GatewayConfig::default(),
+            tools: ToolsConfig::default(),
+            logging: LoggingConfig::default(),
+            security: SecurityConfig::default(),
+            presence: PresenceConfig::default(),
+            heartbeat: HeartbeatConfig::default(),
+            audit: AuditConfig::default(),
+            pii: PiiRulesConfig::default(),
+            injection: InjectionRulesConfig::default(),
+        }
+    }
+}
+
+fn default_legacy_config_version() -> u32 {
+    LEGACY_CONFIG_VERSION
 }
 
 /// Logging configuration
@@ -77,6 +119,88 @@ impl Default for LoggingConfig {
             runtime_log_dir: None,
             record_tool_output_summaries: default_true(),
             overrides: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AuditConfig {
+    pub enabled: bool,
+    pub emit_heartbeat_triggered: bool,
+    pub emit_tool_events: bool,
+    pub emit_decision_points: bool,
+    pub emit_presence_changed: bool,
+    pub emit_token_usage: bool,
+    pub emit_pii_redacted: bool,
+    pub emit_injection_detected: bool,
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            emit_heartbeat_triggered: default_true(),
+            emit_tool_events: default_true(),
+            emit_decision_points: default_true(),
+            emit_presence_changed: default_true(),
+            emit_token_usage: default_true(),
+            emit_pii_redacted: default_true(),
+            emit_injection_detected: default_true(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PiiRulesConfig {
+    pub enabled: bool,
+    pub redact_email: bool,
+    pub redact_phone: bool,
+    pub redact_api_key: bool,
+    pub redact_credit_card: bool,
+    pub redact_ssn: bool,
+    pub redact_ip: bool,
+    pub redact_url: bool,
+    pub redact_name: bool,
+}
+
+impl Default for PiiRulesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            redact_email: default_true(),
+            redact_phone: default_true(),
+            redact_api_key: default_true(),
+            redact_credit_card: default_true(),
+            redact_ssn: default_true(),
+            redact_ip: default_true(),
+            redact_url: default_true(),
+            redact_name: default_true(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InjectionRulesConfig {
+    pub enabled: bool,
+    pub detect_system_prompt_override: bool,
+    pub detect_role_hijack: bool,
+    pub detect_instruction_ignore: bool,
+    pub detect_data_exfiltration: bool,
+    pub detect_tool_abuse: bool,
+}
+
+impl Default for InjectionRulesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            detect_system_prompt_override: default_true(),
+            detect_role_hijack: default_true(),
+            detect_instruction_ignore: default_true(),
+            detect_data_exfiltration: default_true(),
+            detect_tool_abuse: default_true(),
         }
     }
 }

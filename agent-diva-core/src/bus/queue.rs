@@ -4,7 +4,7 @@ use super::events::{
     AgentBusEvent, AgentEvent, AgentEventEnvelope, InboundMessage, OutboundMessage,
 };
 use crate::audit::AuditLogger;
-use crate::presence::{PresenceManager, PresenceTransition};
+use crate::presence::{PresenceConfig, PresenceManager, PresenceTransition};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
@@ -47,6 +47,10 @@ pub struct MessageBus {
 impl MessageBus {
     /// Create a new message bus
     pub fn new() -> Self {
+        Self::with_presence_config(PresenceConfig::default())
+    }
+
+    pub fn with_presence_config(presence_config: PresenceConfig) -> Self {
         let (inbound_tx, inbound_rx) = mpsc::unbounded_channel();
         let (outbound_tx, outbound_rx) = mpsc::unbounded_channel();
         let (event_tx, _) = broadcast::channel(1024);
@@ -61,7 +65,7 @@ impl MessageBus {
             event_tx,
             bus_event_tx,
             running: Arc::new(RwLock::new(false)),
-            presence: PresenceManager::with_defaults(),
+            presence: PresenceManager::new(presence_config),
         }
     }
 
@@ -227,7 +231,7 @@ impl Default for MessageBus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::presence::PresenceState;
+    use crate::presence::{PresenceConfig, PresenceState};
     use std::time::Duration;
 
     #[tokio::test]
@@ -260,6 +264,21 @@ mod tests {
 
         // Check bus is not running yet
         assert!(!bus.is_running().await);
+    }
+
+    #[test]
+    fn test_with_presence_config_uses_custom_thresholds() {
+        let bus = MessageBus::with_presence_config(PresenceConfig {
+            active_timeout_s: 1,
+            distracted_timeout_s: 2,
+            gone_timeout_s: 3,
+            distracted_heartbeat_multiplier: 4.0,
+        });
+
+        bus.presence().simulate_elapsed(Duration::from_secs(2));
+        bus.refresh_presence();
+
+        assert_eq!(bus.presence().state(), PresenceState::Gone);
     }
 
     #[test]

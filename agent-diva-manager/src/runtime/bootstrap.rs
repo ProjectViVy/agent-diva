@@ -1,6 +1,5 @@
 use super::*;
-use agent_diva_core::heartbeat::{types::HeartbeatConfig, HeartbeatService};
-use agent_diva_core::presence::PresenceManager;
+use agent_diva_core::heartbeat::HeartbeatService;
 use agent_diva_tooling::{ModuleBuildContext, ModuleCtx, ModuleStartup};
 
 pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<GatewayBootstrap> {
@@ -13,9 +12,12 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         debug_run,
     } = runtime;
 
-    let bus = MessageBus::new();
+    let bus = MessageBus::with_presence_config(config.presence.clone());
     let module_bus = Arc::new(bus.clone());
-    let security = Arc::new(SecurityPolicy::new(workspace.clone()));
+    let security = Arc::new(SecurityPolicy::with_config(
+        workspace.clone(),
+        config.security.clone(),
+    ));
     let presence = Arc::new(RwLock::new(PresenceState::Active));
     let module_ctx = ModuleCtx {
         bus: module_bus,
@@ -33,9 +35,9 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     ));
     let heartbeat_service = Arc::new(HeartbeatService::new(
         workspace.clone(),
-        HeartbeatConfig::default(),
+        config.heartbeat.clone(),
         Some(bus.clone()),
-        PresenceManager::with_defaults(),
+        bus.presence().clone(),
         None,
         None,
     ));
