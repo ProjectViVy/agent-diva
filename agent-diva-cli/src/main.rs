@@ -20,7 +20,7 @@ use agent_diva_cli::provider_commands::{
 };
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::validate::validate_config;
-use agent_diva_core::config::Config;
+use agent_diva_core::config::{compute_config_diff, Config, ConfigLoader};
 use agent_diva_core::cron::{CronSchedule, CronService};
 use agent_diva_core::debug::DebugRun;
 use agent_diva_core::logging::{build_runtime_trace_logger, init_raw_debug_logging};
@@ -389,6 +389,12 @@ enum ConfigCommands {
         #[arg(long, value_enum, default_value_t = ConfigOutputFormat::Pretty)]
         format: ConfigOutputFormat,
     },
+    Diff {
+        #[arg(long)]
+        new_config: PathBuf,
+        #[arg(long, value_enum, default_value_t = ConfigOutputFormat::Pretty)]
+        format: ConfigOutputFormat,
+    },
 }
 
 #[tokio::main]
@@ -544,6 +550,9 @@ async fn main() -> Result<()> {
             ConfigCommands::Validate(args) => run_config_validate(&runtime, args.json).await?,
             ConfigCommands::Doctor(args) => run_config_doctor(&runtime, args.json).await?,
             ConfigCommands::Show { format } => run_config_show(&runtime, format).await?,
+            ConfigCommands::Diff { new_config, format } => {
+                run_config_diff(&runtime, &new_config, format).await?
+            }
         },
         Commands::Service { command } => {
             if !structured_output {
@@ -1356,7 +1365,9 @@ fn is_structured_output(command: &Commands) -> bool {
             ConfigCommands::Path(args)
             | ConfigCommands::Validate(args)
             | ConfigCommands::Doctor(args) => args.json,
-            ConfigCommands::Show { format } => matches!(format, ConfigOutputFormat::Json),
+            ConfigCommands::Show { format } | ConfigCommands::Diff { format, .. } => {
+                matches!(format, ConfigOutputFormat::Json)
+            }
             _ => false,
         },
         _ => false,
@@ -1507,6 +1518,23 @@ async fn run_config_show(runtime: &CliRuntime, format: ConfigOutputFormat) -> Re
         ConfigOutputFormat::Json => println!("{}", serde_json::to_string(&value)?),
         ConfigOutputFormat::Pretty => println!("{}", serde_json::to_string_pretty(&value)?),
     }
+    Ok(())
+}
+
+async fn run_config_diff(
+    runtime: &CliRuntime,
+    new_config_path: &Path,
+    format: ConfigOutputFormat,
+) -> Result<()> {
+    let current_config = runtime.load_config()?;
+    let candidate_config = ConfigLoader::with_file(new_config_path).load()?;
+    let diff = compute_config_diff(&current_config, &candidate_config)?;
+
+    match format {
+        ConfigOutputFormat::Json => println!("{}", serde_json::to_string(&diff)?),
+        ConfigOutputFormat::Pretty => println!("{}", serde_json::to_string_pretty(&diff)?),
+    }
+
     Ok(())
 }
 

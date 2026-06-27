@@ -6,6 +6,7 @@
 
 use crate::config::schema::Config;
 use crate::config::validate::validate_config;
+use crate::config::ReloadPlan;
 use crate::presence::PresenceConfig;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -98,29 +99,28 @@ pub trait HotReloadable: Send + Sync {
 /// Compute which hot-reloadable fields changed between two configs.
 pub fn compute_changed_fields(old: &Config, new: &Config) -> HashSet<HotReloadableField> {
     let mut changed = HashSet::new();
-
-    // LogLevel: logging.level
-    if old.logging.level != new.logging.level {
-        changed.insert(HotReloadableField::LogLevel);
+    if let Ok(plan) = ReloadPlan::from_configs(old, new) {
+        for path in plan.diff.hot_reload_changes {
+            match path.as_str() {
+                "logging.level" => {
+                    changed.insert(HotReloadableField::LogLevel);
+                }
+                "tools.exec.timeout" => {
+                    changed.insert(HotReloadableField::ToolTimeout);
+                }
+                path if path.starts_with("presence.") || path.starts_with("heartbeat.") => {
+                    changed.insert(HotReloadableField::PresenceThresholds);
+                }
+                path if path.starts_with("pii.") => {
+                    changed.insert(HotReloadableField::PiiRules);
+                }
+                path if path.starts_with("injection.") => {
+                    changed.insert(HotReloadableField::InjectionPatterns);
+                }
+                _ => {}
+            }
+        }
     }
-
-    // ToolTimeout: tools.exec.timeout
-    if old.tools.exec.timeout != new.tools.exec.timeout {
-        changed.insert(HotReloadableField::ToolTimeout);
-    }
-
-    if old.presence != new.presence {
-        changed.insert(HotReloadableField::PresenceThresholds);
-    }
-
-    if old.pii != new.pii {
-        changed.insert(HotReloadableField::PiiRules);
-    }
-
-    if old.injection != new.injection {
-        changed.insert(HotReloadableField::InjectionPatterns);
-    }
-
     changed
 }
 
