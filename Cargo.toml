@@ -9,6 +9,7 @@ members = [
     "agent-diva-channels",
     "agent-diva-tools",
     "agent-diva-files",
+    "agent-diva-e2e",
     "agent-diva-cli",
     "agent-diva-service",
     "agent-diva-migration",
