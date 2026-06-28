@@ -1,0 +1,15 @@
+scenario: long_response
+description: "验证 Agent 能生成长格式回答"
+setup:
+  timeout_secs: 60
+messages:
+  - sender: user
+    channel: e2e
+    chat_id: long-test
+    content: "列出从 1 到 20 的数字，用逗号分隔"
+assertions:
+  - type: response_matches
+    pattern: "\\b(1[0-9]|20)\\b"
+    description: "回答应该包含 10-20 之间的数字"
+  - type: no_errors
+    description: "不应有错误"

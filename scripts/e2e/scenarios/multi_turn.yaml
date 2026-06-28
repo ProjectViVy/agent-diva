@@ -1,0 +1,19 @@
+scenario: multi_turn
+description: "验证 Agent 多轮对话上下文保持能力"
+setup:
+  timeout_secs: 60
+messages:
+  - sender: user
+    channel: e2e
+    chat_id: multi-turn
+    content: "我叫小明"
+  - sender: user
+    channel: e2e
+    chat_id: multi-turn
+    content: "我叫什么名字？"
+assertions:
+  - type: response_contains
+    value: "小明"
+    description: "Agent 应该记住我的名字是小明"
+  - type: no_errors
+    description: "不应有错误"

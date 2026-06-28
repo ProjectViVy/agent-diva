@@ -1,0 +1,15 @@
+scenario: echo
+description: "验证 Agent 基本对话能力"
+setup:
+  timeout_secs: 30
+messages:
+  - sender: user
+    channel: e2e
+    chat_id: echo-test
+    content: "简单回复：PONG"
+assertions:
+  - type: response_contains
+    value: "PONG"
+    description: "Agent 必须回显 PONG"
+  - type: no_errors
+    description: "不应有错误"
