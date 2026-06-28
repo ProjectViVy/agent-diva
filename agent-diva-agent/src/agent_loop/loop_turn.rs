@@ -4,7 +4,7 @@ use super::loop_guard::{
 };
 use super::AgentLoop;
 use crate::consolidation;
-use crate::context_budget::CompactionMode;
+use crate::context_budget::{measure_system_prompt_budget, CompactionMode};
 use agent_diva_core::attachment::FileAttachmentRef;
 use agent_diva_core::bus::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::debug::DebugEvent;
@@ -123,6 +123,52 @@ impl AgentLoop {
             Some(&msg.channel),
             Some(&msg.chat_id),
         );
+        if let Some(system_prompt) = messages
+            .first()
+            .and_then(|message| message.content.as_text())
+        {
+            let system_prompt_budget =
+                measure_system_prompt_budget(system_prompt, &self.context_budget);
+            trace!(
+                trace_id = %trace_id,
+                step_name = "system_prompt_budget_measured",
+                estimated_tokens = system_prompt_budget.estimated_tokens,
+                reserve_tokens = system_prompt_budget.reserve_tokens,
+                overflow_tokens = system_prompt_budget.overflow_tokens,
+                prompt_chars = system_prompt_budget.prompt_chars,
+                "Measured rendered system prompt budget"
+            );
+            self.emit_runtime_trace(
+                "info",
+                &trace_id,
+                &session_key,
+                "gateway",
+                "agent_loop",
+                "system_prompt_budget_measured",
+                format!(
+                    "Measured rendered system prompt at {} tokens against a {} token reserve",
+                    system_prompt_budget.estimated_tokens, system_prompt_budget.reserve_tokens
+                ),
+                serde_json::json!({
+                    "estimated_tokens": system_prompt_budget.estimated_tokens,
+                    "reserve_tokens": system_prompt_budget.reserve_tokens,
+                    "overflow_tokens": system_prompt_budget.overflow_tokens,
+                    "prompt_chars": system_prompt_budget.prompt_chars,
+                    "overflow": system_prompt_budget.exceeds_reserved_budget(),
+                    "history_messages": history_len,
+                }),
+            );
+            if system_prompt_budget.exceeds_reserved_budget() {
+                warn!(
+                    trace_id = %trace_id,
+                    estimated_tokens = system_prompt_budget.estimated_tokens,
+                    reserve_tokens = system_prompt_budget.reserve_tokens,
+                    overflow_tokens = system_prompt_budget.overflow_tokens,
+                    prompt_chars = system_prompt_budget.prompt_chars,
+                    "System prompt exceeds reserved token budget"
+                );
+            }
+        }
         if is_cron_trigger {
             // Make trigger origin explicit so the model does not treat it as a fresh user request.
             let current_message = messages.pop();

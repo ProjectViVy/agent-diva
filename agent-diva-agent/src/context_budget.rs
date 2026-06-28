@@ -52,6 +52,20 @@ pub struct ContextBudgetReport {
     pub truncated_tool_messages: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemPromptBudgetReport {
+    pub estimated_tokens: usize,
+    pub reserve_tokens: usize,
+    pub overflow_tokens: usize,
+    pub prompt_chars: usize,
+}
+
+impl SystemPromptBudgetReport {
+    pub fn exceeds_reserved_budget(&self) -> bool {
+        self.overflow_tokens > 0
+    }
+}
+
 pub fn compact_messages_to_budget(
     messages: &[Message],
     tool_defs: &[serde_json::Value],
@@ -102,6 +116,21 @@ pub fn estimate_request_tokens(messages: &[Message], tool_defs: &[serde_json::Va
     let message_tokens: usize = messages.iter().map(estimate_message_tokens).sum();
     let tool_tokens: usize = tool_defs.iter().map(estimate_serialized_tokens).sum();
     message_tokens + tool_tokens
+}
+
+pub fn measure_system_prompt_budget(
+    prompt: &str,
+    policy: &ContextBudgetPolicy,
+) -> SystemPromptBudgetReport {
+    let estimated_tokens = estimate_text_tokens(prompt);
+    let overflow_tokens = estimated_tokens.saturating_sub(policy.reserve_tokens);
+
+    SystemPromptBudgetReport {
+        estimated_tokens,
+        reserve_tokens: policy.reserve_tokens,
+        overflow_tokens,
+        prompt_chars: prompt.chars().count(),
+    }
 }
 
 pub fn provider_error_indicates_context_overflow(error: &ProviderError) -> bool {
@@ -355,5 +384,38 @@ mod tests {
         assert!(!provider_error_indicates_context_overflow(
             &ProviderError::api_message("rate limit exceeded".to_string())
         ));
+    }
+
+    #[test]
+    fn measure_system_prompt_budget_uses_rendered_prompt_size() {
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 1_000,
+            reserve_tokens: 8,
+            overflow_retry_enabled: true,
+        };
+
+        let report = measure_system_prompt_budget("abcd efgh ijkl", &policy);
+
+        assert_eq!(
+            report.estimated_tokens,
+            estimate_text_tokens("abcd efgh ijkl")
+        );
+        assert_eq!(report.reserve_tokens, 8);
+        assert_eq!(report.prompt_chars, "abcd efgh ijkl".chars().count());
+        assert!(!report.exceeds_reserved_budget());
+    }
+
+    #[test]
+    fn measure_system_prompt_budget_marks_reserved_overflow() {
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 1_000,
+            reserve_tokens: 3,
+            overflow_retry_enabled: true,
+        };
+
+        let report = measure_system_prompt_budget("abcdefghijklmno", &policy);
+
+        assert!(report.exceeds_reserved_budget());
+        assert!(report.overflow_tokens > 0);
     }
 }

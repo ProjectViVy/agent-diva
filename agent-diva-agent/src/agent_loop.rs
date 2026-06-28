@@ -1111,6 +1111,155 @@ mod tests {
         assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
     }
 
+    #[tokio::test]
+    async fn test_process_inbound_emits_system_prompt_budget_trace() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(SuccessfulStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut tool_config = ToolConfig::default();
+        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
+
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            tool_config,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(response.content, "assistant ok");
+
+        let events = read_trace_events(&temp_dir);
+        let budget_event = events
+            .iter()
+            .find(|event| event["event"] == "system_prompt_budget_measured")
+            .unwrap();
+        assert!(
+            budget_event["metadata"]["estimated_tokens"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert_eq!(budget_event["metadata"]["overflow"], false);
+    }
+
+    #[tokio::test]
+    async fn test_process_inbound_marks_system_prompt_budget_overflow() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(SuccessfulStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut tool_config = ToolConfig::default();
+        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
+        tool_config.context_budget.reserve_tokens = 8;
+
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            tool_config,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(response.content, "assistant ok");
+
+        let events = read_trace_events(&temp_dir);
+        let budget_event = events
+            .iter()
+            .find(|event| event["event"] == "system_prompt_budget_measured")
+            .unwrap();
+        assert_eq!(budget_event["metadata"]["overflow"], true);
+        assert!(
+            budget_event["metadata"]["overflow_tokens"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+    }
+
+    #[tokio::test]
+    async fn test_system_prompt_budget_measurement_coexists_with_overflow_retry() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(OverflowRetryProvider {
+            calls: AtomicUsize::new(0),
+            fail_times: 1,
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut tool_config = ToolConfig::default();
+        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
+
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider.clone(),
+            workspace,
+            None,
+            Some(1),
+            tool_config,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(response.content, "assistant recovered");
+        assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+
+        let events = read_trace_events(&temp_dir);
+        let budget_event = events
+            .iter()
+            .find(|event| event["event"] == "system_prompt_budget_measured")
+            .unwrap();
+        assert_eq!(budget_event["metadata"]["overflow"], false);
+    }
+
     use agent_diva_core::memory::{
         PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
         SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus,
