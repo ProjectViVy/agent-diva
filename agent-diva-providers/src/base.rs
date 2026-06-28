@@ -84,6 +84,19 @@ impl ProviderError {
     pub fn is_retryable(&self) -> bool {
         matches!(self, Self::RateLimited { .. } | Self::Transient { .. })
     }
+
+    /// Machine-readable error code, stable across releases.
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            ProviderError::HttpError(_) => "PE-001",
+            ProviderError::JsonError(_) => "PE-002",
+            ProviderError::InvalidResponse(_) => "PE-003",
+            ProviderError::ApiError(_) => "PE-004",
+            ProviderError::ConfigError(_) => "PE-005",
+            // Catch-all for variants without explicit codes
+            _ => "PE-099",
+        }
+    }
 }
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
@@ -973,5 +986,20 @@ mod tests {
             message: "HTTP 503".to_string(),
         };
         assert!(err.is_retryable());
+    }
+
+    #[test]
+    fn test_provider_error_codes() {
+        let variants: Vec<ProviderError> = vec![
+            ProviderError::JsonError(
+                serde_json::from_str::<serde_json::Value>("").unwrap_err(),
+            ),
+            ProviderError::InvalidResponse("test".into()),
+            ProviderError::api_message("test"),
+            ProviderError::ConfigError("test".into()),
+        ];
+        assert_eq!(variants[0].error_code(), "PE-002");
+        assert_eq!(variants[3].error_code(), "PE-005");
+        assert_eq!(variants[2].error_code(), "PE-004");
     }
 }

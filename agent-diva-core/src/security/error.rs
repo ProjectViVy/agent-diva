@@ -92,6 +92,22 @@ impl SecurityError {
             Self::RateLimitExceeded { .. } | Self::ActionBudgetExhausted
         )
     }
+
+    /// Machine-readable error code, stable across releases.
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            SecurityError::PathNotAllowed { .. } => "SE-001",
+            SecurityError::PathEscapesWorkspace { .. } => "SE-002",
+            SecurityError::ForbiddenComponent { .. } => "SE-003",
+            SecurityError::RateLimitExceeded { .. } => "SE-004",
+            SecurityError::ActionBudgetExhausted => "SE-005",
+            SecurityError::ReadOnlyMode => "SE-006",
+            SecurityError::SymlinkNotAllowed { .. } => "SE-007",
+            SecurityError::InvalidPathFormat { .. } => "SE-008",
+            SecurityError::FileTooLarge { .. } => "SE-009",
+            SecurityError::ForbiddenExtension { .. } => "SE-010",
+        }
+    }
 }
 
 #[cfg(test)]
@@ -120,5 +136,29 @@ mod tests {
             path: "/test".to_string()
         }
         .is_retryable());
+    }
+
+    #[test]
+    fn test_error_codes() {
+        use std::collections::HashSet;
+        let mut codes = HashSet::new();
+        let variants = [
+            SecurityError::PathNotAllowed { path: "p".into() },
+            SecurityError::PathEscapesWorkspace { resolved: PathBuf::from("p") },
+            SecurityError::ForbiddenComponent { component: "c".into() },
+            SecurityError::RateLimitExceeded { count: 1, max: 1 },
+            SecurityError::ActionBudgetExhausted,
+            SecurityError::ReadOnlyMode,
+            SecurityError::SymlinkNotAllowed { path: PathBuf::from("p") },
+            SecurityError::InvalidPathFormat { reason: "p".into() },
+            SecurityError::FileTooLarge { size: 1, max_size: 2 },
+            SecurityError::ForbiddenExtension { ext: "exe".into() },
+        ];
+        assert_eq!(variants[0].error_code(), "SE-001");
+        assert_eq!(variants[5].error_code(), "SE-006");
+        for v in &variants {
+            assert!(codes.insert(v.error_code()), "Duplicate error_code: {}", v.error_code());
+        }
+        assert_eq!(codes.len(), 10);
     }
 }

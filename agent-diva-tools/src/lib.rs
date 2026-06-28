@@ -12,6 +12,7 @@ pub mod sanitize;
 pub mod search_files;
 pub mod shell;
 pub mod spawn;
+pub mod toolsets;
 pub mod web;
 pub mod wtf;
 
