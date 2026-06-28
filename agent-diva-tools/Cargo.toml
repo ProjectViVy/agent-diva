@@ -41,6 +41,9 @@ reqwest = { workspace = true }
 # Logging and tracing
 tracing = { workspace = true }
 
+# Glob pattern matching
+glob = "0.3"
+
 # Utilities
 which = { workspace = true }
 anyhow = { workspace = true }

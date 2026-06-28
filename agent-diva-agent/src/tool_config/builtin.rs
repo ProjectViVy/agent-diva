@@ -21,6 +21,8 @@ pub struct BuiltInToolsConfig {
     pub mcp: bool,
     #[serde(default = "default_true")]
     pub attachment: bool,
+    #[serde(default = "default_true")]
+    pub search_files: bool,
 }
 
 fn default_true() -> bool {
@@ -38,6 +40,7 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: false,
             attachment: false,
+            search_files: true,
         }
     }
 
@@ -51,6 +54,7 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: false,
             attachment: false,
+            search_files: false,
         }
     }
 
@@ -64,6 +68,7 @@ impl BuiltInToolsConfig {
             cron: true,
             mcp: true,
             attachment: true,
+            search_files: true,
         }
     }
 
@@ -77,6 +82,7 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: self.mcp && policy.allow_mcp,
             attachment: false,
+            search_files: self.search_files && policy.allow_filesystem,
         }
     }
 }
@@ -92,6 +98,7 @@ impl Default for BuiltInToolsConfig {
             cron: false,
             mcp: true,
             attachment: true,
+            search_files: true,
         }
     }
 }

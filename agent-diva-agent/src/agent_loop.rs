@@ -604,6 +604,7 @@ mod tests {
         ProviderResult, ToolCallRequest,
     };
     use agent_diva_tooling::Tool;
+    use agent_diva_tools::{PatchTool, SearchFilesTool};
     use async_trait::async_trait;
     use chrono::Local;
     use futures::stream;
@@ -625,6 +626,9 @@ mod tests {
     }
     struct AlwaysFailTool;
     struct ToolThenFinalProvider {
+        calls: AtomicUsize,
+    }
+    struct PatchThenFinalProvider {
         calls: AtomicUsize,
     }
     struct OkTool;
@@ -868,6 +872,76 @@ mod tests {
                         ("prompt_tokens".to_string(), 13),
                         ("completion_tokens".to_string(), 5),
                         ("total_tokens".to_string(), 18),
+                    ]),
+                    reasoning_content: None,
+                }
+            };
+
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for PatchThenFinalProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::api_message(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let call_index = self.calls.fetch_add(1, Ordering::SeqCst);
+            let response = if call_index == 0 {
+                LLMResponse {
+                    content: Some("patching file".to_string()),
+                    tool_calls: vec![ToolCallRequest {
+                        id: "call-patch".to_string(),
+                        call_type: "function".to_string(),
+                        name: "patch".to_string(),
+                        arguments: HashMap::from([
+                            ("path".to_string(), json!("notes.txt")),
+                            ("old_text".to_string(), json!("beta")),
+                            ("new_text".to_string(), json!("delta")),
+                            ("match_strategy".to_string(), json!("Exact")),
+                        ]),
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::from([
+                        ("prompt_tokens".to_string(), 9),
+                        ("completion_tokens".to_string(), 4),
+                        ("total_tokens".to_string(), 13),
+                    ]),
+                    reasoning_content: None,
+                }
+            } else {
+                LLMResponse {
+                    content: Some("patch complete".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::from([
+                        ("prompt_tokens".to_string(), 12),
+                        ("completion_tokens".to_string(), 3),
+                        ("total_tokens".to_string(), 15),
                     ]),
                     reasoning_content: None,
                 }
@@ -1690,6 +1764,74 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("[REDACTED:ApiKey]"));
+    }
+
+    #[tokio::test]
+    async fn test_process_inbound_executes_patch_tool_via_agent_loop() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(PatchThenFinalProvider {
+            calls: AtomicUsize::new(0),
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        tokio::fs::write(workspace.join("notes.txt"), "alpha\nbeta\ngamma\n")
+            .await
+            .unwrap();
+        let file_manager = Arc::new(
+            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(PatchTool::for_workspace(workspace.clone())));
+        registry.register(Arc::new(SearchFilesTool::for_workspace(workspace.clone())));
+        let mut tool_config = ToolConfig::default();
+        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
+        let toolset = AgentLoopToolSet {
+            registry,
+            config: tool_config,
+        };
+
+        let mut agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace.clone(),
+            None,
+            Some(3),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_inbound_message(
+                InboundMessage::new("cli", "user", "chat-1", "patch file"),
+                None,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(response.content, "patch complete");
+        let patched = tokio::fs::read_to_string(workspace.join("notes.txt"))
+            .await
+            .unwrap();
+        assert_eq!(patched, "alpha\ndelta\ngamma\n");
+
+        let events = read_trace_events(&temp_dir);
+        let tool_completed = events
+            .iter()
+            .find(|event| event["event"] == "tool_call_completed")
+            .unwrap();
+        assert_eq!(tool_completed["metadata"]["tool"], "patch");
+        assert_eq!(tool_completed["metadata"]["status"], "ok");
+        assert!(tool_completed["metadata"]["result_summary"]
+            .as_str()
+            .unwrap()
+            .contains("Successfully patched notes.txt"));
     }
 
     #[tokio::test]

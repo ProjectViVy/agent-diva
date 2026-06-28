@@ -7,8 +7,9 @@ use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_files::FileManager;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadAttachmentTool,
-    ReadFileTool, SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
+    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, PatchTool,
+    ReadAttachmentTool, ReadFileTool, SearchFilesTool, SpawnTool, WebFetchTool, WebSearchTool,
+    WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -130,6 +131,8 @@ impl ToolAssembly {
             registry.register(Arc::new(ReadFileTool::new(security.clone())));
             registry.register(Arc::new(WriteFileTool::new(security.clone())));
             registry.register(Arc::new(EditFileTool::new(security.clone())));
+            registry.register(Arc::new(PatchTool::new(security.clone())));
+            registry.register(Arc::new(SearchFilesTool::new(security.clone())));
             registry.register(Arc::new(ListDirTool::new(security)));
         }
 
@@ -215,6 +218,7 @@ mod tests {
         assert!(registry.has("read_file"));
         assert!(registry.has("write_file"));
         assert!(registry.has("edit_file"));
+        assert!(registry.has("patch"));
         assert!(registry.has("list_dir"));
         assert!(!registry.has("exec"));
         assert!(!registry.has("web_search"));
@@ -258,6 +262,7 @@ mod tests {
             .build_subagent_registry(&policy);
 
         assert!(registry.has("read_file"));
+        assert!(registry.has("patch"));
         assert!(!registry.has("spawn"));
         assert!(!registry.has("read_attachment"));
     }

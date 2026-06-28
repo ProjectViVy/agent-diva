@@ -11,6 +11,7 @@ pub mod cron;
 pub mod debug;
 pub mod error;
 pub mod error_context;
+pub mod error_kind;
 pub mod heartbeat;
 pub mod logging;
 pub mod memory;
@@ -24,3 +25,4 @@ pub mod utils;
 
 pub use attachment::{FileAttachment, FileAttachmentRef};
 pub use error::{Error, Result};
+pub use error_kind::ErrorKind;

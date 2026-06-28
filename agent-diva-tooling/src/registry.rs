@@ -126,43 +126,27 @@ impl ToolRegistry {
             return Err(ToolError::InvalidParams(msg));
         }
 
-        match timeout(
-            Duration::from_secs(self.timeout_secs),
-            tool.execute(params.clone()),
-        )
-        .await
-        {
-            Err(_) => {
-                let params_str = serde_json::to_string(&params).unwrap_or_default();
-                let problems = find_problematic_chars(&params_str);
-                let msg = format!(
-                    "Tool '{}' timed out after {} seconds",
-                    name, self.timeout_secs
-                );
-                let ctx = ErrorContext::new("tool_execution_timeout", &msg)
-                    .with_content(&params_str)
-                    .with_metadata("tool_name", name.to_string())
-                    .with_metadata("timeout_secs", self.timeout_secs.to_string());
-                let ctx_str = ctx.to_detailed_string();
-                if problems.is_empty() {
-                    error!("{}", ctx_str);
-                } else {
-                    error!(
-                        "{}\n  Problematic characters found:\n    - {}",
-                        ctx_str,
-                        problems.join("\n    - ")
-                    );
-                }
-                Err(ToolError::ExecutionFailed(msg))
-            }
-            Ok(result) => match result {
-                Ok(output) => Ok(truncate_tool_result(&output)),
-                Err(e) => {
+        let retry_delays = [100u64, 200];
+        let max_attempts = 3;
+
+        for attempt in 0..max_attempts {
+            match timeout(
+                Duration::from_secs(self.timeout_secs),
+                tool.execute(params.clone()),
+            )
+            .await
+            {
+                Err(_) => {
                     let params_str = serde_json::to_string(&params).unwrap_or_default();
                     let problems = find_problematic_chars(&params_str);
-                    let ctx = ErrorContext::new("tool_execution", e.to_string())
+                    let msg = format!(
+                        "Tool '{}' timed out after {} seconds",
+                        name, self.timeout_secs
+                    );
+                    let ctx = ErrorContext::new("tool_execution_timeout", &msg)
                         .with_content(&params_str)
-                        .with_metadata("tool_name", name.to_string());
+                        .with_metadata("tool_name", name.to_string())
+                        .with_metadata("timeout_secs", self.timeout_secs.to_string());
                     let ctx_str = ctx.to_detailed_string();
                     if problems.is_empty() {
                         error!("{}", ctx_str);
@@ -173,10 +157,42 @@ impl ToolRegistry {
                             problems.join("\n    - ")
                         );
                     }
-                    Err(e)
+                    let err = ToolError::ExecutionFailed(msg);
+                    if err.is_retryable() && attempt < max_attempts - 1 {
+                        tokio::time::sleep(Duration::from_millis(retry_delays[attempt])).await;
+                        continue;
+                    }
+                    return Err(err);
                 }
-            },
+                Ok(result) => match result {
+                    Ok(output) => return Ok(truncate_tool_result(&output)),
+                    Err(e) => {
+                        let params_str = serde_json::to_string(&params).unwrap_or_default();
+                        let problems = find_problematic_chars(&params_str);
+                        let ctx = ErrorContext::new("tool_execution", e.to_string())
+                            .with_content(&params_str)
+                            .with_metadata("tool_name", name.to_string());
+                        let ctx_str = ctx.to_detailed_string();
+                        if problems.is_empty() {
+                            error!("{}", ctx_str);
+                        } else {
+                            error!(
+                                "{}\n  Problematic characters found:\n    - {}",
+                                ctx_str,
+                                problems.join("\n    - ")
+                            );
+                        }
+                        if e.is_retryable() && attempt < max_attempts - 1 {
+                            tokio::time::sleep(Duration::from_millis(retry_delays[attempt])).await;
+                            continue;
+                        }
+                        return Err(e);
+                    }
+                },
+            }
         }
+
+        unreachable!("retry loop should always return or continue")
     }
 
     /// Get list of registered tool names.
@@ -205,6 +221,7 @@ impl Default for ToolRegistry {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use std::sync::atomic::AtomicUsize;
     use tokio::time::sleep;
 
     struct MockTool;
@@ -334,5 +351,88 @@ mod tests {
             .unwrap();
         assert!(result.len() < MAX_TOOL_RESULT_CHARS + 5000);
         assert!(result.contains("Result truncated"));
+    }
+
+    struct RetryableTool {
+        call_count: AtomicUsize,
+    }
+
+    impl RetryableTool {
+        fn new() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Tool for RetryableTool {
+        fn name(&self) -> &str {
+            "retryable"
+        }
+
+        fn description(&self) -> &str {
+            "A tool that fails transiently, then succeeds"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({"type": "object", "properties": {}, "required": []})
+        }
+
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
+            let count = self
+                .call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if count == 0 {
+                Err(ToolError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "transient",
+                )))
+            } else {
+                Ok("success".to_string())
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn retry_on_transient_error() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(RetryableTool::new()));
+        let result = registry
+            .execute("retryable", serde_json::json!({}))
+            .await;
+        assert_eq!(result.unwrap(), "success");
+    }
+
+    struct PermanentErrorTool;
+
+    #[async_trait]
+    impl Tool for PermanentErrorTool {
+        fn name(&self) -> &str {
+            "permanent_error"
+        }
+
+        fn description(&self) -> &str {
+            "A tool that always fails with a permanent error"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({"type": "object", "properties": {}, "required": []})
+        }
+
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
+            Err(ToolError::ExecutionFailed("permanent".to_string()))
+        }
+    }
+
+    #[tokio::test]
+    async fn no_retry_on_permanent_error() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(PermanentErrorTool));
+        let result = registry
+            .execute("permanent_error", serde_json::json!({}))
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("permanent"));
     }
 }
