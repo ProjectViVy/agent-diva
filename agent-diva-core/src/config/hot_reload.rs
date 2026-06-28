@@ -277,8 +277,18 @@ impl ConfigWatcher {
             return Ok(());
         }
 
-        // Compute which fields changed
         let old_config = self.current_config.read().await.clone();
+        let reload_plan = ReloadPlan::from_configs(&old_config, &new_config)?;
+        if !reload_plan.diff.restart_required_changes.is_empty() {
+            warn!(
+                restart_required = ?reload_plan.diff.restart_required_changes,
+                "Config change requires restart; skipping live reload"
+            );
+            *self.last_modified.write().await = current_mtime;
+            return Ok(());
+        }
+
+        // Compute which fields changed
         let changed = compute_changed_fields(&old_config, &new_config);
 
         if changed.is_empty() {
@@ -364,6 +374,7 @@ mod tests {
         watched: HashSet<HotReloadableField>,
         reload_count: usize,
         last_changed: HashSet<HotReloadableField>,
+        fail_reload: bool,
     }
 
     impl TestModule {
@@ -372,6 +383,16 @@ mod tests {
                 watched,
                 reload_count: 0,
                 last_changed: HashSet::new(),
+                fail_reload: false,
+            }
+        }
+
+        fn failing(watched: HashSet<HotReloadableField>) -> Self {
+            Self {
+                watched,
+                reload_count: 0,
+                last_changed: HashSet::new(),
+                fail_reload: true,
             }
         }
     }
@@ -386,6 +407,9 @@ mod tests {
             _config: &Config,
             changed: &HashSet<HotReloadableField>,
         ) -> crate::Result<()> {
+            if self.fail_reload {
+                return Err(crate::Error::Internal("forced reload failure".to_string()));
+            }
             self.reload_count += 1;
             self.last_changed = changed.clone();
             Ok(())
@@ -506,6 +530,65 @@ mod tests {
 
         // Cleanup
         handle.abort();
+    }
+
+    #[tokio::test]
+    async fn config_watcher_keeps_old_config_when_module_reload_fails() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+        let initial_config = Config::default();
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&initial_config).unwrap(),
+        )
+        .unwrap();
+
+        let watcher = ConfigWatcher::new(config_path.clone(), initial_config.clone())
+            .with_poll_interval(Duration::from_millis(10));
+        watcher
+            .register_module(Box::new(TestModule::failing(HotReloadableField::all())))
+            .await;
+
+        let mut new_config = initial_config.clone();
+        new_config.logging.level = "debug".to_string();
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&new_config).unwrap(),
+        )
+        .unwrap();
+
+        watcher.check_and_reload().await.unwrap();
+
+        let current = watcher.current_config().await;
+        assert_eq!(current.logging.level, initial_config.logging.level);
+    }
+
+    #[tokio::test]
+    async fn config_watcher_skips_restart_required_changes() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+        let initial_config = Config::default();
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&initial_config).unwrap(),
+        )
+        .unwrap();
+
+        let watcher = ConfigWatcher::new(config_path.clone(), initial_config.clone())
+            .with_poll_interval(Duration::from_millis(10));
+
+        let mut new_config = initial_config.clone();
+        new_config.gateway.port += 1;
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&new_config).unwrap(),
+        )
+        .unwrap();
+
+        watcher.check_and_reload().await.unwrap();
+
+        let current = watcher.current_config().await;
+        assert_eq!(current.gateway.port, initial_config.gateway.port);
     }
 
     #[test]

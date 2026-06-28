@@ -19,6 +19,11 @@ pub(super) async fn wait_for_shutdown(tasks: &mut GatewayTasks) -> bool {
 pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_completed: bool) {
     tasks.bus.stop().await;
 
+    if let Some(handle) = tasks.config_watcher_handle {
+        handle.abort();
+        let _ = handle.await;
+    }
+
     let _ = tasks.server_shutdown_tx.send(());
     let _ = tasks.server_handle.await;
 

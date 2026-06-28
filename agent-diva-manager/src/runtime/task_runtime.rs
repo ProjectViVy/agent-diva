@@ -3,6 +3,7 @@ use crate::{run_server, AppState, Manager};
 use agent_diva_channels::neuro_link::OLV_AVATAR_CHAT_ID;
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{AgentEvent, OutboundMessage};
+use agent_diva_core::config::ConfigWatcher;
 
 pub(super) async fn start_runtime_tasks(
     bootstrap: GatewayBootstrap,
@@ -69,6 +70,7 @@ async fn start_runtime_tasks_inner(
         debug_logger.clone().or(channel_debug_logger),
     )
     .await;
+    let config_watcher_handle = start_config_watcher(&loader, &config, &module_startup).await;
     let neuro_link_bridge_handle = config
         .channels
         .neuro_link
@@ -121,6 +123,7 @@ async fn start_runtime_tasks_inner(
         bus,
         module_startup,
         channel_manager,
+        config_watcher_handle,
         server_shutdown_tx,
         inbound_bridge_handle,
         neuro_link_bridge_handle,
@@ -131,6 +134,31 @@ async fn start_runtime_tasks_inner(
         server_handle,
         _api_tx_keepalive: api_tx_keepalive,
     }
+}
+
+async fn start_config_watcher(
+    loader: &ConfigLoader,
+    config: &Config,
+    module_startup: &ModuleStartup,
+) -> Option<JoinHandle<()>> {
+    let config_path = loader.config_path().to_path_buf();
+    if !config_path.exists() {
+        tracing::debug!(
+            path = %config_path.display(),
+            "Skipping config watcher because config file does not exist"
+        );
+        return None;
+    }
+
+    let watcher = Arc::new(ConfigWatcher::new(config_path.clone(), config.clone()));
+    watcher
+        .register_module(Box::new(module_startup.hot_reload_bridge()))
+        .await;
+    tracing::info!(
+        path = %config_path.display(),
+        "Starting gateway config watcher"
+    );
+    Some(watcher.start())
 }
 
 async fn subscribe_configured_outbound_channels(
@@ -320,7 +348,10 @@ fn spawn_embedded_server_runtime(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::bus::MessageBus;
     use agent_diva_core::config::schema::Config;
+    use agent_diva_core::security::SecurityPolicy;
+    use tempfile::TempDir;
 
     #[test]
     fn configured_channels_includes_neuro_link_when_enabled() {
@@ -358,5 +389,43 @@ mod tests {
                 .and_then(|value| value.as_str()),
             Some("main")
         );
+    }
+
+    #[tokio::test]
+    async fn start_config_watcher_starts_when_config_file_exists() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&Config::default()).unwrap(),
+        )
+        .unwrap();
+        let loader = ConfigLoader::with_file(&config_path);
+        let module_ctx = agent_diva_tooling::ModuleCtx {
+            bus: Arc::new(MessageBus::new()),
+            security: Arc::new(SecurityPolicy::new(temp_dir.path().to_path_buf())),
+            config: Arc::new(Config::default()),
+            presence: Arc::new(RwLock::new(
+                agent_diva_core::presence::PresenceState::Active,
+            )),
+        };
+        let build_ctx = agent_diva_tooling::ModuleBuildContext {
+            module_ctx,
+            workspace: temp_dir.path().to_path_buf(),
+            cron_store: temp_dir.path().join("cron.json"),
+            cron_service: Some(Arc::new(agent_diva_core::cron::CronService::new(
+                temp_dir.path().join("cron.json"),
+                None,
+            ))),
+            heartbeat_service: None,
+        };
+        let startup = ModuleStartup::from_inventory(&build_ctx).unwrap();
+
+        let handle = start_config_watcher(&loader, &Config::default(), &startup).await;
+
+        assert!(handle.is_some());
+        if let Some(handle) = handle {
+            handle.abort();
+        }
     }
 }

@@ -1,7 +1,7 @@
 //! Runtime module lifecycle primitives and registrations.
 
 use agent_diva_core::bus::MessageBus;
-use agent_diva_core::config::Config;
+use agent_diva_core::config::{Config, HotReloadable, HotReloadableField};
 use agent_diva_core::cron::CronService;
 use agent_diva_core::heartbeat::types::HeartbeatConfig;
 use agent_diva_core::heartbeat::HeartbeatService;
@@ -9,7 +9,7 @@ use agent_diva_core::presence::{PresenceConfig, PresenceManager, PresenceState};
 use agent_diva_core::security::SharedSecurityPolicy;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -99,6 +99,35 @@ impl ModuleStartup {
             .map(|module| module.name().to_string())
             .collect()
     }
+
+    pub fn hot_reload_bridge(&self) -> ModuleHotReloadBridge {
+        ModuleHotReloadBridge {
+            modules: self.started.clone(),
+        }
+    }
+}
+
+pub struct ModuleHotReloadBridge {
+    modules: Vec<Arc<dyn Module>>,
+}
+
+impl HotReloadable for ModuleHotReloadBridge {
+    fn watched_fields(&self) -> HashSet<HotReloadableField> {
+        HotReloadableField::all()
+    }
+
+    fn on_config_reload(
+        &mut self,
+        config: &Config,
+        _changed: &HashSet<HotReloadableField>,
+    ) -> agent_diva_core::Result<()> {
+        for module in &self.modules {
+            module
+                .on_config_reload(config)
+                .map_err(|error| agent_diva_core::Error::Internal(error.to_string()))?;
+        }
+        Ok(())
+    }
 }
 
 fn topological_sort(modules: Vec<Arc<dyn Module>>) -> Result<Vec<Arc<dyn Module>>> {
@@ -175,7 +204,7 @@ fn topological_sort(modules: Vec<Arc<dyn Module>>) -> Result<Vec<Arc<dyn Module>
 
 /// Tracks lightweight presence transitions from bus activity.
 pub struct PresenceService {
-    config: PresenceConfig,
+    config: Arc<std::sync::RwLock<PresenceConfig>>,
     running: Arc<RwLock<bool>>,
     last_seen: Arc<RwLock<Instant>>,
     activity_task: Mutex<Option<JoinHandle<()>>>,
@@ -185,7 +214,7 @@ pub struct PresenceService {
 impl Default for PresenceService {
     fn default() -> Self {
         Self {
-            config: PresenceConfig::default(),
+            config: Arc::new(std::sync::RwLock::new(PresenceConfig::default())),
             running: Arc::new(RwLock::new(false)),
             last_seen: Arc::new(RwLock::new(Instant::now())),
             activity_task: Mutex::new(None),
@@ -217,8 +246,7 @@ impl Module for PresenceService {
         let last_seen = Arc::clone(&self.last_seen);
         let presence = Arc::clone(&ctx.presence);
         let activity_presence = Arc::clone(&ctx.presence);
-        let active_timeout = self.config.active_timeout_s;
-        let distracted_timeout = self.config.distracted_timeout_s;
+        let config = Arc::clone(&self.config);
         let mut event_rx = ctx.bus.subscribe_events();
 
         let activity_task = tokio::spawn(async move {
@@ -254,9 +282,13 @@ impl Module for PresenceService {
                 }
 
                 let elapsed = last_seen.read().await.elapsed().as_secs();
-                let next = if elapsed >= distracted_timeout {
+                let current_config = config
+                    .read()
+                    .expect("presence config lock poisoned")
+                    .clone();
+                let next = if elapsed >= current_config.distracted_timeout_s {
                     PresenceState::Gone
-                } else if elapsed >= active_timeout {
+                } else if elapsed >= current_config.active_timeout_s {
                     PresenceState::Distracted
                 } else {
                     PresenceState::Active
@@ -286,6 +318,11 @@ impl Module for PresenceService {
             let _ = task.await;
         }
 
+        Ok(())
+    }
+
+    fn on_config_reload(&self, new_config: &Config) -> Result<()> {
+        *self.config.write().expect("presence config lock poisoned") = new_config.presence.clone();
         Ok(())
     }
 }
@@ -388,6 +425,11 @@ impl Module for HeartbeatService {
     fn dependencies(&self) -> Vec<&str> {
         vec!["presence"]
     }
+
+    fn on_config_reload(&self, new_config: &Config) -> Result<()> {
+        self.update_config(new_config.heartbeat.clone());
+        Ok(())
+    }
 }
 
 fn build_presence_module(_ctx: &ModuleBuildContext) -> Result<Arc<dyn Module>> {
@@ -461,11 +503,14 @@ inventory::submit! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::config::HotReloadableField;
     use agent_diva_core::security::SecurityPolicy;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct TestModule {
         name: &'static str,
         dependencies: Vec<&'static str>,
+        reloads: Arc<AtomicUsize>,
     }
 
     #[async_trait]
@@ -485,6 +530,11 @@ mod tests {
         fn dependencies(&self) -> Vec<&str> {
             self.dependencies.clone()
         }
+
+        fn on_config_reload(&self, _new_config: &Config) -> Result<()> {
+            self.reloads.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
     }
 
     #[test]
@@ -493,18 +543,22 @@ mod tests {
             Arc::new(TestModule {
                 name: "heartbeat",
                 dependencies: vec!["presence"],
+                reloads: Arc::new(AtomicUsize::new(0)),
             }),
             Arc::new(TestModule {
                 name: "presence",
                 dependencies: vec![],
+                reloads: Arc::new(AtomicUsize::new(0)),
             }),
             Arc::new(TestModule {
                 name: "sandbox",
                 dependencies: vec!["safety"],
+                reloads: Arc::new(AtomicUsize::new(0)),
             }),
             Arc::new(TestModule {
                 name: "safety",
                 dependencies: vec![],
+                reloads: Arc::new(AtomicUsize::new(0)),
             }),
         ];
 
@@ -529,10 +583,12 @@ mod tests {
             Arc::new(TestModule {
                 name: "a",
                 dependencies: vec!["b"],
+                reloads: Arc::new(AtomicUsize::new(0)),
             }),
             Arc::new(TestModule {
                 name: "b",
                 dependencies: vec!["a"],
+                reloads: Arc::new(AtomicUsize::new(0)),
             }),
         ];
 
@@ -567,5 +623,53 @@ mod tests {
         assert!(names.iter().any(|name| name == "presence"));
         assert!(names.iter().any(|name| name == "heartbeat"));
         assert!(names.iter().any(|name| name == "cron"));
+    }
+
+    #[test]
+    fn hot_reload_bridge_calls_started_modules() {
+        let reloads = Arc::new(AtomicUsize::new(0));
+        let startup = ModuleStartup {
+            started: vec![Arc::new(TestModule {
+                name: "presence",
+                dependencies: vec![],
+                reloads: Arc::clone(&reloads),
+            })],
+        };
+        let mut bridge = startup.hot_reload_bridge();
+        let mut changed = HashSet::new();
+        changed.insert(HotReloadableField::PresenceThresholds);
+
+        bridge
+            .on_config_reload(&Config::default(), &changed)
+            .unwrap();
+
+        assert_eq!(reloads.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn presence_service_on_config_reload_updates_thresholds() {
+        let service = PresenceService::default();
+        let bus = Arc::new(MessageBus::new());
+        let config = Arc::new(Config::default());
+        let security = Arc::new(SecurityPolicy::new(std::env::temp_dir()));
+        let presence = Arc::new(RwLock::new(PresenceState::Active));
+        let ctx = ModuleCtx {
+            bus,
+            security,
+            config,
+            presence: Arc::clone(&presence),
+        };
+
+        service.start(&ctx).await.unwrap();
+        let mut new_config = Config::default();
+        new_config.presence.active_timeout_s = 1;
+        new_config.presence.distracted_timeout_s = 2;
+        new_config.presence.gone_timeout_s = 3;
+        service.on_config_reload(&new_config).unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+        assert_eq!(*presence.read().await, PresenceState::Distracted);
+
+        service.stop().await.unwrap();
     }
 }

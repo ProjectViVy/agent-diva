@@ -46,7 +46,7 @@ pub type HeartbeatExecuteCallback =
 /// - **Suspended**: user is away, heartbeat paused.
 pub struct HeartbeatService {
     workspace: PathBuf,
-    config: HeartbeatConfig,
+    config: Arc<std::sync::RwLock<HeartbeatConfig>>,
     bus: Option<MessageBus>,
     presence: PresenceManager,
     on_decide: Option<HeartbeatDecideCallback>,
@@ -67,7 +67,7 @@ impl HeartbeatService {
     ) -> Self {
         Self {
             workspace,
-            config,
+            config: Arc::new(std::sync::RwLock::new(config)),
             bus,
             presence,
             on_decide,
@@ -84,7 +84,12 @@ impl HeartbeatService {
 
     /// Start the heartbeat service
     pub async fn start(&self) {
-        if !self.config.enabled {
+        if !self
+            .config
+            .read()
+            .expect("heartbeat config lock poisoned")
+            .enabled
+        {
             info!("Heartbeat disabled");
             return;
         }
@@ -99,9 +104,9 @@ impl HeartbeatService {
 
         *self.running.write().await = true;
 
-        let interval_s = self.config.interval_s;
         let running = Arc::clone(&self.running);
         let bus = self.bus.clone();
+        let config = Arc::clone(&self.config);
         let presence = self.presence.clone();
         let on_decide = self.on_decide.clone();
         let on_execute = self.on_execute.clone();
@@ -110,16 +115,22 @@ impl HeartbeatService {
         let task = tokio::spawn(async move {
             let handle = HeartbeatServiceHandle {
                 workspace,
+                config,
                 bus,
                 presence,
                 on_decide,
                 on_execute,
                 running: Arc::clone(&running),
             };
-            handle.run_loop(interval_s).await;
+            handle.run_loop().await;
         });
 
         *self.task.write().await = Some(task);
+        let interval_s = self
+            .config
+            .read()
+            .expect("heartbeat config lock poisoned")
+            .interval_s;
         info!("Heartbeat started (every {}s)", interval_s);
     }
 
@@ -199,18 +210,27 @@ impl HeartbeatService {
     /// Get service status
     pub async fn status(&self) -> serde_json::Value {
         let is_running = *self.running.read().await;
+        let config = self
+            .config
+            .read()
+            .expect("heartbeat config lock poisoned")
+            .clone();
         let has_decide = self.on_decide.is_some();
         let has_execute = self.on_execute.is_some();
         let heartbeat_file_exists = self.heartbeat_file().exists();
 
         serde_json::json!({
-            "enabled": self.config.enabled,
+            "enabled": config.enabled,
             "running": is_running,
-            "interval_s": self.config.interval_s,
+            "interval_s": config.interval_s,
             "has_decide_callback": has_decide,
             "has_execute_callback": has_execute,
             "heartbeat_file_exists": heartbeat_file_exists,
         })
+    }
+
+    pub fn update_config(&self, config: HeartbeatConfig) {
+        *self.config.write().expect("heartbeat config lock poisoned") = config;
     }
 }
 
@@ -233,6 +253,7 @@ async fn read_heartbeat_file(workspace: &Path) -> Option<String> {
 /// Handle for async task (to avoid circular references)
 struct HeartbeatServiceHandle {
     workspace: PathBuf,
+    config: Arc<std::sync::RwLock<HeartbeatConfig>>,
     bus: Option<MessageBus>,
     presence: PresenceManager,
     on_decide: Option<HeartbeatDecideCallback>,
@@ -241,13 +262,17 @@ struct HeartbeatServiceHandle {
 }
 
 impl HeartbeatServiceHandle {
-    async fn run_loop(&self, base_interval_s: i64) {
-        let base_interval = tokio::time::Duration::from_secs(base_interval_s as u64);
-
+    async fn run_loop(&self) {
         loop {
+            let current_config = self
+                .config
+                .read()
+                .expect("heartbeat config lock poisoned")
+                .clone();
             // Determine rhythm from current presence state
             let rhythm = HeartbeatRhythm::for_presence(self.presence.state());
 
+            let base_interval = tokio::time::Duration::from_secs(current_config.interval_s as u64);
             if !rhythm.is_active() {
                 // Suspended: check again after base interval
                 debug!("Heartbeat suspended (user away)");
@@ -261,8 +286,9 @@ impl HeartbeatServiceHandle {
             }
 
             // Apply rhythm multiplier to interval
-            let effective_interval =
-                tokio::time::Duration::from_secs((base_interval_s as f64 * rhythm.interval_multiplier()) as u64);
+            let effective_interval = tokio::time::Duration::from_secs(
+                (current_config.interval_s as f64 * rhythm.interval_multiplier()) as u64,
+            );
 
             tokio::time::sleep(effective_interval).await;
 
@@ -453,6 +479,28 @@ mod tests {
             status["interval_s"].as_i64().unwrap(),
             DEFAULT_HEARTBEAT_INTERVAL_S
         );
+    }
+
+    #[tokio::test]
+    async fn test_heartbeat_service_update_config_changes_status() {
+        let temp_dir = TempDir::new().unwrap();
+        let service = HeartbeatService::new(
+            temp_dir.path().to_path_buf(),
+            HeartbeatConfig::default(),
+            None,
+            PresenceManager::with_defaults(),
+            None,
+            None,
+        );
+
+        service.update_config(HeartbeatConfig {
+            enabled: false,
+            interval_s: 17,
+        });
+
+        let status = service.status().await;
+        assert!(!status["enabled"].as_bool().unwrap());
+        assert_eq!(status["interval_s"].as_i64().unwrap(), 17);
     }
 
     #[tokio::test]

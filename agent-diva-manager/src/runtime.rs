@@ -83,6 +83,7 @@ struct GatewayTasks {
     bus: MessageBus,
     module_startup: ModuleStartup,
     channel_manager: Arc<ChannelManager>,
+    config_watcher_handle: Option<JoinHandle<()>>,
     server_shutdown_tx: broadcast::Sender<()>,
     inbound_bridge_handle: JoinHandle<()>,
     neuro_link_bridge_handle: Option<JoinHandle<()>>,
