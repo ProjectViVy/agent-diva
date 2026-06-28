@@ -904,36 +904,112 @@ impl Default for NextcloudTalkConfig {
 }
 
 /// Provider configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+///
+/// Two built-in slots:
+/// - `anthropic` for Anthropic API
+/// - `openai_compatible` for all OpenAI-compatible providers
+///   (OpenAI, OpenRouter, DeepSeek, Groq, Zhipu, DashScope, vLLM,
+///    Gemini, Moonshot, Minimax, AIHubMix, and custom OpenAI endpoints)
+/// - `custom_providers` for user-defined non-built-in providers
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct ProvidersConfig {
     #[serde(default)]
-    pub anthropic: ProviderConfig,
+    pub anthropic: Option<ProviderConfig>,
     #[serde(default)]
-    pub openai: ProviderConfig,
-    #[serde(default)]
-    pub openrouter: ProviderConfig,
-    #[serde(default)]
-    pub deepseek: ProviderConfig,
-    #[serde(default)]
-    pub groq: ProviderConfig,
-    #[serde(default)]
-    pub zhipu: ProviderConfig,
-    #[serde(default)]
-    pub dashscope: ProviderConfig,
-    #[serde(default)]
-    pub vllm: ProviderConfig,
-    #[serde(default)]
-    pub gemini: ProviderConfig,
-    #[serde(default)]
-    pub moonshot: ProviderConfig,
-    #[serde(default)]
-    pub minimax: ProviderConfig,
-    #[serde(default)]
-    pub aihubmix: ProviderConfig,
-    #[serde(default)]
-    pub custom: ProviderConfig,
+    pub openai_compatible: Option<ProviderConfig>,
     #[serde(default)]
     pub custom_providers: HashMap<String, CustomProviderConfig>,
+}
+
+/// Legacy provider field names that have been removed.
+/// Deserializing these produces a clear migration error.
+const REMOVED_PROVIDER_FIELDS: &[&str] = &[
+    "openai",
+    "openrouter",
+    "deepseek",
+    "groq",
+    "zhipu",
+    "dashscope",
+    "vllm",
+    "gemini",
+    "moonshot",
+    "minimax",
+    "aihubmix",
+    "custom",
+];
+
+const OPENAI_COMPATIBLE_REPLACEMENT: &str =
+    "Use 'openai_compatible' provider instead. See migration guide.";
+
+impl<'de> Deserialize<'de> for ProvidersConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, MapAccess, Visitor};
+        use std::fmt;
+
+        struct ProvidersConfigVisitor;
+
+        impl<'de> Visitor<'de> for ProvidersConfigVisitor {
+            type Value = ProvidersConfig;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a providers configuration object")
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<ProvidersConfig, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let mut anthropic: Option<ProviderConfig> = None;
+                let mut openai_compatible: Option<ProviderConfig> = None;
+                let mut custom_providers: Option<HashMap<String, CustomProviderConfig>> = None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "anthropic" => {
+                            if anthropic.is_some() {
+                                return Err(de::Error::duplicate_field("anthropic"));
+                            }
+                            anthropic = map.next_value::<Option<ProviderConfig>>()?;
+                        }
+                        "openai_compatible" => {
+                            if openai_compatible.is_some() {
+                                return Err(de::Error::duplicate_field("openai_compatible"));
+                            }
+                            openai_compatible = map.next_value::<Option<ProviderConfig>>()?;
+                        }
+                        "custom_providers" => {
+                            if custom_providers.is_some() {
+                                return Err(de::Error::duplicate_field("custom_providers"));
+                            }
+                            custom_providers = Some(map.next_value()?);
+                        }
+                        removed if REMOVED_PROVIDER_FIELDS.contains(&removed) => {
+                            let _ignored: serde::de::IgnoredAny = map.next_value()?;
+                            return Err(de::Error::custom(format!(
+                                "Provider '{}' has been removed. {}",
+                                removed, OPENAI_COMPATIBLE_REPLACEMENT
+                            )));
+                        }
+                        _ => {
+                            // Ignore unknown fields for forward compatibility
+                            let _ignored: serde::de::IgnoredAny = map.next_value()?;
+                        }
+                    }
+                }
+
+                Ok(ProvidersConfig {
+                    anthropic,
+                    openai_compatible,
+                    custom_providers: custom_providers.unwrap_or_default(),
+                })
+            }
+        }
+
+        deserializer.deserialize_map(ProvidersConfigVisitor)
+    }
 }
 
 /// Individual provider configuration
@@ -973,20 +1049,9 @@ fn default_custom_provider_api_type() -> String {
 }
 
 impl ProvidersConfig {
-    pub const BUILTIN_PROVIDER_IDS: [&'static str; 13] = [
+    pub const BUILTIN_PROVIDER_IDS: [&'static str; 2] = [
         "anthropic",
-        "openai",
-        "openrouter",
-        "deepseek",
-        "groq",
-        "zhipu",
-        "dashscope",
-        "vllm",
-        "gemini",
-        "moonshot",
-        "minimax",
-        "aihubmix",
-        "custom",
+        "openai_compatible",
     ];
 
     pub fn builtin_provider_names() -> &'static [&'static str] {
@@ -995,38 +1060,16 @@ impl ProvidersConfig {
 
     pub fn get(&self, name: &str) -> Option<&ProviderConfig> {
         match name {
-            "anthropic" => Some(&self.anthropic),
-            "openai" => Some(&self.openai),
-            "openrouter" => Some(&self.openrouter),
-            "deepseek" => Some(&self.deepseek),
-            "groq" => Some(&self.groq),
-            "zhipu" => Some(&self.zhipu),
-            "dashscope" => Some(&self.dashscope),
-            "vllm" => Some(&self.vllm),
-            "gemini" => Some(&self.gemini),
-            "moonshot" => Some(&self.moonshot),
-            "minimax" => Some(&self.minimax),
-            "aihubmix" => Some(&self.aihubmix),
-            "custom" => Some(&self.custom),
+            "anthropic" => self.anthropic.as_ref(),
+            "openai_compatible" => self.openai_compatible.as_ref(),
             _ => None,
         }
     }
 
     pub fn get_mut(&mut self, name: &str) -> Option<&mut ProviderConfig> {
         match name {
-            "anthropic" => Some(&mut self.anthropic),
-            "openai" => Some(&mut self.openai),
-            "openrouter" => Some(&mut self.openrouter),
-            "deepseek" => Some(&mut self.deepseek),
-            "groq" => Some(&mut self.groq),
-            "zhipu" => Some(&mut self.zhipu),
-            "dashscope" => Some(&mut self.dashscope),
-            "vllm" => Some(&mut self.vllm),
-            "gemini" => Some(&mut self.gemini),
-            "moonshot" => Some(&mut self.moonshot),
-            "minimax" => Some(&mut self.minimax),
-            "aihubmix" => Some(&mut self.aihubmix),
-            "custom" => Some(&mut self.custom),
+            "anthropic" => self.anthropic.as_mut(),
+            "openai_compatible" => self.openai_compatible.as_mut(),
             _ => None,
         }
     }

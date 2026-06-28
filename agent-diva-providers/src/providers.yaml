@@ -1,3 +1,5 @@
+# NOTE: As of Wave 2, all `litellm_prefix` fields are DEPRECATED.
+# resolve_model() no longer injects prefixes — all providers send raw model IDs.
 - name: openrouter
   api_type: openai
   keywords:
@@ -5,7 +7,7 @@
   env_key: OPENROUTER_API_KEY
   display_name: OpenRouter
   default_model: openrouter/anthropic/claude-sonnet-4
-  litellm_prefix: openrouter
+  litellm_prefix: openrouter  # DEPRECATED
   skip_prefixes: []
   env_extras: []
   is_gateway: true

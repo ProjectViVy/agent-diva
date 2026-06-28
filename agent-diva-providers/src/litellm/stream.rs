@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use agent_diva_core::Usage;
 
 use crate::base::{LLMResponse, ToolCallRequest};
 
-use super::dto::Usage;
+use super::dto::Usage as DtoUsage;
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct PartialToolCall {
@@ -17,7 +17,7 @@ pub(super) fn finalize_partial_response(
     reasoning_content: String,
     partial_calls: &[PartialToolCall],
     finish_reason: Option<String>,
-    usage: Option<Usage>,
+    dto_usage: Option<DtoUsage>,
 ) -> LLMResponse {
     let mut tool_calls = Vec::new();
     for (i, call) in partial_calls.iter().enumerate() {
@@ -31,16 +31,24 @@ pub(super) fn finalize_partial_response(
             call.call_type.clone()
         };
 
-        let arguments = serde_json::from_str::<HashMap<String, serde_json::Value>>(&call.arguments)
+        let arguments =
+            serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(
+                &call.arguments,
+            )
             .unwrap_or_else(|_| {
                 // Try unwrapping double-encoded JSON string
                 if let Ok(inner) = serde_json::from_str::<String>(&call.arguments) {
-                    serde_json::from_str::<HashMap<String, serde_json::Value>>(&inner)
-                        .unwrap_or_else(|_| {
-                            HashMap::from([("raw".into(), serde_json::Value::String(inner))])
-                        })
+                    serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(
+                        &inner,
+                    )
+                    .unwrap_or_else(|_| {
+                        std::collections::HashMap::from([(
+                            "raw".into(),
+                            serde_json::Value::String(inner),
+                        )])
+                    })
                 } else {
-                    HashMap::from([(
+                    std::collections::HashMap::from([(
                         "raw".into(),
                         serde_json::Value::String(call.arguments.clone()),
                     )])
@@ -55,12 +63,7 @@ pub(super) fn finalize_partial_response(
         });
     }
 
-    let mut usage_map = HashMap::new();
-    if let Some(usage) = usage {
-        usage_map.insert("prompt_tokens".to_string(), usage.prompt_tokens);
-        usage_map.insert("completion_tokens".to_string(), usage.completion_tokens);
-        usage_map.insert("total_tokens".to_string(), usage.total_tokens);
-    }
+    let usage = dto_usage.map(|u| Usage::new(u.prompt_tokens, u.completion_tokens));
 
     LLMResponse {
         content: if content.is_empty() {
@@ -70,7 +73,7 @@ pub(super) fn finalize_partial_response(
         },
         tool_calls,
         finish_reason: finish_reason.unwrap_or_else(|| "stop".to_string()),
-        usage: usage_map,
+        usage,
         reasoning_content: if reasoning_content.is_empty() {
             None
         } else {

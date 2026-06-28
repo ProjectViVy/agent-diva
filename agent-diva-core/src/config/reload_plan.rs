@@ -1,4 +1,4 @@
-use crate::config::schema::Config;
+use crate::config::schema::{Config, ProviderConfig};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -161,15 +161,20 @@ mod tests {
     fn reload_plan_marks_restart_required_when_restart_paths_change() {
         let old = Config::default();
         let mut new = old.clone();
-        new.providers.openai.api_key = "sk-updated".to_string();
+        new.providers.openai_compatible = Some(ProviderConfig {
+            api_key: "sk-updated".to_string(),
+            ..Default::default()
+        });
 
         let plan = ReloadPlan::from_configs(&old, &new).unwrap();
 
         assert!(plan.restart_required);
         assert_eq!(plan.diff.hot_reload_changes, Vec::<String>::new());
+        // Since openai_compatible is Option<ProviderConfig>, the change from
+        // None to Some is reported at the field level (not sub-field).
         assert_eq!(
             plan.diff.restart_required_changes,
-            vec!["providers.openai.api_key".to_string()]
+            vec!["providers.openai_compatible".to_string()]
         );
     }
 

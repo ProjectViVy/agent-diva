@@ -1,6 +1,6 @@
 //! Configuration validation rules.
 
-use super::schema::Config;
+use super::schema::{Config, ProviderConfig};
 
 /// Validate configuration and return aggregated validation errors.
 pub fn validate_config(config: &Config) -> crate::Result<()> {
@@ -145,7 +145,10 @@ mod tests {
     #[test]
     fn test_validate_accepts_defaults() {
         let mut config = Config::default();
-        config.providers.anthropic.api_key = "test-key".to_string();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
         validate_config(&config).unwrap();
     }
 
@@ -153,7 +156,10 @@ mod tests {
     fn test_validate_enabled_channel_requires_credentials() {
         let mut config = Config::default();
         config.channels.telegram.enabled = true;
-        config.providers.anthropic.api_key = "test-key".to_string();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
 
         validate_config(&config).unwrap();
     }
@@ -173,7 +179,10 @@ mod tests {
     #[test]
     fn test_validate_bocha_accepts_higher_max_results() {
         let mut config = Config::default();
-        config.providers.anthropic.api_key = "test-key".to_string();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
         config.tools.web.search.provider = "bocha".to_string();
         config.tools.web.search.max_results = 50;
 
@@ -183,7 +192,10 @@ mod tests {
     #[test]
     fn test_validate_rejects_zero_exec_timeout() {
         let mut config = Config::default();
-        config.providers.anthropic.api_key = "test-key".to_string();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
         config.tools.exec.timeout = 0;
 
         let err = validate_config(&config).unwrap_err();
@@ -193,7 +205,10 @@ mod tests {
     #[test]
     fn test_validate_rejects_zero_subagent_limits() {
         let mut config = Config::default();
-        config.providers.anthropic.api_key = "test-key".to_string();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
         config.tools.subagent.max_concurrent = 0;
         config.tools.subagent.max_depth = 0;
 
@@ -209,7 +224,10 @@ mod tests {
     #[test]
     fn test_validate_rejects_invalid_context_budget() {
         let mut config = Config::default();
-        config.providers.anthropic.api_key = "test-key".to_string();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
         config.agents.defaults.context_budget_tokens = 1_000;
         config.agents.defaults.context_budget_reserve_tokens = 1_000;
 
@@ -222,7 +240,10 @@ mod tests {
     #[test]
     fn test_validate_rejects_invalid_logging_settings() {
         let mut config = Config::default();
-        config.providers.anthropic.api_key = "test-key".to_string();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
         config.logging.retention_days = 0;
         config.logging.runtime_log_dir = Some("   ".to_string());
 

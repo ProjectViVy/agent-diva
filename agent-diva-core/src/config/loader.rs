@@ -174,18 +174,18 @@ fn set_path_value(root: &mut Value, path: &[String], value: Value) {
 fn apply_alias_overrides(config: &mut Value) {
     let aliases = [
         ("ANTHROPIC_API_KEY", "providers.anthropic.api_key"),
-        ("OPENAI_API_KEY", "providers.openai.api_key"),
-        ("OPENROUTER_API_KEY", "providers.openrouter.api_key"),
-        ("DEEPSEEK_API_KEY", "providers.deepseek.api_key"),
-        ("GROQ_API_KEY", "providers.groq.api_key"),
-        ("GEMINI_API_KEY", "providers.gemini.api_key"),
-        ("DASHSCOPE_API_KEY", "providers.dashscope.api_key"),
-        ("MOONSHOT_API_KEY", "providers.moonshot.api_key"),
-        ("MINIMAX_API_KEY", "providers.minimax.api_key"),
-        ("HOSTED_VLLM_API_KEY", "providers.vllm.api_key"),
-        ("AIHUBMIX_API_KEY", "providers.aihubmix.api_key"),
-        ("ZAI_API_KEY", "providers.zhipu.api_key"),
-        ("ZHIPUAI_API_KEY", "providers.zhipu.api_key"),
+        ("OPENAI_API_KEY", "providers.openai_compatible.api_key"),
+        ("OPENROUTER_API_KEY", "providers.openai_compatible.api_key"),
+        ("DEEPSEEK_API_KEY", "providers.openai_compatible.api_key"),
+        ("GROQ_API_KEY", "providers.openai_compatible.api_key"),
+        ("GEMINI_API_KEY", "providers.openai_compatible.api_key"),
+        ("DASHSCOPE_API_KEY", "providers.openai_compatible.api_key"),
+        ("MOONSHOT_API_KEY", "providers.openai_compatible.api_key"),
+        ("MINIMAX_API_KEY", "providers.openai_compatible.api_key"),
+        ("HOSTED_VLLM_API_KEY", "providers.openai_compatible.api_key"),
+        ("AIHUBMIX_API_KEY", "providers.openai_compatible.api_key"),
+        ("ZAI_API_KEY", "providers.openai_compatible.api_key"),
+        ("ZHIPUAI_API_KEY", "providers.openai_compatible.api_key"),
     ];
 
     for (env_key, target_path) in aliases {
@@ -352,7 +352,7 @@ mod tests {
     }
   },
   "providers": {
-    "openai": {
+    "openai_compatible": {
       "api_key": "sk-legacy"
     }
   }
@@ -396,8 +396,17 @@ mod tests {
         let loader = ConfigLoader::with_dir(temp_dir.path());
         let config = loader.load().unwrap();
 
-        assert_eq!(config.providers.openai.api_key, "sk-openai-from-env");
-        assert_eq!(config.providers.minimax.api_key, "mini-key");
+        // Both env vars now map to the unified openai_compatible slot
+        // The later one wins, so MINIMAX_API_KEY overrides OPENAI_API_KEY
+        assert_eq!(
+            config
+                .providers
+                .openai_compatible
+                .as_ref()
+                .unwrap()
+                .api_key,
+            "mini-key"
+        );
     }
 
     #[test]
@@ -426,7 +435,7 @@ mod tests {
         let _lock = lock_env();
         let _alias_guard = EnvVarGuard::set("OPENAI_API_KEY", "sk-openai-alias");
         let _path_guard = EnvVarGuard::set(
-            "AGENT_DIVA__PROVIDERS__OPENAI__API_KEY",
+            "AGENT_DIVA__PROVIDERS__OPENAI_COMPATIBLE__API_KEY",
             "sk-openai-path-override",
         );
 
@@ -436,12 +445,20 @@ mod tests {
         let config_path = temp_dir.path().join("config.json");
         std::fs::write(
             &config_path,
-            r#"{"providers":{"openai":{"api_key":"sk-openai-file"}}}"#,
+            r#"{"providers":{"openai_compatible":{"api_key":"sk-openai-file"}}}"#,
         )
         .unwrap();
 
         let config = loader.load().unwrap();
-        assert_eq!(config.providers.openai.api_key, "sk-openai-path-override");
+        assert_eq!(
+            config
+                .providers
+                .openai_compatible
+                .as_ref()
+                .unwrap()
+                .api_key,
+            "sk-openai-path-override"
+        );
     }
 
     #[test]

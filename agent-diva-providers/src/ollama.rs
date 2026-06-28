@@ -5,6 +5,7 @@
 //! - Tool/function calling
 //! - Reasoning models with thinking
 
+use agent_diva_core::Usage;
 use async_trait::async_trait;
 use serde::Deserializer;
 use serde::{Deserialize, Serialize};
@@ -357,20 +358,16 @@ impl LLMProvider for OllamaProvider {
             chat_response.message.content
         };
 
-        // Build usage map from Ollama response
-        let mut usage = HashMap::new();
-        if let Some(prompt_tokens) = chat_response.prompt_eval_count {
-            usage.insert("prompt_tokens".to_string(), prompt_tokens);
-        }
-        if let Some(completion_tokens) = chat_response.eval_count {
-            usage.insert("completion_tokens".to_string(), completion_tokens);
-        }
-        if let (Some(prompt), Some(completion)) = (
-            chat_response.prompt_eval_count,
-            chat_response.eval_count,
-        ) {
-            usage.insert("total_tokens".to_string(), prompt + completion);
-        }
+        // Build usage from Ollama response
+        let usage = {
+            let prompt = chat_response.prompt_eval_count.unwrap_or(0);
+            let completion = chat_response.eval_count.unwrap_or(0);
+            if prompt == 0 && completion == 0 {
+                None
+            } else {
+                Some(Usage::new(prompt, completion))
+            }
+        };
 
         Ok(LLMResponse {
             content: if content.is_empty() {
@@ -494,17 +491,16 @@ impl LLMProvider for OllamaProvider {
                 }
             }
 
-            // Build usage map from Ollama response
-            let mut usage = HashMap::new();
-            if let Some(prompt_tokens) = prompt_eval_count {
-                usage.insert("prompt_tokens".to_string(), prompt_tokens);
-            }
-            if let Some(completion_tokens) = eval_count {
-                usage.insert("completion_tokens".to_string(), completion_tokens);
-            }
-            if let (Some(prompt), Some(completion)) = (prompt_eval_count, eval_count) {
-                usage.insert("total_tokens".to_string(), prompt + completion);
-            }
+            // Build usage from Ollama streaming response
+            let usage = {
+                let prompt = prompt_eval_count.unwrap_or(0);
+                let completion = eval_count.unwrap_or(0);
+                if prompt == 0 && completion == 0 {
+                    None
+                } else {
+                    Some(Usage::new(prompt, completion))
+                }
+            };
 
             // Send completed response
             let final_response = LLMResponse {

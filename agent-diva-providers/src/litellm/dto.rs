@@ -3,6 +3,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::base::Message;
 
+#[derive(Debug, Clone, Serialize)]
+pub(super) struct StreamOptions {
+    pub(super) include_usage: bool,
+}
+
 /// LiteLLM API request format
 #[derive(Debug, Serialize)]
 pub(super) struct ChatCompletionRequest {
@@ -14,6 +19,8 @@ pub(super) struct ChatCompletionRequest {
     pub(super) tool_choice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) stream_options: Option<StreamOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) reasoning_effort: Option<String>,
     pub(super) max_tokens: i32,

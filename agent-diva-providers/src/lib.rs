@@ -2,9 +2,11 @@
 //!
 //! This crate provides abstractions and implementations for various LLM providers.
 
+pub mod anthropic;
 pub mod base;
 pub mod catalog;
 pub mod discovery;
+pub mod fallback;
 mod http_util;
 pub mod litellm;
 pub mod ollama;
@@ -12,6 +14,9 @@ pub mod registry;
 pub mod retry;
 pub mod transcription;
 
+pub use agent_diva_core::Usage;
+
+pub use anthropic::AnthropicClient;
 pub use base::{
     model_capabilities_for_model, provider_error_indicates_context_overflow,
     provider_error_indicates_vision_unsupported, supports_vision_model, ImageData, ImageFile,
@@ -26,6 +31,7 @@ pub use catalog::{
 pub use discovery::{
     fetch_provider_model_catalog, ModelCatalogSource, ProviderAccess, ProviderModelCatalog,
 };
+pub use fallback::{FallbackEntry, ProviderFallbackLayer};
 pub use litellm::LiteLLMClient;
 pub use ollama::OllamaProvider;
 pub use registry::{ProviderRegistry, ProviderSpec};

@@ -1,11 +1,13 @@
 //! LiteLLM HTTP client implementation
 
+use agent_diva_core::Usage;
 use async_trait::async_trait;
 use regex::Regex;
 use reqwest::{header::HeaderMap, Client, StatusCode};
 use std::collections::HashMap;
 use std::sync::OnceLock;
-use tracing::{debug, error, warn};
+use std::time::Duration;
+use tracing::{debug, error, info, warn};
 
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 
@@ -15,9 +17,11 @@ use crate::base::{
 };
 use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
+use crate::retry::RetryPolicy;
 
 use super::dto::{
-    ChatCompletionRequest, ChatCompletionResponse, OpenAiErrorEnvelope, StreamChunk, Usage,
+    ChatCompletionRequest, ChatCompletionResponse, OpenAiErrorEnvelope, StreamChunk, StreamOptions,
+    Usage as DtoUsage,
 };
 use super::stream::{finalize_partial_response, parse_sse_events, PartialToolCall};
 
@@ -27,6 +31,7 @@ struct RequestBuildOptions {
     temperature: f64,
     reasoning_effort: Option<String>,
     stream: bool,
+    stream_options: Option<StreamOptions>,
 }
 
 pub struct LiteLLMClient {
@@ -39,6 +44,24 @@ pub struct LiteLLMClient {
     selected_provider: Option<ProviderSpec>,
     direct_openai_compatible: bool,
     default_reasoning_effort: Option<String>,
+}
+
+/// Compute days since Unix epoch (Jan 1, 1970) for a given date.
+fn days_since_epoch(year: i32, month: u32, day: u32) -> Option<i64> {
+    if month < 1 || month > 12 || day < 1 || day > 31 {
+        return None;
+    }
+    let y = year as i64;
+    let m = month as i64;
+    let d = day as i64;
+    // Formula from Howard Hinnant: days from Civil to Unix epoch
+    let y2 = if m <= 2 { y - 1 } else { y };
+    let era = if y2 >= 0 { y2 / 400 } else { (y2 - 399) / 400 };
+    let yoe = y2 - era * 400; // year of era [0, 399]
+    let doy = (153 * (if m <= 2 { m + 9 } else { m - 3 }) + 2) / 5 + d - 1; // day of year [0, 365]
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // day of era [0, 146096]
+    let days = era * 146097 + doe - 719468; // days since epoch
+    Some(days)
 }
 
 impl LiteLLMClient {
@@ -101,57 +124,10 @@ impl LiteLLMClient {
         }
     }
 
-    /// Resolve model name for either native provider endpoints or LiteLLM-style gateways.
+    /// Resolve model name. As of Wave 2, litellm_prefix injection is deprecated —
+    /// all OpenAI-compatible providers now send raw model IDs directly.
     fn resolve_model(&self, model: &str) -> String {
-        if let Some(provider) = &self.selected_provider {
-            if !provider.default_api_base.is_empty()
-                && Self::normalize_api_base(&self.api_base)
-                    == Self::normalize_api_base(&provider.default_api_base)
-            {
-                debug!(
-                    "Model unchanged (native provider base): {} -> {}",
-                    model, model
-                );
-                return model.to_string();
-            }
-
-            if !provider.litellm_prefix.is_empty()
-                && !provider.litellm_prefix.contains("://")
-                && !model.starts_with(&format!("{}/", provider.litellm_prefix))
-            {
-                let resolved = format!("{}/{}", provider.litellm_prefix, model);
-                debug!(
-                    "Resolved model (named provider through non-native base): {} -> {}",
-                    model, resolved
-                );
-                return resolved;
-            }
-        }
-
-        if self.direct_openai_compatible {
-            debug!(
-                "Model unchanged (custom openai-compatible base): {} -> {}",
-                model, model
-            );
-            return model.to_string();
-        }
-
-        // Standard mode: auto-prefix for known providers
-        if let Some(spec) = self.registry.find_by_model(model) {
-            if !spec.litellm_prefix.is_empty() && !spec.litellm_prefix.contains("://") {
-                let has_skip_prefix = spec
-                    .skip_prefixes
-                    .iter()
-                    .any(|prefix| model.starts_with(prefix));
-                if !has_skip_prefix {
-                    let resolved = format!("{}/{}", spec.litellm_prefix, model);
-                    debug!("Resolved model (standard): {} -> {}", model, resolved);
-                    return resolved;
-                }
-            }
-        }
-
-        debug!("Model unchanged: {}", model);
+        debug!("Model resolved (prefix injection deprecated): {}", model);
         model.to_string()
     }
 
@@ -166,6 +142,84 @@ impl LiteLLMClient {
             .get(reqwest::header::RETRY_AFTER)
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.parse::<u64>().ok())
+    }
+
+    fn parse_retry_after_duration(headers: &HeaderMap) -> Option<Duration> {
+        let value = headers
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|v| v.to_str().ok())?;
+        let trimmed = value.trim();
+
+        // Try integer seconds first
+        if let Ok(secs) = trimmed.parse::<u64>() {
+            return Some(Duration::from_secs(secs));
+        }
+
+        // Try HTTP-date format (RFC 7231)
+        // Format: "Wed, 21 Oct 2015 07:28:00 GMT"
+        Self::parse_http_date_to_duration(trimmed)
+    }
+
+    /// Parse an HTTP-date (RFC 7231 IMF-fixdate) into a Duration from now.
+    /// Format: "Wed, 21 Oct 2015 07:28:00 GMT"
+    fn parse_http_date_to_duration(date_str: &str) -> Option<Duration> {
+        use std::time::SystemTime;
+
+        // Month name → month number (1-based)
+        const MONTHS: [(&str, u32); 12] = [
+            ("Jan", 1),
+            ("Feb", 2),
+            ("Mar", 3),
+            ("Apr", 4),
+            ("May", 5),
+            ("Jun", 6),
+            ("Jul", 7),
+            ("Aug", 8),
+            ("Sep", 9),
+            ("Oct", 10),
+            ("Nov", 11),
+            ("Dec", 12),
+        ];
+
+        let trimmed = date_str.trim();
+
+        // Find the month token in the string
+        let (_month_name, month) = MONTHS.iter().find(|(name, _)| trimmed.contains(name))?;
+
+        // Split into tokens by whitespace, comma, and colon
+        let tokens: Vec<&str> = trimmed
+            .split(|c: char| c == ' ' || c == ',' || c == ':')
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        // Expected: [day_name, day, month, year, hour, minute, second] = 7 tokens
+        if tokens.len() < 7 {
+            return None;
+        }
+
+        // Parse day, year, hour, minute, second from tokens
+        let day: u32 = tokens[1].parse().ok()?;
+        let year: i32 = tokens[3].parse().ok()?;
+        let hour: u64 = tokens[4].parse().ok()?;
+        let minute: u64 = tokens[5].parse().ok()?;
+        let second: u64 = tokens[6].parse().ok()?;
+
+        // Compute days since epoch using a simple day-count
+        let days = days_since_epoch(year, *month, day)?;
+
+        let target_secs = days as u64 * 86400 + hour * 3600 + minute * 60 + second;
+
+        let now_secs = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .ok()?
+            .as_secs();
+
+        if target_secs > now_secs {
+            Some(Duration::from_secs(target_secs - now_secs))
+        } else {
+            // Already past the Retry-After time
+            Some(Duration::from_secs(0))
+        }
     }
 
     fn parse_request_id(headers: &HeaderMap) -> Option<String> {
@@ -368,13 +422,10 @@ impl LiteLLMClient {
             });
         }
 
-        let mut usage = HashMap::new();
-        usage.insert("prompt_tokens".to_string(), response.usage.prompt_tokens);
-        usage.insert(
-            "completion_tokens".to_string(),
+        let usage = Usage::new(
+            response.usage.prompt_tokens,
             response.usage.completion_tokens,
         );
-        usage.insert("total_tokens".to_string(), response.usage.total_tokens);
 
         Ok(LLMResponse {
             content: choice.message.content.clone(),
@@ -383,7 +434,7 @@ impl LiteLLMClient {
                 .finish_reason
                 .clone()
                 .unwrap_or_else(|| "stop".to_string()),
-            usage,
+            usage: Some(usage),
             reasoning_content: choice.message.reasoning_content.clone(),
         })
     }
@@ -475,6 +526,7 @@ impl LiteLLMClient {
             tools: None,
             tool_choice: None,
             stream: if options.stream { Some(true) } else { None },
+            stream_options: options.stream_options,
             reasoning_effort: options.reasoning_effort,
             max_tokens: options.max_tokens,
             temperature: options.temperature,
@@ -507,6 +559,7 @@ impl LiteLLMClient {
         })
     }
 
+    #[allow(dead_code)]
     fn extract_message_error_context(error_text: &str, body: &serde_json::Value) -> String {
         if !error_text.contains("messages[") {
             return String::new();
@@ -566,6 +619,7 @@ impl LiteLLMClient {
         )
     }
 
+    #[allow(dead_code)]
     fn log_request_failure(
         operation: &str,
         status: reqwest::StatusCode,
@@ -645,6 +699,7 @@ impl LLMProvider for LiteLLMClient {
                     .map(|s| s.to_string())
                     .or_else(|| self.default_reasoning_effort.clone()),
                 stream: false,
+                stream_options: None,
             },
         );
 
@@ -677,42 +732,73 @@ impl LLMProvider for LiteLLMClient {
                 .unwrap_or(0)
         );
 
-        let req_builder = self.apply_headers(
-            self.client
-                .post(&url)
-                .body(body_json.clone())
-                .header("Content-Type", "application/json"),
+        let retry_policy = RetryPolicy::default();
+
+        info!(
+            "Sending chat request to {} with model {} (retry: max {} attempts)",
+            url,
+            resolved_model,
+            retry_policy.max_retries + 1
         );
 
-        // Send request
-        let response = req_builder.send().await?;
+        let response_text = retry_policy
+            .execute_with_retry(|| {
+                let url = url.clone();
+                let body_json = body_json.clone();
+                let model = resolved_model.clone();
+                async move {
+                    let req_builder = self.apply_headers(
+                        self.client
+                            .post(&url)
+                            .body(body_json)
+                            .header("Content-Type", "application/json"),
+                    );
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let headers = response.headers().clone();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
+                    let response = req_builder.send().await?;
+                    let status = response.status();
 
-            Self::log_request_failure(
-                "chat_api_request",
-                status,
-                &error_text,
-                &url,
-                &resolved_model,
-                &body_json,
-                &body,
-            );
-            return Err(ProviderError::ApiError(Box::new(self.build_api_error(
-                status,
-                &headers,
-                error_text,
-                &resolved_model,
-            ))));
-        }
+                    if !status.is_success() {
+                        let headers = response.headers().clone();
+                        let error_text = response
+                            .text()
+                            .await
+                            .unwrap_or_else(|_| "Unknown error".to_string());
 
-        let response_text = response.text().await?;
+                        // Check for rate limiting before generic error
+                        if status == StatusCode::TOO_MANY_REQUESTS {
+                            let retry_after = Self::parse_retry_after_duration(&headers);
+                            return Err(ProviderError::RateLimited { retry_after });
+                        }
+
+                        // Classify by status code into typed error variants
+                        match status.as_u16() {
+                            401 | 403 => {
+                                return Err(ProviderError::Auth {
+                                    message: format!("HTTP {} — {}", status.as_u16(), error_text),
+                                });
+                            }
+                            500 | 502 | 503 | 504 => {
+                                return Err(ProviderError::Transient {
+                                    message: format!("HTTP {} — {}", status.as_u16(), error_text),
+                                });
+                            }
+                            400 | 402 | 404 | 405 | 422 => {
+                                return Err(ProviderError::Permanent {
+                                    message: format!("HTTP {} — {}", status.as_u16(), error_text),
+                                });
+                            }
+                            _ => {}
+                        }
+
+                        return Err(ProviderError::ApiError(Box::new(
+                            self.build_api_error(status, &headers, error_text, &model),
+                        )));
+                    }
+
+                    response.text().await.map_err(ProviderError::HttpError)
+                }
+            })
+            .await?;
         let response_data: ChatCompletionResponse =
             serde_json::from_str(&response_text).map_err(|error| {
                 Self::log_json_error("parse_chat_completion_response", &error, &response_text);
@@ -751,6 +837,9 @@ impl LLMProvider for LiteLLMClient {
                     .map(|s| s.to_string())
                     .or_else(|| self.default_reasoning_effort.clone()),
                 stream: true,
+                stream_options: Some(StreamOptions {
+                    include_usage: true,
+                }),
             },
         );
 
@@ -782,39 +871,73 @@ impl LLMProvider for LiteLLMClient {
                 .unwrap_or(0)
         );
 
-        let req_builder = self.apply_headers(
-            self.client
-                .post(&url)
-                .body(body_json.clone())
-                .header("Content-Type", "application/json"),
+        let retry_policy = RetryPolicy::default();
+
+        info!(
+            "Sending streaming chat request to {} with model {} (retry: max {} attempts)",
+            url,
+            resolved_model,
+            retry_policy.max_retries + 1
         );
 
-        let response = req_builder.send().await?;
+        let response = retry_policy
+            .execute_with_retry(|| {
+                let url = url.clone();
+                let body_json = body_json.clone();
+                let model = resolved_model.clone();
+                async move {
+                    let req_builder = self.apply_headers(
+                        self.client
+                            .post(&url)
+                            .body(body_json)
+                            .header("Content-Type", "application/json"),
+                    );
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let headers = response.headers().clone();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
+                    let response = req_builder.send().await?;
+                    let status = response.status();
 
-            Self::log_request_failure(
-                "chat_stream_api_request",
-                status,
-                &error_text,
-                &url,
-                &resolved_model,
-                &body_json,
-                &body,
-            );
-            return Err(ProviderError::ApiError(Box::new(self.build_api_error(
-                status,
-                &headers,
-                error_text,
-                &resolved_model,
-            ))));
-        }
+                    if !status.is_success() {
+                        let headers = response.headers().clone();
+                        let error_text = response
+                            .text()
+                            .await
+                            .unwrap_or_else(|_| "Unknown error".to_string());
+
+                        // Check for rate limiting before generic error
+                        if status == StatusCode::TOO_MANY_REQUESTS {
+                            let retry_after = Self::parse_retry_after_duration(&headers);
+                            return Err(ProviderError::RateLimited { retry_after });
+                        }
+
+                        // Classify by status code into typed error variants
+                        match status.as_u16() {
+                            401 | 403 => {
+                                return Err(ProviderError::Auth {
+                                    message: format!("HTTP {} — {}", status.as_u16(), error_text),
+                                });
+                            }
+                            500 | 502 | 503 | 504 => {
+                                return Err(ProviderError::Transient {
+                                    message: format!("HTTP {} — {}", status.as_u16(), error_text),
+                                });
+                            }
+                            400 | 402 | 404 | 405 | 422 => {
+                                return Err(ProviderError::Permanent {
+                                    message: format!("HTTP {} — {}", status.as_u16(), error_text),
+                                });
+                            }
+                            _ => {}
+                        }
+
+                        return Err(ProviderError::ApiError(Box::new(
+                            self.build_api_error(status, &headers, error_text, &model),
+                        )));
+                    }
+
+                    Ok(response)
+                }
+            })
+            .await?;
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         tokio::spawn(async move {
@@ -823,7 +946,7 @@ impl LLMProvider for LiteLLMClient {
             let mut content = String::new();
             let mut reasoning_content = String::new();
             let mut finish_reason: Option<String> = None;
-            let mut usage: Option<Usage> = None;
+            let mut usage: Option<DtoUsage> = None;
             let mut partial_calls: Vec<PartialToolCall> = Vec::new();
 
             loop {
@@ -965,21 +1088,14 @@ mod tests {
     fn test_resolve_model() {
         let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None, None);
 
-        // DeepSeek should get prefixed
-        assert_eq!(
-            client.resolve_model("deepseek-chat"),
-            "deepseek/deepseek-chat"
-        );
-
-        // Claude should not get prefixed (LiteLLM knows it)
+        // All models return raw — prefix injection is deprecated as of Wave 2
+        assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
         assert_eq!(client.resolve_model("claude-3-opus"), "claude-3-opus");
-
-        // Qwen should get prefixed
-        assert_eq!(client.resolve_model("qwen-max"), "dashscope/qwen-max");
+        assert_eq!(client.resolve_model("qwen-max"), "qwen-max");
     }
 
     #[test]
-    fn test_named_provider_non_native_base_adds_litellm_prefix() {
+    fn test_named_provider_non_native_base_keeps_raw_model_id() {
         let client = LiteLLMClient::new(
             Some("sk-or-test".to_string()),
             Some("http://localhost:4000".to_string()),
@@ -988,10 +1104,8 @@ mod tests {
             Some("openrouter".to_string()),
             None,
         );
-        assert_eq!(
-            client.resolve_model("claude-3-opus"),
-            "openrouter/claude-3-opus"
-        );
+        // As of Wave 2, prefix injection is deprecated — raw model ID
+        assert_eq!(client.resolve_model("claude-3-opus"), "claude-3-opus");
     }
 
     #[test]
@@ -1018,6 +1132,37 @@ mod tests {
             "deepseek-chat".to_string(),
             None,
             Some("deepseek".to_string()),
+            None,
+        );
+        assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
+    }
+
+    #[test]
+    fn test_anthropic_native_endpoint_sends_raw_model_id() {
+        let client = LiteLLMClient::new(
+            Some("sk-ant-test".to_string()),
+            Some("https://api.anthropic.com/v1".to_string()),
+            "claude-sonnet-4-20250514".to_string(),
+            None,
+            Some("anthropic".to_string()),
+            None,
+        );
+        assert_eq!(
+            client.resolve_model("claude-sonnet-4-20250514"),
+            "claude-sonnet-4-20250514"
+        );
+    }
+
+    #[test]
+    fn test_standard_mode_with_native_base_keeps_raw_model() {
+        // No provider_name → standard mode path
+        // But api_base matches a known provider's native endpoint → raw model ID
+        let client = LiteLLMClient::new(
+            Some("sk-test".to_string()),
+            Some("https://api.deepseek.com/v1".to_string()),
+            "deepseek-chat".to_string(),
+            None,
+            None, // No provider name → standard mode
             None,
         );
         assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
@@ -1110,7 +1255,7 @@ mod tests {
                 },
                 finish_reason: Some("tool_calls".to_string()),
             }],
-            usage: Usage::default(),
+            usage: DtoUsage::default(),
         };
         let result = client.parse_response(response).unwrap();
         assert_eq!(result.tool_calls.len(), 1);
@@ -1142,7 +1287,7 @@ mod tests {
                 },
                 finish_reason: Some("tool_calls".to_string()),
             }],
-            usage: Usage::default(),
+            usage: DtoUsage::default(),
         };
         let result = client.parse_response(response).unwrap();
         assert_eq!(result.tool_calls.len(), 1);
@@ -1171,7 +1316,7 @@ mod tests {
                 },
                 finish_reason: Some("tool_calls".to_string()),
             }],
-            usage: Usage::default(),
+            usage: DtoUsage::default(),
         };
         let result = client.parse_response(response).unwrap();
         assert_eq!(result.tool_calls.len(), 1);
@@ -1444,6 +1589,7 @@ mod tests {
                 temperature: 0.7,
                 reasoning_effort: None,
                 stream: false,
+                stream_options: None,
             },
         );
 
@@ -1487,6 +1633,7 @@ mod tests {
                 temperature: 0.7,
                 reasoning_effort: None,
                 stream: true,
+                stream_options: None,
             },
         );
 
@@ -1500,5 +1647,361 @@ mod tests {
         );
         assert!(!value.to_string().contains("image_file"));
         assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[test]
+    fn test_parse_retry_after_duration_seconds() {
+        use reqwest::header::HeaderValue;
+
+        let mut headers = HeaderMap::new();
+        headers.insert("retry-after", HeaderValue::from_static("30"));
+
+        let result = LiteLLMClient::parse_retry_after_duration(&headers);
+        assert_eq!(result, Some(Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn test_parse_retry_after_duration_no_header() {
+        let headers = HeaderMap::new();
+
+        let result = LiteLLMClient::parse_retry_after_duration(&headers);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_retry_after_duration_http_date() {
+        use reqwest::header::HeaderValue;
+
+        // Use a far-future date to ensure the duration is > 0
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "retry-after",
+            HeaderValue::from_static("Wed, 21 Oct 2099 07:28:00 GMT"),
+        );
+
+        let result = LiteLLMClient::parse_retry_after_duration(&headers);
+        // Should parse as a positive duration since 2099 is in the future
+        assert!(result.is_some());
+        assert!(result.unwrap() > Duration::from_secs(0));
+    }
+
+    #[test]
+    fn test_parse_retry_after_duration_invalid_string() {
+        use reqwest::header::HeaderValue;
+
+        let mut headers = HeaderMap::new();
+        headers.insert("retry-after", HeaderValue::from_static("not-a-number"));
+
+        let result = LiteLLMClient::parse_retry_after_duration(&headers);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_rate_limited_variant_creation() {
+        let error = ProviderError::RateLimited {
+            retry_after: Some(Duration::from_secs(30)),
+        };
+        assert_eq!(error.to_string(), "Rate limited");
+
+        let error_no_retry = ProviderError::RateLimited { retry_after: None };
+        assert_eq!(error_no_retry.to_string(), "Rate limited");
+    }
+
+    // ── Retry integration tests ──
+
+    /// Helper: create a LiteLLMClient pointed at a mockito server
+    fn mock_client(server_url: &str) -> LiteLLMClient {
+        let mut extra_headers = HashMap::new();
+        extra_headers.insert("x-litellm-api-key".to_string(), "sk-test".to_string());
+        LiteLLMClient::new(
+            Some("sk-test".to_string()),
+            Some(server_url.to_string()),
+            "gpt-4".to_string(),
+            Some(extra_headers),
+            None,
+            None,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_retry_503_twice_then_success() {
+        let mut server = mockito::Server::new_async().await;
+
+        // First two calls → 503, third → 200
+        let _mock_503_1 = server
+            .mock("POST", "/chat/completions")
+            .with_status(503)
+            .with_header("content-type", "application/json")
+            .expect(1)
+            .create_async()
+            .await;
+
+        let _mock_503_2 = server
+            .mock("POST", "/chat/completions")
+            .with_status(503)
+            .with_header("content-type", "application/json")
+            .expect(1)
+            .create_async()
+            .await;
+
+        let _mock_200 = server
+            .mock("POST", "/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "choices": [{"message": {"content": "Hello!"}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10}
+                })
+                .to_string(),
+            )
+            .expect(1)
+            .create_async()
+            .await;
+
+        let client = mock_client(&server.url());
+        let result = client
+            .chat(vec![Message::user("Hello")], None, None, 100, 0.7)
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Expected success after retries, got: {:?}",
+            result.err()
+        );
+        _mock_503_1.assert_async().await;
+        _mock_503_2.assert_async().await;
+        _mock_200.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_retry_503_exhausted() {
+        let mut server = mockito::Server::new_async().await;
+
+        // Four 503 responses (1 initial + 3 retries = 4 total, max_retries=3)
+        let _mock_503 = server
+            .mock("POST", "/chat/completions")
+            .with_status(503)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"error":{"message":"Service overloaded"}}"#)
+            .expect(4)
+            .create_async()
+            .await;
+
+        let client = mock_client(&server.url());
+        let result = client
+            .chat(vec![Message::user("Hello")], None, None, 100, 0.7)
+            .await;
+
+        assert!(result.is_err(), "Expected error after exhausting retries");
+        let err = result.unwrap_err();
+        // Should be a Transient error (503 classified as Transient)
+        assert!(
+            matches!(err, ProviderError::Transient { .. }),
+            "Expected Transient error, got: {:?}",
+            err
+        );
+        _mock_503.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_retry_429_with_retry_after() {
+        let mut server = mockito::Server::new_async().await;
+
+        // First call → 429 with Retry-After
+        let _mock_429 = server
+            .mock("POST", "/chat/completions")
+            .with_status(429)
+            .with_header("content-type", "application/json")
+            .with_header("retry-after", "1")
+            .with_body(r#"{"error":{"message":"Rate limited"}}"#)
+            .expect(1)
+            .create_async()
+            .await;
+
+        // Second call → 200
+        let _mock_200 = server
+            .mock("POST", "/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "choices": [{"message": {"content": "Here you go!"}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10}
+                })
+                .to_string(),
+            )
+            .expect(1)
+            .create_async()
+            .await;
+
+        let client = mock_client(&server.url());
+        let start = std::time::Instant::now();
+        let result = client
+            .chat(vec![Message::user("Hello")], None, None, 100, 0.7)
+            .await;
+        let elapsed = start.elapsed();
+
+        assert!(
+            result.is_ok(),
+            "Expected success after Retry-After, got: {:?}",
+            result.err()
+        );
+        // Should have waited at least ~1 second (Retry-After header value)
+        assert!(
+            elapsed >= Duration::from_millis(800),
+            "Expected at least ~1s delay for Retry-After, got {:?}",
+            elapsed
+        );
+        _mock_429.assert_async().await;
+        _mock_200.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_retry_401_not_retried() {
+        let mut server = mockito::Server::new_async().await;
+
+        // 401 should NOT be retried
+        let _mock_401 = server
+            .mock("POST", "/chat/completions")
+            .with_status(401)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"error":{"message":"Invalid API key"}}"#)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let client = mock_client(&server.url());
+        let result = client
+            .chat(vec![Message::user("Hello")], None, None, 100, 0.7)
+            .await;
+
+        assert!(result.is_err(), "Expected 401 to fail immediately");
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::Auth { .. }),
+            "Expected Auth error, got: {:?}",
+            err
+        );
+        _mock_401.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_retry_400_not_retried() {
+        let mut server = mockito::Server::new_async().await;
+
+        // 400 should NOT be retried
+        let _mock_400 = server
+            .mock("POST", "/chat/completions")
+            .with_status(400)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"error":{"message":"Bad request"}}"#)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let client = mock_client(&server.url());
+        let result = client
+            .chat(vec![Message::user("Hello")], None, None, 100, 0.7)
+            .await;
+
+        assert!(result.is_err(), "Expected 400 to fail immediately");
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::Permanent { .. }),
+            "Expected Permanent error, got: {:?}",
+            err
+        );
+        _mock_400.assert_async().await;
+    }
+
+    #[test]
+    fn test_stream_options_serialized_in_request() {
+        // Verify that stream_options.include_usage is serialized correctly
+        let mut options = crate::litellm::dto::StreamOptions {
+            include_usage: true,
+        };
+        let json = serde_json::to_value(&options).unwrap();
+        assert_eq!(json.get("include_usage").unwrap().as_bool(), Some(true));
+
+        options.include_usage = false;
+        let json = serde_json::to_value(&options).unwrap();
+        assert_eq!(json.get("include_usage").unwrap().as_bool(), Some(false));
+    }
+
+    #[test]
+    fn test_chat_completion_request_stream_options_included() {
+        // Verify ChatCompletionRequest serializes stream_options when present
+        use crate::base::Message;
+        use crate::litellm::dto::{ChatCompletionRequest, StreamOptions};
+
+        let request = ChatCompletionRequest {
+            model: "test-model".to_string(),
+            messages: vec![Message::user("Hello")],
+            tools: None,
+            tool_choice: None,
+            stream: Some(true),
+            stream_options: Some(StreamOptions {
+                include_usage: true,
+            }),
+            reasoning_effort: None,
+            max_tokens: 100,
+            temperature: 0.7,
+        };
+
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json.get("stream").unwrap().as_bool(), Some(true));
+        let so = json.get("stream_options").unwrap();
+        assert!(so.get("include_usage").unwrap().as_bool().unwrap());
+    }
+
+    #[test]
+    fn test_chat_completion_request_omits_stream_options_when_none() {
+        // Verify stream_options is NOT serialized when None
+        use crate::base::Message;
+        use crate::litellm::dto::ChatCompletionRequest;
+
+        let request = ChatCompletionRequest {
+            model: "test-model".to_string(),
+            messages: vec![Message::user("Hello")],
+            tools: None,
+            tool_choice: None,
+            stream: Some(false),
+            stream_options: None,
+            reasoning_effort: None,
+            max_tokens: 100,
+            temperature: 0.7,
+        };
+
+        let json = serde_json::to_value(&request).unwrap();
+        assert!(json.get("stream_options").is_none());
+    }
+
+    #[test]
+    fn test_stream_chunk_usage_parsed_from_final_sse() {
+        // Verify that a final SSE chunk with usage is parsed correctly
+        use crate::litellm::dto::StreamChunk;
+
+        let json = r#"{"choices":[],"usage":{"prompt_tokens":42,"completion_tokens":58,"total_tokens":100}}"#;
+
+        let chunk: StreamChunk = serde_json::from_str(json).unwrap();
+        assert!(chunk.choices.is_empty());
+        assert!(chunk.usage.is_some());
+        let usage = chunk.usage.unwrap();
+        assert_eq!(usage.prompt_tokens, 42);
+        assert_eq!(usage.completion_tokens, 58);
+        assert_eq!(usage.total_tokens, 100);
+    }
+
+    #[test]
+    fn test_stream_chunk_usage_none_when_not_present() {
+        // Verify that a chunk without usage has None usage
+        use crate::litellm::dto::StreamChunk;
+
+        let json = r#"{"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}"#;
+
+        let chunk: StreamChunk = serde_json::from_str(json).unwrap();
+        assert_eq!(chunk.choices.len(), 1);
+        assert!(chunk.usage.is_none());
     }
 }

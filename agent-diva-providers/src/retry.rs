@@ -51,8 +51,8 @@ impl RetryPolicy {
         }
 
         // Exponential backoff: base_delay * multiplier^(attempt-1)
-        let exponential = self.base_delay.as_millis() as f64
-            * self.backoff_multiplier.powi((attempt - 1) as i32);
+        let exponential =
+            self.base_delay.as_millis() as f64 * self.backoff_multiplier.powi((attempt - 1) as i32);
 
         // Add jitter: ±25% of the calculated delay
         let jitter_range = exponential * 0.25;
@@ -76,11 +76,25 @@ impl RetryPolicy {
 
     /// Check if an error is retryable.
     pub fn is_retryable(error: &ProviderError) -> bool {
+        // Delegate to ProviderError's own classification first
+        if error.is_retryable() {
+            return true;
+        }
+        // Also handle legacy ApiError and HttpError variants that haven't been
+        // reclassified into typed variants yet.
         match error {
             ProviderError::ApiError(api_error) => Self::is_retryable_api_error(api_error),
             ProviderError::HttpError(http_error) => Self::is_retryable_http_error(http_error),
-            // JSON parsing and config errors are not retryable
-            ProviderError::JsonError(_) | ProviderError::ConfigError(_) | ProviderError::InvalidResponse(_) => false,
+            // JSON parsing, config errors, invalid responses, auth, permanent,
+            // and tool schema errors are not retryable
+            ProviderError::JsonError(_)
+            | ProviderError::ConfigError(_)
+            | ProviderError::InvalidResponse(_)
+            | ProviderError::Auth { .. }
+            | ProviderError::Permanent { .. }
+            | ProviderError::ToolSchema { .. }
+            | ProviderError::RateLimited { .. }
+            | ProviderError::Transient { .. } => false,
         }
     }
 
@@ -193,6 +207,9 @@ impl RetryPolicy {
                     }
 
                     let retry_after_secs = match &error {
+                        ProviderError::RateLimited { retry_after } => {
+                            retry_after.map(|d| d.as_secs())
+                        }
                         ProviderError::ApiError(api_error) => api_error.retry_after_secs,
                         _ => None,
                     };
@@ -322,7 +339,11 @@ mod tests {
                 retry_after_secs: None,
                 request_id: None,
             }));
-            assert!(RetryPolicy::is_retryable(&error), "Expected 5{} to be retryable", status);
+            assert!(
+                RetryPolicy::is_retryable(&error),
+                "Expected 5{} to be retryable",
+                status
+            );
         }
     }
 

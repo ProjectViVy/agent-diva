@@ -149,13 +149,26 @@ impl ProviderCatalogService {
         config: &Config,
         provider_id: &str,
     ) -> Option<ProviderAccess> {
-        if let Some(provider) = config.providers.get(provider_id) {
+        let effective_name = self.resolve_config_slot_name(provider_id);
+        if let Some(provider) = config.providers.get(effective_name) {
             return Some(ProviderAccess::from_config(Some(provider)));
         }
         config
             .providers
             .get_custom(provider_id)
             .map(provider_access_from_custom)
+    }
+
+    /// Maps old individual provider names (openai, deepseek, etc.) to the
+    /// unified `openai_compatible` config slot when the provider is an
+    /// OpenAI-compatible built-in.
+    fn resolve_config_slot_name<'a>(&self, provider_id: &'a str) -> &'a str {
+        if let Some(spec) = self.registry.find_by_name(provider_id) {
+            if spec.api_type == ApiType::Openai {
+                return "openai_compatible";
+            }
+        }
+        provider_id
     }
 
     pub async fn list_provider_models(
@@ -203,9 +216,12 @@ impl ProviderCatalogService {
             return Err("model id must not be empty".to_string());
         }
 
-        if let Some(provider) = config.providers.get_mut(provider_id) {
-            push_unique(&mut provider.custom_models, trimmed);
-            return Ok(());
+        let effective_name = self.resolve_config_slot_name(provider_id);
+        if self.ensure_config_slot(config, effective_name, provider_id) {
+            if let Some(provider) = config.providers.get_mut(effective_name) {
+                push_unique(&mut provider.custom_models, trimmed);
+                return Ok(());
+            }
         }
         if let Some(provider) = config.providers.get_custom_mut(provider_id) {
             push_unique(&mut provider.models, trimmed);
@@ -215,13 +231,39 @@ impl ProviderCatalogService {
         Err(format!("Unknown provider '{provider_id}'"))
     }
 
+    /// Ensure the config slot exists for a built-in name. Returns true if
+    /// the slot exists or was just created, false if the provider is unknown.
+    fn ensure_config_slot(
+        &self,
+        config: &mut Config,
+        effective_name: &str,
+        provider_id: &str,
+    ) -> bool {
+        if config.providers.get(effective_name).is_some() {
+            return true;
+        }
+        // Auto-create the config slot entry for built-in providers
+        if self.registry.find_by_name(effective_name).is_some()
+            || self.registry.find_by_name(provider_id).is_some()
+        {
+            if effective_name == "openai_compatible" {
+                config.providers.openai_compatible = Some(ProviderConfig::default());
+            } else if effective_name == "anthropic" {
+                config.providers.anthropic = Some(ProviderConfig::default());
+            }
+            return true;
+        }
+        false
+    }
+
     pub fn remove_provider_model(
         &self,
         config: &mut Config,
         provider_id: &str,
         model_id: &str,
     ) -> Result<(), String> {
-        if let Some(provider) = config.providers.get_mut(provider_id) {
+        let effective_name = self.resolve_config_slot_name(provider_id);
+        if let Some(provider) = config.providers.get_mut(effective_name) {
             remove_value(&mut provider.custom_models, model_id);
             return Ok(());
         }
@@ -314,7 +356,8 @@ impl ProviderCatalogService {
         providers: &ProvidersConfig,
         provider_id: &str,
     ) -> Vec<String> {
-        if let Some(provider) = providers.get(provider_id) {
+        let effective = self.resolve_config_slot_name(provider_id);
+        if let Some(provider) = providers.get(effective) {
             return dedupe_models(provider.custom_models.clone());
         }
         if let Some(provider) = providers.get_custom(provider_id) {
@@ -324,7 +367,8 @@ impl ProviderCatalogService {
     }
 
     fn provider_view_from_builtin(&self, config: &Config, spec: &ProviderSpec) -> ProviderView {
-        let provider_config = config.providers.get(&spec.name);
+        let effective = self.resolve_config_slot_name(&spec.name);
+        let provider_config = config.providers.get(effective);
         let shadow_config = config.providers.get_custom(&spec.name);
         let configured = provider_config
             .map(provider_configured)
@@ -584,12 +628,26 @@ mod tests {
         service
             .add_provider_model(&mut config, "openai", "gpt-4.1-mini")
             .unwrap();
-        assert_eq!(config.providers.openai.custom_models, vec!["gpt-4.1-mini"]);
+        assert_eq!(
+            config
+                .providers
+                .openai_compatible
+                .as_ref()
+                .unwrap()
+                .custom_models,
+            vec!["gpt-4.1-mini"]
+        );
 
         service
             .remove_provider_model(&mut config, "openai", "gpt-4.1-mini")
             .unwrap();
-        assert!(config.providers.openai.custom_models.is_empty());
+        assert!(config
+            .providers
+            .openai_compatible
+            .as_ref()
+            .unwrap()
+            .custom_models
+            .is_empty());
     }
 
     #[test]

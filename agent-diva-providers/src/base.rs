@@ -1,10 +1,12 @@
 //! Base trait for LLM providers
 
+use agent_diva_core::Usage;
 use async_trait::async_trait;
 use futures::stream::{self, Stream};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::pin::Pin;
+use std::time::Duration;
 use thiserror::Error;
 
 /// Structured API error returned by an upstream provider.
@@ -50,6 +52,21 @@ pub enum ProviderError {
     #[error("API error ({status:?}): {message}", status = .0.status, message = .0.message)]
     ApiError(Box<ProviderApiError>),
 
+    #[error("Rate limited")]
+    RateLimited { retry_after: Option<Duration> },
+
+    #[error("Authentication error: {message}")]
+    Auth { message: String },
+
+    #[error("Transient error (retryable): {message}")]
+    Transient { message: String },
+
+    #[error("Permanent error: {message}")]
+    Permanent { message: String },
+
+    #[error("Tool schema error: {message}")]
+    ToolSchema { message: String },
+
     #[error("Configuration error: {0}")]
     ConfigError(String),
 }
@@ -58,6 +75,14 @@ impl ProviderError {
     /// Construct an API error when only a human-readable message is available.
     pub fn api_message(message: impl Into<String>) -> Self {
         Self::ApiError(Box::new(ProviderApiError::message(message)))
+    }
+
+    /// Whether this error is retryable.
+    ///
+    /// Returns `true` for transient errors (rate limits, server errors,
+    /// network issues) where retrying the request may succeed.
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::RateLimited { .. } | Self::Transient { .. })
     }
 }
 
@@ -135,7 +160,12 @@ pub fn provider_error_indicates_vision_unsupported(error: &ProviderError) -> boo
                     .is_some_and(message_indicates_vision_unsupported)
         }
         ProviderError::InvalidResponse(message) => message_indicates_vision_unsupported(message),
-        ProviderError::HttpError(_)
+        ProviderError::RateLimited { .. }
+        | ProviderError::Auth { .. }
+        | ProviderError::Transient { .. }
+        | ProviderError::Permanent { .. }
+        | ProviderError::ToolSchema { .. }
+        | ProviderError::HttpError(_)
         | ProviderError::JsonError(_)
         | ProviderError::ConfigError(_) => false,
     }
@@ -181,7 +211,12 @@ pub fn provider_error_indicates_context_overflow(error: &ProviderError) -> bool 
                     .is_some_and(message_indicates_context_overflow)
         }
         ProviderError::InvalidResponse(message) => message_indicates_context_overflow(message),
-        ProviderError::HttpError(_)
+        ProviderError::RateLimited { .. }
+        | ProviderError::Auth { .. }
+        | ProviderError::Transient { .. }
+        | ProviderError::Permanent { .. }
+        | ProviderError::ToolSchema { .. }
+        | ProviderError::HttpError(_)
         | ProviderError::JsonError(_)
         | ProviderError::ConfigError(_) => false,
     }
@@ -334,7 +369,7 @@ pub struct LLMResponse {
     #[serde(default = "default_finish_reason")]
     pub finish_reason: String,
     #[serde(default)]
-    pub usage: HashMap<String, i64>,
+    pub usage: Option<Usage>,
     #[serde(default)]
     pub reasoning_content: Option<String>,
 }
@@ -800,5 +835,143 @@ mod tests {
 
         assert_eq!(content.as_text(), None);
         assert_eq!(content.to_text_lossy(), "hello world");
+    }
+
+    // ── ProviderError variant classification tests ──
+
+    #[test]
+    fn provider_error_is_retryable_rate_limited() {
+        let err = ProviderError::RateLimited {
+            retry_after: Some(Duration::from_secs(5)),
+        };
+        assert!(err.is_retryable());
+    }
+
+    #[test]
+    fn provider_error_is_retryable_rate_limited_no_retry_after() {
+        let err = ProviderError::RateLimited { retry_after: None };
+        assert!(err.is_retryable());
+    }
+
+    #[test]
+    fn provider_error_is_retryable_transient() {
+        let err = ProviderError::Transient {
+            message: "HTTP 503 — Service Unavailable".to_string(),
+        };
+        assert!(err.is_retryable());
+    }
+
+    #[test]
+    fn provider_error_is_not_retryable_auth() {
+        let err = ProviderError::Auth {
+            message: "HTTP 401 — Unauthorized".to_string(),
+        };
+        assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn provider_error_is_not_retryable_permanent() {
+        let err = ProviderError::Permanent {
+            message: "HTTP 400 — Bad Request".to_string(),
+        };
+        assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn provider_error_is_not_retryable_tool_schema() {
+        let err = ProviderError::ToolSchema {
+            message: "Invalid tool parameter".to_string(),
+        };
+        assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn provider_error_is_not_retryable_config() {
+        let err = ProviderError::ConfigError("missing api key".to_string());
+        assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn provider_error_is_not_retryable_json() {
+        let err = ProviderError::JsonError(
+            serde_json::from_str::<serde_json::Value>("not json").unwrap_err(),
+        );
+        assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn provider_error_auth_displays_message() {
+        let err = ProviderError::Auth {
+            message: "Invalid API key".to_string(),
+        };
+        let display = err.to_string();
+        assert!(display.contains("Invalid API key"));
+        assert!(display.contains("Authentication"));
+    }
+
+    #[test]
+    fn provider_error_transient_displays_message() {
+        let err = ProviderError::Transient {
+            message: "Service overloaded".to_string(),
+        };
+        let display = err.to_string();
+        assert!(display.contains("Service overloaded"));
+    }
+
+    #[test]
+    fn provider_error_permanent_displays_message() {
+        let err = ProviderError::Permanent {
+            message: "Model not found".to_string(),
+        };
+        let display = err.to_string();
+        assert!(display.contains("Model not found"));
+    }
+
+    #[test]
+    fn provider_error_tool_schema_displays_message() {
+        let err = ProviderError::ToolSchema {
+            message: "Missing required parameter 'query'".to_string(),
+        };
+        let display = err.to_string();
+        assert!(display.contains("Missing required parameter"));
+    }
+
+    #[test]
+    fn provider_error_classification_auth_variants_not_considered_vision_or_context() {
+        let auth_err = ProviderError::Auth {
+            message: "image url not supported".to_string(),
+        };
+        // Auth errors should not be misclassified as vision-unsupported
+        // even if the message mentions image URLs
+        assert!(!provider_error_indicates_vision_unsupported(&auth_err));
+    }
+
+    #[test]
+    fn provider_error_classification_permanent_variants_not_considered_context() {
+        let perm_err = ProviderError::Permanent {
+            message: "maximum context length exceeded".to_string(),
+        };
+        // Permanent errors should not be misclassified as context overflow
+        // even if the message mentions context length
+        assert!(!provider_error_indicates_context_overflow(&perm_err));
+    }
+
+    #[test]
+    fn provider_error_classification_transient_does_not_match_vision_or_context() {
+        // Transient wraps 5xx/network issues; the classification helpers
+        // should not accidentally match them as vision-unsupported or context overflow.
+        let err = ProviderError::Transient {
+            message: "vision not supported".to_string(),
+        };
+        assert!(!provider_error_indicates_vision_unsupported(&err));
+        assert!(!provider_error_indicates_context_overflow(&err));
+    }
+
+    #[test]
+    fn transient_is_indeed_retryable() {
+        let err = ProviderError::Transient {
+            message: "HTTP 503".to_string(),
+        };
+        assert!(err.is_retryable());
     }
 }
