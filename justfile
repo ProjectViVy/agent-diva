@@ -145,3 +145,19 @@ build-macos-dmg:
         brew install create-dmg
     fi
     ./scripts/package-macos.sh
+
+# E2E testing commands (requires DEEPSEEK_API_KEY)
+e2e:
+    cargo test -p agent-diva-e2e -- --test-threads=1 --nocapture
+
+e2e-basic:
+    cargo test -p agent-diva-e2e -- --test-threads=1 --nocapture basic_math echo smoke
+
+e2e-tools:
+    cargo test -p agent-diva-e2e -- --test-threads=1 --nocapture tool_call
+
+e2e-advanced:
+    cargo test -p agent-diva-e2e -- --test-threads=1 --nocapture multi_turn error_handling long_response
+
+e2e-report:
+    cargo test -p agent-diva-e2e -- --test-threads=1 --nocapture 2>&1 | tee target/e2e-report.txt

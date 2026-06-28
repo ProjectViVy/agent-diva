@@ -1,0 +1,46 @@
+name: E2E Tests (Real LLM)
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'agent-diva-pro/**'
+  pull_request:
+    branches:
+      - 'main'
+      - 'agent-diva-pro/**'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.DEEPSEEK_API_KEY != '' }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      
+      - name: Run E2E tests
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: just e2e
+        working-directory: agent-diva-pro
+      
+      - name: Upload trace artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-traces
+          path: agent-diva-pro/target/e2e-traces/
+          retention-days: 7
