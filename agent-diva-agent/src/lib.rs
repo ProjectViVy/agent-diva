@@ -4,6 +4,7 @@
 
 pub mod agent_loop;
 pub mod consolidation;
+pub mod consolidation_quality;
 pub mod context;
 pub mod context_budget;
 pub(crate) mod loop_guard;
