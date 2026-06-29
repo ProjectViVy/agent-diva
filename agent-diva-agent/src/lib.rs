@@ -11,6 +11,7 @@ pub mod runtime_control;
 pub mod skills;
 pub mod subagent;
 pub mod summary_compaction;
+pub mod summary_quality;
 pub mod subagent_policy;
 pub mod tool_assembly;
 pub mod tool_config;
