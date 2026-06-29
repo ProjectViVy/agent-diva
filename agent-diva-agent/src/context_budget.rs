@@ -178,12 +178,12 @@ pub async fn compact_with_summary(
     }
 
     // Check whether LLM summary is configured and available.
-    let should_try_summary = config
-        .map(|c| c.llm_summary_enabled && engine.is_some())
+    let llm_summary_enabled = config
+        .map(|c| c.llm_summary_enabled)
         .unwrap_or(false);
 
-    if should_try_summary {
-        let engine = engine.expect("checked above");
+    if llm_summary_enabled {
+        let Some(engine) = engine else { return (messages.to_vec(), fallback_report); };
 
         let (summarize_start, summarize_end) =
             find_summarizable_range(messages, mode);
