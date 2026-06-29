@@ -35,6 +35,13 @@ pub struct Summary {
     pub source_message_range: (usize, usize),
     /// Estimated token count of this summary.
     pub token_count: u32,
+    /// IDs of source summaries that were compacted to produce this meta-summary.
+    /// Empty for regular (non-meta) summaries.
+    #[serde(default)]
+    pub source_summary_ids: Vec<String>,
+    /// Whether this summary was produced by meta-compaction.
+    #[serde(default)]
+    pub is_meta: bool,
 }
 
 impl fmt::Display for Summary {
@@ -61,6 +68,8 @@ impl fmt::Debug for Summary {
             .field("prev_summary_id", &self.prev_summary_id)
             .field("source_message_range", &self.source_message_range)
             .field("token_count", &self.token_count)
+            .field("source_summary_ids", &self.source_summary_ids)
+            .field("is_meta", &self.is_meta)
             .finish()
     }
 }
@@ -74,6 +83,9 @@ impl fmt::Debug for Summary {
 pub struct SummaryChain {
     summaries: Vec<Summary>,
     latest_id: Option<String>,
+    /// How many times meta-compaction has been applied (max 3).
+    #[serde(default)]
+    meta_depth: u32,
 }
 
 impl Default for SummaryChain {
@@ -81,6 +93,7 @@ impl Default for SummaryChain {
         Self {
             summaries: Vec::new(),
             latest_id: None,
+            meta_depth: 0,
         }
     }
 }
@@ -126,6 +139,94 @@ impl SummaryChain {
             current_id: self.latest_id.clone(),
         }
     }
+
+    /// Return the current meta-compaction depth (0 = never compacted).
+    pub fn meta_depth(&self) -> u32 {
+        self.meta_depth
+    }
+
+    /// Whether meta-compaction should be performed.
+    ///
+    /// Returns `true` when the chain has more than 10 summaries and the
+    /// meta-compaction depth has not reached its maximum of 3.
+    pub fn should_meta_compact(&self) -> bool {
+        self.depth() > 10 && self.meta_depth < 3
+    }
+
+    /// Compress all summaries in the chain into a single meta-summary.
+    ///
+    /// Collects all existing summary contents, generates a high-level
+    /// meta-summary via the LLM engine, and replaces the chain with the
+    /// new meta-summary. Original summaries are preserved by reference
+    /// in `source_summary_ids` for traceability.
+    ///
+    /// The chain's `meta_depth` is incremented on each compaction and
+    /// stops at 3 (maximum recursion depth).
+    pub async fn meta_compact(&mut self, engine: &SummaryEngine) -> Result<(), SummaryError> {
+        if !self.should_meta_compact() {
+            return Ok(());
+        }
+
+        // Collect all summary contents and IDs
+        let all_contents: Vec<String> = self
+            .summaries
+            .iter()
+            .map(|s| format!("[{}] {}", s.id, s.content))
+            .collect();
+
+        let all_ids: Vec<String> = self.summaries.iter().map(|s| s.id.clone()).collect();
+
+        // Compute the span of source messages across all summaries
+        let source_range_min = self
+            .summaries
+            .iter()
+            .map(|s| s.source_message_range.0)
+            .min()
+            .unwrap_or(0);
+        let source_range_max = self
+            .summaries
+            .iter()
+            .map(|s| s.source_message_range.1)
+            .max()
+            .unwrap_or(0);
+
+        // Build meta-summarization prompt
+        let prompt = vec![
+            Message::system(
+                "You are a helpful assistant that creates high-level meta-summaries.",
+            ),
+            Message::user(format!(
+                "Summarize these conversation summaries into a single high-level overview:\n\n{}",
+                all_contents.join("\n---\n")
+            )),
+        ];
+
+        let content = call_with_retry(&engine.provider, prompt, engine.max_retries).await?;
+        let content = content.trim().to_string();
+        if content.is_empty() {
+            return Ok(());
+        }
+
+        let token_count = ((content.chars().count() / 4).max(1) + 2) as u32;
+
+        let meta_summary = Summary {
+            id: Uuid::new_v4().to_string(),
+            content,
+            created_at: Utc::now(),
+            prev_summary_id: None,
+            source_message_range: (source_range_min, source_range_max),
+            token_count,
+            source_summary_ids: all_ids,
+            is_meta: true,
+        };
+
+        // Replace the entire chain with the single meta-summary
+        self.summaries = vec![meta_summary];
+        self.latest_id = self.summaries.last().map(|s| s.id.clone());
+        self.meta_depth += 1;
+
+        Ok(())
+    }
 }
 
 impl fmt::Display for SummaryChain {
@@ -144,6 +245,7 @@ impl fmt::Debug for SummaryChain {
         f.debug_struct("SummaryChain")
             .field("depth", &self.depth())
             .field("latest_id", &self.latest_id)
+            .field("meta_depth", &self.meta_depth)
             .finish()
     }
 }
@@ -240,6 +342,8 @@ impl SummaryEngine {
             prev_summary_id: None,
             source_message_range: (0, messages.len().saturating_sub(1)),
             token_count,
+            source_summary_ids: Vec::new(),
+            is_meta: false,
         }))
     }
 }
@@ -490,6 +594,8 @@ mod tests {
             prev_summary_id: None,
             source_message_range: range,
             token_count,
+            source_summary_ids: Vec::new(),
+            is_meta: false,
         }
     }
 
@@ -585,5 +691,149 @@ mod tests {
         let display = format!("{}", summary);
         assert!(display.contains("test-1"));
         assert!(display.contains("75"));
+    }
+
+    // ── Meta-compaction ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_should_meta_compact_below_threshold() {
+        let mut chain = SummaryChain::new();
+        for i in 0..8 {
+            chain.push(make_summary(&format!("s{i}"), 100, (i, i)));
+        }
+        // Depth 8 is not > 10
+        assert!(!chain.should_meta_compact());
+    }
+
+    #[test]
+    fn test_should_meta_compact_above_threshold() {
+        let mut chain = SummaryChain::new();
+        for i in 0..12 {
+            chain.push(make_summary(&format!("s{i}"), 100, (i, i)));
+        }
+        // Depth 12 is > 10
+        assert!(chain.should_meta_compact());
+    }
+
+    #[tokio::test]
+    async fn test_meta_compact_preserves_references() {
+        let engine = make_mock_engine(MockBehavior::Success);
+        let mut chain = SummaryChain::new();
+
+        let source_ids: Vec<String> = (0..12)
+            .map(|i| {
+                let s = make_summary(&format!("s{i}"), 100, (i, i));
+                let id = s.id.clone();
+                chain.push(s);
+                id
+            })
+            .collect();
+
+        assert_eq!(chain.depth(), 12);
+        assert!(chain.should_meta_compact());
+
+        chain.meta_compact(&engine).await.unwrap();
+
+        // Chain should now contain a single meta-summary
+        assert_eq!(chain.depth(), 1);
+        assert_eq!(chain.meta_depth(), 1);
+
+        let meta = chain.latest().unwrap();
+        assert!(meta.is_meta);
+        assert_eq!(meta.source_summary_ids.len(), 12);
+
+        // All source IDs should be referenced
+        for id in &source_ids {
+            assert!(
+                meta.source_summary_ids.contains(id),
+                "meta-summary should reference source {id}"
+            );
+        }
+
+        // source_message_range should span all summaries
+        assert_eq!(meta.source_message_range, (0, 11));
+    }
+
+    #[tokio::test]
+    async fn test_meta_compact_max_depth() {
+        let engine = make_mock_engine(MockBehavior::Success);
+        let mut chain = SummaryChain::new();
+
+        // First meta-compact (depth 1)
+        for i in 0..12 {
+            chain.push(make_summary(&format!("s{i}"), 100, (i, i)));
+        }
+        chain.meta_compact(&engine).await.unwrap();
+        assert_eq!(chain.meta_depth(), 1);
+        assert!(chain.latest().unwrap().is_meta);
+
+        // Second meta-compact (depth 2)
+        for i in 0..12 {
+            chain.push(make_summary(&format!("t{i}"), 100, (100 + i, 100 + i)));
+        }
+        chain.meta_compact(&engine).await.unwrap();
+        assert_eq!(chain.meta_depth(), 2);
+
+        // Third meta-compact (depth 3 — max)
+        for i in 0..12 {
+            chain.push(make_summary(&format!("u{i}"), 100, (200 + i, 200 + i)));
+        }
+        chain.meta_compact(&engine).await.unwrap();
+        assert_eq!(chain.meta_depth(), 3);
+        assert_eq!(chain.depth(), 1);
+
+        // Fourth should be rejected — meta_depth stays at 3
+        for i in 0..12 {
+            chain.push(make_summary(&format!("v{i}"), 100, (300 + i, 300 + i)));
+        }
+        assert!(!chain.should_meta_compact());
+        chain.meta_compact(&engine).await.unwrap();
+        assert_eq!(
+            chain.meta_depth(),
+            3,
+            "meta_depth should not exceed maximum of 3"
+        );
+        // Chain should still have all 13 summaries (1 meta + 12 regular)
+        assert_eq!(chain.depth(), 13);
+    }
+
+    #[tokio::test]
+    async fn test_meta_compact_empty_chain() {
+        let engine = make_mock_engine(MockBehavior::Success);
+        let mut chain = SummaryChain::new();
+
+        assert!(!chain.should_meta_compact());
+        chain.meta_compact(&engine).await.unwrap();
+        assert_eq!(chain.depth(), 0);
+        assert_eq!(chain.meta_depth(), 0);
+    }
+
+    #[test]
+    fn test_summary_new_fields_serde_backward_compat() {
+        // Verify that old-format JSON (without new fields) still deserializes
+        let old_json = r#"{
+            "id": "legacy-1",
+            "content": "legacy content",
+            "created_at": "2026-06-28T12:00:00Z",
+            "prev_summary_id": null,
+            "source_message_range": [0, 5],
+            "token_count": 50
+        }"#;
+
+        let summary: Summary = serde_json::from_str(old_json).unwrap();
+        assert_eq!(summary.id, "legacy-1");
+        assert!(summary.source_summary_ids.is_empty());
+        assert!(!summary.is_meta);
+    }
+
+    #[test]
+    fn test_summary_chain_new_fields_serde_backward_compat() {
+        let old_json = r#"{
+            "summaries": [],
+            "latest_id": null
+        }"#;
+
+        let chain: SummaryChain = serde_json::from_str(old_json).unwrap();
+        assert_eq!(chain.meta_depth(), 0);
     }
 }

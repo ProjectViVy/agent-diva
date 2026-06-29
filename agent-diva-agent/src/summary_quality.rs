@@ -189,6 +189,8 @@ mod tests {
             prev_summary_id: None,
             source_message_range: (0, 0),
             token_count: 100,
+            source_summary_ids: Vec::new(),
+            is_meta: false,
         }
     }
 
