@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use agent_diva_core::ErrorKind;
 use serde_json::Value;
+use std::time::Duration;
 
 /// Trait for tools.
 #[async_trait]
@@ -18,6 +19,12 @@ pub trait Tool: Send + Sync {
 
     /// Execute the tool with arguments.
     async fn execute(&self, args: Value) -> Result<String>;
+
+    /// Get the timeout duration for this tool.
+    /// Individual tools can override this to set a custom timeout.
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(60)
+    }
 
     /// Validate parameters against the schema.
     fn validate_params(&self, params: &Value) -> Vec<String> {
@@ -73,6 +80,9 @@ pub enum ToolError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("Tool timed out after {0}s")]
+    Timeout(u64),
 }
 
 pub type Result<T> = std::result::Result<T, ToolError>;
@@ -85,6 +95,7 @@ impl ToolError {
             Self::Error(_) | Self::ExecutionFailed(_) => ErrorKind::Permanent,
             Self::InvalidParams(_) | Self::InvalidArguments(_) => ErrorKind::ToolSchema,
             Self::Io(_) => ErrorKind::Transient,
+            Self::Timeout(_) => ErrorKind::Timeout,
         }
     }
 
@@ -106,6 +117,7 @@ impl ToolError {
             Self::InvalidArguments(_) => "TE-002",
             Self::ExecutionFailed(_) => "TE-003",
             Self::Io(_) => "TE-004",
+            Self::Timeout(_) => "TE-005",
         }
     }
 }
@@ -136,6 +148,10 @@ mod tests {
             ToolError::Io(std::io::Error::new(std::io::ErrorKind::Other, "io")).error_kind(),
             ErrorKind::Transient
         );
+        assert_eq!(
+            ToolError::Timeout(30).error_kind(),
+            ErrorKind::Timeout
+        );
     }
 
     #[test]
@@ -150,6 +166,8 @@ mod tests {
         assert!(!ToolError::InvalidParams("test".into()).is_retryable());
         // InvalidArguments → ToolSchema → false
         assert!(!ToolError::InvalidArguments("test".into()).is_retryable());
+        // Timeout → Timeout → true
+        assert!(ToolError::Timeout(30).is_retryable());
     }
 
     #[test]
@@ -162,5 +180,12 @@ mod tests {
             ToolError::Io(std::io::Error::new(std::io::ErrorKind::Other, "io")).error_code(),
             "TE-004"
         );
+        assert_eq!(ToolError::Timeout(30).error_code(), "TE-005");
+    }
+
+    #[test]
+    fn timeout_display() {
+        let err = ToolError::Timeout(30);
+        assert_eq!(err.to_string(), "Tool timed out after 30s");
     }
 }

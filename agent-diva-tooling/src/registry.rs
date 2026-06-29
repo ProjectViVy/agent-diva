@@ -130,23 +130,20 @@ impl ToolRegistry {
         let max_attempts = 3;
 
         for attempt in 0..max_attempts {
-            match timeout(
-                Duration::from_secs(self.timeout_secs),
-                tool.execute(params.clone()),
-            )
-            .await
-            {
+            let tool_timeout = tool.timeout();
+            match timeout(tool_timeout, tool.execute(params.clone())).await {
                 Err(_) => {
+                    let secs = tool_timeout.as_secs();
                     let params_str = serde_json::to_string(&params).unwrap_or_default();
                     let problems = find_problematic_chars(&params_str);
                     let msg = format!(
                         "Tool '{}' timed out after {} seconds",
-                        name, self.timeout_secs
+                        name, secs
                     );
                     let ctx = ErrorContext::new("tool_execution_timeout", &msg)
                         .with_content(&params_str)
                         .with_metadata("tool_name", name.to_string())
-                        .with_metadata("timeout_secs", self.timeout_secs.to_string());
+                        .with_metadata("timeout_secs", secs.to_string());
                     let ctx_str = ctx.to_detailed_string();
                     if problems.is_empty() {
                         error!("{}", ctx_str);
@@ -157,7 +154,7 @@ impl ToolRegistry {
                             problems.join("\n    - ")
                         );
                     }
-                    let err = ToolError::ExecutionFailed(msg);
+                    let err = ToolError::Timeout(secs);
                     if err.is_retryable() && attempt < max_attempts - 1 {
                         tokio::time::sleep(Duration::from_millis(retry_delays[attempt])).await;
                         continue;
@@ -268,6 +265,10 @@ mod tests {
             })
         }
 
+        fn timeout(&self) -> Duration {
+            Duration::from_millis(1)
+        }
+
         async fn execute(&self, _args: Value) -> crate::Result<String> {
             sleep(Duration::from_millis(50)).await;
             Ok("too late".to_string())
@@ -315,12 +316,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_tool_timeout_wrapped() {
-        let mut registry = ToolRegistry::with_timeout_secs(0);
+        let mut registry = ToolRegistry::new();
         registry.register(Arc::new(SlowTool));
 
         let result = registry.execute("slow", serde_json::json!({})).await;
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("timed out after 0 seconds"));
+        assert!(matches!(err, ToolError::Timeout(0)));
+        assert!(err.to_string().contains("timed out after 0s"));
     }
 
     #[tokio::test]
