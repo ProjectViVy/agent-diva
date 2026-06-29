@@ -266,11 +266,41 @@ pub fn estimate_request_tokens(messages: &[Message], tool_defs: &[serde_json::Va
     message_tokens + tool_tokens
 }
 
+/// Measurement strategy for token estimation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MeasurementStrategy {
+    /// Simple char/4 + 2 heuristic estimation.
+    CharsDiv4,
+    /// Use tiktoken-rs for accurate tokenisation (requires `tiktoken` feature).
+    #[cfg(feature = "tiktoken")]
+    Tiktoken,
+}
+
+impl Default for MeasurementStrategy {
+    fn default() -> Self {
+        #[cfg(feature = "tiktoken")]
+        { MeasurementStrategy::Tiktoken }
+        #[cfg(not(feature = "tiktoken"))]
+        { MeasurementStrategy::CharsDiv4 }
+    }
+}
+
+/// Measure the system prompt and produce a budget report.
+///
+/// `strategy` controls how the prompt is measured:
+/// - [`MeasurementStrategy::CharsDiv4`] uses the heuristic `chars/4 + 2`.
+/// - [`MeasurementStrategy::Tiktoken`] (requires `tiktoken` feature) uses
+///   `tiktoken-rs` with `cl100k_base` encoding.
 pub fn measure_system_prompt_budget(
     prompt: &str,
     policy: &ContextBudgetPolicy,
+    strategy: MeasurementStrategy,
 ) -> SystemPromptBudgetReport {
-    let estimated_tokens = estimate_text_tokens(prompt);
+    let estimated_tokens = match strategy {
+        MeasurementStrategy::CharsDiv4 => estimate_text_tokens(prompt),
+        #[cfg(feature = "tiktoken")]
+        MeasurementStrategy::Tiktoken => measure_tiktoken(prompt),
+    };
     let overflow_tokens = estimated_tokens.saturating_sub(policy.reserve_tokens);
 
     SystemPromptBudgetReport {
@@ -279,6 +309,14 @@ pub fn measure_system_prompt_budget(
         overflow_tokens,
         prompt_chars: prompt.chars().count(),
     }
+}
+
+/// Tokenize text with tiktoken-rs, falling back to heuristic on error.
+#[cfg(feature = "tiktoken")]
+fn measure_tiktoken(text: &str) -> usize {
+    tiktoken_rs::cl100k_base()
+        .map(|bpe| bpe.encode_with_special_tokens(text).len())
+        .unwrap_or_else(|_| estimate_text_tokens(text))
 }
 
 pub fn provider_error_indicates_context_overflow(error: &ProviderError) -> bool {
@@ -542,7 +580,8 @@ mod tests {
             overflow_retry_enabled: true,
         };
 
-        let report = measure_system_prompt_budget("abcd efgh ijkl", &policy);
+        let report =
+            measure_system_prompt_budget("abcd efgh ijkl", &policy, MeasurementStrategy::CharsDiv4);
 
         assert_eq!(
             report.estimated_tokens,
@@ -561,10 +600,51 @@ mod tests {
             overflow_retry_enabled: true,
         };
 
-        let report = measure_system_prompt_budget("abcdefghijklmno", &policy);
+        let report = measure_system_prompt_budget(
+            "abcdefghijklmno",
+            &policy,
+            MeasurementStrategy::CharsDiv4,
+        );
 
         assert!(report.exceeds_reserved_budget());
         assert!(report.overflow_tokens > 0);
+    }
+
+    #[test]
+    fn measurement_strategy_default_is_supported() {
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 1_000,
+            reserve_tokens: 8,
+            overflow_retry_enabled: true,
+        };
+
+        // Default strategy must never panic.
+        let report = measure_system_prompt_budget(
+            "hello world",
+            &policy,
+            MeasurementStrategy::default(),
+        );
+
+        assert!(report.estimated_tokens > 0);
+        assert_eq!(report.prompt_chars, "hello world".chars().count());
+    }
+
+    #[cfg(feature = "tiktoken")]
+    #[test]
+    fn measure_system_prompt_budget_with_tiktoken() {
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 1_000,
+            reserve_tokens: 128,
+            overflow_retry_enabled: true,
+        };
+
+        let report =
+            measure_system_prompt_budget("hello world", &policy, MeasurementStrategy::Tiktoken);
+
+        // tiktoken should produce a reasonable token count for "hello world".
+        assert!(report.estimated_tokens > 0);
+        assert!(report.estimated_tokens < 10, "expected ~2 tokens, got {}", report.estimated_tokens);
+        assert_eq!(report.prompt_chars, "hello world".chars().count());
     }
 
     // ── compact_with_summary tests ──────────────────────────────────────

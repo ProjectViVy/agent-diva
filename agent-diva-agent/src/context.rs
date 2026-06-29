@@ -1,5 +1,6 @@
 //! Context builder for assembling prompts
 
+use crate::context_budget::{measure_system_prompt_budget, ContextBudgetPolicy, MeasurementStrategy};
 use crate::skills::SkillsLoader;
 use agent_diva_core::memory::{
     MemoryManager, MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock,
@@ -40,6 +41,7 @@ pub struct ContextBuilder {
     skills_loader: SkillsLoader,
     memory_provider: Arc<dyn MemoryProvider>,
     soul_settings: SoulContextSettings,
+    budget_policy: Option<ContextBudgetPolicy>,
 }
 
 impl ContextBuilder {
@@ -52,6 +54,7 @@ impl ContextBuilder {
             skills_loader,
             memory_provider,
             soul_settings: SoulContextSettings::default(),
+            budget_policy: None,
         }
     }
 
@@ -64,6 +67,7 @@ impl ContextBuilder {
             skills_loader,
             memory_provider,
             soul_settings: SoulContextSettings::default(),
+            budget_policy: None,
         }
     }
 
@@ -76,6 +80,12 @@ impl ContextBuilder {
     /// Override soul context settings.
     pub fn set_soul_settings(&mut self, settings: SoulContextSettings) {
         self.soul_settings = settings;
+    }
+
+    /// Set the budget policy for system prompt measurement.
+    pub fn with_budget_policy(mut self, policy: ContextBudgetPolicy) -> Self {
+        self.budget_policy = Some(policy);
+        self
     }
 
     /// Build system prompt from workspace files and memory
@@ -158,6 +168,20 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
             "\nWhen remembering something, write to {}/memory/MEMORY.md",
             workspace_path
         ));
+
+        // Log warning if system prompt exceeds reserved budget
+        if let Some(policy) = &self.budget_policy {
+            let report =
+                measure_system_prompt_budget(&prompt, policy, MeasurementStrategy::default());
+            if report.exceeds_reserved_budget() {
+                tracing::warn!(
+                    estimated_tokens = report.estimated_tokens,
+                    reserve_tokens = report.reserve_tokens,
+                    overflow_tokens = report.overflow_tokens,
+                    "system prompt exceeds reserved budget"
+                );
+            }
+        }
 
         prompt
     }

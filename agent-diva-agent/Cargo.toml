@@ -9,6 +9,9 @@ repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Agent logic for agent-diva"
 readme = "README.md"
 
+[features]
+tiktoken = ["tiktoken-rs"]
+
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
 agent-diva-files = { path = "../agent-diva-files", version = "0.5.0" }
@@ -41,6 +44,7 @@ regex = { workspace = true }
 uuid = { workspace = true }
 which = { workspace = true }
 dirs = { workspace = true }
+tiktoken-rs = { version = "0.6", optional = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

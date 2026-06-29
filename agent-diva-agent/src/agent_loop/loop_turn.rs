@@ -4,7 +4,9 @@ use super::loop_guard::{
 };
 use super::AgentLoop;
 use crate::consolidation;
-use crate::context_budget::{measure_system_prompt_budget, CompactionMode};
+use crate::context_budget::{
+    measure_system_prompt_budget, CompactionMode, MeasurementStrategy,
+};
 use agent_diva_core::attachment::FileAttachmentRef;
 use agent_diva_core::bus::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::debug::DebugEvent;
@@ -13,6 +15,7 @@ use agent_diva_core::security::{detect_injection, redact_pii, PiiKind, PiiMatch}
 use agent_diva_core::session::ChatMessage;
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::trace::{TraceEvent, TraceId};
+use agent_diva_core::Usage;
 use agent_diva_files::FileManager;
 use agent_diva_providers::{
     provider_error_indicates_vision_unsupported, ImageFile, ImageUrl, LLMResponse, LLMStreamEvent,
@@ -128,7 +131,11 @@ impl AgentLoop {
             .and_then(|message| message.content.as_text())
         {
             let system_prompt_budget =
-                measure_system_prompt_budget(system_prompt, &self.context_budget);
+                measure_system_prompt_budget(
+                    system_prompt,
+                    &self.context_budget,
+                    MeasurementStrategy::default(),
+                );
             trace!(
                 trace_id = %trace_id,
                 step_name = "system_prompt_budget_measured",
@@ -565,7 +572,7 @@ impl AgentLoop {
                         },
                         tool_calls: Vec::new(),
                         finish_reason: "stop".to_string(),
-                        usage: std::collections::HashMap::new(),
+                        usage: None,
                         reasoning_content: if streamed_reasoning.is_empty() {
                             None
                         } else {
@@ -627,7 +634,7 @@ impl AgentLoop {
                 phase: "provider_response".to_string(),
                 llm_decision: decision_type.to_string(),
             });
-            if let Some(token_event) = token_event_from_usage(&response.usage, &model_to_use) {
+            if let Some(token_event) = token_event_from_usage(response.usage.as_ref(), &model_to_use) {
                 let _ = self.bus.emit(token_event);
             }
 
@@ -1484,7 +1491,7 @@ fn changed_soul_file(
     if result.starts_with("Error") || result.starts_with("Warning") {
         return None;
     }
-    if tool_name != "write_file" && tool_name != "edit_file" {
+    if tool_name != "write_file" && tool_name != "edit_file" && tool_name != "patch" {
         return None;
     }
 
@@ -1689,18 +1696,16 @@ fn derive_prefetch_intent(message: &str) -> String {
     }
 }
 
-fn token_event_from_usage(usage: &HashMap<String, i64>, model: &str) -> Option<AgentBusEvent> {
-    let prompt = *usage.get("prompt_tokens").unwrap_or(&0);
-    let completion = *usage.get("completion_tokens").unwrap_or(&0);
-    let total = *usage.get("total_tokens").unwrap_or(&0);
-    if prompt == 0 && completion == 0 && total == 0 {
+fn token_event_from_usage(usage: Option<&Usage>, model: &str) -> Option<AgentBusEvent> {
+    let u = usage?;
+    if u.is_empty() {
         return None;
     }
 
     Some(AgentBusEvent::TokenUsed {
-        prompt,
-        completion,
-        total,
+        prompt: u.prompt_tokens,
+        completion: u.completion_tokens,
+        total: u.total_tokens,
         model: model.to_string(),
     })
 }
@@ -1798,6 +1803,10 @@ mod tests {
         )]);
         assert_eq!(
             changed_soul_file("edit_file", &args, "Successfully edited"),
+            Some("IDENTITY.md")
+        );
+        assert_eq!(
+            changed_soul_file("patch", &args, "Successfully patched"),
             Some("IDENTITY.md")
         );
     }
