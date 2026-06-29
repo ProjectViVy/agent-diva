@@ -1,3 +1,5 @@
+use crate::summary_compaction::{SummaryChain, SummaryEngine};
+use crate::summary_quality::SummaryQualityGate;
 use agent_diva_providers::{
     provider_error_indicates_context_overflow as provider_context_overflow, Message,
     MessageContent, MessageContentPart, ProviderError,
@@ -66,6 +68,32 @@ impl SystemPromptBudgetReport {
     }
 }
 
+/// Configuration for LLM-based summary compaction.
+///
+/// Controls whether `compact_with_summary` attempts to summarise older
+/// conversation history using an LLM before falling back to message
+/// truncation.
+#[derive(Debug, Clone)]
+pub struct SummaryCompactionConfig {
+    /// Whether LLM-based summary compaction is enabled.
+    pub llm_summary_enabled: bool,
+    /// Minimum quality threshold (0.0 – 1.0) for accepting a summary.
+    /// Only used when a [`SummaryQualityGate`] is also provided.
+    pub quality_threshold: f64,
+    /// Maximum number of retries for summary generation.
+    pub max_retries: u32,
+}
+
+impl Default for SummaryCompactionConfig {
+    fn default() -> Self {
+        Self {
+            llm_summary_enabled: true,
+            quality_threshold: 0.6,
+            max_retries: 2,
+        }
+    }
+}
+
 pub fn compact_messages_to_budget(
     messages: &[Message],
     tool_defs: &[serde_json::Value],
@@ -110,6 +138,126 @@ pub fn compact_messages_to_budget(
             truncated_tool_messages,
         },
     )
+}
+
+/// Compact messages using LLM summarization before falling back to truncation.
+///
+/// When LLM summary compaction is enabled and a [`SummaryEngine`] is provided,
+/// this function attempts to replace older conversation history with a
+/// concise LLM-generated summary. If the optional [`SummaryQualityGate`] is
+/// given, the summary is validated before it is accepted.
+///
+/// On LLM failure, empty results, quality rejection, or when summarization
+/// alone does not bring the message list within budget, the function falls
+/// back to the standard [`compact_messages_to_budget`] truncation strategy.
+pub async fn compact_with_summary(
+    messages: &[Message],
+    tool_defs: &[serde_json::Value],
+    policy: &ContextBudgetPolicy,
+    mode: CompactionMode,
+    config: Option<&SummaryCompactionConfig>,
+    engine: Option<&SummaryEngine>,
+    quality_gate: Option<&SummaryQualityGate>,
+) -> (Vec<Message>, ContextBudgetReport) {
+    let estimated_tokens_before = estimate_request_tokens(messages, tool_defs);
+    let available = policy.available_context_tokens();
+
+    // No compaction needed at all.
+    if estimated_tokens_before <= available {
+        return (
+            messages.to_vec(),
+            ContextBudgetReport {
+                mode,
+                estimated_tokens_before,
+                estimated_tokens_after: estimated_tokens_before,
+                available_context_tokens: available,
+                removed_history_messages: 0,
+                truncated_tool_messages: 0,
+            },
+        );
+    }
+
+    // Check whether LLM summary is configured and available.
+    let should_try_summary = config
+        .map(|c| c.llm_summary_enabled && engine.is_some())
+        .unwrap_or(false);
+
+    if should_try_summary {
+        let engine = engine.expect("checked above");
+
+        let (summarize_start, summarize_end) =
+            find_summarizable_range(messages, mode);
+
+        if summarize_start < summarize_end {
+            let to_summarize = &messages[summarize_start..summarize_end];
+
+            match engine.summarize(to_summarize).await {
+                Ok(Some(summary)) => {
+                    // Quality gate check.
+                    let quality_ok = quality_gate
+                        .map(|gate| gate.evaluate(&summary, to_summarize).passed)
+                        .unwrap_or(true);
+
+                    if quality_ok {
+                        let mut compacted =
+                            Vec::with_capacity(2 + messages.len() - summarize_end);
+                        compacted.push(messages[0].clone()); // system
+                        compacted.push(Message::user(format!(
+                            "[Summary of previous context]: {}",
+                            summary.content
+                        )));
+                        compacted.extend_from_slice(&messages[summarize_end..]);
+
+                        let estimated_after =
+                            estimate_request_tokens(&compacted, tool_defs);
+
+                        if estimated_after <= available {
+                            return (
+                                compacted,
+                                ContextBudgetReport {
+                                    mode,
+                                    estimated_tokens_before,
+                                    estimated_tokens_after: estimated_after,
+                                    available_context_tokens: available,
+                                    removed_history_messages: 0,
+                                    truncated_tool_messages: 0,
+                                },
+                            );
+                        }
+                    }
+                }
+                Ok(None) | Err(_) => {
+                    // Fall through to truncation fallback.
+                }
+            }
+        }
+    }
+
+    // Fall back to standard truncation.
+    compact_messages_to_budget(messages, tool_defs, policy, mode)
+}
+
+/// Determine the range `(start, end)` of messages that are safe to
+/// summarise (excludes the system message and a protected tail of recent
+/// messages).
+fn find_summarizable_range(messages: &[Message], mode: CompactionMode) -> (usize, usize) {
+    if messages.len() <= 3 {
+        return (0, 0);
+    }
+
+    let protected_tail = match mode {
+        CompactionMode::Normal => 3,
+        CompactionMode::OverflowRecovery => 1,
+    };
+
+    // End index (exclusive): leave `protected_tail` + the last message
+    // untouched.
+    let end = messages.len().saturating_sub(1 + protected_tail);
+    if end > 1 {
+        (1, end)
+    } else {
+        (0, 0)
+    }
 }
 
 pub fn estimate_request_tokens(messages: &[Message], tool_defs: &[serde_json::Value]) -> usize {
@@ -417,5 +565,271 @@ mod tests {
 
         assert!(report.exceeds_reserved_budget());
         assert!(report.overflow_tokens > 0);
+    }
+
+    // ── compact_with_summary tests ──────────────────────────────────────
+
+    use crate::summary_compaction::SummaryEngine;
+    use agent_diva_providers::{LLMProvider, LLMResponse, ProviderResult};
+    use async_trait::async_trait;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+
+    /// A minimal [`LLMProvider`] for testing summary compaction.
+    struct MockSummaryProvider {
+        succeed: bool,
+        call_count: AtomicU32,
+    }
+
+    #[async_trait]
+    impl LLMProvider for MockSummaryProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            if self.succeed {
+                Ok(LLMResponse {
+                    content: Some(
+                        "Summary: discussed important keywords like conversation and context"
+                            .to_string(),
+                    ),
+                    tool_calls: vec![],
+                    finish_reason: "stop".to_string(),
+                    usage: None,
+                    reasoning_content: None,
+                })
+            } else {
+                Err(ProviderError::Permanent {
+                    message: "mock provider failure".to_string(),
+                })
+            }
+        }
+
+        fn get_default_model(&self) -> String {
+            "mock".to_string()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compact_with_summary_succeeds() {
+        let engine = SummaryEngine::new(Arc::new(MockSummaryProvider {
+            succeed: true,
+            call_count: AtomicU32::new(0),
+        }));
+
+        // 8 messages: range (1, 4) summarizable → summarized to 6 messages.
+        let messages = vec![
+            Message::system("sys"),
+            Message::user("old message with lots of verbose text about important topics"),
+            Message::assistant("old response discussing key points with extra detail"),
+            Message::user("another old verbose message with lengthy conversation"),
+            Message::assistant("more recent response discussing things"),
+            Message::user("current user query"),
+            Message::assistant("current assistant reply"),
+            Message::user("latest message at the end"),
+        ];
+
+        // Budget just tight enough that original overflows but summary fits.
+        // Original estimate ~179 tokens, available = 170 → compaction needed.
+        // After summary: ~135 tokens, 135 < 170 → fits.
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 200,
+            reserve_tokens: 30,
+            overflow_retry_enabled: true,
+        };
+
+        let config = SummaryCompactionConfig::default();
+
+        let (compacted, report) = compact_with_summary(
+            &messages,
+            &[],
+            &policy,
+            CompactionMode::Normal,
+            Some(&config),
+            Some(&engine),
+            None,
+        )
+        .await;
+
+        // Should have used summary path: no truncation happened.
+        assert_eq!(
+            report.removed_history_messages, 0,
+            "summary path should not report removed messages"
+        );
+        // The summary message should be present in the output.
+        assert!(
+            compacted.iter().any(|m| m
+                .content
+                .as_text()
+                .map_or(false, |t| t.contains("Summary"))),
+            "compacted messages should contain the summary text"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compact_fallback_on_llm_failure() {
+        let engine = SummaryEngine::new(Arc::new(MockSummaryProvider {
+            succeed: false,
+            call_count: AtomicU32::new(0),
+        }));
+
+        // 6 messages: range (1, 2) summarizable → fails → falls back.
+        let messages = vec![
+            Message::system("sys"),
+            Message::user("old verbose message that takes up lots of tokens to overflow easily"),
+            Message::assistant("old detailed response with extra explanations and content"),
+            Message::user("another verbose user message with plenty of detail"),
+            Message::assistant("detailed response with additional content"),
+            Message::user("current user message"),
+        ];
+
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 40,
+            reserve_tokens: 10,
+            overflow_retry_enabled: true,
+        };
+
+        let config = SummaryCompactionConfig::default();
+
+        let (compacted, report) = compact_with_summary(
+            &messages,
+            &[],
+            &policy,
+            CompactionMode::Normal,
+            Some(&config),
+            Some(&engine),
+            None,
+        )
+        .await;
+
+        // Should have fallen back to truncation.
+        assert!(
+            report.removed_history_messages > 0,
+            "fallback should truncate messages"
+        );
+        assert_eq!(
+            compacted.last().unwrap().content.as_text(),
+            Some("current user message")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compact_with_summary_no_config_falls_back() {
+        let engine = SummaryEngine::new(Arc::new(MockSummaryProvider {
+            succeed: true,
+            call_count: AtomicU32::new(0),
+        }));
+
+        // 6 messages so Normal-mode truncation can actually remove items.
+        let messages = vec![
+            Message::system("sys"),
+            Message::user("old verbose message that uses many tokens"),
+            Message::assistant("old response with detailed explanation"),
+            Message::user("another verbose message with lots of content"),
+            Message::assistant("detailed response with extra info"),
+            Message::user("current user message"),
+        ];
+
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 40,
+            reserve_tokens: 10,
+            overflow_retry_enabled: true,
+        };
+
+        // Passing None for config should skip summary and fall back.
+        let (_compacted, report) = compact_with_summary(
+            &messages,
+            &[],
+            &policy,
+            CompactionMode::Normal,
+            None,
+            Some(&engine),
+            None,
+        )
+        .await;
+
+        assert!(
+            report.removed_history_messages > 0,
+            "no config should fall back to truncation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compact_with_summary_no_engine_falls_back() {
+        // 6 messages so Normal-mode truncation can actually remove items.
+        let messages = vec![
+            Message::system("sys"),
+            Message::user("old verbose message that uses many tokens"),
+            Message::assistant("old response with detailed explanation"),
+            Message::user("another verbose message with lots of content"),
+            Message::assistant("detailed response with extra info"),
+            Message::user("current user message"),
+        ];
+
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 40,
+            reserve_tokens: 10,
+            overflow_retry_enabled: true,
+        };
+
+        let config = SummaryCompactionConfig::default();
+
+        let (_compacted, report) = compact_with_summary(
+            &messages,
+            &[],
+            &policy,
+            CompactionMode::Normal,
+            Some(&config),
+            None, // no engine
+            None,
+        )
+        .await;
+
+        assert!(
+            report.removed_history_messages > 0,
+            "no engine should fall back to truncation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compact_with_summary_no_compaction_needed() {
+        let engine = SummaryEngine::new(Arc::new(MockSummaryProvider {
+            succeed: true,
+            call_count: AtomicU32::new(0),
+        }));
+
+        let messages = vec![
+            Message::system("system"),
+            Message::user("hi"),
+            Message::assistant("hello"),
+        ];
+
+        let policy = ContextBudgetPolicy {
+            context_budget_tokens: 10_000,
+            reserve_tokens: 1_000,
+            overflow_retry_enabled: true,
+        };
+
+        let config = SummaryCompactionConfig::default();
+
+        let (compacted, report) = compact_with_summary(
+            &messages,
+            &[],
+            &policy,
+            CompactionMode::Normal,
+            Some(&config),
+            Some(&engine),
+            None,
+        )
+        .await;
+
+        // No compaction needed.
+        assert_eq!(report.removed_history_messages, 0);
+        assert_eq!(compacted.len(), messages.len());
     }
 }

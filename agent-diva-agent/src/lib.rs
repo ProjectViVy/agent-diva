@@ -18,7 +18,7 @@ pub mod tool_config;
 
 pub use agent_diva_core::bus::AgentEvent;
 pub use agent_loop::{AgentLoop, AgentLoopToolSet, ToolConfig};
-pub use context_budget::ContextBudgetPolicy;
+pub use context_budget::{compact_with_summary, ContextBudgetPolicy, SummaryCompactionConfig};
 pub use runtime_control::RuntimeControlCommand;
 pub use subagent::SubagentResult;
 pub use subagent_policy::SubagentPolicy;
