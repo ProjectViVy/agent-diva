@@ -4,6 +4,7 @@ use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 /// Callback function type for spawning subagents
 type SpawnCallback = Arc<
@@ -26,6 +27,7 @@ pub struct SpawnTool {
     spawn_callback: SpawnCallback,
     origin_channel: Arc<tokio::sync::RwLock<String>>,
     origin_chat_id: Arc<tokio::sync::RwLock<String>>,
+    semaphore: Arc<Semaphore>,
 }
 
 impl SpawnTool {
@@ -41,7 +43,29 @@ impl SpawnTool {
             }),
             origin_channel: Arc::new(tokio::sync::RwLock::new("cli".to_string())),
             origin_chat_id: Arc::new(tokio::sync::RwLock::new("direct".to_string())),
+            semaphore: Arc::new(Semaphore::new(usize::MAX)),
         }
+    }
+
+    /// Create a new spawn tool with a callback and a concurrency limit.
+    pub fn new_with_concurrency<F, Fut>(spawn_fn: F, max_concurrent: usize) -> Self
+    where
+        F: Fn(String, Option<String>, String, String) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = std::result::Result<String, ToolError>> + Send + 'static,
+    {
+        Self {
+            spawn_callback: Arc::new(move |task, label, channel, chat_id| {
+                Box::pin(spawn_fn(task, label, channel, chat_id))
+            }),
+            origin_channel: Arc::new(tokio::sync::RwLock::new("cli".to_string())),
+            origin_chat_id: Arc::new(tokio::sync::RwLock::new("direct".to_string())),
+            semaphore: Arc::new(Semaphore::new(max_concurrent)),
+        }
+    }
+
+    /// Return the maximum number of concurrent subagent spawns permitted.
+    pub fn max_concurrent(&self) -> usize {
+        self.semaphore.available_permits()
     }
 
     /// Set the origin context for subagent announcements
@@ -95,7 +119,13 @@ impl Tool for SpawnTool {
         let channel = self.origin_channel.read().await.clone();
         let chat_id = self.origin_chat_id.read().await.clone();
 
-        (self.spawn_callback)(task, label, channel, chat_id).await
+        // Acquire a semaphore permit to limit concurrency
+        let _permit = self.semaphore.acquire().await.map_err(|e| {
+            ToolError::ExecutionFailed(format!("Failed to acquire spawn permit: {}", e))
+        })?;
+
+        let result = (self.spawn_callback)(task, label, channel, chat_id).await?;
+        Ok(json!({"status": "completed", "summary": result}).to_string())
     }
 }
 
@@ -134,10 +164,11 @@ mod tests {
         });
 
         let result = tool.execute(args).await.unwrap();
-        assert!(result.contains("Spawned: Test task"));
-        assert!(result.contains("label: Some(\"test\")"));
-        assert!(result.contains("channel: cli"));
-        assert!(result.contains("chat_id: direct"));
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["status"], "completed");
+        let summary = parsed["summary"].as_str().unwrap();
+        assert!(summary.contains("Spawned: Test task"));
+        assert!(summary.contains("label: Some(\"test\")"));
     }
 
     #[tokio::test]
@@ -151,8 +182,11 @@ mod tests {
         });
 
         let result = tool.execute(args).await.unwrap();
-        assert!(result.contains("Task: Another task"));
-        assert!(result.contains("Label: None"));
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["status"], "completed");
+        let summary = parsed["summary"].as_str().unwrap();
+        assert!(summary.contains("Task: Another task"));
+        assert!(summary.contains("Label: None"));
     }
 
     #[tokio::test]
@@ -169,8 +203,11 @@ mod tests {
         });
 
         let result = tool.execute(args).await.unwrap();
-        assert!(result.contains("Channel: telegram"));
-        assert!(result.contains("Chat: 12345"));
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["status"], "completed");
+        let summary = parsed["summary"].as_str().unwrap();
+        assert!(summary.contains("Channel: telegram"));
+        assert!(summary.contains("Chat: 12345"));
     }
 
     #[tokio::test]

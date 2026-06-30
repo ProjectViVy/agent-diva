@@ -123,7 +123,7 @@ impl LoopGuard {
 }
 
 pub(crate) fn is_tool_error_result(result: &str) -> bool {
-    result.starts_with("Error")
+    result.starts_with("Error") || result.contains("MCP Error:")
 }
 
 pub(crate) fn fingerprint_tool_call(tool_name: &str, arguments: &Value) -> String {

@@ -61,6 +61,9 @@ pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         cron: config.tools.builtin.cron,
         mcp: config.tools.builtin.mcp,
         attachment: config.tools.builtin.attachment,
+        search_files: true,
+        code_execution: config.tools.builtin.code_execution,
+        delegate: config.tools.builtin.delegate,
     }
 }
 

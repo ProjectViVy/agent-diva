@@ -183,7 +183,9 @@ pub async fn compact_with_summary(
         .unwrap_or(false);
 
     if llm_summary_enabled {
-        let Some(engine) = engine else { return (messages.to_vec(), fallback_report); };
+        let Some(engine) = engine else {
+            return compact_messages_to_budget(messages, tool_defs, policy, mode);
+        };
 
         let (summarize_start, summarize_end) =
             find_summarizable_range(messages, mode);

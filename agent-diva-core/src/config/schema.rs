@@ -1149,6 +1149,8 @@ pub struct SubagentToolsConfig {
     pub allow_web_search: bool,
     #[serde(default)]
     pub allow_mcp: bool,
+    #[serde(default)]
+    pub allow_delegate: bool,
 }
 
 fn default_subagent_max_concurrent() -> usize {
@@ -1174,6 +1176,7 @@ impl Default for SubagentToolsConfig {
             allow_web_fetch: false,
             allow_web_search: false,
             allow_mcp: false,
+            allow_delegate: false,
         }
     }
 }
@@ -1196,6 +1199,12 @@ pub struct BuiltInToolsConfig {
     pub mcp: bool,
     #[serde(default = "default_enabled")]
     pub attachment: bool,
+    #[serde(default = "default_enabled")]
+    pub search_files: bool,
+    #[serde(default = "default_enabled")]
+    pub code_execution: bool,
+    #[serde(default = "default_enabled")]
+    pub delegate: bool,
 }
 
 impl Default for BuiltInToolsConfig {
@@ -1209,6 +1218,9 @@ impl Default for BuiltInToolsConfig {
             cron: false,
             mcp: true,
             attachment: true,
+            search_files: true,
+            code_execution: true,
+            delegate: true,
         }
     }
 }

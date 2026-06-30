@@ -67,7 +67,7 @@ pub struct NeuronResponse {
     pub finish_reason: String,
     /// Usage metrics as reported by provider.
     #[serde(default)]
-    pub usage: HashMap<String, i64>,
+    pub usage: Option<agent_diva_providers::Usage>,
     /// Future-proof metadata for graph executors.
     #[serde(default)]
     pub metadata: HashMap<String, serde_json::Value>,

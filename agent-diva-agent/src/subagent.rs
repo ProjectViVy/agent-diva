@@ -440,8 +440,16 @@ impl SubagentManager {
             };
 
             // Accumulate token usage from each iteration
-            for (key, value) in &response.usage {
-                *accumulated_usage.entry(key.clone()).or_insert(0) += value;
+            if let Some(usage) = &response.usage {
+                *accumulated_usage
+                    .entry("prompt_tokens".to_string())
+                    .or_insert(0) += usage.prompt_tokens;
+                *accumulated_usage
+                    .entry("completion_tokens".to_string())
+                    .or_insert(0) += usage.completion_tokens;
+                *accumulated_usage
+                    .entry("total_tokens".to_string())
+                    .or_insert(0) += usage.total_tokens;
             }
 
             if response.has_tool_calls() {

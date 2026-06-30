@@ -35,6 +35,10 @@ pub enum HotReloadableField {
     LogLevel,
     /// Default tool execution timeout in seconds.
     ToolTimeout,
+    /// MCP server configuration.
+    McpServers,
+    /// MCP manager configuration.
+    McpManager,
 }
 
 impl HotReloadableField {
@@ -46,6 +50,8 @@ impl HotReloadableField {
             Self::PresenceThresholds,
             Self::LogLevel,
             Self::ToolTimeout,
+            Self::McpServers,
+            Self::McpManager,
         ])
     }
 
@@ -57,6 +63,8 @@ impl HotReloadableField {
             Self::PresenceThresholds => "presence_thresholds",
             Self::LogLevel => "log_level",
             Self::ToolTimeout => "tool_timeout",
+            Self::McpServers => "mcp_servers",
+            Self::McpManager => "mcp_manager",
         }
     }
 }
@@ -424,7 +432,9 @@ mod tests {
         assert!(all.contains(&HotReloadableField::PresenceThresholds));
         assert!(all.contains(&HotReloadableField::LogLevel));
         assert!(all.contains(&HotReloadableField::ToolTimeout));
-        assert_eq!(all.len(), 5);
+        assert!(all.contains(&HotReloadableField::McpServers));
+        assert!(all.contains(&HotReloadableField::McpManager));
+        assert_eq!(all.len(), 7);
     }
 
     #[test]
@@ -432,6 +442,8 @@ mod tests {
         assert_eq!(HotReloadableField::PiiRules.as_str(), "pii_rules");
         assert_eq!(HotReloadableField::LogLevel.as_str(), "log_level");
         assert_eq!(HotReloadableField::ToolTimeout.as_str(), "tool_timeout");
+        assert_eq!(HotReloadableField::McpServers.as_str(), "mcp_servers");
+        assert_eq!(HotReloadableField::McpManager.as_str(), "mcp_manager");
     }
 
     #[test]

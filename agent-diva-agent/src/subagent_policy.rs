@@ -13,6 +13,7 @@ pub struct SubagentPolicy {
     pub allow_web_fetch: bool,
     pub allow_web_search: bool,
     pub allow_mcp: bool,
+    pub allow_delegate: bool,
 }
 
 impl Default for SubagentPolicy {
@@ -32,6 +33,7 @@ impl From<SubagentToolsConfig> for SubagentPolicy {
             allow_web_fetch: value.allow_web_fetch,
             allow_web_search: value.allow_web_search,
             allow_mcp: value.allow_mcp,
+            allow_delegate: value.allow_delegate,
         }
     }
 }

@@ -627,21 +627,62 @@ impl ConfigMigrator {
                 mattermost: MattermostConfig::default(),
                 nextcloud_talk: NextcloudTalkConfig::default(),
             },
-            providers: ProvidersConfig {
-                anthropic: self.convert_provider(&py.providers.anthropic),
-                openai: self.convert_provider(&py.providers.openai),
-                openrouter: self.convert_provider(&py.providers.openrouter),
-                deepseek: self.convert_provider(&py.providers.deepseek),
-                groq: self.convert_provider(&py.providers.groq),
-                zhipu: self.convert_provider(&py.providers.zhipu),
-                dashscope: self.convert_provider(&py.providers.dashscope),
-                vllm: self.convert_provider(&py.providers.vllm),
-                gemini: self.convert_provider(&py.providers.gemini),
-                moonshot: self.convert_provider(&py.providers.moonshot),
-                minimax: self.convert_provider(&py.providers.minimax),
-                aihubmix: self.convert_provider(&py.providers.aihubmix),
-                custom: ProviderConfig::default(),
-                custom_providers: HashMap::new(),
+            providers: {
+                let mut custom_providers: HashMap<String, CustomProviderConfig> = HashMap::new();
+                // Map all old provider slots to openai_compatible (first configured) or custom_providers
+                let anthropic_cfg = self.convert_provider(&py.providers.anthropic);
+                let openai_cfg = self.convert_provider(&py.providers.openai);
+                let openrouter_cfg = self.convert_provider(&py.providers.openrouter);
+                let deepseek_cfg = self.convert_provider(&py.providers.deepseek);
+                let groq_cfg = self.convert_provider(&py.providers.groq);
+                let zhipu_cfg = self.convert_provider(&py.providers.zhipu);
+                let dashscope_cfg = self.convert_provider(&py.providers.dashscope);
+                let vllm_cfg = self.convert_provider(&py.providers.vllm);
+                let gemini_cfg = self.convert_provider(&py.providers.gemini);
+                let moonshot_cfg = self.convert_provider(&py.providers.moonshot);
+                let minimax_cfg = self.convert_provider(&py.providers.minimax);
+                let aihubmix_cfg = self.convert_provider(&py.providers.aihubmix);
+
+                // Helper to convert ProviderConfig to Option, returning None for empty configs
+                let maybe_cfg = |c: ProviderConfig| -> Option<ProviderConfig> {
+                    if c.api_key.is_empty() && c.api_base.is_none() { None } else { Some(c) }
+                };
+                let openai_compatible = [&openai_cfg, &openrouter_cfg, &deepseek_cfg, &groq_cfg,
+                    &zhipu_cfg, &dashscope_cfg, &vllm_cfg, &gemini_cfg, &moonshot_cfg, &minimax_cfg, &aihubmix_cfg]
+                    .into_iter()
+                    .find(|c| !c.api_key.is_empty() || c.api_base.is_some())
+                    .cloned();
+
+                // Add all configured OpenAI-compatible providers to custom_providers
+                let provider_pairs: Vec<(&str, ProviderConfig)> = vec![
+                    ("openai", openai_cfg),
+                    ("openrouter", openrouter_cfg),
+                    ("deepseek", deepseek_cfg),
+                    ("groq", groq_cfg),
+                    ("zhipu", zhipu_cfg),
+                    ("dashscope", dashscope_cfg),
+                    ("vllm", vllm_cfg),
+                    ("gemini", gemini_cfg),
+                    ("moonshot", moonshot_cfg),
+                    ("minimax", minimax_cfg),
+                    ("aihubmix", aihubmix_cfg),
+                ];
+                for (name, cfg) in provider_pairs {
+                    if !cfg.api_key.is_empty() || cfg.api_base.is_some() {
+                        custom_providers.insert(name.to_string(), CustomProviderConfig {
+                            api_key: cfg.api_key.clone(),
+                            api_base: cfg.api_base.clone(),
+                            extra_headers: cfg.extra_headers.clone(),
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                ProvidersConfig {
+                    anthropic: maybe_cfg(anthropic_cfg),
+                    openai_compatible,
+                    custom_providers,
+                }
             },
             gateway: GatewayConfig {
                 host: py.gateway.host,
@@ -687,6 +728,7 @@ impl ConfigMigrator {
                 mcp_manager: MCPManagerConfig::default(),
             },
             logging: LoggingConfig::default(),
+            ..Default::default()
         }
     }
 

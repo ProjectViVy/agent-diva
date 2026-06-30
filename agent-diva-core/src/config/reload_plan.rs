@@ -110,6 +110,8 @@ fn is_hot_reload_path(path: &str) -> bool {
         || path.starts_with("audit.")
         || path.starts_with("pii.")
         || path.starts_with("injection.")
+        || path.starts_with("tools.mcp_servers.")
+        || path.starts_with("tools.mcp_manager.")
 }
 
 #[cfg(test)]

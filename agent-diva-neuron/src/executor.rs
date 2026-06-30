@@ -127,7 +127,7 @@ impl NeuronNode for LlmNeuron {
             content: if text.is_empty() { None } else { Some(text) },
             tool_calls: Vec::new(),
             finish_reason: "stop".to_string(),
-            usage: std::collections::HashMap::new(),
+            usage: None,
             reasoning_content: if reasoning.is_empty() {
                 None
             } else {

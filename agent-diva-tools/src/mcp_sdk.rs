@@ -44,13 +44,9 @@ fn sanitize_json_strings(value: &mut Value) {
     }
 }
 
-/// Default timeout for MCP operations in seconds.
-#[allow(dead_code)]
-const DEFAULT_TIMEOUT_SECS: u64 = 30;
-
 /// Maximum characters allowed in a tool result before truncation.
 /// Prevents oversized MCP responses from blowing up the LLM context window.
-const MAX_TOOL_RESULT_CHARS: usize = 100_000;
+const MAX_TOOL_RESULT_CHARS: usize = 80_000;
 
 /// Maximum number of retry attempts for transient MCP failures.
 const MAX_RETRIES: u32 = 3;
@@ -314,6 +310,18 @@ impl McpClientWrapper {
     }
 }
 
+impl Drop for McpClientWrapper {
+    fn drop(&mut self) {
+        // Best-effort shutdown on drop to avoid leaking child processes.
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            let client = self.client.clone();
+            let _ = runtime.spawn(async move {
+                let _ = client.shut_down().await;
+            });
+        }
+    }
+}
+
 /// Simple client handler that handles MCP messages.
 struct SimpleClientHandler;
 
@@ -331,7 +339,21 @@ impl ClientHandler for SimpleClientHandler {
     ) -> std::result::Result<(), rust_mcp_sdk::schema::RpcError> {
         // Log at debug level since stderr often contains normal status messages,
         // not actual errors. Many MCP servers use stderr for startup banners.
-        tracing::debug!("MCP server stderr: {}", error_message);
+        // Use keyword-based log level switching for actionable messages.
+        let lower = error_message.to_lowercase();
+        if lower.contains("error")
+            || lower.contains("fail")
+            || lower.contains("exception")
+            || lower.contains("panic")
+            || lower.contains("traceback")
+            || lower.contains("fatal")
+        {
+            tracing::error!("MCP server stderr: {}", error_message);
+        } else if lower.contains("warn") || lower.contains("deprecated") {
+            tracing::warn!("MCP server stderr: {}", error_message);
+        } else {
+            tracing::debug!("MCP server stderr: {}", error_message);
+        }
         Ok(())
     }
 }
@@ -357,8 +379,9 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> Result<S
         parts.join("\n")
     };
 
-    // C-5: Truncate oversized results to protect LLM context window
-    let rendered = if rendered.len() > MAX_TOOL_RESULT_CHARS {
+    // C-5: Truncate oversized results to protect LLM context window.
+    // Use chars().count() for accurate Unicode-aware truncation.
+    let rendered = if rendered.chars().count() > MAX_TOOL_RESULT_CHARS {
         let truncated: String = rendered.chars().take(MAX_TOOL_RESULT_CHARS).collect();
         format!(
             "{}\n\n[truncated: output exceeded {} chars]",
@@ -369,7 +392,7 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> Result<S
     };
 
     if matches!(result.is_error, Some(true)) {
-        Err(McpError::Server(rendered))
+        Err(McpError::Server(format!("MCP Error: {}", rendered)))
     } else {
         Ok(rendered)
     }
@@ -659,7 +682,7 @@ mod tests {
 
         let error = render_tool_result(&result).expect_err("expected MCP tool failure");
 
-        assert!(matches!(error, McpError::Server(message) if message == "tool failed"));
+        assert!(matches!(error, McpError::Server(message) if message == "MCP Error: tool failed"));
     }
 
     #[test]

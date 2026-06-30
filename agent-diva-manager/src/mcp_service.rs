@@ -2,9 +2,10 @@ use agent_diva_core::config::schema::{Config, MCPServerConfig};
 use agent_diva_core::config::ConfigLoader;
 use agent_diva_tools::probe_mcp_server_sync;
 use anyhow::anyhow;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct McpConnectionStatusDto {
@@ -49,17 +50,37 @@ fn default_tool_timeout() -> u64 {
     30
 }
 
+/// Cached status for an MCP server with TTL.
+struct CachedStatus {
+    status: McpConnectionStatusDto,
+    cached_at: DateTime<Utc>,
+}
+
+impl CachedStatus {
+    fn is_expired(&self) -> bool {
+        Utc::now().signed_duration_since(self.cached_at)
+            > chrono::Duration::seconds(30)
+    }
+}
+
 #[derive(Clone)]
 pub struct McpService {
     loader: ConfigLoader,
+    status_cache: Arc<tokio::sync::Mutex<HashMap<String, CachedStatus>>>,
+    operation_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl McpService {
     pub fn new(loader: ConfigLoader) -> Self {
-        Self { loader }
+        Self {
+            loader,
+            status_cache: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            operation_lock: Arc::new(tokio::sync::Mutex::new(())),
+        }
     }
 
     pub fn list_mcps(&self) -> anyhow::Result<Vec<McpServerDto>> {
+        let _lock = self.operation_lock.blocking_lock();
         let config = self.loader.load()?;
         let mut list = config
             .tools
@@ -72,6 +93,9 @@ impl McpService {
     }
 
     pub fn create_mcp(&self, payload: McpServerUpsert) -> anyhow::Result<McpServerDto> {
+        let _lock = self
+            .operation_lock
+            .blocking_lock();
         let mut config = self.loader.load()?;
         self.validate_name(&payload.name)?;
         if config.tools.mcp_servers.contains_key(&payload.name) {
@@ -86,6 +110,11 @@ impl McpService {
             .insert(name.clone(), Self::payload_to_config(&payload)?);
         Self::set_enabled_flag(&mut config, &name, enabled);
         self.loader.save(&config)?;
+        // Invalidate cache for this name
+        {
+            let mut cache = self.status_cache.blocking_lock();
+            cache.remove(&name);
+        }
         self.get_mcp(&name)
     }
 
@@ -94,6 +123,9 @@ impl McpService {
         current_name: &str,
         payload: McpServerUpsert,
     ) -> anyhow::Result<McpServerDto> {
+        let _lock = self
+            .operation_lock
+            .blocking_lock();
         let mut config = self.loader.load()?;
         self.validate_name(&payload.name)?;
         if !config.tools.mcp_servers.contains_key(current_name) {
@@ -121,10 +153,17 @@ impl McpService {
         }
         Self::set_enabled_flag(&mut config, &payload.name, payload.enabled);
         self.loader.save(&config)?;
+        // Invalidate cache for both old and new names
+        {
+            let mut cache = self.status_cache.blocking_lock();
+            cache.remove(current_name);
+            cache.remove(&payload.name);
+        }
         self.get_mcp(&payload.name)
     }
 
     pub fn delete_mcp(&self, name: &str) -> anyhow::Result<()> {
+        let _lock = self.operation_lock.blocking_lock();
         let mut config = self.loader.load()?;
         let removed = config.tools.mcp_servers.remove(name);
         config
@@ -136,20 +175,32 @@ impl McpService {
             return Err(anyhow!("MCP '{}' not found", name));
         }
         self.loader.save(&config)?;
+        // Invalidate cache
+        {
+            let mut cache = self.status_cache.blocking_lock();
+            cache.remove(name);
+        }
         Ok(())
     }
 
     pub fn set_enabled(&self, name: &str, enabled: bool) -> anyhow::Result<McpServerDto> {
+        let _lock = self.operation_lock.blocking_lock();
         let mut config = self.loader.load()?;
         if !config.tools.mcp_servers.contains_key(name) {
             return Err(anyhow!("MCP '{}' not found", name));
         }
         Self::set_enabled_flag(&mut config, name, enabled);
         self.loader.save(&config)?;
+        // Invalidate cache
+        {
+            let mut cache = self.status_cache.blocking_lock();
+            cache.remove(name);
+        }
         self.get_mcp(name)
     }
 
     pub fn get_mcp(&self, name: &str) -> anyhow::Result<McpServerDto> {
+        let _lock = self.operation_lock.blocking_lock();
         let config = self.loader.load()?;
         let server = config
             .tools
@@ -160,6 +211,7 @@ impl McpService {
     }
 
     pub fn active_servers(&self) -> anyhow::Result<HashMap<String, MCPServerConfig>> {
+        let _lock = self.operation_lock.blocking_lock();
         let config = self.loader.load()?;
         Ok(config.tools.active_mcp_servers())
     }
@@ -183,7 +235,26 @@ impl McpService {
                 checked_at: None,
             }
         } else {
-            match probe_mcp_server_sync(name, server) {
+            // Check cache first
+            {
+                let cache = self.status_cache.blocking_lock();
+                if let Some(cached) = cache.get(name) {
+                    if !cached.is_expired() {
+                        return McpServerDto {
+                            name: name.to_string(),
+                            enabled,
+                            transport: transport.to_string(),
+                            command: server.command.clone(),
+                            args: server.args.clone(),
+                            env: server.env.clone(),
+                            url: server.url.clone(),
+                            tool_timeout: server.tool_timeout,
+                            status: cached.status.clone(),
+                        };
+                    }
+                }
+            }
+            let status = match probe_mcp_server_sync(name, server) {
                 Ok(tool_count) => McpConnectionStatusDto {
                     state: "connected".to_string(),
                     connected: true,
@@ -204,7 +275,19 @@ impl McpService {
                     error: Some(error),
                     checked_at: Some(Utc::now().to_rfc3339()),
                 },
+            };
+            // Update cache
+            {
+                let mut cache = self.status_cache.blocking_lock();
+                cache.insert(
+                    name.to_string(),
+                    CachedStatus {
+                        status: status.clone(),
+                        cached_at: Utc::now(),
+                    },
+                );
             }
+            status
         };
 
         McpServerDto {

@@ -5,6 +5,8 @@
 
 pub mod manager;
 pub mod store;
+pub mod usage;
 
 pub use manager::{SessionInfo, SessionLoadError, SessionManager};
 pub use store::{ChatMessage, Session};
+pub use usage::Usage;

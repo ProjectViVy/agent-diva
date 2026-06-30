@@ -7,7 +7,7 @@ use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_files::FileManager;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, PatchTool,
+    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ExecuteCodeTool, ListDirTool, PatchTool,
     ReadAttachmentTool, ReadFileTool, SearchFilesTool, SpawnTool, WebFetchTool, WebSearchTool,
     WriteFileTool,
 };
@@ -148,6 +148,10 @@ impl ToolAssembly {
                 Some(self.workspace.clone()),
                 self.restrict_to_workspace,
             )));
+        }
+
+        if self.builtin_config.code_execution {
+            registry.register(Arc::new(ExecuteCodeTool::default()));
         }
 
         if self.builtin_config.web_search && self.network_config.web.search.enabled {
