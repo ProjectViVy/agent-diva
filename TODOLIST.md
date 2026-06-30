@@ -17,6 +17,134 @@ Legend: 调研 ✅=已完成  🔄=进行中  ❌=未开始 | 代码 ✅=已实�
 
 ---
 
+## Bug Ledger
+
+This section is the dedicated bug-only board. It tracks confirmed defects only, separate from feature work, architecture work, docs cleanup, and general backlog items.
+
+### Audit Batch: 2026-06-23 BMad / Harness Cross-Reference (22 bugs)
+
+Source:
+- `docs/research/evidence/cross-cutting/diva-harness-cross-reference-audit.md`
+- `docs/research/evidence/self-audits/diva-security-sandbox-self-audit.md`
+
+Current sync status on 2026-06-30 (re-audited against feat/harness-wave0):
+- Total confirmed bugs in this batch: `22`
+- Closed: `19` (B-01~B-17, B-20~B-22)
+- Open: `0`
+- Feature Backlog: `2` (B-18, B-19)
+- 2026-06-30 feat/harness-wave0 re-audit: B-03 (structured audit in commit `3c44f0e`), B-07 (guardian tightened in commit `a473a57`), B-09 (approval cache unified in commit `47f3195`) are implemented on `feat/harness-wave0`. Remaining 4 open bugs are genuine code defects in `agent-diva-core/src/security/` and `agent-diva-core/src/bus/`.
+
+- [x] `B-01` Provider token usage discarded
+  - Status: fixed
+  - Notes: main agent now emits `TokenUsed` events and audit events; subagent accumulates `token_usage`.
+  - Related: `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-core/src/audit/audit.rs`, `agent-diva-agent/src/subagent.rs`
+
+- [x] `B-02` System prompt budget reserved, not actually measured
+  - Status: fixed
+  - Notes: system prompt token cost is now measured from the rendered first system message and subtracted from the usable history/tool budget before compaction/truncation on both main-agent and subagent paths.
+  - Related: `agent-diva-agent/src/context_budget.rs`
+
+- [x] `B-03` No persistent security audit trail
+  - Status: fixed
+  - Notes: structured audit logging implemented via `agent-diva-core/src/audit/` with JSONL sink and GUI audit page. Commit `3c44f0e` on `feat/harness-wave0`.
+  - Related: `agent-diva-core/src/audit/audit.rs`, `agent-diva-core/src/logging.rs`
+
+- [x] `B-04` Consolidation has no quality gate
+  - Status: fixed
+  - Notes: consolidation now extracts expected keywords from the source segment, applies a quality gate with bounded regeneration retries, rejects low-quality output, and only advances `last_consolidated` under the explicit valid-tool-call policy.
+  - Related: `agent-diva-agent/src/summary_compaction.rs`
+
+- [x] `B-05` No general tool timeout
+  - Status: fixed
+  - Notes: registry-wide timeout wrapper exists; effective timeout is now `registry default` or `tool explicit override`.
+  - Related: `agent-diva-tooling/src/base.rs`, `agent-diva-tooling/src/registry.rs`
+
+- [x] `B-06` Rate limiter is global, not per-session/per-user
+  - Status: fixed
+  - Expected: rate limiting should be keyed, not process-global.
+  - Related: `agent-diva-core/src/security/rate_limit.rs`, `agent-diva-core/src/security/policy.rs`
+
+- [x] `B-07` Guardian default is overly conservative
+  - Status: fixed
+  - Notes: guardian default approvals tightened in sandbox audit remediation batch. Commit `a473a57` on `feat/harness-wave0`.
+  - Related: `agent-diva-core/src/security/policy.rs`
+
+- [x] `B-08` No compaction-of-compaction
+  - Status: fixed
+  - Notes: accepted summaries now accumulate in a live `SummaryChain`, trigger bounded meta-compaction after the configured threshold, retain `source_summary_ids`, and respect max-depth limits.
+  - Related: `agent-diva-agent/src/summary_compaction.rs`
+
+- [x] `B-09` Duplicate approval types not merged
+  - Status: fixed
+  - Notes: approval cache access unified in sandbox refactor batch. Commit `47f3195` on `feat/harness-wave0`.
+  - Related: `agent-diva-core/src/security/`
+
+- [x] `B-10` Windows file locking missing in exec policy persistence
+  - Status: **deferred**
+  - Notes: exec policy persistence belongs to `agent-diva-sandbox` crate (experimental branch). Not present in current workspace.
+
+- [x] `B-11` URL double-encoding bypass (`%252f`, `%255c`)
+  - Status: fixed
+  - Expected: path validation should reject double-encoded traversal too.
+  - Related: `agent-diva-core/src/security/path.rs`, `agent-diva-core/src/security/policy.rs`
+
+- [x] `B-12` Tool error detection via string prefix
+  - Status: fixed
+  - Notes: structured `ToolError` flow is now used for registry execution; `patch` and `search_files` no longer report pseudo-success error strings.
+  - Related: `agent-diva-tooling/src/registry.rs`, `agent-diva-tools/src/patch.rs`, `agent-diva-tools/src/search_files.rs`
+
+- [x] `B-13` NagTracker wiring unclear
+  - Status: **false positive** — moved to Feature Backlog
+  - Notes: `NagTracker` / `PlanOrchestrator` / `approved_plans` were designed in May 2026 plan-mode research but **never implemented** in Rust source. The audit document `diva-planning-budget-self-audit.md` incorrectly described them as existing code. No code to fix.
+  - Resolution: Plan mode feature not built; re-scope as separate epic when plan mode is prioritized.
+
+- [x] `B-14` HOOK-3 / HOOK-4 are no-ops
+  - Status: **false positive** — moved to Feature Backlog
+  - Notes: Same as B-13. These hooks are stubs for a plan mode that was never implemented. Not code bugs.
+  - Resolution: Same as B-13.
+
+- [x] `B-15` Approval state not persisted
+  - Status: **false positive** — moved to Feature Backlog
+  - Notes: `PlanOrchestrator::approved_plans` was never built. The in-memory `HashSet` described in the audit does not exist in any Rust source file.
+  - Resolution: Same as B-13.
+
+- [x] `B-16` Unbounded event bus channels
+  - Status: fixed
+  - Expected: introduce bounded/backpressure-aware behavior or overflow strategy.
+  - Related: `agent-diva-core/src/bus/queue.rs`
+
+- [x] `B-17` Compaction prompt is Chinese-only
+  - Status: fixed
+  - Notes: compaction and meta-compaction prompts now support `auto` / `en` / `zh`, with `auto` as the default language-aware path for mixed-language sessions.
+  - Related: `agent-diva-agent/src/summary_compaction.rs`
+
+- [ ] `B-18` No system prompt caching
+  - Status: **moved to Feature Backlog**
+  - Notes: this is a feature enhancement (provider caching layer), not a code defect. Research-only for now. See PM plan in Open section.
+  - Related: agent loop audit findings
+
+- [ ] `B-19` No plugin/middleware hooks around LLM calls
+  - Status: **moved to Feature Backlog**
+  - Notes: `agent-diva-hooks` crate was implemented (v0.1.0, ~1200 LOC) but reverted on 2026-06-30 — not reviewed, not in plan. Re-scope as BMAD epic when prioritized.
+  - Related: agent loop audit findings, `agent-diva-hooks/` (reverted)
+
+- [x] `B-20` Hardcoded LLM params (`temperature=0.7`, `max_tokens=4096`)
+  - Status: fixed
+  - Notes: maintenance/helper calls now use dedicated `agents.defaults.context_maintenance` settings for `max_tokens`, `temperature`, quality thresholds/retries, meta-compaction limits, and prompt language mode instead of hardcoded helper values.
+  - Related: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/subagent.rs`
+
+- [x] `B-21` Keyword extraction is simplistic
+  - Status: fixed
+  - Notes: summary/consolidation quality checks now share normalized keyword extraction with ASCII token handling, bounded CJK chunk extraction, punctuation cleanup, and deduplication.
+  - Related: planning audit findings
+
+- [x] `B-22` Heartbeat has no retry/backoff
+  - Status: fixed
+  - Notes: heartbeat decide calls now share bounded retry/backoff logic across `trigger_now()` and background ticks; exhausted retries emit explicit `error` heartbeat outcomes and skip execute for that tick.
+  - Related: `agent-diva-core/src/heartbeat/service.rs`, `agent-diva-core/src/heartbeat/types.rs`
+
+---
+
 ## Open
 
 ### P0 — Security & Stability
@@ -100,6 +228,30 @@ Legend: 调研 ✅=已完成  🔄=进行中  ❌=未开始 | 代码 ✅=已实�
 
 ---
 
+---
+
+### Plan Mode — Feature Backlog (2026-06-30)
+
+> Plan Mode（agent 先计划后执行，含 plan 文件生成、只读工具限制、上下文压缩/清理、计划审批流程）于 2026-05 完成设计但**从未实现为 Rust 代码**。B-13/B-14/B-15 审计时误判为已有代码缺陷，实为未实现功能。
+
+- [x] **PM-0: 调研 — Plan Mode 设计现状与缺口分析** | **2026-06-30 已完成**
+  - 三批次调研（oh-my-pi、claude-code、codex、OpenHarness、pi、openfang）+ diva 代码级 gap matrix
+  - 结论：`PlanOrchestrator` / `NagTracker` / `approved_plans` **未实现**；Hybrid 八层栈（ExitPlanMode + OMP guard + OH checker + pi MVP）
+  - 交付物目录：[docs/research/plan-mode/](./docs/research/plan-mode/)
+    - PM-0 终稿：[plan-mode-gap-analysis-final.md](./docs/research/plan-mode/plan-mode-gap-analysis-final.md)
+    - 目标架构 + P0 stories：[diva-plan-mode-target-architecture.md](./docs/research/plan-mode/diva-plan-mode-target-architecture.md)
+    - 索引：[README.md](./docs/research/plan-mode/README.md)
+  - Source: `docs/research/plan-mode/`, `agent-diva-core/src/security/policy.rs`, 参考代码 `agent-diva/.workspace/`
+
+- [ ] **PM-1: 新建 Epic — 走完整 BMAD 工作流**
+  1. `/bmad-prd` — 基于调研结论撰写 Plan Mode PRD
+  2. `/bmad-architecture` — Plan Mode 架构 spine
+  3. `/bmad-check-implementation-readiness` — 验证 PRD+UX+Architecture 完整
+  4. `/bmad-create-epics-and-stories` — 分解为 Epics & Stories
+  5. `/bmad-sprint-planning` — 生成 sprint 计划
+  - 输出到: `_bmad-output/planning-artifacts/`
+  - **前置依赖**: PM-0 调研完成
+
 ### P1 — Core Infrastructure
 
 - [ ] **P1-2: Phase B: Thin Observability Layer** | 调研 ✅ | 代码 🟡
@@ -128,11 +280,11 @@ Legend: 调研 ✅=已完成  🔄=进行中  ❌=未开始 | 代码 ✅=已实�
   - 现存: ToolError (5 variants, string-heavy), SecurityError (9 structured variants, has user_message + is_retryable), ErrorContext
   - 缺失: 无 error_category/ErrorKind, 无 error codes, 无 retry classification on ToolError, 无跨 crate 统一 error taxonomy
 
- - [ ] **P1-7: Wire heartbeat cadence to PresenceState** | research complete | code partial
-   Module lifecycle now starts `PresenceService` and `HeartbeatService`, but heartbeat still uses a fixed interval and does not adapt to `PresenceState`.
-   - Current: `agent-diva-tooling/src/module.rs` updates shared presence state; `agent-diva-core/src/heartbeat/service.rs` still runs its original fixed timer loop.
-   - Expected: `Active/Distracted/Gone` should influence cadence and `Gone`-state background behavior, with tests and config coverage.
-   - Related: `agent-diva-tooling/src/module.rs`, `agent-diva-core/src/heartbeat/service.rs`, `agent-diva-core/src/presence/types.rs`
+ - [x] **P1-7: Wire heartbeat cadence to PresenceState** | fixed | **2026-06-30 completed**
+   Heartbeat cadence now derives its effective interval from current `PresenceState` plus configured multipliers instead of fixed rhythm constants.
+   - Implemented: `Active` uses base interval, `Distracted` and `Gone` share `presence.distracted_heartbeat_multiplier`, `Away` remains suspended and only re-checks later.
+   - Implemented: cadence computation clamps to a minimum effective interval of 1 second and is covered by heartbeat/presence/config tests.
+   - Related: `agent-diva-core/src/heartbeat/service.rs`, `agent-diva-core/src/presence/state_machine.rs`, `agent-diva-core/src/config/reload_plan.rs`
 
 - [ ] **P1-8: Provider architecture simplification** | 调研 ✅ | 代码 ❌
   将 provider 层从 13 槽位 + 47 YAML 收敛为仅保留 Anthropic 原生 + OpenAI-compatible 两条链路，其他 provider 全部通过用户自部署转接层接入。**质量要求：生产级完整**，支持 retry/fallback/rate-limit/token usage/tool schema/完整错误分类。
@@ -151,6 +303,12 @@ Legend: 调研 ✅=已完成  🔄=进行中  ❌=未开始 | 代码 ✅=已实�
   - 相关文件：`agent-diva-channels/src/*.rs`, `agent-diva-core/src/config/schema.rs`, `README.md`, `agent-diva-gui/`
 
 ### Housekeeping
+
+- [ ] **H-8: Workspace-wide `just check` / `just test` baseline is still red outside this batch**
+  2026-06-30 validation for the heartbeat batch confirmed this change set, but full workspace gates still fail for unrelated existing issues.
+  - `just check`: pre-existing clippy-denied warnings/errors in `agent-diva-tooling/src/registry.rs` and `agent-diva-providers/src/{anthropic,dto.rs,litellm/client.rs,litellm/dto.rs}`.
+  - `just test`: pre-existing failure in `agent-diva-migration/src/config_migration.rs` still asserts removed `providers.openai` schema.
+  - Expected: restore workspace-wide green CI so focused fixes can rely on `just ci` again.
 
 - [ ] **H-7: Audit frontend dependency vulnerability sweep**
   `npm ci` on 2026-06-25 reported 10 frontend dependency vulnerabilities (6 moderate, 4 high) under `agent-diva-gui`.
@@ -240,6 +398,10 @@ Plan/permission/research decisions were moved out of the active `main` backlog o
   - Added heuristic context budget estimation, proactive compaction, overflow classification, and one retry with stronger trimming.
   - Added agent config defaults for context budget and reused the same guardrail in subagent execution.
   - Iteration notes: `docs/logs/2026-06-agent-loop-safety/v0.0.3-p0-6-context-overflow-guardrail/`
+- [x] Builtin tool toggle drift and delegation semantics drift closed. (2026-06-30)
+  - `tools.builtin.search_files`, `code_execution`, and `delegate` now map 1:1 from config through CLI/manager runtime assembly instead of being partially hardcoded.
+  - `ToolAssembly` now treats `filesystem` and `search_files` as separate capabilities, gates `execute_code` independently, and only registers delegation when `delegate && spawn` and not in subagent mode.
+  - Subagent runtime continues to force-disable delegation and code execution regardless of parent toggles.
 - [x] Context compaction ownership moved to `agent-diva-pro`, and the corresponding line is no longer an open `main` backlog item. (2026-06-07)
   - Reference: `../MOREDIVA-context-compaction-handoff-2026-06-07.md`
 - [x] Improve GUI image input experience for multimodal vision. (2026-06)

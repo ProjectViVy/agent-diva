@@ -237,20 +237,20 @@ impl SecurityPolicy {
     /// Check if rate limit is exceeded (without recording)
     pub fn is_rate_limited(&self) -> bool {
         self.tracker
-            .is_rate_limited(self.config.max_actions_per_hour)
+            .is_rate_limited("", self.config.max_actions_per_hour)
     }
 
     /// Record an action and return current count
     pub fn record_action(&self) -> usize {
-        self.tracker.record()
+        self.tracker.record("")
     }
 
     /// Try to record an action, returning false if rate limited
     ///
     /// This is the main method for checking and recording in one step
     pub fn try_record_action(&self) -> Result<(), SecurityError> {
-        if !self.tracker.try_record(self.config.max_actions_per_hour) {
-            let count = self.tracker.count();
+        if !self.tracker.try_record("", self.config.max_actions_per_hour) {
+            let count = self.tracker.count("");
             return Err(SecurityError::RateLimitExceeded {
                 count,
                 max: self.config.max_actions_per_hour,
@@ -261,7 +261,7 @@ impl SecurityPolicy {
 
     /// Get current action count in the window
     pub fn action_count(&self) -> usize {
-        self.tracker.count()
+        self.tracker.count("")
     }
 
     /// Check if can perform an action (rate limit + read-only check)

@@ -8,11 +8,14 @@ use crate::presence::{PresenceConfig, PresenceManager, PresenceTransition};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
-use tracing::debug;
+use tracing::{debug, warn};
+
+/// Maximum number of messages buffered per channel before backpressure applies.
+const CHANNEL_CAPACITY: usize = 256;
 
 /// Type alias for message channel senders
-pub type OutboundSender = mpsc::UnboundedSender<OutboundMessage>;
-pub type OutboundReceiver = mpsc::UnboundedReceiver<OutboundMessage>;
+pub type OutboundSender = mpsc::Sender<OutboundMessage>;
+pub type OutboundReceiver = mpsc::Receiver<OutboundMessage>;
 
 type OutboundCallback = Arc<
     dyn Fn(OutboundMessage) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
@@ -27,11 +30,11 @@ type OutboundCallback = Arc<
 #[derive(Clone)]
 pub struct MessageBus {
     /// Inbound messages from channels
-    inbound_tx: mpsc::UnboundedSender<InboundMessage>,
-    inbound_rx: Arc<RwLock<Option<mpsc::UnboundedReceiver<InboundMessage>>>>,
+    inbound_tx: mpsc::Sender<InboundMessage>,
+    inbound_rx: Arc<RwLock<Option<mpsc::Receiver<InboundMessage>>>>,
     /// Outbound messages to channels
-    outbound_tx: mpsc::UnboundedSender<OutboundMessage>,
-    outbound_rx: Arc<RwLock<Option<mpsc::UnboundedReceiver<OutboundMessage>>>>,
+    outbound_tx: mpsc::Sender<OutboundMessage>,
+    outbound_rx: Arc<RwLock<Option<mpsc::Receiver<OutboundMessage>>>>,
     /// Outbound subscribers by channel
     subscribers: Arc<RwLock<HashMap<String, Vec<OutboundCallback>>>>,
     /// Stream event broadcast channel.
@@ -51,8 +54,8 @@ impl MessageBus {
     }
 
     pub fn with_presence_config(presence_config: PresenceConfig) -> Self {
-        let (inbound_tx, inbound_rx) = mpsc::unbounded_channel();
-        let (outbound_tx, outbound_rx) = mpsc::unbounded_channel();
+        let (inbound_tx, inbound_rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (outbound_tx, outbound_rx) = mpsc::channel(CHANNEL_CAPACITY);
         let (event_tx, _) = broadcast::channel(1024);
         let (bus_event_tx, _) = broadcast::channel(1024);
 
@@ -104,12 +107,12 @@ impl MessageBus {
     }
 
     /// Take the inbound receiver (can only be called once)
-    pub async fn take_inbound_receiver(&self) -> Option<mpsc::UnboundedReceiver<InboundMessage>> {
+    pub async fn take_inbound_receiver(&self) -> Option<mpsc::Receiver<InboundMessage>> {
         self.inbound_rx.write().await.take()
     }
 
     /// Take the outbound receiver (can only be called once)
-    pub async fn take_outbound_receiver(&self) -> Option<mpsc::UnboundedReceiver<OutboundMessage>> {
+    pub async fn take_outbound_receiver(&self) -> Option<mpsc::Receiver<OutboundMessage>> {
         self.outbound_rx.write().await.take()
     }
 
@@ -120,15 +123,31 @@ impl MessageBus {
             self.note_user_activity();
         }
         self.inbound_tx
-            .send(msg)
-            .map_err(|_| crate::Error::Channel("Inbound channel closed".to_string()))
+            .try_send(msg)
+            .map_err(|e| match e {
+                mpsc::error::TrySendError::Full(_) => {
+                    warn!("inbound channel full");
+                    crate::Error::Channel("Inbound channel full".to_string())
+                }
+                mpsc::error::TrySendError::Closed(_) => {
+                    crate::Error::Channel("Inbound channel closed".to_string())
+                }
+            })
     }
 
     /// Publish a response from the agent to channels
     pub fn publish_outbound(&self, msg: OutboundMessage) -> crate::Result<()> {
         self.outbound_tx
-            .send(msg)
-            .map_err(|_| crate::Error::Channel("Outbound channel closed".to_string()))
+            .try_send(msg)
+            .map_err(|e| match e {
+                mpsc::error::TrySendError::Full(_) => {
+                    warn!("outbound channel full");
+                    crate::Error::Channel("Outbound channel full".to_string())
+                }
+                mpsc::error::TrySendError::Closed(_) => {
+                    crate::Error::Channel("Outbound channel closed".to_string())
+                }
+            })
     }
 
     /// Subscribe to outbound messages for a specific channel with a callback
@@ -320,5 +339,40 @@ mod tests {
                 to: PresenceState::Distracted,
             }
         );
+    }
+
+    #[tokio::test]
+    async fn test_bounded_channel_blocks_on_full() {
+        let bus = MessageBus::new();
+        // Take receiver so nothing drains the buffer
+        let _rx = bus.take_inbound_receiver().await.unwrap();
+
+        // Fill channel to capacity
+        for i in 0..super::CHANNEL_CAPACITY {
+            let msg = InboundMessage::new("test", &format!("user{i}"), "chat1", "Hello");
+            assert!(bus.publish_inbound(msg).is_ok(), "msg {i} should be accepted");
+        }
+
+        // Next send should fail with Full
+        let overflow = InboundMessage::new("test", "overflow", "chat1", "overflow");
+        assert!(bus.publish_inbound(overflow).is_err(), "channel should be full");
+    }
+
+    #[tokio::test]
+    async fn test_bounded_channel_normal_delivery() {
+        let bus = MessageBus::new();
+        let mut rx = bus.take_inbound_receiver().await.unwrap();
+
+        // Send messages well below capacity
+        for i in 0..3 {
+            let msg = InboundMessage::new("test", &format!("user{i}"), "chat1", &format!("msg{i}"));
+            assert!(bus.publish_inbound(msg).is_ok());
+        }
+
+        // All messages should be delivered in order
+        for _ in 0..3 {
+            let received = rx.recv().await;
+            assert!(received.is_some(), "should receive message");
+        }
     }
 }
