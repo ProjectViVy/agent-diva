@@ -5,6 +5,9 @@ use std::collections::HashMap;
 
 /// Default heartbeat interval: 30 minutes (in seconds)
 pub const DEFAULT_HEARTBEAT_INTERVAL_S: i64 = 30 * 60;
+pub const DEFAULT_HEARTBEAT_DECIDE_MAX_RETRIES: u32 = 2;
+pub const DEFAULT_HEARTBEAT_DECIDE_BACKOFF_MS: u64 = 1_000;
+pub const DEFAULT_HEARTBEAT_DECIDE_MAX_BACKOFF_MS: u64 = 5_000;
 
 /// System prompt for the heartbeat decision LLM call
 pub const HEARTBEAT_SYSTEM_PROMPT: &str =
@@ -76,6 +79,15 @@ pub struct HeartbeatConfig {
     /// Interval in seconds between heartbeats
     #[serde(default = "default_interval")]
     pub interval_s: i64,
+    /// Number of retries after an initial heartbeat decide failure.
+    #[serde(default = "default_decide_max_retries")]
+    pub decide_max_retries: u32,
+    /// Initial backoff for heartbeat decide retries in milliseconds.
+    #[serde(default = "default_decide_backoff_ms")]
+    pub decide_backoff_ms: u64,
+    /// Maximum backoff for heartbeat decide retries in milliseconds.
+    #[serde(default = "default_decide_max_backoff_ms")]
+    pub decide_max_backoff_ms: u64,
 }
 
 impl Default for HeartbeatConfig {
@@ -83,6 +95,9 @@ impl Default for HeartbeatConfig {
         Self {
             enabled: true,
             interval_s: DEFAULT_HEARTBEAT_INTERVAL_S,
+            decide_max_retries: DEFAULT_HEARTBEAT_DECIDE_MAX_RETRIES,
+            decide_backoff_ms: DEFAULT_HEARTBEAT_DECIDE_BACKOFF_MS,
+            decide_max_backoff_ms: DEFAULT_HEARTBEAT_DECIDE_MAX_BACKOFF_MS,
         }
     }
 }
@@ -93,6 +108,18 @@ fn default_true() -> bool {
 
 fn default_interval() -> i64 {
     DEFAULT_HEARTBEAT_INTERVAL_S
+}
+
+fn default_decide_max_retries() -> u32 {
+    DEFAULT_HEARTBEAT_DECIDE_MAX_RETRIES
+}
+
+fn default_decide_backoff_ms() -> u64 {
+    DEFAULT_HEARTBEAT_DECIDE_BACKOFF_MS
+}
+
+fn default_decide_max_backoff_ms() -> u64 {
+    DEFAULT_HEARTBEAT_DECIDE_MAX_BACKOFF_MS
 }
 
 /// Check if HEARTBEAT.md has no actionable content
@@ -130,6 +157,18 @@ mod tests {
         let config = HeartbeatConfig::default();
         assert!(config.enabled);
         assert_eq!(config.interval_s, DEFAULT_HEARTBEAT_INTERVAL_S);
+        assert_eq!(
+            config.decide_max_retries,
+            DEFAULT_HEARTBEAT_DECIDE_MAX_RETRIES
+        );
+        assert_eq!(
+            config.decide_backoff_ms,
+            DEFAULT_HEARTBEAT_DECIDE_BACKOFF_MS
+        );
+        assert_eq!(
+            config.decide_max_backoff_ms,
+            DEFAULT_HEARTBEAT_DECIDE_MAX_BACKOFF_MS
+        );
     }
 
     #[test]

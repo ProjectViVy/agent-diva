@@ -66,10 +66,12 @@ impl PresenceManager {
 
     /// Get the current presence state.
     pub fn state(&self) -> PresenceState {
-        *self
-            .state
-            .read()
-            .expect("presence state lock poisoned")
+        *self.state.read().expect("presence state lock poisoned")
+    }
+
+    /// Get a snapshot of the active presence configuration.
+    pub fn config(&self) -> PresenceConfig {
+        self.config.clone()
     }
 
     /// Record user activity and reset state to `Active`.
@@ -84,10 +86,7 @@ impl PresenceManager {
             *last = Instant::now();
         }
 
-        let mut state = self
-            .state
-            .write()
-            .expect("presence state lock poisoned");
+        let mut state = self.state.write().expect("presence state lock poisoned");
         if *state != PresenceState::Active {
             let from = *state;
             *state = PresenceState::Active;
@@ -114,10 +113,7 @@ impl PresenceManager {
 
         let next = self.compute_state(elapsed);
 
-        let mut state = self
-            .state
-            .write()
-            .expect("presence state lock poisoned");
+        let mut state = self.state.write().expect("presence state lock poisoned");
         if *state != next {
             let from = *state;
             *state = next;
@@ -289,5 +285,18 @@ mod tests {
 
         // pm2 should see the same state
         assert_eq!(pm2.state(), PresenceState::Distracted);
+    }
+
+    #[test]
+    fn config_accessor_returns_active_config() {
+        let config = PresenceConfig {
+            active_timeout_s: 5,
+            distracted_timeout_s: 30,
+            gone_timeout_s: 120,
+            distracted_heartbeat_multiplier: 3.5,
+        };
+        let pm = PresenceManager::new(config.clone());
+
+        assert_eq!(pm.config(), config);
     }
 }

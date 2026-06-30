@@ -1,4 +1,4 @@
-use crate::config::schema::{Config, ProviderConfig};
+use crate::config::schema::Config;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -104,9 +104,8 @@ fn is_hot_reload_path(path: &str) -> bool {
             | "security.level"
             | "security.workspace_only"
             | "security.max_actions_per_hour"
-            | "heartbeat.enabled"
-            | "heartbeat.interval_s"
     ) || path.starts_with("presence.")
+        || path.starts_with("heartbeat.")
         || path.starts_with("audit.")
         || path.starts_with("pii.")
         || path.starts_with("injection.")
@@ -117,6 +116,7 @@ fn is_hot_reload_path(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::schema::ProviderConfig;
 
     #[test]
     fn compute_config_diff_classifies_hot_and_restart_changes() {
@@ -126,6 +126,7 @@ mod tests {
         new.tools.exec.timeout = 120;
         new.presence.active_timeout_s += 1;
         new.heartbeat.interval_s += 1;
+        new.heartbeat.decide_backoff_ms += 1;
         new.audit.emit_presence_changed = !new.audit.emit_presence_changed;
         new.pii.redact_email = !new.pii.redact_email;
         new.injection.detect_tool_abuse = !new.injection.detect_tool_abuse;
@@ -145,6 +146,9 @@ mod tests {
         assert!(diff
             .hot_reload_changes
             .contains(&"heartbeat.interval_s".to_string()));
+        assert!(diff
+            .hot_reload_changes
+            .contains(&"heartbeat.decide_backoff_ms".to_string()));
         assert!(diff
             .hot_reload_changes
             .contains(&"audit.emit_presence_changed".to_string()));

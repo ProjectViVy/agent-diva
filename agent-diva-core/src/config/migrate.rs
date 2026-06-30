@@ -86,6 +86,11 @@ fn migrate_v1_to_v2(value: Value) -> crate::Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::schema::Config;
+    use crate::heartbeat::types::{
+        DEFAULT_HEARTBEAT_DECIDE_BACKOFF_MS, DEFAULT_HEARTBEAT_DECIDE_MAX_BACKOFF_MS,
+        DEFAULT_HEARTBEAT_DECIDE_MAX_RETRIES,
+    };
 
     #[test]
     fn migrate_v1_adds_current_config_version() {
@@ -93,15 +98,37 @@ mod tests {
             "agents": {
                 "defaults": {
                     "workspace": "~/workspace",
-                    "model": "deepseek-chat"
+                    "provider": "deepseek",
+                    "model": "deepseek-chat",
+                    "max_tokens": 8192,
+                    "temperature": 0.7,
+                    "max_tool_iterations": 20
                 }
-            }
+            },
+            "channels": {},
+            "providers": {},
+            "gateway": {},
+            "tools": {}
         });
 
         let migrated = migrate_config_value(value).unwrap();
         assert_eq!(migrated.original_version, LEGACY_CONFIG_VERSION);
         assert_eq!(migrated.final_version, CURRENT_CONFIG_VERSION);
         assert_eq!(migrated.value["config_version"], CURRENT_CONFIG_VERSION);
+
+        let config: Config = serde_json::from_value(migrated.value).unwrap();
+        assert_eq!(
+            config.heartbeat.decide_max_retries,
+            DEFAULT_HEARTBEAT_DECIDE_MAX_RETRIES
+        );
+        assert_eq!(
+            config.heartbeat.decide_backoff_ms,
+            DEFAULT_HEARTBEAT_DECIDE_BACKOFF_MS
+        );
+        assert_eq!(
+            config.heartbeat.decide_max_backoff_ms,
+            DEFAULT_HEARTBEAT_DECIDE_MAX_BACKOFF_MS
+        );
     }
 
     #[test]

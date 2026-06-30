@@ -1,6 +1,6 @@
 //! Configuration validation rules.
 
-use super::schema::{Config, ProviderConfig};
+use super::schema::Config;
 
 /// Validate configuration and return aggregated validation errors.
 pub fn validate_config(config: &Config) -> crate::Result<()> {
@@ -29,6 +29,74 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     {
         errors.push(
             "agents.defaults.context_budget_reserve_tokens must be < agents.defaults.context_budget_tokens"
+                .to_string(),
+        );
+    }
+    if config.agents.defaults.context_maintenance.max_tokens == 0 {
+        errors.push("agents.defaults.context_maintenance.max_tokens must be > 0".to_string());
+    }
+    if !(0.0..=2.0).contains(&config.agents.defaults.context_maintenance.temperature) {
+        errors.push(
+            "agents.defaults.context_maintenance.temperature must be in [0.0, 2.0]".to_string(),
+        );
+    }
+    for (field, value) in [
+        (
+            "agents.defaults.context_maintenance.summary_quality_threshold",
+            config
+                .agents
+                .defaults
+                .context_maintenance
+                .summary_quality_threshold,
+        ),
+        (
+            "agents.defaults.context_maintenance.consolidation_quality_threshold",
+            config
+                .agents
+                .defaults
+                .context_maintenance
+                .consolidation_quality_threshold,
+        ),
+    ] {
+        if !(0.0..=1.0).contains(&value) {
+            errors.push(format!("{field} must be in [0.0, 1.0]"));
+        }
+    }
+    if config
+        .agents
+        .defaults
+        .context_maintenance
+        .meta_compaction_threshold
+        == 0
+    {
+        errors.push(
+            "agents.defaults.context_maintenance.meta_compaction_threshold must be > 0".to_string(),
+        );
+    }
+    if config
+        .agents
+        .defaults
+        .context_maintenance
+        .meta_compaction_max_depth
+        == 0
+    {
+        errors.push(
+            "agents.defaults.context_maintenance.meta_compaction_max_depth must be > 0".to_string(),
+        );
+    }
+    let prompt_language_mode = config
+        .agents
+        .defaults
+        .context_maintenance
+        .prompt_language_mode
+        .trim()
+        .to_lowercase();
+    if prompt_language_mode != "auto"
+        && prompt_language_mode != "en"
+        && prompt_language_mode != "zh"
+    {
+        errors.push(
+            "agents.defaults.context_maintenance.prompt_language_mode must be one of: auto, en, zh"
                 .to_string(),
         );
     }
@@ -94,6 +162,14 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     if config.heartbeat.interval_s <= 0 {
         errors.push("heartbeat.interval_s must be > 0".to_string());
     }
+    if config.heartbeat.decide_backoff_ms == 0 {
+        errors.push("heartbeat.decide_backoff_ms must be > 0".to_string());
+    }
+    if config.heartbeat.decide_max_backoff_ms < config.heartbeat.decide_backoff_ms {
+        errors.push(
+            "heartbeat.decide_max_backoff_ms must be >= heartbeat.decide_backoff_ms".to_string(),
+        );
+    }
 
     for (name, server) in &config.tools.mcp_servers {
         let has_stdio = !server.command.trim().is_empty();
@@ -141,6 +217,7 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::schema::ProviderConfig;
 
     #[test]
     fn test_validate_accepts_defaults() {
@@ -238,6 +315,52 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_rejects_invalid_context_maintenance_settings() {
+        let mut config = Config::default();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
+        config.agents.defaults.context_maintenance.max_tokens = 0;
+        config.agents.defaults.context_maintenance.temperature = 3.0;
+        config
+            .agents
+            .defaults
+            .context_maintenance
+            .summary_quality_threshold = 1.5;
+        config
+            .agents
+            .defaults
+            .context_maintenance
+            .consolidation_quality_threshold = -0.1;
+        config
+            .agents
+            .defaults
+            .context_maintenance
+            .meta_compaction_threshold = 0;
+        config
+            .agents
+            .defaults
+            .context_maintenance
+            .meta_compaction_max_depth = 0;
+        config
+            .agents
+            .defaults
+            .context_maintenance
+            .prompt_language_mode = "jp".to_string();
+
+        let err = validate_config(&config).unwrap_err();
+        let rendered = err.to_string();
+        assert!(rendered.contains("context_maintenance.max_tokens"));
+        assert!(rendered.contains("context_maintenance.temperature"));
+        assert!(rendered.contains("summary_quality_threshold"));
+        assert!(rendered.contains("consolidation_quality_threshold"));
+        assert!(rendered.contains("meta_compaction_threshold"));
+        assert!(rendered.contains("meta_compaction_max_depth"));
+        assert!(rendered.contains("prompt_language_mode"));
+    }
+
+    #[test]
     fn test_validate_rejects_invalid_logging_settings() {
         let mut config = Config::default();
         config.providers.anthropic = Some(ProviderConfig {
@@ -254,5 +377,21 @@ mod tests {
         assert!(err
             .to_string()
             .contains("logging.runtime_log_dir must not be empty when set"));
+    }
+
+    #[test]
+    fn test_validate_rejects_invalid_heartbeat_retry_settings() {
+        let mut config = Config::default();
+        config.providers.anthropic = Some(ProviderConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        });
+        config.heartbeat.decide_backoff_ms = 2;
+        config.heartbeat.decide_max_backoff_ms = 1;
+
+        let err = validate_config(&config).unwrap_err();
+        let rendered = err.to_string();
+        assert!(rendered
+            .contains("heartbeat.decide_max_backoff_ms must be >= heartbeat.decide_backoff_ms"));
     }
 }

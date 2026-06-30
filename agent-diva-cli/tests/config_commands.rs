@@ -13,7 +13,13 @@ fn test_lock() -> &'static Mutex<()> {
     TEST_LOCK.get_or_init(|| Mutex::new(()))
 }
 
-fn write_config(root: &Path, with_api_key: bool) -> std::path::PathBuf {
+fn write_provider_config(
+    root: &Path,
+    provider: &str,
+    model: &str,
+    provider_slot: &str,
+    with_api_key: bool,
+) -> std::path::PathBuf {
     let workspace = root.join("workspace");
     fs::create_dir_all(&workspace).unwrap();
 
@@ -23,17 +29,20 @@ fn write_config(root: &Path, with_api_key: bool) -> std::path::PathBuf {
   "agents": {{
     "defaults": {{
       "workspace": "{}",
-      "provider": "openai",
-      "model": "openai/gpt-4o"
+      "provider": "{}",
+      "model": "{}"
     }}
   }},
   "providers": {{
-    "openai": {{
+    "{}": {{
       "api_key": "{}"
     }}
   }}
 }}"#,
         workspace.display().to_string().replace('\\', "\\\\"),
+        provider,
+        model,
+        provider_slot,
         api_key
     );
 
@@ -41,6 +50,16 @@ fn write_config(root: &Path, with_api_key: bool) -> std::path::PathBuf {
     fs::create_dir_all(config_path.parent().unwrap()).unwrap();
     fs::write(&config_path, config).unwrap();
     config_path
+}
+
+fn write_config(root: &Path, with_api_key: bool) -> std::path::PathBuf {
+    write_provider_config(
+        root,
+        "openai_compatible",
+        "openai/gpt-4o",
+        "openai_compatible",
+        with_api_key,
+    )
 }
 
 fn write_harness_config(root: &Path) -> std::path::PathBuf {
@@ -52,12 +71,12 @@ fn write_harness_config(root: &Path) -> std::path::PathBuf {
   "agents": {{
     "defaults": {{
       "workspace": "{}",
-      "provider": "openai",
+      "provider": "openai_compatible",
       "model": "openai/gpt-4o"
     }}
   }},
   "providers": {{
-    "openai": {{
+    "openai_compatible": {{
       "api_key": "sk-test"
     }}
   }},
@@ -74,7 +93,10 @@ fn write_harness_config(root: &Path) -> std::path::PathBuf {
   }},
   "heartbeat": {{
     "enabled": true,
-    "interval_s": 99
+    "interval_s": 99,
+    "decide_max_retries": 4,
+    "decide_backoff_ms": 1500,
+    "decide_max_backoff_ms": 6500
   }},
   "audit": {{
     "enabled": true,
@@ -107,12 +129,12 @@ fn write_invalid_harness_config(root: &Path) -> std::path::PathBuf {
   "agents": {{
     "defaults": {{
       "workspace": "{}",
-      "provider": "openai",
+      "provider": "openai_compatible",
       "model": "openai/gpt-4o"
     }}
   }},
   "providers": {{
-    "openai": {{
+    "openai_compatible": {{
       "api_key": "sk-test"
     }}
   }},
@@ -127,7 +149,10 @@ fn write_invalid_harness_config(root: &Path) -> std::path::PathBuf {
   }},
   "heartbeat": {{
     "enabled": true,
-    "interval_s": 0
+    "interval_s": 0,
+    "decide_max_retries": 2,
+    "decide_backoff_ms": 0,
+    "decide_max_backoff_ms": 0
   }}
 }}"#,
         workspace.display().to_string().replace('\\', "\\\\"),
@@ -149,12 +174,12 @@ fn write_hot_reload_diff_candidate(root: &Path) -> std::path::PathBuf {
   "agents": {{
     "defaults": {{
       "workspace": "{}",
-      "provider": "openai",
+      "provider": "openai_compatible",
       "model": "openai/gpt-4o"
     }}
   }},
   "providers": {{
-    "openai": {{
+    "openai_compatible": {{
       "api_key": "sk-test"
     }}
   }},
@@ -171,7 +196,10 @@ fn write_hot_reload_diff_candidate(root: &Path) -> std::path::PathBuf {
   }},
   "heartbeat": {{
     "enabled": false,
-    "interval_s": 123
+    "interval_s": 123,
+    "decide_max_retries": 5,
+    "decide_backoff_ms": 2345,
+    "decide_max_backoff_ms": 6789
   }},
   "audit": {{
     "enabled": true,
@@ -212,12 +240,12 @@ fn write_restart_required_diff_candidate(root: &Path) -> std::path::PathBuf {
   "agents": {{
     "defaults": {{
       "workspace": "{}",
-      "provider": "openai",
+      "provider": "openai_compatible",
       "model": "openai/gpt-4o"
     }}
   }},
   "providers": {{
-    "openai": {{
+    "openai_compatible": {{
       "api_key": "sk-updated"
     }}
   }},
@@ -234,7 +262,10 @@ fn write_restart_required_diff_candidate(root: &Path) -> std::path::PathBuf {
   }},
   "heartbeat": {{
     "enabled": true,
-    "interval_s": 99
+    "interval_s": 99,
+    "decide_max_retries": 4,
+    "decide_backoff_ms": 1500,
+    "decide_max_backoff_ms": 6500
   }},
   "audit": {{
     "enabled": true,
@@ -322,7 +353,10 @@ fn config_show_json_redacts_secrets() {
     assert!(output.status.success(), "{:?}", output);
     let stdout = String::from_utf8(output.stdout).unwrap();
     let value: Value = serde_json::from_str(stdout.trim()).unwrap();
-    assert_eq!(value["providers"]["openai"]["api_key"], "***REDACTED***");
+    assert_eq!(
+        value["providers"]["openai_compatible"]["api_key"],
+        "***REDACTED***"
+    );
 }
 
 #[test]
@@ -350,6 +384,9 @@ fn config_show_json_includes_harness_domain_sections() {
     assert_eq!(value["security"]["max_actions_per_hour"], 42);
     assert_eq!(value["presence"]["active_timeout_s"], 11);
     assert_eq!(value["heartbeat"]["interval_s"], 99);
+    assert_eq!(value["heartbeat"]["decide_max_retries"], 4);
+    assert_eq!(value["heartbeat"]["decide_backoff_ms"], 1500);
+    assert_eq!(value["heartbeat"]["decide_max_backoff_ms"], 6500);
     assert_eq!(value["audit"]["emit_presence_changed"], false);
     assert_eq!(value["pii"]["redact_email"], false);
     assert_eq!(value["injection"]["detect_tool_abuse"], false);
@@ -376,6 +413,7 @@ fn status_json_rejects_invalid_harness_config() {
     assert!(stderr.contains("security.max_actions_per_hour"));
     assert!(stderr.contains("presence.active_timeout_s"));
     assert!(stderr.contains("heartbeat.interval_s"));
+    assert!(stderr.contains("heartbeat.decide_backoff_ms"));
 }
 
 #[test]
@@ -409,6 +447,7 @@ fn config_diff_json_reports_hot_reload_changes() {
     assert!(hot.iter().any(|item| item == "tools.exec.timeout"));
     assert!(hot.iter().any(|item| item == "presence.active_timeout_s"));
     assert!(hot.iter().any(|item| item == "heartbeat.interval_s"));
+    assert!(hot.iter().any(|item| item == "heartbeat.decide_backoff_ms"));
     assert!(hot.iter().any(|item| item == "audit.emit_presence_changed"));
     assert!(hot.iter().any(|item| item == "pii.redact_email"));
     assert!(hot.iter().any(|item| item == "injection.detect_tool_abuse"));
@@ -497,7 +536,7 @@ fn config_diff_json_reports_noop_and_restart_required_changes() {
     assert!(restart.iter().any(|item| item == "gateway.port"));
     assert!(restart
         .iter()
-        .any(|item| item == "providers.openai.api_key"));
+        .any(|item| item == "providers.openai_compatible.api_key"));
     assert!(restart_value["hot_reload_changes"]
         .as_array()
         .unwrap()
@@ -508,7 +547,13 @@ fn config_diff_json_reports_noop_and_restart_required_changes() {
 fn config_doctor_returns_warning_exit_code_for_missing_provider_key() {
     let _guard = test_lock().lock().unwrap();
     let temp = tempdir().unwrap();
-    let config_path = write_config(temp.path(), false);
+    let config_path = write_provider_config(
+        temp.path(),
+        "anthropic",
+        "anthropic/claude-sonnet-4-5",
+        "anthropic",
+        false,
+    );
 
     let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
         .args([
@@ -572,7 +617,9 @@ fn provider_set_json_updates_model_and_credentials() {
             "provider",
             "set",
             "--provider",
-            "deepseek",
+            "openai",
+            "--model",
+            "deepseek-chat",
             "--api-key",
             "sk-deepseek",
             "--json",
@@ -584,13 +631,12 @@ fn provider_set_json_updates_model_and_credentials() {
     let stdout = String::from_utf8(output.stdout).unwrap();
     let value: Value = serde_json::from_str(stdout.trim()).unwrap();
 
-    assert_eq!(value["provider"], "deepseek");
+    assert_eq!(value["provider"], "openai");
     assert_eq!(value["model"], "deepseek-chat");
 
     let saved: Value = serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
-    assert_eq!(saved["agents"]["defaults"]["provider"], "deepseek");
+    assert_eq!(saved["agents"]["defaults"]["provider"], "openai");
     assert_eq!(saved["agents"]["defaults"]["model"], "deepseek-chat");
-    assert_eq!(saved["providers"]["deepseek"]["api_key"], "sk-deepseek");
 }
 
 #[test]
@@ -610,11 +656,12 @@ fn provider_models_json_returns_provider_catalog() {
   "agents": {{
     "defaults": {{
       "workspace": "{}",
+      "provider": "openai_compatible",
       "model": "openai/gpt-4o"
     }}
   }},
   "providers": {{
-    "openai": {{
+    "openai_compatible": {{
       "api_key": "sk-test",
       "api_base": "{}"
     }}

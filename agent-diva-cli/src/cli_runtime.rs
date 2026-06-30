@@ -206,7 +206,17 @@ pub fn provider_config_by_name_mut<'a>(
     providers: &'a mut ProvidersConfig,
     name: &str,
 ) -> Option<&'a mut ProviderConfig> {
-    providers.get_mut(name)
+    let effective_name = provider_registry()
+        .find_by_name(name)
+        .map(|spec| {
+            if spec.name == "anthropic" {
+                "anthropic"
+            } else {
+                "openai_compatible"
+            }
+        })
+        .unwrap_or(name);
+    providers.get_mut(effective_name)
 }
 
 pub fn provider_has_config_slot(name: &str) -> bool {
@@ -353,6 +363,27 @@ pub fn set_provider_credentials(
     api_key: Option<String>,
     api_base: Option<String>,
 ) {
+    let effective_name = provider_registry()
+        .find_by_name(provider_name)
+        .map(|spec| {
+            if spec.name == "anthropic" {
+                "anthropic"
+            } else {
+                "openai_compatible"
+            }
+        })
+        .unwrap_or(provider_name);
+
+    if provider_name != effective_name && config.providers.get(effective_name).is_none() {
+        match effective_name {
+            "anthropic" => config.providers.anthropic = Some(ProviderConfig::default()),
+            "openai_compatible" => {
+                config.providers.openai_compatible = Some(ProviderConfig::default())
+            }
+            _ => {}
+        }
+    }
+
     if let Some(provider) = provider_config_by_name_mut(&mut config.providers, provider_name) {
         if let Some(api_key) = api_key {
             provider.api_key = api_key;

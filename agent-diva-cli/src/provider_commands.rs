@@ -1,5 +1,6 @@
 use crate::cli_runtime::{
-    print_json, provider_status_report, provider_statuses, set_provider_credentials, CliRuntime,
+    print_json, provider_has_config_slot, provider_status_report, provider_statuses,
+    set_provider_credentials, CliRuntime,
 };
 use agent_diva_providers::ProviderCatalogService;
 use anyhow::Result;
@@ -116,7 +117,7 @@ pub async fn run_provider_set(
 
     config.agents.defaults.provider = Some(provider_name.clone());
     config.agents.defaults.model = selected_model.clone();
-    if config.providers.get(&provider_name).is_some() {
+    if config.providers.get(&provider_name).is_some() || provider_has_config_slot(&provider_name) {
         set_provider_credentials(&mut config, &provider_name, api_key, api_base);
     } else if let Some(custom) = config.providers.get_custom_mut(&provider_name) {
         if let Some(api_key) = api_key {
