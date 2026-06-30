@@ -18,13 +18,24 @@ impl PathValidator {
             .any(|c| matches!(c, Component::ParentDir))
     }
 
-    /// Layer 3: Check for URL-encoded traversal
+    /// Layer 3: Check for URL-encoded traversal.
+    ///
+    /// Detects single-encoded (`%2f`, `%5c`), double-encoded (`%252f`, `%255c`),
+    /// and triple-encoded (`%25252f`, `%25255c`) path separators to prevent
+    /// path traversal via nested URL encoding.
     pub fn contains_url_encoded_traversal(path: &str) -> bool {
         let lower = path.to_lowercase();
+        // Single encoding: ..%2f, %2f.., ..%5c, %5c..
         lower.contains("..%2f")
             || lower.contains("%2f..")
             || lower.contains("..%5c")
             || lower.contains("%5c..")
+            // Double encoding: %252f (→ %2f), %255c (→ %5c)
+            || lower.contains("%252f")
+            || lower.contains("%255c")
+            // Triple encoding: %25252f (→ %252f → %2f), %25255c (→ %255c → %5c)
+            || lower.contains("%25252f")
+            || lower.contains("%25255c")
     }
 
     /// Layer 4: Check for tilde expansion (~user)
@@ -176,6 +187,27 @@ mod tests {
         ));
         assert!(!PathValidator::contains_url_encoded_traversal(
             "/path/to/file"
+        ));
+    }
+
+    #[test]
+    fn test_double_encoded_traversal_blocked() {
+        assert!(PathValidator::contains_url_encoded_traversal(
+            "%252fetc%252fpasswd"
+        ));
+    }
+
+    #[test]
+    fn test_triple_encoded_traversal_blocked() {
+        assert!(PathValidator::contains_url_encoded_traversal(
+            "%25252fetc"
+        ));
+    }
+
+    #[test]
+    fn test_double_encoded_backslash_blocked() {
+        assert!(PathValidator::contains_url_encoded_traversal(
+            "%255cWindows"
         ));
     }
 

@@ -87,6 +87,13 @@ pub enum AgentBusEvent {
         state: String,
         tasks: String,
     },
+    HookInvoked {
+        event: String,
+        hook_name: String,
+        duration_ms: u64,
+        blocked: bool,
+        hook_type: String,
+    },
 }
 
 /// Message received from a chat channel
