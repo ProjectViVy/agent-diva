@@ -103,7 +103,7 @@ pub struct McpClientWrapper {
     tool_timeout: u64,
 }
 
-type SharedMcpClient = Arc<RwLock<Option<Arc<McpClientWrapper>>>>;
+pub type SharedMcpClient = Arc<RwLock<Option<Arc<McpClientWrapper>>>>;
 
 impl std::fmt::Debug for McpClientWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -15,6 +15,8 @@ pub mod shell;
 pub mod spawn;
 pub mod toolsets;
 pub mod web;
+pub mod execute_code;
+pub mod mcp_reconnect;
 pub mod wtf;
 
 pub use agent_diva_tooling::{Result, Tool, ToolError, ToolRegistry};
@@ -28,6 +30,8 @@ pub use search_files::SearchFilesTool;
 pub use process::ProcessTool;
 pub use shell::ExecTool;
 pub use spawn::SpawnTool;
+pub use execute_code::ExecuteCodeTool;
+pub use mcp_reconnect::McpReconnectManager;
 pub use web::{WebFetchTool, WebSearchTool};
 pub use wtf::{print_ascii_agent_diva_logo, ASCII_AGENT_DIVA_LOGO};
 
