@@ -4,6 +4,7 @@
 //! used by all other agent-diva components.
 
 pub mod attachment;
+pub mod audit;
 pub mod bus;
 pub mod config;
 pub mod cron;
@@ -14,12 +15,14 @@ pub mod heartbeat;
 pub mod logging;
 pub mod memory;
 pub mod planning;
-pub mod reports;
+pub mod presence;
 pub mod reasoning;
+pub mod reports;
 pub mod security;
 pub mod session;
 pub mod soul;
 pub mod utils;
 
 pub use attachment::FileAttachment;
+pub use audit::emit;
 pub use error::{Error, Result};
