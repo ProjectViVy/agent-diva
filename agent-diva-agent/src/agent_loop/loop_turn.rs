@@ -4,7 +4,7 @@ use crate::consolidation;
 use crate::context_budget::check_budget;
 use crate::mask::ToolPolicy;
 use crate::planning::inject_plan_context;
-use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
+use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage, PokeEvent};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::{ChatMessage, CompactTrigger};
@@ -485,6 +485,32 @@ impl AgentLoop {
                 },
             });
 
+            // Emit TokenUsed if usage data is available
+            if let Some(tokens) = response.usage.get("total_tokens") {
+                if *tokens > 0 {
+                    let provider = model_to_use
+                        .split('/')
+                        .next()
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let _ = self.bus.publish_poke_event(PokeEvent::TokenUsed {
+                        tokens: *tokens as u32,
+                        model: model_to_use.clone(),
+                        provider,
+                    });
+                }
+            }
+
+            // Emit ReasoningReceived if reasoning content is available
+            if let Some(ref reasoning) = response.reasoning_content {
+                if !reasoning.is_empty() {
+                    let _ = self.bus.publish_poke_event(PokeEvent::ReasoningReceived {
+                        content: reasoning.clone(),
+                        model: model_to_use.clone(),
+                    });
+                }
+            }
+
             // Trace intent decision
             let decision_type = if response.has_tool_calls() {
                 "tool_use"
@@ -535,7 +561,7 @@ impl AgentLoop {
                         .bus
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
-                    let result = match serde_json::to_value(&tool_call.arguments) {
+                    let (result, is_error) = match serde_json::to_value(&tool_call.arguments) {
                         Ok(mut params_value) => {
                             let read_only_rejected = active_mask
                                 .as_ref()
@@ -545,15 +571,18 @@ impl AgentLoop {
                                 plan_mode && !is_plan_mode_allowed_tool(&tool_call.name);
 
                             if read_only_rejected {
-                                format!(
-                                    "Error: tool '{}' is disabled in reviewer read-only mode",
-                                    tool_call.name
+                                (
+                                    format!(
+                                        "Error: tool '{}' is disabled in reviewer read-only mode",
+                                        tool_call.name
+                                    ),
+                                    true,
                                 )
                             } else if plan_mode_rejected {
-                                format!(
+                                (format!(
                                     "Error: tool '{}' is disabled in Plan mode. Plan mode can only use planning and read-only inspection tools.",
                                     tool_call.name
-                                )
+                                ), true)
                             } else {
                                 if tool_call.name == "cron" {
                                     if let Some(params_obj) = params_value.as_object_mut() {
@@ -575,9 +604,12 @@ impl AgentLoop {
                                 }
 
                                 if is_cron_trigger && tool_call.name == "cron" {
-                                    "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
+                                    ("Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string(), true)
                                 } else {
-                                    self.tools.execute(&tool_call.name, params_value).await
+                                    match self.tools.execute(&tool_call.name, params_value).await {
+                                        Ok(text) => (text, false),
+                                        Err(e) => (format!("Error: {}", e), true),
+                                    }
                                 }
                             }
                         }
@@ -586,13 +618,16 @@ impl AgentLoop {
                                 "Failed to serialize arguments for tool '{}' (call_id: {}): {}",
                                 tool_call.name, tool_call.id, e
                             );
-                            format!(
-                                "Error: failed to serialize arguments for tool '{}': {}",
-                                tool_call.name, e
+                            (
+                                format!(
+                                    "Error: failed to serialize arguments for tool '{}': {}",
+                                    tool_call.name, e
+                                ),
+                                true,
                             )
                         }
                     };
-                    if self.notify_on_soul_change {
+                    if self.notify_on_soul_change && !is_error {
                         if let Some(changed_file) =
                             changed_soul_file(&tool_call.name, &tool_call.arguments, &result)
                         {
@@ -608,7 +643,7 @@ impl AgentLoop {
 
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),
-                        is_error: result.starts_with("Error"),
+                        is_error,
                         result: result.clone(),
                         call_id: tool_call.id.clone(),
                     };
@@ -824,11 +859,8 @@ impl AgentLoop {
 fn changed_soul_file(
     tool_name: &str,
     arguments: &HashMap<String, serde_json::Value>,
-    result: &str,
+    _result: &str,
 ) -> Option<&'static str> {
-    if result.starts_with("Error") || result.starts_with("Warning") {
-        return None;
-    }
     if tool_name != "write_file" && tool_name != "edit_file" {
         return None;
     }
@@ -1057,19 +1089,17 @@ mod tests {
     }
 
     #[test]
-    fn test_changed_soul_file_ignores_errors_and_other_tools() {
+    fn test_changed_soul_file_ignores_non_write_tools() {
         let args = HashMap::from([(
             "path".to_string(),
             serde_json::Value::String("SOUL.md".to_string()),
         )]);
-        assert_eq!(
-            changed_soul_file("write_file", &args, "Error writing file: denied"),
-            None
-        );
+        // Non-write_file/edit_file tools should return None regardless of result
         assert_eq!(
             changed_soul_file("list_dir", &args, "Successfully listed"),
             None
         );
+        assert_eq!(changed_soul_file("read_file", &args, "content"), None);
     }
 
     #[test]

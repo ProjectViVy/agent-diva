@@ -6,5 +6,5 @@
 pub mod events;
 pub mod queue;
 
-pub use events::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
+pub use events::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage, PokeEvent};
 pub use queue::MessageBus;

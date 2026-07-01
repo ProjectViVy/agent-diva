@@ -1,6 +1,6 @@
 //! Async message queue implementation
 
-use super::events::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage};
+use super::events::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage, PokeEvent};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
@@ -32,6 +32,8 @@ pub struct MessageBus {
     subscribers: Arc<RwLock<HashMap<String, Vec<OutboundCallback>>>>,
     /// Event broadcast channel
     event_tx: broadcast::Sender<AgentBusEvent>,
+    /// Poke event broadcast channel for lifecycle/audit events
+    poke_event_tx: broadcast::Sender<PokeEvent>,
     /// Running state
     running: Arc<RwLock<bool>>,
 }
@@ -42,6 +44,7 @@ impl MessageBus {
         let (inbound_tx, inbound_rx) = mpsc::unbounded_channel();
         let (outbound_tx, outbound_rx) = mpsc::unbounded_channel();
         let (event_tx, _) = broadcast::channel(1024);
+        let (poke_event_tx, _) = broadcast::channel(1024);
 
         Self {
             inbound_tx,
@@ -50,6 +53,7 @@ impl MessageBus {
             outbound_rx: Arc::new(RwLock::new(Some(outbound_rx))),
             subscribers: Arc::new(RwLock::new(HashMap::new())),
             event_tx,
+            poke_event_tx,
             running: Arc::new(RwLock::new(false)),
         }
     }
@@ -74,6 +78,18 @@ impl MessageBus {
     /// Subscribe to the event broadcast channel
     pub fn subscribe_events(&self) -> broadcast::Receiver<AgentBusEvent> {
         self.event_tx.subscribe()
+    }
+
+    /// Publish a poke event to the broadcast channel
+    pub fn publish_poke_event(&self, event: PokeEvent) -> crate::Result<()> {
+        // We ignore the error if there are no receivers
+        let _ = self.poke_event_tx.send(event);
+        Ok(())
+    }
+
+    /// Subscribe to the poke event broadcast channel
+    pub fn subscribe_poke_events(&self) -> broadcast::Receiver<PokeEvent> {
+        self.poke_event_tx.subscribe()
     }
 
     /// Take the inbound receiver (can only be called once)
@@ -207,5 +223,152 @@ mod tests {
 
         // Check bus is not running yet
         assert!(!bus.is_running().await);
+    }
+
+    #[tokio::test]
+    async fn test_poke_event_publish_subscribe() {
+        let bus = MessageBus::new();
+        let mut poke_rx = bus.subscribe_poke_events();
+
+        bus.publish_poke_event(PokeEvent::ChatReceived {
+            content: "hello".to_string(),
+            sender_id: "user1".to_string(),
+        })
+        .unwrap();
+
+        let received = poke_rx.try_recv().unwrap();
+        match received {
+            PokeEvent::ChatReceived { content, sender_id } => {
+                assert_eq!(content, "hello");
+                assert_eq!(sender_id, "user1");
+            }
+            _ => panic!("Expected ChatReceived, got {:?}", received),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_both_event_channels_independent() {
+        let bus = MessageBus::new();
+        let mut event_rx = bus.subscribe_events();
+        let mut poke_rx = bus.subscribe_poke_events();
+
+        // Publish an AgentEvent
+        bus.publish_event(
+            "ch",
+            "chat1",
+            AgentEvent::FinalResponse {
+                content: "response".to_string(),
+            },
+        )
+        .unwrap();
+
+        // Publish a PokeEvent
+        bus.publish_poke_event(PokeEvent::PokeSend {
+            message: "poke".to_string(),
+        })
+        .unwrap();
+
+        // event_rx should only receive the AgentEvent
+        let agent_received = event_rx.try_recv().unwrap();
+        assert!(matches!(
+            agent_received.event,
+            AgentEvent::FinalResponse { .. }
+        ));
+
+        // poke_rx should only receive the PokeEvent
+        let poke_received = poke_rx.try_recv().unwrap();
+        assert!(matches!(poke_received, PokeEvent::PokeSend { .. }));
+
+        // No cross-contamination: the other channel should have no further events
+        assert!(event_rx.try_recv().is_err());
+        assert!(poke_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_backward_compat_publish_event() {
+        let bus = MessageBus::new();
+        let mut event_rx = bus.subscribe_events();
+
+        // Existing publish_event must still work with AgentBusEvent wrapping
+        bus.publish_event(
+            "test_channel",
+            "test_chat",
+            AgentEvent::AssistantDelta {
+                text: "delta content".to_string(),
+            },
+        )
+        .unwrap();
+
+        let received = event_rx.try_recv().unwrap();
+        assert_eq!(received.channel, "test_channel");
+        assert_eq!(received.chat_id, "test_chat");
+        assert!(matches!(received.event, AgentEvent::AssistantDelta { .. }));
+    }
+
+    #[test]
+    fn test_poke_event_roundtrip_serialize() {
+        let variants: Vec<PokeEvent> = vec![
+            PokeEvent::PokeSend {
+                message: "hello poke".to_string(),
+            },
+            PokeEvent::ChatSend {
+                content: "chat message".to_string(),
+            },
+            PokeEvent::ChatSent {
+                content: "sent content".to_string(),
+                message_id: "msg_123".to_string(),
+            },
+            PokeEvent::ChatReceived {
+                content: "received".to_string(),
+                sender_id: "user_42".to_string(),
+            },
+            PokeEvent::ReasoningReceived {
+                content: "deep thoughts...".to_string(),
+                model: "claude-sonnet-4".to_string(),
+            },
+            PokeEvent::ChatOver {
+                reason: "max_iterations".to_string(),
+            },
+            PokeEvent::ChatHistoryAdd {
+                message_ids: vec!["a".to_string(), "b".to_string()],
+            },
+            PokeEvent::TokenUsed {
+                tokens: 1234,
+                model: "gpt-4o".to_string(),
+                provider: "openai".to_string(),
+            },
+        ];
+
+        for variant in variants {
+            let json = serde_json::to_value(&variant).unwrap();
+            let deserialized: PokeEvent = serde_json::from_value(json).unwrap();
+
+            // Verify variant kind matches by debug formatting
+            let original_debug = format!("{:?}", &variant);
+            let deserialized_debug = format!("{:?}", &deserialized);
+            assert_eq!(
+                original_debug, deserialized_debug,
+                "Roundtrip failed for {:?}",
+                variant
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_multiple_subscribers() {
+        let bus = MessageBus::new();
+        let mut rx1 = bus.subscribe_poke_events();
+        let mut rx2 = bus.subscribe_poke_events();
+
+        bus.publish_poke_event(PokeEvent::ChatOver {
+            reason: "completed".to_string(),
+        })
+        .unwrap();
+
+        // Both subscribers should receive the same event
+        let received_1 = rx1.try_recv().unwrap();
+        let received_2 = rx2.try_recv().unwrap();
+        assert!(matches!(received_1, PokeEvent::ChatOver { .. }));
+        assert!(matches!(received_2, PokeEvent::ChatOver { .. }));
     }
 }
