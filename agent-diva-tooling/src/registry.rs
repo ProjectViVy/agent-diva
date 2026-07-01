@@ -1,13 +1,28 @@
 //! Tool registry.
 
-use crate::Tool;
+use crate::{Tool, ToolError};
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, warn};
 
-const ERROR_HINT: &str = "\n\n[Analyze the error above and try a different approach.]";
+/// Maximum length for tool results (in characters) to prevent oversized API requests.
+const MAX_TOOL_RESULT_CHARS: usize = 80_000;
+
+/// Truncate tool result to prevent oversized API requests.
+fn truncate_tool_result(result: &str) -> String {
+    let char_count = result.chars().count();
+    if char_count <= MAX_TOOL_RESULT_CHARS {
+        result.to_string()
+    } else {
+        let truncated: String = result.chars().take(MAX_TOOL_RESULT_CHARS).collect();
+        format!(
+            "{}\n\n... [Result truncated: {} total characters, showing first {}]",
+            truncated, char_count, MAX_TOOL_RESULT_CHARS
+        )
+    }
+}
 
 /// Registry of available tools.
 pub struct ToolRegistry {
@@ -49,7 +64,7 @@ impl ToolRegistry {
     }
 
     /// Execute a tool by name with given parameters.
-    pub async fn execute(&self, name: &str, params: Value) -> String {
+    pub async fn execute(&self, name: &str, params: Value) -> crate::Result<String> {
         let tool = match self.tools.get(name) {
             Some(tool) => tool,
             None => {
@@ -57,7 +72,7 @@ impl ToolRegistry {
                     .with_metadata("tool_name", name.to_string())
                     .with_metadata("available_tools", self.tool_names().join(", "));
                 warn!("{}", ctx.to_detailed_string());
-                return format!("Error: Tool '{}' not found{}", name, ERROR_HINT);
+                return Err(ToolError::Error(format!("Tool '{}' not found", name)));
             }
         };
 
@@ -78,26 +93,17 @@ impl ToolRegistry {
                     problems.join("\n    - ")
                 );
             }
-            return format!(
-                "Error: Invalid parameters for tool '{}': {}{}",
+            return Err(ToolError::InvalidParams(format!(
+                "Invalid parameters for tool '{}': {}",
                 name,
                 errors.join("; "),
-                ERROR_HINT,
-            );
+            )));
         }
 
         match tool.execute(params.clone()).await {
             Ok(result) => {
-                if result.starts_with("Error") {
-                    let params_str = serde_json::to_string(&params).unwrap_or_default();
-                    let ctx = ErrorContext::new("tool_execution", &result)
-                        .with_content(&params_str)
-                        .with_metadata("tool_name", name.to_string());
-                    warn!("{}", ctx.to_detailed_string());
-                    format!("{}{}", result, ERROR_HINT)
-                } else {
-                    result
-                }
+                // Apply truncation to ALL tool results (prevents oversized API requests)
+                Ok(truncate_tool_result(&result))
             }
             Err(e) => {
                 let params_str = serde_json::to_string(&params).unwrap_or_default();
@@ -115,7 +121,7 @@ impl ToolRegistry {
                         problems.join("\n    - ")
                     );
                 }
-                format!("Error executing {}: {}{}", name, e, ERROR_HINT)
+                Err(e)
             }
         }
     }
@@ -172,6 +178,60 @@ mod tests {
         }
     }
 
+    /// A mock tool that requires a `name` parameter.
+    struct MockParamTool;
+
+    #[async_trait]
+    impl Tool for MockParamTool {
+        fn name(&self) -> &str {
+            "mock_params"
+        }
+
+        fn description(&self) -> &str {
+            "A mock tool with required params"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" }
+                },
+                "required": ["name"]
+            })
+        }
+
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
+            Ok("mock param result".to_string())
+        }
+    }
+
+    /// A mock tool that always fails.
+    struct MockFailingTool;
+
+    #[async_trait]
+    impl Tool for MockFailingTool {
+        fn name(&self) -> &str {
+            "mock_fail"
+        }
+
+        fn description(&self) -> &str {
+            "A mock tool that always fails"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            })
+        }
+
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
+            Err(ToolError::ExecutionFailed("mock failure".to_string()))
+        }
+    }
+
     #[test]
     fn test_register_tool() {
         let mut registry = ToolRegistry::new();
@@ -194,14 +254,98 @@ mod tests {
         let mut registry = ToolRegistry::new();
         registry.register(Arc::new(MockTool));
         let result = registry.execute("mock", serde_json::json!({})).await;
-        assert_eq!(result, "mock result");
+        assert_eq!(result.unwrap(), "mock result");
     }
 
     #[tokio::test]
     async fn test_execute_unknown_tool() {
         let registry = ToolRegistry::new();
         let result = registry.execute("nonexistent", serde_json::json!({})).await;
-        assert!(result.contains("Tool 'nonexistent' not found"));
-        assert!(result.contains("[Analyze the error above"));
+        assert!(result.is_err());
+        match result {
+            Err(ToolError::Error(msg)) => {
+                assert!(msg.contains("Tool 'nonexistent' not found"));
+            }
+            _ => panic!("Expected ToolError::Error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_invalid_params_returns_err() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(MockParamTool));
+        let result = registry.execute("mock_params", serde_json::json!({})).await;
+        assert!(result.is_err());
+        match result {
+            Err(ToolError::InvalidParams(msg)) => {
+                assert!(msg.contains("Invalid parameters for tool 'mock_params'"));
+            }
+            _ => panic!("Expected ToolError::InvalidParams"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_tool_failure_returns_err() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(MockFailingTool));
+        let result = registry.execute("mock_fail", serde_json::json!({})).await;
+        assert!(result.is_err());
+        match result {
+            Err(ToolError::ExecutionFailed(msg)) => {
+                assert_eq!(msg, "mock failure");
+            }
+            _ => panic!("Expected ToolError::ExecutionFailed"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_success_no_truncation() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(MockTool));
+        let result = registry.execute("mock", serde_json::json!({})).await;
+        assert_eq!(result.unwrap(), "mock result");
+    }
+
+    #[tokio::test]
+    async fn test_execute_success_truncates() {
+        let mut registry = ToolRegistry::new();
+        let large_tool = MockLargeOutputTool;
+        registry.register(Arc::new(large_tool));
+        let result = registry.execute("mock_large", serde_json::json!({})).await;
+        let output = result.unwrap();
+        assert!(
+            output.contains("truncated"),
+            "truncation notice should be present"
+        );
+        assert!(
+            output.chars().count() <= MAX_TOOL_RESULT_CHARS + 200,
+            "output should be bounded near MAX_TOOL_RESULT_CHARS"
+        );
+    }
+
+    /// A mock tool that produces output exceeding MAX_TOOL_RESULT_CHARS.
+    struct MockLargeOutputTool;
+
+    #[async_trait]
+    impl Tool for MockLargeOutputTool {
+        fn name(&self) -> &str {
+            "mock_large"
+        }
+
+        fn description(&self) -> &str {
+            "A mock tool with oversized output"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            })
+        }
+
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
+            Ok("x".repeat(MAX_TOOL_RESULT_CHARS + 5000))
+        }
     }
 }

@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
-    BatchSpawnRequest, MaskConfig, SubAgentResult, SubAgentStatus, ToolLimits,
+    BatchSpawnRequest, MaskConfig, SubAgentResult, SubAgentStatus, TokenUsage, ToolLimits,
 };
 use agent_diva_core::memory::{MemoryProvider, SystemPromptRequest};
 use agent_diva_providers::base::{LLMProvider, Message};
@@ -443,7 +443,7 @@ impl SubagentManager {
 
     /// Execute an isolated task with the LLM and tools.
     ///
-    /// Returns `(summary, tool_call_count, tool_trace)` on success.
+    /// Returns `(summary, tool_call_count, tool_trace, token_usage)` on success.
     #[allow(clippy::too_many_arguments)]
     async fn execute_isolated_task(
         task_id: &str,
@@ -457,7 +457,8 @@ impl SubagentManager {
         restrict_to_workspace: bool,
         mcp_servers: &HashMap<String, MCPServerConfig>,
         _memory_provider: Arc<dyn MemoryProvider>,
-    ) -> Result<(String, u32, Vec<String>)> {
+        max_iterations: u32,
+    ) -> Result<(String, u32, Vec<String>, HashMap<String, i64>)> {
         let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
             .builtin(builtin_tools.clone())
             .with_network_config(network_config.clone())
@@ -472,9 +473,9 @@ impl SubagentManager {
             Message::user(task.to_string()),
         ];
 
-        let max_iterations = 15;
         let mut iteration = 0;
         let mut final_result: Option<String> = None;
+        let mut final_usage: HashMap<String, i64> = HashMap::new();
         let mut tool_call_count: u32 = 0;
         let mut tool_trace: Vec<String> = Vec::new();
 
@@ -490,6 +491,11 @@ impl SubagentManager {
                     0.7,
                 )
                 .await?;
+
+            // Capture usage from each response; last non-empty one wins
+            if !response.usage.is_empty() {
+                final_usage = response.usage.clone();
+            }
 
             if response.has_tool_calls() {
                 messages.push(Message {
@@ -513,8 +519,11 @@ impl SubagentManager {
                     );
                     tool_call_count += 1;
                     tool_trace.push(tool_call.name.clone());
-                    let result = tools.execute(&tool_call.name, args_json).await;
-                    messages.push(Message::tool(result, tool_call.id.clone()));
+                    match tools.execute(&tool_call.name, args_json).await {
+                        Ok(text) => messages.push(Message::tool(text, tool_call.id.clone())),
+                        Err(e) => messages
+                            .push(Message::tool(format!("Error: {}", e), tool_call.id.clone())),
+                    }
                 }
             } else {
                 final_result = response.content;
@@ -524,7 +533,7 @@ impl SubagentManager {
 
         let summary = final_result
             .unwrap_or_else(|| "Task completed but no final response was generated.".to_string());
-        Ok((summary, tool_call_count, tool_trace))
+        Ok((summary, tool_call_count, tool_trace, final_usage))
     }
 
     /// Execute the subagent task with LLM and tools
@@ -597,8 +606,11 @@ impl SubagentManager {
                         "Subagent [{}] executing: {} with arguments: {}",
                         task_id, tool_call.name, args_str
                     );
-                    let result = tools.execute(&tool_call.name, args_json).await;
-                    messages.push(Message::tool(result, tool_call.id.clone()));
+                    match tools.execute(&tool_call.name, args_json).await {
+                        Ok(text) => messages.push(Message::tool(text, tool_call.id.clone())),
+                        Err(e) => messages
+                            .push(Message::tool(format!("Error: {}", e), tool_call.id.clone())),
+                    }
                 }
             } else {
                 final_result = response.content;
@@ -811,6 +823,23 @@ When you have completed the task, provide a clear summary of your findings or ac
     pub(crate) fn builtin_tools_for_test(&self) -> &BuiltInToolsConfig {
         &self.builtin_tools
     }
+}
+
+/// Convert an LLM provider usage map (`HashMap<String, i64>`) into a
+/// structured [`TokenUsage`], returning `None` when the map is empty.
+fn extract_token_usage(usage: &HashMap<String, i64>) -> Option<TokenUsage> {
+    if usage.is_empty() {
+        return None;
+    }
+    Some(TokenUsage {
+        prompt_tokens: usage.get("prompt_tokens").copied().unwrap_or(0).max(0) as u32,
+        completion_tokens: usage
+            .get("completion_tokens")
+            .copied()
+            .unwrap_or(0)
+            .max(0) as u32,
+        total_tokens: usage.get("total_tokens").copied().unwrap_or(0).max(0) as u32,
+    })
 }
 
 #[cfg(test)]
@@ -1063,6 +1092,7 @@ mod tests {
                     context: Some("extra info".to_string()),
                 },
             ],
+            max_iterations: None,
         };
         assert_eq!(request.tasks.len(), 2);
         assert_eq!(request.tasks[0].id, "t1");
@@ -1071,7 +1101,10 @@ mod tests {
 
     #[test]
     fn batch_spawn_empty_tasks() {
-        let request = BatchSpawnRequest { tasks: vec![] };
+        let request = BatchSpawnRequest {
+            tasks: vec![],
+            max_iterations: None,
+        };
         assert!(request.tasks.is_empty());
     }
 
