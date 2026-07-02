@@ -1,7 +1,52 @@
 //! Base trait for tools.
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+/// Describes what a tool is capable of doing.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ToolCapabilities {
+    /// Whether this tool requires network access.
+    #[serde(default)]
+    pub requires_network: bool,
+
+    /// Whether this tool requires filesystem access.
+    #[serde(default)]
+    pub requires_filesystem: bool,
+
+    /// Whether this tool is read-only (does not mutate state).
+    #[serde(default)]
+    pub is_read_only: bool,
+
+    /// Whether this tool can spawn sub-agents.
+    #[serde(default)]
+    pub can_spawn_subagent: bool,
+
+    /// Whether this tool supports streaming output.
+    #[serde(default)]
+    pub supports_streaming: bool,
+}
+
+/// Metadata about a tool for registration and discovery.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ToolMetadata {
+    /// Semantic version of the tool.
+    #[serde(default = "default_version")]
+    pub version: String,
+
+    /// Author of the tool.
+    #[serde(default)]
+    pub author: String,
+
+    /// Category for grouping (e.g., "filesystem", "network", "ai").
+    #[serde(default)]
+    pub category: String,
+}
+
+fn default_version() -> String {
+    "0.1.0".to_string()
+}
 
 /// Trait for tools.
 #[async_trait]
@@ -52,6 +97,21 @@ pub trait Tool: Send + Sync {
                 "parameters": self.parameters(),
             }
         })
+    }
+
+    /// Get the tool's capabilities.
+    fn capabilities(&self) -> ToolCapabilities {
+        ToolCapabilities::default()
+    }
+
+    /// Get the tool's metadata.
+    fn metadata(&self) -> ToolMetadata {
+        ToolMetadata::default()
+    }
+
+    /// Perform a health check on the tool.
+    fn health_check(&self) -> Result<()> {
+        Ok(())
     }
 }
 
