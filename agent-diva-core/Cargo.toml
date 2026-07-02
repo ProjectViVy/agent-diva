@@ -23,6 +23,7 @@ serde_yaml = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 # Logging and tracing
 tracing = { workspace = true }
@@ -44,12 +45,15 @@ regex = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = "0.12"
 urlencoding = "2.1.3"
+walkdir = "2"
 
 # File management
 agent-diva-files = { workspace = true }
 
 # Database
 sqlx = { workspace = true }
+
+tempfile = { workspace = true }
 
 
 [dependencies.memtle]
