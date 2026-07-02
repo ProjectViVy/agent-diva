@@ -72,6 +72,24 @@ pub enum ToolError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("Tool execution timed out after {secs}s")]
+    Timeout { secs: u64 },
 }
 
 pub type Result<T> = std::result::Result<T, ToolError>;
+
+impl agent_diva_core::error_category::CategorizeError for ToolError {
+    fn category(&self) -> agent_diva_core::error_category::ErrorCategory {
+        match self {
+            Self::Timeout { .. } => agent_diva_core::error_category::ErrorCategory::Timeout,
+            Self::ExecutionFailed(_) | Self::Io(_) => {
+                agent_diva_core::error_category::ErrorCategory::Fatal
+            }
+            Self::InvalidParams(_) | Self::InvalidArguments(_) => {
+                agent_diva_core::error_category::ErrorCategory::Config
+            }
+            Self::Error(_) => agent_diva_core::error_category::ErrorCategory::Unknown,
+        }
+    }
+}

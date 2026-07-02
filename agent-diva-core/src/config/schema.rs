@@ -354,6 +354,9 @@ pub struct LoggingConfig {
     /// Module-specific overrides
     #[serde(default)]
     pub overrides: HashMap<String, String>,
+    /// Number of days to retain log files; 0 = keep all logs
+    #[serde(default = "default_retention_days")]
+    pub retention_days: u64,
 }
 
 fn default_log_level() -> String {
@@ -368,6 +371,10 @@ fn default_log_dir() -> String {
     "logs".to_string()
 }
 
+fn default_retention_days() -> u64 {
+    30
+}
+
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
@@ -375,6 +382,7 @@ impl Default for LoggingConfig {
             format: default_log_format(),
             dir: default_log_dir(),
             overrides: HashMap::new(),
+            retention_days: default_retention_days(),
         }
     }
 }

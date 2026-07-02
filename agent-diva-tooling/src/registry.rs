@@ -5,6 +5,7 @@ use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{error, warn};
 
 /// Maximum length for tool results (in characters) to prevent oversized API requests.
@@ -27,13 +28,23 @@ fn truncate_tool_result(result: &str) -> String {
 /// Registry of available tools.
 pub struct ToolRegistry {
     tools: HashMap<String, Arc<dyn Tool>>,
+    global_timeout_secs: u64,
 }
 
 impl ToolRegistry {
-    /// Create a new tool registry.
+    /// Create a new tool registry with default global timeout (120s).
     pub fn new() -> Self {
         Self {
             tools: HashMap::new(),
+            global_timeout_secs: 120,
+        }
+    }
+
+    /// Create a new tool registry with a custom global timeout.
+    pub fn with_timeout(global_timeout_secs: u64) -> Self {
+        Self {
+            tools: HashMap::new(),
+            global_timeout_secs,
         }
     }
 
@@ -100,12 +111,12 @@ impl ToolRegistry {
             )));
         }
 
-        match tool.execute(params.clone()).await {
-            Ok(result) => {
-                // Apply truncation to ALL tool results (prevents oversized API requests)
-                Ok(truncate_tool_result(&result))
-            }
-            Err(e) => {
+        let timeout_secs = self.global_timeout_secs;
+        let inner = tool.execute(params.clone());
+
+        match tokio::time::timeout(Duration::from_secs(timeout_secs), inner).await {
+            Ok(Ok(result)) => Ok(truncate_tool_result(&result)),
+            Ok(Err(e)) => {
                 let params_str = serde_json::to_string(&params).unwrap_or_default();
                 let problems = find_problematic_chars(&params_str);
                 let ctx = ErrorContext::new("tool_execution", e.to_string())
@@ -123,6 +134,9 @@ impl ToolRegistry {
                 }
                 Err(e)
             }
+            Err(_) => Err(ToolError::Timeout {
+                secs: timeout_secs,
+            }),
         }
     }
 
@@ -347,5 +361,68 @@ mod tests {
         async fn execute(&self, _args: Value) -> crate::Result<String> {
             Ok("x".repeat(MAX_TOOL_RESULT_CHARS + 5000))
         }
+    }
+
+    // ------------------------------------------------------------------
+    //  Global timeout tests
+    // ------------------------------------------------------------------
+
+    /// A mock tool that sleeps for a long time (simulates slow execution).
+    struct MockSlowTool;
+
+    #[async_trait]
+    impl Tool for MockSlowTool {
+        fn name(&self) -> &str {
+            "mock_slow"
+        }
+
+        fn description(&self) -> &str {
+            "A mock tool that sleeps"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            })
+        }
+
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
+            tokio::time::sleep(Duration::from_secs(300)).await;
+            Ok("should not reach here".to_string())
+        }
+    }
+
+    /// Global timeout fires when a tool takes too long.
+    #[tokio::test]
+    async fn test_global_timeout_fires() {
+        let mut registry = ToolRegistry::with_timeout(1);
+        registry.register(Arc::new(MockSlowTool));
+        let result = registry.execute("mock_slow", serde_json::json!({})).await;
+        match result {
+            Err(ToolError::Timeout { secs }) => {
+                assert_eq!(secs, 1);
+            }
+            other => panic!("Expected ToolError::Timeout, got: {:?}", other),
+        }
+    }
+
+    /// Normal execution completes within the global timeout.
+    #[tokio::test]
+    async fn test_global_timeout_normal_execution() {
+        let mut registry = ToolRegistry::with_timeout(120);
+        registry.register(Arc::new(MockTool));
+        let result = registry.execute("mock", serde_json::json!({})).await;
+        assert_eq!(result.unwrap(), "mock result");
+    }
+
+    /// Default registry has 120s timeout — fast tools still work.
+    #[tokio::test]
+    async fn test_default_registry_timeout() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(MockTool));
+        let result = registry.execute("mock", serde_json::json!({})).await;
+        assert_eq!(result.unwrap(), "mock result");
     }
 }

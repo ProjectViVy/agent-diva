@@ -87,6 +87,16 @@ pub struct SecurityConfig {
 
     /// Confidence threshold above which injection is blocked (0.0–1.0)
     pub injection_block_threshold: f32,
+
+    /// Global timeout for tool execution in seconds (default: 120).
+    /// Applied as a wrapper around `ToolRegistry::execute()`.
+    /// A value of 0 is invalid and will be rejected by validation.
+    #[serde(default = "default_global_tool_timeout")]
+    pub global_tool_timeout_secs: u64,
+}
+
+fn default_global_tool_timeout() -> u64 {
+    120
 }
 
 impl Default for SecurityConfig {
@@ -119,6 +129,7 @@ impl Default for SecurityConfig {
             pii_enabled: true,
             injection_enabled: true,
             injection_block_threshold: 0.8,
+            global_tool_timeout_secs: default_global_tool_timeout(),
         }
     }
 }
@@ -144,6 +155,10 @@ impl SecurityConfig {
     pub fn validate(&self) -> Result<(), String> {
         if self.max_actions_per_hour == 0 {
             return Err("max_actions_per_hour must be greater than 0".to_string());
+        }
+
+        if self.global_tool_timeout_secs == 0 {
+            return Err("global_tool_timeout_secs must be greater than 0".to_string());
         }
 
         for path in &self.forbidden_paths {
@@ -224,6 +239,21 @@ mod tests {
 
         config.max_actions_per_hour = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_global_tool_timeout_default() {
+        let config = SecurityConfig::default();
+        assert_eq!(config.global_tool_timeout_secs, 120);
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_global_tool_timeout_zero_rejected() {
+        let mut config = SecurityConfig::default();
+        config.global_tool_timeout_secs = 0;
+        let err = config.validate().unwrap_err();
+        assert!(err.contains("global_tool_timeout_secs"));
     }
 
     #[test]

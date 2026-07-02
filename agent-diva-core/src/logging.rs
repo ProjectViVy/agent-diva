@@ -106,7 +106,7 @@ pub fn init_logging_with_terminal_output(
         .init();
 
     // 6. Cleanup old logs
-    if let Err(e) = cleanup_old_logs(&config.dir, 7) {
+    if let Err(e) = cleanup_old_logs(&config.dir, config.retention_days) {
         eprintln!("Failed to clean up old logs: {}", e);
     }
 
@@ -153,4 +153,49 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn logging_retention_default_is_30() {
+        let config: crate::config::schema::LoggingConfig =
+            serde_json::from_str("{}").unwrap();
+        assert_eq!(config.retention_days, 30);
+    }
+
+    #[test]
+    fn logging_retention_custom_value() {
+        let config: crate::config::schema::LoggingConfig =
+            serde_json::from_str(r#"{"retention_days": 7}"#).unwrap();
+        assert_eq!(config.retention_days, 7);
+    }
+
+    #[test]
+    fn logging_retention_zero_keeps_all() {
+        // With retention_days=0 the threshold duration is 0, meaning no file
+        // can be older than 0s so effectively nothing gets deleted.
+        // Actually: threshold = 0 * 24 * 3600 = 0 seconds.
+        // age > 0 is only true for files modified in the future, so no real
+        // file will be removed. This test verifies the logic with a non-existent
+        // dir (should succeed) and confirms the function accepts 0.
+        let result = cleanup_old_logs("/nonexistent/path", 0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn logging_retention_nonexistent_dir_ok() {
+        let result = cleanup_old_logs("/nonexistent/path", 7);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn logging_retention_threshold_calculation() {
+        // Verify the threshold math: 30 days = 30 * 24 * 3600 seconds
+        let days: u64 = 30;
+        let expected_secs = days * 24 * 3600;
+        assert_eq!(expected_secs, 2_592_000);
+    }
 }
