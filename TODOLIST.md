@@ -4,20 +4,23 @@
 
 ## Open
 
-- [ ] **GUI 预算状态改动后的全局验证仍受既有阻塞影响** — 本次实现后复跑验证时，仍存在与预算改动无关的仓库级失败项。
-  - `cargo fmt --all --check` 阻塞：`agent-diva-core/src/lib.rs` 当前模块顺序与 `rustfmt` 期望不一致，未在本次预算链路修复范围内。
-  - `cargo test -p agent-diva-gui --lib` 阻塞：既有测试 `embedded_server::tests::embedded_gateway_serves_health_endpoint` 返回 `502` 而非预期 `200`。
-  - 期望行为：格式检查恢复稳定通过，GUI 嵌入式网关健康检查测试在默认本地环境下返回 `200`。
-  - 相关文件：`agent-diva-core/src/lib.rs`, `agent-diva-gui/src-tauri/src/embedded_server.rs`。
+_(No stale open items remain.)_
 
-- [ ] **Workspace 全局验证门禁阻塞** — Plan mode runtime 修复期间复跑 `just check`/`just test` 发现既有全局门禁仍未清理。
-  - `just check` 阻塞：`agent-diva-gui/src-tauri/src/notebook.rs` 多个 notebook 月报相关常量/函数/结构体触发 `dead_code`，在 `cargo clippy --all -- -D warnings` 下失败。
-  - `just test` 阻塞：`agent-diva-agent` 中 `test_agent_loop_accepts_custom_memory_provider`、`test_with_toolset_memtle_status_enables_prompt`、`test_build_subagent_prompt_excludes_legacy_identity_files` 可单独复现失败。
-  - 期望行为：全局 `just check` 和 `just test` 在当前 workspace 默认配置下可通过，或将已知不可用路径隔离到明确的 feature/target 门禁。
-  - 相关文件：`agent-diva-gui/src-tauri/src/notebook.rs`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/subagent.rs`。
+## Backlog
+
+- [ ] **Production cron clock abstraction** — `runtime.rs:274` uses a hardcoded clock path; needs abstraction for testability and portability.
+  - Related files: `agent-diva-manager/src/runtime.rs`
+- [ ] **Audit GUI i18n** — 3 Vue components use hardcoded English strings without `useI18n`; should be wired to the i18n system.
+  - Related files: `agent-diva-gui/src/components/` (affected components TBD)
+- [ ] **UX-DR-3/4/7** — Deferred UX gaps identified during sprint review (design review items 3, 4, 7).
+  - Context: Sprint closure review; specifics to be elaborated when picked up.
 
 ## Done
 
+- [x] **GUI 预算状态改动后的全局验证仍受既有阻塞影响** — clippy/tests now pass after Wave 0 CI fixes; fmt-check and GUI embedded gateway health check stable.
+  - Related files: `agent-diva-core/src/lib.rs`, `agent-diva-gui/src-tauri/src/embedded_server.rs`
+- [x] **Workspace 全局验证门禁阻塞** — Resolved by Wave 0 CI cleanup; `just check` and `just test` pass on default workspace config.
+  - Related files: `agent-diva-gui/src-tauri/src/notebook.rs`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/subagent.rs`
 - [x] **Claude 规则镜像同步** — 重写 `CLAUDE.md`，使其与当前 `AGENTS.md` 的工作区结构、并行锁机制、验证规则、提交协议和中文通信要求保持一致
   - 修复范围：`CLAUDE.md`
   - 期望行为：Claude 会话读取仓库说明时，不再使用过时 crate 列表、错误路径或缺失的并行协作规则
