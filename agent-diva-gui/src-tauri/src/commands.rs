@@ -4965,12 +4965,25 @@ pub fn minimize_desktop_pet(app: AppHandle) -> Result<(), String> {
 // ============================================================
 
 /// DTO returned to the frontend for each parsed audit event.
+///
+/// Re-exports the shared type from `agent-diva-core` with camelCase serde
+/// renaming for the JavaScript frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuditEventDto {
     pub event_type: String,
     pub data: serde_json::Value,
     pub timestamp: String,
+}
+
+impl From<agent_diva_core::audit_parse::AuditEventDto> for AuditEventDto {
+    fn from(dto: agent_diva_core::audit_parse::AuditEventDto) -> Self {
+        Self {
+            event_type: dto.event_type,
+            data: dto.data,
+            timestamp: dto.timestamp,
+        }
+    }
 }
 
 /// Parse audit events from gateway.log for a given date.
@@ -4992,7 +5005,10 @@ pub fn get_audit_events(date: String) -> Result<Vec<AuditEventDto>, String> {
         .filter(|line| {
             line.contains(r#""target":"audit""#) || line.contains(r#""target": "audit""#)
         })
-        .filter_map(parse_audit_event_from_json_line)
+        .filter_map(|line| {
+            agent_diva_core::audit_parse::parse_audit_event_from_json_line(line)
+                .map(AuditEventDto::from)
+        })
         .collect();
 
     Ok(events)
@@ -5030,74 +5046,4 @@ fn resolve_audit_log_path(date: &str) -> Result<std::path::PathBuf, String> {
     Ok(log_path)
 }
 
-fn parse_audit_event_from_json_line(line: &str) -> Option<AuditEventDto> {
-    let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
-    let timestamp = parsed.get("timestamp")?.as_str()?.to_string();
 
-    // The tracing JSON format wraps the event in the message/fields.
-    // Two formats are supported:
-    // 1. Structured: {"timestamp":"...","level":"INFO","target":"audit","fields":{"event":"..."}}
-    // 2. Direct: {"timestamp":"...","type":"tool_invoked","data":{...}}
-
-    // Try structured format first (tracing_subscriber JSON output)
-    if let Some(fields) = parsed.get("fields") {
-        if let Some(event_val) = fields.get("event") {
-            // event_val might be an object with type/data — fall through to direct format
-            let event_str = event_val.as_str().or(None)?;
-            let event_type = rust_variant_to_snake_case(event_str);
-            return Some(AuditEventDto {
-                event_type,
-                data: serde_json::json!({"raw": event_str}),
-                timestamp,
-            });
-        }
-
-        // Try message field as fallback
-        if let Some(msg_val) = fields.get("message") {
-            if let Some(msg_str) = msg_val.as_str() {
-                let event_type = rust_variant_to_snake_case(msg_str);
-                return Some(AuditEventDto {
-                    event_type,
-                    data: serde_json::json!({"raw": msg_str}),
-                    timestamp,
-                });
-            }
-        }
-    }
-
-    // Try direct AuditEvent JSON format (serde tagged enum)
-    if let Some(event_type) = parsed.get("type").and_then(|v| v.as_str()) {
-        let data = parsed
-            .get("data")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
-        return Some(AuditEventDto {
-            event_type: event_type.to_string(),
-            data,
-            timestamp,
-        });
-    }
-
-    None
-}
-
-fn rust_variant_to_snake_case(variant_debug: &str) -> String {
-    let name = variant_debug
-        .split(&['{', '('][..])
-        .next()
-        .unwrap_or(variant_debug);
-    let mut result = String::new();
-    for (i, ch) in name.char_indices() {
-        if ch.is_uppercase() && i > 0 {
-            result.push('_');
-        }
-        // Skip non-alphanumeric characters except underscore
-        if ch.is_alphanumeric() || ch == '_' {
-            result.push(ch.to_ascii_lowercase());
-        }
-    }
-    if result.is_empty() {
-        result = "unknown".to_string();
-    }
-    result
-}

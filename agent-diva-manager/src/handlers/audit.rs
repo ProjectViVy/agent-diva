@@ -21,6 +21,16 @@ pub struct AuditEventDto {
     pub timestamp: String,
 }
 
+impl From<agent_diva_core::audit_parse::AuditEventDto> for AuditEventDto {
+    fn from(dto: agent_diva_core::audit_parse::AuditEventDto) -> Self {
+        Self {
+            event_type: dto.event_type,
+            data: dto.data,
+            timestamp: dto.timestamp,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditLogResponse {
     pub date: String,
@@ -103,69 +113,7 @@ fn read_lines_from_file(path: &PathBuf, max_lines: u64) -> Result<Vec<String>, S
     Ok(all_lines)
 }
 
-/// Parse a single JSON log line into an AuditEventDto.
-fn parse_audit_event_from_json_line(line: &str) -> Option<AuditEventDto> {
-    let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
-    let timestamp = parsed.get("timestamp")?.as_str()?.to_string();
 
-    // Try structured format (tracing_subscriber JSON output)
-    if let Some(fields) = parsed.get("fields") {
-        if let Some(event_val) = fields.get("event") {
-            if let Some(event_str) = event_val.as_str() {
-                let event_type = rust_variant_to_snake_case(event_str);
-                return Some(AuditEventDto {
-                    event_type,
-                    data: serde_json::json!({"raw": event_str}),
-                    timestamp,
-                });
-            }
-        }
-        // Try message field as fallback
-        if let Some(msg_val) = fields.get("message") {
-            if let Some(msg_str) = msg_val.as_str() {
-                let event_type = rust_variant_to_snake_case(msg_str);
-                return Some(AuditEventDto {
-                    event_type,
-                    data: serde_json::json!({"message": msg_str}),
-                    timestamp,
-                });
-            }
-        }
-    }
-
-    // Try direct format: {"timestamp":"...","type":"tool_invoked","data":{...}}
-    if let Some(type_val) = parsed.get("type").and_then(|v| v.as_str()) {
-        let data = parsed.get("data").cloned().unwrap_or(serde_json::json!({}));
-        return Some(AuditEventDto {
-            event_type: type_val.to_string(),
-            data,
-            timestamp,
-        });
-    }
-
-    // Fallback: return the whole line as a generic event
-    Some(AuditEventDto {
-        event_type: "unknown".to_string(),
-        data: serde_json::json!({"raw": line}),
-        timestamp,
-    })
-}
-
-/// Convert Rust-style PascalCase variant names to snake_case.
-fn rust_variant_to_snake_case(s: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() {
-            if i > 0 {
-                result.push('_');
-            }
-            result.push(c.to_ascii_lowercase());
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
 
 // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -206,7 +154,10 @@ pub async fn get_audit_events_handler(
         Ok(lines) => {
             let events: Vec<AuditEventDto> = lines
                 .iter()
-                .filter_map(|line| parse_audit_event_from_json_line(line))
+                .filter_map(|line| {
+                    agent_diva_core::audit_parse::parse_audit_event_from_json_line(line)
+                        .map(AuditEventDto::from)
+                })
                 .collect();
             Json(serde_json::json!({
                 "status": "ok",
@@ -223,23 +174,29 @@ pub async fn get_audit_events_handler(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use agent_diva_core::audit_parse;
 
     #[test]
     fn rust_variant_to_snake_case_converts_correctly() {
-        assert_eq!(rust_variant_to_snake_case("ToolInvoked"), "tool_invoked");
         assert_eq!(
-            rust_variant_to_snake_case("SessionCreated"),
+            audit_parse::rust_variant_to_snake_case("ToolInvoked"),
+            "tool_invoked"
+        );
+        assert_eq!(
+            audit_parse::rust_variant_to_snake_case("SessionCreated"),
             "session_created"
         );
-        assert_eq!(rust_variant_to_snake_case("Error"), "error");
-        assert_eq!(rust_variant_to_snake_case("lowercase"), "lowercase");
+        assert_eq!(audit_parse::rust_variant_to_snake_case("Error"), "error");
+        assert_eq!(
+            audit_parse::rust_variant_to_snake_case("lowercase"),
+            "lowercase"
+        );
     }
 
     #[test]
     fn parse_structured_tracing_json() {
         let line = r#"{"timestamp":"2026-07-01T12:00:00Z","level":"INFO","target":"audit","fields":{"event":"ToolInvoked","tool":"shell"}}"#;
-        let evt = parse_audit_event_from_json_line(line).unwrap();
+        let evt = audit_parse::parse_audit_event_from_json_line(line).unwrap();
         assert_eq!(evt.event_type, "tool_invoked");
         assert_eq!(evt.timestamp, "2026-07-01T12:00:00Z");
     }
@@ -248,13 +205,13 @@ mod tests {
     fn parse_direct_format() {
         let line =
             r#"{"timestamp":"2026-07-01T12:00:00Z","type":"tool_invoked","data":{"tool":"shell"}}"#;
-        let evt = parse_audit_event_from_json_line(line).unwrap();
+        let evt = audit_parse::parse_audit_event_from_json_line(line).unwrap();
         assert_eq!(evt.event_type, "tool_invoked");
         assert_eq!(evt.data["tool"], "shell");
     }
 
     #[test]
     fn parse_non_json_returns_none() {
-        assert!(parse_audit_event_from_json_line("not json").is_none());
+        assert!(audit_parse::parse_audit_event_from_json_line("not json").is_none());
     }
 }
