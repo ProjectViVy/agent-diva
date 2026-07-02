@@ -30,10 +30,18 @@ struct ChatCompletionRequest {
     tool_choice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "stream_options")]
+    stream_options: Option<StreamOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reasoning_effort: Option<String>,
     max_tokens: i32,
     temperature: f64,
+}
+
+/// Stream options for controlling streaming behavior
+#[derive(Debug, Serialize)]
+struct StreamOptions {
+    include_usage: bool,
 }
 
 /// LiteLLM API response format
@@ -574,6 +582,7 @@ impl LiteLLMClient {
             tools: None,
             tool_choice: None,
             stream: if options.stream { Some(true) } else { None },
+            stream_options: if options.stream { Some(StreamOptions { include_usage: true }) } else { None },
             reasoning_effort: options.reasoning_effort,
             max_tokens: options.max_tokens,
             temperature: options.temperature,

@@ -32,6 +32,13 @@ struct ChatRequest {
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     options: Option<ChatOptions>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "stream_options")]
+    stream_options: Option<StreamOptions>,
+}
+
+#[derive(Debug, Serialize)]
+struct StreamOptions {
+    include_usage: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -313,6 +320,7 @@ impl LLMProvider for OllamaProvider {
             messages: ollama_messages,
             stream: false,
             options: Some(ChatOptions { temperature }),
+            stream_options: None,
         };
 
         // Add tools to request if provided
@@ -421,6 +429,7 @@ impl LLMProvider for OllamaProvider {
             messages: ollama_messages,
             stream: true,
             options: Some(ChatOptions { temperature }),
+            stream_options: Some(StreamOptions { include_usage: true }),
         };
 
         debug!(
@@ -634,5 +643,43 @@ mod tests {
         assert!(chunk.done);
         assert_eq!(chunk.prompt_eval_count, Some(100));
         assert_eq!(chunk.eval_count, Some(50));
+    }
+
+    #[test]
+    fn test_chat_request_streaming_includes_stream_options() {
+        let request = ChatRequest {
+            model: "llama3".to_string(),
+            messages: vec![OllamaMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            }],
+            stream: true,
+            options: Some(ChatOptions { temperature: 0.7 }),
+            stream_options: Some(StreamOptions { include_usage: true }),
+        };
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["model"], "llama3");
+        assert_eq!(json["stream"], true);
+        assert!(json["stream_options"].is_object());
+        assert_eq!(json["stream_options"]["include_usage"], true);
+    }
+
+    #[test]
+    fn test_chat_request_non_streaming_omits_stream_options() {
+        let request = ChatRequest {
+            model: "llama3".to_string(),
+            messages: vec![OllamaMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            }],
+            stream: false,
+            options: None,
+            stream_options: None,
+        };
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["model"], "llama3");
+        assert_eq!(json["stream"], false);
+        assert!(!json.as_object().unwrap().contains_key("stream_options"));
+        assert!(!json.as_object().unwrap().contains_key("options"));
     }
 }

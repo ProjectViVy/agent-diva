@@ -18,6 +18,7 @@ pub mod logging;
 pub mod memory;
 pub mod planning;
 pub mod presence;
+pub mod quality;
 pub mod reasoning;
 pub mod reports;
 pub mod scheduler;
