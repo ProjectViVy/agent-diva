@@ -93,6 +93,12 @@ pub struct SecurityConfig {
     /// A value of 0 is invalid and will be rejected by validation.
     #[serde(default = "default_global_tool_timeout")]
     pub global_tool_timeout_secs: u64,
+
+    /// Per-session token budget limit (None = no enforcement).
+    /// When set, the token ledger checks cumulative usage against this limit
+    /// before each LLM call. Exceeding it produces a `BudgetExceeded` error.
+    #[serde(default)]
+    pub token_budget_limit: Option<u64>,
 }
 
 fn default_global_tool_timeout() -> u64 {
@@ -130,6 +136,7 @@ impl Default for SecurityConfig {
             injection_enabled: true,
             injection_block_threshold: 0.8,
             global_tool_timeout_secs: default_global_tool_timeout(),
+            token_budget_limit: None,
         }
     }
 }
