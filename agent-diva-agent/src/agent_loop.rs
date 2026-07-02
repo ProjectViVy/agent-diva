@@ -302,6 +302,7 @@ impl AgentLoop {
             HashMap::new(),
             ToolLimits::default(),
             memory_provider.clone(),
+            None,
         ));
 
         Ok(Self {
@@ -473,6 +474,7 @@ impl AgentLoop {
             tool_config.mcp_servers.clone(),
             ToolLimits::default(),
             memory_provider.clone(),
+            None,
         ));
         let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
             manager: subagent_manager.clone(),
@@ -577,6 +579,7 @@ impl AgentLoop {
             toolset.config.mcp_servers.clone(),
             ToolLimits::default(),
             memory_provider.clone(),
+            None,
         ));
         context = context
             .with_memory_provider(memory_provider.clone())

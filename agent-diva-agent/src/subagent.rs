@@ -17,6 +17,7 @@ use agent_diva_core::config::schema::{
     BatchSpawnRequest, MaskConfig, SubAgentResult, SubAgentStatus, TokenUsage, ToolLimits,
 };
 use agent_diva_core::memory::{MemoryProvider, SystemPromptRequest};
+use agent_diva_core::token_ledger::BudgetExceeded;
 use agent_diva_providers::base::{LLMProvider, Message};
 use agent_diva_tooling::ToolRegistry;
 
@@ -46,6 +47,7 @@ pub struct SubagentManager {
     parent_tool_limits: ToolLimits,
     memory_provider: Arc<dyn MemoryProvider>,
     running_tasks: Arc<tokio::sync::Mutex<HashMap<String, JoinHandle<()>>>>,
+    per_task_token_budget: Option<u64>,
 }
 
 impl SubagentManager {
@@ -63,6 +65,7 @@ impl SubagentManager {
         mcp_servers: HashMap<String, MCPServerConfig>,
         parent_tool_limits: ToolLimits,
         memory_provider: Arc<dyn MemoryProvider>,
+        per_task_token_budget: Option<u64>,
     ) -> Self {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let exec_timeout = exec_timeout.unwrap_or(30);
@@ -80,6 +83,7 @@ impl SubagentManager {
             parent_tool_limits,
             memory_provider,
             running_tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            per_task_token_budget,
         }
     }
 
@@ -201,6 +205,7 @@ impl SubagentManager {
         let task_id_clone = task_id.clone();
         let display_label_clone = display_label.clone();
         let running_tasks = Arc::clone(&self.running_tasks);
+        let per_task_token_budget = self.per_task_token_budget;
 
         // Resolve max_iterations for this subagent
         let max_iterations = SubagentManager::resolve_max_iterations(None, None);
@@ -224,6 +229,7 @@ impl SubagentManager {
                 mcp_servers,
                 memory_provider,
                 max_iterations,
+                per_task_token_budget,
             )
             .await;
 
@@ -266,6 +272,7 @@ impl SubagentManager {
         let mcp_servers = self.mcp_servers.read().await.clone();
         let memory_provider = Arc::clone(&self.memory_provider);
         let running_tasks = Arc::clone(&self.running_tasks);
+        let per_task_token_budget = self.per_task_token_budget;
 
         // Resolve max_iterations once for the entire batch
         let max_iterations = request
@@ -310,6 +317,7 @@ impl SubagentManager {
                     &mcp_servers,
                     memory_provider.clone(),
                     max_iterations,
+                    per_task_token_budget,
                 )
                 .await
             });
@@ -358,6 +366,7 @@ impl SubagentManager {
                         &mcp_servers,
                         memory_provider.clone(),
                         max_iterations,
+                        per_task_token_budget,
                     )
                     .await
                 });
@@ -392,6 +401,7 @@ impl SubagentManager {
         mcp_servers: &HashMap<String, MCPServerConfig>,
         memory_provider: Arc<dyn MemoryProvider>,
         max_iterations: u32,
+        per_task_token_budget: Option<u64>,
     ) -> SubAgentResult {
         let start = Instant::now();
         let task_prompt = match &context {
@@ -416,6 +426,7 @@ impl SubagentManager {
                 mcp_servers,
                 memory_provider,
                 max_iterations,
+                per_task_token_budget,
             ),
         )
         .await;
@@ -485,6 +496,7 @@ impl SubagentManager {
         mcp_servers: &HashMap<String, MCPServerConfig>,
         _memory_provider: Arc<dyn MemoryProvider>,
         max_iterations: u32,
+        per_task_token_budget: Option<u64>,
     ) -> Result<(String, u32, Vec<String>, HashMap<String, i64>)> {
         let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
             .builtin(builtin_tools.clone())
@@ -505,9 +517,22 @@ impl SubagentManager {
         let mut final_usage: HashMap<String, i64> = HashMap::new();
         let mut tool_call_count: u32 = 0;
         let mut tool_trace: Vec<String> = Vec::new();
+        let mut cumulative_tokens: u64 = 0;
 
         while iteration < max_iterations {
             iteration += 1;
+
+            // Check per-task token budget before making the LLM call
+            if let Some(budget) = per_task_token_budget {
+                if cumulative_tokens >= budget {
+                    return Err(BudgetExceeded {
+                        session_id: task_id.to_string(),
+                        used: cumulative_tokens,
+                        limit: budget,
+                    }
+                    .into());
+                }
+            }
 
             let response = provider
                 .chat(
@@ -523,6 +548,10 @@ impl SubagentManager {
             if !response.usage.is_empty() {
                 final_usage = response.usage.clone();
             }
+
+            // Track cumulative tokens for budget enforcement
+            let total: i64 = response.usage.get("total_tokens").copied().unwrap_or(0);
+            cumulative_tokens = cumulative_tokens.saturating_add(total.max(0) as u64);
 
             if response.has_tool_calls() {
                 messages.push(Message {
@@ -580,6 +609,7 @@ impl SubagentManager {
         mcp_servers: &HashMap<String, MCPServerConfig>,
         memory_provider: Arc<dyn MemoryProvider>,
         max_iterations: u32,
+        per_task_token_budget: Option<u64>,
     ) -> Result<(String, HashMap<String, i64>)> {
         let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
             .builtin(builtin_tools.clone())
@@ -600,9 +630,22 @@ impl SubagentManager {
         let mut iteration = 0;
         let mut final_result: Option<String> = None;
         let mut final_usage: HashMap<String, i64> = HashMap::new();
+        let mut cumulative_tokens: u64 = 0;
 
         while iteration < max_iterations {
             iteration += 1;
+
+            // Check per-task token budget before making the LLM call
+            if let Some(budget) = per_task_token_budget {
+                if cumulative_tokens >= budget {
+                    return Err(BudgetExceeded {
+                        session_id: task_id.to_string(),
+                        used: cumulative_tokens,
+                        limit: budget,
+                    }
+                    .into());
+                }
+            }
 
             let response = provider
                 .chat(
@@ -618,6 +661,10 @@ impl SubagentManager {
             if !response.usage.is_empty() {
                 final_usage = response.usage.clone();
             }
+
+            // Track cumulative tokens for budget enforcement
+            let total: i64 = response.usage.get("total_tokens").copied().unwrap_or(0);
+            cumulative_tokens = cumulative_tokens.saturating_add(total.max(0) as u64);
 
             if response.has_tool_calls() {
                 // Add assistant message with tool calls
@@ -807,6 +854,7 @@ When you have completed the task, provide a clear summary of your findings or ac
         mcp_servers: HashMap<String, MCPServerConfig>,
         memory_provider: Arc<dyn MemoryProvider>,
         max_iterations: u32,
+        per_task_token_budget: Option<u64>,
     ) {
         info!("Subagent [{}] starting task: {}", task_id, label);
 
@@ -823,6 +871,7 @@ When you have completed the task, provide a clear summary of your findings or ac
             &mcp_servers,
             memory_provider,
             max_iterations,
+            per_task_token_budget,
         )
         .await;
 
