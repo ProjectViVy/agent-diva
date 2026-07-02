@@ -80,6 +80,31 @@ pub enum AuditEvent {
         from: PresenceState,
         to: PresenceState,
     },
+    /// A new supervised run was created
+    RunCreated {
+        run_id: String,
+        kind: String,
+    },
+    /// A supervised run was claimed by a worker
+    RunClaimed {
+        run_id: String,
+        worker_id: String,
+    },
+    /// A supervised run completed successfully
+    RunCompleted {
+        run_id: String,
+        duration_ms: u64,
+    },
+    /// A supervised run failed during execution
+    RunFailed {
+        run_id: String,
+        error: String,
+    },
+    /// A supervised run was marked as lost (stale heartbeat)
+    RunLost {
+        run_id: String,
+        last_heartbeat: Option<String>,
+    },
 }
 
 /// Emit an audit event as a structured JSON log line.
