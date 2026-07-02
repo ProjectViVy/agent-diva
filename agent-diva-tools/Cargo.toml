@@ -12,6 +12,7 @@ readme = "README.md"
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
 agent-diva-files = { path = "../agent-diva-files", version = "0.5.0" }
+agent-diva-sandbox = { path = "../agent-diva-sandbox", version = "0.5.0" }
 agent-diva-tooling = { workspace = true }
 
 # Async runtime
@@ -51,6 +52,7 @@ dirs = { workspace = true }
 diffy = "0.3"
 levenshtein = "1.0"
 ignore = "0.4"
+globset = "0.4"
 
 # MCP SDK from crates.io
 rust-mcp-sdk = { version = "0.9", default-features = false, features = ["client", "stdio", "sse", "streamable-http"] }

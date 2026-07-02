@@ -420,6 +420,7 @@ version = "0.5.0"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",
+ "agent-diva-sandbox",
  "agent-diva-tooling",
  "anyhow",
  "async-trait",
@@ -428,6 +429,7 @@ dependencies = [
  "dirs 5.0.1",
  "encoding_rs",
  "futures",
+ "globset",
  "ignore",
  "levenshtein",
  "mime_guess",
