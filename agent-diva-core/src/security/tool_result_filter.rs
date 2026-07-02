@@ -79,6 +79,14 @@ pub fn sanitize_tool_output(content: &str) -> String {
             "Suspicious tool output detected and marked"
         );
 
+        // Emit audit event
+        crate::audit::emit(crate::audit::AuditEvent::ToolOutputSanitized {
+            tool_name: "unknown".to_string(),
+            bytes_in: content.len() as u32,
+            bytes_out: content.len() as u32 + 12, // + "[SUSPICIOUS] "
+            suspicious_spans: detection.patterns.clone(),
+        });
+
         format!("[SUSPICIOUS] {content}")
     } else {
         content.to_string()

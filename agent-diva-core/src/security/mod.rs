@@ -23,7 +23,9 @@
 //! assert!(policy.is_path_allowed("../etc/passwd").is_err());
 //! ```
 
+pub mod check;
 pub mod config;
+pub mod decision;
 pub mod error;
 pub mod injection;
 pub mod instruction_hierarchy;
@@ -35,7 +37,9 @@ pub mod skill;
 pub mod tool_result_filter;
 
 // Re-export commonly used types
+pub use check::check_security;
 pub use config::{SecurityConfig, SecurityLevel};
+pub use decision::{SecurityContext, SecurityDecision, SecurityFinding, SecurityKind};
 pub use error::SecurityError;
 pub use injection::{
     detect_injection, detect_tool_output_injection, InjectionAction, InjectionContext,

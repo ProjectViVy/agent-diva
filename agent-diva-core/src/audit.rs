@@ -105,6 +105,57 @@ pub enum AuditEvent {
         run_id: String,
         last_heartbeat: Option<String>,
     },
+    /// A message was blocked due to security policy.
+    MessageBlocked {
+        source: String,
+        reason: String,
+        severity: Severity,
+    },
+    /// An instruction hierarchy conflict was detected.
+    InstructionConflictDetected {
+        lower_tier: String,
+        higher_tier: String,
+        action: String,
+    },
+    /// Tool output was sanitized due to suspicious content.
+    ToolOutputSanitized {
+        tool_name: String,
+        bytes_in: u32,
+        bytes_out: u32,
+        suspicious_spans: Vec<String>,
+    },
+    /// A skill was loaded successfully.
+    SkillLoaded {
+        skill_name: String,
+        trust_tier: String,
+        provenance: String,
+    },
+    /// A skill was rejected during validation.
+    SkillRejected {
+        skill_name: String,
+        reason: String,
+    },
+    /// A skill was quarantined for review.
+    SkillQuarantined {
+        skill_name: String,
+        reason: String,
+    },
+    /// Channel authentication failed.
+    ChannelAuthFailed {
+        channel_id: String,
+        reason: String,
+    },
+    /// A channel message was blocked.
+    ChannelMessageBlocked {
+        channel_id: String,
+        reason: String,
+    },
+    /// A security policy decision was made.
+    SecurityPolicyDecision {
+        source_type: String,
+        decision_kind: String,
+        reason: String,
+    },
 }
 
 /// Emit an audit event as a structured JSON log line.
@@ -195,6 +246,69 @@ mod tests {
             AuditEvent::PresenceChanged {
                 from: PresenceState::Active,
                 to: PresenceState::Gone,
+            },
+            AuditEvent::RunCreated {
+                run_id: "r1".into(),
+                kind: "test".into(),
+            },
+            AuditEvent::RunClaimed {
+                run_id: "r1".into(),
+                worker_id: "w1".into(),
+            },
+            AuditEvent::RunCompleted {
+                run_id: "r1".into(),
+                duration_ms: 1000,
+            },
+            AuditEvent::RunFailed {
+                run_id: "r1".into(),
+                error: "timeout".into(),
+            },
+            AuditEvent::RunLost {
+                run_id: "r1".into(),
+                last_heartbeat: None,
+            },
+            // New variants
+            AuditEvent::MessageBlocked {
+                source: "user_input".into(),
+                reason: "policy violation".into(),
+                severity: Severity::High,
+            },
+            AuditEvent::InstructionConflictDetected {
+                lower_tier: "tool".into(),
+                higher_tier: "system".into(),
+                action: "demote".into(),
+            },
+            AuditEvent::ToolOutputSanitized {
+                tool_name: "bash".into(),
+                bytes_in: 1000,
+                bytes_out: 950,
+                suspicious_spans: vec!["role_override".into()],
+            },
+            AuditEvent::SkillLoaded {
+                skill_name: "test_skill".into(),
+                trust_tier: "trusted".into(),
+                provenance: "workspace".into(),
+            },
+            AuditEvent::SkillRejected {
+                skill_name: "bad_skill".into(),
+                reason: "validation failed".into(),
+            },
+            AuditEvent::SkillQuarantined {
+                skill_name: "suspicious_skill".into(),
+                reason: "untrusted provenance".into(),
+            },
+            AuditEvent::ChannelAuthFailed {
+                channel_id: "chan_1".into(),
+                reason: "invalid session key".into(),
+            },
+            AuditEvent::ChannelMessageBlocked {
+                channel_id: "chan_1".into(),
+                reason: "empty allowlist".into(),
+            },
+            AuditEvent::SecurityPolicyDecision {
+                source_type: "user_input".into(),
+                decision_kind: "block".into(),
+                reason: "injection detected".into(),
             },
         ];
         for event in &events {
