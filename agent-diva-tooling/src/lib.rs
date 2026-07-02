@@ -1,6 +1,6 @@
 //! Shared tool primitives for agent-diva.
 
-mod base;
+pub mod base;
 pub mod module;
 mod registry;
 
