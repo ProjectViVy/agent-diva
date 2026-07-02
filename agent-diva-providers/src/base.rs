@@ -31,6 +31,21 @@ pub enum ProviderError {
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
 
+impl agent_diva_core::error_category::CategorizeError for ProviderError {
+    fn category(&self) -> agent_diva_core::error_category::ErrorCategory {
+        match self {
+            Self::RateLimited { .. } | Self::HttpError(_) => {
+                agent_diva_core::error_category::ErrorCategory::Retryable
+            }
+            Self::ConfigError(_) => agent_diva_core::error_category::ErrorCategory::Config,
+            Self::ApiError(_) | Self::InvalidResponse(_) => {
+                agent_diva_core::error_category::ErrorCategory::Fatal
+            }
+            Self::JsonError(_) => agent_diva_core::error_category::ErrorCategory::Unknown,
+        }
+    }
+}
+
 pub type ProviderEventStream = Pin<Box<dyn Stream<Item = ProviderResult<LLMStreamEvent>> + Send>>;
 
 /// Conservative feature flags for a model.

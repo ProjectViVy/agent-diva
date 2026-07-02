@@ -68,3 +68,24 @@ pub enum SandboxError {
 
 /// Convenient result type for sandbox operations
 pub type SandboxResult<T> = std::result::Result<T, SandboxError>;
+
+impl agent_diva_core::error_category::CategorizeError for SandboxError {
+    fn category(&self) -> agent_diva_core::error_category::ErrorCategory {
+        match self {
+            Self::Timeout { .. } => agent_diva_core::error_category::ErrorCategory::Timeout,
+            Self::Denied { .. }
+            | Self::ApprovalRequired { .. }
+            | Self::PermissionDenied { .. } => agent_diva_core::error_category::ErrorCategory::Auth,
+            Self::ExecutionFailed { .. }
+            | Self::SpawnFailed(_)
+            | Self::InvalidCommand(_) => agent_diva_core::error_category::ErrorCategory::Fatal,
+            Self::PlatformNotSupported
+            | Self::PlatformError(_)
+            | Self::PlatformUnavailable { .. }
+            | Self::Disabled
+            | Self::Internal(_) => agent_diva_core::error_category::ErrorCategory::Unknown,
+            #[cfg(windows)]
+            Self::TokenCreation(_) => agent_diva_core::error_category::ErrorCategory::Fatal,
+        }
+    }
+}
