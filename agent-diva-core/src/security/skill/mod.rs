@@ -84,6 +84,10 @@ pub enum SkillError {
 /// Validate that a skill ZIP archive does not exceed the size limit.
 pub fn validate_skill_zip_size(size: u64) -> Result<(), SkillError> {
     if size > MAX_SKILL_ZIP_SIZE {
+        crate::audit::emit(crate::audit::AuditEvent::SkillRejected {
+            skill_name: "unknown".to_string(),
+            reason: format!("zip too large: {} bytes (max {})", size, MAX_SKILL_ZIP_SIZE),
+        });
         return Err(SkillError::ZipTooLarge {
             size,
             max: MAX_SKILL_ZIP_SIZE,
@@ -96,11 +100,19 @@ pub fn validate_skill_zip_size(size: u64) -> Result<(), SkillError> {
 pub fn validate_skill_md(content: &str) -> Result<(), SkillError> {
     let trimmed = content.trim();
     if trimmed.is_empty() {
+        crate::audit::emit(crate::audit::AuditEvent::SkillRejected {
+            skill_name: "unknown".to_string(),
+            reason: "SKILL.md is empty".to_string(),
+        });
         return Err(SkillError::InvalidSkillMd {
             reason: "SKILL.md is empty".to_string(),
         });
     }
     if trimmed.len() < MIN_SKILL_MD_CHARS {
+        crate::audit::emit(crate::audit::AuditEvent::SkillRejected {
+            skill_name: "unknown".to_string(),
+            reason: format!("SKILL.md too short: {} chars (min {})", trimmed.len(), MIN_SKILL_MD_CHARS),
+        });
         return Err(SkillError::InvalidSkillMd {
             reason: format!(
                 "SKILL.md too short: {} chars (min {})",
@@ -109,6 +121,11 @@ pub fn validate_skill_md(content: &str) -> Result<(), SkillError> {
             ),
         });
     }
+    crate::audit::emit(crate::audit::AuditEvent::SkillLoaded {
+        skill_name: "unknown".to_string(),
+        trust_tier: "trusted".to_string(),
+        provenance: "workspace".to_string(),
+    });
     Ok(())
 }
 
