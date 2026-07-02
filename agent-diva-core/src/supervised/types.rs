@@ -44,15 +44,23 @@ impl RunStatus {
 
     /// Returns true if this is a terminal (final) state.
     pub fn is_terminal(&self) -> bool {
-        matches!(self, RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled | RunStatus::Lost)
+        matches!(
+            self,
+            RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled | RunStatus::Lost
+        )
     }
 
     /// Returns true if a transition from self to target is valid.
     pub fn can_transition_to(&self, target: RunStatus) -> bool {
         match self {
             RunStatus::Queued => matches!(target, RunStatus::Running | RunStatus::Cancelled),
-            RunStatus::Running => matches!(target, RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled | RunStatus::Lost),
-            RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled | RunStatus::Lost => false,
+            RunStatus::Running => matches!(
+                target,
+                RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled | RunStatus::Lost
+            ),
+            RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled | RunStatus::Lost => {
+                false
+            }
         }
     }
 }
@@ -449,9 +457,26 @@ mod tests {
         assert!(!RunStatus::Running.can_transition_to(RunStatus::Running));
 
         // Terminal states cannot transition to anything
-        for terminal in [RunStatus::Completed, RunStatus::Failed, RunStatus::Cancelled, RunStatus::Lost] {
-            for target in [RunStatus::Queued, RunStatus::Running, RunStatus::Completed, RunStatus::Failed, RunStatus::Cancelled, RunStatus::Lost] {
-                assert!(!terminal.can_transition_to(target), "{:?} should not be able to transition to {:?}", terminal, target);
+        for terminal in [
+            RunStatus::Completed,
+            RunStatus::Failed,
+            RunStatus::Cancelled,
+            RunStatus::Lost,
+        ] {
+            for target in [
+                RunStatus::Queued,
+                RunStatus::Running,
+                RunStatus::Completed,
+                RunStatus::Failed,
+                RunStatus::Cancelled,
+                RunStatus::Lost,
+            ] {
+                assert!(
+                    !terminal.can_transition_to(target),
+                    "{:?} should not be able to transition to {:?}",
+                    terminal,
+                    target
+                );
             }
         }
     }

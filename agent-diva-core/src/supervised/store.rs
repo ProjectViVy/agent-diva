@@ -286,7 +286,10 @@ impl RunStore {
     pub async fn create(&self, spec: &SupervisedRunSpec) -> Result<RunRecord, RunStoreError> {
         let record = RunRecord::from_spec(spec);
         let metadata_str = record.metadata.as_ref().map(|m| m.to_string());
-        let tags_str = record.tags.as_ref().map(|t| serde_json::to_string(t).unwrap_or_default());
+        let tags_str = record
+            .tags
+            .as_ref()
+            .map(|t| serde_json::to_string(t).unwrap_or_default());
 
         sqlx::query(
             "INSERT INTO supervised_runs (
@@ -349,7 +352,10 @@ impl RunStore {
 
     /// Claim the next queued supervised run for a worker.
     /// Uses RETURNING for atomic claim.
-    pub async fn claim_next_supervised(&self, worker_id: &str) -> Result<Option<RunRecord>, RunStoreError> {
+    pub async fn claim_next_supervised(
+        &self,
+        worker_id: &str,
+    ) -> Result<Option<RunRecord>, RunStoreError> {
         let now = Utc::now();
         let now_str = now.to_rfc3339();
 
@@ -388,7 +394,11 @@ impl RunStore {
     }
 
     /// Update heartbeat for a running supervised run, with owner verification.
-    pub async fn heartbeat_supervised(&self, id: &str, worker_id: &str) -> Result<(), RunStoreError> {
+    pub async fn heartbeat_supervised(
+        &self,
+        id: &str,
+        worker_id: &str,
+    ) -> Result<(), RunStoreError> {
         let now = Utc::now();
 
         let result = sqlx::query(
@@ -409,19 +419,22 @@ impl RunStore {
             match record {
                 Some(rec) => {
                     if rec.status != RunStatus::Running {
-                        return Err(RunStoreError::InvalidState(
-                            format!("run {} is not running (status: {:?})", id, rec.status)
-                        ));
+                        return Err(RunStoreError::InvalidState(format!(
+                            "run {} is not running (status: {:?})",
+                            id, rec.status
+                        )));
                     }
                     if rec.claimed_by.as_deref() != Some(worker_id) {
-                        return Err(RunStoreError::NotOwner(
-                            format!("run {} is claimed by {:?}, not {}", id, rec.claimed_by, worker_id)
-                        ));
+                        return Err(RunStoreError::NotOwner(format!(
+                            "run {} is claimed by {:?}, not {}",
+                            id, rec.claimed_by, worker_id
+                        )));
                     }
                     // Should not reach here if rows_affected == 0
-                    return Err(RunStoreError::InvalidState(
-                        format!("run {} heartbeat update failed unexpectedly", id)
-                    ));
+                    return Err(RunStoreError::InvalidState(format!(
+                        "run {} heartbeat update failed unexpectedly",
+                        id
+                    )));
                 }
                 None => return Err(RunStoreError::NotFound(id.to_string())),
             }
@@ -431,7 +444,12 @@ impl RunStore {
     }
 
     /// Mark a supervised run as completed, with owner verification.
-    pub async fn complete_supervised(&self, id: &str, worker_id: &str, result_summary: Option<String>) -> Result<(), RunStoreError> {
+    pub async fn complete_supervised(
+        &self,
+        id: &str,
+        worker_id: &str,
+        result_summary: Option<String>,
+    ) -> Result<(), RunStoreError> {
         let now = Utc::now();
 
         let result = sqlx::query(
@@ -453,18 +471,21 @@ impl RunStore {
             match record {
                 Some(rec) => {
                     if rec.status != RunStatus::Running {
-                        return Err(RunStoreError::InvalidState(
-                            format!("run {} is not running (status: {:?})", id, rec.status)
-                        ));
+                        return Err(RunStoreError::InvalidState(format!(
+                            "run {} is not running (status: {:?})",
+                            id, rec.status
+                        )));
                     }
                     if rec.claimed_by.as_deref() != Some(worker_id) {
-                        return Err(RunStoreError::NotOwner(
-                            format!("run {} is claimed by {:?}, not {}", id, rec.claimed_by, worker_id)
-                        ));
+                        return Err(RunStoreError::NotOwner(format!(
+                            "run {} is claimed by {:?}, not {}",
+                            id, rec.claimed_by, worker_id
+                        )));
                     }
-                    return Err(RunStoreError::InvalidState(
-                        format!("run {} complete update failed unexpectedly", id)
-                    ));
+                    return Err(RunStoreError::InvalidState(format!(
+                        "run {} complete update failed unexpectedly",
+                        id
+                    )));
                 }
                 None => return Err(RunStoreError::NotFound(id.to_string())),
             }
@@ -486,7 +507,12 @@ impl RunStore {
     }
 
     /// Mark a supervised run as failed, with owner verification.
-    pub async fn fail_supervised(&self, id: &str, worker_id: &str, error_message: Option<String>) -> Result<(), RunStoreError> {
+    pub async fn fail_supervised(
+        &self,
+        id: &str,
+        worker_id: &str,
+        error_message: Option<String>,
+    ) -> Result<(), RunStoreError> {
         let now = Utc::now();
 
         let result = sqlx::query(
@@ -495,31 +521,34 @@ impl RunStore {
              WHERE id = ?4 AND status = 'running' AND claimed_by = ?5",
         )
         .bind(error_message.clone())
-            .bind(now.to_rfc3339())
-            .bind(now.to_rfc3339())
-            .bind(id)
-            .bind(worker_id)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
+        .bind(now.to_rfc3339())
+        .bind(now.to_rfc3339())
+        .bind(id)
+        .bind(worker_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
 
         if result.rows_affected() == 0 {
             let record = self.get_record(id).await?;
             match record {
                 Some(rec) => {
                     if rec.status != RunStatus::Running {
-                        return Err(RunStoreError::InvalidState(
-                            format!("run {} is not running (status: {:?})", id, rec.status)
-                        ));
+                        return Err(RunStoreError::InvalidState(format!(
+                            "run {} is not running (status: {:?})",
+                            id, rec.status
+                        )));
                     }
                     if rec.claimed_by.as_deref() != Some(worker_id) {
-                        return Err(RunStoreError::NotOwner(
-                            format!("run {} is claimed by {:?}, not {}", id, rec.claimed_by, worker_id)
-                        ));
+                        return Err(RunStoreError::NotOwner(format!(
+                            "run {} is claimed by {:?}, not {}",
+                            id, rec.claimed_by, worker_id
+                        )));
                     }
-                    return Err(RunStoreError::InvalidState(
-                        format!("run {} fail update failed unexpectedly", id)
-                    ));
+                    return Err(RunStoreError::InvalidState(format!(
+                        "run {} fail update failed unexpectedly",
+                        id
+                    )));
                 }
                 None => return Err(RunStoreError::NotFound(id.to_string())),
             }
@@ -534,7 +563,11 @@ impl RunStore {
     }
 
     /// Cancel a supervised run (can be done by anyone, not just owner).
-    pub async fn cancel_supervised(&self, id: &str, reason: Option<String>) -> Result<(), RunStoreError> {
+    pub async fn cancel_supervised(
+        &self,
+        id: &str,
+        reason: Option<String>,
+    ) -> Result<(), RunStoreError> {
         let now = Utc::now();
 
         let result = sqlx::query(
@@ -556,9 +589,10 @@ impl RunStore {
                     if rec.status == RunStatus::Cancelled {
                         return Ok(());
                     }
-                    return Err(RunStoreError::InvalidState(
-                        format!("run {} cannot be cancelled from status {:?}", id, rec.status)
-                    ));
+                    return Err(RunStoreError::InvalidState(format!(
+                        "run {} cannot be cancelled from status {:?}",
+                        id, rec.status
+                    )));
                 }
                 None => return Err(RunStoreError::NotFound(id.to_string())),
             }
@@ -568,7 +602,10 @@ impl RunStore {
     }
 
     /// Mark stale running runs as lost.
-    pub async fn mark_lost(&self, stale_before: DateTime<Utc>) -> Result<Vec<RunRecord>, RunStoreError> {
+    pub async fn mark_lost(
+        &self,
+        stale_before: DateTime<Utc>,
+    ) -> Result<Vec<RunRecord>, RunStoreError> {
         let stale_str = stale_before.to_rfc3339();
 
         let rows = sqlx::query(
@@ -615,9 +652,10 @@ impl RunStore {
         let record = record.ok_or_else(|| RunStoreError::NotFound(id.to_string()))?;
 
         if record.status != RunStatus::Failed && record.status != RunStatus::Lost {
-            return Err(RunStoreError::InvalidState(
-                format!("run {} cannot be requeued from status {:?}", id, record.status)
-            ));
+            return Err(RunStoreError::InvalidState(format!(
+                "run {} cannot be requeued from status {:?}",
+                id, record.status
+            )));
         }
 
         let new_attempt = record.attempt + 1;
@@ -645,7 +683,9 @@ impl RunStore {
             return Err(RunStoreError::NotFound(id.to_string()));
         }
 
-        self.get_record(id).await?.ok_or_else(|| RunStoreError::NotFound(id.to_string()))
+        self.get_record(id)
+            .await?
+            .ok_or_else(|| RunStoreError::NotFound(id.to_string()))
     }
 
     // -- private helpers --
@@ -706,9 +746,8 @@ impl RunStore {
         })?;
 
         let kind_str: String = row.get(8);
-        let kind = RunKind::from_str_lossy(&kind_str).ok_or_else(|| {
-            RunStoreError::InvalidState(format!("invalid kind: {}", kind_str))
-        })?;
+        let kind = RunKind::from_str_lossy(&kind_str)
+            .ok_or_else(|| RunStoreError::InvalidState(format!("invalid kind: {}", kind_str)))?;
 
         let heartbeat_str: Option<String> = row.get(5);
         let heartbeat_at = heartbeat_str
@@ -771,7 +810,11 @@ impl RunStore {
             priority: row.get(9),
             attempt: row.get(10),
             max_attempts: row.get(11),
-            timeout_secs: if timeout_secs.is_some() { timeout_secs } else { None },
+            timeout_secs: if timeout_secs.is_some() {
+                timeout_secs
+            } else {
+                None
+            },
             started_at,
             completed_at,
             error_message: row.get(15),
@@ -1099,8 +1142,10 @@ mod tests {
 
         // Spawn two concurrent claim attempts.
         let store2 = store.clone();
-        let claim1: tokio::task::JoinHandle<Result<Option<RunItem>, sqlx::Error>> = tokio::spawn(async move { store.claim_next().await });
-        let claim2: tokio::task::JoinHandle<Result<Option<RunItem>, sqlx::Error>> = tokio::spawn(async move { store2.claim_next().await });
+        let claim1: tokio::task::JoinHandle<Result<Option<RunItem>, sqlx::Error>> =
+            tokio::spawn(async move { store.claim_next().await });
+        let claim2: tokio::task::JoinHandle<Result<Option<RunItem>, sqlx::Error>> =
+            tokio::spawn(async move { store2.claim_next().await });
 
         let (r1, r2) = tokio::join!(claim1, claim2);
         let r1 = r1.expect("join").expect("claim1");
@@ -1154,7 +1199,10 @@ mod tests {
         let spec = sample_spec("claim test");
         let created = store.create(&spec).await.expect("create");
 
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next");
         assert!(claimed.is_some());
         let claimed = claimed.expect("claimed");
         assert_eq!(claimed.id, created.id);
@@ -1167,7 +1215,10 @@ mod tests {
     #[tokio::test]
     async fn test_supervised_claim_next_empty() {
         let (_dir, store) = setup().await;
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next");
         assert!(claimed.is_none());
     }
 
@@ -1176,13 +1227,24 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("heartbeat test");
         let created = store.create(&spec).await.expect("create");
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next").expect("claimed");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next")
+            .expect("claimed");
         let original_hb = claimed.heartbeat_at.expect("heartbeat");
 
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        store.heartbeat_supervised(&claimed.id, "worker-1").await.expect("heartbeat");
+        store
+            .heartbeat_supervised(&claimed.id, "worker-1")
+            .await
+            .expect("heartbeat");
 
-        let reloaded = store.get_record(&claimed.id).await.expect("get_record").expect("record");
+        let reloaded = store
+            .get_record(&claimed.id)
+            .await
+            .expect("get_record")
+            .expect("record");
         assert!(reloaded.heartbeat_at.expect("heartbeat") > original_hb);
     }
 
@@ -1191,9 +1253,15 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("heartbeat owner test");
         let created = store.create(&spec).await.expect("create");
-        store.claim_next_supervised("worker-1").await.expect("claim_next");
+        store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next");
 
-        let err = store.heartbeat_supervised(&created.id, "worker-2").await.expect_err("heartbeat should fail");
+        let err = store
+            .heartbeat_supervised(&created.id, "worker-2")
+            .await
+            .expect_err("heartbeat should fail");
         match err {
             RunStoreError::NotOwner(_) => {}
             _ => panic!("expected NotOwner, got {:?}", err),
@@ -1203,7 +1271,10 @@ mod tests {
     #[tokio::test]
     async fn test_supervised_heartbeat_not_found() {
         let (_dir, store) = setup().await;
-        let err = store.heartbeat_supervised("nonexistent", "worker-1").await.expect_err("heartbeat should fail");
+        let err = store
+            .heartbeat_supervised("nonexistent", "worker-1")
+            .await
+            .expect_err("heartbeat should fail");
         match err {
             RunStoreError::NotFound(_) => {}
             _ => panic!("expected NotFound, got {:?}", err),
@@ -1215,11 +1286,22 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("complete test");
         let created = store.create(&spec).await.expect("create");
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next").expect("claimed");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next")
+            .expect("claimed");
 
-        store.complete_supervised(&claimed.id, "worker-1", Some("done".to_string())).await.expect("complete");
+        store
+            .complete_supervised(&claimed.id, "worker-1", Some("done".to_string()))
+            .await
+            .expect("complete");
 
-        let reloaded = store.get_record(&claimed.id).await.expect("get_record").expect("record");
+        let reloaded = store
+            .get_record(&claimed.id)
+            .await
+            .expect("get_record")
+            .expect("record");
         assert_eq!(reloaded.status, RunStatus::Completed);
         assert_eq!(reloaded.result_summary, Some("done".to_string()));
         assert!(reloaded.completed_at.is_some());
@@ -1230,9 +1312,15 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("complete owner test");
         let created = store.create(&spec).await.expect("create");
-        store.claim_next_supervised("worker-1").await.expect("claim_next");
+        store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next");
 
-        let err = store.complete_supervised(&created.id, "worker-2", None).await.expect_err("complete should fail");
+        let err = store
+            .complete_supervised(&created.id, "worker-2", None)
+            .await
+            .expect_err("complete should fail");
         match err {
             RunStoreError::NotOwner(_) => {}
             _ => panic!("expected NotOwner, got {:?}", err),
@@ -1244,11 +1332,22 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("fail test");
         let created = store.create(&spec).await.expect("create");
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next").expect("claimed");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next")
+            .expect("claimed");
 
-        store.fail_supervised(&claimed.id, "worker-1", Some("panic".to_string())).await.expect("fail");
+        store
+            .fail_supervised(&claimed.id, "worker-1", Some("panic".to_string()))
+            .await
+            .expect("fail");
 
-        let reloaded = store.get_record(&claimed.id).await.expect("get_record").expect("record");
+        let reloaded = store
+            .get_record(&claimed.id)
+            .await
+            .expect("get_record")
+            .expect("record");
         assert_eq!(reloaded.status, RunStatus::Failed);
         assert_eq!(reloaded.error_message, Some("panic".to_string()));
         assert!(reloaded.completed_at.is_some());
@@ -1259,9 +1358,15 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("fail owner test");
         let created = store.create(&spec).await.expect("create");
-        store.claim_next_supervised("worker-1").await.expect("claim_next");
+        store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next");
 
-        let err = store.fail_supervised(&created.id, "worker-2", None).await.expect_err("fail should fail");
+        let err = store
+            .fail_supervised(&created.id, "worker-2", None)
+            .await
+            .expect_err("fail should fail");
         match err {
             RunStoreError::NotOwner(_) => {}
             _ => panic!("expected NotOwner, got {:?}", err),
@@ -1274,9 +1379,16 @@ mod tests {
         let spec = sample_spec("cancel test");
         let created = store.create(&spec).await.expect("create");
 
-        store.cancel_supervised(&created.id, Some("user request".to_string())).await.expect("cancel");
+        store
+            .cancel_supervised(&created.id, Some("user request".to_string()))
+            .await
+            .expect("cancel");
 
-        let reloaded = store.get_record(&created.id).await.expect("get_record").expect("record");
+        let reloaded = store
+            .get_record(&created.id)
+            .await
+            .expect("get_record")
+            .expect("record");
         assert_eq!(reloaded.status, RunStatus::Cancelled);
         assert_eq!(reloaded.error_message, Some("user request".to_string()));
     }
@@ -1286,18 +1398,31 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("cancel running test");
         let created = store.create(&spec).await.expect("create");
-        store.claim_next_supervised("worker-1").await.expect("claim_next");
+        store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next");
 
-        store.cancel_supervised(&created.id, Some("shutdown".to_string())).await.expect("cancel");
+        store
+            .cancel_supervised(&created.id, Some("shutdown".to_string()))
+            .await
+            .expect("cancel");
 
-        let reloaded = store.get_record(&created.id).await.expect("get_record").expect("record");
+        let reloaded = store
+            .get_record(&created.id)
+            .await
+            .expect("get_record")
+            .expect("record");
         assert_eq!(reloaded.status, RunStatus::Cancelled);
     }
 
     #[tokio::test]
     async fn test_supervised_cancel_not_found() {
         let (_dir, store) = setup().await;
-        let err = store.cancel_supervised("nonexistent", None).await.expect_err("cancel should fail");
+        let err = store
+            .cancel_supervised("nonexistent", None)
+            .await
+            .expect_err("cancel should fail");
         match err {
             RunStoreError::NotFound(_) => {}
             _ => panic!("expected NotFound, got {:?}", err),
@@ -1309,12 +1434,22 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("cancel twice test");
         let created = store.create(&spec).await.expect("create");
-        store.cancel_supervised(&created.id, None).await.expect("cancel");
+        store
+            .cancel_supervised(&created.id, None)
+            .await
+            .expect("cancel");
 
         // Second cancel should succeed idempotently
-        store.cancel_supervised(&created.id, None).await.expect("cancel again");
+        store
+            .cancel_supervised(&created.id, None)
+            .await
+            .expect("cancel again");
 
-        let reloaded = store.get_record(&created.id).await.expect("get_record").expect("record");
+        let reloaded = store
+            .get_record(&created.id)
+            .await
+            .expect("get_record")
+            .expect("record");
         assert_eq!(reloaded.status, RunStatus::Cancelled);
     }
 
@@ -1323,7 +1458,11 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("stale test");
         let created = store.create(&spec).await.expect("create");
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next").expect("claimed");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next")
+            .expect("claimed");
 
         // Manually set heartbeat to 120s ago
         let stale_time = Utc::now() - chrono::Duration::seconds(120);
@@ -1339,7 +1478,11 @@ mod tests {
         assert_eq!(lost.len(), 1);
         assert_eq!(lost[0].id, claimed.id);
 
-        let reloaded = store.get_record(&claimed.id).await.expect("get_record").expect("record");
+        let reloaded = store
+            .get_record(&claimed.id)
+            .await
+            .expect("get_record")
+            .expect("record");
         assert_eq!(reloaded.status, RunStatus::Lost);
     }
 
@@ -1348,7 +1491,10 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("fresh test");
         store.create(&spec).await.expect("create");
-        store.claim_next_supervised("worker-1").await.expect("claim_next");
+        store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next");
 
         // Recent heartbeat, should not be reaped with 60s timeout
         let cutoff = Utc::now() - chrono::Duration::seconds(60);
@@ -1361,8 +1507,15 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("requeue test");
         let created = store.create(&spec).await.expect("create");
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next").expect("claimed");
-        store.fail_supervised(&claimed.id, "worker-1", Some("error".to_string())).await.expect("fail");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next")
+            .expect("claimed");
+        store
+            .fail_supervised(&claimed.id, "worker-1", Some("error".to_string()))
+            .await
+            .expect("fail");
 
         let requeued = store.requeue(&claimed.id).await.expect("requeue");
         assert_eq!(requeued.status, RunStatus::Queued);
@@ -1376,7 +1529,10 @@ mod tests {
     #[tokio::test]
     async fn test_supervised_requeue_not_found() {
         let (_dir, store) = setup().await;
-        let err = store.requeue("nonexistent").await.expect_err("requeue should fail");
+        let err = store
+            .requeue("nonexistent")
+            .await
+            .expect_err("requeue should fail");
         match err {
             RunStoreError::NotFound(_) => {}
             _ => panic!("expected NotFound, got {:?}", err),
@@ -1388,10 +1544,20 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("requeue invalid test");
         let created = store.create(&spec).await.expect("create");
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next").expect("claimed");
-        store.complete_supervised(&claimed.id, "worker-1", None).await.expect("complete");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next")
+            .expect("claimed");
+        store
+            .complete_supervised(&claimed.id, "worker-1", None)
+            .await
+            .expect("complete");
 
-        let err = store.requeue(&created.id).await.expect_err("requeue should fail");
+        let err = store
+            .requeue(&created.id)
+            .await
+            .expect_err("requeue should fail");
         match err {
             RunStoreError::InvalidState(_) => {}
             _ => panic!("expected InvalidState, got {:?}", err),
@@ -1403,10 +1569,20 @@ mod tests {
         let (_dir, store) = setup().await;
         let spec = sample_spec("requeue max test").with_max_attempts(1);
         let created = store.create(&spec).await.expect("create");
-        let claimed = store.claim_next_supervised("worker-1").await.expect("claim_next").expect("claimed");
-        store.fail_supervised(&claimed.id, "worker-1", None).await.expect("fail");
+        let claimed = store
+            .claim_next_supervised("worker-1")
+            .await
+            .expect("claim_next")
+            .expect("claimed");
+        store
+            .fail_supervised(&claimed.id, "worker-1", None)
+            .await
+            .expect("fail");
 
-        let err = store.requeue(&created.id).await.expect_err("requeue should fail");
+        let err = store
+            .requeue(&created.id)
+            .await
+            .expect_err("requeue should fail");
         match err {
             RunStoreError::MaxAttemptsReached(_) => {}
             _ => panic!("expected MaxAttemptsReached, got {:?}", err),

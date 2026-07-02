@@ -56,8 +56,7 @@ mod tests {
     fn test_app() -> Router {
         let (api_tx, _api_rx) = mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(api_tx, MessageBus::new(), temp.path()).unwrap();
         Router::new()
             .route("/api/health", axum::routing::get(health_handler))
             .with_state(state)

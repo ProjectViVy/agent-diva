@@ -189,12 +189,8 @@ mod tests {
 
     #[test]
     fn usage_record_serde_roundtrip() {
-        let record = UsageRecord::new_agent_turn(
-            "sess-123",
-            "turn-456",
-            sample_usage(),
-            1_700_000_000_000,
-        );
+        let record =
+            UsageRecord::new_agent_turn("sess-123", "turn-456", sample_usage(), 1_700_000_000_000);
         let json = serde_json::to_string(&record).unwrap();
         let back: UsageRecord = serde_json::from_str(&json).unwrap();
         assert_eq!(back, record);
@@ -238,12 +234,8 @@ mod tests {
 
     #[test]
     fn usage_record_optional_fields_omitted() {
-        let record = UsageRecord::new_agent_turn(
-            "sess-123",
-            "turn-456",
-            sample_usage(),
-            1_700_000_000_000,
-        );
+        let record =
+            UsageRecord::new_agent_turn("sess-123", "turn-456", sample_usage(), 1_700_000_000_000);
         let json = serde_json::to_string(&record).unwrap();
         // run_id and subagent_id should not appear when None
         assert!(!json.contains("run_id"));

@@ -5045,5 +5045,3 @@ fn resolve_audit_log_path(date: &str) -> Result<std::path::PathBuf, String> {
     let log_path = log_dir.join(format!("gateway.log.{}", date));
     Ok(log_path)
 }
-
-

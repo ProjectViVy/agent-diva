@@ -161,8 +161,7 @@ mod tests {
 
     #[test]
     fn logging_retention_default_is_30() {
-        let config: crate::config::schema::LoggingConfig =
-            serde_json::from_str("{}").unwrap();
+        let config: crate::config::schema::LoggingConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(config.retention_days, 30);
     }
 

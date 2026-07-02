@@ -73,12 +73,12 @@ impl agent_diva_core::error_category::CategorizeError for SandboxError {
     fn category(&self) -> agent_diva_core::error_category::ErrorCategory {
         match self {
             Self::Timeout { .. } => agent_diva_core::error_category::ErrorCategory::Timeout,
-            Self::Denied { .. }
-            | Self::ApprovalRequired { .. }
-            | Self::PermissionDenied { .. } => agent_diva_core::error_category::ErrorCategory::Auth,
-            Self::ExecutionFailed { .. }
-            | Self::SpawnFailed(_)
-            | Self::InvalidCommand(_) => agent_diva_core::error_category::ErrorCategory::Fatal,
+            Self::Denied { .. } | Self::ApprovalRequired { .. } | Self::PermissionDenied { .. } => {
+                agent_diva_core::error_category::ErrorCategory::Auth
+            }
+            Self::ExecutionFailed { .. } | Self::SpawnFailed(_) | Self::InvalidCommand(_) => {
+                agent_diva_core::error_category::ErrorCategory::Fatal
+            }
             Self::PlatformNotSupported
             | Self::PlatformError(_)
             | Self::PlatformUnavailable { .. }

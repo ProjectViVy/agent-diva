@@ -87,8 +87,7 @@ mod tests {
 
         for action in &actions {
             let json = serde_json::to_string(action).expect("serialize");
-            let deserialized: OverflowAction =
-                serde_json::from_str(&json).expect("deserialize");
+            let deserialized: OverflowAction = serde_json::from_str(&json).expect("deserialize");
             assert_eq!(*action, deserialized);
         }
     }
@@ -97,8 +96,7 @@ mod tests {
     fn test_context_budget_policy_serialization() {
         let policy = ContextBudgetPolicy::default();
         let json = serde_json::to_string(&policy).expect("serialize");
-        let deserialized: ContextBudgetPolicy =
-            serde_json::from_str(&json).expect("deserialize");
+        let deserialized: ContextBudgetPolicy = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(policy, deserialized);
     }
 

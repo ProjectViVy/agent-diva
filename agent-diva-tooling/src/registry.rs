@@ -134,9 +134,7 @@ impl ToolRegistry {
                 }
                 Err(e)
             }
-            Err(_) => Err(ToolError::Timeout {
-                secs: timeout_secs,
-            }),
+            Err(_) => Err(ToolError::Timeout { secs: timeout_secs }),
         }
     }
 

@@ -102,7 +102,10 @@ pub fn check_security(content: &str, context: &SecurityContext) -> SecurityDecis
                     kind: SecurityKind::InstructionConflict,
                     severity: crate::audit::Severity::Medium,
                     span: (0, content.len()),
-                    reason: format!("Tier conflict: {} vs {}", c.lower_source, c.conflict_pattern),
+                    reason: format!(
+                        "Tier conflict: {} vs {}",
+                        c.lower_source, c.conflict_pattern
+                    ),
                     source: context.clone(),
                 })
                 .collect();

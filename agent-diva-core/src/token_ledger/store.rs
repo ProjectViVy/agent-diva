@@ -107,7 +107,11 @@ impl JsonlTokenLedger {
             let line = match line {
                 Ok(l) => l,
                 Err(e) => {
-                    warn!("token_ledger: IO error reading line {}: {}", line_num + 1, e);
+                    warn!(
+                        "token_ledger: IO error reading line {}: {}",
+                        line_num + 1,
+                        e
+                    );
                     continue;
                 }
             };
@@ -296,8 +300,7 @@ mod tests {
             .append(TokenLedgerEntry::new("sess-2", "model-b", 20, 10))
             .expect("append");
 
-        let content =
-            std::fs::read_to_string(dir.path().join("token_ledger.jsonl")).expect("read");
+        let content = std::fs::read_to_string(dir.path().join("token_ledger.jsonl")).expect("read");
         let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
         assert_eq!(lines.len(), 2);
 

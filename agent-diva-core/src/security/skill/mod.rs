@@ -111,7 +111,11 @@ pub fn validate_skill_md(content: &str) -> Result<(), SkillError> {
     if trimmed.len() < MIN_SKILL_MD_CHARS {
         crate::audit::emit(crate::audit::AuditEvent::SkillRejected {
             skill_name: "unknown".to_string(),
-            reason: format!("SKILL.md too short: {} chars (min {})", trimmed.len(), MIN_SKILL_MD_CHARS),
+            reason: format!(
+                "SKILL.md too short: {} chars (min {})",
+                trimmed.len(),
+                MIN_SKILL_MD_CHARS
+            ),
         });
         return Err(SkillError::InvalidSkillMd {
             reason: format!(

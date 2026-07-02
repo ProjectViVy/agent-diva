@@ -582,7 +582,13 @@ impl LiteLLMClient {
             tools: None,
             tool_choice: None,
             stream: if options.stream { Some(true) } else { None },
-            stream_options: if options.stream { Some(StreamOptions { include_usage: true }) } else { None },
+            stream_options: if options.stream {
+                Some(StreamOptions {
+                    include_usage: true,
+                })
+            } else {
+                None
+            },
             reasoning_effort: options.reasoning_effort,
             max_tokens: options.max_tokens,
             temperature: options.temperature,

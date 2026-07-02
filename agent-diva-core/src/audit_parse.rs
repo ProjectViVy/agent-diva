@@ -70,7 +70,10 @@ pub fn parse_audit_event_from_json_line(line: &str) -> Option<AuditEventDto> {
 
     // Try direct format: {"timestamp":"...","type":"tool_invoked","data":{...}}
     if let Some(type_val) = parsed.get("type").and_then(|v| v.as_str()) {
-        let data = parsed.get("data").cloned().unwrap_or(serde_json::Value::Null);
+        let data = parsed
+            .get("data")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
         return Some(AuditEventDto {
             event_type: type_val.to_string(),
             data,
@@ -200,7 +203,8 @@ mod tests {
 
     #[test]
     fn parse_unknown_json_returns_unknown_event_type() {
-        let line = r#"{"timestamp":"2026-07-01T12:00:00Z","level":"INFO","message":"something else"}"#;
+        let line =
+            r#"{"timestamp":"2026-07-01T12:00:00Z","level":"INFO","message":"something else"}"#;
         let evt = parse_audit_event_from_json_line(line).unwrap();
         assert_eq!(evt.event_type, "unknown");
         assert_eq!(evt.data["raw"], line);
@@ -238,11 +242,26 @@ mod tests {
             ("heartbeat_triggered", r#"{"interval_secs":5}"#),
             ("tool_invoked", r#"{"tool_name":"bash","args":{}}"#),
             ("tool_denied", r#"{"tool_name":"rm","reason":"policy"}"#),
-            ("decision_point", r#"{"agent_id":"a1","decision":"go","context":"loop"}"#),
-            ("injection_detected", r#"{"layer":"input","pattern":"role_override","severity":"high"}"#),
-            ("pii_redacted", r#"{"category":"email","severity":"warning","count":3}"#),
-            ("token_used", r#"{"provider":"openai","model":"gpt-4","tokens":150}"#),
-            ("reasoning_received", r#"{"content_len":500,"model":"claude"}"#),
+            (
+                "decision_point",
+                r#"{"agent_id":"a1","decision":"go","context":"loop"}"#,
+            ),
+            (
+                "injection_detected",
+                r#"{"layer":"input","pattern":"role_override","severity":"high"}"#,
+            ),
+            (
+                "pii_redacted",
+                r#"{"category":"email","severity":"warning","count":3}"#,
+            ),
+            (
+                "token_used",
+                r#"{"provider":"openai","model":"gpt-4","tokens":150}"#,
+            ),
+            (
+                "reasoning_received",
+                r#"{"content_len":500,"model":"claude"}"#,
+            ),
             ("chat_over", r#"{"session_id":"s1","turn_count":42}"#),
             ("presence_changed", r#"{"from":"active","to":"gone"}"#),
         ];
@@ -252,7 +271,11 @@ mod tests {
                 event_type, data_json
             );
             let evt = parse_audit_event_from_json_line(&line).unwrap();
-            assert_eq!(evt.event_type, *event_type, "failed for variant {}", event_type);
+            assert_eq!(
+                evt.event_type, *event_type,
+                "failed for variant {}",
+                event_type
+            );
         }
     }
 }

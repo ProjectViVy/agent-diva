@@ -49,8 +49,9 @@ impl CategorizeError for SecurityError {
             SecurityError::InjectionDetected { .. } | SecurityError::PiiDetected { .. } => {
                 ErrorCategory::Auth
             }
-            SecurityError::RateLimitExceeded { .. }
-            | SecurityError::ActionBudgetExhausted => ErrorCategory::Retryable,
+            SecurityError::RateLimitExceeded { .. } | SecurityError::ActionBudgetExhausted => {
+                ErrorCategory::Retryable
+            }
             SecurityError::ReadOnlyMode
             | SecurityError::PathNotAllowed { .. }
             | SecurityError::PathEscapesWorkspace { .. }

@@ -429,7 +429,9 @@ impl LLMProvider for OllamaProvider {
             messages: ollama_messages,
             stream: true,
             options: Some(ChatOptions { temperature }),
-            stream_options: Some(StreamOptions { include_usage: true }),
+            stream_options: Some(StreamOptions {
+                include_usage: true,
+            }),
         };
 
         debug!(
@@ -655,7 +657,9 @@ mod tests {
             }],
             stream: true,
             options: Some(ChatOptions { temperature: 0.7 }),
-            stream_options: Some(StreamOptions { include_usage: true }),
+            stream_options: Some(StreamOptions {
+                include_usage: true,
+            }),
         };
         let json = serde_json::to_value(&request).unwrap();
         assert_eq!(json["model"], "llama3");

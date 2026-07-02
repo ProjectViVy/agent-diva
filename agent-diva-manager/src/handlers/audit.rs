@@ -113,8 +113,6 @@ fn read_lines_from_file(path: &PathBuf, max_lines: u64) -> Result<Vec<String>, S
     Ok(all_lines)
 }
 
-
-
 // ── Handlers ──────────────────────────────────────────────────────────
 
 /// GET /api/audit/log?date=YYYY-MM-DD&max_lines=200
