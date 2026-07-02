@@ -1,0 +1,22 @@
+scenario: tool_call
+description: "验证 Agent 可以调用 list_dir 工具"
+setup:
+  timeout_secs: 45
+  create_file:
+    - path: test_file.txt
+      content: "这是一个测试文件"
+messages:
+  - sender: user
+    channel: e2e
+    chat_id: tool-test
+    content: "列出当前工作目录下的文件"
+assertions:
+  - type: tool_called
+    name: list_dir
+    min_times: 1
+    description: "Agent 必须调用 list_dir 工具"
+  - type: response_contains
+    value: "test_file.txt"
+    description: "Agent 的回答应该包含 test_file.txt"
+  - type: no_errors
+    description: "不应有错误"

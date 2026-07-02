@@ -1,0 +1,12 @@
+scenario: error_handling
+description: "验证 Agent 在工具出错时不会崩溃"
+setup:
+  timeout_secs: 45
+messages:
+  - sender: user
+    channel: e2e
+    chat_id: error-test
+    content: "读取一个不存在的文件 /nonexistent_file_12345.txt"
+assertions:
+  - type: no_errors
+    description: "Agent 不应崩溃或产生 Error 事件"
