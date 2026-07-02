@@ -533,9 +533,7 @@ impl ConfigMigrator {
                     temperature: py.agents.defaults.temperature,
                     max_tool_iterations: py.agents.defaults.max_tool_iterations,
                     reasoning_effort: None,
-                    context_budget_tokens: 24_000,
-                    context_budget_reserve_tokens: 4_000,
-                    context_overflow_retry_enabled: true,
+                    thinking_mode: None,
                 },
                 soul: AgentSoulConfig::default(),
             },
@@ -649,7 +647,6 @@ impl ConfigMigrator {
             },
             tools: ToolsConfig {
                 builtin: Default::default(),
-                subagent: Default::default(),
                 web: WebToolsConfig {
                     search: WebSearchConfig {
                         provider: "bocha".to_string(),
@@ -660,11 +657,7 @@ impl ConfigMigrator {
                     fetch: WebFetchConfig::default(),
                 },
                 exec: ExecToolConfig {
-                    timeout: if py.tools.exec.timeout == 0 {
-                        default_timeout()
-                    } else {
-                        py.tools.exec.timeout
-                    },
+                    timeout: py.tools.exec.timeout,
                 },
                 restrict_to_workspace: py.tools.restrict_to_workspace,
                 mcp_servers: py
@@ -685,8 +678,13 @@ impl ConfigMigrator {
                     })
                     .collect(),
                 mcp_manager: MCPManagerConfig::default(),
+                budget: Default::default(),
             },
+            mentle: MentleToolConfig::default(),
+            self_evolution: SelfEvolutionConfig::default(),
             logging: LoggingConfig::default(),
+            sandbox: SandboxConfig::default(),
+            pet: PetConfig::default(),
         }
     }
 
@@ -696,6 +694,7 @@ impl ConfigMigrator {
             api_base: py.api_base.clone(),
             extra_headers: py.extra_headers.clone(),
             custom_models: Vec::new(),
+            reasoning_config: None,
         }
     }
 }

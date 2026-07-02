@@ -5,7 +5,7 @@ use agent_diva_agent::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::AgentEvent;
 use agent_diva_core::config::schema::{
     ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, MatrixConfig,
-    QQConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
+    QQConfig, SelfEvolutionConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
 };
 use agent_diva_providers::{LiteLLMClient, ProviderAccess, ProviderCatalogService};
 use tokio::sync::oneshot;
@@ -13,8 +13,8 @@ use tracing::{debug, error, info, warn};
 
 use super::Manager;
 use crate::state::{
-    ApiRequest, ChannelUpdate, ConfigResponse, ConfigUpdate, ResetSessionRequest, StopChatRequest,
-    ToolsConfigResponse, ToolsConfigUpdate,
+    ApiRequest, ChannelUpdate, ConfigResponse, ConfigUpdate, MentleToolsListResponse,
+    ResetSessionRequest, StopChatRequest, ToolsConfigResponse, ToolsConfigUpdate,
 };
 
 impl Manager {
@@ -279,6 +279,42 @@ impl Manager {
         });
     }
 
+    pub(super) fn handle_get_self_evolution_config(
+        &self,
+        reply: oneshot::Sender<Result<SelfEvolutionConfig, String>>,
+    ) {
+        debug!("Processing GetSelfEvolutionConfig command");
+        let response = self
+            .loader
+            .load()
+            .map(|config| config.self_evolution)
+            .map_err(|error| {
+                error!("Failed to load self-evolution config: {}", error);
+                error.to_string()
+            });
+        let _ = reply.send(response);
+    }
+
+    pub(super) fn handle_update_self_evolution_config(
+        &self,
+        self_evolution: SelfEvolutionConfig,
+        reply: oneshot::Sender<Result<SelfEvolutionConfig, String>>,
+    ) {
+        info!("Processing UpdateSelfEvolutionConfig request");
+        let response = (|| {
+            let mut config = self.loader.load().map_err(|error| error.to_string())?;
+            config.self_evolution = self_evolution;
+            self.loader
+                .save(&config)
+                .map_err(|error| error.to_string())?;
+            Ok(config.self_evolution)
+        })();
+        if let Err(error) = &response {
+            error!("Failed to save self-evolution config: {}", error);
+        }
+        let _ = reply.send(response);
+    }
+
     pub(super) fn handle_get_channels(&self, reply: oneshot::Sender<ChannelsConfig>) {
         debug!("Processing GetChannels command");
         let response = self
@@ -299,11 +335,15 @@ impl Manager {
             .load()
             .map(|config| ToolsConfigResponse {
                 web: config.tools.web.into(),
+                mentle: config.mentle,
+                budget: config.tools.budget,
             })
             .unwrap_or_else(|error| {
                 error!("Failed to load config for GetTools: {}", error);
                 ToolsConfigResponse {
                     web: WebToolsConfig::default().into(),
+                    mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
+                    budget: agent_diva_core::config::CompactionBudgetConfig::default(),
                 }
             });
         let _ = reply.send(response);
@@ -321,6 +361,9 @@ impl Manager {
 
         config.tools.web.search = update.web.search;
         config.tools.web.fetch = update.web.fetch;
+        config.mentle = update.mentle;
+        config.tools.budget = update.budget;
+        config.tools.builtin.mentle = config.mentle.enabled;
 
         if let Err(e) = self.loader.save(&config) {
             error!("Failed to save tools config: {}", e);
@@ -331,6 +374,16 @@ impl Manager {
             let network = Self::map_network_config(&config);
             if let Err(e) = tx.send(RuntimeControlCommand::UpdateNetwork(network)) {
                 error!("Failed to send runtime tools update: {}", e);
+            }
+            let mentle_runtime =
+                agent_diva_agent::tool_config::mentle::MentleToolRuntimeConfig::from_config(
+                    &config,
+                );
+            if let Err(e) = tx.send(RuntimeControlCommand::UpdateMentle {
+                mentle: mentle_runtime,
+                builtin_mentle: config.mentle.enabled,
+            }) {
+                error!("Failed to send runtime Mentle update: {}", e);
             }
         }
     }
@@ -540,6 +593,40 @@ impl Manager {
             .ok_or_else(|| missing_message.to_string())?;
         f(tx).await
     }
+
+    pub(super) async fn handle_list_mentle_tools(
+        &self,
+        reply: oneshot::Sender<MentleToolsListResponse>,
+    ) {
+        debug!("Processing ListMentleTools command");
+        let response = match self.loader.load() {
+            Ok(config) => {
+                let workspace = expand_tilde_path(&config.agents.defaults.workspace);
+                let tools = agent_diva_agent::discover_mentle_tool_names(&workspace).await;
+                MentleToolsListResponse {
+                    feature_available: agent_diva_agent::mentle_discovery_available(),
+                    tools,
+                }
+            }
+            Err(error) => {
+                error!("Failed to load config for ListMentleTools: {}", error);
+                MentleToolsListResponse {
+                    feature_available: agent_diva_agent::mentle_discovery_available(),
+                    tools: Vec::new(),
+                }
+            }
+        };
+        let _ = reply.send(response);
+    }
+}
+
+fn expand_tilde_path(path: &str) -> std::path::PathBuf {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(stripped);
+        }
+    }
+    std::path::PathBuf::from(path)
 }
 
 fn set_channel<T>(slot: &mut T, update: &ChannelUpdate) -> anyhow::Result<()>

@@ -4,7 +4,15 @@
 //! reading and persistence.
 
 pub mod manager;
+pub mod search;
 pub mod store;
 
-pub use manager::{SessionInfo, SessionLoadError, SessionManager};
-pub use store::{ChatMessage, Session};
+pub use manager::{SessionInfo, SessionManager};
+pub use search::{
+    SessionSearchDiagnostic, SessionSearchHit, SessionSearchQuery, SessionSearchResponse,
+};
+pub use store::{ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session};
+
+// Re-export TokenUsage for convenience — it's used alongside ChatMessage
+// to record per-turn LLM token consumption.
+pub use crate::config::schema::TokenUsage;

@@ -9,17 +9,26 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
-    add_provider_model_handler, chat_handler, create_cron_job_handler, create_mcp_handler,
+    add_provider_model_handler, apply_laputa_proposal_handler, cancel_autodream_run_handler,
+    chat_handler, create_cron_job_handler, create_laputa_proposal_handler, create_mcp_handler,
     create_provider_handler, delete_cron_job_handler, delete_mcp_handler, delete_provider_handler,
-    delete_provider_model_handler, delete_session_handler, delete_skill_handler, events_handler,
-    get_channels_handler, get_config_handler, get_cron_job_handler, get_mcps_handler,
-    get_provider_handler, get_provider_models_handler, get_providers_handler,
+    delete_provider_model_handler, delete_session_handler, delete_skill_handler,
+    edit_laputa_proposal_handler, events_handler, get_audit_events_handler, get_audit_log_handler,
+    get_autodream_run_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
+    get_laputa_changelog_handler, get_laputa_proposal_handler, get_laputa_section_handler,
+    get_laputa_snapshot_handler, get_mcps_handler, get_provider_handler,
+    get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
     get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
-    heartbeat_handler, list_cron_jobs_handler, refresh_mcp_status_handler, reset_session_handler,
-    resolve_provider_handler, run_cron_job_handler, set_cron_job_enabled_handler,
-    set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler, update_channel_handler,
-    update_config_handler, update_cron_job_handler, update_mcp_handler, update_provider_handler,
-    update_tools_handler, upload_file_handler, upload_skill_handler,
+    health_handler, heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
+    list_laputa_changelog_handler, list_laputa_proposals_handler, list_mentle_tools_handler,
+    poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
+    resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
+    set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
+    stop_cron_job_handler, stream_laputa_events_handler, transition_laputa_proposal_handler,
+    trigger_autodream_run_handler, update_channel_handler, update_config_handler,
+    update_cron_job_handler, update_mcp_handler, update_provider_handler,
+    update_self_evolution_config_handler, update_tools_handler, upload_file_handler,
+    upload_skill_handler,
 };
 use crate::state::AppState;
 
@@ -76,10 +85,66 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(runtime_routes())
         .merge(provider_routes())
+        .merge(planning_routes())
+        .merge(autodream_routes())
+        .merge(laputa_routes())
+        .merge(audit_routes())
         .merge(misc_routes())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+fn autodream_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/autodream/runs",
+            get(list_autodream_runs_handler).post(trigger_autodream_run_handler),
+        )
+        .route("/api/autodream/runs/:id", get(get_autodream_run_handler))
+        .route(
+            "/api/autodream/runs/:id/cancel",
+            post(cancel_autodream_run_handler),
+        )
+}
+
+fn laputa_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/laputa/proposals",
+            get(list_laputa_proposals_handler).post(create_laputa_proposal_handler),
+        )
+        .route(
+            "/api/laputa/proposals/:id",
+            get(get_laputa_proposal_handler).put(edit_laputa_proposal_handler),
+        )
+        .route(
+            "/api/laputa/proposals/:id/transition",
+            post(transition_laputa_proposal_handler),
+        )
+        .route(
+            "/api/laputa/proposals/:id/apply",
+            post(apply_laputa_proposal_handler),
+        )
+        .route("/api/laputa/snapshot", get(get_laputa_snapshot_handler))
+        .route("/api/laputa/section/:name", get(get_laputa_section_handler))
+        .route("/api/laputa/changelog", get(list_laputa_changelog_handler))
+        .route(
+            "/api/laputa/changelog/:id",
+            get(get_laputa_changelog_handler),
+        )
+        .route(
+            "/api/laputa/changelog/:id/rollback",
+            post(rollback_laputa_changelog_handler),
+        )
+        .route(
+            "/api/laputa/events/:kind",
+            get(stream_laputa_events_handler),
+        )
+        .route(
+            "/api/laputa/events/:kind/poll",
+            get(poll_laputa_events_handler),
+        )
 }
 
 fn runtime_routes() -> Router<AppState> {
@@ -100,12 +165,20 @@ fn runtime_routes() -> Router<AppState> {
             get(get_config_handler).post(update_config_handler),
         )
         .route(
+            "/api/config/self-evolution",
+            get(get_self_evolution_config_handler).post(update_self_evolution_config_handler),
+        )
+        .route(
             "/api/channels",
             get(get_channels_handler).post(update_channel_handler),
         )
         .route(
             "/api/tools",
             get(get_tools_handler).post(update_tools_handler),
+        )
+        .route(
+            "/api/tools/mentle/available",
+            get(list_mentle_tools_handler),
         )
         .route(
             "/api/skills",
@@ -164,18 +237,78 @@ fn provider_routes() -> Router<AppState> {
         )
 }
 
+fn planning_routes() -> Router<AppState> {
+    use crate::handlers::planning::{
+        create_plan_handler, delete_plan_handler, get_plan_handler, list_plans_handler,
+        update_plan_handler,
+    };
+    Router::new()
+        .route(
+            "/api/plans",
+            get(list_plans_handler).post(create_plan_handler),
+        )
+        .route(
+            "/api/plans/:plan_id",
+            get(get_plan_handler)
+                .put(update_plan_handler)
+                .delete(delete_plan_handler),
+        )
+}
+
+fn audit_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/audit/log", get(get_audit_log_handler))
+        .route("/api/audit/events", get(get_audit_events_handler))
+}
+
 fn misc_routes() -> Router<AppState> {
-    Router::new().route("/api/health", get(heartbeat_handler))
+    Router::new()
+        .route("/api/health", get(health_handler))
+        .route("/api/heartbeat", get(heartbeat_handler))
 }
 
 #[cfg(test)]
 mod tests {
     use super::build_router;
-    use axum::body::Body;
+    use agent_diva_core::evolution::{
+        EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState,
+        ProposalType, RiskLevel,
+    };
+    use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
+    use chrono::{DateTime, Utc};
     use tower::util::ServiceExt;
 
     use crate::state::{AppState, ManagerCommand};
+
+    fn ts(seconds: u32) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(&format!("2026-06-14T00:03:{seconds:02}Z"))
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn laputa_proposal(id: &str, patch: &str) -> EvolutionProposal {
+        EvolutionProposal {
+            id: id.to_string(),
+            created_at: ts(2),
+            updated_at: ts(2),
+            created_by: "autodream".to_string(),
+            proposal_type: ProposalType::MemoryPatch,
+            target_section: LaputaSectionName::MemoryMd,
+            evidence_refs: vec![EvidenceRef {
+                id: "ev-1".to_string(),
+                source: EvidenceSource::Session,
+                uri: "session://ev-1".to_string(),
+                excerpt: Some("bounded evidence".to_string()),
+                hash: Some("hash-ev-1".to_string()),
+                created_at: ts(1),
+            }],
+            proposed_patch: patch.to_string(),
+            risk_level: RiskLevel::Medium,
+            state: ProposalState::PendingReview,
+            source_run_id: Some("run-1".to_string()),
+        }
+    }
 
     #[tokio::test]
     async fn build_router_keeps_health_and_skills_routes_without_overlap() {
@@ -189,10 +322,9 @@ mod tests {
                 }
             }
         });
-        let state = AppState {
-            api_tx,
-            bus: agent_diva_core::bus::MessageBus::new(),
-        };
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
 
         let app = build_router(state.clone());
 
@@ -218,5 +350,86 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(skills_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn build_router_exposes_laputa_routes() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+
+        let app = build_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/laputa/snapshot")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn laputa_apply_preserves_typed_schema_incompatible_error_code() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        state
+            .laputa
+            .create_proposal(laputa_proposal("proposal-1", "not-json"))
+            .unwrap();
+        state
+            .laputa
+            .transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+            .unwrap();
+
+        let app = build_router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/laputa/proposals/proposal-1/apply")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"actor":"reviewer"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "error");
+        assert_eq!(value["code"], "schema_incompatible");
+    }
+
+    #[tokio::test]
+    async fn build_router_exposes_autodream_manual_run_route() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+
+        let app = build_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/autodream/runs")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"trigger":"manual"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

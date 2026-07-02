@@ -48,6 +48,7 @@ async fn start_runtime_tasks_inner(
         bus,
         cron_service,
         dynamic_provider,
+        workspace,
         runtime_control_tx,
         provider_api_key,
         provider_api_base,
@@ -88,6 +89,7 @@ async fn start_runtime_tasks_inner(
         Some(runtime_control_tx),
         Arc::clone(&cron_service),
         file_manager,
+        workspace.clone(),
     );
     let api_tx_keepalive = api_tx.clone();
 
@@ -95,25 +97,14 @@ async fn start_runtime_tasks_inner(
     let channel_handle = spawn_channel_runtime(channel_manager.clone());
     let agent_handle = spawn_agent_runtime(agent);
     let manager_handle = spawn_manager_runtime(manager);
+    let app_state = AppState::new(api_tx, bus.clone(), workspace)
+        .expect("manager AppState storage services initialize");
     let (server_shutdown_tx, server_handle) = match server_runtime {
-        ServerRuntime::BoundPort => spawn_server_runtime(
-            port,
-            AppState {
-                api_tx,
-                bus: bus.clone(),
-            },
-        ),
+        ServerRuntime::BoundPort => spawn_server_runtime(port, app_state),
         ServerRuntime::Embedded {
             listener,
             shutdown_rx,
-        } => spawn_embedded_server_runtime(
-            AppState {
-                api_tx,
-                bus: bus.clone(),
-            },
-            listener,
-            shutdown_rx,
-        ),
+        } => spawn_embedded_server_runtime(app_state, listener, shutdown_rx),
     };
 
     GatewayTasks {

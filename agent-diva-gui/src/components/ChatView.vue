@@ -1,12 +1,35 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted } from 'vue';
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, Brain, Paperclip, X, Image as ImageIcon, File as FileIcon } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
 import { useI18n } from 'vue-i18n';
-import { uploadFile, type FileAttachmentDto } from '../api/desktop';
+import ConversationSidebar from './ConversationSidebar.vue';
+import DecisionCard from './DecisionCard.vue';
+import TodoCard from './TodoCard.vue';
+import ApprovalBanner from './ApprovalBanner.vue';
+import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
+import ThinkingBlock from './chat/ThinkingBlock.vue';
+import ThinkingToggle from './chat/ThinkingToggle.vue';
+import {
+  triggerAutoDream,
+  getAutoDreamRunStatus,
+  getLaputaProposal,
+  uploadFile,
+  FileAttachmentDto,
+  type AutoDreamRunRecord,
+  type EvolutionProposal,
+  type UiCard,
+  type ApprovalRequest,
+} from '../api/desktop';
+import type {
+  ChatGovernanceCard as ChatGovernanceCardModel,
+  ChatGovernanceDeepLink,
+} from './chat/governanceCards';
+import type { ToolsConfigShape } from '../types/toolsConfig';
+import { budgetPressurePercent, computeBudgetStatus } from '../utils/contextBudget';
 
 const { t } = useI18n();
 
@@ -50,7 +73,6 @@ interface Message {
   toolCallId?: string;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
-  attachments?: FileAttachmentDto[];
 }
 
 const expandedTools = ref<Record<number, boolean>>({});
@@ -73,10 +95,6 @@ const toggleTool = (index: number) => {
   expandedTools.value[index] = !expandedTools.value[index];
 };
 
-const toggleReasoning = (index: number) => {
-  expandedReasoning.value[index] = !expandedReasoning.value[index];
-};
-
 const toggleRawMeta = (index: number) => {
   expandedRawMeta.value[index] = !expandedRawMeta.value[index];
 };
@@ -94,18 +112,38 @@ const renderRawMeta = (msg: Message) => {
   }
 };
 
+interface Session {
+  session_key: string;
+  chat_id: string;
+  snippet: string;
+  timestamp: number;
+  title?: string;
+  pinned?: boolean;
+  status?: 'idle' | 'running' | 'completed' | 'error';
+  agent_icon?: string;
+  agent_name?: string;
+}
+
 const props = defineProps<{
   messages: Message[];
   isTyping: boolean;
   themeMode?: string;
   historyPrefs?: HistoryPrefs;
-  currentModel?: string;
+  sessions?: Session[];
+  toolsConfig?: ToolsConfigShape;
+  activeSessionKey?: string;
 }>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string, attachments?: FileAttachmentDto[]): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
+  (e: 'select-session', sessionKey: string): void;
+  (e: 'delete-session', sessionKey: string): void;
+  (e: 'new-session'): void;
+  (e: 'toggle-pin', sessionKey: string): void;
+  (e: 'rename-session', sessionKey: string, title: string): void;
+  (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
 }>();
 
 const input = ref('');
@@ -114,48 +152,53 @@ const inputRef = ref<HTMLTextAreaElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const attachments = ref<FileAttachmentDto[]>([]);
 const uploading = ref(false);
-const uploadError = ref<string | null>(null);
+const uploadingPastes = ref(false);
+const inputHeight = ref(24); // 动态输入框高度
 
-const visionModels = new Set(['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini']);
+// 右侧会话侧边栏状态
+const convSidebarOpen = ref(false);
+const convSidebarRef = ref<InstanceType<typeof ConversationSidebar> | null>(null);
 
-const normalizeModelId = (model?: string) => {
-  const trimmed = (model || '').trim().toLowerCase();
-  const parts = trimmed.split('/');
-  return parts[parts.length - 1] || trimmed;
-};
-
-const supportsVisionModel = (model?: string) => visionModels.has(normalizeModelId(model));
-
-const isImageAttachment = (attachment: FileAttachmentDto) =>
-  attachment.mime_type?.toLowerCase().startsWith('image/') ?? false;
-
-const hasImageAttachments = computed(() => attachments.value.some(isImageAttachment));
-
-const showVisionWarning = computed(
-  () => hasImageAttachments.value && !supportsVisionModel(props.currentModel)
-);
-
-const formatFileSize = (size: number) => {
-  if (!Number.isFinite(size) || size < 0) return '';
-  if (size < 1024) return `${size} B`;
-  const kb = size / 1024;
-  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
-  const mb = kb / 1024;
-  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
-};
-
-const attachmentLabel = (attachment: FileAttachmentDto) =>
-  isImageAttachment(attachment) ? '图片' : '文件';
-
-const attachmentTypeText = (attachment: FileAttachmentDto) => {
-  const size = formatFileSize(attachment.size);
-  return [attachmentLabel(attachment), size].filter(Boolean).join(' · ');
-};
+// 输入区域状态
+const showModeMenu = ref(false);
+const showPermissionMenu = ref(false);
+const execMode = ref<'agent' | 'plan' | 'ask'>('agent');
+const permissionMode = ref<'cautious' | 'smart' | 'trusted'>('smart');
+// const showAttachments = ref(false); // 预留
+const isRecording = ref(false);
+// const recordingDuration = ref(0); // 预留
+const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
+const localGovernanceCards = ref<ChatGovernanceCardModel[]>([]);
+const autoDreamTriggering = ref(false);
+const autoDreamPollTimers = new Set<ReturnType<typeof setTimeout>>();
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
   ...(props.historyPrefs ?? {}),
 }));
+
+const contextBudgetStatus = computed(() =>
+  computeBudgetStatus(props.messages, props.toolsConfig?.budget)
+);
+
+const contextUsagePercent = computed(() =>
+  Math.min(100, Math.max(0, budgetPressurePercent(contextBudgetStatus.value)))
+);
+
+const contextRingDashoffset = computed(() => {
+  const circumference = 56.5;
+  return circumference * (1 - contextUsagePercent.value / 100);
+});
+
+const contextRingColor = computed(() => {
+  if (contextUsagePercent.value >= 80) return '#f97316';
+  if (contextUsagePercent.value >= 60) return '#eab308';
+  return 'var(--brand, #ec4899)';
+});
+
+const contextUsageTitle = computed(() =>
+  `${contextBudgetStatus.value.history_estimated.toLocaleString()} / ${contextBudgetStatus.value.history_budget.toLocaleString()}`
+);
 
 const sakura = [
   { left: '6%', top: '18%', size: 16, opacity: 0.25, delay: 0 },
@@ -179,6 +222,7 @@ watch(() => props.messages, (newMessages, oldMessages) => {
     expandedReasoning.value = {};
     expandedTools.value = {};
     expandedRawMeta.value = {};
+    cardCache.clear();
   }
 
   // Auto-expand structured sections based on local preferences
@@ -201,49 +245,71 @@ onMounted(() => {
   inputRef.value?.focus();
 });
 
+onBeforeUnmount(() => {
+  autoDreamPollTimers.forEach((timer) => clearTimeout(timer));
+  autoDreamPollTimers.clear();
+});
+
+const handleSend = () => {
+  if (props.isTyping) return;
+  if (!input.value.trim() && attachments.value.length === 0) return;
+  const currentAttachments = [...attachments.value];
+  const text = input.value.trim() || (currentAttachments.length > 0 ? t('chat.filePlaceholder') : '');
+  emit('send', text, currentAttachments.length > 0 ? currentAttachments : undefined, execMode.value);
+  input.value = '';
+  attachments.value = [];
+  nextTick(() => {
+    adjustInputHeight();
+  });
+};
+
 const handleFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement;
   const files = target.files;
   if (!files || files.length === 0) return;
-
   uploading.value = true;
-  uploadError.value = null;
   try {
-    for (const file of files) {
-      const bytes = await file.arrayBuffer();
-      const byteArray = Array.from(new Uint8Array(bytes));
-      const attachment = await uploadFile(file.name, byteArray, 'gui');
-      attachments.value.push(attachment);
+    for (const file of Array.from(files)) {
+      const buffer = await file.arrayBuffer();
+      const bytes = Array.from(new Uint8Array(buffer));
+      const dto = await uploadFile(file.name, bytes, 'gui');
+      attachments.value.push(dto);
     }
-  } catch (error) {
-    console.error('Failed to upload file:', error);
-    uploadError.value = `文件上传失败：${error instanceof Error ? error.message : String(error)}`;
+  } catch (err) {
+    console.error('Failed to upload file:', err);
   } finally {
     uploading.value = false;
-    if (fileInputRef.value) {
-      fileInputRef.value.value = '';
+    if (fileInputRef.value) fileInputRef.value.value = '';
+  }
+};
+
+const handlePaste = async (event: ClipboardEvent) => {
+  if (!event.clipboardData) return;
+  const items = Array.from(event.clipboardData.items);
+  const imageItems = items.filter((item) => item.type.startsWith('image/'));
+  if (imageItems.length === 0) return;
+  event.preventDefault();
+  uploadingPastes.value = true;
+  try {
+    for (const item of imageItems) {
+      const blob = item.getAsFile();
+      if (!blob) continue;
+      const buffer = await blob.arrayBuffer();
+      const bytes = Array.from(new Uint8Array(buffer));
+      const fileName = blob.name || 'pasted-image.png';
+      const dto = await uploadFile(fileName, bytes, 'gui');
+      attachments.value.push(dto);
     }
+  } catch (err) {
+    console.error('Failed to upload pasted image:', err);
+    alert(t('chat.pasteUploadFailed') || 'Failed to upload pasted image');
+  } finally {
+    uploadingPastes.value = false;
   }
 };
 
-const handleRemoveAttachment = (index: number) => {
+const removeAttachment = (index: number) => {
   attachments.value.splice(index, 1);
-  if (attachments.value.length === 0) {
-    uploadError.value = null;
-  }
-};
-
-const handleSend = () => {
-  if (props.isTyping) return;
-  const hasContent = input.value.trim() || attachments.value.length > 0;
-  if (!hasContent) return;
-
-  const currentAttachments = [...attachments.value];
-  const message = input.value.trim() || (attachments.value.length > 0 ? '[文件]' : '');
-  emit('send', message, currentAttachments);
-  input.value = '';
-  attachments.value = [];
-  uploadError.value = null;
 };
 
 const handleClear = async () => {
@@ -261,12 +327,171 @@ const handleStop = () => {
   emit('stop');
 };
 
+const toRunCard = (run: AutoDreamRunRecord): ChatGovernanceCardModel => ({
+  kind: 'autodream_run',
+  id: run.id,
+  state: run.state,
+  trigger: run.trigger,
+  summary: run.summary,
+  proposal_ids: Array.isArray(run.proposal_ids) ? run.proposal_ids : [],
+  error: run.error,
+  source_run_id: run.id,
+  created_at: run.started_at,
+  updated_at: run.completed_at ?? run.started_at,
+});
+
+const toProposalCard = (proposal: EvolutionProposal): ChatGovernanceCardModel => ({
+  kind: 'evolution_proposal',
+  id: proposal.id,
+  proposal_type: proposal.proposal_type,
+  state: proposal.state,
+  risk_level: proposal.risk_level,
+  target_section: proposal.target_section,
+  summary: proposal.proposed_patch.split('\n').find((line) => line.trim().length > 0) ?? proposal.proposed_patch,
+  evidence_count: Array.isArray(proposal.evidence_refs) ? proposal.evidence_refs.length : 0,
+  source_run_id: proposal.source_run_id,
+});
+
+const normalizeError = (error: unknown) => {
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  if (error instanceof Error) return error.message;
+  if (error === null || error === undefined) return t('chatGovernance.backendUnavailable');
+  return String(error);
+};
+
+const replaceGovernanceCard = (id: string, next: ChatGovernanceCardModel) => {
+  localGovernanceCards.value = localGovernanceCards.value.map((card) => (card.id === id ? next : card));
+};
+
+const appendProposalCards = async (run: AutoDreamRunRecord) => {
+  const proposalIds = Array.isArray(run.proposal_ids) ? run.proposal_ids : [];
+  if (proposalIds.length === 0) return;
+  const existing = new Set(localGovernanceCards.value.map((card) => card.id));
+  const proposals = await Promise.allSettled(proposalIds.map((id) => getLaputaProposal(id)));
+  const cards = proposals
+    .filter((result): result is PromiseFulfilledResult<EvolutionProposal> => result.status === 'fulfilled')
+    .map((result) => toProposalCard(result.value))
+    .filter((card) => !existing.has(card.id));
+  if (cards.length > 0) {
+    localGovernanceCards.value = [...localGovernanceCards.value, ...cards];
+    scrollToBottom();
+  }
+};
+
+const pollAutoDreamRun = (runId: string, cardId: string, attempt = 0) => {
+  const timer = setTimeout(async () => {
+    autoDreamPollTimers.delete(timer);
+    try {
+      const run = await getAutoDreamRunStatus(runId);
+      replaceGovernanceCard(cardId, toRunCard(run));
+      scrollToBottom();
+      if (run.state === 'pending' || run.state === 'running') {
+        pollAutoDreamRun(runId, cardId, attempt + 1);
+      } else {
+        await appendProposalCards(run);
+      }
+    } catch (error) {
+      replaceGovernanceCard(cardId, {
+        kind: 'autodream_run',
+        id: runId,
+        state: 'unavailable',
+        trigger: 'manual',
+        summary: t('chatGovernance.backendUnavailable'),
+        proposal_ids: [],
+        error: normalizeError(error),
+        source_run_id: runId,
+      });
+      scrollToBottom();
+    }
+  }, Math.min(1000 + attempt * 500, 5000));
+  autoDreamPollTimers.add(timer);
+};
+
+const handleAutoDreamTrigger = async () => {
+  if (autoDreamTriggering.value) return;
+  autoDreamTriggering.value = true;
+  const pendingId = `autodream-local-${Date.now()}`;
+  const pendingCard: ChatGovernanceCardModel = {
+    kind: 'autodream_run',
+    id: pendingId,
+    state: 'running',
+    trigger: 'manual',
+    summary: t('chatGovernance.triggerStarted'),
+    proposal_ids: [],
+    created_at: new Date().toISOString(),
+  };
+  localGovernanceCards.value = [...localGovernanceCards.value, pendingCard];
+  scrollToBottom();
+
+  try {
+    const run = await triggerAutoDream('manual');
+    replaceGovernanceCard(pendingId, toRunCard(run));
+    scrollToBottom();
+    if (run.state === 'pending' || run.state === 'running') {
+      pollAutoDreamRun(run.id, run.id);
+    } else {
+      await appendProposalCards(run);
+    }
+  } catch (error) {
+    localGovernanceCards.value = localGovernanceCards.value.map((card) =>
+      card.id === pendingId
+        ? {
+            ...card,
+            state: 'unavailable',
+            summary: t('chatGovernance.backendUnavailable'),
+            error: normalizeError(error),
+          }
+        : card,
+    );
+    scrollToBottom();
+  } finally {
+    autoDreamTriggering.value = false;
+  }
+};
+
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     handleSend();
   }
 };
+
+// 自动调整输入框高度
+const adjustInputHeight = () => {
+  if (inputRef.value) {
+    inputRef.value.style.height = 'auto';
+    const newHeight = Math.min(inputRef.value.scrollHeight, 120);
+    inputRef.value.style.height = `${newHeight}px`;
+    inputHeight.value = newHeight;
+  }
+};
+
+// 获取动态 placeholder
+const getPlaceholder = computed(() => {
+  if (execMode.value === 'plan') {
+    return t('chat.planMode') + ' · ' + t('chat.placeholder');
+  }
+  if (execMode.value === 'ask') {
+    return t('chat.askMode');
+  }
+  return t('chat.placeholder');
+});
+
+// 模式菜单选项
+const modeOptions = [
+  { value: 'agent', label: 'chat.agentMode', icon: Zap, desc: 'chat.agentModeDesc' },
+  { value: 'plan', label: 'chat.planMode', icon: Settings2, desc: 'chat.planModeDesc' },
+  { value: 'ask', label: 'chat.askMode', icon: Brain, desc: 'chat.askModeDesc' },
+];
+
+// 权限模式选项
+const permissionOptions = [
+  { value: 'cautious', label: 'chat.permissionCautious', icon: Shield, desc: 'chat.permissionCautiousDesc' },
+  { value: 'smart', label: 'chat.permissionSmart', icon: Sparkles, desc: 'chat.permissionSmartDesc' },
+  { value: 'trusted', label: 'chat.permissionTrusted', icon: CheckCircle, desc: 'chat.permissionTrustedDesc' },
+];
 
 const getEmotionEmoji = (emotion?: string) => {
   const emotions: Record<string, string> = {
@@ -280,29 +505,109 @@ const getEmotionEmoji = (emotion?: string) => {
   };
   return emotions[emotion || 'normal'] || '🙂';
 };
+
+// 消息操作：复制
+const copyMessage = async (content: string) => {
+  try {
+    await navigator.clipboard.writeText(content);
+  } catch (err) {
+    console.error('Failed to copy message:', err);
+  }
+};
+
+// 格式化时间戳
+const formatTime = (timestamp?: number) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// ── Card rendering helpers ────────────────────────────────
+/** Parse tool message content as card data, return null if invalid */
+const parseCard = (content: string): Record<string, unknown> | null => {
+  if (!content) return null;
+  try {
+    const parsed = JSON.parse(content);
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const asGovernanceCard = (card: Record<string, unknown> | null): ChatGovernanceCardModel | null => {
+  if (!card || (card.kind !== 'autodream_run' && card.kind !== 'evolution_proposal')) {
+    return null;
+  }
+  return card as unknown as ChatGovernanceCardModel;
+};
+
+const isGovernanceCard = (card: Record<string, unknown> | null) => {
+  return card?.kind === 'autodream_run' || card?.kind === 'evolution_proposal';
+};
+
+const emitOpenEvolution = (payload: ChatGovernanceDeepLink) => {
+  emit('open-evolution', payload);
+};
+
+/** Cache for parseCard results, keyed by message index. Cleared on message reset. */
+const cardCache = new Map<number, Record<string, unknown> | null>();
+
+/** Cached parseCard — avoids double-parse per card render. */
+const getCachedCard = (index: number, content: string): Record<string, unknown> | null => {
+  if (cardCache.has(index)) return cardCache.get(index)!;
+  const result = parseCard(content);
+  cardCache.set(index, result);
+  return result;
+};
+
+/** Handle DecisionCard approve/reject action */
+const onCardAction = (payload: { id: string; decision: 'approved' | 'rejected' }) => {
+  console.log('[ChatView] card action:', payload);
+};
+
+/** Handle TodoCard item check toggle */
+const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' | 'done' }) => {
+  console.log('[ChatView] card check:', payload);
+};
+
+/** Handle ApprovalBanner allow/reject response */
+const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'reject' }) => {
+  console.log('[ChatView] approval respond:', payload);
+};
 </script>
 
 <template>
-  <div class="chat-shell flex flex-col h-full relative overflow-hidden" :class="`theme-${themeMode || 'love'}`">
-    <!-- Sakura Effect -->
-    <div v-if="themeMode === 'love'" class="chat-sakura">
-      <span
-        v-for="(s, i) in sakura"
-        :key="i"
-        class="sakura-petal"
-        :style="{
-          left: s.left,
-          top: s.top,
-          width: `${s.size}px`,
-          height: `${s.size}px`,
-          opacity: s.opacity,
-          animationDelay: `${s.delay}s`,
-        }"
-      />
-    </div>
+  <div class="chat-shell flex flex-row h-full relative overflow-hidden" :class="[`theme-${themeMode || 'love'}`, { 'conv-sidebar-open': convSidebarOpen }]">
+    <!-- Main Chat Area -->
+    <div class="chat-main flex flex-col flex-1 min-w-0">
+      <!-- Sidebar Toggle Button (top-right of chat area) -->
+      <button
+        @click="convSidebarOpen = !convSidebarOpen"
+        class="conv-sidebar-toggle"
+        :title="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
+      >
+        <Clock v-if="convSidebarOpen" :size="18" />
+        <Clock v-else :size="18" />
+      </button>
 
-    <!-- Messages List -->
-    <div class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
+      <!-- Sakura Effect -->
+      <div v-if="themeMode === 'love'" class="chat-sakura">
+        <span
+          v-for="(s, i) in sakura"
+          :key="i"
+          class="sakura-petal"
+          :style="{
+            left: s.left,
+            top: s.top,
+            width: `${s.size}px`,
+            height: `${s.size}px`,
+            opacity: s.opacity,
+            animationDelay: `${s.delay}s`,
+          }"
+        />
+      </div>
+
+      <!-- Messages List -->
+      <div class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
         <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
           💕
@@ -316,7 +621,7 @@ const getEmotionEmoji = (emotion?: string) => {
         class="flex mb-4"
         :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
       >
-        <div class="flex max-w-[80%] items-start space-x-2" :class="msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'">
+        <div class="flex max-w-[85%] items-start space-x-2" :class="msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'">
           <!-- Avatar -->
           <div
             v-if="msg.role !== 'user' && msg.role !== 'tool'"
@@ -340,123 +645,138 @@ const getEmotionEmoji = (emotion?: string) => {
           <!-- Bubble -->
           <div class="flex flex-col min-w-0 max-w-full">
             <!-- Tool Message -->
-            <div 
-              v-if="msg.role === 'tool'"
-              class="rounded-lg border text-sm overflow-hidden bg-white"
-              :class="{
-                'border-gray-200': msg.toolStatus === 'running',
-                'border-green-200 bg-green-50/50': msg.toolStatus === 'success',
-                'border-red-200 bg-red-50/50': msg.toolStatus === 'error'
-              }"
-            >
-              <!-- Tool Header -->
-              <div class="px-3 py-2 flex items-center space-x-2">
-                <div v-if="msg.toolStatus === 'running'" class="animate-spin text-gray-400">
-                  <Loader2 :size="14" />
+            <template v-if="msg.role === 'tool'">
+              <!-- Card rendering: plan_create / todo_write / approval_request -->
+              <template v-if="isGovernanceCard(getCachedCard(index, msg.content))">
+                <div class="min-w-0">
+                  <ChatGovernanceCard
+                    :card="asGovernanceCard(getCachedCard(index, msg.content))!"
+                    @open-evolution="emitOpenEvolution"
+                  />
                 </div>
-                <div v-else-if="msg.toolStatus === 'success'" class="text-green-500">
-                  <CheckCircle2 :size="14" />
+              </template>
+              <template v-else-if="msg.toolName === 'plan_create' && getCachedCard(index, msg.content)">
+                <div class="min-w-0">
+                  <DecisionCard
+                    :card="(getCachedCard(index, msg.content) as unknown as UiCard)"
+                    @action="onCardAction"
+                  />
                 </div>
-                <div v-else class="text-red-500">
-                  <XCircle :size="14" />
+              </template>
+              <template v-else-if="msg.toolName === 'todo_write' && getCachedCard(index, msg.content)">
+                <div class="min-w-0">
+                  <TodoCard
+                    :card="(getCachedCard(index, msg.content) as unknown as UiCard)"
+                    @check="onCardCheck"
+                  />
                 </div>
-                
-                <span class="font-medium" :class="{
-                  'text-gray-600': msg.toolStatus === 'running',
-                  'text-green-700': msg.toolStatus === 'success',
-                  'text-red-700': msg.toolStatus === 'error'
-                }">
-                  {{ msg.toolStatus === 'running' ? t('chat.toolRunning') : (msg.toolStatus === 'success' ? t('chat.toolSuccess') : t('chat.toolFailed')) }}
-                </span>
-                
-                <span v-if="msg.toolName" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
-                  {{ msg.toolName }}
-                </span>
-              </div>
-              
-              <!-- Tool Details Toggle -->
+              </template>
+              <template v-else-if="msg.toolName === 'approval_request' && getCachedCard(index, msg.content)">
+                <div class="min-w-0">
+                  <ApprovalBanner
+                    :request="(getCachedCard(index, msg.content) as unknown as ApprovalRequest)"
+                    @respond="onApprovalRespond"
+                  />
+                </div>
+              </template>
+              <!-- Default tool output rendering -->
               <div
-                v-if="msg.toolStatus !== 'running' && msg.toolResult"
-                class="px-3 pb-1 text-xs text-gray-600 break-all whitespace-pre-wrap"
+                v-else
+                class="rounded-lg border text-sm overflow-hidden bg-white"
+                :class="{
+                  'border-gray-200': msg.toolStatus === 'running',
+                  'border-green-200 bg-green-50/50': msg.toolStatus === 'success',
+                  'border-red-200 bg-red-50/50': msg.toolStatus === 'error'
+                }"
               >
-                {{ msg.toolResult.length > 160 ? `${msg.toolResult.slice(0, 160)}...` : msg.toolResult }}
-              </div>
-              <div v-if="msg.toolStatus !== 'running'" class="px-3 pb-2 flex justify-end">
-                <button 
-                  @click="toggleTool(index)"
-                  class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <span>{{ expandedTools[index] ? t('chat.hideDetails') : t('chat.viewDetails') }}</span>
-                  <component :is="expandedTools[index] ? ChevronDown : ChevronRight" :size="12" />
-                </button>
-              </div>
+                <!-- Tool Header -->
+                <div class="px-3 py-2 flex items-center space-x-2">
+                  <div v-if="msg.toolStatus === 'running'" class="animate-spin text-gray-400">
+                    <Loader2 :size="14" />
+                  </div>
+                  <div v-else-if="msg.toolStatus === 'success'" class="text-green-500">
+                    <CheckCircle2 :size="14" />
+                  </div>
+                  <div v-else class="text-red-500">
+                    <XCircle :size="14" />
+                  </div>
 
-              <!-- Tool Details Content -->
-              <div v-if="expandedTools[index]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
-                <div v-if="msg.toolCallId">
-                  <div class="font-semibold text-gray-500 mb-1">tool_call_id</div>
-                  <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolCallId }}</div>
-                </div>
-                <div>
-                  <div class="font-semibold text-gray-500 mb-1">{{ t('chat.inputArgs') }}</div>
-                  <div class="bg-gray-100 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
-                </div>
-                <div v-if="msg.toolResult">
-                  <div class="font-semibold text-gray-500 mb-1">{{ t('chat.execResult') }}</div>
-                  <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
-                </div>
-              </div>
+                  <span class="font-medium" :class="{
+                    'text-gray-600': msg.toolStatus === 'running',
+                    'text-green-700': msg.toolStatus === 'success',
+                    'text-red-700': msg.toolStatus === 'error'
+                  }">
+                    {{ msg.toolStatus === 'running' ? t('chat.toolRunning') : (msg.toolStatus === 'success' ? t('chat.toolSuccess') : t('chat.toolFailed')) }}
+                  </span>
 
-              <div v-if="hasRawMeta(msg)" class="border-t border-gray-100 bg-white/70 px-3 py-2">
-                <button
-                  @click="toggleRawMeta(index)"
-                  class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <span>{{ expandedRawMeta[index] ? t('chat.hideRawMeta') : t('chat.viewRawMeta') }}</span>
-                  <component :is="expandedRawMeta[index] ? ChevronDown : ChevronRight" :size="12" />
-                </button>
+                  <span v-if="msg.toolName" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
+                    {{ msg.toolName }}
+                  </span>
+                </div>
+
+                <!-- Tool Details Toggle -->
                 <div
-                  v-if="expandedRawMeta[index]"
-                  class="mt-2 bg-gray-50 border border-gray-200 rounded p-2 font-mono text-[11px] text-gray-600 max-h-52 overflow-y-auto whitespace-pre-wrap break-all"
+                  v-if="msg.toolStatus !== 'running' && msg.toolResult"
+                  class="px-3 pb-1 text-xs text-gray-600 break-all whitespace-pre-wrap"
                 >
-                  {{ renderRawMeta(msg) }}
+                  {{ msg.toolResult.length > 160 ? `${msg.toolResult.slice(0, 160)}...` : msg.toolResult }}
+                </div>
+                <div v-if="msg.toolStatus !== 'running'" class="px-3 pb-2 flex justify-end">
+                  <button
+                    @click="toggleTool(index)"
+                    class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <span>{{ expandedTools[index] ? t('chat.hideDetails') : t('chat.viewDetails') }}</span>
+                    <component :is="expandedTools[index] ? ChevronDown : ChevronRight" :size="12" />
+                  </button>
+                </div>
+
+                <!-- Tool Details Content -->
+                <div v-if="expandedTools[index]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
+                  <div v-if="msg.toolCallId">
+                    <div class="font-semibold text-gray-500 mb-1">tool_call_id</div>
+                    <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolCallId }}</div>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-gray-500 mb-1">{{ t('chat.inputArgs') }}</div>
+                    <div class="bg-gray-100 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
+                  </div>
+                  <div v-if="msg.toolResult">
+                    <div class="font-semibold text-gray-500 mb-1">{{ t('chat.execResult') }}</div>
+                    <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
+                  </div>
+                </div>
+
+                <div v-if="hasRawMeta(msg)" class="border-t border-gray-100 bg-white/70 px-3 py-2">
+                  <button
+                    @click="toggleRawMeta(index)"
+                    class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <span>{{ expandedRawMeta[index] ? t('chat.hideRawMeta') : t('chat.viewRawMeta') }}</span>
+                    <component :is="expandedRawMeta[index] ? ChevronDown : ChevronRight" :size="12" />
+                  </button>
+                  <div
+                    v-if="expandedRawMeta[index]"
+                    class="mt-2 bg-gray-50 border border-gray-200 rounded p-2 font-mono text-[11px] text-gray-600 max-h-52 overflow-y-auto whitespace-pre-wrap break-all"
+                  >
+                    {{ renderRawMeta(msg) }}
+                  </div>
                 </div>
               </div>
-            </div>
+            </template>
 
             <!-- Normal Message -->
             <div
               v-else
-              class="chat-bubble relative px-3 py-2 rounded-md text-sm leading-relaxed shadow-sm break-words"
+              class="chat-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words"
               :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
             >
-              <!-- Tail -->
-              <div
-                class="absolute top-3 w-0 h-0 border-solid border-4"
-                :class="msg.role === 'user' ? 'chat-bubble-tail-user' : 'chat-bubble-tail-assistant'"
-              />
-
               <!-- Reasoning Block -->
-              <div v-if="msg.reasoning" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
-                 <!-- Header -->
-                 <div 
-                    @click="toggleReasoning(index)"
-                    class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-black/5 transition-colors select-none"
-                 >
-                    <div class="flex items-center space-x-2 text-xs">
-                       <Brain :size="14" :class="msg.isThinking ? 'animate-pulse text-pink-500' : 'text-gray-400'" />
-                       <span :class="msg.isThinking ? 'text-pink-600 font-medium' : 'text-gray-500'">
-                          {{ msg.isThinking ? t('chat.thinking') : t('chat.thoughtProcess') }}
-                       </span>
-                    </div>
-                    <component :is="expandedReasoning[index] ? ChevronDown : ChevronRight" :size="14" class="text-gray-400" />
-                 </div>
-                 
-                 <!-- Content -->
-                 <div v-if="expandedReasoning[index]" class="px-3 py-2 border-t border-gray-100/50 bg-gray-50/30 text-xs text-gray-600">
-                    <div class="markdown-body" v-html="md.render(msg.reasoning)"></div>
-                 </div>
-              </div>
+              <ThinkingBlock
+                v-if="msg.reasoning"
+                :content="msg.reasoning"
+                :thinking-ms="0"
+              />
 
               <div v-if="hasRawMeta(msg)" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
                 <div
@@ -477,33 +797,87 @@ const getEmotionEmoji = (emotion?: string) => {
                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s" />
                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
               </div>
-              <div v-else class="markdown-body" v-html="md.render(msg.content)"></div>
-              <div
-                v-if="msg.attachments && msg.attachments.length > 0"
-                class="mt-2 flex flex-wrap gap-1.5"
-              >
-                <div
-                  v-for="attachment in msg.attachments"
-                  :key="attachment.file_id"
-                  class="flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]"
-                  :class="isImageAttachment(attachment) ? 'border-pink-200 bg-pink-50/80 text-pink-700' : 'border-gray-200 bg-white/70 text-gray-600'"
-                  :title="`${attachment.filename} (${attachmentTypeText(attachment)})`"
-                >
-                  <ImageIcon v-if="isImageAttachment(attachment)" :size="13" class="shrink-0" />
-                  <FileIcon v-else :size="13" class="shrink-0" />
-                  <span class="max-w-[160px] truncate font-medium">{{ attachment.filename }}</span>
-                  <span class="shrink-0 opacity-70">{{ formatFileSize(attachment.size) }}</span>
-                </div>
+              <div v-else>
+                <div class="markdown-body" v-html="md.render(msg.content)"></div>
+                <!-- 流式光标：内容存在且正在流式输出时显示 -->
+                <span v-if="msg.content && msg.role === 'agent' && msg.isStreaming" class="streaming-cursor"></span>
               </div>
             </div>
-            
-            <!-- Timestamp -->
-            <span
-              class="text-[10px] text-gray-400 mt-1"
-              :class="msg.role === 'user' ? 'text-right' : 'text-left'"
+
+            <!-- Message Actions: 时间戳 + 操作按钮 -->
+            <div
+              v-if="msg.role !== 'tool'"
+              class="msg-actions"
+              :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
             >
-              {{ msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '' }}
+              <span class="text-[10px] text-gray-400">{{ formatTime(msg.timestamp) }}</span>
+              <!-- 复制按钮（启用） -->
+              <button
+                class="msg-action-btn"
+                @click="copyMessage(msg.content)"
+                :title="t('chat.copy')"
+              >
+                <Copy :size="12" />
+              </button>
+              <!-- 编辑按钮（用户消息，disabled占位） -->
+              <button
+                v-if="msg.role === 'user'"
+                class="msg-action-btn"
+                disabled
+                :title="t('chat.edit') + ' (' + t('chat.pending') + ')'"
+              >
+                <Edit :size="12" />
+              </button>
+              <!-- 重生成按钮（助手消息，disabled占位） -->
+              <button
+                v-if="msg.role === 'agent'"
+                class="msg-action-btn"
+                disabled
+                :title="t('chat.regenerate') + ' (' + t('chat.pending') + ')'"
+              >
+                <RefreshCw :size="12" />
+              </button>
+              <!-- 回退按钮（disabled占位） -->
+              <button
+                class="msg-action-btn"
+                disabled
+                :title="t('chat.rewind') + ' (' + t('chat.pending') + ')'"
+              >
+                <Rewind :size="12" />
+              </button>
+              <!-- 分叉按钮（disabled占位） -->
+              <button
+                class="msg-action-btn"
+                disabled
+                :title="t('chat.fork') + ' (' + t('chat.pending') + ')'"
+              >
+                <GitFork :size="12" />
+              </button>
+            </div>
+
+            <!-- Tool消息时间戳 -->
+            <span
+              v-else
+              class="text-[10px] text-gray-400 mt-1 text-left"
+            >
+              {{ formatTime(msg.timestamp) }}
             </span>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-for="card in localGovernanceCards"
+        :key="card.id"
+        class="flex mb-4 justify-start"
+      >
+        <div class="flex max-w-[85%] items-start space-x-2">
+          <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-blue-50 text-blue-600 border border-blue-100">
+            <GitBranch :size="16" />
+          </div>
+          <div class="flex flex-col min-w-0 max-w-full">
+            <ChatGovernanceCard :card="card" @open-evolution="emitOpenEvolution" />
+            <span class="text-[10px] text-gray-400 mt-1 text-left">{{ formatTime(Date.now()) }}</span>
           </div>
         </div>
       </div>
@@ -514,102 +888,258 @@ const getEmotionEmoji = (emotion?: string) => {
       <div ref="messagesEndRef" />
     </div>
 
-    <!-- Input Area -->
-    <div class="chat-input-bar border-t p-4 z-20">
-      <input
-        type="file"
-        ref="fileInputRef"
-        @change="handleFileSelect"
-        class="hidden"
-        multiple
-      />
-      <!-- Attachment Preview -->
-      <div v-if="attachments.length > 0" class="mb-2 flex flex-wrap gap-2">
-        <div
-          v-for="(attachment, index) in attachments"
-          :key="attachment.file_id"
-          class="flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-xs"
-          :class="isImageAttachment(attachment) ? 'border-pink-200 bg-pink-50 text-pink-700' : 'border-gray-200 bg-gray-100 text-gray-700'"
-          :title="`${attachment.filename} (${attachmentTypeText(attachment)})`"
-        >
-          <ImageIcon v-if="isImageAttachment(attachment)" :size="12" class="shrink-0" />
-          <Paperclip v-else :size="12" class="shrink-0 text-gray-500" />
-          <span class="truncate max-w-[120px] font-medium">{{ attachment.filename }}</span>
-          <span class="shrink-0 opacity-70">{{ formatFileSize(attachment.size) }}</span>
-          <button
-            @click="handleRemoveAttachment(index)"
-            class="text-gray-400 hover:text-red-500"
-            :title="'移除附件'"
+    <!-- Input Area - Cursor/OpenAkita 风格 -->
+    <div class="chat-input-bar border-t z-20">
+      <div class="chat-input-container">
+        <!-- 附件预览区 -->
+        <div v-if="attachments.length > 0 || uploadingPastes" class="flex flex-wrap gap-2 px-3 pt-2">
+          <div
+            v-for="(att, idx) in attachments"
+            :key="att.file_id"
+            class="flex items-center gap-1 bg-black/5 dark:bg-white/10 rounded-md px-2 py-1 text-xs"
           >
-            <X :size="12" />
-          </button>
+            <Paperclip :size="12" class="shrink-0 opacity-60" />
+            <span class="truncate max-w-[100px]">{{ att.filename }}</span>
+            <button @click="removeAttachment(idx)" class="shrink-0 opacity-60 hover:opacity-100" :title="t('chat.removeAttachment')">
+              <X :size="12" />
+            </button>
+          </div>
+          <div v-if="uploadingPastes" class="flex items-center gap-1 bg-black/5 dark:bg-white/10 rounded-md px-2 py-1 text-xs">
+            <Loader2 :size="12" class="animate-spin opacity-60" />
+            <span class="truncate max-w-[100px]">{{ t('chat.pasting') || 'Pasting...' }}</span>
+          </div>
         </div>
-      </div>
-      <div
-        v-if="showVisionWarning"
-        class="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-      >
-        当前模型可能无法识别图片，请切换到 gpt-4o / gpt-4.1 系列 vision 模型，或发送文字描述。
-      </div>
-      <div
-        v-if="uploadError"
-        class="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
-      >
-        {{ uploadError }}
-      </div>
-      <div class="flex items-center space-x-3 bg-white rounded-xl border border-gray-200 px-2 py-2 shadow-sm focus-within:ring-2 focus-within:ring-pink-500/20 focus-within:border-pink-500 transition-all">
-        <button
-          @click="handleClear"
-          class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-          :title="t('chat.newSession')"
-        >
-          <Plus :size="20" />
-        </button>
-        <button
-          @click="fileInputRef?.click()"
-          :disabled="uploading"
-          class="p-2 text-gray-400 hover:text-pink-500 hover:bg-pink-50 rounded-lg transition-all flex-shrink-0"
-          :title="uploading ? t('chat.uploading') : t('chat.attachFile')"
-        >
-          <Loader2 v-if="uploading" :size="20" class="animate-spin" />
-          <Paperclip v-else :size="20" />
-        </button>
+        <!-- 顶部工具栏 -->
+        <div class="chat-input-toolbar">
+          <!-- 执行模式选择 -->
+          <div class="relative">
+            <button 
+              @click="showModeMenu = !showModeMenu"
+              class="toolbar-btn mode-selector"
+            >
+              <Zap v-if="execMode === 'agent'" :size="14" />
+              <Settings2 v-else-if="execMode === 'plan'" :size="14" />
+              <Brain v-else :size="14" />
+              <span>{{ t(execMode === 'agent' ? 'chat.agentMode' : execMode === 'plan' ? 'chat.planMode' : 'chat.askMode') }}</span>
+              <ChevronDown :size="12" />
+            </button>
+            <!-- 模式下拉菜单 -->
+            <div v-if="showModeMenu" class="mode-menu">
+              <div 
+                v-for="mode in modeOptions" 
+                :key="mode.value"
+                @click="execMode = mode.value as any; showModeMenu = false"
+                class="mode-menu-item"
+                :class="{ active: execMode === mode.value }"
+              >
+                <component :is="mode.icon" :size="16" />
+                <div class="mode-menu-text">
+                  <div class="mode-label">{{ t(mode.label) }}</div>
+                  <div class="mode-desc">{{ t(mode.desc) }}</div>
+                </div>
+                <CheckCircle2 v-if="execMode === mode.value" :size="14" />
+              </div>
+            </div>
+          </div>
 
-        <div class="flex-1 relative flex items-center">
+          <div class="toolbar-divider"></div>
+
+          <!-- 附件按钮 -->
+          <button class="toolbar-btn" :title="uploading ? t('chat.uploading') : t('chat.attachFile')" @click="fileInputRef?.click()" :disabled="uploading">
+            <Loader2 v-if="uploading" :size="14" class="animate-spin" />
+            <Paperclip v-else :size="14" />
+          </button>
+          <input type="file" ref="fileInputRef" @change="handleFileSelect" class="hidden" multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.zip,.tar.gz" />
+
+          <!-- 语音按钮 -->
+          <button 
+            class="toolbar-btn" 
+            :class="{ recording: isRecording }"
+            :title="t('chat.voice')"
+            @click="isRecording = !isRecording"
+          >
+            <Mic :size="14" />
+          </button>
+
+          <!-- 思考模式选择 -->
+          <ThinkingToggle v-model="thinkingMode" />
+
+          <button
+            class="toolbar-btn"
+            :title="autoDreamTriggering ? t('chatGovernance.triggering') : t('chatGovernance.triggerManual')"
+            :disabled="autoDreamTriggering"
+            @click="handleAutoDreamTrigger"
+          >
+            <Loader2 v-if="autoDreamTriggering" :size="14" class="animate-spin" />
+            <GitBranch v-else :size="14" />
+          </button>
+
+          <!-- 桌面宠物按钮 -->
+          <button
+            class="toolbar-btn"
+            :title="t('chat.openPet')"
+            @click="invoke('open_desktop_pet')"
+          >
+            <Cat :size="14" />
+          </button>
+
+          <!-- 权限模式选择 -->
+          <div class="relative">
+            <button 
+              @click="showPermissionMenu = !showPermissionMenu"
+              class="toolbar-btn permission-btn"
+            >
+              <component :is="permissionOptions.find(p => p.value === permissionMode)?.icon || Sparkles" :size="14" />
+              <span>{{ t(permissionOptions.find(p => p.value === permissionMode)?.label || 'chat.permissionSmart') }}</span>
+              <ChevronDown :size="12" />
+            </button>
+            <!-- 权限模式下拉菜单 -->
+            <div v-if="showPermissionMenu" class="mode-menu">
+              <div 
+                v-for="perm in permissionOptions" 
+                :key="perm.value"
+                @click="permissionMode = perm.value as any; showPermissionMenu = false"
+                class="mode-menu-item"
+                :class="{ active: permissionMode === perm.value }"
+              >
+                <component :is="perm.icon" :size="16" />
+                <div class="mode-menu-text">
+                  <div class="mode-label">{{ t(perm.label) }}</div>
+                  <div class="mode-desc">{{ t(perm.desc) }}</div>
+                </div>
+                <CheckCircle v-if="permissionMode === perm.value" :size="14" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 主输入区 -->
+        <div class="chat-input-main">
           <textarea
             ref="inputRef"
             v-model="input"
+            @input="adjustInputHeight"
             @keydown="handleKeyDown"
-            :placeholder="t('chat.placeholder')"
-            class="w-full bg-transparent text-sm resize-none focus:outline-none placeholder-gray-400 py-2 max-h-[120px]"
+            @paste="handlePaste"
+            :placeholder="getPlaceholder"
+            class="chat-textarea"
             rows="1"
-            style="min-height: 24px;"
           />
         </div>
-        
-        <button
-          @click="handleStop"
-          :disabled="!isTyping"
-          class="p-2 rounded-lg transition-all flex items-center justify-center flex-shrink-0"
-          :class="!isTyping ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-md shadow-red-500/20 hover:bg-red-600 hover:shadow-lg hover:scale-105 active:scale-95'"
-          :title="t('chat.stopGeneration')"
-        >
-          <Square :size="18" />
-        </button>
-        <button
-          @click="handleSend"
-          :disabled="(!input.trim() && !attachments.length) || isTyping"
-          class="p-2 rounded-lg transition-all flex items-center justify-center flex-shrink-0"
-          :class="(!input.trim() && !attachments.length) || isTyping ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-md shadow-pink-500/20 hover:shadow-lg hover:scale-105 active:scale-95'"
-        >
-          <Send :size="18" />
-        </button>
+
+        <!-- 底部操作栏 -->
+        <div class="chat-input-footer">
+          <!-- 上下文使用指示器 -->
+          <div class="context-usage" :title="contextUsageTitle">
+            <svg class="context-ring" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                :stroke="contextRingColor"
+                stroke-width="2"
+                stroke-dasharray="56.5"
+                :stroke-dashoffset="contextRingDashoffset"
+                stroke-linecap="round"
+                transform="rotate(-90 12 12)"
+              />
+            </svg>
+            <span class="context-text">{{ contextUsagePercent }}%</span>
+          </div>
+
+          <!-- 右侧按钮组 -->
+          <div class="footer-actions">
+            <!-- 新建会话按钮 -->
+            <button
+              @click="handleClear"
+              class="input-action-btn left"
+              :title="t('chat.newSession')"
+            >
+              <Plus :size="18" />
+            </button>
+
+            <!-- 发送/停止按钮 -->
+            <button
+              v-if="isTyping"
+              @click="handleStop"
+              class="input-action-btn send stop-btn"
+              :title="t('chat.stop')"
+            >
+              <Square :size="18" />
+            </button>
+            <button
+              v-else
+              @click="handleSend"
+              :disabled="!input.trim() && attachments.length === 0"
+              class="input-action-btn send"
+              :class="{ disabled: !input.trim() && attachments.length === 0 }"
+              :title="t('chat.send')"
+            >
+              <Send :size="18" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
+    </div> <!-- End chat-main -->
+
+    <!-- Conversation Sidebar (Right Panel) -->
+    <ConversationSidebar
+      v-if="convSidebarOpen"
+      ref="convSidebarRef"
+      :sessions="sessions || []"
+      :active-session-key="activeSessionKey || ''"
+      :theme-mode="themeMode || 'love'"
+      @select="(key) => emit('select-session', key)"
+      @delete="(key) => emit('delete-session', key)"
+      @new="emit('new-session')"
+      @toggle-pin="(key) => emit('toggle-pin', key)"
+      @rename="(key, title) => emit('rename-session', key, title)"
+      @close="convSidebarOpen = false"
+      class="conv-sidebar-wrapper"
+    />
   </div>
 </template>
 
 <style scoped>
+/* Sidebar Toggle Button */
+.conv-sidebar-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 50;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e5e7eb);
+  background: var(--panel-solid, #ffffff);
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* When sidebar is open, move toggle button to the left edge of sidebar */
+.conv-sidebar-open .conv-sidebar-toggle {
+  right: 292px; /* 280px sidebar + 12px gap */
+}
+
+.conv-sidebar-toggle:hover {
+  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+  color: var(--text, #111827);
+  border-color: var(--brand, #ec4899);
+}
+
+/* Conversation Sidebar Wrapper */
+.conv-sidebar-wrapper {
+  flex-shrink: 0;
+  height: 100%;
+}
+
 /* Scoped styles if needed, but we rely on global tailwind classes mostly */
 :deep(.markdown-body) {
   font-size: 0.875rem;

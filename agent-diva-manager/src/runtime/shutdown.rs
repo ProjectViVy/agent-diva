@@ -1,5 +1,19 @@
 use super::*;
 
+// ---------------------------------------------------------------------------
+//  Story 3.2 migration: Future shutdown will use Bootstrap::stop_all()
+//  instead of manually aborting each task handle. The Bootstrap struct
+//  (agent-diva-tooling) stops modules in reverse dependency order and
+//  handles stop-failure gracefully.
+//
+//  Example (future):
+//    let mut registry = ModuleRegistry::new();
+//    registry.register(Arc::new(cron_module));
+//    ...
+//    let bootstrap = Bootstrap::new(registry);
+//    bootstrap.stop_all().await;
+// ---------------------------------------------------------------------------
+
 pub(super) async fn wait_for_shutdown(tasks: &mut GatewayTasks) -> bool {
     let mut manager_handle_completed = false;
     tokio::select! {

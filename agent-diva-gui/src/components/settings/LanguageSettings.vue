@@ -16,22 +16,22 @@ const toggleLang = () => {
 <template>
   <div class="p-8 fade-in max-w-2xl mx-auto">
     <div class="text-center mb-8">
-      <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+      <div class="settings-dashboard-icon !w-16 !h-16 mx-auto mb-4">
         <Globe :size="32" />
       </div>
-      <h2 class="text-2xl font-bold text-gray-800">{{ t('language.title') }}</h2>
-      <p class="text-gray-500 mt-2">{{ t('language.desc') }}</p>
+      <h2 class="text-2xl font-bold settings-label mb-2">{{ t('language.title') }}</h2>
+      <p class="settings-muted mt-2">{{ t('language.desc') }}</p>
     </div>
 
-    <div class="bg-gray-50 rounded-xl p-6 border border-gray-100">
-      <div class="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+    <div class="settings-section">
+      <div class="flex items-center justify-between p-4 settings-card shadow-sm">
         <div class="flex items-center space-x-4">
-          <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg" style="background: var(--accent-bg-light); color: var(--accent);">
             {{ currentLocale === 'zh' ? 'CN' : 'EN' }}
           </div>
           <div>
-            <div class="font-medium text-gray-800">{{ t('language.current') }}</div>
-            <div class="text-sm text-gray-500">
+            <div class="font-medium settings-label">{{ t('language.current') }}</div>
+            <div class="text-sm settings-muted">
               {{ currentLocale === 'zh' ? t('language.chinese') : t('language.english') }}
             </div>
           </div>
@@ -39,7 +39,7 @@ const toggleLang = () => {
 
         <button
           @click="toggleLang"
-          class="px-4 py-2 bg-white border border-gray-300 hover:border-blue-500 hover:text-blue-600 text-gray-700 rounded-lg transition-all text-sm font-medium"
+          class="settings-btn settings-btn-secondary"
         >
           {{ t('language.switch') }}
         </button>

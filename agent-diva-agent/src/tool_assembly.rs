@@ -1,11 +1,14 @@
-use crate::subagent::SubagentSpawnRequest;
-use crate::subagent_policy::SubagentPolicy;
+use crate::mask::{MaskFile, ToolPolicy};
+use crate::planning::{PlanApproveTool, PlanShowTool, PlanTransitionTool};
+use crate::tool_config::PlanningConfig;
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
+use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_files::FileManager;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
+use agent_diva_tools::planning::{PlanCreateTool, TodoShowTool, TodoWriteTool};
 use agent_diva_tools::{
     load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadAttachmentTool,
     ReadFileTool, SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
@@ -16,7 +19,13 @@ use std::sync::Arc;
 
 #[async_trait::async_trait]
 pub trait SubagentSpawner: Send + Sync {
-    async fn spawn(&self, request: SubagentSpawnRequest) -> Result<String, ToolError>;
+    async fn spawn(
+        &self,
+        task: String,
+        label: Option<String>,
+        channel: String,
+        chat_id: String,
+    ) -> Result<String, ToolError>;
 }
 
 pub struct ToolAssembly {
@@ -30,6 +39,9 @@ pub struct ToolAssembly {
     custom_tools: Vec<Arc<dyn Tool>>,
     subagent_spawner: Option<Arc<dyn SubagentSpawner>>,
     file_manager: Option<Arc<FileManager>>,
+    mask_config: Option<MaskConfig>,
+    planning_config: Option<PlanningConfig>,
+    plan_mode: bool,
 }
 
 impl ToolAssembly {
@@ -45,6 +57,9 @@ impl ToolAssembly {
             custom_tools: Vec::new(),
             subagent_spawner: None,
             file_manager: None,
+            mask_config: None,
+            planning_config: None,
+            plan_mode: false,
         }
     }
 
@@ -98,20 +113,44 @@ impl ToolAssembly {
         self
     }
 
+    pub fn with_mask_config(mut self, mask_config: Option<MaskConfig>) -> Self {
+        self.mask_config = mask_config;
+        self
+    }
+
+    pub fn with_planning_config(mut self, config: Option<PlanningConfig>) -> Self {
+        self.planning_config = config;
+        self
+    }
+
+    pub fn plan_mode(mut self, plan_mode: bool) -> Self {
+        self.plan_mode = plan_mode;
+        self
+    }
+
     pub fn build(self) -> ToolRegistry {
         self.build_internal(false)
     }
 
-    pub fn build_subagent_registry(mut self, policy: &SubagentPolicy) -> ToolRegistry {
-        self.builtin_config = self.builtin_config.for_subagent(policy);
+    pub fn build_subagent_registry(mut self) -> ToolRegistry {
+        self.builtin_config = self.builtin_config.for_subagent();
         self.subagent_spawner = None;
         self.cron_service = None;
         self.file_manager = None;
+        self.custom_tools.clear();
         self.build_internal(true)
     }
 
     fn build_internal(self, subagent_mode: bool) -> ToolRegistry {
-        let mut registry = ToolRegistry::with_timeout_secs(self.exec_timeout);
+        let mask_file = self.mask_config.clone().map(|frontmatter| MaskFile {
+            frontmatter,
+            body: String::new(),
+        });
+        let read_only_mode = mask_file
+            .as_ref()
+            .is_some_and(ToolPolicy::is_read_only_mode);
+        let action_restricted = read_only_mode || self.plan_mode;
+        let mut registry = ToolRegistry::new();
 
         if self.builtin_config.filesystem {
             let security_config = if self.restrict_to_workspace {
@@ -123,14 +162,26 @@ impl ToolAssembly {
             } else {
                 SecurityConfig::default()
             };
+            let security_config = if action_restricted {
+                SecurityConfig {
+                    level: SecurityLevel::Paranoid,
+                    workspace_only: true,
+                    read_only: Some(true),
+                    ..security_config
+                }
+            } else {
+                security_config
+            };
             let security = Arc::new(SecurityPolicy::with_config(
                 self.workspace.clone(),
                 security_config,
             ));
             registry.register(Arc::new(ReadFileTool::new(security.clone())));
-            registry.register(Arc::new(WriteFileTool::new(security.clone())));
-            registry.register(Arc::new(EditFileTool::new(security.clone())));
-            registry.register(Arc::new(ListDirTool::new(security)));
+            registry.register(Arc::new(ListDirTool::new(security.clone())));
+            if !action_restricted {
+                registry.register(Arc::new(WriteFileTool::new(security.clone())));
+                registry.register(Arc::new(EditFileTool::new(security)));
+            }
         }
 
         if self.builtin_config.attachment {
@@ -139,7 +190,7 @@ impl ToolAssembly {
             }
         }
 
-        if self.builtin_config.shell {
+        if self.builtin_config.shell && !action_restricted {
             registry.register(Arc::new(ExecTool::with_config(
                 self.exec_timeout,
                 Some(self.workspace.clone()),
@@ -147,7 +198,10 @@ impl ToolAssembly {
             )));
         }
 
-        if self.builtin_config.web_search && self.network_config.web.search.enabled {
+        if self.builtin_config.web_search
+            && self.network_config.web.search.enabled
+            && !self.plan_mode
+        {
             registry.register(Arc::new(WebSearchTool::with_provider_and_max_results(
                 self.network_config.web.search.provider.clone(),
                 self.network_config.web.search.api_key.clone(),
@@ -155,46 +209,61 @@ impl ToolAssembly {
             )));
         }
 
-        if self.builtin_config.web_fetch && self.network_config.web.fetch.enabled {
+        if self.builtin_config.web_fetch && self.network_config.web.fetch.enabled && !self.plan_mode
+        {
             registry.register(Arc::new(WebFetchTool::new()));
         }
 
-        if self.builtin_config.spawn && !subagent_mode {
+        if self.builtin_config.spawn && !subagent_mode && !action_restricted {
             if let Some(spawner) = self.subagent_spawner {
                 registry.register(Arc::new(SpawnTool::new(
                     move |task, label, channel, chat_id| {
                         let spawner = spawner.clone();
-                        async move {
-                            spawner
-                                .spawn(SubagentSpawnRequest {
-                                    task,
-                                    label,
-                                    origin_channel: channel,
-                                    origin_chat_id: chat_id,
-                                    current_depth: 0,
-                                    origin: "main_agent".to_string(),
-                                })
-                                .await
-                        }
+                        async move { spawner.spawn(task, label, channel, chat_id).await }
                     },
                 )));
             }
         }
 
-        if self.builtin_config.mcp && !self.mcp_servers.is_empty() {
+        if self.builtin_config.mcp && !self.mcp_servers.is_empty() && !action_restricted {
             for tool in load_mcp_tools_sync(&self.mcp_servers) {
                 registry.register(tool);
             }
         }
 
-        if self.builtin_config.cron && !subagent_mode {
+        if self.builtin_config.cron && !subagent_mode && !action_restricted {
             if let Some(cron_service) = self.cron_service {
                 registry.register(Arc::new(CronTool::new(cron_service)));
             }
         }
 
-        for tool in self.custom_tools {
-            registry.register(tool);
+        if !self.plan_mode {
+            for tool in self.custom_tools {
+                registry.register(tool);
+            }
+        }
+
+        if let Some(planning) = self.planning_config {
+            registry.register(Arc::new(PlanCreateTool::new(planning.store.clone())));
+            registry.register(Arc::new(TodoShowTool::new(planning.store.clone())));
+            registry.register(Arc::new(TodoWriteTool::new(planning.store.clone())));
+            registry.register(Arc::new(PlanShowTool::new(planning.store.clone())));
+            registry.register(Arc::new(PlanApproveTool::new(
+                planning.orchestrator.clone(),
+                planning.store.clone(),
+            )));
+            registry.register(Arc::new(PlanTransitionTool::new(
+                planning.orchestrator,
+                planning.store,
+            )));
+        }
+
+        if read_only_mode {
+            for tool_name in registry.tool_names() {
+                if !ToolPolicy::is_read_only_tool(&tool_name) {
+                    registry.unregister(&tool_name);
+                }
+            }
         }
 
         registry
@@ -204,7 +273,33 @@ impl ToolAssembly {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::subagent_policy::SubagentPolicy;
+
+    struct NamedTool {
+        name: &'static str,
+    }
+
+    #[async_trait::async_trait]
+    impl Tool for NamedTool {
+        fn name(&self) -> &str {
+            self.name
+        }
+
+        fn description(&self) -> &str {
+            "test tool"
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            })
+        }
+
+        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
+            Ok("ok".to_string())
+        }
+    }
 
     #[test]
     fn test_tool_assembly_minimal() {
@@ -247,7 +342,6 @@ mod tests {
 
     #[test]
     fn test_tool_assembly_subagent_mode_disables_spawn_and_attachment() {
-        let policy = SubagentPolicy::default();
         let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
             .builtin(BuiltInToolsConfig {
                 filesystem: true,
@@ -255,7 +349,7 @@ mod tests {
                 attachment: true,
                 ..BuiltInToolsConfig::none()
             })
-            .build_subagent_registry(&policy);
+            .build_subagent_registry();
 
         assert!(registry.has("read_file"));
         assert!(!registry.has("spawn"));
@@ -263,32 +357,71 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_assembly_subagent_mode_respects_policy_for_web_tools() {
-        let policy = SubagentPolicy {
-            allow_web_fetch: true,
-            allow_web_search: false,
-            ..SubagentPolicy::default()
-        };
+    fn test_tool_assembly_subagent_mode_excludes_mentle_custom_tools() {
         let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
             .builtin(BuiltInToolsConfig {
                 filesystem: true,
-                web_search: true,
-                web_fetch: true,
-                ..BuiltInToolsConfig::none()
+                mentle: true,
+                ..BuiltInToolsConfig::all()
             })
-            .with_network_config(NetworkToolConfig::default())
-            .build_subagent_registry(&policy);
+            .with_tool(Arc::new(NamedTool {
+                name: "memtle_status",
+            }))
+            .build_subagent_registry();
 
-        assert!(registry.has("web_fetch"));
+        assert!(registry.has("read_file"));
+        assert!(!registry.has("memtle_status"));
+        assert!(!registry.has("spawn"));
+        assert!(!registry.has("cron"));
+    }
+
+    #[tokio::test]
+    async fn test_tool_assembly_plan_mode_limits_actions_and_keeps_planning_tools() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let planning = PlanningConfig::open_workspace(temp_dir.path())
+            .await
+            .unwrap();
+        let registry = ToolAssembly::new(temp_dir.path().to_path_buf())
+            .builtin(BuiltInToolsConfig::all())
+            .with_planning_config(Some(planning))
+            .with_tool(Arc::new(NamedTool {
+                name: "memtle_status",
+            }))
+            .plan_mode(true)
+            .build();
+
+        assert!(registry.has("read_file"));
+        assert!(registry.has("list_dir"));
+        assert!(registry.has("plan_create"));
+        assert!(registry.has("plan_show"));
+        assert!(registry.has("todo_write"));
+        assert!(!registry.has("write_file"));
+        assert!(!registry.has("edit_file"));
+        assert!(!registry.has("exec"));
+        assert!(!registry.has("spawn"));
+        assert!(!registry.has("cron"));
         assert!(!registry.has("web_search"));
+        assert!(!registry.has("web_fetch"));
+        assert!(!registry.has("memtle_status"));
     }
 
     #[test]
-    fn test_tool_assembly_propagates_registry_timeout() {
+    fn test_tool_assembly_assist_mode_is_read_only() {
         let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
-            .with_exec_timeout(12)
+            .builtin(BuiltInToolsConfig::all())
+            .with_mask_config(Some(MaskConfig {
+                name: "Reviewer".to_string(),
+                mode: Some(agent_diva_core::config::schema::AgentMode::Assist),
+                ..Default::default()
+            }))
             .build();
 
-        assert_eq!(registry.timeout_secs(), 12);
+        assert!(registry.has("read_file"));
+        assert!(registry.has("list_dir"));
+        assert!(!registry.has("write_file"));
+        assert!(!registry.has("edit_file"));
+        assert!(!registry.has("exec"));
+        assert!(!registry.has("spawn"));
+        assert!(!registry.has("cron"));
     }
 }

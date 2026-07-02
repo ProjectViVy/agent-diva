@@ -9,15 +9,28 @@ This repository is a Rust workspace. Crates are organized by responsibility:
 - `agent-diva-providers`: LLM/transcription provider abstractions and implementations.
 - `agent-diva-channels`: channel adapters (Slack, Discord, Telegram, Email, QQ, etc.).
 - `agent-diva-tools`: built-in tools (filesystem, shell, web, cron, spawn).
+- `agent-diva-files`: file indexing and file-management helpers shared by agent/tool flows.
+- `agent-diva-tooling`: shared tooling abstractions and utilities used by the workspace.
 - `agent-diva-neuron`: supporting types/helpers used heavily by the desktop GUI.
 - `agent-diva-manager`: default local gateway and HTTP control plane for **`agent-diva-cli`** (hard dependency; no `nano` feature in CLI).
-- `agent-diva-nano`: **template-line** local gateway stack in **`external/agent-diva-nano/`** (nested workspace; `cd external && cargo build -p agent-diva-nano`); not a root workspace member.
+- `agent-diva-autodream`: AutoDream manual-run, proposal, input, and output lifecycle support.
+- `agent-diva-laputa`: Laputa proposal, migration, recovery, and memory-provider services.
+- `agent-diva-sandbox`: sandbox policy, execution, platform adapters, and approval/guardian support.
+- `agent-diva-nano`: **template-line** local gateway stack in **`.workspace/agent-diva-nano/`** (nested workspace; `cd .workspace/agent-diva-nano && cargo build -p agent-diva-nano`); not a root workspace member.
 - `agent-diva-cli`: user-facing CLI entrypoint (`agent-diva` binary).
 - `agent-diva-service`: Windows service wrapper.
 - `agent-diva-gui`: optional Tauri desktop app (separate from default CLI `cargo` closure).
 - `agent-diva-migration`: migration utility from earlier versions.
 
 Use each crate's `src/` for code; add crate-level integration tests under `tests/` when needed.
+
+**Current repository state (2026-06-15):**
+
+- Root workspace package version is `0.5.0` and Rust MSRV is `1.80.0`.
+- Root workspace members include `agent-diva-autodream`, `agent-diva-files`, `agent-diva-laputa`, `agent-diva-sandbox`, and `agent-diva-tooling` in addition to the older core/agent/provider/channel/tool/CLI/service/GUI crates.
+- `.workspace/` holds sibling reference projects and research sources, including `agent-diva-nano`, `openfang`, `zeroclaw`, `nanobot`, `codex`, `memtle`, and related references.
+- Mentle integration is intentionally pinned to the published `memtle = 0.1.2` crate; do not replace it with a path/git override in the main workspace.
+- The current branch is `agent-diva-pro`; as of initialization on 2026-06-15 it is ahead of `origin/agent-diva-pro` and has active dirty-work changes from multiple stories. Preserve unrelated user/story changes.
 
 **Common workspace conventions:**
 
@@ -32,6 +45,11 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
 - Install `just` and run commands from the workspace root.
 - Copy and configure local environment files if required by a crate or channel.
 - Verify toolchain and project health with `just fmt-check && just check && just test`.
+- For Mentle feature-lane work on Windows, ensure `clang-cl.exe` is discoverable.
+  If LLVM is installed at `C:\Program Files\LLVM\bin` but the current shell PATH
+  does not include it, prefix the session with
+  `$env:PATH = 'C:\Program Files\LLVM\bin;' + $env:PATH` before running
+  `cargo check -p agent-diva-agent --features mentle`.
 
 ## Development Guide
 If users request references to projects such as openclaw, nanobot, or shannon, prioritize reviewing the contents under the .workspace directory. Analyze the architectures of these sibling projects and propose a development approach suitable for the agent-diva architecture.
@@ -45,6 +63,10 @@ Prefer `just` recipes from the workspace root:
 - `just check`: run clippy with warnings denied.
 - `just fmt` and `just fmt-check`: format or verify formatting.
 - `just ci`: run formatting, lint, and tests (CI-equivalent gate).
+- `just mentle-package-policy`: verify the frozen Mentle package-source policy.
+- `just sprint5-default-check`: run default-lane Mentle assembly and failure regressions.
+- `just mentle-check`: run the Mentle feature lane; Windows shells need `clang-cl.exe` on `PATH`.
+- `just sprint5-check`: run `fmt-check`, default-lane checks, and Mentle feature-lane checks.
 - `just run -- <args>`: run `agent-diva-cli`.
 - `just migrate -- <args>`: run migration CLI.
 
@@ -139,6 +161,15 @@ Before committing, clean up generated scratch artifacts, temporary scripts, stal
 - Entries should include enough context to recover the issue later: status checkbox, short title, reason, expected behavior, and related files or docs when available.
 - When a TODO is completed, move or mark it under the done section instead of silently deleting it.
 
+## Parallel Lock Mechanism
+
+- `LOCK.md` at the repository root is the canonical mutex file for parallel Codex/Cursor/manual sessions.
+- Use `LOCK.md` to record the active owner, task/session, branch/worktree, exact scope, heartbeat, and expiry before editing files or running workspace-mutating commands.
+- If `LOCK.md` shows an active lock for overlapping scope, do not continue in the same working tree; either wait, coordinate handoff, or move to an isolated worktree with a non-overlapping scope.
+- `Scope` must be file-, directory-, or module-level and specific enough for another session to decide whether it conflicts.
+- `GLOBAL` scope is reserved for migrations, bulk formatting, or broad refactors that cannot safely overlap with any other task.
+- Any stale/abandoned lock must be explicitly marked and handed off in `Handoff Notes`; do not silently overwrite another session's claim.
+
 ## COMMIT Rule
 
 - Commits must use English Conventional Commit prefixes.
@@ -161,6 +192,7 @@ Before committing, clean up generated scratch artifacts, temporary scripts, stal
 - `/new-rule`: Follow the Rulebook template for adding rules.
 - `/commit`: Execute a commit (commit message in English).
 - `/validate`: Run the project test, at minimum `just fmt-check`, `just check`, `just test`; if changes involve `agent-diva-gui`, add GUI-specific validation/smoke tests.
+- `/init`: Refresh repository guidance in `AGENTS.md` against the current workspace state and project rules.
 
 ## Rulebook Mechanism
 
@@ -223,13 +255,6 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Execution Method: Before committing, inspect `git status --short --untracked-files=all`; clean or exclude current-task scratch artifacts; stage explicit paths for the current update only; verify the staged diff is one focused concern; run relevant validation when practical, or explicitly note deferred validation in the commit body/report; update `TODOLIST.md` for discovered but unfixed issues; commit with a concise English Conventional Commit message.
   - Maintainer: Current assistant.
 
-- **use-chinese-when-communicating**:
-  - Constraints/Range of applicability: Use Chinese in communication with users.
-  - Example: Use Chinese for demand clarification, scheme explanation, and feedback.
-  - Counterexample: Use English directly to reply to users.
-  - Execution Method: Use unison Chinese output.
-  - Maintainer: Current assistant.
-
 - **todolist-capture-required**:
   - Constraints/Range of applicability: Any discovered bug, unfinished work, known limitation, or deferred improvement must be recorded in root `TODOLIST.md` unless it is completed in the same iteration.
   - Example: Discover that GUI image paste is not implemented; add an open TODO with context and expected behavior.
@@ -237,7 +262,26 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Execution Method: Update `TODOLIST.md` before final response or commit; include related docs/files when available.
   - Maintainer: Current assistant.
 
+- **parallel-state-worktree-isolation**:
+  - Constraints/Range of applicability: When the user says this project is currently in a "parallel" state, do not continue development in the shared root working tree.
+  - Example: User says "现在项目处于并行状态"; create or switch to an isolated terminal workspace such as a dedicated git worktree/branch or copied sibling folder, then do the implementation there.
+  - Counterexample: Continue editing the existing root checkout while other parallel story lanes are active.
+  - Execution Method: Before code edits, switch the terminal working directory to an isolated branch workspace that does not affect other partitions; record this isolation requirement/status in `TODOLIST.md` as pending or active.
+  - Maintainer: Current assistant.
 
+- **parallel-lock-file-required**:
+  - Constraints/Range of applicability: When Codex/Cursor/manual sessions may run in parallel, every write task must consult and update root `LOCK.md` before touching files or running worktree-mutating commands.
+  - Example: Before editing `agent-diva-manager/src/state.rs`, claim `LOCK.md` with that file/module scope, owner, heartbeat, and expiry; release it after finishing or handoff.
+  - Counterexample: Two sessions edit overlapping files with no shared lock record, or only mention progress in chat without updating `LOCK.md`.
+  - Execution Method: Read `LOCK.md`, check for conflicting active scope, claim the lock with precise scope metadata, refresh heartbeat during long tasks, and release or hand off the lock on exit.
+  - Maintainer: Current assistant.
+
+- **use-chinese-when-communicating**:
+  - Constraints/Range of applicability: Use Chinese in communication with users.
+  - Example: Use Chinese for demand clarification, scheme explanation, and feedback.
+  - Counterexample: Use English directly to reply to users.
+  - Execution Method: Use unison Chinese output.
+  - Maintainer: Current assistant.
 
 ---
 
@@ -263,6 +307,13 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Counterexample: Modify the GUI but run Rust tests only.
   - Execution Method: Record GUI smoke test commands and results in `verification.md`.
   - Maintainer: Committer of the GUI change.
+
+- **commit-each-update-scope-only**:
+  - Constraints/Range of applicability: Each completed update must create one git commit, and the commit may include only the files changed for that specific update.
+  - Example: After updating project rules in `AGENTS.md`, stage and commit only `AGENTS.md`.
+  - Counterexample: Finish an update without a commit, or include unrelated pre-existing workspace changes in the commit.
+  - Execution Method: Before committing, inspect `git status --short`; stage explicit paths for the current update only; verify the staged diff; then commit with a concise Conventional Commit message.
+  - Maintainer: Current assistant.
 
 ---
 

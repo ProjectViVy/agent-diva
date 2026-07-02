@@ -21,16 +21,20 @@ pub struct SkillDto {
 #[derive(Clone)]
 pub struct SkillService {
     loader: ConfigLoader,
+    builtin_skills_dir: Option<PathBuf>,
 }
 
 impl SkillService {
     pub fn new(loader: ConfigLoader) -> Self {
-        Self { loader }
+        Self {
+            loader,
+            builtin_skills_dir: None,
+        }
     }
 
     pub fn list_skills(&self) -> anyhow::Result<Vec<SkillDto>> {
         let workspace = self.workspace_dir()?;
-        let loader = SkillsLoader::new(&workspace, None);
+        let loader = SkillsLoader::new(&workspace, self.builtin_skills_dir.clone());
         let available_names: HashSet<String> = loader
             .list_skills(true)
             .into_iter()
@@ -142,6 +146,14 @@ impl SkillService {
     fn workspace_dir(&self) -> anyhow::Result<PathBuf> {
         let config = self.loader.load()?;
         Ok(expand_tilde(&config.agents.defaults.workspace))
+    }
+
+    #[cfg(test)]
+    fn with_builtin_skills_dir(loader: ConfigLoader, builtin_skills_dir: PathBuf) -> Self {
+        Self {
+            loader,
+            builtin_skills_dir: Some(builtin_skills_dir),
+        }
     }
 }
 
@@ -356,6 +368,12 @@ mod tests {
         fs::write(skill_dir.join("SKILL.md"), content).unwrap();
     }
 
+    fn write_builtin_skill(dir: &Path, name: &str, content: &str) {
+        let skill_dir = dir.join(name);
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), content).unwrap();
+    }
+
     fn write_config(config_dir: &Path, workspace: &Path) {
         let loader = ConfigLoader::with_dir(config_dir);
         let mut config = Config::default();
@@ -472,55 +490,51 @@ mod tests {
     fn delete_workspace_skill_and_restore_builtin_view() {
         let config_dir = TempDir::new().unwrap();
         let workspace = TempDir::new().unwrap();
+        let builtin_skills = TempDir::new().unwrap();
         write_config(config_dir.path(), workspace.path());
-        let service = SkillService::new(ConfigLoader::with_dir(config_dir.path()));
-        let builtin_name = service
-            .list_skills()
-            .unwrap()
-            .into_iter()
-            .find(|skill| skill.source == "builtin")
-            .map(|skill| skill.name)
-            .expect("expected at least one builtin skill for override test");
+        write_builtin_skill(
+            builtin_skills.path(),
+            "weather",
+            "---\nname: weather\ndescription: Builtin Weather\n---\n\n# Builtin\n",
+        );
         write_skill(
             workspace.path(),
-            &builtin_name,
-            &format!(
-                "---\nname: {builtin_name}\ndescription: Workspace Override\n---\n\n# Workspace\n"
-            ),
+            "weather",
+            "---\nname: weather\ndescription: Workspace Weather\n---\n\n# Workspace\n",
+        );
+        let service = SkillService::with_builtin_skills_dir(
+            ConfigLoader::with_dir(config_dir.path()),
+            builtin_skills.path().to_path_buf(),
         );
 
         let before = service.list_skills().unwrap();
-        let overridden = before
-            .iter()
-            .find(|skill| skill.name == builtin_name)
-            .unwrap();
-        assert_eq!(overridden.source, "workspace");
+        let weather = before.iter().find(|skill| skill.name == "weather").unwrap();
+        assert_eq!(weather.source, "workspace");
 
-        service.delete_skill(&builtin_name).unwrap();
+        service.delete_skill("weather").unwrap();
 
         let after = service.list_skills().unwrap();
-        let restored = after
-            .iter()
-            .find(|skill| skill.name == builtin_name)
-            .unwrap();
-        assert_eq!(restored.source, "builtin");
+        let weather = after.iter().find(|skill| skill.name == "weather").unwrap();
+        assert_eq!(weather.source, "builtin");
     }
 
     #[test]
     fn delete_builtin_skill_is_rejected() {
         let config_dir = TempDir::new().unwrap();
         let workspace = TempDir::new().unwrap();
+        let builtin_skills = TempDir::new().unwrap();
         write_config(config_dir.path(), workspace.path());
-        let service = SkillService::new(ConfigLoader::with_dir(config_dir.path()));
+        write_builtin_skill(
+            builtin_skills.path(),
+            "weather",
+            "---\nname: weather\ndescription: Builtin Weather\n---\n\n# Builtin\n",
+        );
+        let service = SkillService::with_builtin_skills_dir(
+            ConfigLoader::with_dir(config_dir.path()),
+            builtin_skills.path().to_path_buf(),
+        );
 
-        let builtin_name = service
-            .list_skills()
-            .unwrap()
-            .into_iter()
-            .find(|skill| skill.source == "builtin")
-            .map(|skill| skill.name)
-            .expect("expected at least one builtin skill for delete rejection test");
-        let err = service.delete_skill(&builtin_name).unwrap_err();
+        let err = service.delete_skill("weather").unwrap_err();
         assert!(err.to_string().contains("builtin"));
     }
 }

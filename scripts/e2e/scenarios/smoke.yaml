@@ -1,0 +1,13 @@
+scenario: smoke
+description: "验证 AgentLoop + Provider 基础连通性"
+setup:
+  timeout_secs: 30
+messages:
+  - sender: user
+    channel: e2e
+    chat_id: smoke-test
+    content: "请回复：E2E OK"
+assertions:
+  - type: response_contains
+    value: "E2E OK"
+    description: "Agent 必须回显 E2E OK"

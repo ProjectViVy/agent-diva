@@ -3,10 +3,13 @@
 //! This crate provides the tool registry and built-in tool implementations.
 
 pub mod attachment;
+pub mod base;
 pub mod cron;
 pub mod filesystem;
 pub mod mcp_sdk;
 pub mod message;
+pub mod planning;
+pub mod registry;
 pub mod sanitize;
 pub mod shell;
 pub mod spawn;

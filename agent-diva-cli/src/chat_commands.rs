@@ -5,17 +5,19 @@ use crate::client::ApiClient;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings,
     context::SoulContextSettings,
-    context_budget::ContextBudgetPolicy,
+    mask::{MaskFile, MaskRegistry},
     runtime_control::RuntimeControlCommand,
+    tool_config::mentle::MentleToolRuntimeConfig,
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
-    AgentEvent, AgentLoop, BuiltInToolsConfig, SubagentPolicy, ToolConfig,
+    tool_config::PlanningConfig,
+    AgentEvent, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
-use agent_diva_core::logging::build_runtime_trace_logger;
+use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use console::style;
@@ -61,6 +63,7 @@ pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         cron: config.tools.builtin.cron,
         mcp: config.tools.builtin.mcp,
         attachment: config.tools.builtin.attachment,
+        mentle: config.tools.builtin.mentle,
     }
 }
 
@@ -81,34 +84,28 @@ async fn build_local_cli_agent(
 
     let bus = MessageBus::new();
     let provider = Arc::new(build_provider(&config, &selected_model)?);
+    let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
+        mentle: MentleToolRuntimeConfig::from_config(&config),
+        planning,
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
-        subagent_policy: SubagentPolicy::from(config.tools.subagent.clone()),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
         soul_context: SoulContextSettings {
             enabled: config.agents.soul.enabled,
             max_chars: config.agents.soul.max_chars,
             bootstrap_once: config.agents.soul.bootstrap_once,
         },
-        request_max_tokens: config.agents.defaults.max_tokens as i32,
-        temperature: config.agents.defaults.temperature as f64,
-        context_budget: ContextBudgetPolicy {
-            context_budget_tokens: config.agents.defaults.context_budget_tokens as usize,
-            reserve_tokens: config.agents.defaults.context_budget_reserve_tokens as usize,
-            overflow_retry_enabled: config.agents.defaults.context_overflow_retry_enabled,
-        },
-        trace_logger: Some(build_runtime_trace_logger(&config.logging)),
-        debug_logger: None,
         notify_on_soul_change: config.agents.soul.notify_on_change,
         soul_governance: SoulGovernanceSettings {
             frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
             frequent_change_threshold: config.agents.soul.frequent_change_threshold,
             boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
         },
+        budget: config.tools.budget.clone().into(),
     };
 
     let (runtime_control_tx, runtime_control_rx) = if with_runtime_control {
@@ -334,14 +331,19 @@ pub async fn run_chat(
     markdown: bool,
     logs: bool,
 ) -> Result<()> {
-    let (_config, selected_model, mut agent, runtime_control_tx) =
+    let (config, selected_model, mut agent, runtime_control_tx) =
         build_local_cli_agent(runtime, model, true).await?;
     let mut current_session = session.unwrap_or_else(|| "cli:chat".to_string());
+
+    // Initialize mask registry from workspace/masks/
+    let workspace = runtime.effective_workspace(&config);
+    let masks_dir = workspace.join("masks");
+    let mut mask_registry = MaskRegistry::new(&masks_dir);
 
     println!("{}", style("Agent Diva Chat").bold().cyan());
     println!("  model: {}", selected_model);
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop");
+    println!("  commands: /quit /clear /new /stop /mask /thinking auto|on|off /compact");
 
     loop {
         let input: String = Input::new()
@@ -374,6 +376,49 @@ pub async fn run_chat(
                 }
                 continue;
             }
+            cmd if cmd.starts_with("/thinking ") => {
+                let mode_str = cmd.trim_start_matches("/thinking ").trim();
+                let mode = match mode_str {
+                    "auto" => ThinkingMode::Auto,
+                    "on" => ThinkingMode::On,
+                    "off" => ThinkingMode::Off,
+                    _ => {
+                        println!("{}", style("usage: /thinking auto|on|off").yellow());
+                        continue;
+                    }
+                };
+                if let Some(tx) = &runtime_control_tx {
+                    let _ = tx.send(RuntimeControlCommand::SetThinking { mode });
+                    println!("{}", style(format!("thinking mode -> {:?}", mode)).green());
+                }
+                continue;
+            }
+            "/compact" => {
+                if let Some(tx) = &runtime_control_tx {
+                    let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                    let _ = tx.send(RuntimeControlCommand::CompactSession {
+                        session_key: current_session.clone(),
+                        reply_tx,
+                    });
+                    println!("{}", style("compacting...").cyan());
+                    match reply_rx.await {
+                        Ok(Ok(msg)) => println!("{}", style(msg).green()),
+                        Ok(Err(e)) => println!("{}", style(format!("compact error: {}", e)).red()),
+                        Err(_) => println!("{}", style("compact: no response from agent").red()),
+                    }
+                } else {
+                    println!(
+                        "{}",
+                        style("/compact requires local agent (runtime control unavailable)")
+                            .yellow()
+                    );
+                }
+                continue;
+            }
+            cmd if cmd.starts_with("/mask") => {
+                handle_mask_command(cmd, &mut mask_registry);
+                continue;
+            }
             _ => {}
         }
 
@@ -381,6 +426,91 @@ pub async fn run_chat(
     }
 
     Ok(())
+}
+
+/// Handle `/mask` subcommands: list, wear <name>, off, status, reload.
+fn handle_mask_command(cmd: &str, registry: &mut MaskRegistry) {
+    let parts: Vec<&str> = cmd.splitn(3, ' ').collect();
+    let sub = parts.get(1).copied().unwrap_or("status");
+
+    match sub {
+        "list" => {
+            let masks = registry.list();
+            println!("{}", style("🎭 可用面具:").bold());
+            for m in &masks {
+                let icon = m.frontmatter.icon.as_deref().unwrap_or("🎭");
+                let desc = m.frontmatter.description.as_deref().unwrap_or("（无描述）");
+                println!("  {} {} — {}", icon, m.frontmatter.name, desc);
+            }
+        }
+        "wear" => {
+            let name = match parts.get(2) {
+                Some(n) => n.trim(),
+                None => {
+                    println!("{}", style("用法: /mask wear <name>").yellow());
+                    return;
+                }
+            };
+            // Suggest context compression before switching.
+            println!(
+                "{}",
+                style("💡 建议切换前执行 /compress 以压缩上下文").dim()
+            );
+            match registry.switch_to(name) {
+                Ok(mask) => {
+                    let icon = mask.frontmatter.icon.as_deref().unwrap_or("🎭");
+                    println!(
+                        "{}",
+                        style(format!("🎭 已切换为「{}」{} 模式", name, icon)).green()
+                    );
+                }
+                Err(e) => {
+                    println!("{}", style(format!("❌ {}", e)).red());
+                    let available: Vec<&str> = registry
+                        .list()
+                        .iter()
+                        .map(|m| m.frontmatter.name.as_str())
+                        .collect();
+                    println!("  可用: {}", available.join(", "));
+                }
+            }
+        }
+        "off" => {
+            registry.switch_off();
+            println!("{}", style("🎭 已摘下面具，恢复默认模式").green());
+        }
+        "status" => match registry.current_mask_name() {
+            Some(name) => {
+                let mask = registry.current_mask().unwrap();
+                let icon = mask.frontmatter.icon.as_deref().unwrap_or("🎭");
+                println!("🎭 当前面具: {} {}", icon, name);
+            }
+            None => {
+                println!(
+                    "🎭 当前面具: {} (默认)",
+                    style(MaskFile::DEFAULT_NAME).dim()
+                );
+            }
+        },
+        "reload" => {
+            registry.reload();
+            let count = registry.list().len();
+            println!(
+                "{}",
+                style(format!("🎭 已重新加载面具文件 ({} 个面具)", count)).green()
+            );
+        }
+        other => {
+            println!(
+                "{}",
+                style(format!(
+                    "未知子命令: {}。可用: list | wear <name> | off | status | reload",
+                    other
+                ))
+                .yellow()
+            );
+        }
+    }
 }
 
 pub async fn run_chat_remote(
@@ -395,7 +525,7 @@ pub async fn run_chat_remote(
 
     println!("{}", style("Agent Diva Chat (remote)").bold().cyan());
     println!("  session: {}", current_session);
-    println!("  commands: /quit /clear /new /stop");
+    println!("  commands: /quit /clear /new /stop /thinking auto|on|off /compact");
 
     loop {
         let input: String = Input::new()
@@ -431,6 +561,14 @@ pub async fn run_chat_remote(
                     } else {
                         style("no running task for session").dim()
                     }
+                );
+                continue;
+            }
+            "/compact" => {
+                println!(
+                    "{}",
+                    style("/compact is not supported in remote mode — use local chat instead")
+                        .yellow()
                 );
                 continue;
             }

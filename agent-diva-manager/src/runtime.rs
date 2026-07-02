@@ -5,25 +5,24 @@ mod task_runtime;
 use crate::state::ManagerCommand;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
-    context_budget::ContextBudgetPolicy, runtime_control::RuntimeControlCommand,
+    runtime_control::RuntimeControlCommand, tool_config::mentle::MentleToolRuntimeConfig,
     tool_config::network::NetworkToolConfig, tool_config::network::WebFetchRuntimeConfig,
     tool_config::network::WebRuntimeConfig, tool_config::network::WebSearchRuntimeConfig,
-    AgentLoop, BuiltInToolsConfig, SubagentPolicy, ToolConfig,
+    tool_config::PlanningConfig, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
+use agent_diva_autodream::{AutoDreamService, ScheduledMonthlyReportOutcome};
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
-use agent_diva_core::debug::{DebugEvent, DebugEventLogger, DebugRun};
-use agent_diva_core::logging::build_runtime_trace_logger;
-use agent_diva_core::trace::TraceId;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
     DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess, ProviderCatalogService,
     ProviderRegistry,
 };
 use anyhow::Result;
+use chrono::Local;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -31,6 +30,7 @@ use tokio::task::JoinHandle;
 use tracing::error;
 
 pub const DEFAULT_GATEWAY_PORT: u16 = 3000;
+pub(crate) const NOTEBOOK_MONTHLY_CRON_KIND: &str = "notebook_monthly_report";
 
 #[derive(Clone)]
 pub struct GatewayRuntimeConfig {
@@ -39,7 +39,6 @@ pub struct GatewayRuntimeConfig {
     pub workspace: PathBuf,
     pub cron_store: PathBuf,
     pub port: u16,
-    pub debug_run: Option<DebugRun>,
 }
 
 pub struct EmbeddedGatewayRuntime {
@@ -61,18 +60,17 @@ struct GatewayBootstrap {
     bus: MessageBus,
     cron_service: Arc<CronService>,
     dynamic_provider: Arc<DynamicProvider>,
+    workspace: PathBuf,
     runtime_control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
     provider_api_key: Option<String>,
     provider_api_base: Option<String>,
     agent: AgentLoop,
     file_manager: Arc<FileManager>,
-    debug_logger: Option<Arc<DebugEventLogger>>,
 }
 
 struct ChannelBootstrap {
     channel_manager: Arc<ChannelManager>,
     inbound_bridge_handle: JoinHandle<()>,
-    debug_logger: Option<Arc<DebugEventLogger>>,
 }
 
 struct GatewayTasks {
@@ -203,18 +201,15 @@ fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         cron: config.tools.builtin.cron,
         mcp: config.tools.builtin.mcp,
         attachment: config.tools.builtin.attachment,
+        mentle: config.tools.builtin.mentle,
     }
 }
 
 pub async fn run_local_gateway(runtime: GatewayRuntimeConfig) -> Result<()> {
     let port = runtime.port;
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
-    let channel_bootstrap = bootstrap::bootstrap_channel_runtime(
-        &bootstrap.config,
-        bootstrap.bus.clone(),
-        bootstrap.debug_logger.clone(),
-    )
-    .await;
+    let channel_bootstrap =
+        bootstrap::bootstrap_channel_runtime(&bootstrap.config, bootstrap.bus.clone()).await;
     let mut tasks = task_runtime::start_runtime_tasks(bootstrap, channel_bootstrap).await;
     tracing::info!(
         "Gateway ready; HTTP API at http://127.0.0.1:{} (Ctrl+C to stop)",
@@ -231,12 +226,8 @@ pub async fn start_embedded_gateway_runtime(
     shutdown_rx: watch::Receiver<bool>,
 ) -> Result<EmbeddedGatewayRuntime> {
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
-    let channel_bootstrap = bootstrap::bootstrap_channel_runtime(
-        &bootstrap.config,
-        bootstrap.bus.clone(),
-        bootstrap.debug_logger.clone(),
-    )
-    .await;
+    let channel_bootstrap =
+        bootstrap::bootstrap_channel_runtime(&bootstrap.config, bootstrap.bus.clone()).await;
     let tasks = task_runtime::start_embedded_runtime_tasks(
         bootstrap,
         channel_bootstrap,
@@ -250,29 +241,53 @@ pub async fn start_embedded_gateway_runtime(
 async fn start_cron_service(
     cron_store: PathBuf,
     bus: MessageBus,
-    debug_logger: Option<Arc<DebugEventLogger>>,
+    workspace: PathBuf,
 ) -> Arc<CronService> {
     let cron_service = Arc::new(CronService::new(
         cron_store,
-        Some(build_cron_callback(bus, debug_logger)),
+        Some(build_cron_callback(bus, workspace)),
     ));
     cron_service.start().await;
     cron_service
 }
 
-fn build_cron_callback(
-    bus: MessageBus,
-    debug_logger: Option<Arc<DebugEventLogger>>,
-) -> JobCallback {
+fn build_cron_callback(bus: MessageBus, workspace: PathBuf) -> JobCallback {
     Arc::new(
         move |job: agent_diva_core::cron::CronJob,
               cancel_token|
               -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<String>> + Send>> {
             let bus = bus.clone();
-            let debug_logger = debug_logger.clone();
+            let workspace = workspace.clone();
             Box::pin(async move {
                 if cancel_token.is_cancelled() {
                     return Some("Error: cancelled".to_string());
+                }
+                if job.payload.kind == NOTEBOOK_MONTHLY_CRON_KIND {
+                    let service = match AutoDreamService::open(workspace) {
+                        Ok(service) => service,
+                        Err(error) => {
+                            return Some(format!(
+                                "Error: failed to initialize AutoDream monthly scheduler: {error}"
+                            ));
+                        }
+                    };
+                    return match service.execute_scheduled_monthly_report(Local::now().date_naive())
+                    {
+                        Ok(ScheduledMonthlyReportOutcome::Triggered { run_id, month_key }) => {
+                            Some(format!(
+                                "triggered monthly notebook report {month_key} via run {run_id}"
+                            ))
+                        }
+                        Ok(ScheduledMonthlyReportOutcome::AlreadyGenerated { month_key }) => {
+                            Some(format!("monthly notebook report {month_key} already exists"))
+                        }
+                        Ok(ScheduledMonthlyReportOutcome::Skipped { reason, .. }) => {
+                            Some(format!("skipped monthly notebook report: {reason}"))
+                        }
+                        Err(error) => Some(format!(
+                            "Error: monthly notebook report scheduler failed: {error}"
+                        )),
+                    };
                 }
                 let deliver = job.payload.deliver;
                 if !deliver {
@@ -300,41 +315,15 @@ fn build_cron_callback(
                     (target_channel.clone(), target_chat_id)
                 };
 
-                let trace_id = TraceId::new();
                 let inbound = InboundMessage::new(
                     conversation_channel,
                     "cron",
                     conversation_chat_id,
                     job.payload.message,
                 )
-                .with_metadata("trace_id", trace_id.as_str().to_string())
                 .with_metadata("cron_job_id", job.id.clone())
                 .with_metadata("cron_trigger", "scheduled")
                 .with_metadata("cron_delivery_channel", target_channel);
-
-                if let Some(logger) = &debug_logger {
-                    let session_id = inbound.session_key();
-                    let _ = logger.write_event(DebugEvent::new(
-                        Some(trace_id.as_str().to_string()),
-                        Some(session_id.clone()),
-                        "gateway",
-                        "cron_inbound",
-                        serde_json::json!({
-                            "job_id": job.id,
-                            "channel": inbound.channel,
-                            "chat_id": inbound.chat_id,
-                        }),
-                    ));
-                    let _ = logger.write_raw(DebugEvent::new(
-                        Some(trace_id.as_str().to_string()),
-                        Some(session_id),
-                        "gateway",
-                        "cron_inbound_raw",
-                        serde_json::to_value(&inbound).unwrap_or_else(|error| {
-                            serde_json::json!({"serialization_error": error.to_string()})
-                        }),
-                    ));
-                }
 
                 if let Err(e) = bus.publish_inbound(inbound) {
                     error!("Failed to publish cron inbound job {}: {}", job.id, e);
@@ -350,7 +339,6 @@ fn build_cron_callback(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn build_agent_loop(
     config: &Config,
     bus: MessageBus,
@@ -359,72 +347,53 @@ async fn build_agent_loop(
     runtime_control_rx: mpsc::UnboundedReceiver<RuntimeControlCommand>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
-    debug_logger: Option<Arc<DebugEventLogger>>,
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
+    let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(config),
         network: build_network_tool_config(config),
+        mentle: MentleToolRuntimeConfig::from_config(config),
+        planning,
         exec_timeout: config.tools.exec.timeout,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
-        subagent_policy: SubagentPolicy::from(config.tools.subagent.clone()),
         cron_service: Some(cron_service),
         soul_context: SoulContextSettings {
             enabled: config.agents.soul.enabled,
             max_chars: config.agents.soul.max_chars,
             bootstrap_once: config.agents.soul.bootstrap_once,
         },
-        request_max_tokens: config.agents.defaults.max_tokens as i32,
-        temperature: config.agents.defaults.temperature as f64,
-        context_budget: ContextBudgetPolicy {
-            context_budget_tokens: config.agents.defaults.context_budget_tokens as usize,
-            reserve_tokens: config.agents.defaults.context_budget_reserve_tokens as usize,
-            overflow_retry_enabled: config.agents.defaults.context_overflow_retry_enabled,
-        },
-        trace_logger: Some(build_runtime_trace_logger(&config.logging)),
-        debug_logger,
         notify_on_soul_change: config.agents.soul.notify_on_change,
         soul_governance: SoulGovernanceSettings {
             frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
             frequent_change_threshold: config.agents.soul.frequent_change_threshold,
             boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
         },
+        budget: config.tools.budget.clone().into(),
     };
 
-    // Memory provider wiring — Task 6 (Phase 4).
-    //
-    // Nano-style controlled harness: when a `.laputa` state directory
-    // exists in the workspace, the runtime is prepared to inject
-    // `LaputaMemoryProvider` as the active provider through
-    // `with_tools_and_memory_provider`.
-    //
-    // To activate Laputa-backed continuity:
-    //   1. Add `laputa-core` as a dependency of `agent-diva-manager`
-    //      (path = "../../../laputa-work/laputa-next/crates/laputa-core")
-    //   2. Uncomment the block below.
-    //
-    // ```rust,ignore
-    // let laputa_state_dir = workspace.join(".laputa");
-    // let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
-    //     if laputa_state_dir.is_dir() {
-    //         tracing::info!("Laputa state directory detected; injecting LaputaMemoryProvider");
-    //         Some(Arc::new(laputa_core::provider::LaputaMemoryProvider::new(
-    //             workspace.join(".laputa").join("mempalace.db"),
-    //         )))
-    //     } else {
-    //         None
-    //     };
-    // ```
     let laputa_state_dir = workspace.join(".laputa");
-    if laputa_state_dir.is_dir() {
-        tracing::info!(
-            "Laputa state directory detected at {}, but LaputaMemoryProvider injection is deferred (nano-style controlled harness)",
-            laputa_state_dir.display()
-        );
-    }
-
-    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> = None;
+    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
+        if laputa_state_dir.is_dir() {
+            tracing::info!(
+                "Laputa state directory detected at {}; injecting read-only LaputaMemoryProvider",
+                laputa_state_dir.display()
+            );
+            match agent_diva_laputa::LaputaMemoryProvider::open(&workspace) {
+                Ok(provider) => Some(Arc::new(provider)),
+                Err(error) => {
+                    tracing::warn!(
+                        "LaputaMemoryProvider unavailable for {}: {}; falling back to default MemoryManager",
+                        workspace.display(),
+                        error
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
     AgentLoop::with_tools_and_memory_provider(
         bus,

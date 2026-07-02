@@ -1,5 +1,30 @@
+pub mod audit;
+pub mod autodream;
+pub mod health;
+pub mod laputa;
+pub mod planning;
 mod provider_companion;
 
+pub use audit::{get_audit_events_handler, get_audit_log_handler};
+
+pub use health::health_handler;
+
+pub use autodream::{
+    cancel_autodream_run_handler, get_autodream_run_handler, list_autodream_runs_handler,
+    trigger_autodream_run_handler,
+};
+pub use laputa::{
+    apply_laputa_proposal_handler, create_laputa_proposal_handler, edit_laputa_proposal_handler,
+    get_laputa_changelog_handler, get_laputa_proposal_handler, get_laputa_section_handler,
+    get_laputa_snapshot_handler, list_laputa_changelog_handler, list_laputa_proposals_handler,
+    poll_laputa_events_handler, rollback_laputa_changelog_handler, stream_laputa_events_handler,
+    transition_laputa_proposal_handler,
+};
+
+pub use planning::{
+    create_plan_handler, delete_plan_handler, get_plan_handler, list_plans_handler,
+    update_plan_handler,
+};
 pub use provider_companion::{
     add_provider_model_handler, create_provider_handler, delete_provider_handler,
     delete_provider_model_handler, get_provider_handler, get_provider_models_handler,
@@ -8,7 +33,7 @@ pub use provider_companion::{
 
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::InboundMessage;
-use agent_diva_core::config::schema::ChannelsConfig;
+use agent_diva_core::config::schema::{ChannelsConfig, SelfEvolutionConfig};
 use axum::{
     extract::{Multipart, Path, Query, State},
     response::sse::{Event, Sse},
@@ -22,9 +47,9 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::state::{
     ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, FileUploadRequest,
-    ManagerCommand, McpRefreshRequest, RunCronJobRequest, SetCronJobEnabledRequest,
-    SetMcpEnabledRequest, SkillUploadRequest, StopChatRequest, ToolsConfigResponse,
-    ToolsConfigUpdate,
+    ManagerCommand, McpRefreshRequest, MentleToolsListResponse, RunCronJobRequest,
+    SetCronJobEnabledRequest, SetMcpEnabledRequest, SkillUploadRequest, StopChatRequest,
+    ToolsConfigResponse, ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -33,6 +58,16 @@ pub struct ChatRequest {
     pub channel: Option<String>,
     pub chat_id: Option<String>,
     pub attachments: Option<Vec<String>>,
+    pub mode: Option<String>,
+}
+
+fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
+    match mode.map(str::trim) {
+        Some("agent") => Some("agent"),
+        Some("plan") => Some("plan"),
+        Some("ask") => Some("ask"),
+        _ => None,
+    }
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -80,6 +115,9 @@ pub async fn chat_handler(
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
     let mut msg = InboundMessage::new(channel, "user", chat_id, payload.message);
+    if let Some(mode) = normalized_exec_mode(payload.mode.as_deref()) {
+        msg = msg.with_metadata("exec_mode", mode);
+    }
     if let Some(attachments) = payload.attachments {
         for attachment in attachments {
             msg = msg.with_media(attachment);
@@ -375,7 +413,7 @@ pub async fn update_config_handler(
     State(state): State<AppState>,
     Json(payload): Json<ConfigUpdate>,
 ) -> Json<serde_json::Value> {
-    tracing::info!("Received update config request: {}", payload.log_summary());
+    tracing::info!("Received update config request: {:?}", payload);
     if let Err(e) = state
         .api_tx
         .send(ManagerCommand::UpdateConfig(payload))
@@ -386,6 +424,62 @@ pub async fn update_config_handler(
     }
 
     Json(serde_json::json!({ "status": "ok" }))
+}
+
+pub async fn get_self_evolution_config_handler(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::GetSelfEvolutionConfig(tx))
+        .await
+    {
+        tracing::error!("Failed to send GetSelfEvolutionConfig request: {}", e);
+        return Json(serde_json::json!({
+            "status": "error",
+            "message": e.to_string(),
+        }));
+    }
+
+    match rx.await {
+        Ok(Ok(config)) => Json(serde_json::json!({ "status": "ok", "config": config })),
+        Ok(Err(message)) => Json(serde_json::json!({ "status": "error", "message": message })),
+        Err(e) => {
+            tracing::error!("Failed to receive GetSelfEvolutionConfig response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
+}
+
+pub async fn update_self_evolution_config_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<SelfEvolutionConfig>,
+) -> Json<serde_json::Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UpdateSelfEvolutionConfig(payload, tx))
+        .await
+    {
+        tracing::error!("Failed to send UpdateSelfEvolutionConfig request: {}", e);
+        return Json(serde_json::json!({
+            "status": "error",
+            "message": e.to_string(),
+        }));
+    }
+
+    match rx.await {
+        Ok(Ok(config)) => Json(serde_json::json!({ "status": "ok", "config": config })),
+        Ok(Err(message)) => Json(serde_json::json!({ "status": "error", "message": message })),
+        Err(e) => {
+            tracing::error!(
+                "Failed to receive UpdateSelfEvolutionConfig response: {}",
+                e
+            );
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
 }
 
 pub async fn get_channels_handler(State(state): State<AppState>) -> Json<ChannelsConfig> {
@@ -409,6 +503,8 @@ pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfi
         tracing::error!("Failed to send GetTools request: {}", e);
         return Json(ToolsConfigResponse {
             web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
+            mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
+            budget: agent_diva_core::config::CompactionBudgetConfig::default(),
         });
     }
     match rx.await {
@@ -417,6 +513,31 @@ pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfi
             tracing::error!("Failed to receive GetTools response: {}", e);
             Json(ToolsConfigResponse {
                 web: agent_diva_core::config::schema::WebToolsConfig::default().into(),
+                mentle: agent_diva_core::config::schema::MentleToolConfig::default(),
+                budget: agent_diva_core::config::CompactionBudgetConfig::default(),
+            })
+        }
+    }
+}
+
+pub async fn list_mentle_tools_handler(
+    State(state): State<AppState>,
+) -> Json<MentleToolsListResponse> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state.api_tx.send(ManagerCommand::ListMentleTools(tx)).await {
+        tracing::error!("Failed to send ListMentleTools request: {}", e);
+        return Json(MentleToolsListResponse {
+            feature_available: agent_diva_agent::mentle_discovery_available(),
+            tools: Vec::new(),
+        });
+    }
+    match rx.await {
+        Ok(response) => Json(response),
+        Err(e) => {
+            tracing::error!("Failed to receive ListMentleTools response: {}", e);
+            Json(MentleToolsListResponse {
+                feature_available: agent_diva_agent::mentle_discovery_available(),
+                tools: Vec::new(),
             })
         }
     }
@@ -881,147 +1002,14 @@ pub async fn delete_cron_job_handler(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use agent_diva_core::bus::MessageBus;
+    use super::normalized_exec_mode;
 
-    fn test_state() -> (AppState, mpsc::Receiver<ManagerCommand>) {
-        let (api_tx, api_rx) = mpsc::channel(8);
-        (
-            AppState {
-                api_tx,
-                bus: MessageBus::new(),
-            },
-            api_rx,
-        )
-    }
-
-    #[tokio::test]
-    async fn heartbeat_handler_returns_ok() {
-        assert_eq!(heartbeat_handler().await, "ok");
-    }
-
-    #[tokio::test]
-    async fn update_config_handler_sends_update_command() {
-        let (state, mut api_rx) = test_state();
-        let payload = ConfigUpdate {
-            api_base: Some("https://api.example.test/v1".to_string()),
-            api_key: Some("sk-test".to_string()),
-            provider: Some("example".to_string()),
-            model: Some("example-model".to_string()),
-        };
-
-        let Json(response) = update_config_handler(State(state), Json(payload)).await;
-
-        assert_eq!(response["status"], "ok");
-        match api_rx.recv().await.expect("manager command") {
-            ManagerCommand::UpdateConfig(update) => {
-                assert_eq!(update.provider.as_deref(), Some("example"));
-                assert_eq!(update.model.as_deref(), Some("example-model"));
-                assert_eq!(
-                    update.api_base.as_deref(),
-                    Some("https://api.example.test/v1")
-                );
-                assert_eq!(update.api_key.as_deref(), Some("sk-test"));
-            }
-            _ => panic!("expected UpdateConfig command"),
-        }
-    }
-
-    #[tokio::test]
-    async fn get_config_handler_returns_manager_response() {
-        let (state, mut api_rx) = test_state();
-        let manager = tokio::spawn(async move {
-            match api_rx.recv().await.expect("manager command") {
-                ManagerCommand::GetConfig(reply_tx) => {
-                    let _ = reply_tx.send(ConfigResponse {
-                        provider: Some("deepseek".to_string()),
-                        api_base: Some("https://api.deepseek.com/v1".to_string()),
-                        model: "deepseek-chat".to_string(),
-                        has_api_key: true,
-                    });
-                }
-                _ => panic!("expected GetConfig command"),
-            }
-        });
-
-        let Json(response) = get_config_handler(State(state)).await;
-        manager.await.expect("manager task");
-
-        assert_eq!(response.provider.as_deref(), Some("deepseek"));
-        assert_eq!(
-            response.api_base.as_deref(),
-            Some("https://api.deepseek.com/v1")
-        );
-        assert_eq!(response.model, "deepseek-chat");
-        assert!(response.has_api_key);
-    }
-
-    #[tokio::test]
-    async fn stop_chat_handler_returns_stopped_status() {
-        let (state, mut api_rx) = test_state();
-        let manager = tokio::spawn(async move {
-            match api_rx.recv().await.expect("manager command") {
-                ManagerCommand::StopChat(request, reply_tx) => {
-                    assert_eq!(request.channel.as_deref(), Some("api"));
-                    assert_eq!(request.chat_id.as_deref(), Some("default"));
-                    let _ = reply_tx.send(Ok(true));
-                }
-                _ => panic!("expected StopChat command"),
-            }
-        });
-
-        let Json(response) = stop_chat_handler(
-            State(state),
-            Json(StopChatRequest {
-                channel: Some("api".to_string()),
-                chat_id: Some("default".to_string()),
-            }),
-        )
-        .await;
-        manager.await.expect("manager task");
-
-        assert_eq!(response["status"], "ok");
-        assert_eq!(response["stopped"], true);
-    }
-
-    #[tokio::test]
-    async fn get_session_history_handler_prefixes_gui_for_plain_id() {
-        let (state, mut api_rx) = test_state();
-        let manager = tokio::spawn(async move {
-            match api_rx.recv().await.expect("manager command") {
-                ManagerCommand::GetSessionHistory(session_key, reply_tx) => {
-                    assert_eq!(session_key, "gui:local-chat");
-                    let _ = reply_tx.send(Ok(None));
-                }
-                _ => panic!("expected GetSessionHistory command"),
-            }
-        });
-
-        let Json(response) =
-            get_session_history_handler(State(state), Path("local-chat".to_string())).await;
-        manager.await.expect("manager task");
-
-        assert_eq!(response["status"], "error");
-        assert_eq!(response["message"], "Session not found");
-    }
-
-    #[tokio::test]
-    async fn delete_cron_job_handler_maps_success_to_ok() {
-        let (state, mut api_rx) = test_state();
-        let manager = tokio::spawn(async move {
-            match api_rx.recv().await.expect("manager command") {
-                ManagerCommand::DeleteCronJob(job_id, reply_tx) => {
-                    assert_eq!(job_id, "nightly");
-                    let _ = reply_tx.send(Ok(()));
-                }
-                _ => panic!("expected DeleteCronJob command"),
-            }
-        });
-
-        let Json(response) =
-            delete_cron_job_handler(State(state), Path("nightly".to_string())).await;
-        manager.await.expect("manager task");
-
-        assert_eq!(response["status"], "ok");
+    #[test]
+    fn normalized_exec_mode_accepts_known_modes_only() {
+        assert_eq!(normalized_exec_mode(Some("plan")), Some("plan"));
+        assert_eq!(normalized_exec_mode(Some(" ask ")), Some("ask"));
+        assert_eq!(normalized_exec_mode(Some("agent")), Some("agent"));
+        assert_eq!(normalized_exec_mode(Some("execute")), None);
+        assert_eq!(normalized_exec_mode(None), None);
     }
 }

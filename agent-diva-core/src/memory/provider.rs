@@ -362,26 +362,54 @@ impl Default for SessionEndResponse {
 /// Contract rules:
 /// - `system_prompt_block()` is synchronous because prompt assembly in
 ///   `ContextBuilder::build_system_prompt()` is synchronous today.
+/// - `system_prompt_block()` is startup-only: it may read synchronous cached
+///   state, but must not perform async I/O, runtime blocking, or refresh work.
 /// - `prefetch()`, `sync_turn()`, and `on_session_end()` are async because
 ///   live-turn recall, post-turn persistence, and shutdown rhythm work may
 ///   require I/O and already sit on async paths in Agent-Diva.
+/// - `prefetch()` is recall-only: it may assemble transient prompt context,
+///   but must not perform durable writes or session-end work.
+/// - `sync_turn()` is persistence-only: it should not be used to backfill
+///   startup prompt state or perform live-turn recall.
+/// - `on_session_end()` is shutdown-only and should remain idempotent when a
+///   provider receives duplicate session-end hooks.
+/// - Markdown memory is the authoritative fallback. Optional backends must not
+///   block startup, live turns, or Markdown persistence when their open, query,
+///   or secondary write paths fail.
+/// - Backend open failure should disable backend-specific prompt routing and
+///   tools, then continue with the Markdown-backed `MemoryManager`.
 /// - All request/response types are Agent-Diva-owned domain structs; do not
 ///   leak MCP schemas, CLI arguments, HTTP routes, or backend model types.
 #[async_trait::async_trait]
 pub trait MemoryProvider: Send + Sync {
     /// Build the startup memory block for system prompt assembly.
+    ///
+    /// This method must stay side-effect free from the caller's perspective:
+    /// implementations should use synchronous local state only.
     fn system_prompt_block(
         &self,
         request: &SystemPromptRequest,
     ) -> crate::Result<SystemPromptResponse>;
 
     /// Perform optional intent-aware prefetch for a live turn.
+    ///
+    /// Recoverable recall misses or backend failures should prefer
+    /// `PrefetchStatus` over a top-level error so the turn can continue without
+    /// injecting recall context.
     async fn prefetch(&self, request: PrefetchRequest) -> crate::Result<PrefetchResponse>;
 
     /// Persist evidence after a successful turn completes.
+    ///
+    /// Markdown file write failures should prefer `SyncTurnStatus::Failed` over
+    /// a top-level error when the session can continue safely. Secondary backend
+    /// write failures after Markdown persistence should be logged and treated as
+    /// degraded persistence, not as loss of the authoritative Markdown write.
     async fn sync_turn(&self, request: SyncTurnRequest) -> crate::Result<SyncTurnResponse>;
 
     /// Trigger shutdown/session-end rhythm work if needed.
+    ///
+    /// This hook should not be used to compensate for missed `sync_turn()`
+    /// writes unless the provider explicitly documents that behavior.
     async fn on_session_end(&self, request: SessionEndRequest)
         -> crate::Result<SessionEndResponse>;
 }

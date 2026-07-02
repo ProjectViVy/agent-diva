@@ -26,6 +26,9 @@ thiserror = { workspace = true }
 
 # HTTP
 reqwest = { workspace = true }
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
+http = { workspace = true }
+native-tls = "0.2"
 
 # Logging and tracing
 tracing = { workspace = true }
@@ -34,6 +37,7 @@ serde_yaml.workspace = true
 # Regex for text sanitization
 regex = { workspace = true }
 uuid = { workspace = true }
+rand = "0.8"
 
 [dev-dependencies]
 tokio-test = { workspace = true }

@@ -1,21 +1,52 @@
 use agent_diva_agent::AgentEvent;
+use agent_diva_autodream::AutoDreamService;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
-    ChannelsConfig, MCPServerConfig, WebFetchConfig, WebSearchConfig, WebToolsConfig,
+    ChannelsConfig, MCPServerConfig, MentleToolConfig, SelfEvolutionConfig, WebFetchConfig,
+    WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
+use agent_diva_laputa::LaputaService;
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::Instant;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::mcp_service::{McpServerDto, McpServerUpsert};
+use crate::planning_service::{CreatePlanRequest, PlanDetail, PlanSummary, UpdatePlanRequest};
 use crate::skill_service::SkillDto;
 
 #[derive(Clone)]
 pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
     pub bus: MessageBus,
+    pub workspace_root: PathBuf,
+    pub autodream: AutoDreamService,
+    pub laputa: LaputaService,
+    /// Server start time, used for uptime calculation in the health endpoint.
+    pub started_at: Instant,
+}
+
+impl AppState {
+    pub fn new(
+        api_tx: mpsc::Sender<ManagerCommand>,
+        bus: MessageBus,
+        workspace_root: impl Into<PathBuf>,
+    ) -> anyhow::Result<Self> {
+        let workspace_root = workspace_root.into();
+        let autodream = AutoDreamService::open(workspace_root.clone())?;
+        let laputa = LaputaService::open(workspace_root.clone())?;
+        Ok(Self {
+            api_tx,
+            bus,
+            workspace_root,
+            autodream,
+            laputa,
+            started_at: Instant::now(),
+        })
+    }
 }
 
 pub enum ProviderCommand {
@@ -48,9 +79,15 @@ pub enum ManagerCommand {
     UpdateConfig(ConfigUpdate),
     UpdateChannel(ChannelUpdate),
     GetConfig(oneshot::Sender<ConfigResponse>),
+    GetSelfEvolutionConfig(oneshot::Sender<Result<SelfEvolutionConfig, String>>),
+    UpdateSelfEvolutionConfig(
+        SelfEvolutionConfig,
+        oneshot::Sender<Result<SelfEvolutionConfig, String>>,
+    ),
     GetChannels(oneshot::Sender<ChannelsConfig>),
     GetTools(oneshot::Sender<ToolsConfigResponse>),
     UpdateTools(ToolsConfigUpdate),
+    ListMentleTools(oneshot::Sender<MentleToolsListResponse>),
     GetMcps(oneshot::Sender<Result<Vec<McpServerDto>, String>>),
     CreateMcp(
         McpServerUpsert,
@@ -98,6 +135,19 @@ pub enum ManagerCommand {
         FileUploadRequest,
         oneshot::Sender<Result<agent_diva_core::attachment::FileAttachment, String>>,
     ),
+    // Planning commands
+    ListPlans(oneshot::Sender<Result<Vec<PlanSummary>, String>>),
+    GetPlan(String, oneshot::Sender<Result<Option<PlanDetail>, String>>),
+    CreatePlan(
+        CreatePlanRequest,
+        oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
+    ),
+    UpdatePlan(
+        String,
+        UpdatePlanRequest,
+        oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
+    ),
+    DeletePlan(String, oneshot::Sender<Result<(), String>>),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),
 }
@@ -186,6 +236,8 @@ pub struct FileUploadRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfigResponse {
     pub web: WebToolsConfigResponse,
+    pub mentle: MentleToolConfig,
+    pub budget: agent_diva_core::config::CompactionBudgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,6 +249,10 @@ pub struct WebToolsConfigResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfigUpdate {
     pub web: WebToolsConfigUpdate,
+    #[serde(default)]
+    pub mentle: MentleToolConfig,
+    #[serde(default)]
+    pub budget: agent_diva_core::config::CompactionBudgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,6 +270,12 @@ pub struct McpRefreshRequest {
 pub struct WebToolsConfigUpdate {
     pub search: WebSearchConfig,
     pub fetch: WebFetchConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MentleToolsListResponse {
+    pub feature_available: bool,
+    pub tools: Vec<String>,
 }
 
 impl From<WebToolsConfig> for WebToolsConfigResponse {

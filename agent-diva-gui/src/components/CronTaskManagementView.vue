@@ -2,7 +2,21 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
-import { Pause, Play, PlayCircle, Square, Plus, Pencil, Trash2, RefreshCw } from 'lucide-vue-next';
+import {
+  Pause,
+  Play,
+  PlayCircle,
+  Square,
+  Plus,
+  Pencil,
+  Trash2,
+  RefreshCw,
+  Search,
+  CalendarClock,
+  Clock,
+  Repeat,
+  AlertCircle,
+} from 'lucide-vue-next';
 import { appConfirm } from '../utils/appDialog';
 
 const { t } = useI18n();
@@ -65,6 +79,11 @@ const jobs = ref<CronJobDto[]>([]);
 const actionBusy = reactive<Record<string, boolean>>({});
 let pollHandle: number | null = null;
 
+// Tab filter state
+type TabFilter = 'active' | 'scheduled' | 'all';
+const activeTab = ref<TabFilter>('active');
+const searchQuery = ref('');
+
 const form = reactive({
   name: '',
   scheduleKind: 'every' as ScheduleKind,
@@ -80,8 +99,42 @@ const form = reactive({
   enabled: true,
 });
 
-const runningJobs = computed(() => jobs.value.filter((job) => job.isRunning));
-const otherJobs = computed(() => jobs.value.filter((job) => !job.isRunning));
+// Status helpers
+const ACTIVE_STATUSES = new Set<CronStatus>(['running']);
+const SCHEDULED_STATUSES = new Set<CronStatus>(['scheduled', 'paused']);
+
+function isInStatus(job: CronJobDto, statusSet: Set<CronStatus>): boolean {
+  return statusSet.has(job.computedStatus);
+}
+
+// Filtered jobs
+const activeJobs = computed(() =>
+  jobs.value.filter((j) => isInStatus(j, ACTIVE_STATUSES)),
+);
+const scheduledJobs = computed(() =>
+  jobs.value.filter((j) => isInStatus(j, SCHEDULED_STATUSES)),
+);
+const allJobs = computed(() => jobs.value);
+
+const filteredJobs = computed(() => {
+  let base: CronJobDto[];
+  switch (activeTab.value) {
+    case 'active':
+      base = activeJobs.value;
+      break;
+    case 'scheduled':
+      base = scheduledJobs.value;
+      break;
+    case 'all':
+    default:
+      base = allJobs.value;
+      break;
+  }
+  if (!searchQuery.value.trim()) return base;
+  const q = searchQuery.value.toLowerCase();
+  return base.filter((j) => j.name.toLowerCase().includes(q));
+});
+
 const pausedCount = computed(() => jobs.value.filter((job) => job.computedStatus === 'paused').length);
 const failedCount = computed(() => jobs.value.filter((job) => job.computedStatus === 'failed').length);
 
@@ -106,6 +159,12 @@ function describeSchedule(schedule: CronSchedule): string {
   return schedule.tz ? `${schedule.expr} (${schedule.tz})` : schedule.expr || '';
 }
 
+function getTriggerBadge(schedule: CronSchedule): { label: string; icon: any } {
+  if (schedule.kind === 'at') return { label: t('cron.schedule.at'), icon: CalendarClock };
+  if (schedule.kind === 'every') return { label: t('cron.schedule.every'), icon: Repeat };
+  return { label: t('cron.schedule.cron'), icon: Clock };
+}
+
 function statusClass(status: CronStatus): string {
   switch (status) {
     case 'running':
@@ -118,6 +177,23 @@ function statusClass(status: CronStatus): string {
       return 'bg-sky-100 text-sky-700';
     default:
       return 'bg-slate-100 text-slate-700';
+  }
+}
+
+function statusDotClass(status: CronStatus): string {
+  switch (status) {
+    case 'running':
+      return 'bg-emerald-500';
+    case 'scheduled':
+      return 'bg-blue-500';
+    case 'paused':
+      return 'bg-amber-500';
+    case 'failed':
+      return 'bg-rose-500';
+    case 'completed':
+      return 'bg-slate-400';
+    default:
+      return 'bg-slate-400';
   }
 }
 
@@ -276,12 +352,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-full min-h-0 overflow-y-auto bg-slate-50/80 p-6">
-    <div class="mx-auto max-w-7xl space-y-6">
+  <div class="cron-view h-full min-h-0 overflow-y-auto p-6">
+    <div class="mx-auto max-w-5xl space-y-6">
+      <!-- Header with gradient -->
       <section class="rounded-[28px] bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-5 py-4 text-white shadow-lg shadow-cyan-900/10">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div class="min-w-0 flex-1 space-y-1.5">
-            <p class="text-xs font-medium uppercase tracking-[0.12em] text-white/72">{{ t('cron.subtitle') }}</p>
+          <div class="min-w-0 flex-1">
             <h2 class="text-[30px] font-bold leading-none tracking-tight">{{ t('cron.title') }}</h2>
           </div>
           <div class="flex shrink-0 flex-wrap gap-2 md:justify-end">
@@ -301,163 +377,40 @@ onUnmounted(() => {
         </div>
         <div class="mt-4 grid gap-2 md:grid-cols-4">
           <div class="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
-            <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-white/68">{{ t('cron.totalTasks') }}</div>
+            <div class="text-sm font-medium leading-none opacity-80">{{ t('cron.totalTasks') }}</div>
             <div class="mt-1 text-2xl font-semibold leading-none">{{ jobs.length }}</div>
           </div>
           <div class="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
-            <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-white/68">{{ t('cron.runningTasks') }}</div>
-            <div class="mt-1 text-2xl font-semibold leading-none">{{ runningJobs.length }}</div>
+            <div class="text-sm font-medium leading-none opacity-80">{{ t('cron.runningTasks') }}</div>
+            <div class="mt-1 text-2xl font-semibold leading-none">{{ activeJobs.length }}</div>
           </div>
           <div class="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
-            <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-white/68">{{ t('cron.pausedTasks') }}</div>
+            <div class="text-sm font-medium leading-none opacity-80">{{ t('cron.pausedTasks') }}</div>
             <div class="mt-1 text-2xl font-semibold leading-none">{{ pausedCount }}</div>
           </div>
           <div class="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
-            <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-white/68">{{ t('cron.failedTasks') }}</div>
+            <div class="text-sm font-medium leading-none opacity-80">{{ t('cron.failedTasks') }}</div>
             <div class="mt-1 text-2xl font-semibold leading-none">{{ failedCount }}</div>
           </div>
         </div>
       </section>
 
+      <!-- Error banner -->
       <div v-if="error" class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         {{ error }}
       </div>
 
-      <section class="space-y-4">
+      <!-- Inline form panel (replaces modal) -->
+      <section v-if="showForm" class="rounded-2xl border border-l-4 border-slate-200 border-l-blue-500 bg-white p-5 shadow-sm">
         <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-slate-800">{{ t('cron.runningSection') }}</h3>
-          <span class="text-sm text-slate-500">{{ runningJobs.length }}</span>
-        </div>
-        <div v-if="runningJobs.length > 0" class="grid gap-4 xl:grid-cols-2">
-          <article
-            v-for="job in runningJobs"
-            :key="job.id"
-            class="rounded-3xl border border-emerald-100 bg-white p-5 shadow-sm"
-          >
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <div class="flex items-center gap-3">
-                  <h4 class="text-xl font-semibold text-slate-900">{{ job.name }}</h4>
-                  <span class="rounded-full px-3 py-1 text-xs font-medium" :class="statusClass(job.computedStatus)">
-                    {{ t(`cron.status.${job.computedStatus}`) }}
-                  </span>
-                </div>
-                <p class="mt-2 text-sm text-slate-600">{{ describeSchedule(job.schedule) }}</p>
-                <p class="mt-1 text-sm text-emerald-600">{{ formatDuration(job.activeRun?.startedAtMs) }}</p>
-              </div>
-              <div class="text-right text-xs text-slate-500">
-                <div>ID: {{ job.id }}</div>
-                <div>{{ t('cron.nextRun') }}: {{ formatTime(job.state.nextRunAtMs) }}</div>
-              </div>
-            </div>
-            <div class="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
-              <div class="font-medium text-slate-900">{{ t('cron.detailTitle') }}</div>
-              <p class="mt-2 whitespace-pre-wrap break-words">{{ job.payload.message || t('cron.emptyMessage') }}</p>
-              <div class="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-3">
-                <div>{{ t('cron.channel') }}: {{ job.payload.channel || '-' }}</div>
-                <div>{{ t('cron.recipient') }}: {{ job.payload.to || '-' }}</div>
-                <div>{{ t('cron.lastRun') }}: {{ formatTime(job.state.lastRunAtMs) }}</div>
-              </div>
-            </div>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <button class="rounded-xl bg-amber-100 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-200" :disabled="actionBusy[job.id]" @click="toggleJob(job)">
-                <span class="inline-flex items-center gap-2"><Pause v-if="job.enabled" :size="16" /><Play v-else :size="16" />{{ job.enabled ? t('cron.pause') : t('cron.enable') }}</span>
-              </button>
-              <button class="rounded-xl bg-sky-100 px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-200" :disabled="actionBusy[job.id]" @click="runJob(job)">
-                <span class="inline-flex items-center gap-2"><PlayCircle :size="16" />{{ t('cron.runNow') }}</span>
-              </button>
-              <button class="rounded-xl bg-rose-100 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-200" :disabled="actionBusy[job.id]" @click="stopJob(job)">
-                <span class="inline-flex items-center gap-2"><Square :size="16" />{{ t('cron.stop') }}</span>
-              </button>
-              <button class="rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200" :disabled="actionBusy[job.id]" @click="openEdit(job)">
-                <span class="inline-flex items-center gap-2"><Pencil :size="16" />{{ t('cron.edit') }}</span>
-              </button>
-              <button class="rounded-xl bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100" :disabled="actionBusy[job.id]" @click="deleteJob(job)">
-                <span class="inline-flex items-center gap-2"><Trash2 :size="16" />{{ t('cron.delete') }}</span>
-              </button>
-            </div>
-          </article>
-        </div>
-        <div v-else class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-sm text-slate-500">
-          {{ t('cron.noRunningTasks') }}
-        </div>
-      </section>
-
-      <section class="space-y-4">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-slate-800">{{ t('cron.allSection') }}</h3>
-          <span class="text-sm text-slate-500">{{ otherJobs.length }}</span>
-        </div>
-        <div v-if="loading" class="rounded-2xl bg-white px-6 py-8 text-center text-sm text-slate-500">
-          {{ t('cron.loading') }}
-        </div>
-        <div v-else-if="otherJobs.length === 0" class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-sm text-slate-500">
-          {{ t('cron.emptyState') }}
-        </div>
-        <div v-else class="grid gap-4 xl:grid-cols-2">
-          <article
-            v-for="job in otherJobs"
-            :key="job.id"
-            class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-          >
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <div class="flex items-center gap-3">
-                  <h4 class="text-xl font-semibold text-slate-900">{{ job.name }}</h4>
-                  <span class="rounded-full px-3 py-1 text-xs font-medium" :class="statusClass(job.computedStatus)">
-                    {{ t(`cron.status.${job.computedStatus}`) }}
-                  </span>
-                </div>
-                <p class="mt-2 text-sm text-slate-600">{{ describeSchedule(job.schedule) }}</p>
-                <p class="mt-1 text-xs text-slate-500">{{ t('cron.nextRun') }}: {{ formatTime(job.state.nextRunAtMs) }}</p>
-              </div>
-              <div class="text-right text-xs text-slate-500">
-                <div>ID: {{ job.id }}</div>
-                <div>{{ t('cron.lastRun') }}: {{ formatTime(job.state.lastRunAtMs) }}</div>
-              </div>
-            </div>
-            <div class="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
-              <div class="font-medium text-slate-900">{{ t('cron.detailTitle') }}</div>
-              <p class="mt-2 whitespace-pre-wrap break-words">{{ job.payload.message || t('cron.emptyMessage') }}</p>
-              <div class="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-3">
-                <div>{{ t('cron.channel') }}: {{ job.payload.channel || '-' }}</div>
-                <div>{{ t('cron.recipient') }}: {{ job.payload.to || '-' }}</div>
-                <div>{{ t('cron.lastStatus') }}: {{ job.state.lastStatus || '-' }}</div>
-              </div>
-              <div v-if="job.state.lastError" class="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                {{ job.state.lastError }}
-              </div>
-            </div>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <button class="rounded-xl bg-amber-100 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-200" :disabled="actionBusy[job.id]" @click="toggleJob(job)">
-                <span class="inline-flex items-center gap-2"><Pause v-if="job.enabled" :size="16" /><Play v-else :size="16" />{{ job.enabled ? t('cron.pause') : t('cron.enable') }}</span>
-              </button>
-              <button class="rounded-xl bg-sky-100 px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-200" :disabled="actionBusy[job.id]" @click="runJob(job)">
-                <span class="inline-flex items-center gap-2"><PlayCircle :size="16" />{{ t('cron.runNow') }}</span>
-              </button>
-              <button class="rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200" :disabled="actionBusy[job.id]" @click="openEdit(job)">
-                <span class="inline-flex items-center gap-2"><Pencil :size="16" />{{ t('cron.edit') }}</span>
-              </button>
-              <button class="rounded-xl bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100" :disabled="actionBusy[job.id]" @click="deleteJob(job)">
-                <span class="inline-flex items-center gap-2"><Trash2 :size="16" />{{ t('cron.delete') }}</span>
-              </button>
-            </div>
-          </article>
-        </div>
-      </section>
-    </div>
-
-    <div v-if="showForm" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/50 p-4">
-      <div class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
-        <div class="flex items-center justify-between">
-          <h3 class="text-2xl font-semibold text-slate-900">
+          <h3 class="text-lg font-semibold text-slate-900">
             {{ editingJobId ? t('cron.editTask') : t('cron.newTask') }}
           </h3>
           <button class="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-600 hover:bg-slate-200" @click="showForm = false">
             {{ t('cron.cancel') }}
           </button>
         </div>
-        <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
           <label class="text-sm text-slate-700">
             <div class="mb-2 font-medium">{{ t('cron.taskName') }}</div>
             <input v-model="form.name" class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-400" />
@@ -489,7 +442,7 @@ onUnmounted(() => {
         </div>
         <label class="mt-4 block text-sm text-slate-700">
           <div class="mb-2 font-medium">{{ t('cron.message') }}</div>
-          <textarea v-model="form.message" rows="5" class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-400" />
+          <textarea v-model="form.message" rows="4" class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-400" />
         </label>
         <div class="mt-4 grid gap-4 md:grid-cols-2">
           <label class="text-sm text-slate-700">
@@ -515,7 +468,7 @@ onUnmounted(() => {
             {{ t('cron.deleteAfterRun') }}
           </label>
         </div>
-        <div class="mt-6 flex justify-end gap-3">
+        <div class="mt-5 flex justify-end gap-3">
           <button class="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200" @click="showForm = false">
             {{ t('cron.cancel') }}
           </button>
@@ -523,7 +476,207 @@ onUnmounted(() => {
             {{ submitting ? t('cron.saving') : t('cron.save') }}
           </button>
         </div>
-      </div>
+      </section>
+
+      <!-- Tab filter bar + search -->
+      <section class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="flex items-center gap-1 rounded-xl bg-white p-1 shadow-sm">
+          <button
+            class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+            :class="activeTab === 'active' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'"
+            @click="activeTab = 'active'"
+          >
+            <span class="inline-flex items-center gap-1.5">
+              <PlayCircle :size="14" />
+              {{ t('cron.tabActive') || 'Active' }}
+              <span class="ml-1 rounded-full bg-emerald-200 px-1.5 py-0.5 text-xs">{{ activeJobs.length }}</span>
+            </span>
+          </button>
+          <button
+            class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+            :class="activeTab === 'scheduled' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'"
+            @click="activeTab = 'scheduled'"
+          >
+            <span class="inline-flex items-center gap-1.5">
+              <Clock :size="14" />
+              {{ t('cron.tabScheduled') || 'Scheduled' }}
+              <span class="ml-1 rounded-full bg-blue-200 px-1.5 py-0.5 text-xs">{{ scheduledJobs.length }}</span>
+            </span>
+          </button>
+          <button
+            class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+            :class="activeTab === 'all' ? 'bg-slate-100 text-slate-700' : 'text-slate-600 hover:bg-slate-50'"
+            @click="activeTab = 'all'"
+          >
+            <span class="inline-flex items-center gap-1.5">
+              {{ t('cron.tabAll') || 'All' }}
+              <span class="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">{{ jobs.length }}</span>
+            </span>
+          </button>
+        </div>
+        <div class="relative">
+          <Search :size="16" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm outline-none placeholder:text-slate-400 focus:border-emerald-400 md:w-64"
+            :placeholder="t('cron.searchPlaceholder') || 'Search tasks...'"
+          />
+        </div>
+      </section>
+
+      <!-- Task list -->
+      <section class="space-y-3">
+        <!-- Loading state -->
+        <div v-if="loading && filteredJobs.length === 0" class="flex flex-col items-center justify-center rounded-2xl bg-white px-6 py-12 text-slate-500">
+          <RefreshCw :size="24" class="animate-spin text-slate-400" />
+          <p class="mt-3 text-sm">{{ t('cron.loading') }}</p>
+        </div>
+
+        <!-- Empty state -->
+        <div v-else-if="filteredJobs.length === 0 && !searchQuery" class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-slate-500">
+          <CalendarClock :size="40" class="text-slate-300" />
+          <p class="mt-3 font-medium">{{ t('cron.emptyState') }}</p>
+        </div>
+
+        <!-- No search results -->
+        <div v-else-if="filteredJobs.length === 0 && searchQuery" class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-slate-500">
+          <Search :size="40" class="text-slate-300" />
+          <p class="mt-3 font-medium">{{ t('cron.noSearchResults') || 'No tasks matching search' }}</p>
+        </div>
+
+        <!-- Job cards -->
+        <article
+          v-for="job in filteredJobs"
+          :key="job.id"
+          class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+        >
+          <!-- Header row -->
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start gap-3 min-w-0 flex-1">
+              <!-- Status dot -->
+              <div class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" :class="statusDotClass(job.computedStatus)" />
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h4 class="text-base font-semibold text-slate-900 truncate">{{ job.name }}</h4>
+                  <span class="rounded-full px-2.5 py-0.5 text-xs font-medium" :class="statusClass(job.computedStatus)">
+                    {{ t(`cron.status.${job.computedStatus}`) }}
+                  </span>
+                  <span class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                    <component :is="getTriggerBadge(job.schedule).icon" :size="12" />
+                    {{ getTriggerBadge(job.schedule).label }}
+                  </span>
+                </div>
+                <p class="mt-1 text-sm text-slate-600">{{ describeSchedule(job.schedule) }}</p>
+                <!-- Content preview -->
+                <p v-if="job.payload.message" class="mt-1 line-clamp-1 text-xs text-slate-500">
+                  {{ job.payload.message }}
+                </p>
+              </div>
+            </div>
+            <!-- Action buttons -->
+            <div class="flex shrink-0 items-center gap-1">
+              <button
+                class="rounded-lg p-2 text-slate-500 transition hover:bg-amber-50 hover:text-amber-600"
+                :title="job.enabled ? t('cron.pause') : t('cron.enable')"
+                :disabled="actionBusy[job.id]"
+                @click="toggleJob(job)"
+              >
+                <Pause v-if="job.enabled" :size="16" />
+                <Play v-else :size="16" />
+              </button>
+              <button
+                class="rounded-lg p-2 text-slate-500 transition hover:bg-sky-50 hover:text-sky-600"
+                :title="t('cron.runNow')"
+                :disabled="actionBusy[job.id]"
+                @click="runJob(job)"
+              >
+                <PlayCircle :size="16" />
+              </button>
+              <button
+                v-if="job.isRunning"
+                class="rounded-lg p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                :title="t('cron.stop')"
+                :disabled="actionBusy[job.id]"
+                @click="stopJob(job)"
+              >
+                <Square :size="16" />
+              </button>
+              <button
+                class="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                :title="t('cron.edit')"
+                :disabled="actionBusy[job.id]"
+                @click="openEdit(job)"
+              >
+                <Pencil :size="16" />
+              </button>
+              <button
+                class="rounded-lg p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                :title="t('cron.delete')"
+                :disabled="actionBusy[job.id]"
+                @click="deleteJob(job)"
+              >
+                <Trash2 :size="16" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Details grid -->
+          <div class="mt-3 grid gap-3 border-t border-slate-100 pt-3 text-xs text-slate-600 md:grid-cols-4">
+            <div>
+              <span class="font-medium text-slate-700">{{ t('cron.nextRun') }}</span>
+              <p class="mt-0.5 text-slate-500">{{ formatTime(job.state.nextRunAtMs) }}</p>
+            </div>
+            <div>
+              <span class="font-medium text-slate-700">{{ t('cron.lastRun') }}</span>
+              <p class="mt-0.5 text-slate-500">{{ formatTime(job.state.lastRunAtMs) }}</p>
+            </div>
+            <div>
+              <span class="font-medium text-slate-700">{{ t('cron.channel') }}</span>
+              <p class="mt-0.5 text-slate-500">{{ job.payload.channel || '-' }}</p>
+            </div>
+            <div>
+              <span class="font-medium text-slate-700">{{ t('cron.recipient') }}</span>
+              <p class="mt-0.5 text-slate-500">{{ job.payload.to || '-' }}</p>
+            </div>
+          </div>
+
+          <!-- Running indicator -->
+          <div v-if="job.isRunning" class="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            <span class="font-medium">{{ t('cron.runningFor') }}</span> {{ formatDuration(job.activeRun?.startedAtMs) }}
+          </div>
+
+          <!-- Error display -->
+          <div v-if="job.state.lastError" class="mt-3 flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <AlertCircle :size="14" class="mt-0.5 shrink-0" />
+            <span>{{ job.state.lastError }}</span>
+          </div>
+        </article>
+      </section>
+
+      <!-- Status legend footer -->
+      <section class="flex flex-wrap items-center justify-center gap-4 rounded-2xl bg-white px-4 py-3 text-xs text-slate-600 shadow-sm">
+        <span class="inline-flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full bg-emerald-500" />
+          {{ t('cron.status.running') || 'Running' }}
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full bg-blue-500" />
+          {{ t('cron.status.scheduled') || 'Scheduled' }}
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full bg-amber-500" />
+          {{ t('cron.status.paused') || 'Paused' }}
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full bg-rose-500" />
+          {{ t('cron.status.failed') || 'Failed' }}
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full bg-slate-400" />
+          {{ t('cron.status.completed') || 'Completed' }}
+        </span>
+      </section>
     </div>
   </div>
 </template>

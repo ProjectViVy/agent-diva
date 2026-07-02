@@ -7,34 +7,6 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use thiserror::Error;
 
-/// Structured API error returned by an upstream provider.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProviderApiError {
-    pub status: Option<u16>,
-    pub provider: Option<String>,
-    pub model: Option<String>,
-    pub code: Option<String>,
-    pub message: String,
-    pub error_type: Option<String>,
-    pub retry_after_secs: Option<u64>,
-    pub request_id: Option<String>,
-}
-
-impl ProviderApiError {
-    pub fn message(message: impl Into<String>) -> Self {
-        Self {
-            status: None,
-            provider: None,
-            model: None,
-            code: None,
-            message: message.into(),
-            error_type: None,
-            retry_after_secs: None,
-            request_id: None,
-        }
-    }
-}
-
 /// Error type for provider operations
 #[derive(Error, Debug)]
 pub enum ProviderError {
@@ -47,34 +19,46 @@ pub enum ProviderError {
     #[error("Invalid response: {0}")]
     InvalidResponse(String),
 
-    #[error("API error ({status:?}): {message}", status = .0.status, message = .0.message)]
-    ApiError(Box<ProviderApiError>),
+    #[error("API error: {0}")]
+    ApiError(String),
 
     #[error("Configuration error: {0}")]
     ConfigError(String),
-}
 
-impl ProviderError {
-    /// Construct an API error when only a human-readable message is available.
-    pub fn api_message(message: impl Into<String>) -> Self {
-        Self::ApiError(Box::new(ProviderApiError::message(message)))
-    }
+    #[error("Rate limited")]
+    RateLimited { retry_after: Option<u64> },
 }
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
 
+impl agent_diva_core::error_category::CategorizeError for ProviderError {
+    fn category(&self) -> agent_diva_core::error_category::ErrorCategory {
+        match self {
+            Self::RateLimited { .. } | Self::HttpError(_) => {
+                agent_diva_core::error_category::ErrorCategory::Retryable
+            }
+            Self::ConfigError(_) => agent_diva_core::error_category::ErrorCategory::Config,
+            Self::ApiError(_) | Self::InvalidResponse(_) => {
+                agent_diva_core::error_category::ErrorCategory::Fatal
+            }
+            Self::JsonError(_) => agent_diva_core::error_category::ErrorCategory::Unknown,
+        }
+    }
+}
+
 pub type ProviderEventStream = Pin<Box<dyn Stream<Item = ProviderResult<LLMStreamEvent>> + Send>>;
 
-/// Best-effort feature flags for a model.
+/// Conservative feature flags for a model.
 ///
-/// Unknown models default to no optional capabilities. These flags are used for
-/// hints and UI affordances only; callers should not rely on them to reject
-/// requests before the provider has a chance to respond.
+/// Unknown models default to no optional capabilities. This prevents the
+/// provider layer from sending multimodal payloads to text-only models.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelCapabilities {
     pub vision: bool,
     pub tools: bool,
     pub reasoning: bool,
+    /// Known context window size in tokens, if the model is in the hardcoded table.
+    pub context_window: Option<usize>,
 }
 
 impl ModelCapabilities {
@@ -83,128 +67,120 @@ impl ModelCapabilities {
             vision: false,
             tools: false,
             reasoning: false,
+            context_window: None,
         }
     }
 }
 
-/// Return best-effort capabilities for a model id.
+/// Return conservative capabilities for a model id.
 pub fn model_capabilities_for_model(model: &str) -> ModelCapabilities {
+    model_capabilities_for_model_with_config(model, None)
+}
+
+/// Return capabilities for a model id, optionally using provider-level reasoning config.
+///
+/// If `reasoning_config` is provided and has a `reasoning_type`, the model is considered
+/// reasoning-capable regardless of the hard-coded list. This allows per-provider
+/// dynamic configuration without waiting for code updates.
+pub fn model_capabilities_for_model_with_config(
+    model: &str,
+    reasoning_config: Option<&agent_diva_core::reasoning::ReasoningConfig>,
+) -> ModelCapabilities {
     let normalized = normalize_model_id(model);
     let mut capabilities = ModelCapabilities::text_only();
 
     capabilities.vision = matches!(
         normalized.as_str(),
-        "gpt-4o"
-            | "gpt-4o-mini"
-            | "gpt-4.1"
-            | "gpt-4.1-mini"
-            | "claude-3-5-sonnet-20240620"
-            | "claude-3-5-sonnet-latest"
-            | "claude-3-7-sonnet-20250219"
-            | "claude-3-7-sonnet-latest"
-            | "gemini-2.0-flash"
-            | "gemini-2.0-flash-lite"
-            | "gemini-2.5-flash"
-            | "gemini-2.5-pro"
+        "gpt-4o" | "gpt-4o-mini" | "gpt-4.1" | "gpt-4.1-mini"
     );
 
+    // Dynamic reasoning detection: if provider has reasoning_config, trust it;
+    // otherwise fall back to the hard-coded known-reasoning-model list.
+    capabilities.reasoning = if let Some(config) = reasoning_config {
+        !config.reasoning_type.is_empty()
+    } else {
+        is_known_reasoning_model(&normalized)
+    };
+    capabilities.context_window = context_window_for_model(&normalized);
     capabilities
 }
 
-/// Return true when the model is explicitly known to support vision input.
+/// Return true when the model is known to support reasoning/thinking content.
+fn is_known_reasoning_model(normalized: &str) -> bool {
+    matches!(
+        normalized,
+        // DeepSeek — both chat and reasoner return reasoning_content via API
+        "deepseek-chat" | "deepseek-reasoner"
+        // Anthropic Claude — extended thinking
+        | "claude-3-opus" | "claude-3-5-sonnet" | "claude-3-7-sonnet"
+        | "claude-3-5-haiku" | "claude-sonnet-4" | "claude-opus-4"
+        // OpenAI reasoning models
+        | "o1" | "o1-mini" | "o3-mini" | "o1-pro"
+        // Gemini thinking models
+        | "gemini-2.0-flash-thinking" | "gemini-2.5-pro" | "gemini-2.5-flash"
+        // Qwen thinking-capable models
+        | "qwen-max" | "qwen-plus" | "qwq-32b"
+        // Doubao/Douyin models with thinking
+        | "doubao-pro-32k" | "doubao-lite-32k"
+        // DeepSeek R1 (via OpenRouter or native)
+        | "deepseek-r1"
+    )
+}
+/// Known context window sizes for popular models (OpenFang-style hardcoded table).
 ///
-/// This helper is informational. Unknown models may still support image input
-/// and should generally be tried before falling back.
+/// This is a pragmatic fallback — the "笨办法" (dumb approach) that always works
+/// without network calls or heavy dependencies. Unknown models return `None`,
+/// and callers fall back to a conservative default (128K).
+fn context_window_for_model(normalized: &str) -> Option<usize> {
+    match normalized {
+        // ── Anthropic ──────────────────────────────────────────────────────
+        "claude-sonnet-4-6" | "claude-opus-4-7" => Some(1_000_000),
+        "claude-opus-4-6" | "claude-sonnet-4" | "claude-opus-4" => Some(200_000),
+        "claude-haiku-4" | "claude-3-5-sonnet" | "claude-3-7-sonnet" => Some(200_000),
+        "claude-3-opus" | "claude-3-5-haiku" | "claude-3-haiku" => Some(200_000),
+        // ── OpenAI ─────────────────────────────────────────────────────────
+        "gpt-4.1" | "gpt-4.1-mini" => Some(1_047_576),
+        "gpt-4o" | "gpt-4o-mini" => Some(128_000),
+        "gpt-5" => Some(400_000),
+        "o1" | "o1-mini" | "o3-mini" | "o1-pro" => Some(128_000),
+        // ── DeepSeek ───────────────────────────────────────────────────────
+        "deepseek-chat" | "deepseek-coder" => Some(128_000),
+        "deepseek-reasoner" | "deepseek-r1" => Some(128_000),
+        "deepseek-v4-pro" | "deepseek-v4-chat" => Some(1_000_000),
+        // ── Google Gemini ──────────────────────────────────────────────────
+        "gemini-2.5-pro" | "gemini-2.5-flash" => Some(1_048_576),
+        "gemini-2.0-flash-thinking" => Some(1_048_576),
+        // ── xAI ────────────────────────────────────────────────────────────
+        "grok-4" => Some(256_000),
+        // ── Qwen ───────────────────────────────────────────────────────────
+        "qwen-max" | "qwen-plus" | "qwq-32b" | "qwen3-30b-a3b" => Some(262_144),
+        // ── MiniMax ────────────────────────────────────────────────────────
+        "minimax-text-01" => Some(204_800),
+        // ── MiMo ───────────────────────────────────────────────────────────
+        "mimo-7b" => Some(262_144),
+        // ── Doubao ─────────────────────────────────────────────────────────
+        "doubao-pro-32k" | "doubao-lite-32k" => Some(32_000),
+        // Unknown model → caller should use a conservative default
+        _ => None,
+    }
+}
+
+/// Return true when the model is explicitly known to support vision input.
 pub fn supports_vision_model(model: &str) -> bool {
     model_capabilities_for_model(model).vision
 }
 
-/// Return true when an upstream provider error clearly indicates that the
-/// selected model cannot accept multimodal image input.
-pub fn provider_error_indicates_vision_unsupported(error: &ProviderError) -> bool {
-    match error {
-        ProviderError::ApiError(api_error) => {
-            message_indicates_vision_unsupported(&api_error.message)
-                || api_error
-                    .code
-                    .as_deref()
-                    .is_some_and(message_indicates_vision_unsupported)
-                || api_error
-                    .error_type
-                    .as_deref()
-                    .is_some_and(message_indicates_vision_unsupported)
-        }
-        ProviderError::InvalidResponse(message) => message_indicates_vision_unsupported(message),
-        ProviderError::HttpError(_)
-        | ProviderError::JsonError(_)
-        | ProviderError::ConfigError(_) => false,
-    }
+/// Return true when the model is explicitly known to support reasoning/thinking.
+pub fn supports_reasoning_model(model: &str) -> bool {
+    model_capabilities_for_model(model).reasoning
 }
 
-fn message_indicates_vision_unsupported(message: &str) -> bool {
-    let normalized = message.to_ascii_lowercase();
-
-    let mentions_image_input = normalized.contains("image_url")
-        || normalized.contains("image url")
-        || normalized.contains("image input")
-        || normalized.contains("vision")
-        || normalized.contains("multimodal")
-        || normalized.contains("multi-modal")
-        || normalized.contains("image");
-    let mentions_not_supported = normalized.contains("not support")
-        || normalized.contains("unsupported")
-        || normalized.contains("does not support")
-        || normalized.contains("doesn't support")
-        || normalized.contains("not capable")
-        || normalized.contains("cannot handle")
-        || normalized.contains("can't handle")
-        || normalized.contains("not enabled")
-        || normalized.contains("only available for")
-        || normalized.contains("text-only");
-
-    mentions_image_input && mentions_not_supported
-}
-
-/// Return true when an upstream provider error clearly indicates that the
-/// request exceeded the model's context or token window.
-pub fn provider_error_indicates_context_overflow(error: &ProviderError) -> bool {
-    match error {
-        ProviderError::ApiError(api_error) => {
-            message_indicates_context_overflow(&api_error.message)
-                || api_error
-                    .code
-                    .as_deref()
-                    .is_some_and(message_indicates_context_overflow)
-                || api_error
-                    .error_type
-                    .as_deref()
-                    .is_some_and(message_indicates_context_overflow)
-        }
-        ProviderError::InvalidResponse(message) => message_indicates_context_overflow(message),
-        ProviderError::HttpError(_)
-        | ProviderError::JsonError(_)
-        | ProviderError::ConfigError(_) => false,
-    }
-}
-
-fn message_indicates_context_overflow(message: &str) -> bool {
-    let normalized = message.to_ascii_lowercase();
-    let mentions_context = normalized.contains("context length")
-        || normalized.contains("maximum context length")
-        || normalized.contains("max context length")
-        || normalized.contains("too many tokens")
-        || normalized.contains("prompt is too long")
-        || normalized.contains("reduce the length")
-        || normalized.contains("token limit")
-        || normalized.contains("context window")
-        || normalized.contains("input is too long");
-    let mentions_limit = normalized.contains("exceed")
-        || normalized.contains("over")
-        || normalized.contains("long")
-        || normalized.contains("maximum")
-        || normalized.contains("limit");
-
-    mentions_context && mentions_limit
+/// Return true when the model supports reasoning given an optional provider-level config.
+pub fn supports_reasoning_model_with_config(
+    model: &str,
+    reasoning_config: Option<&agent_diva_core::reasoning::ReasoningConfig>,
+) -> bool {
+    model_capabilities_for_model_with_config(model, reasoning_config).reasoning
 }
 
 fn normalize_model_id(model: &str) -> String {
@@ -669,15 +645,11 @@ mod tests {
     }
 
     #[test]
-    fn vision_capabilities_are_best_effort() {
+    fn vision_capabilities_are_conservative() {
         assert!(!supports_vision_model("unknown-model"));
         assert!(!supports_vision_model("deepseek-chat"));
         assert!(supports_vision_model("gpt-4o"));
         assert!(supports_vision_model("openai/gpt-4.1-mini"));
-        assert!(supports_vision_model("claude-3-5-sonnet-20240620"));
-        assert!(supports_vision_model("anthropic/claude-3-7-sonnet-latest"));
-        assert!(supports_vision_model("gemini-2.0-flash"));
-        assert!(supports_vision_model("google/gemini-2.5-pro"));
 
         assert_eq!(
             model_capabilities_for_model("unknown-model"),
@@ -686,56 +658,32 @@ mod tests {
     }
 
     #[test]
-    fn provider_error_detects_vision_unsupported_messages() {
-        assert!(provider_error_indicates_vision_unsupported(
-            &ProviderError::api_message(
-                "Model does not support vision or image input for this endpoint".to_string()
-            )
-        ));
-        assert!(provider_error_indicates_vision_unsupported(
-            &ProviderError::InvalidResponse(
-                "image_url content is unsupported for this text-only model".to_string()
-            )
-        ));
+    fn reasoning_capabilities_are_conservative() {
+        // Unknown models: no reasoning
+        assert!(!supports_reasoning_model("unknown-model"));
+        assert!(!supports_reasoning_model("gpt-4o"));
 
-        assert!(!provider_error_indicates_vision_unsupported(
-            &ProviderError::api_message("rate limit exceeded".to_string())
-        ));
-        assert!(!provider_error_indicates_vision_unsupported(
-            &ProviderError::InvalidResponse("unexpected response payload".to_string())
-        ));
-    }
+        // DeepSeek models
+        assert!(supports_reasoning_model("deepseek-chat"));
+        assert!(supports_reasoning_model("deepseek-reasoner"));
+        assert!(supports_reasoning_model("deepseek/deepseek-r1"));
 
-    #[test]
-    fn provider_error_detects_context_overflow_messages() {
-        assert!(provider_error_indicates_context_overflow(
-            &ProviderError::api_message(
-                "This model's maximum context length is 8192 tokens, however you requested 12000 tokens".to_string()
-            )
-        ));
-        assert!(provider_error_indicates_context_overflow(
-            &ProviderError::InvalidResponse(
-                "prompt is too long, reduce the length and retry".to_string()
-            )
-        ));
-        assert!(!provider_error_indicates_context_overflow(
-            &ProviderError::api_message("vision unsupported".to_string())
-        ));
-    }
+        // Anthropic Claude
+        assert!(supports_reasoning_model("claude-3-5-sonnet"));
+        assert!(supports_reasoning_model("claude-sonnet-4"));
 
-    #[test]
-    fn api_message_constructs_unstructured_api_error() {
-        let error = ProviderError::api_message("rate limit exceeded");
+        // OpenAI reasoning models
+        assert!(supports_reasoning_model("o1"));
+        assert!(supports_reasoning_model("o3-mini"));
 
-        match error {
-            ProviderError::ApiError(api_error) => {
-                assert_eq!(api_error.message, "rate limit exceeded");
-                assert_eq!(api_error.status, None);
-                assert_eq!(api_error.provider, None);
-                assert_eq!(api_error.model, None);
-            }
-            other => panic!("unexpected error variant: {other:?}"),
-        }
+        // Gemini
+        assert!(supports_reasoning_model("gemini-2.5-pro"));
+
+        // Unknown model is still text_only
+        assert_eq!(
+            model_capabilities_for_model("unknown-model"),
+            ModelCapabilities::text_only()
+        );
     }
 
     #[test]
@@ -800,5 +748,164 @@ mod tests {
 
         assert_eq!(content.as_text(), None);
         assert_eq!(content.to_text_lossy(), "hello world");
+    }
+
+    #[test]
+    fn dynamic_reasoning_with_config_enables_reasoning_for_any_model() {
+        use agent_diva_core::reasoning::ReasoningConfig;
+
+        // Unknown model without config: no reasoning
+        assert!(!supports_reasoning_model("unknown-custom-model"));
+
+        // Unknown model with reasoning config: reasoning enabled
+        let config = ReasoningConfig {
+            reasoning_type: "openai-chat".to_string(),
+            thinking_token_limits: None,
+            supported_efforts: None,
+            default_effort: None,
+        };
+        assert!(supports_reasoning_model_with_config(
+            "unknown-custom-model",
+            Some(&config)
+        ));
+
+        // Known reasoning model still works without config
+        assert!(supports_reasoning_model("deepseek-chat"));
+
+        // Known reasoning model with config still works
+        assert!(supports_reasoning_model_with_config(
+            "deepseek-chat",
+            Some(&config)
+        ));
+    }
+
+    #[test]
+    fn dynamic_reasoning_with_empty_type_disables_reasoning() {
+        use agent_diva_core::reasoning::ReasoningConfig;
+
+        let config = ReasoningConfig {
+            reasoning_type: "".to_string(),
+            thinking_token_limits: None,
+            supported_efforts: None,
+            default_effort: None,
+        };
+        // Empty reasoning_type means no reasoning capability
+        assert!(!supports_reasoning_model_with_config(
+            "any-model",
+            Some(&config)
+        ));
+    }
+
+    #[test]
+    fn model_capabilities_with_config_reflects_dynamic_reasoning() {
+        use agent_diva_core::reasoning::ReasoningConfig;
+
+        let config = ReasoningConfig {
+            reasoning_type: "anthropic".to_string(),
+            thinking_token_limits: None,
+            supported_efforts: None,
+            default_effort: Some("high".to_string()),
+        };
+
+        let caps = model_capabilities_for_model_with_config("my-custom-model", Some(&config));
+        assert!(caps.reasoning);
+        assert!(!caps.vision); // Still conservative for unknown models
+    }
+
+    #[test]
+    fn model_capabilities_without_config_falls_back_to_hardcoded() {
+        // Known reasoning model
+        let caps = model_capabilities_for_model("deepseek-chat");
+        assert!(caps.reasoning);
+
+        // Unknown model
+        let caps = model_capabilities_for_model("unknown-model");
+        assert!(!caps.reasoning);
+        assert!(!caps.vision);
+        assert!(!caps.tools);
+    }
+    #[test]
+    fn context_window_for_known_models() {
+        // Anthropic 1M models
+        assert_eq!(
+            model_capabilities_for_model("claude-sonnet-4-6").context_window,
+            Some(1_000_000)
+        );
+        assert_eq!(
+            model_capabilities_for_model("claude-opus-4-7").context_window,
+            Some(1_000_000)
+        );
+        // Anthropic 200K models
+        assert_eq!(
+            model_capabilities_for_model("claude-sonnet-4").context_window,
+            Some(200_000)
+        );
+        assert_eq!(
+            model_capabilities_for_model("claude-haiku-4").context_window,
+            Some(200_000)
+        );
+        // OpenAI 1M models
+        assert_eq!(
+            model_capabilities_for_model("gpt-4.1").context_window,
+            Some(1_047_576)
+        );
+        // OpenAI 128K models
+        assert_eq!(
+            model_capabilities_for_model("gpt-4o").context_window,
+            Some(128_000)
+        );
+        // OpenAI 400K model
+        assert_eq!(
+            model_capabilities_for_model("gpt-5").context_window,
+            Some(400_000)
+        );
+        // DeepSeek 128K
+        assert_eq!(
+            model_capabilities_for_model("deepseek-chat").context_window,
+            Some(128_000)
+        );
+        // DeepSeek 1M
+        assert_eq!(
+            model_capabilities_for_model("deepseek-v4-pro").context_window,
+            Some(1_000_000)
+        );
+        // Gemini 1M
+        assert_eq!(
+            model_capabilities_for_model("gemini-2.5-pro").context_window,
+            Some(1_048_576)
+        );
+        // xAI
+        assert_eq!(
+            model_capabilities_for_model("grok-4").context_window,
+            Some(256_000)
+        );
+        // Qwen
+        assert_eq!(
+            model_capabilities_for_model("qwen-max").context_window,
+            Some(262_144)
+        );
+    }
+    #[test]
+    fn context_window_for_unknown_model_is_none() {
+        assert_eq!(
+            model_capabilities_for_model("unknown-model").context_window,
+            None
+        );
+        assert_eq!(
+            model_capabilities_for_model("some-random-llm").context_window,
+            None
+        );
+    }
+    #[test]
+    fn context_window_with_provider_prefix() {
+        // Provider prefix should be stripped by normalize_model_id
+        assert_eq!(
+            model_capabilities_for_model("openai/gpt-4o").context_window,
+            Some(128_000)
+        );
+        assert_eq!(
+            model_capabilities_for_model("anthropic/claude-sonnet-4-6").context_window,
+            Some(1_000_000)
+        );
     }
 }

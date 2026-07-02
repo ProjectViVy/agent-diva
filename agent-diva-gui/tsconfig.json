@@ -5,6 +5,10 @@
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
+    "paths": {
+"avatar-runtime-vrm": ["./avatar-runtime-vrm/src/index.ts"],
+      "@morediva/shared-avatar-protocol": ["./shared-avatar-protocol/src/index.ts"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -21,6 +25,6 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
-  "exclude": ["src/**/*.stories.ts"],
+  "exclude": ["src/**/*.stories.ts", "src/**/*.test.ts", "avatar-runtime-vrm/**/*.test.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

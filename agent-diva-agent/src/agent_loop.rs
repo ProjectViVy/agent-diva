@@ -1,36 +1,39 @@
 //! Agent loop: the core processing engine
 
 use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
+use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
-use agent_diva_core::debug::DebugEventLogger;
 use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
+use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::SessionManager;
-use agent_diva_core::trace::{TraceId, TraceLogger};
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
-use agent_diva_tooling::{ToolError, ToolRegistry};
+use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 use crate::consolidation;
 use crate::context::{ContextBuilder, SoulContextSettings};
-use crate::context_budget::ContextBudgetPolicy;
+use crate::context_budget::BudgetConfig;
+use crate::mask::{MaskFile, MaskRegistry};
+use crate::memory_boundary::default_memory_provider;
+#[cfg(feature = "mentle")]
+use crate::mentle_runtime::MentleRuntime;
 use crate::runtime_control::RuntimeControlCommand;
 use crate::subagent::SubagentManager;
-use crate::subagent::SubagentSpawnRequest;
-use crate::subagent_policy::SubagentPolicy;
 use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
 use crate::tool_config::builtin::BuiltInToolsConfig;
+use crate::tool_config::mentle::MentleToolRuntimeConfig;
 use crate::tool_config::network::NetworkToolConfig;
+use crate::tool_config::PlanningConfig;
 
-pub(crate) mod context_retry;
-mod loop_guard;
 mod loop_runtime_control;
 mod loop_tools;
 mod loop_turn;
@@ -42,30 +45,26 @@ pub struct ToolConfig {
     pub builtin: BuiltInToolsConfig,
     /// Network tool runtime config
     pub network: NetworkToolConfig,
-    /// Default tool execution timeout in seconds
+    /// Mentle tool selection policy.
+    pub mentle: MentleToolRuntimeConfig,
+    /// Optional planning store/tool runtime.
+    pub planning: Option<PlanningConfig>,
+    /// Shell execution timeout in seconds
     pub exec_timeout: u64,
     /// Whether to restrict file access to workspace
     pub restrict_to_workspace: bool,
     /// Configured MCP servers
     pub mcp_servers: HashMap<String, MCPServerConfig>,
-    /// Subagent delegation policy
-    pub subagent_policy: SubagentPolicy,
     /// Optional cron service for scheduling tools
     pub cron_service: Option<Arc<CronService>>,
     /// Soul context settings
     pub soul_context: SoulContextSettings,
-    /// Response/request runtime settings
-    pub request_max_tokens: i32,
-    pub temperature: f64,
-    pub context_budget: ContextBudgetPolicy,
-    /// Structured runtime observability logger.
-    pub trace_logger: Option<Arc<TraceLogger>>,
-    /// Explicit raw debug logger for foreground gateway debug runs.
-    pub debug_logger: Option<Arc<DebugEventLogger>>,
     /// Whether to append transparent notifications on soul updates
     pub notify_on_soul_change: bool,
     /// Governance behavior for soul evolution transparency
     pub soul_governance: SoulGovernanceSettings,
+    /// Context compaction budget configuration.
+    pub budget: BudgetConfig,
 }
 
 impl Default for ToolConfig {
@@ -73,19 +72,16 @@ impl Default for ToolConfig {
         Self {
             builtin: BuiltInToolsConfig::default(),
             network: NetworkToolConfig::default(),
+            mentle: MentleToolRuntimeConfig::default(),
+            planning: None,
             exec_timeout: 60,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
-            subagent_policy: SubagentPolicy::default(),
             cron_service: None,
             soul_context: SoulContextSettings::default(),
-            request_max_tokens: 4096,
-            temperature: 0.7,
-            context_budget: ContextBudgetPolicy::default(),
-            trace_logger: None,
-            debug_logger: None,
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
+            budget: BudgetConfig::default(),
         }
     }
 }
@@ -119,9 +115,6 @@ pub struct AgentLoop {
     workspace: PathBuf,
     #[allow(dead_code)]
     model: String,
-    request_max_tokens: i32,
-    temperature: f64,
-    context_budget: ContextBudgetPolicy,
     max_iterations: usize,
     memory_window: usize,
     context: ContextBuilder,
@@ -137,13 +130,57 @@ pub struct AgentLoop {
     file_manager: Arc<FileManager>,
     /// Memory provider boundary for prefetch, sync_turn, and shutdown hooks.
     memory_provider: Arc<dyn MemoryProvider>,
-    trace_logger: Option<Arc<TraceLogger>>,
-    debug_logger: Option<Arc<DebugEventLogger>>,
+    custom_tools: Vec<Arc<dyn Tool>>,
+    mentle_active: bool,
+    /// Current thinking mode (auto/on/off), modifiable at runtime via SetThinking.
+    thinking_mode: ThinkingMode,
+    #[cfg(feature = "mentle")]
+    #[allow(dead_code)]
+    mentle_runtime: Option<MentleRuntime>,
 }
 
 pub struct AgentLoopToolSet {
     pub registry: ToolRegistry,
     pub config: ToolConfig,
+}
+
+pub struct AgentLoopToolSetBuilder {
+    registry: ToolRegistry,
+    config: ToolConfig,
+}
+
+impl AgentLoopToolSetBuilder {
+    pub fn new(config: ToolConfig) -> Self {
+        Self {
+            registry: ToolRegistry::new(),
+            config,
+        }
+    }
+
+    pub fn with_tool(mut self, tool: Arc<dyn Tool>) -> Self {
+        self.registry.register(tool);
+        self
+    }
+
+    pub fn with_tools(mut self, tools: Vec<Arc<dyn Tool>>) -> Self {
+        for tool in tools {
+            self.registry.register(tool);
+        }
+        self
+    }
+
+    pub fn build(self) -> AgentLoopToolSet {
+        AgentLoopToolSet {
+            registry: self.registry,
+            config: self.config,
+        }
+    }
+}
+
+impl AgentLoopToolSet {
+    pub fn builder(config: ToolConfig) -> AgentLoopToolSetBuilder {
+        AgentLoopToolSetBuilder::new(config)
+    }
 }
 
 struct SubagentManagerSpawner {
@@ -152,15 +189,86 @@ struct SubagentManagerSpawner {
 
 #[async_trait::async_trait]
 impl SubagentSpawner for SubagentManagerSpawner {
-    async fn spawn(&self, request: SubagentSpawnRequest) -> Result<String, ToolError> {
+    async fn spawn(
+        &self,
+        task: String,
+        label: Option<String>,
+        channel: String,
+        chat_id: String,
+    ) -> Result<String, ToolError> {
         self.manager
-            .spawn(request)
+            .spawn(task, label, channel, chat_id)
             .await
             .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
     }
 }
 
+#[derive(Clone, Copy, Default)]
+struct ToolTurnOptions<'a> {
+    active_mask: Option<&'a MaskFile>,
+    plan_mode: bool,
+}
+
+fn build_agent_tools(
+    workspace: PathBuf,
+    tool_config: &ToolConfig,
+    spawner: Arc<dyn SubagentSpawner>,
+    file_manager: Arc<FileManager>,
+    custom_tools: Vec<Arc<dyn Tool>>,
+    cron_service: Option<Arc<CronService>>,
+    turn_options: ToolTurnOptions<'_>,
+) -> ToolRegistry {
+    let mut assembly = ToolAssembly::new(workspace)
+        .builtin(tool_config.builtin.clone())
+        .with_network_config(tool_config.network.clone())
+        .with_planning_config(tool_config.planning.clone())
+        .with_exec_timeout(tool_config.exec_timeout)
+        .restrict_to_workspace(tool_config.restrict_to_workspace)
+        .mcp_servers(tool_config.mcp_servers.clone())
+        .with_subagent_spawner(spawner)
+        .with_file_manager(file_manager)
+        .with_tools(custom_tools)
+        .with_mask_config(
+            turn_options
+                .active_mask
+                .map(|mask| mask.frontmatter.clone()),
+        )
+        .plan_mode(turn_options.plan_mode);
+
+    if let Some(cron_service) = cron_service {
+        assembly = assembly.with_cron_service(cron_service);
+    }
+
+    assembly.build()
+}
+
 impl AgentLoop {
+    pub(crate) fn load_active_mask(&self) -> Option<MaskFile> {
+        let registry = MaskRegistry::new(self.workspace.join("masks"));
+        registry.current_mask().cloned()
+    }
+
+    pub(crate) fn rebuild_tools_for_turn(
+        &mut self,
+        active_mask: Option<&MaskFile>,
+        plan_mode: bool,
+    ) {
+        self.tools = build_agent_tools(
+            self.workspace.clone(),
+            &self.tool_config,
+            Arc::new(SubagentManagerSpawner {
+                manager: self.subagent_manager.clone(),
+            }),
+            self.file_manager.clone(),
+            self.custom_tools.clone(),
+            self.tool_config.cron_service.clone(),
+            ToolTurnOptions {
+                active_mask,
+                plan_mode,
+            },
+        );
+    }
+
     /// Create a new agent loop
     pub async fn new(
         bus: MessageBus,
@@ -174,20 +282,7 @@ impl AgentLoop {
         context.set_soul_settings(SoulContextSettings::default());
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::new();
-
-        let subagent_manager = Arc::new(SubagentManager::new(
-            provider.clone(),
-            workspace.clone(),
-            bus.clone(),
-            Some(model.clone()),
-            BuiltInToolsConfig::default(),
-            NetworkToolConfig::default(),
-            None,
-            false,
-            HashMap::new(),
-            SubagentPolicy::default(),
-            ToolConfig::default().context_budget,
-        ));
+        let memory_provider = default_memory_provider(&workspace);
 
         // Initialize file manager for attachment handling
         let storage_path = dirs::data_local_dir()
@@ -195,18 +290,26 @@ impl AgentLoop {
             .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
         let file_config = FileConfig::with_path(&storage_path);
         let file_manager = Arc::new(FileManager::new(file_config).await?);
-
-        let memory_provider: Arc<dyn MemoryProvider> =
-            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace));
+        let subagent_manager = Arc::new(SubagentManager::new(
+            provider.clone(),
+            workspace.clone(),
+            bus.clone(),
+            Some(model.clone()),
+            BuiltInToolsConfig::default().for_subagent(),
+            NetworkToolConfig::default(),
+            None,
+            false,
+            HashMap::new(),
+            ToolLimits::default(),
+            memory_provider.clone(),
+            None,
+        ));
 
         Ok(Self {
             bus,
             provider,
             workspace,
             model,
-            request_max_tokens: ToolConfig::default().request_max_tokens,
-            temperature: ToolConfig::default().temperature,
-            context_budget: ToolConfig::default().context_budget,
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
@@ -221,8 +324,11 @@ impl AgentLoop {
             soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
-            trace_logger: None,
-            debug_logger: None,
+            custom_tools: Vec::new(),
+            mentle_active: false,
+            thinking_mode: ThinkingMode::default(),
+            #[cfg(feature = "mentle")]
+            mentle_runtime: None,
         })
     }
 
@@ -272,50 +378,131 @@ impl AgentLoop {
         file_manager: Arc<FileManager>,
         memory_provider: Option<Arc<dyn MemoryProvider>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::with_tools_and_memory_provider_inner(
+            bus,
+            provider,
+            workspace,
+            model,
+            max_iterations,
+            tool_config,
+            runtime_control_rx,
+            file_manager,
+            memory_provider,
+            #[cfg(feature = "mentle")]
+            None,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn with_tools_and_memory_provider_inner(
+        bus: MessageBus,
+        provider: Arc<dyn LLMProvider>,
+        workspace: PathBuf,
+        model: Option<String>,
+        max_iterations: Option<usize>,
+        tool_config: ToolConfig,
+        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+        file_manager: Arc<FileManager>,
+        memory_provider: Option<Arc<dyn MemoryProvider>>,
+        #[cfg(feature = "mentle")] mentle_runtime_override: Option<Option<MentleRuntime>>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
 
+        #[cfg(feature = "mentle")]
+        let (mentle_active, custom_tools, active_memory_provider, mentle_runtime) = {
+            let mut active_memory_provider = memory_provider;
+            let mut custom_tools: Vec<Arc<dyn Tool>> = Vec::new();
+            let mut mentle_active = false;
+            let mentle_requested =
+                tool_config.builtin.mentle && tool_config.mentle.is_active_request();
+            let mentle_runtime = if mentle_requested {
+                if let Some(override_runtime) = mentle_runtime_override {
+                    override_runtime
+                } else {
+                    MentleRuntime::try_build(&workspace, &tool_config.mentle).await
+                }
+            } else {
+                None
+            };
+
+            if let Some(runtime) = &mentle_runtime {
+                custom_tools = runtime.custom_tools();
+                mentle_active = runtime.active();
+                if mentle_requested && !mentle_active {
+                    warn!("Mentle prompt disabled: runtime tools do not contain memtle_status");
+                }
+                if active_memory_provider.is_none() {
+                    active_memory_provider = Some(runtime.memory_provider());
+                }
+            } else if mentle_requested {
+                warn!(
+                    "Mentle requested but runtime is unavailable; falling back to Markdown memory"
+                );
+            }
+
+            (
+                mentle_active,
+                custom_tools,
+                active_memory_provider,
+                mentle_runtime,
+            )
+        };
+
+        #[cfg(not(feature = "mentle"))]
+        let (mentle_active, custom_tools, active_memory_provider) = {
+            if tool_config.builtin.mentle && tool_config.mentle.is_active_request() {
+                warn!("Mentle requested but the agent-diva-agent `mentle` feature is disabled");
+            }
+            (false, Vec::<Arc<dyn Tool>>::new(), memory_provider)
+        };
+
+        let memory_provider =
+            active_memory_provider.unwrap_or_else(|| default_memory_provider(&workspace));
         let subagent_manager = Arc::new(SubagentManager::new(
             provider.clone(),
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            tool_config.builtin.clone(),
+            tool_config.builtin.for_subagent(),
             tool_config.network.clone(),
             Some(tool_config.exec_timeout),
             tool_config.restrict_to_workspace,
             tool_config.mcp_servers.clone(),
-            tool_config.subagent_policy.clone(),
-            tool_config.context_budget.clone(),
+            ToolLimits::default(),
+            memory_provider.clone(),
+            None,
         ));
-
-        let spawner = Arc::new(SubagentManagerSpawner {
+        let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
             manager: subagent_manager.clone(),
         });
-        let tools = ToolAssembly::new(workspace.clone())
-            .builtin(tool_config.builtin.clone())
-            .with_network_config(tool_config.network.clone())
-            .with_exec_timeout(tool_config.exec_timeout)
-            .restrict_to_workspace(tool_config.restrict_to_workspace)
-            .mcp_servers(tool_config.mcp_servers.clone())
-            .with_subagent_spawner(spawner)
-            .with_file_manager(file_manager.clone())
-            .with_tools(Vec::new())
-            .build();
+        let mentle_tool_names = custom_tools
+            .iter()
+            .map(|tool| tool.name().to_string())
+            .collect();
+        context = context
+            .with_memory_provider(memory_provider.clone())
+            .with_mentle(mentle_active)
+            .with_mentle_tools(mentle_tool_names);
 
-        let memory_provider = memory_provider
-            .unwrap_or_else(|| Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)));
+        let tools = build_agent_tools(
+            workspace.clone(),
+            &tool_config,
+            spawner.clone(),
+            file_manager.clone(),
+            custom_tools.clone(),
+            tool_config.cron_service.clone(),
+            ToolTurnOptions::default(),
+        );
 
         let mut agent = Self {
             bus,
             provider,
             workspace,
             model,
-            request_max_tokens: tool_config.request_max_tokens,
-            temperature: tool_config.temperature,
-            context_budget: tool_config.context_budget.clone(),
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
@@ -330,23 +517,25 @@ impl AgentLoop {
             soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
-            trace_logger: tool_config.trace_logger.clone(),
-            debug_logger: tool_config.debug_logger.clone(),
+            custom_tools,
+            mentle_active,
+            thinking_mode: ThinkingMode::default(),
+            #[cfg(feature = "mentle")]
+            mentle_runtime,
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
-            agent.tools = ToolAssembly::new(agent.workspace.clone())
-                .builtin(agent.tool_config.builtin.clone())
-                .with_network_config(agent.tool_config.network.clone())
-                .with_exec_timeout(agent.tool_config.exec_timeout)
-                .restrict_to_workspace(agent.tool_config.restrict_to_workspace)
-                .mcp_servers(agent.tool_config.mcp_servers.clone())
-                .with_subagent_spawner(Arc::new(SubagentManagerSpawner {
+            agent.tools = build_agent_tools(
+                agent.workspace.clone(),
+                &agent.tool_config,
+                Arc::new(SubagentManagerSpawner {
                     manager: agent.subagent_manager.clone(),
-                }))
-                .with_cron_service(cron_service)
-                .with_file_manager(agent.file_manager.clone())
-                .build();
+                }),
+                agent.file_manager.clone(),
+                agent.custom_tools.clone(),
+                Some(cron_service),
+                ToolTurnOptions::default(),
+            );
         }
 
         Ok(agent)
@@ -366,32 +555,42 @@ impl AgentLoop {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(toolset.config.soul_context.clone());
+        let mentle_active = toolset.registry.has("memtle_status");
+        if toolset.config.builtin.mentle && !mentle_active {
+            warn!("Mentle prompt disabled: supplied toolset does not contain memtle_status");
+        }
         let sessions = SessionManager::new(workspace.clone());
+        let memory_provider = default_memory_provider(&workspace);
+        let mentle_tool_names = toolset
+            .registry
+            .tool_names()
+            .into_iter()
+            .filter(|name| name.starts_with("memtle_"))
+            .collect();
         let subagent_manager = Arc::new(SubagentManager::new(
             provider.clone(),
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            toolset.config.builtin.clone(),
+            toolset.config.builtin.for_subagent(),
             toolset.config.network.clone(),
             Some(toolset.config.exec_timeout),
             toolset.config.restrict_to_workspace,
             toolset.config.mcp_servers.clone(),
-            toolset.config.subagent_policy.clone(),
-            toolset.config.context_budget.clone(),
+            ToolLimits::default(),
+            memory_provider.clone(),
+            None,
         ));
-
-        let memory_provider: Arc<dyn MemoryProvider> =
-            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace));
+        context = context
+            .with_memory_provider(memory_provider.clone())
+            .with_mentle(mentle_active)
+            .with_mentle_tools(mentle_tool_names);
 
         Ok(Self {
             bus,
             provider,
             workspace,
             model,
-            request_max_tokens: toolset.config.request_max_tokens,
-            temperature: toolset.config.temperature,
-            context_budget: toolset.config.context_budget.clone(),
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
@@ -406,9 +605,22 @@ impl AgentLoop {
             soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
-            trace_logger: toolset.config.trace_logger.clone(),
-            debug_logger: toolset.config.debug_logger.clone(),
+            custom_tools: Vec::new(),
+            mentle_active,
+            thinking_mode: ThinkingMode::default(),
+            #[cfg(feature = "mentle")]
+            mentle_runtime: None,
         })
+    }
+
+    /// Whether Mentle prompt routing is active for this loop.
+    pub fn mentle_active(&self) -> bool {
+        self.mentle_active
+    }
+
+    /// Build the current system prompt from the configured runtime context.
+    pub fn build_system_prompt(&self) -> String {
+        self.context.build_system_prompt(None)
     }
 
     /// Run the agent loop, processing messages from the bus
@@ -504,19 +716,10 @@ impl AgentLoop {
     /// Process a single inbound message
     pub async fn process_inbound_message(
         &mut self,
-        mut msg: InboundMessage,
+        msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
-        let trace_id = msg
-            .metadata
-            .get("trace_id")
-            .and_then(|value| value.as_str())
-            .map(TraceId::from)
-            .unwrap_or_default();
-        msg.metadata.insert(
-            "trace_id".to_string(),
-            serde_json::Value::String(trace_id.as_str().to_string()),
-        );
+        let trace_id = Uuid::new_v4().to_string();
         use tracing::Instrument;
         let span = tracing::info_span!("AgentSpan", trace_id = %trace_id);
 
@@ -597,36 +800,24 @@ impl AgentLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::trace::TraceLogger;
+    #[cfg(feature = "mentle")]
+    use crate::mentle_runtime::{
+        mentle_tool_from_definition, mentle_tool_metadata_from_definition,
+        mentle_tools_from_definitions, MentleRuntime, MentleToolkitTool,
+    };
+    #[cfg(feature = "mentle")]
+    use crate::tool_config::mentle::{MentleToolMode, MentleToolRuntimeConfig};
     use agent_diva_providers::{
         LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
         ProviderResult, ToolCallRequest,
     };
-    use agent_diva_tooling::Tool;
     use async_trait::async_trait;
-    use chrono::Local;
     use futures::stream;
-    use serde_json::json;
     use serde_json::Value;
-    use std::collections::HashMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
     use tokio::time::{timeout, Duration};
 
     struct FailingStreamProvider;
-    struct SuccessfulStreamProvider;
-    struct OverflowRetryProvider {
-        calls: AtomicUsize,
-        fail_times: usize,
-    }
-    struct RepeatingToolStreamProvider {
-        args_sequence: Mutex<Vec<HashMap<String, serde_json::Value>>>,
-    }
-    struct AlwaysFailTool;
-    struct ToolThenFinalProvider {
-        calls: AtomicUsize,
-    }
-    struct OkTool;
 
     #[async_trait]
     impl LLMProvider for FailingStreamProvider {
@@ -638,7 +829,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::api_message(
+            Err(ProviderError::ApiError(
                 "chat should not be used".to_string(),
             ))
         }
@@ -651,47 +842,8 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<ProviderEventStream> {
-            Ok(Box::pin(stream::iter(vec![Err(
-                ProviderError::api_message("simulated stream failure".to_string()),
-            )])))
-        }
-
-        fn get_default_model(&self) -> String {
-            "test-model".to_string()
-        }
-    }
-
-    #[async_trait]
-    impl LLMProvider for SuccessfulStreamProvider {
-        async fn chat(
-            &self,
-            _messages: Vec<Message>,
-            _tools: Option<Vec<serde_json::Value>>,
-            _model: Option<String>,
-            _max_tokens: i32,
-            _temperature: f64,
-        ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::api_message(
-                "chat should not be used".to_string(),
-            ))
-        }
-
-        async fn chat_stream(
-            &self,
-            _messages: Vec<Message>,
-            _tools: Option<Vec<serde_json::Value>>,
-            _model: Option<String>,
-            _max_tokens: i32,
-            _temperature: f64,
-        ) -> ProviderResult<ProviderEventStream> {
-            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
-                LLMResponse {
-                    content: Some("assistant ok".to_string()),
-                    tool_calls: Vec::new(),
-                    finish_reason: "stop".to_string(),
-                    usage: std::collections::HashMap::new(),
-                    reasoning_content: None,
-                },
+            Ok(Box::pin(stream::iter(vec![Err(ProviderError::ApiError(
+                "simulated stream failure".to_string(),
             ))])))
         }
 
@@ -700,8 +852,13 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct CapturingStreamProvider {
+        captured_messages: Mutex<Vec<Vec<Message>>>,
+    }
+
     #[async_trait]
-    impl LLMProvider for OverflowRetryProvider {
+    impl LLMProvider for CapturingStreamProvider {
         async fn chat(
             &self,
             _messages: Vec<Message>,
@@ -710,29 +867,23 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::api_message(
+            Err(ProviderError::ApiError(
                 "chat should not be used".to_string(),
             ))
         }
 
         async fn chat_stream(
             &self,
-            _messages: Vec<Message>,
+            messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<ProviderEventStream> {
-            let call_index = self.calls.fetch_add(1, Ordering::SeqCst);
-            if call_index < self.fail_times {
-                return Err(ProviderError::api_message(
-                    "This model's maximum context length is 8192 tokens, however you requested 12000 tokens".to_string(),
-                ));
-            }
-
+            self.captured_messages.lock().unwrap().push(messages);
             Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
                 LLMResponse {
-                    content: Some("assistant recovered".to_string()),
+                    content: Some("done".to_string()),
                     tool_calls: Vec::new(),
                     finish_reason: "stop".to_string(),
                     usage: HashMap::new(),
@@ -746,8 +897,13 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct ConsolidatingStreamProvider {
+        captured_messages: Mutex<Vec<Vec<Message>>>,
+    }
+
     #[async_trait]
-    impl LLMProvider for RepeatingToolStreamProvider {
+    impl LLMProvider for ConsolidatingStreamProvider {
         async fn chat(
             &self,
             _messages: Vec<Message>,
@@ -756,116 +912,46 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::api_message(
-                "chat should not be used".to_string(),
-            ))
-        }
-
-        async fn chat_stream(
-            &self,
-            _messages: Vec<Message>,
-            _tools: Option<Vec<serde_json::Value>>,
-            _model: Option<String>,
-            _max_tokens: i32,
-            _temperature: f64,
-        ) -> ProviderResult<ProviderEventStream> {
-            let mut args_sequence = self.args_sequence.lock().unwrap();
-            let arguments = args_sequence.remove(0);
-            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
-                LLMResponse {
-                    content: Some("tool attempt".to_string()),
-                    tool_calls: vec![ToolCallRequest {
-                        id: "call-1".to_string(),
-                        call_type: "function".to_string(),
-                        name: "fail_tool".to_string(),
-                        arguments,
-                    }],
-                    finish_reason: "tool_calls".to_string(),
-                    usage: HashMap::new(),
-                    reasoning_content: None,
-                },
-            ))])))
-        }
-
-        fn get_default_model(&self) -> String {
-            "test-model".to_string()
-        }
-    }
-
-    #[async_trait]
-    impl Tool for AlwaysFailTool {
-        fn name(&self) -> &str {
-            "fail_tool"
-        }
-
-        fn description(&self) -> &str {
-            "Always returns an error"
-        }
-
-        fn parameters(&self) -> serde_json::Value {
-            json!({
-                "type": "object",
-                "properties": {
-                    "attempt": { "type": "integer" }
-                },
-                "required": ["attempt"]
+            Ok(LLMResponse {
+                content: None,
+                tool_calls: vec![ToolCallRequest {
+                    id: "save-memory-call".to_string(),
+                    call_type: "function".to_string(),
+                    name: "save_memory".to_string(),
+                    arguments: HashMap::from([
+                        (
+                            "memory_update".to_string(),
+                            serde_json::Value::String("Updated continuity.".to_string()),
+                        ),
+                        (
+                            "history_entry".to_string(),
+                            serde_json::Value::String("Recorded turn.".to_string()),
+                        ),
+                    ]),
+                }],
+                finish_reason: "tool_calls".to_string(),
+                usage: HashMap::new(),
+                reasoning_content: None,
             })
         }
 
-        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
-            Ok("Error: simulated tool failure".to_string())
-        }
-    }
-
-    #[async_trait]
-    impl LLMProvider for ToolThenFinalProvider {
-        async fn chat(
-            &self,
-            _messages: Vec<Message>,
-            _tools: Option<Vec<serde_json::Value>>,
-            _model: Option<String>,
-            _max_tokens: i32,
-            _temperature: f64,
-        ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::api_message(
-                "chat should not be used".to_string(),
-            ))
-        }
-
         async fn chat_stream(
             &self,
-            _messages: Vec<Message>,
+            messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<ProviderEventStream> {
-            let call_index = self.calls.fetch_add(1, Ordering::SeqCst);
-            let response = if call_index == 0 {
+            self.captured_messages.lock().unwrap().push(messages);
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
                 LLMResponse {
-                    content: Some("using tool".to_string()),
-                    tool_calls: vec![ToolCallRequest {
-                        id: "call-ok".to_string(),
-                        call_type: "function".to_string(),
-                        name: "ok_tool".to_string(),
-                        arguments: HashMap::from([("path".to_string(), json!("README.md"))]),
-                    }],
-                    finish_reason: "tool_calls".to_string(),
-                    usage: HashMap::new(),
-                    reasoning_content: None,
-                }
-            } else {
-                LLMResponse {
-                    content: Some("assistant after tool".to_string()),
+                    content: Some("done".to_string()),
                     tool_calls: Vec::new(),
                     finish_reason: "stop".to_string(),
                     usage: HashMap::new(),
                     reasoning_content: None,
-                }
-            };
-
-            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
-                response,
+                },
             ))])))
         }
 
@@ -874,55 +960,46 @@ mod tests {
         }
     }
 
+    struct NamedTool {
+        name: &'static str,
+    }
+
     #[async_trait]
-    impl Tool for OkTool {
+    impl Tool for NamedTool {
         fn name(&self) -> &str {
-            "ok_tool"
+            self.name
         }
 
         fn description(&self) -> &str {
-            "Returns a deterministic success result"
+            "test tool"
         }
 
-        fn parameters(&self) -> serde_json::Value {
-            json!({
+        fn parameters(&self) -> Value {
+            serde_json::json!({
                 "type": "object",
-                "properties": {
-                    "path": { "type": "string" }
-                },
-                "required": ["path"]
+                "properties": {},
+                "required": []
             })
         }
 
-        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
-            Ok("completed with ghp_demo token".to_string())
+        async fn execute(&self, _args: Value) -> agent_diva_tooling::Result<String> {
+            Ok("ok".to_string())
         }
     }
 
-    fn build_trace_logger(temp_dir: &tempfile::TempDir) -> Arc<TraceLogger> {
-        Arc::new(TraceLogger::new(
-            true,
-            temp_dir.path().join("runtime-logs"),
-            7,
-            280,
-            64,
-            true,
-        ))
-    }
+    struct NoopSpawner;
 
-    fn trace_log_path(temp_dir: &tempfile::TempDir) -> PathBuf {
-        temp_dir
-            .path()
-            .join("runtime-logs")
-            .join(format!("runtime-{}.jsonl", Local::now().format("%Y-%m-%d")))
-    }
-
-    fn read_trace_events(temp_dir: &tempfile::TempDir) -> Vec<Value> {
-        std::fs::read_to_string(trace_log_path(temp_dir))
-            .unwrap()
-            .lines()
-            .map(|line| serde_json::from_str::<Value>(line).unwrap())
-            .collect()
+    #[async_trait]
+    impl SubagentSpawner for NoopSpawner {
+        async fn spawn(
+            &self,
+            _task: String,
+            _label: Option<String>,
+            _channel: String,
+            _chat_id: String,
+        ) -> Result<String, ToolError> {
+            Ok("spawned".to_string())
+        }
     }
 
     #[tokio::test]
@@ -997,109 +1074,996 @@ mod tests {
     // ── memory provider lifecycle wiring tests (Task 6) ──────────────
 
     #[tokio::test]
-    async fn test_process_inbound_persists_user_message_on_provider_failure() {
+    async fn test_with_toolset_missing_memtle_tool_disables_prompt() {
         let bus = MessageBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
-
-        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
             .await
-            .unwrap();
-        let msg = InboundMessage::new("gui", "user", "chat-1", "Hello durable");
-
-        let result = agent.process_inbound_message(msg, None).await;
-        assert!(result.is_err());
-
-        let session = agent
-            .sessions
-            .get_or_load("gui:chat-1")
-            .unwrap()
-            .cloned()
-            .expect("session should persist after provider failure");
-        assert_eq!(session.messages.len(), 1);
-        assert_eq!(session.messages[0].role, "user");
-        assert_eq!(session.messages[0].content, "Hello durable");
-    }
-
-    #[tokio::test]
-    async fn test_process_inbound_success_does_not_duplicate_user_message() {
-        let bus = MessageBus::new();
-        let provider = Arc::new(SuccessfulStreamProvider);
-        let temp_dir = tempfile::tempdir().unwrap();
-        let workspace = temp_dir.path().to_path_buf();
-
-        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
-            .await
-            .unwrap();
-        let msg = InboundMessage::new("gui", "user", "chat-1", "Hello once");
-
-        let response = agent.process_inbound_message(msg, None).await.unwrap();
-        assert_eq!(response.unwrap().content, "assistant ok");
-
-        let session = agent
-            .sessions
-            .get_or_load("gui:chat-1")
-            .unwrap()
-            .cloned()
-            .expect("session should exist after successful turn");
-        assert_eq!(session.messages.len(), 2);
-        assert_eq!(
-            session
-                .messages
-                .iter()
-                .filter(|message| message.role == "user")
-                .count(),
-            1
+            .unwrap(),
         );
-        assert_eq!(session.messages[0].content, "Hello once");
-        assert_eq!(session.messages[1].content, "assistant ok");
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        let toolset = AgentLoopToolSet {
+            registry: ToolRegistry::new(),
+            config,
+        };
+
+        let agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        assert!(!agent.mentle_active());
+        assert!(!agent
+            .context
+            .build_system_prompt(None)
+            .contains("L2 Palace Memory"));
     }
 
     #[tokio::test]
-    async fn test_process_inbound_retries_once_after_context_overflow() {
+    async fn test_with_toolset_memtle_status_enables_prompt() {
         let bus = MessageBus::new();
-        let provider = Arc::new(OverflowRetryProvider {
-            calls: AtomicUsize::new(0),
-            fail_times: 1,
-        });
+        let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
-
-        let mut agent = AgentLoop::new(bus, provider.clone(), workspace, None, Some(1))
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
             .await
-            .unwrap();
-        let response = agent
-            .process_inbound_message(InboundMessage::new("gui", "user", "chat-1", "Hello"), None)
-            .await
-            .unwrap()
-            .expect("response should exist");
+            .unwrap(),
+        );
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(NamedTool {
+            name: "memtle_status",
+        }));
+        let toolset = AgentLoopToolSet {
+            registry,
+            config: ToolConfig::default(),
+        };
 
-        assert_eq!(response.content, "assistant recovered");
-        assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+        let agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        assert!(agent.mentle_active());
+        assert!(agent
+            .context
+            .build_system_prompt(None)
+            .contains("Memory Startup Status"));
     }
 
     #[tokio::test]
-    async fn test_process_inbound_returns_explicit_message_after_repeated_context_overflow() {
+    async fn test_with_toolset_status_only_prompt_omits_search_tool_name() {
         let bus = MessageBus::new();
-        let provider = Arc::new(OverflowRetryProvider {
-            calls: AtomicUsize::new(0),
-            fail_times: 2,
-        });
+        let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(NamedTool {
+            name: "memtle_status",
+        }));
+        let toolset = AgentLoopToolSet {
+            registry,
+            config: ToolConfig::default(),
+        };
 
-        let mut agent = AgentLoop::new(bus, provider.clone(), workspace, None, Some(1))
+        let agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let prompt = agent.context.build_system_prompt(None);
+
+        assert!(agent.mentle_active());
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
+        assert!(!prompt.contains("memtle_kg_query"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_runtime_active_matches_registered_status_tool() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        config.mentle = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::Full,
+            allowed_tools: Vec::new(),
+        };
+        let toolkit = memtle::toolkit::MemtleToolkit::open(workspace.join("palace.db"))
             .await
             .unwrap();
-        let response = agent
-            .process_inbound_message(InboundMessage::new("gui", "user", "chat-1", "Hello"), None)
-            .await
-            .unwrap()
-            .expect("response should exist");
+        let runtime = MentleRuntime::from_parts_for_test(
+            Arc::new(tokio::sync::Mutex::new(toolkit)),
+            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)),
+            vec![
+                Arc::new(NamedTool {
+                    name: "memtle_status",
+                }),
+                Arc::new(NamedTool {
+                    name: "memtle_search",
+                }),
+            ],
+        );
 
-        assert!(response.content.contains("context is too large"));
-        assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+        let agent = AgentLoop::with_tools_and_memory_provider_inner(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            config,
+            None,
+            file_manager,
+            None,
+            Some(Some(runtime)),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(agent.mentle_active(), agent.tools.has("memtle_status"));
+        assert!(agent.tools.has("memtle_search"));
+        assert!(!agent.context.build_system_prompt(None).contains("memtle_*"));
+    }
+
+    #[tokio::test]
+    async fn test_with_toolset_memtle_tool_without_status_disables_prompt() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(NamedTool {
+            name: "memtle_search",
+        }));
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        let toolset = AgentLoopToolSet { registry, config };
+
+        let agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let prompt = agent.context.build_system_prompt(None);
+
+        assert!(!agent.mentle_active());
+        assert!(agent.tools.has("memtle_search"));
+        assert!(!agent.tools.has("memtle_status"));
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
+    }
+
+    #[tokio::test]
+    async fn test_with_toolset_keeps_external_registry_isolated_from_runtime_state() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(NamedTool {
+            name: "memtle_status",
+        }));
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        config.builtin.spawn = true;
+        let toolset = AgentLoopToolSet { registry, config };
+
+        let agent = AgentLoop::with_toolset(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        assert!(agent.mentle_active());
+        assert!(agent.tools.has("memtle_status"));
+        assert!(agent.custom_tools.is_empty());
+        assert!(!agent.subagent_manager.builtin_tools_for_test().mentle);
+        assert!(!agent.subagent_manager.builtin_tools_for_test().spawn);
+        #[cfg(feature = "mentle")]
+        assert!(agent.mentle_runtime.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_build_agent_tools_reuses_custom_tools_with_cron() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = ToolConfig {
+            builtin: BuiltInToolsConfig {
+                cron: true,
+                ..BuiltInToolsConfig::none()
+            },
+            ..Default::default()
+        };
+        let cron_service = Arc::new(CronService::new(temp_dir.path().join("cron.json"), None));
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+
+        let registry = build_agent_tools(
+            temp_dir.path().to_path_buf(),
+            &config,
+            Arc::new(NoopSpawner),
+            file_manager,
+            vec![Arc::new(NamedTool {
+                name: "memtle_status",
+            })],
+            Some(cron_service),
+            ToolTurnOptions::default(),
+        );
+
+        assert!(registry.has("memtle_status"));
+        assert!(registry.has("cron"));
+    }
+
+    #[tokio::test]
+    async fn test_register_default_tools_preserves_custom_tools_with_cron() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace.clone(),
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+        let mut config = ToolConfig {
+            builtin: BuiltInToolsConfig {
+                cron: true,
+                ..BuiltInToolsConfig::none()
+            },
+            ..Default::default()
+        };
+        config.cron_service = Some(Arc::new(CronService::new(
+            workspace.join("cron.json"),
+            None,
+        )));
+
+        agent.custom_tools = vec![Arc::new(NamedTool {
+            name: "memtle_status",
+        })];
+        agent.register_default_tools(config);
+
+        assert!(agent.tools.has("memtle_status"));
+        assert!(agent.tools.has("cron"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_with_tools_active_runtime_enables_registry_and_prompt() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        config.mentle = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::Full,
+            allowed_tools: Vec::new(),
+        };
+        let toolkit = memtle::toolkit::MemtleToolkit::open(workspace.join("palace.db"))
+            .await
+            .unwrap();
+        let runtime = MentleRuntime::from_parts_for_test(
+            Arc::new(tokio::sync::Mutex::new(toolkit)),
+            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)),
+            vec![Arc::new(NamedTool {
+                name: "memtle_status",
+            })],
+        );
+
+        let agent = AgentLoop::with_tools_and_memory_provider_inner(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            config,
+            None,
+            file_manager,
+            None,
+            Some(Some(runtime)),
+        )
+        .await
+        .unwrap();
+
+        assert!(agent.mentle_active());
+        assert!(agent.tools.has("memtle_status"));
+        assert!(agent
+            .context
+            .build_system_prompt(None)
+            .contains("L2 Palace Memory"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_with_tools_startup_cron_preserves_mentle_custom_tools() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut config = ToolConfig::default();
+        config.builtin = BuiltInToolsConfig {
+            mentle: true,
+            cron: true,
+            ..BuiltInToolsConfig::none()
+        };
+        config.mentle = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::Full,
+            allowed_tools: Vec::new(),
+        };
+        config.cron_service = Some(Arc::new(CronService::new(
+            workspace.join("cron.json"),
+            None,
+        )));
+        let toolkit = memtle::toolkit::MemtleToolkit::open(workspace.join("palace.db"))
+            .await
+            .unwrap();
+        let runtime = MentleRuntime::from_parts_for_test(
+            Arc::new(tokio::sync::Mutex::new(toolkit)),
+            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)),
+            vec![Arc::new(NamedTool {
+                name: "memtle_status",
+            })],
+        );
+
+        let agent = AgentLoop::with_tools_and_memory_provider_inner(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            config,
+            None,
+            file_manager,
+            None,
+            Some(Some(runtime)),
+        )
+        .await
+        .unwrap();
+
+        assert!(agent.mentle_active());
+        assert!(agent.tools.has("memtle_status"));
+        assert!(agent.tools.has("cron"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_register_default_tools_rebuild_keeps_active_mentle_prompt() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        config.mentle = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::Full,
+            allowed_tools: Vec::new(),
+        };
+        let toolkit = memtle::toolkit::MemtleToolkit::open(workspace.join("palace.db"))
+            .await
+            .unwrap();
+        let runtime = MentleRuntime::from_parts_for_test(
+            Arc::new(tokio::sync::Mutex::new(toolkit)),
+            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)),
+            vec![Arc::new(NamedTool {
+                name: "memtle_status",
+            })],
+        );
+
+        let mut agent = AgentLoop::with_tools_and_memory_provider_inner(
+            bus,
+            provider,
+            workspace.clone(),
+            None,
+            Some(1),
+            config,
+            None,
+            file_manager,
+            None,
+            Some(Some(runtime)),
+        )
+        .await
+        .unwrap();
+        let mut rebuild_config = ToolConfig::default();
+        rebuild_config.builtin = BuiltInToolsConfig {
+            mentle: true,
+            cron: true,
+            ..BuiltInToolsConfig::none()
+        };
+        rebuild_config.cron_service = Some(Arc::new(CronService::new(
+            workspace.join("cron.json"),
+            None,
+        )));
+
+        agent.register_default_tools(rebuild_config);
+
+        assert!(agent.mentle_active());
+        assert!(agent.tools.has("memtle_status"));
+        assert!(agent.tools.has("cron"));
+        assert!(agent
+            .context
+            .build_system_prompt(None)
+            .contains("L2 Palace Memory"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_tool_definitions_are_dynamic() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let names = toolkit
+            .tool_definitions()
+            .into_iter()
+            .filter_map(|def| {
+                def.get("name")
+                    .and_then(|name| name.as_str())
+                    .map(str::to_string)
+            })
+            .collect::<std::collections::HashSet<_>>();
+
+        assert!(names.contains("memtle_status"));
+        assert!(names.contains("memtle_search"));
+        assert!(names.contains("memtle_diary_write"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[test]
+    fn test_mentle_tool_definition_metadata_maps_mcp_schema() {
+        let definition = serde_json::json!({
+            "name": "memtle_search",
+            "description": "Search the memory palace",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" }
+                },
+                "required": ["query"]
+            }
+        });
+
+        let (name, description, parameters) =
+            mentle_tool_metadata_from_definition(&definition).unwrap();
+
+        assert_eq!(name, "memtle_search");
+        assert_eq!(description, "Search the memory palace");
+        assert_eq!(parameters["required"][0], "query");
+    }
+
+    #[cfg(feature = "mentle")]
+    #[test]
+    fn test_mentle_tool_definition_metadata_rejects_incomplete_schema() {
+        let missing_schema = serde_json::json!({
+            "name": "memtle_search",
+            "description": "Search the memory palace"
+        });
+        let missing_name = serde_json::json!({
+            "description": "Search the memory palace",
+            "inputSchema": { "type": "object" }
+        });
+        let invalid_schema = serde_json::json!({
+            "name": "memtle_search",
+            "description": "Search the memory palace",
+            "inputSchema": "not a json schema object"
+        });
+
+        assert!(mentle_tool_metadata_from_definition(&missing_schema).is_none());
+        assert!(mentle_tool_metadata_from_definition(&missing_name).is_none());
+        assert!(mentle_tool_metadata_from_definition(&invalid_schema).is_none());
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tools_skip_invalid_definitions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let toolkit = Arc::new(tokio::sync::Mutex::new(toolkit));
+        let tools = mentle_tools_from_definitions(
+            vec![
+                serde_json::json!({
+                    "name": "memtle_status",
+                    "description": "Return palace status",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }),
+                serde_json::json!({
+                    "name": "memtle_broken",
+                    "description": "Broken schema",
+                    "inputSchema": "not an object"
+                }),
+            ],
+            toolkit,
+        );
+
+        let names = tools
+            .iter()
+            .map(|tool| tool.name().to_string())
+            .collect::<std::collections::HashSet<_>>();
+
+        assert_eq!(
+            names,
+            std::collections::HashSet::from(["memtle_status".to_string()])
+        );
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_filter_custom_mode_ignores_unknown_names() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let toolkit = Arc::new(tokio::sync::Mutex::new(toolkit));
+        let tools = mentle_tools_from_definitions(
+            vec![
+                serde_json::json!({
+                    "name": "memtle_status",
+                    "description": "Return palace status",
+                    "inputSchema": { "type": "object", "properties": {}, "required": [] }
+                }),
+                serde_json::json!({
+                    "name": "memtle_search",
+                    "description": "Search palace",
+                    "inputSchema": { "type": "object", "properties": {}, "required": [] }
+                }),
+            ],
+            toolkit,
+        );
+        let config = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::Custom,
+            allowed_tools: vec!["memtle_status".to_string(), "shell".to_string()],
+        };
+        let filtered = crate::mentle_runtime::filter_mentle_tools(tools, &config);
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name(), "memtle_status");
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_filter_read_only_excludes_mutation_tools() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let toolkit = Arc::new(tokio::sync::Mutex::new(toolkit));
+        let tools = mentle_tools_from_definitions(
+            vec![
+                serde_json::json!({
+                    "name": "memtle_status",
+                    "description": "Return palace status",
+                    "inputSchema": { "type": "object", "properties": {}, "required": [] }
+                }),
+                serde_json::json!({
+                    "name": "memtle_search",
+                    "description": "Search palace",
+                    "inputSchema": { "type": "object", "properties": {}, "required": [] }
+                }),
+                serde_json::json!({
+                    "name": "memtle_diary_write",
+                    "description": "Write diary",
+                    "inputSchema": { "type": "object", "properties": {}, "required": [] }
+                }),
+            ],
+            toolkit,
+        );
+        let config = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::ReadOnly,
+            allowed_tools: Vec::new(),
+        };
+        let names = crate::mentle_runtime::filter_mentle_tools(tools, &config)
+            .into_iter()
+            .map(|tool| tool.name().to_string())
+            .collect::<std::collections::HashSet<_>>();
+
+        assert!(names.contains("memtle_status"));
+        assert!(names.contains("memtle_search"));
+        assert!(!names.contains("memtle_diary_write"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_adapter_executes_json_call() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let toolkit = Arc::new(tokio::sync::Mutex::new(toolkit));
+        let definition = serde_json::json!({
+            "name": "memtle_status",
+            "description": "Return palace status",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        });
+        let tool = mentle_tool_from_definition(&definition, toolkit).unwrap();
+        let schema = tool.to_schema();
+
+        assert_eq!(schema["function"]["name"], "memtle_status");
+        assert_eq!(schema["function"]["parameters"], definition["inputSchema"]);
+
+        let output = tool.execute(serde_json::json!({})).await.unwrap();
+
+        assert!(output.contains("total_drawers"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_adapter_translates_call_errors() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let tool = MentleToolkitTool {
+            name: "memtle_status".to_string(),
+            description: "Return palace status".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+            toolkit: Arc::new(tokio::sync::Mutex::new(toolkit)),
+        };
+
+        let error = tool
+            .execute(serde_json::json!("not an object"))
+            .await
+            .expect_err("non-object args should be rejected by MemtleToolkit");
+
+        assert!(error
+            .to_string()
+            .contains("tool arguments must be a JSON object"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_adapter_translates_payload_error() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let tool = MentleToolkitTool {
+            name: "memtle_add_drawer".to_string(),
+            description: "Add drawer".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+            toolkit: Arc::new(tokio::sync::Mutex::new(toolkit)),
+        };
+
+        let error = tool
+            .execute(serde_json::json!({}))
+            .await
+            .expect_err("payload error should become a tool execution error");
+
+        assert!(error.to_string().contains("must be a non-empty string"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_adapter_translates_unknown_tool_payload() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let tool = MentleToolkitTool {
+            name: "memtle_unknown_tool".to_string(),
+            description: "Unknown tool for error mapping".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+            toolkit: Arc::new(tokio::sync::Mutex::new(toolkit)),
+        };
+
+        let error = tool
+            .execute(serde_json::json!({}))
+            .await
+            .expect_err("unknown tool payload should become a tool execution error");
+
+        assert!(error.to_string().contains("Unknown tool"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_tool_registration_skips_invalid_definition_only() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let toolkit = memtle::toolkit::MemtleToolkit::open(temp_dir.path().join("palace.db"))
+            .await
+            .unwrap();
+        let toolkit = Arc::new(tokio::sync::Mutex::new(toolkit));
+        let definitions = vec![
+            serde_json::json!({
+                "description": "Missing name",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }),
+            serde_json::json!({
+                "name": "memtle_status",
+                "description": "Return palace status",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }),
+        ];
+
+        let tools = mentle_tools_from_definitions(definitions, toolkit);
+
+        let names = tools
+            .iter()
+            .map(|tool| tool.name().to_string())
+            .collect::<std::collections::HashSet<_>>();
+
+        assert_eq!(
+            names,
+            std::collections::HashSet::from(["memtle_status".to_string()])
+        );
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_open_failure_falls_back_to_markdown_memory() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        config.mentle = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::Full,
+            allowed_tools: Vec::new(),
+        };
+        std::fs::create_dir_all(workspace.join("memory")).unwrap();
+        std::fs::write(
+            workspace.join("memory").join("MEMORY.md"),
+            "Markdown fallback continuity.",
+        )
+        .unwrap();
+
+        let agent = AgentLoop::with_tools_and_memory_provider_inner(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            config,
+            None,
+            file_manager,
+            None,
+            Some(None),
+        )
+        .await
+        .unwrap();
+
+        let prompt = agent.context.build_system_prompt(None);
+
+        assert!(!agent.mentle_active());
+        assert!(!agent.tools.has("memtle_status"));
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
+        assert!(prompt.contains("Markdown fallback continuity."));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_memory_dir_create_failure_disables_runtime() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        std::fs::write(workspace.join("memory"), "not a directory").unwrap();
+
+        let runtime = MentleRuntime::try_build(
+            &workspace,
+            &crate::tool_config::mentle::MentleToolRuntimeConfig {
+                enabled: true,
+                mode: crate::tool_config::mentle::MentleToolMode::Full,
+                allowed_tools: Vec::new(),
+            },
+        )
+        .await;
+
+        assert!(runtime.is_none());
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_mentle_runtime_without_status_disables_prompt_routing() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut config = ToolConfig::default();
+        config.builtin.mentle = true;
+        config.mentle = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::Custom,
+            allowed_tools: vec!["memtle_search".to_string()],
+        };
+        let toolkit = memtle::toolkit::MemtleToolkit::open(workspace.join("palace.db"))
+            .await
+            .unwrap();
+        let runtime = MentleRuntime::from_parts_for_test(
+            Arc::new(tokio::sync::Mutex::new(toolkit)),
+            Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace)),
+            vec![Arc::new(NamedTool {
+                name: "memtle_search",
+            })],
+        );
+
+        let agent = AgentLoop::with_tools_and_memory_provider_inner(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            config,
+            None,
+            file_manager,
+            None,
+            Some(Some(runtime)),
+        )
+        .await
+        .unwrap();
+
+        let prompt = agent.context.build_system_prompt(None);
+
+        assert!(!agent.mentle_active());
+        assert!(agent.tools.has("memtle_search"));
+        assert!(!agent.tools.has("memtle_status"));
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
     }
 
     use agent_diva_core::memory::{
@@ -1107,7 +2071,7 @@ mod tests {
         SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus,
         SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
     };
-    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     /// A test memory provider that tracks which lifecycle hooks were called.
     struct TrackingMemoryProvider {
@@ -1117,6 +2081,8 @@ mod tests {
         session_end_called: AtomicBool,
         prefetch_count: AtomicUsize,
         sync_count: AtomicUsize,
+        prefetch_failure_reason: Option<String>,
+        sync_failure_reason: Option<String>,
     }
 
     impl TrackingMemoryProvider {
@@ -1128,6 +2094,22 @@ mod tests {
                 session_end_called: AtomicBool::new(false),
                 prefetch_count: AtomicUsize::new(0),
                 sync_count: AtomicUsize::new(0),
+                prefetch_failure_reason: None,
+                sync_failure_reason: None,
+            }
+        }
+
+        fn with_prefetch_failure(reason: impl Into<String>) -> Self {
+            Self {
+                prefetch_failure_reason: Some(reason.into()),
+                ..Self::new()
+            }
+        }
+
+        fn with_sync_failure(reason: impl Into<String>) -> Self {
+            Self {
+                sync_failure_reason: Some(reason.into()),
+                ..Self::new()
             }
         }
     }
@@ -1159,6 +2141,15 @@ mod tests {
                 });
             }
 
+            if let Some(reason) = &self.prefetch_failure_reason {
+                return Ok(PrefetchResponse {
+                    status: PrefetchStatus::Failed {
+                        reason: reason.clone(),
+                    },
+                    prompt_block: None,
+                });
+            }
+
             Ok(PrefetchResponse {
                 status: PrefetchStatus::Ready,
                 prompt_block: Some(format!("## Prefetch Recall\nIntent: {}", request.intent)),
@@ -1171,6 +2162,14 @@ mod tests {
         ) -> agent_diva_core::Result<SyncTurnResponse> {
             self.sync_called.store(true, Ordering::SeqCst);
             self.sync_count.fetch_add(1, Ordering::SeqCst);
+            if let Some(reason) = &self.sync_failure_reason {
+                return Ok(SyncTurnResponse {
+                    status: SyncTurnStatus::Failed {
+                        reason: reason.clone(),
+                    },
+                });
+            }
+
             Ok(SyncTurnResponse {
                 status: SyncTurnStatus::Persisted,
             })
@@ -1206,7 +2205,7 @@ mod tests {
             None,
             Arc::new(
                 agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
-                    &temp_dir.path().join("files"),
+                    temp_dir.path().join("files"),
                 ))
                 .await
                 .unwrap(),
@@ -1217,7 +2216,166 @@ mod tests {
         .unwrap();
 
         // Verify the provider is the one we injected (Arc pointer identity).
-        assert_eq!(Arc::strong_count(&memory_provider), 2); // one in agent, one here
+        // Agent, context, inner component, and test handle = 4
+        assert_eq!(Arc::strong_count(&memory_provider), 4);
+    }
+
+    #[tokio::test]
+    async fn test_prefetch_recall_block_is_injected_before_first_llm_call() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(CapturingStreamProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let memory_provider = Arc::new(TrackingMemoryProvider::new());
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+
+        let mut agent = AgentLoop::with_tools_and_memory_provider(
+            bus,
+            provider.clone(),
+            workspace,
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            Some(memory_provider.clone()),
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_direct("recall provider boundary", "session-1", "gui", "chat-1")
+            .await
+            .unwrap();
+
+        assert_eq!(response, "done");
+        assert_eq!(memory_provider.prefetch_count.load(Ordering::SeqCst), 1);
+
+        let captured = provider.captured_messages.lock().unwrap();
+        let first_call = captured
+            .first()
+            .expect("provider should capture the first LLM call");
+        assert!(first_call.len() >= 3);
+        assert_eq!(first_call[0].role, "system");
+        assert_eq!(first_call[1].role, "system");
+        assert!(first_call[1]
+            .content
+            .as_text()
+            .unwrap()
+            .contains("## Prefetch Recall"));
+        assert!(first_call[1]
+            .content
+            .as_text()
+            .unwrap()
+            .contains("recall provider boundary"));
+        assert_eq!(first_call[2].role, "user");
+        assert_eq!(first_call[2].content, "recall provider boundary".into());
+    }
+
+    #[tokio::test]
+    async fn test_agent_loop_prefetch_failure_continues_without_recall_injection() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(CapturingStreamProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let memory_provider = Arc::new(TrackingMemoryProvider::with_prefetch_failure(
+            "palace query unavailable",
+        ));
+
+        let mut agent = AgentLoop::with_tools_and_memory_provider(
+            bus,
+            provider.clone(),
+            workspace,
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            Some(memory_provider.clone()),
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_direct("recall provider boundary", "session-1", "gui", "chat-1")
+            .await
+            .unwrap();
+
+        assert_eq!(response, "done");
+        assert_eq!(memory_provider.prefetch_count.load(Ordering::SeqCst), 1);
+
+        let captured = provider.captured_messages.lock().unwrap();
+        let first_call = captured
+            .first()
+            .expect("provider should capture the first LLM call");
+        assert!(first_call.iter().all(|message| !message
+            .content
+            .as_text()
+            .unwrap()
+            .contains("## Prefetch Recall")));
+        assert_eq!(
+            first_call
+                .last()
+                .expect("first call should include a user message")
+                .content,
+            "recall provider boundary".into()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_agent_loop_consolidation_sync_failure_keeps_main_response() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(ConsolidatingStreamProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let memory_provider = Arc::new(TrackingMemoryProvider::with_sync_failure(
+            "palace write unavailable",
+        ));
+
+        let mut agent = AgentLoop::with_tools_and_memory_provider(
+            bus,
+            provider.clone(),
+            workspace,
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            Some(memory_provider.clone()),
+        )
+        .await
+        .unwrap();
+        agent.memory_window = 1;
+
+        let response = agent
+            .process_direct("hello", "session-1", "gui", "chat-1")
+            .await
+            .unwrap();
+
+        assert_eq!(response, "done");
+        assert_eq!(memory_provider.sync_count.load(Ordering::SeqCst), 1);
+        let captured = provider.captured_messages.lock().unwrap();
+        assert_eq!(captured.len(), 1);
     }
 
     #[tokio::test]
@@ -1230,7 +2388,7 @@ mod tests {
         // ContextBuilder with injected provider
         let builder = ContextBuilder::new(workspace).with_memory_provider(memory_provider.clone());
 
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
 
         // Startup hook should have been called synchronously.
         assert!(
@@ -1367,264 +2525,5 @@ mod tests {
             .unwrap();
         assert_eq!(shutdown.status, SessionEndStatus::Triggered);
         assert!(provider.session_end_called.load(Ordering::SeqCst));
-    }
-
-    #[tokio::test]
-    async fn test_process_inbound_stops_on_repeated_failed_tool_call() {
-        let bus = MessageBus::new();
-        let provider = Arc::new(RepeatingToolStreamProvider {
-            args_sequence: Mutex::new(vec![
-                HashMap::from([("attempt".to_string(), json!(1))]),
-                HashMap::from([("attempt".to_string(), json!(1))]),
-                HashMap::from([("attempt".to_string(), json!(1))]),
-            ]),
-        });
-        let temp_dir = tempfile::tempdir().unwrap();
-        let workspace = temp_dir.path().to_path_buf();
-        let file_manager = Arc::new(
-            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
-                .await
-                .unwrap(),
-        );
-
-        let mut registry = ToolRegistry::new();
-        registry.register(Arc::new(AlwaysFailTool));
-        let toolset = AgentLoopToolSet {
-            registry,
-            config: ToolConfig::default(),
-        };
-
-        let mut agent = AgentLoop::with_toolset(
-            bus,
-            provider,
-            workspace,
-            None,
-            Some(10),
-            toolset,
-            None,
-            file_manager,
-        )
-        .await
-        .unwrap();
-
-        let response = agent
-            .process_inbound_message(InboundMessage::new("gui", "user", "chat-1", "hello"), None)
-            .await
-            .unwrap()
-            .expect("response should exist");
-
-        assert!(response.content.contains("repeated failures"));
-        assert!(response.content.contains("fail_tool"));
-    }
-
-    #[tokio::test]
-    async fn test_process_inbound_does_not_trip_repeated_failure_on_different_args() {
-        let bus = MessageBus::new();
-        let provider = Arc::new(RepeatingToolStreamProvider {
-            args_sequence: Mutex::new(vec![
-                HashMap::from([("attempt".to_string(), json!(1))]),
-                HashMap::from([("attempt".to_string(), json!(2))]),
-            ]),
-        });
-        let temp_dir = tempfile::tempdir().unwrap();
-        let workspace = temp_dir.path().to_path_buf();
-        let file_manager = Arc::new(
-            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
-                .await
-                .unwrap(),
-        );
-
-        let mut registry = ToolRegistry::new();
-        registry.register(Arc::new(AlwaysFailTool));
-        let toolset = AgentLoopToolSet {
-            registry,
-            config: ToolConfig::default(),
-        };
-
-        let mut agent = AgentLoop::with_toolset(
-            bus,
-            provider,
-            workspace,
-            None,
-            Some(2),
-            toolset,
-            None,
-            file_manager,
-        )
-        .await
-        .unwrap();
-
-        let response = agent
-            .process_inbound_message(InboundMessage::new("gui", "user", "chat-1", "hello"), None)
-            .await
-            .unwrap()
-            .expect("response should exist");
-
-        assert!(response.content.contains("maximum tool iterations"));
-        assert!(!response.content.contains("repeated failures"));
-    }
-
-    #[tokio::test]
-    async fn test_structured_runtime_logs_capture_message_and_tool_success() {
-        let bus = MessageBus::new();
-        let provider = Arc::new(ToolThenFinalProvider {
-            calls: AtomicUsize::new(0),
-        });
-        let temp_dir = tempfile::tempdir().unwrap();
-        let workspace = temp_dir.path().to_path_buf();
-        let file_manager = Arc::new(
-            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
-                .await
-                .unwrap(),
-        );
-
-        let mut registry = ToolRegistry::new();
-        registry.register(Arc::new(OkTool));
-        let mut tool_config = ToolConfig::default();
-        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
-        let toolset = AgentLoopToolSet {
-            registry,
-            config: tool_config,
-        };
-
-        let mut agent = AgentLoop::with_toolset(
-            bus,
-            provider,
-            workspace,
-            None,
-            Some(3),
-            toolset,
-            None,
-            file_manager,
-        )
-        .await
-        .unwrap();
-
-        let response = agent
-            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(response.content, "assistant after tool");
-
-        let events = read_trace_events(&temp_dir);
-        let names: Vec<_> = events
-            .iter()
-            .map(|event| event["event"].as_str().unwrap().to_string())
-            .collect();
-        assert!(names.contains(&"message_received".to_string()));
-        assert!(names.contains(&"llm_request_started".to_string()));
-        assert!(names.contains(&"llm_response_completed".to_string()));
-        assert!(names.contains(&"tool_call_started".to_string()));
-        assert!(names.contains(&"tool_call_completed".to_string()));
-
-        let first_trace_id = events[0]["trace_id"].as_str().unwrap().to_string();
-        assert!(events
-            .iter()
-            .all(|event| event["trace_id"].as_str() == Some(first_trace_id.as_str())));
-        let tool_completed = events
-            .iter()
-            .find(|event| event["event"] == "tool_call_completed")
-            .unwrap();
-        assert_eq!(tool_completed["metadata"]["status"], "ok");
-        assert_eq!(tool_completed["metadata"]["tool"], "ok_tool");
-        assert!(tool_completed["metadata"]["result_summary"]
-            .as_str()
-            .unwrap()
-            .contains("***REDACTED***"));
-    }
-
-    #[tokio::test]
-    async fn test_structured_runtime_logs_capture_tool_failure() {
-        let bus = MessageBus::new();
-        let provider = Arc::new(RepeatingToolStreamProvider {
-            args_sequence: Mutex::new(vec![HashMap::from([("attempt".to_string(), json!(1))])]),
-        });
-        let temp_dir = tempfile::tempdir().unwrap();
-        let workspace = temp_dir.path().to_path_buf();
-        let file_manager = Arc::new(
-            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
-                .await
-                .unwrap(),
-        );
-
-        let mut registry = ToolRegistry::new();
-        registry.register(Arc::new(AlwaysFailTool));
-        let mut tool_config = ToolConfig::default();
-        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
-        let toolset = AgentLoopToolSet {
-            registry,
-            config: tool_config,
-        };
-
-        let mut agent = AgentLoop::with_toolset(
-            bus,
-            provider,
-            workspace,
-            None,
-            Some(1),
-            toolset,
-            None,
-            file_manager,
-        )
-        .await
-        .unwrap();
-
-        let response = agent
-            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
-            .await
-            .unwrap()
-            .unwrap();
-        assert!(response.content.contains("maximum tool iterations"));
-
-        let events = read_trace_events(&temp_dir);
-        let failed = events
-            .iter()
-            .find(|event| event["event"] == "tool_call_failed")
-            .unwrap();
-        assert_eq!(failed["metadata"]["status"], "error");
-        assert_eq!(failed["metadata"]["tool"], "fail_tool");
-    }
-
-    #[tokio::test]
-    async fn test_structured_runtime_logs_capture_provider_failure() {
-        let bus = MessageBus::new();
-        let provider = Arc::new(FailingStreamProvider);
-        let temp_dir = tempfile::tempdir().unwrap();
-        let workspace = temp_dir.path().to_path_buf();
-        let file_manager = Arc::new(
-            FileManager::new(FileConfig::with_path(&temp_dir.path().join("files")))
-                .await
-                .unwrap(),
-        );
-
-        let mut tool_config = ToolConfig::default();
-        tool_config.trace_logger = Some(build_trace_logger(&temp_dir));
-
-        let mut agent = AgentLoop::with_tools(
-            bus,
-            provider,
-            workspace,
-            None,
-            Some(1),
-            tool_config,
-            None,
-            file_manager,
-        )
-        .await
-        .unwrap();
-
-        let result = agent
-            .process_inbound_message(InboundMessage::new("cli", "user", "chat-1", "hello"), None)
-            .await;
-        assert!(result.is_err());
-
-        let events = read_trace_events(&temp_dir);
-        let failed = events
-            .iter()
-            .find(|event| event["event"] == "llm_response_failed")
-            .unwrap();
-        assert_eq!(failed["metadata"]["status"], "error");
-        assert_eq!(failed["metadata"]["model"], "test-model");
     }
 }

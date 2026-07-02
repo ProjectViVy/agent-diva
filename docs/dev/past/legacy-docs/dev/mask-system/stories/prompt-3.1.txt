@@ -1,0 +1,37 @@
+Implement Story 3.1 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Define typed contracts for batch spawn and structured results.
+
+EXISTING CODE:
+- agent-diva-core/src/config/schema.rs (read this file to understand existing types)
+- agent-diva-agent/src/subagent.rs (SubagentManager)
+
+FILES TO MODIFY:
+1. agent-diva-core/src/config/schema.rs — add SubAgentResult, BatchSpawnRequest, SubAgentStatus types
+
+REQUIREMENTS:
+- SubAgentStatus enum: Ok, Error, Timeout, Cancelled
+- SubAgentResult struct:
+  - task_id: String
+  - status: SubAgentStatus
+  - summary: Option<String>
+  - elapsed_ms: u64
+  - tool_call_count: u32
+  - token_usage: Option<TokenUsage>
+  - tool_trace: Option<Vec<String>>
+- BatchSpawnRequest struct:
+  - tasks: Vec<SubAgentTask>
+- SubAgentTask struct:
+  - id: String
+  - goal: String
+  - context: Option<String>
+- All types derive: Debug, Clone, Serialize, Deserialize, PartialEq
+
+TESTS:
+- SubAgentResult serialization/deserialization
+- BatchSpawnRequest with multiple tasks
+- SubAgentStatus variants
+
+After creating files, run: cargo check -p agent-diva-core

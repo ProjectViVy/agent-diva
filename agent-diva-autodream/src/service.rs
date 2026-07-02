@@ -1,0 +1,553 @@
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::Path,
+    sync::OnceLock,
+    time::{Duration, SystemTime},
+};
+
+use agent_diva_core::evolution::{AutoDreamRunRecord, AutoDreamRunState};
+use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::{
+    atomic::atomic_write_json,
+    metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot},
+    AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
+    AutoDreamMonthlyReportGenerator, AutoDreamRhythmReportGenerator, AutoDreamStorage,
+    AutoDreamWorker, AutoDreamWorkerReport, MonthlyReportErrorMarker, Result,
+};
+
+const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
+const REPORT_TRIGGER_MAX_ATTEMPTS: u32 = 3;
+const MONTHLY_REPORT_TRIGGER: &str = "notebook-monthly";
+static AUTODREAM_METRICS: OnceLock<AutoDreamMetrics> = OnceLock::new();
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoDreamCheckpoint {
+    pub schema_version: String,
+    pub last_completed_run_id: Option<String>,
+    pub last_completed_at: Option<DateTime<Utc>>,
+    pub auto_mode_enabled: bool,
+    pub session_threshold_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoDreamLockRecord {
+    pub run_id: String,
+    pub pid: Option<u32>,
+    pub trigger: String,
+    pub started_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoDreamEvent {
+    pub id: String,
+    pub run_id: Option<String>,
+    pub kind: String,
+    pub message: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoDreamRunStatus {
+    pub run: AutoDreamRunRecord,
+    pub lock: Option<AutoDreamLockRecord>,
+    pub auto_mode_enabled: bool,
+    pub session_threshold_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoDreamRunList {
+    pub runs: Vec<AutoDreamRunRecord>,
+    pub active_run_id: Option<String>,
+    pub auto_mode_enabled: bool,
+    pub session_threshold_enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScheduledMonthlyReportOutcome {
+    Triggered { run_id: String, month_key: String },
+    Skipped { month_key: String, reason: String },
+    AlreadyGenerated { month_key: String },
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ManualRunTriggerRequest {
+    pub trigger: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AutoDreamService {
+    storage: AutoDreamStorage,
+    stale_lock_after: Duration,
+}
+
+impl AutoDreamService {
+    fn metrics() -> &'static AutoDreamMetrics {
+        AUTODREAM_METRICS.get_or_init(AutoDreamMetrics::new)
+    }
+
+    #[must_use]
+    pub fn metrics_snapshot() -> AutoDreamMetricsSnapshot {
+        Self::metrics().snapshot()
+    }
+
+    #[doc(hidden)]
+    pub fn reset_metrics_for_test() {
+        Self::metrics().reset_for_test();
+    }
+
+    pub fn open(workspace_root: impl Into<std::path::PathBuf>) -> Result<Self> {
+        let storage = AutoDreamStorage::open(workspace_root)?;
+        Ok(Self::from_storage(storage))
+    }
+
+    pub fn from_storage(storage: AutoDreamStorage) -> Self {
+        Self {
+            storage,
+            stale_lock_after: Duration::from_secs(DEFAULT_STALE_LOCK_SECS),
+        }
+    }
+
+    pub fn with_stale_lock_after(mut self, stale_lock_after: Duration) -> Self {
+        self.stale_lock_after = stale_lock_after;
+        self
+    }
+
+    pub fn trigger_manual_run(
+        &self,
+        request: ManualRunTriggerRequest,
+    ) -> Result<AutoDreamRunStatus> {
+        self.recover_stale_lock_if_needed()?;
+        if let Some(lock) = self.read_lock()? {
+            return Err(AutoDreamError::ActiveRunExists { id: lock.run_id });
+        }
+
+        let now = Utc::now();
+        let trigger = request
+            .trigger
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("manual")
+            .to_string();
+        let run_id = format!("run-{}", Uuid::new_v4());
+        let run = AutoDreamRunRecord {
+            id: run_id.clone(),
+            started_at: now,
+            completed_at: None,
+            state: AutoDreamRunState::Running,
+            trigger: trigger.clone(),
+            summary: Some("manual run started".to_string()),
+            input_summary: None,
+            proposal_ids: Vec::new(),
+            error: None,
+        };
+        self.write_run(&run)?;
+
+        let lock = AutoDreamLockRecord {
+            run_id: run_id.clone(),
+            pid: Some(std::process::id()),
+            trigger,
+            started_at: now,
+        };
+        self.write_lock(&lock)?;
+        Self::metrics().record_run();
+        self.append_event(AutoDreamEvent {
+            id: format!("evt-{}", Uuid::new_v4()),
+            run_id: Some(run_id),
+            kind: "manual_run_started".to_string(),
+            message: "manual AutoDream run started".to_string(),
+            created_at: now,
+        })?;
+        self.status_from_run(run, Some(lock))
+    }
+
+    pub fn get_run_status(&self, run_id: &str) -> Result<AutoDreamRunStatus> {
+        self.recover_stale_lock_if_needed()?;
+        let run = self.read_run(run_id)?;
+        let lock = self.read_lock()?.filter(|lock| lock.run_id == run.id);
+        self.status_from_run(run, lock)
+    }
+
+    pub fn cancel_run(&self, run_id: &str) -> Result<AutoDreamRunStatus> {
+        self.recover_stale_lock_if_needed()?;
+        let mut run = self.read_run(run_id)?;
+        if !matches!(
+            run.state,
+            AutoDreamRunState::Pending | AutoDreamRunState::Running
+        ) {
+            return Err(AutoDreamError::RunNotCancellable {
+                id: run.id,
+                state: run.state,
+            });
+        }
+
+        let now = Utc::now();
+        run.state = AutoDreamRunState::Cancelled;
+        run.completed_at = Some(now);
+        run.summary = Some("manual run cancelled".to_string());
+        run.error = Some("cancelled".to_string());
+        self.write_run(&run)?;
+
+        let active_lock = self.read_lock()?;
+        if active_lock.as_ref().map(|lock| lock.run_id.as_str()) == Some(run_id) {
+            let path = self.storage.paths().lock_file();
+            fs::remove_file(&path).map_err(|source| AutoDreamError::io(path, source))?;
+        }
+
+        self.append_event(AutoDreamEvent {
+            id: format!("evt-{}", Uuid::new_v4()),
+            run_id: Some(run.id.clone()),
+            kind: "manual_run_cancelled".to_string(),
+            message: "manual AutoDream run cancelled".to_string(),
+            created_at: now,
+        })?;
+        self.status_from_run(run, None)
+    }
+
+    pub fn list_runs(&self) -> Result<AutoDreamRunList> {
+        self.recover_stale_lock_if_needed()?;
+        let mut runs = self.read_all_runs()?;
+        runs.sort_by(|left, right| {
+            right
+                .started_at
+                .cmp(&left.started_at)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        let checkpoint = self.read_checkpoint()?;
+        let active_run_id = self.read_lock()?.map(|lock| lock.run_id);
+        Ok(AutoDreamRunList {
+            runs,
+            active_run_id,
+            auto_mode_enabled: checkpoint.auto_mode_enabled,
+            session_threshold_enabled: checkpoint.session_threshold_enabled,
+        })
+    }
+
+    pub fn checkpoint(&self) -> Result<AutoDreamCheckpoint> {
+        self.read_checkpoint()
+    }
+
+    pub fn collect_inputs(&self, run_id: &str) -> Result<AutoDreamCollectedInputs> {
+        let mut run = self.read_run(run_id)?;
+        let collector = AutoDreamInputCollector::new(
+            self.storage.clone(),
+            agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
+                .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
+        );
+        let collected = collector.collect(run_id).inspect_err(|_| {
+            Self::metrics().record_failure();
+        })?;
+        run.input_summary = Some(collected.summary.clone());
+        run.summary = Some(format!(
+            "collected {} inputs with {} omissions",
+            collected.summary.total_items,
+            collected.summary.omissions.len()
+        ));
+        self.write_run(&run)?;
+        Ok(collected)
+    }
+
+    pub fn execute_reflection_worker(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
+        let worker = AutoDreamWorker::new(
+            self.storage.clone(),
+            agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
+                .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
+        );
+        worker.execute(run_id).inspect_err(|_| {
+            Self::metrics().record_failure();
+        })
+    }
+
+    pub fn execute_report_trigger(&self, run_id: &str) -> Result<AutoDreamRunStatus> {
+        let mut run = self.read_run(run_id)?;
+        let max_attempts = if run.trigger == MONTHLY_REPORT_TRIGGER {
+            REPORT_TRIGGER_MAX_ATTEMPTS
+        } else {
+            1
+        };
+        let mut last_error = None;
+        for attempt in 1..=max_attempts {
+            match self.generate_report_for_trigger(&run.trigger, attempt) {
+                Ok(result) => {
+                    let now = Utc::now();
+                    run.state = AutoDreamRunState::Completed;
+                    run.completed_at = Some(now);
+                    run.summary = Some(format!(
+                        "generated rhythm report at {}",
+                        result.path.display()
+                    ));
+                    run.error = None;
+                    self.write_run(&run)?;
+                    self.write_checkpoint_success(&run, now)?;
+                    self.remove_active_lock(run_id)?;
+                    self.append_event(AutoDreamEvent {
+                        id: format!("evt-{}", Uuid::new_v4()),
+                        run_id: Some(run.id.clone()),
+                        kind: "rhythm_report_generated".to_string(),
+                        message: format!("generated {}", result.path.display()),
+                        created_at: now,
+                    })?;
+                    return self.status_from_run(run, None);
+                }
+                Err(error) => {
+                    last_error = Some(error);
+                    if attempt < max_attempts {
+                        self.append_event(AutoDreamEvent {
+                            id: format!("evt-{}", Uuid::new_v4()),
+                            run_id: Some(run.id.clone()),
+                            kind: "rhythm_report_retry".to_string(),
+                            message: format!(
+                                "retrying {} after attempt {attempt} of {max_attempts}",
+                                run.trigger
+                            ),
+                            created_at: Utc::now(),
+                        })?;
+                    }
+                }
+            }
+        }
+
+        let error = last_error.unwrap_or_else(|| {
+            AutoDreamError::InvalidState("rhythm report generation failed".to_string())
+        });
+        let now = Utc::now();
+        run.state = AutoDreamRunState::Failed;
+        run.completed_at = Some(now);
+        run.summary = Some("rhythm report generation failed".to_string());
+        run.error = Some(error.to_string());
+        self.write_run(&run)?;
+        self.remove_active_lock(run_id)?;
+        Self::metrics().record_failure();
+        self.append_event(AutoDreamEvent {
+            id: format!("evt-{}", Uuid::new_v4()),
+            run_id: Some(run.id.clone()),
+            kind: "rhythm_report_failed".to_string(),
+            message: error.to_string(),
+            created_at: now,
+        })?;
+        Err(error)
+    }
+
+    pub fn execute_scheduled_monthly_report(
+        &self,
+        date: NaiveDate,
+    ) -> Result<ScheduledMonthlyReportOutcome> {
+        let month_key = format!("{:04}-{:02}", date.year(), date.month());
+        let monthly = AutoDreamMonthlyReportGenerator::new(self.storage.clone());
+        let report_path = self.storage.paths().monthly_report_file(&month_key);
+        if report_path.exists() && monthly.read_error_marker(&month_key)?.is_none() {
+            return Ok(ScheduledMonthlyReportOutcome::AlreadyGenerated { month_key });
+        }
+
+        let marker = monthly.read_error_marker(&month_key)?;
+        if !should_attempt_scheduled_monthly_report(date, marker.as_ref()) {
+            return Ok(ScheduledMonthlyReportOutcome::Skipped {
+                month_key,
+                reason: "outside monthly schedule window".to_string(),
+            });
+        }
+        if self.read_lock()?.is_some() {
+            return Ok(ScheduledMonthlyReportOutcome::Skipped {
+                month_key,
+                reason: "AutoDream run already active".to_string(),
+            });
+        }
+
+        let status = self.trigger_manual_run(ManualRunTriggerRequest {
+            trigger: Some(MONTHLY_REPORT_TRIGGER.to_string()),
+        })?;
+        let completed = self.execute_report_trigger(&status.run.id)?;
+        Ok(ScheduledMonthlyReportOutcome::Triggered {
+            run_id: completed.run.id,
+            month_key,
+        })
+    }
+
+    fn generate_report_for_trigger(
+        &self,
+        trigger: &str,
+        attempt: u32,
+    ) -> Result<crate::RhythmReportWriteResult> {
+        if trigger == MONTHLY_REPORT_TRIGGER {
+            return AutoDreamMonthlyReportGenerator::new(self.storage.clone())
+                .generate_current_month(attempt);
+        }
+        AutoDreamRhythmReportGenerator::new(self.storage.clone()).generate_for_trigger(trigger)
+    }
+
+    fn status_from_run(
+        &self,
+        run: AutoDreamRunRecord,
+        lock: Option<AutoDreamLockRecord>,
+    ) -> Result<AutoDreamRunStatus> {
+        let checkpoint = self.read_checkpoint()?;
+        Ok(AutoDreamRunStatus {
+            run,
+            lock,
+            auto_mode_enabled: checkpoint.auto_mode_enabled,
+            session_threshold_enabled: checkpoint.session_threshold_enabled,
+        })
+    }
+
+    fn recover_stale_lock_if_needed(&self) -> Result<()> {
+        let lock_path = self.storage.paths().lock_file();
+        if !lock_path.exists() {
+            return Ok(());
+        }
+        let metadata =
+            fs::metadata(&lock_path).map_err(|source| AutoDreamError::io(&lock_path, source))?;
+        let modified = metadata
+            .modified()
+            .map_err(|source| AutoDreamError::io(&lock_path, source))?;
+        let age = SystemTime::now()
+            .duration_since(modified)
+            .unwrap_or(Duration::ZERO);
+        if age < self.stale_lock_after {
+            return Ok(());
+        }
+
+        if let Some(lock) = self.read_lock()? {
+            if let Ok(mut run) = self.read_run(&lock.run_id) {
+                if matches!(
+                    run.state,
+                    AutoDreamRunState::Pending | AutoDreamRunState::Running
+                ) {
+                    let now = Utc::now();
+                    run.state = AutoDreamRunState::Failed;
+                    run.completed_at = Some(now);
+                    run.summary = Some("stale lock recovered".to_string());
+                    run.error = Some("stale lock recovered".to_string());
+                    self.write_run(&run)?;
+                    Self::metrics().record_failure();
+                    self.append_event(AutoDreamEvent {
+                        id: format!("evt-{}", Uuid::new_v4()),
+                        run_id: Some(run.id.clone()),
+                        kind: "stale_lock_recovered".to_string(),
+                        message: "stale AutoDream lock recovered".to_string(),
+                        created_at: now,
+                    })?;
+                }
+            }
+        }
+
+        fs::remove_file(&lock_path).map_err(|source| AutoDreamError::io(lock_path, source))?;
+        Ok(())
+    }
+
+    fn read_checkpoint(&self) -> Result<AutoDreamCheckpoint> {
+        read_json_file(self.storage.paths().checkpoint_file())
+    }
+
+    fn write_checkpoint_success(&self, run: &AutoDreamRunRecord, now: DateTime<Utc>) -> Result<()> {
+        let mut checkpoint: AutoDreamCheckpoint =
+            read_json_file(self.storage.paths().checkpoint_file())?;
+        checkpoint.last_completed_run_id = Some(run.id.clone());
+        checkpoint.last_completed_at = Some(now);
+        atomic_write_json(&self.storage.paths().checkpoint_file(), &checkpoint)
+    }
+
+    fn read_lock(&self) -> Result<Option<AutoDreamLockRecord>> {
+        let path = self.storage.paths().lock_file();
+        match fs::read_to_string(&path) {
+            Ok(content) => Ok(Some(serde_json::from_str(&content)?)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(source) => Err(AutoDreamError::io(path, source)),
+        }
+    }
+
+    fn write_lock(&self, lock: &AutoDreamLockRecord) -> Result<()> {
+        let path = self.storage.paths().lock_file();
+        let bytes = serde_json::to_vec_pretty(lock)?;
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&path)
+            .map_err(|source| AutoDreamError::io(&path, source))?;
+        file.write_all(&bytes)
+            .map_err(|source| AutoDreamError::io(&path, source))?;
+        file.sync_all()
+            .map_err(|source| AutoDreamError::io(&path, source))?;
+        Ok(())
+    }
+
+    fn remove_active_lock(&self, run_id: &str) -> Result<()> {
+        let path = self.storage.paths().lock_file();
+        let lock = match fs::read_to_string(&path) {
+            Ok(content) => Some(serde_json::from_str::<AutoDreamLockRecord>(&content)?),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(source) => return Err(AutoDreamError::io(&path, source)),
+        };
+        if lock.as_ref().map(|lock| lock.run_id.as_str()) == Some(run_id) {
+            fs::remove_file(&path).map_err(|source| AutoDreamError::io(path, source))?;
+        }
+        Ok(())
+    }
+
+    fn read_run(&self, run_id: &str) -> Result<AutoDreamRunRecord> {
+        let path = self.storage.paths().run_record_file(run_id);
+        read_json_file(&path).map_err(|error| match error {
+            AutoDreamError::Io { source, .. } if source.kind() == std::io::ErrorKind::NotFound => {
+                AutoDreamError::RunNotFound {
+                    id: run_id.to_string(),
+                }
+            }
+            other => other,
+        })
+    }
+
+    fn write_run(&self, run: &AutoDreamRunRecord) -> Result<()> {
+        let dir = self.storage.paths().run_dir(&run.id);
+        fs::create_dir_all(&dir).map_err(|source| AutoDreamError::io(&dir, source))?;
+        atomic_write_json(&self.storage.paths().run_record_file(&run.id), run)
+    }
+
+    fn read_all_runs(&self) -> Result<Vec<AutoDreamRunRecord>> {
+        let runs_dir = self.storage.paths().runs_dir();
+        let mut runs = Vec::new();
+        for entry in
+            fs::read_dir(&runs_dir).map_err(|source| AutoDreamError::io(&runs_dir, source))?
+        {
+            let entry = entry.map_err(|source| AutoDreamError::io(&runs_dir, source))?;
+            let record = entry.path().join("record.json");
+            if record.exists() {
+                runs.push(read_json_file(record)?);
+            }
+        }
+        Ok(runs)
+    }
+
+    fn append_event(&self, event: AutoDreamEvent) -> Result<()> {
+        let path = self.storage.paths().events_jsonl();
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&path)
+            .map_err(|source| AutoDreamError::io(&path, source))?;
+        let line = serde_json::to_string(&event)?;
+        writeln!(file, "{line}").map_err(|source| AutoDreamError::io(&path, source))?;
+        file.sync_all()
+            .map_err(|source| AutoDreamError::io(&path, source))?;
+        Ok(())
+    }
+}
+
+fn should_attempt_scheduled_monthly_report(
+    date: NaiveDate,
+    marker: Option<&MonthlyReportErrorMarker>,
+) -> bool {
+    let within_first_week = date.day() <= 7;
+    let first_monday = within_first_week && date.weekday() == Weekday::Mon;
+    let retryable_marker = marker
+        .is_some_and(|marker| within_first_week && marker.attempts < REPORT_TRIGGER_MAX_ATTEMPTS);
+    first_monday || retryable_marker
+}
+
+fn read_json_file<T: for<'de> Deserialize<'de>>(path: impl AsRef<Path>) -> Result<T> {
+    let path = path.as_ref();
+    let content = fs::read_to_string(path).map_err(|source| AutoDreamError::io(path, source))?;
+    Ok(serde_json::from_str(&content)?)
+}

@@ -1,21 +1,15 @@
 //! Session manager for handling multiple sessions
 
 use super::store::Session;
+use super::{search::search_sessions_in_dir, SessionSearchQuery, SessionSearchResponse};
 use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use thiserror::Error;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Error)]
-pub enum SessionLoadError {
-    #[error("Failed to read session file '{path}': {error}")]
-    Unreadable { path: PathBuf, error: String },
-    #[error("Failed to parse session file '{path}' at line {line}: {error}")]
-    Parse {
-        path: PathBuf,
-        line: usize,
-        error: String,
-    },
-}
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Manages conversation sessions
 #[derive(Debug)]
@@ -37,15 +31,15 @@ impl SessionManager {
     }
 
     /// Get or create a session
-    pub fn get_or_create(&mut self, key: impl Into<String>) -> crate::Result<&mut Session> {
+    pub fn get_or_create(&mut self, key: impl Into<String>) -> &mut Session {
         let key = key.into();
 
         if !self.cache.contains_key(&key) {
-            let session = self.load(&key)?.unwrap_or_else(|| Session::new(&key));
+            let session = self.load(&key).unwrap_or_else(|| Session::new(&key));
             self.cache.insert(key.clone(), session);
         }
 
-        Ok(self.cache.get_mut(&key).unwrap())
+        self.cache.get_mut(&key).unwrap()
     }
 
     /// Get a session if it exists
@@ -54,94 +48,100 @@ impl SessionManager {
     }
 
     /// Get a session if it exists (cache or disk). Does not create.
-    pub fn get_or_load(&mut self, key: &str) -> crate::Result<Option<&Session>> {
+    pub fn get_or_load(&mut self, key: &str) -> Option<&Session> {
         if !self.cache.contains_key(key) {
-            if let Some(session) = self.load(key)? {
+            if let Some(session) = self.load(key) {
                 self.cache.insert(key.to_string(), session);
             } else {
-                return Ok(None);
+                return None;
             }
         }
-        Ok(self.cache.get(key))
+        self.cache.get(key)
     }
 
     /// Load a session from disk
-    fn load(&self, key: &str) -> Result<Option<Session>, SessionLoadError> {
+    fn load(&self, key: &str) -> Option<Session> {
         let path = self.session_path(key);
-        let backup_path = self.backup_path(key);
-        let path_to_read = if path.exists() {
-            path
-        } else if backup_path.exists() {
-            backup_path
-        } else {
-            return Ok(None);
-        };
 
-        let content = std::fs::read_to_string(&path_to_read).map_err(|error| {
-            SessionLoadError::Unreadable {
-                path: path_to_read.clone(),
-                error: error.to_string(),
-            }
-        })?;
+        if !path.exists() {
+            return None;
+        }
+
+        let content = std::fs::read_to_string(&path).ok()?;
         let mut messages = Vec::new();
         let mut metadata = serde_json::Value::Object(serde_json::Map::new());
         let mut created_at = None;
-        let mut updated_at = None;
         let mut last_consolidated: usize = 0;
+        let mut last_compacted: usize = 0;
+        let mut compaction_history: Vec<super::store::CompactSummary> = Vec::new();
 
-        for (line_index, line) in content.lines().enumerate() {
+        for line in content.lines() {
             let line = line.trim();
             if line.is_empty() {
                 continue;
             }
 
-            let value = serde_json::from_str::<serde_json::Value>(line).map_err(|error| {
-                SessionLoadError::Parse {
-                    path: path_to_read.clone(),
-                    line: line_index + 1,
-                    error: error.to_string(),
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(line) {
+                if value.get("_type").and_then(|v| v.as_str()) == Some("metadata") {
+                    metadata = value.get("metadata").cloned().unwrap_or(metadata);
+                    created_at = value
+                        .get("created_at")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| s.parse().ok());
+                    last_consolidated = value
+                        .get("last_consolidated")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                    last_compacted = value
+                        .get("last_compacted")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                    // New format: array of summaries
+                    if let Some(arr) = value.get("compaction_history") {
+                        if let Ok(v) =
+                            serde_json::from_value::<Vec<super::store::CompactSummary>>(arr.clone())
+                        {
+                            compaction_history = v;
+                        }
+                    }
+                    // Old format: single compaction object (backward compat)
+                    if compaction_history.is_empty() {
+                        if let Some(v) = value.get("compaction") {
+                            if let Ok(cs) =
+                                serde_json::from_value::<super::store::CompactSummary>(v.clone())
+                            {
+                                compaction_history.push(cs);
+                            }
+                        }
+                    }
+                } else if let Ok(msg) = serde_json::from_value::<super::store::ChatMessage>(value) {
+                    messages.push(msg);
                 }
-            })?;
-
-            if value.get("_type").and_then(|v| v.as_str()) == Some("metadata") {
-                metadata = value.get("metadata").cloned().unwrap_or(metadata);
-                created_at = value
-                    .get("created_at")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok());
-                updated_at = value
-                    .get("updated_at")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok());
-                last_consolidated = value
-                    .get("last_consolidated")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as usize;
-            } else {
-                let msg = serde_json::from_value::<super::store::ChatMessage>(value).map_err(
-                    |error| SessionLoadError::Parse {
-                        path: path_to_read.clone(),
-                        line: line_index + 1,
-                        error: error.to_string(),
-                    },
-                )?;
-                messages.push(msg);
             }
         }
 
-        Ok(Some(Session {
+        Some(Session {
             key: key.to_string(),
             messages,
             created_at: created_at.unwrap_or_else(chrono::Utc::now),
-            updated_at: updated_at.unwrap_or_else(chrono::Utc::now),
+            updated_at: chrono::Utc::now(),
             metadata,
             last_consolidated,
-        }))
+            last_compacted,
+            compaction_history,
+        })
     }
 
     /// Save a session to disk
     pub fn save(&self, session: &Session) -> crate::Result<()> {
-        std::fs::create_dir_all(&self.sessions_dir)?;
+        self.save_atomic(session, |_| Ok(()))
+    }
+
+    fn save_atomic<F>(&self, session: &Session, before_rename: F) -> crate::Result<()>
+    where
+        F: FnOnce(&Path) -> io::Result<()>,
+    {
+        fs::create_dir_all(&self.sessions_dir)?;
         let path = self.session_path(&session.key);
 
         let mut lines = Vec::new();
@@ -153,6 +153,8 @@ impl SessionManager {
             "updated_at": session.updated_at.to_rfc3339(),
             "metadata": session.metadata,
             "last_consolidated": session.last_consolidated,
+            "last_compacted": session.last_compacted,
+            "compaction_history": session.compaction_history,
         });
         lines.push(serde_json::to_string(&metadata)?);
 
@@ -161,8 +163,17 @@ impl SessionManager {
             lines.push(serde_json::to_string(msg)?);
         }
 
-        self.write_session_atomically(&path, lines.join("\n").as_bytes())?;
+        let content = lines.join("\n");
+        atomic_replace(&path, content.as_bytes(), before_rename)?;
         Ok(())
+    }
+
+    #[cfg(test)]
+    fn save_with_hook<F>(&self, session: &Session, before_rename: F) -> crate::Result<()>
+    where
+        F: FnOnce(&Path) -> io::Result<()>,
+    {
+        self.save_atomic(session, before_rename)
     }
 
     /// Delete a session
@@ -238,20 +249,72 @@ impl SessionManager {
         sessions
     }
 
+    /// Search session JSONL files without promoting matches into runtime authority.
+    pub fn search(&self, query: SessionSearchQuery) -> crate::Result<SessionSearchResponse> {
+        search_sessions_in_dir(&self.sessions_dir, query)
+    }
+
     /// Get the file path for a session
     fn session_path(&self, key: &str) -> PathBuf {
         let safe_key = key.replace([':', '/', '\\'], "_");
         self.sessions_dir.join(format!("{}.jsonl", safe_key))
     }
+}
 
-    fn backup_path(&self, key: &str) -> PathBuf {
-        let safe_key = key.replace([':', '/', '\\'], "_");
-        self.sessions_dir.join(format!("{}.jsonl.bak", safe_key))
+fn atomic_replace<F>(path: &Path, bytes: &[u8], before_rename: F) -> crate::Result<()>
+where
+    F: FnOnce(&Path) -> io::Result<()>,
+{
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "target path has no parent"))?;
+    fs::create_dir_all(parent)?;
+
+    let temp_path = temp_path_for(path);
+    let write_result = (|| -> crate::Result<()> {
+        write_temp_file(&temp_path, bytes)?;
+        before_rename(&temp_path)?;
+        fs::rename(&temp_path, path)?;
+        sync_parent_dir(parent);
+        Ok(())
+    })();
+
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temp_path);
     }
 
-    fn write_session_atomically(&self, path: &Path, content: &[u8]) -> crate::Result<()> {
-        crate::utils::atomic_write(path, content)
+    write_result
+}
+
+fn write_temp_file(path: &Path, bytes: &[u8]) -> crate::Result<()> {
+    let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
+}
+
+fn sync_parent_dir(parent: &Path) {
+    if let Ok(dir) = std::fs::File::open(parent) {
+        let _ = dir.sync_all();
     }
+}
+
+fn temp_path_for(path: &Path) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("session-write");
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let counter = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    path.with_file_name(format!(
+        ".{}.{}.{}.tmp",
+        file_name,
+        std::process::id(),
+        nanos + u128::from(counter)
+    ))
 }
 
 /// Information about a session
@@ -270,8 +333,6 @@ pub struct SessionInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attachment::FileAttachmentRef;
-    use crate::session::ChatMessage;
     use tempfile::TempDir;
 
     #[test]
@@ -286,7 +347,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut manager = SessionManager::new(temp_dir.path());
 
-        let session = manager.get_or_create("telegram:123").unwrap();
+        let session = manager.get_or_create("telegram:123");
         session.add_message("user", "Hello");
 
         assert_eq!(session.messages.len(), 1);
@@ -299,16 +360,24 @@ mod tests {
         let mut manager = SessionManager::new(temp_dir.path());
 
         // Create and modify session
-        let session = manager.get_or_create("test:456").unwrap();
+        let session = manager.get_or_create("test:456");
         session.add_message("user", "Test message");
         let key = session.key.clone();
 
         // Save the session
-        manager.save(manager.cache.get(&key).unwrap()).unwrap();
+        manager
+            .save_with_hook(&manager.cache.get(&key).unwrap(), |temp_path| {
+                assert_eq!(
+                    temp_path.parent(),
+                    Some(temp_dir.path().join("sessions").as_path())
+                );
+                Ok(())
+            })
+            .unwrap();
 
         // Clear cache and reload
         manager.cache.clear();
-        let session = manager.get_or_create("test:456").unwrap();
+        let session = manager.get_or_create("test:456");
 
         assert_eq!(session.messages.len(), 1);
         assert_eq!(session.messages[0].content, "Test message");
@@ -320,22 +389,22 @@ mod tests {
         let mut manager = SessionManager::new(temp_dir.path());
 
         // Create and modify session
-        let session = manager.get_or_create("archive:789").unwrap();
+        let session = manager.get_or_create("archive:789");
         session.add_message("user", "Message to be archived");
         let key = session.key.clone();
 
         // Save it so it exists on disk
-        manager.save(manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
 
         // Archive it
         let archived = manager.archive_and_reset(&key).unwrap();
         assert!(archived);
 
         // Check it's removed from cache
-        assert!(!manager.cache.contains_key(&key));
+        assert!(manager.cache.get(&key).is_none());
 
         // Get or create should now be empty
-        let new_session = manager.get_or_create("archive:789").unwrap();
+        let new_session = manager.get_or_create("archive:789");
         assert_eq!(new_session.messages.len(), 0);
 
         // Check if the original file is gone but there's a file with .reset. in it
@@ -361,13 +430,13 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut manager = SessionManager::new(temp_dir.path());
 
-        let session = manager.get_or_create("gui:chat-1").unwrap();
+        let session = manager.get_or_create("gui:chat-1");
         session.add_message("user", "Hello");
         let key = session.key.clone();
-        manager.save(manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
 
         // Session is in cache; get_or_load should return it
-        let loaded = manager.get_or_load("gui:chat-1").unwrap();
+        let loaded = manager.get_or_load("gui:chat-1");
         assert!(loaded.is_some());
         assert_eq!(loaded.unwrap().key, "gui:chat-1");
         assert_eq!(loaded.unwrap().messages.len(), 1);
@@ -379,16 +448,16 @@ mod tests {
         let mut manager = SessionManager::new(temp_dir.path());
 
         // Create and save session
-        let session = manager.get_or_create("gui:chat-2").unwrap();
+        let session = manager.get_or_create("gui:chat-2");
         session.add_message("user", "From disk");
         let key = session.key.clone();
-        manager.save(manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
 
         // Clear cache to simulate "not loaded this run"
         manager.cache.clear();
 
         // get_or_load should load from disk
-        let loaded = manager.get_or_load("gui:chat-2").unwrap();
+        let loaded = manager.get_or_load("gui:chat-2");
         assert!(loaded.is_some());
         assert_eq!(loaded.unwrap().key, "gui:chat-2");
         assert_eq!(loaded.unwrap().messages[0].content, "From disk");
@@ -400,78 +469,67 @@ mod tests {
         let mut manager = SessionManager::new(temp_dir.path());
 
         // Session never created; no file on disk
-        let loaded = manager.get_or_load("gui:nonexistent").unwrap();
+        let loaded = manager.get_or_load("gui:nonexistent");
         assert!(loaded.is_none());
     }
 
     #[test]
-    fn test_save_and_load_session_with_attachment_metadata() {
+    fn test_replace_existing_session_keeps_latest_content() {
         let temp_dir = TempDir::new().unwrap();
         let mut manager = SessionManager::new(temp_dir.path());
 
-        let session = manager.get_or_create("gui:attachments").unwrap();
-        session.add_full_message(ChatMessage::with_attachments(
-            "user",
-            "please inspect this",
-            vec![FileAttachmentRef {
-                file_id: "sha256:image123".to_string(),
-                filename: "image.png".to_string(),
-                mime_type: Some("image/png".to_string()),
-                size: 4096,
-            }],
-        ));
+        let session = manager.get_or_create("replace:1");
+        session.add_message("user", "first");
         let key = session.key.clone();
+        let snapshot = manager.cache.get(&key).unwrap().clone();
+        manager.save(&snapshot).unwrap();
 
-        manager.save(manager.cache.get(&key).unwrap()).unwrap();
-        let content = std::fs::read_to_string(manager.session_path(&key)).unwrap();
-        assert!(content.contains("\"attachments\""));
-        assert!(content.contains("\"file_id\":\"sha256:image123\""));
-        assert!(content.contains("\"filename\":\"image.png\""));
-        assert!(content.contains("\"mime_type\":\"image/png\""));
-        assert!(content.contains("\"size\":4096"));
-        assert!(!content.contains("base64"));
-        assert!(!content.contains("bytes"));
-        assert!(!content.contains("preview"));
+        let mut updated = snapshot.clone();
+        updated.add_message("assistant", "second");
+        manager.save(&updated).unwrap();
 
         manager.cache.clear();
-        let loaded = manager.get_or_create(&key).unwrap();
-        assert_eq!(loaded.messages.len(), 1);
-        let attachment = &loaded.messages[0].attachments.as_ref().unwrap()[0];
-        assert_eq!(attachment.file_id, "sha256:image123");
-        assert_eq!(attachment.filename, "image.png");
-        assert_eq!(attachment.mime_type, Some("image/png".to_string()));
-        assert_eq!(attachment.size, 4096);
+        let loaded = manager.get_or_load("replace:1").unwrap();
+        assert_eq!(loaded.messages.len(), 2);
+        assert_eq!(loaded.messages[0].content, "first");
+        assert_eq!(loaded.messages[1].content, "second");
     }
 
     #[test]
-    fn test_load_uses_backup_when_primary_missing() {
+    fn test_failed_atomic_save_preserves_previous_file() {
         let temp_dir = TempDir::new().unwrap();
         let mut manager = SessionManager::new(temp_dir.path());
 
-        let session = manager.get_or_create("gui:backup").unwrap();
-        session.add_message("user", "from backup");
+        let session = manager.get_or_create("atomic:fail");
+        session.add_message("user", "before");
         let key = session.key.clone();
-        manager.save(manager.cache.get(&key).unwrap()).unwrap();
+        let snapshot = manager.cache.get(&key).unwrap().clone();
+        manager.save(&snapshot).unwrap();
 
-        let primary_path = manager.session_path(&key);
-        let backup_path = manager.backup_path(&key);
-        std::fs::rename(&primary_path, &backup_path).unwrap();
-        manager.cache.clear();
+        let mut updated = snapshot.clone();
+        updated.add_message("assistant", "after");
 
-        let loaded = manager.get_or_load(&key).unwrap().unwrap();
-        assert_eq!(loaded.messages.len(), 1);
-        assert_eq!(loaded.messages[0].content, "from backup");
-    }
+        let err = manager
+            .save_with_hook(&updated, |temp_path| {
+                assert_eq!(
+                    temp_path.parent(),
+                    Some(temp_dir.path().join("sessions").as_path())
+                );
+                Err(io::Error::other("rename blocked"))
+            })
+            .unwrap_err();
+        assert!(matches!(err, crate::Error::Io(_)));
 
-    #[test]
-    fn test_get_or_load_reports_parse_errors() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = SessionManager::new(temp_dir.path());
-        let path = manager.session_path("gui:broken");
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, "{not json").unwrap();
+        let final_path = temp_dir.path().join("sessions").join("atomic_fail.jsonl");
+        let content = std::fs::read_to_string(&final_path).unwrap();
+        assert!(content.contains("\"before\""));
+        assert!(!content.contains("\"after\""));
 
-        let error = manager.load("gui:broken").unwrap_err();
-        assert!(matches!(error, SessionLoadError::Parse { .. }));
+        let temp_entries: Vec<_> = std::fs::read_dir(temp_dir.path().join("sessions"))
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(temp_entries.is_empty());
     }
 }

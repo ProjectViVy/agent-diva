@@ -1,0 +1,31 @@
+Implement Story 3.3 for the agent-diva Mask System.
+
+PROJECT ROOT: C:/Users/Administrator/Desktop/morediva/agent-diva-pro
+
+TASK: Resolve child models and runtime limits predictably.
+
+EXISTING CODE:
+- agent-diva-agent/src/subagent.rs (SubagentManager)
+- agent-diva-core/src/config/schema.rs (MaskConfig, SubagentDefaults)
+
+FILES TO MODIFY:
+1. agent-diva-agent/src/subagent.rs — add model resolution chain
+
+REQUIREMENTS:
+- Model resolution priority (highest to lowest):
+  1. Explicit spawn request model
+  2. Mask subagent_defaults.model
+  3. Mask model
+  4. Global default
+- Add resolve_model(spawn_model, mask) -> String method
+- Add resolve_max_iterations(spawn_limit, mask) -> u32 method
+- Default max_iterations: 30
+
+TESTS:
+- Explicit model takes priority
+- Falls back to mask subagent_defaults
+- Falls back to mask model
+- Falls back to global default
+- Max iterations resolution chain
+
+After creating files, run: cargo check -p agent-diva-agent

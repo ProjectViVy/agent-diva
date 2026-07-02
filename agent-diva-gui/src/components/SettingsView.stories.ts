@@ -187,6 +187,11 @@ export const Default: Story = {
           enabled: true,
         },
       },
+      mentle: {
+        enabled: false,
+        mode: 'off',
+        allowed_tools: [],
+      },
     },
     savedModels: [
       {
@@ -220,6 +225,11 @@ export const LocalProvider: Story = {
         fetch: {
           enabled: true,
         },
+      },
+      mentle: {
+        enabled: false,
+        mode: 'off',
+        allowed_tools: [],
       },
     },
     savedModels: [],

@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::audit::PiiSeverity;
+
 /// Security level presets
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -73,6 +75,42 @@ pub struct SecurityConfig {
 
     /// Enable symlink following
     pub allow_symlinks: bool,
+
+    /// PII detection severity (default: warning)
+    pub pii_severity: PiiSeverity,
+
+    /// Enable PII detection
+    pub pii_enabled: bool,
+
+    /// Enable prompt injection detection
+    pub injection_enabled: bool,
+
+    /// Confidence threshold above which injection is blocked (0.0–1.0)
+    pub injection_block_threshold: f32,
+
+    /// Global timeout for tool execution in seconds (default: 120).
+    /// Applied as a wrapper around `ToolRegistry::execute()`.
+    /// A value of 0 is invalid and will be rejected by validation.
+    #[serde(default = "default_global_tool_timeout")]
+    pub global_tool_timeout_secs: u64,
+
+    /// Per-session token budget limit (None = no enforcement).
+    /// When set, the token ledger checks cumulative usage against this limit
+    /// before each LLM call. Exceeding it produces a `BudgetExceeded` error.
+    #[serde(default)]
+    pub token_budget_limit: Option<u64>,
+
+    /// Per-task token budget limit for subagent tasks (None = no enforcement).
+    /// When set, each subagent task tracks cumulative token usage and checks
+    /// against this limit before each LLM call. Exceeding it produces a
+    /// `BudgetExceeded` error. This is independent of `token_budget_limit`
+    /// (the session-level budget).
+    #[serde(default)]
+    pub per_task_token_budget: Option<u64>,
+}
+
+fn default_global_tool_timeout() -> u64 {
+    120
 }
 
 impl Default for SecurityConfig {
@@ -101,6 +139,13 @@ impl Default for SecurityConfig {
             read_only: None,
             max_file_size: 10 * 1024 * 1024, // 10MB
             allow_symlinks: false,
+            pii_severity: PiiSeverity::Warning,
+            pii_enabled: true,
+            injection_enabled: true,
+            injection_block_threshold: 0.8,
+            global_tool_timeout_secs: default_global_tool_timeout(),
+            token_budget_limit: None,
+            per_task_token_budget: None,
         }
     }
 }
@@ -128,10 +173,21 @@ impl SecurityConfig {
             return Err("max_actions_per_hour must be greater than 0".to_string());
         }
 
+        if self.global_tool_timeout_secs == 0 {
+            return Err("global_tool_timeout_secs must be greater than 0".to_string());
+        }
+
         for path in &self.forbidden_paths {
             if path.contains('\0') {
                 return Err(format!("Forbidden path contains null byte: {}", path));
             }
+        }
+
+        if self.injection_block_threshold < 0.0 || self.injection_block_threshold > 1.0 {
+            return Err(format!(
+                "injection_block_threshold must be between 0.0 and 1.0, got {}",
+                self.injection_block_threshold
+            ));
         }
 
         Ok(())
@@ -199,6 +255,21 @@ mod tests {
 
         config.max_actions_per_hour = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_global_tool_timeout_default() {
+        let config = SecurityConfig::default();
+        assert_eq!(config.global_tool_timeout_secs, 120);
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_global_tool_timeout_zero_rejected() {
+        let mut config = SecurityConfig::default();
+        config.global_tool_timeout_secs = 0;
+        let err = config.validate().unwrap_err();
+        assert!(err.contains("global_tool_timeout_secs"));
     }
 
     #[test]

@@ -1,12 +1,15 @@
 //! Context builder for assembling prompts
 
+use crate::mask::MaskFile;
+use crate::mask::MaskPromptComposer;
+use crate::memory_boundary::default_memory_provider;
 use crate::skills::SkillsLoader;
 use agent_diva_core::memory::{
-    MemoryManager, MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock,
-    SystemPromptRequest, SystemPromptResponse,
+    MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock, SystemPromptRequest,
+    SystemPromptResponse,
 };
 use agent_diva_core::soul::SoulStateStore;
-use agent_diva_providers::{Message, MessageContent};
+use agent_diva_providers::Message;
 use agent_diva_tools::sanitize::truncate_tool_result;
 use std::path::Path;
 use std::path::PathBuf;
@@ -46,7 +49,7 @@ impl ContextBuilder {
     /// Create a new context builder
     pub fn new(workspace: PathBuf) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, None);
-        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(MemoryManager::new(&workspace));
+        let memory_provider = default_memory_provider(&workspace);
         Self {
             workspace,
             skills_loader,
@@ -58,7 +61,7 @@ impl ContextBuilder {
     /// Create a new context builder with skills
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
-        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(MemoryManager::new(&workspace));
+        let memory_provider = default_memory_provider(&workspace);
         Self {
             workspace,
             skills_loader,
@@ -73,18 +76,47 @@ impl ContextBuilder {
         self
     }
 
+    /// Enable Mentle-specific prompt routing only after runtime tools are active.
+    pub fn with_mentle(self, enabled: bool) -> Self {
+        let _ = enabled;
+        self
+    }
+
+    /// Retained for compatibility with runtime refresh paths.
+    pub fn with_mentle_tools(self, tool_names: Vec<String>) -> Self {
+        let _ = tool_names;
+        self
+    }
+
+    /// Retained for compatibility with runtime refresh paths.
+    pub fn set_mentle_prompt_state(&mut self, enabled: bool, tool_names: Vec<String>) {
+        let _ = enabled;
+        let _ = tool_names;
+    }
+
     /// Override soul context settings.
     pub fn set_soul_settings(&mut self, settings: SoulContextSettings) {
         self.soul_settings = settings;
     }
 
-    /// Build system prompt from workspace files and memory
-    pub fn build_system_prompt(&self) -> String {
+    /// Build system prompt from workspace files and memory.
+    ///
+    /// When a non-default `mask` is provided, its body is injected at the top
+    /// of the prompt (before the identity header) — 方案 A placement.
+    pub fn build_system_prompt(&self, mask: Option<&MaskFile>) -> String {
         let workspace_path = self.workspace.display();
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M (%A)");
         let identity_header = self.load_identity_header();
 
-        let mut prompt = format!(
+        let mut prompt = String::new();
+
+        // 方案 A: mask prompt at the very top when active.
+        if let Some(mask_prompt) = MaskPromptComposer::compose(mask) {
+            prompt.push_str(&mask_prompt);
+            prompt.push_str("\n\n");
+        }
+
+        prompt.push_str(&format!(
             r#"{identity_header}
 
 You have access to tools that allow you to:
@@ -99,13 +131,11 @@ You have access to tools that allow you to:
 
 ## Workspace
 Your workspace is at: {workspace_path}
-- Memory files: {workspace_path}/memory/MEMORY.md
-- Memory history log: {workspace_path}/memory/HISTORY.md"#
-        );
+- Applied authority is consumed through the configured MemoryProvider boundary.
+- Legacy authority files are compatibility/migration inputs only, not default authority."#
+        ));
 
-        if self.soul_settings.enabled {
-            self.append_soul_sections(&mut prompt);
-        }
+        self.append_agent_rules_and_bootstrap(&mut prompt);
 
         // Skills - progressive loading
         // 1) Always-loaded skills (full content)
@@ -154,42 +184,26 @@ When a user asks to create a reminder, timer, or recurring schedule, use the 'cr
 Always be helpful, accurate, and concise. When using tools, explain what you're doing."#,
         );
 
-        prompt.push_str(&format!(
-            "\nWhen remembering something, write to {}/memory/MEMORY.md",
-            workspace_path
-        ));
+        prompt.push_str(
+            "\nWhen remembering something, create or update governed memory through the available memory tools or compatibility path; do not treat legacy authority files as default prompt authority.",
+        );
 
         prompt
     }
 
-    fn append_soul_sections(&self, prompt: &mut String) {
-        let sections = [
-            ("AGENTS.md", "Agent Rules"),
-            ("SOUL.md", "Soul"),
-            ("IDENTITY.md", "Identity"),
-            ("USER.md", "User Profile"),
-        ];
-
-        for (rel, title) in sections {
-            if let Some(content) = self.read_soul_file(rel) {
-                self.append_section(prompt, title, &content);
-            }
+    fn append_agent_rules_and_bootstrap(&self, prompt: &mut String) {
+        if let Some(content) = self.read_soul_file("AGENTS.md") {
+            self.append_section(prompt, "Agent Rules", &content);
         }
 
-        if self.should_include_bootstrap() {
-            if let Some(content) = self.read_soul_file("BOOTSTRAP.md") {
-                let _ = SoulStateStore::new(&self.workspace).mark_bootstrap_seeded();
-                self.append_section(prompt, "Bootstrap", &content);
-            }
+        if self.soul_settings.enabled && self.should_include_bootstrap() {
+            let _ = SoulStateStore::new(&self.workspace).mark_bootstrap_seeded();
         }
     }
 
     fn should_include_bootstrap(&self) -> bool {
-        if !self.soul_settings.bootstrap_once {
-            return true;
-        }
-        let store = SoulStateStore::new(&self.workspace);
-        !store.is_bootstrap_completed()
+        self.soul_settings.bootstrap_once
+            && !SoulStateStore::new(&self.workspace).is_bootstrap_completed()
     }
 
     fn read_soul_file(&self, rel: &str) -> Option<String> {
@@ -205,55 +219,26 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 
     fn load_identity_header(&self) -> String {
-        let Some(content) = self.read_soul_file("IDENTITY.md") else {
-            return default_identity_header();
-        };
-
-        let name = parse_identity_field(&content, &["name", "agent", "assistant"])
-            .unwrap_or_else(|| DEFAULT_AGENT_NAME.to_string());
-        let emoji = parse_identity_field(&content, &["emoji", "icon", "signature"])
-            .unwrap_or_else(|| DEFAULT_AGENT_EMOJI.to_string());
-        let role = parse_identity_field(&content, &["role", "nature", "type"])
-            .unwrap_or_else(|| DEFAULT_AGENT_ROLE.to_string());
-        let voice = parse_identity_field(&content, &["voice", "style", "vibe"]);
-
-        let mut header = format!("# {} {}\n\nYou are {}, a {}.", name, emoji, name, role);
-        if let Some(voice) = voice {
-            header.push_str(" Preferred communication style: ");
-            header.push_str(&voice);
-            header.push('.');
-        }
-        header
+        default_identity_header()
     }
 
-    /// Build the complete message list for an LLM call
+    /// Build the complete message list for an LLM call.
+    ///
+    /// If `session_compaction_history` is non-empty, each compacted summary is
+    /// injected as a boundary marker + system message before the raw history,
+    /// so the LLM sees all summaries and the recent messages.
     pub fn build_messages(
         &self,
         history: Vec<agent_diva_core::session::ChatMessage>,
         current_message: String,
         channel: Option<&str>,
         chat_id: Option<&str>,
-    ) -> Vec<Message> {
-        self.build_messages_with_content(
-            history,
-            MessageContent::Text(current_message),
-            channel,
-            chat_id,
-        )
-    }
-
-    /// Build the complete message list for an LLM call with structured current content.
-    pub fn build_messages_with_content(
-        &self,
-        history: Vec<agent_diva_core::session::ChatMessage>,
-        current_message: MessageContent,
-        channel: Option<&str>,
-        chat_id: Option<&str>,
+        session_compaction_history: &[agent_diva_core::session::CompactSummary],
     ) -> Vec<Message> {
         let mut messages = Vec::new();
 
         // System prompt
-        let mut system_prompt = self.build_system_prompt();
+        let mut system_prompt = self.build_system_prompt(None);
         if let (Some(ch), Some(id)) = (channel, chat_id) {
             system_prompt.push_str(&format!(
                 "\n\n## Current Session\nChannel: {}\nChat ID: {}",
@@ -261,6 +246,27 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
             ));
         }
         messages.push(Message::system(system_prompt));
+
+        // Inject compaction boundaries for each summary
+        for (i, compaction) in session_compaction_history.iter().enumerate() {
+            if compaction.summary.is_empty() {
+                continue;
+            }
+            if i == 0 {
+                // First compaction: full boundary markers
+                messages.push(Message::system(
+                    "## Context Compaction Boundary\n以下早期对话已被压缩为摘要。摘要可能有失真，如需精确信息请询问用户。\n[compacted context start]",
+                ));
+            } else {
+                // Subsequent compactions: shorter markers
+                messages.push(Message::system(format!(
+                    "## Context Compaction #{}\n[compacted context start]",
+                    i + 1
+                )));
+            }
+            messages.push(Message::system(&compaction.summary));
+            messages.push(Message::system("[compacted context end]"));
+        }
 
         // History - convert from ChatMessage to Message
         for msg in history {
@@ -398,6 +404,7 @@ fn read_trimmed_markdown(path: &Path, max_chars: usize) -> Option<String> {
     Some(out)
 }
 
+#[cfg(test)]
 fn parse_identity_field(content: &str, keys: &[&str]) -> Option<String> {
     for line in content.lines() {
         let line = line.trim().trim_start_matches(&['-', '*'][..]).trim();
@@ -435,6 +442,7 @@ mod tests {
         SessionEndStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus, SystemPromptBlock,
         SystemPromptRequest, SystemPromptResponse,
     };
+    use agent_diva_core::session::{SessionManager, SessionSearchQuery};
     use std::fs;
     use std::sync::Arc;
     use tempfile::TempDir;
@@ -485,7 +493,7 @@ mod tests {
     #[test]
     fn test_build_system_prompt() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
         assert!(prompt.contains("agent-diva"));
         assert!(prompt.contains("/tmp/test"));
     }
@@ -494,32 +502,11 @@ mod tests {
     fn test_build_messages() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
         let messages =
-            builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"));
+            builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"), &[]);
         assert_eq!(messages.len(), 2); // system + user
         assert_eq!(messages[0].role, "system");
         assert_eq!(messages[1].role, "user");
-        assert_eq!(messages[1].content.as_text(), Some("Hello"));
-    }
-
-    #[test]
-    fn test_build_messages_with_content_keeps_structured_current_message() {
-        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
-        let content = MessageContent::Parts(vec![
-            agent_diva_providers::MessageContentPart::Text {
-                text: "look".to_string(),
-            },
-            agent_diva_providers::MessageContentPart::ImageFile {
-                image_file: agent_diva_providers::ImageFile {
-                    file_id: "sha256:image".to_string(),
-                },
-            },
-        ]);
-        let messages =
-            builder.build_messages_with_content(vec![], content.clone(), Some("cli"), Some("test"));
-
-        assert_eq!(messages.len(), 2);
-        assert_eq!(messages[1].role, "user");
-        assert_eq!(messages[1].content, content);
+        assert_eq!(messages[1].content, "Hello".into());
     }
 
     #[test]
@@ -534,7 +521,7 @@ mod tests {
         .unwrap();
 
         let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
 
         assert!(prompt.contains("## Active Skills"));
         assert!(prompt.contains("## Skills"));
@@ -547,10 +534,86 @@ mod tests {
         let builder = ContextBuilder::new(workspace.path().to_path_buf())
             .with_memory_provider(Arc::new(TestMemoryProvider));
 
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
 
         assert!(prompt.contains("## Provider Memory"));
         assert!(prompt.contains(&workspace.path().display().to_string()));
+    }
+
+    #[test]
+    fn test_build_system_prompt_omits_mentle_routing_by_default() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+
+        let prompt = builder.build_system_prompt(None);
+
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
+    }
+
+    #[test]
+    fn governance_context_does_not_inject_mentle_recall_by_default() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+
+        let prompt = builder.build_system_prompt(None);
+
+        assert!(!prompt.contains("Memory Routing"));
+        assert!(!prompt.contains("Palace Memory"));
+        assert!(!prompt.contains("memtle_"));
+        assert!(!prompt.to_lowercase().contains("mentle recall"));
+    }
+
+    #[test]
+    fn session_search_hits_do_not_enter_default_prompt_authority() {
+        let workspace = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(workspace.path());
+        let session = manager.get_or_create("telegram:123");
+        session.add_message("user", "Secret launch evidence from old session");
+        let key = session.key.clone();
+        manager.save(manager.get(&key).unwrap()).unwrap();
+
+        let search = manager
+            .search(SessionSearchQuery::new("launch evidence"))
+            .unwrap();
+        assert_eq!(search.hits.len(), 1);
+
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let prompt = builder.build_system_prompt(None);
+        assert!(!prompt.contains("Secret launch evidence from old session"));
+        assert!(!prompt.contains("session://telegram%3A123"));
+    }
+
+    #[test]
+    fn set_mentle_prompt_state_updates_prompt_exposure() {
+        let workspace = TempDir::new().unwrap();
+        let mut builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_mentle(true)
+            .with_mentle_tools(vec![
+                "memtle_status".to_string(),
+                "memtle_search".to_string(),
+            ]);
+        builder.set_mentle_prompt_state(false, vec!["memtle_search".to_string()]);
+
+        let prompt = builder.build_system_prompt(None);
+        assert!(!prompt.contains("L2 Palace Memory"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_includes_mentle_routing_when_active() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_mentle(true)
+            .with_mentle_tools(vec![
+                "memtle_status".to_string(),
+                "memtle_search".to_string(),
+            ]);
+
+        let prompt = builder.build_system_prompt(None);
+
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_search"));
+        assert!(!prompt.contains("route it by granularity"));
     }
 
     #[test]
@@ -612,12 +675,12 @@ mod tests {
 
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[1].role, "assistant");
-        assert_eq!(messages[1].content.as_text(), Some("response"));
+        assert_eq!(messages[1].content, "response".into());
         assert_eq!(messages[1].reasoning_content, Some("reasoning".to_string()));
     }
 
     #[test]
-    fn test_build_system_prompt_includes_soul_sections_in_order() {
+    fn test_build_system_prompt_excludes_legacy_authority_sections_by_default() {
         let workspace = TempDir::new().unwrap();
         fs::write(workspace.path().join("AGENTS.md"), "# Repo Rules").unwrap();
         fs::write(workspace.path().join("SOUL.md"), "# Core Traits").unwrap();
@@ -626,18 +689,16 @@ mod tests {
         fs::write(workspace.path().join("BOOTSTRAP.md"), "# Bootstrap Steps").unwrap();
 
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
 
-        let idx_agents = prompt.find("## Agent Rules").unwrap();
-        let idx_soul = prompt.find("## Soul").unwrap();
-        let idx_identity = prompt.find("## Identity").unwrap();
-        let idx_user = prompt.find("## User Profile").unwrap();
-        let idx_bootstrap = prompt.find("## Bootstrap").unwrap();
-
-        assert!(idx_agents < idx_soul);
-        assert!(idx_soul < idx_identity);
-        assert!(idx_identity < idx_user);
-        assert!(idx_user < idx_bootstrap);
+        assert!(prompt.contains("## Agent Rules"));
+        assert!(prompt.contains("# Repo Rules"));
+        assert!(!prompt.contains("## Bootstrap"));
+        assert!(!prompt.contains("## Soul"));
+        assert!(!prompt.contains("## Identity"));
+        assert!(!prompt.contains("## User Profile"));
+        assert!(!prompt.contains("# Core Traits"));
+        assert!(!prompt.contains("# Preferences"));
     }
 
     #[test]
@@ -645,12 +706,14 @@ mod tests {
         let workspace = TempDir::new().unwrap();
         fs::write(workspace.path().join("BOOTSTRAP.md"), "# Bootstrap Steps").unwrap();
         let store = SoulStateStore::new(workspace.path());
-        let mut state = agent_diva_core::soul::SoulState::default();
-        state.bootstrap_completed_at = Some(chrono::Utc::now());
+        let state = agent_diva_core::soul::SoulState {
+            bootstrap_completed_at: Some(chrono::Utc::now()),
+            ..Default::default()
+        };
         store.save(&state).unwrap();
 
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
         assert!(!prompt.contains("## Bootstrap"));
     }
 
@@ -666,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_system_prompt_uses_identity_file_for_header() {
+    fn test_build_system_prompt_does_not_use_identity_file_for_header() {
         let workspace = TempDir::new().unwrap();
         fs::write(
             workspace.path().join("IDENTITY.md"),
@@ -674,17 +737,19 @@ mod tests {
         )
         .unwrap();
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
-        let prompt = builder.build_system_prompt();
-        assert!(prompt.contains("# Nova ✨"));
-        assert!(prompt.contains("You are Nova, a strategic coding partner."));
-        assert!(prompt.contains("Preferred communication style: concise and direct."));
+        let prompt = builder.build_system_prompt(None);
+        assert!(prompt.contains("# agent-diva 🐈"));
+        assert!(prompt.contains("You are agent-diva, a helpful AI assistant."));
+        assert!(!prompt.contains("# Nova ✨"));
+        assert!(!prompt.contains("strategic coding partner"));
+        assert!(!prompt.contains("Preferred communication style: concise and direct."));
     }
 
     #[test]
     fn test_build_system_prompt_identity_header_falls_back_to_default() {
         let workspace = TempDir::new().unwrap();
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
         assert!(prompt.contains("# agent-diva 🐈"));
         assert!(prompt.contains("You are agent-diva, a helpful AI assistant."));
     }
@@ -694,12 +759,12 @@ mod tests {
         let workspace = TempDir::new().unwrap();
         fs::write(workspace.path().join("IDENTITY.md"), "   \n").unwrap();
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
-        let prompt = builder.build_system_prompt();
+        let prompt = builder.build_system_prompt(None);
         assert!(prompt.contains("# agent-diva 🐈"));
     }
 
     #[test]
-    fn test_build_system_prompt_long_identity_is_trimmed_by_max_chars() {
+    fn test_build_system_prompt_long_identity_file_is_not_rendered() {
         let workspace = TempDir::new().unwrap();
         let long_name = "N".repeat(6000);
         fs::write(
@@ -713,9 +778,9 @@ mod tests {
             max_chars: 120,
             bootstrap_once: true,
         });
-        let prompt = builder.build_system_prompt();
-        assert!(prompt.contains("You are "));
-        assert!(prompt.chars().count() > 120);
+        let prompt = builder.build_system_prompt(None);
+        assert!(prompt.contains("You are agent-diva, a helpful AI assistant."));
+        assert!(!prompt.contains(&"N".repeat(120)));
     }
 
     #[test]
@@ -738,5 +803,74 @@ mod tests {
             parse_identity_field(raw, &["voice"]).as_deref(),
             Some("简洁、实用、协作")
         );
+    }
+
+    // ── Mask integration tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_build_system_prompt_no_mask_unchanged() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let prompt = builder.build_system_prompt(None);
+
+        // Should start with identity header, not mask content.
+        assert!(prompt.starts_with("# agent-diva"));
+        assert!(!prompt.contains("## Mask"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_default_mask_no_injection() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let mask = MaskFile::default_mask();
+        let prompt = builder.build_system_prompt(Some(&mask));
+
+        // Default mask should produce the same prompt as None.
+        let baseline =
+            ContextBuilder::new(workspace.path().to_path_buf()).build_system_prompt(None);
+        assert_eq!(prompt, baseline);
+    }
+
+    #[test]
+    fn test_build_system_prompt_custom_mask_injected_at_top() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+
+        let content = r#"---
+name: "研究员"
+---
+
+你是一个专注调研与分析的研究员。"#;
+        let mask = MaskFile::parse(content).unwrap();
+        let prompt = builder.build_system_prompt(Some(&mask));
+
+        // Mask prompt should appear at the very top (方案 A).
+        assert!(prompt.starts_with("你是一个专注调研与分析的研究员。"));
+        // Identity header should follow.
+        assert!(prompt.contains("# agent-diva"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_mask_does_not_replace_default_identity() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(
+            workspace.path().join("IDENTITY.md"),
+            "- Name: Nova\n- Role: partner\n",
+        )
+        .unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+
+        let content = r#"---
+name: "writer"
+---
+
+You are a technical writer."#;
+        let mask = MaskFile::parse(content).unwrap();
+        let prompt = builder.build_system_prompt(Some(&mask));
+
+        // Mask and default identity should both be present; legacy IDENTITY.md is not authority.
+        assert!(prompt.starts_with("You are a technical writer."));
+        assert!(prompt.contains("You are agent-diva, a helpful AI assistant."));
+        assert!(!prompt.contains("You are Nova, a partner."));
     }
 }

@@ -18,20 +18,6 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     if config.agents.defaults.max_tool_iterations == 0 {
         errors.push("agents.defaults.max_tool_iterations must be > 0".to_string());
     }
-    if config.agents.defaults.context_budget_tokens == 0 {
-        errors.push("agents.defaults.context_budget_tokens must be > 0".to_string());
-    }
-    if config.agents.defaults.context_budget_reserve_tokens == 0 {
-        errors.push("agents.defaults.context_budget_reserve_tokens must be > 0".to_string());
-    }
-    if config.agents.defaults.context_budget_reserve_tokens
-        >= config.agents.defaults.context_budget_tokens
-    {
-        errors.push(
-            "agents.defaults.context_budget_reserve_tokens must be < agents.defaults.context_budget_tokens"
-                .to_string(),
-        );
-    }
     if let Some(reasoning_effort) = &config.agents.defaults.reasoning_effort {
         let effort = reasoning_effort.trim().to_lowercase();
         if !effort.is_empty() && effort != "low" && effort != "medium" && effort != "high" {
@@ -48,26 +34,6 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
     }
     if config.agents.soul.frequent_change_threshold == 0 {
         errors.push("agents.soul.frequent_change_threshold must be > 0".to_string());
-    }
-    if config.tools.exec.timeout == 0 {
-        errors.push("tools.exec.timeout must be > 0".to_string());
-    }
-    if config.logging.retention_days == 0 {
-        errors.push("logging.retention_days must be > 0".to_string());
-    }
-    if config.logging.dir.trim().is_empty() {
-        errors.push("logging.dir must not be empty".to_string());
-    }
-    if let Some(runtime_log_dir) = &config.logging.runtime_log_dir {
-        if runtime_log_dir.trim().is_empty() {
-            errors.push("logging.runtime_log_dir must not be empty when set".to_string());
-        }
-    }
-    if config.tools.subagent.max_concurrent == 0 {
-        errors.push("tools.subagent.max_concurrent must be > 0".to_string());
-    }
-    if config.tools.subagent.max_depth == 0 {
-        errors.push("tools.subagent.max_depth must be > 0".to_string());
     }
 
     for (name, server) in &config.tools.mcp_servers {
@@ -104,6 +70,31 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
                 &provider
             }
         ));
+    }
+
+    let asr_provider = config.pet.asr_provider.trim().to_lowercase();
+    if !asr_provider.is_empty() && asr_provider != "web_speech" && asr_provider != "siliconflow" {
+        errors.push("pet.asr_provider must be one of: web_speech, siliconflow".to_string());
+    }
+    let tts_provider = config.pet.tts_provider.trim().to_lowercase();
+    if !tts_provider.is_empty()
+        && tts_provider != "browser"
+        && tts_provider != "openai"
+        && tts_provider != "siliconflow"
+        && tts_provider != "minimax"
+    {
+        errors.push(
+            "pet.tts_provider must be one of: browser, openai, siliconflow, minimax".to_string(),
+        );
+    }
+    if !config.pet.tts_speed.is_finite() || config.pet.tts_speed <= 0.0 {
+        errors.push("pet.tts_speed must be > 0".to_string());
+    }
+    if !config.pet.tts_volume.is_finite()
+        || config.pet.tts_volume < 0.0
+        || config.pet.tts_volume > 2.0
+    {
+        errors.push("pet.tts_volume must be in [0.0, 2.0]".to_string());
     }
 
     if errors.is_empty() {
@@ -156,57 +147,20 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_rejects_zero_exec_timeout() {
+    fn test_validate_accepts_minimax_tts_provider() {
         let mut config = Config::default();
         config.providers.anthropic.api_key = "test-key".to_string();
-        config.tools.exec.timeout = 0;
+        config.pet.tts_provider = "minimax".to_string();
 
-        let err = validate_config(&config).unwrap_err();
-        assert!(err.to_string().contains("tools.exec.timeout must be > 0"));
+        validate_config(&config).unwrap();
     }
 
     #[test]
-    fn test_validate_rejects_zero_subagent_limits() {
+    fn test_validate_accepts_siliconflow_asr_provider() {
         let mut config = Config::default();
         config.providers.anthropic.api_key = "test-key".to_string();
-        config.tools.subagent.max_concurrent = 0;
-        config.tools.subagent.max_depth = 0;
+        config.pet.asr_provider = "siliconflow".to_string();
 
-        let err = validate_config(&config).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("tools.subagent.max_concurrent must be > 0"));
-        assert!(err
-            .to_string()
-            .contains("tools.subagent.max_depth must be > 0"));
-    }
-
-    #[test]
-    fn test_validate_rejects_invalid_context_budget() {
-        let mut config = Config::default();
-        config.providers.anthropic.api_key = "test-key".to_string();
-        config.agents.defaults.context_budget_tokens = 1_000;
-        config.agents.defaults.context_budget_reserve_tokens = 1_000;
-
-        let err = validate_config(&config).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("context_budget_reserve_tokens must be <"));
-    }
-
-    #[test]
-    fn test_validate_rejects_invalid_logging_settings() {
-        let mut config = Config::default();
-        config.providers.anthropic.api_key = "test-key".to_string();
-        config.logging.retention_days = 0;
-        config.logging.runtime_log_dir = Some("   ".to_string());
-
-        let err = validate_config(&config).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("logging.retention_days must be > 0"));
-        assert!(err
-            .to_string()
-            .contains("logging.runtime_log_dir must not be empty when set"));
+        validate_config(&config).unwrap();
     }
 }

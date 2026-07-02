@@ -1,118 +1,186 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working in this repository. `AGENTS.md` remains the authoritative rule source; keep this file aligned with it.
+
+## Communication Rules
+
+- Reply to users in Chinese.
+- Prefix every user-facing reply with `[I strictly follow the rules]`.
 
 ## Project Overview
 
-Agent Diva is a modular AI assistant framework written in Rust. It connects multiple chat platforms (Telegram, Discord, Slack, WhatsApp, Feishu, DingTalk, Email, QQ) to multiple LLM providers (OpenRouter, Anthropic, OpenAI, DeepSeek, Groq, Gemini, and others) with a built-in tool system.
+Agent Diva is a Rust workspace for a modular AI assistant system spanning agent runtime, provider integrations, channels, tooling, local gateway, GUI, AutoDream, Laputa memory/proposal services, and sandbox policy enforcement.
 
-## Build & Development Commands
+## Workspace Structure
 
-The project uses `just` as a command runner (install via `cargo install just`). The justfile is configured for PowerShell on Windows.
+Primary crates:
+
+- `agent-diva-core`: shared config, memory/session, cron, heartbeat, event bus foundations
+- `agent-diva-agent`: agent loop, context assembly, skill/subagent flow
+- `agent-diva-providers`: LLM/transcription provider abstractions and implementations
+- `agent-diva-channels`: channel adapters
+- `agent-diva-tools`: built-in tools
+- `agent-diva-files`: file indexing and file-management helpers
+- `agent-diva-tooling`: shared tooling abstractions/utilities
+- `agent-diva-neuron`: supporting types/helpers used by the GUI
+- `agent-diva-manager`: default local gateway and HTTP control plane for `agent-diva-cli`
+- `agent-diva-autodream`: AutoDream manual-run, proposal, input, and output lifecycle support
+- `agent-diva-laputa`: proposal, migration, recovery, and memory-provider services
+- `agent-diva-sandbox`: sandbox policy, execution, platform adapters, approval/guardian support
+- `agent-diva-cli`: user-facing CLI entrypoint
+- `agent-diva-service`: Windows service wrapper
+- `agent-diva-gui`: optional Tauri desktop app
+- `agent-diva-migration`: migration utility from earlier versions
+
+Nested/reference workspace:
+
+- `agent-diva-nano`: lives under `.workspace/agent-diva-nano/`; it is not a root workspace member
+
+Additional repository facts:
+
+- Root workspace package version: `0.5.0`
+- Rust MSRV: `1.80.0`
+- Main branch in this checkout: `agent-diva-pro`
+- `.workspace/` contains sibling reference projects such as `openfang`, `zeroclaw`, `nanobot`, `codex`, and `memtle`
+- Mentle integration is intentionally pinned to published `memtle = 0.1.2`; do not replace it with path/git overrides in the main workspace
+
+## Development Guidance
+
+- Keep cross-cutting domain types in `agent-diva-core`.
+- Keep provider/channel-specific logic isolated in dedicated crates.
+- Prefer small modules and composable functions over large files.
+- Avoid `unwrap`/`expect` in non-test code; propagate errors with context.
+- Keep async boundaries explicit and avoid blocking in async paths.
+- Preserve backward compatibility for public interfaces unless a breaking change is intentional and documented.
+- When users reference `openclaw`, `nanobot`, `shannon`, or similar projects, inspect `.workspace/` first and adapt ideas to Agent Diva architecture.
+
+## Build, Check, and Run
+
+Prefer `just` from the workspace root:
 
 ```bash
-just build            # Build all crates
-just build-release    # Build in release mode
-just test             # Run all tests
-just check            # Run clippy linter
-just fmt              # Format code
-just ci               # Run fmt-check + clippy + tests (full CI pipeline)
-just run <ARGS>       # Run the CLI (e.g., just run gateway)
-just install          # Install CLI binary locally
+just build
+just build-release
+just test
+just check
+just fmt
+just fmt-check
+just ci
+just mentle-package-policy
+just sprint5-default-check
+just mentle-check
+just sprint5-check
+just run -- <args>
+just migrate -- <args>
 ```
 
-Without just:
+Useful direct cargo commands:
+
 ```bash
-cargo build --all
-cargo test --all
-cargo clippy --all -- -D warnings
-cargo fmt --all
+cargo test -p <crate>
+cargo test <test_name>
+cargo run -p agent-diva-cli -- <args>
 ```
 
-Running specific tests:
-```bash
-cargo test test_name                    # Single test by name
-cargo test --package agent-diva-core    # Tests in one crate
-cargo test message_bus                  # Tests matching pattern
-cargo test -- --nocapture               # With stdout output
-```
+Windows Mentle note:
 
-Set log level: `RUST_LOG=debug cargo run`
+- If `clang-cl.exe` exists under `C:\Program Files\LLVM\bin` but is not on `PATH`, prepend that directory before running `cargo check -p agent-diva-agent --features mentle`.
 
-## Architecture
+## Validation Rules
 
-This is a Cargo workspace (see root `Cargo.toml` for authoritative `members`). Primary crates:
+- Default post-change validation is `just fmt-check`, `just check`, `just test`.
+- If a change does not justify one of those commands, explain why.
+- For user-visible or executable behavior changes, run at least one smoke path in addition to tests.
+- If modifying `agent-diva-gui`, include GUI-specific smoke validation.
+- Record validation results in iteration logs under `docs/logs/.../verification.md`.
 
-- **agent-diva-core** — Foundation: message bus (dual-queue inbound/outbound), configuration loading, session management (JSONL persistence), memory system (MEMORY.md + HISTORY.md), error types
-- **agent-diva-agent** — Agent loop, context builder (assembles LLM prompts), skill loader (Markdown-based skills), subagent manager
-- **agent-diva-providers** — LLM provider trait + implementations; uses LiteLLM-compatible HTTP API pattern with a provider registry
-- **agent-diva-channels** — Channel handler trait + channel manager + platform-specific handlers
-- **agent-diva-tools** — Tool trait + registry + implementations (filesystem, shell, web, message, spawn, cron, MCP)
-- **agent-diva-neuron** — Supporting library used heavily by the desktop GUI stack
-- **agent-diva-manager** — Default local gateway / HTTP control plane for **`agent-diva-cli`** (required dependency)
-- **agent-diva-nano** — Template-line gateway stack in **`external/agent-diva-nano/`** (separate nested workspace; not built with root `cargo build --workspace`)
-- **agent-diva-cli** — Entry point binary `agent-diva`; commands include `onboard`, `gateway`, `agent`, `tui`, `status`, `channels`, `cron`
-- **agent-diva-service** — Windows service wrapper around the CLI
-- **agent-diva-migration** — Migrates config/sessions from the older Python version
-- **agent-diva-gui** — Optional Tauri + Vue.js desktop GUI (in `agent-diva-gui/src-tauri`)
+## Process Files
 
-### Data Flow
+- `AGENTS.md`: authoritative repository rules
+- `CLAUDE.md`: Claude-oriented mirror of operational guidance; keep aligned with `AGENTS.md`
+- `TODOLIST.md`: canonical backlog for discovered bugs, gaps, and deferred work
+- `LOCK.md`: canonical mutex file for parallel Codex/Cursor/manual sessions
 
-Incoming messages flow: Channel Handler → Message Bus (inbound) → Agent Loop → Context Builder → LLM Provider → Tool Execution (if needed) → Message Bus (outbound) → Channel Handler (response).
+## Parallel Work Rules
 
-Sessions persist to JSONL files via the Session Manager. Long-term memory uses MEMORY.md and append-only HISTORY.md files.
+- If the user says the project is in a parallel state, do not continue development in the shared root working tree.
+- Move work into an isolated branch/worktree or copied sibling workspace before editing.
+- Before any write task or workspace-mutating command, read `LOCK.md`.
+- If `LOCK.md` shows an active overlapping scope, do not edit in that scope until the lock is released, handed off, or you move to a non-overlapping isolated workspace.
+- Every parallel write task must update `LOCK.md` with owner, session/task, branch/worktree, exact scope, heartbeat, and expiry.
+- `GLOBAL` scope is reserved for migrations, bulk formatting, or broad refactors.
 
-### File Attachment System
+## Iteration Log Protocol
 
-The file attachment system uses content-addressed storage (SHA256 hash as filename) for automatic deduplication:
+Each deliverable change must create a new versioned directory under `docs/logs/<theme>/v0.0.1-slug/` containing:
 
-```
-Upload: Frontend → POST /api/upload → file_service.rs → %LOCALAPPDATA%/agent-diva/files/<hash>
-Read:   Agent Loop → load_attachment_contents() → Same path → Included in LLM prompt
-```
+- `summary.md`
+- `verification.md`
+- `release.md`
+- `acceptance.md`
 
-**Critical**: Both upload and read must use the same path calculation. See `dirs::data_local_dir()` usage in `file_service.rs` and `agent_loop/loop_turn.rs`.
+Optional files such as `notes.md`, `prd.md`, or `rollback.md` may be added when needed.
 
-**Windows Note**: The GUI uses `reqwest` with `.no_proxy()` to prevent system proxy interference with localhost API calls.
+## TODOLIST Protocol
 
-### Key Traits
+- Add discovered bugs, unfinished work, known limitations, or deferred improvements to `TODOLIST.md` unless fixed in the same iteration.
+- Entries should contain status, short title, reason/context, expected behavior, and related files/docs when available.
+- Completed items should be moved or marked under `Done`, not silently deleted.
 
-- `Provider` trait in agent-diva-providers — implement to add a new LLM provider
-- `ChannelHandler` trait in agent-diva-channels — implement to add a new chat platform
-- `Tool` trait in agent-diva-tools — implement to add a new tool
+## Commit Rules
 
-## Configuration
+- Use English Conventional Commit prefixes such as `feat:`, `fix:`, `docs:`.
+- Create one commit per completed, self-contained update.
+- Do not push unless the user explicitly asks.
+- Stage only files for the current focused update; do not include unrelated pre-existing workspace changes.
+- Clean up scratch artifacts created during the task before committing.
+- For non-trivial commits, include validation notes in the commit body or accompanying report.
 
-Config file: `~/.agent-diva/config.json`
+## Command Mechanism
 
-Precedence: Environment variables (`AGENT_DIVA__*`) > config file > defaults.
+Agreed meta-commands:
 
-## Code Conventions
+- `/new-command`
+- `/config-meta`
+- `/check-meta`
+- `/new-rule`
+- `/commit`
+- `/validate`
+- `/init`
 
-- Dependencies are declared in workspace `Cargo.toml` under `[workspace.dependencies]` and referenced with `{ workspace = true }` in crate-level Cargo.toml files
-- Error handling: `thiserror` for library crate errors, `anyhow` for application-level (CLI)
-- Async runtime: Tokio multi-threaded; use `tokio::sync::mpsc` for message passing, `tokio::spawn` for concurrency
-- Logging: `tracing` crate (`info!`, `debug!`, `warn!`, `error!`)
-- Tests: `#[cfg(test)]` in-module, `#[tokio::test]` for async tests, mock external services with mockito/wiremock
+If commands are added or modified, update both the command index in `AGENTS.md` and `commands/commands.md` when that file exists or is first created.
 
-## Provider Model-ID Safety Rule (Critical)
+## Provider Model-ID Safety Rule
 
-- For native provider OpenAI-compatible endpoints (example: DeepSeek `https://api.deepseek.com/v1`), keep raw model IDs unchanged (example: `deepseek-chat`).
-- Do **not** auto-prefix raw IDs into LiteLLM form (example: avoid rewriting to `deepseek/deepseek-chat`) when not using a gateway.
-- Apply `provider/model` prefix rewriting only for real LiteLLM-style gateways/aggregators.
+When calling a provider's native OpenAI-compatible endpoint such as DeepSeek `https://api.deepseek.com/v1`:
 
-## Troubleshooting
+- send the raw provider model ID such as `deepseek-chat`
+- do not auto-rewrite it into LiteLLM form such as `deepseek/deepseek-chat`
+- only apply `provider/model` rewriting for a true LiteLLM-style gateway or aggregator
 
-### GUI Shows "Offline" / "Bad Gateway"
+Any provider-routing change should add or update tests that assert the final outbound `model` value.
 
-**Cause**: Windows system HTTP proxy intercepting localhost requests.
+## Testing Conventions
 
-**Fix**: Ensure `agent-diva-gui/src-tauri/src/app_state.rs` uses `.no_proxy()` on the reqwest client.
+- Write focused unit tests near the code with `#[cfg(test)]`.
+- Add integration tests under crate `tests/` directories for cross-module behavior.
+- Cover success paths and representative failure paths.
+- Validate serialization/config parsing for new config fields.
+- Prefer deterministic tests; avoid external network access in tests.
+- Use timeout-aware assertions for async behavior to avoid hanging CI.
 
-### AI Cannot Read Uploaded Files
+## Safety and Observability
 
-**Cause**: Path mismatch between upload and read operations.
+- Never commit real secrets or tokens.
+- Redact sensitive fields in logs, errors, snapshots, and fixtures.
+- Prefer least-privilege defaults for tools/channels that execute external actions.
+- Use structured, actionable errors with preserved source context.
+- Emit logs at appropriate levels and avoid noisy hot-path logging.
+- Include useful identifiers without leaking private data.
 
-**Fix**: Ensure both `file_service.rs` and `agent_loop/loop_turn.rs` use the same path calculation via `dirs::data_local_dir()`.
+## Notes for Claude
 
-See [docs/dev/bug-fixing-lessons-learned.md](./docs/dev/bug-fixing-lessons-learned.md) for detailed debugging guide.
+- The workspace may already be dirty from parallel stories; preserve unrelated changes.
+- Do not revert user changes unless explicitly instructed.
+- When updating process docs, also update `TODOLIST.md` and `docs/logs`.
+- If `AGENTS.md` and `CLAUDE.md` diverge, align `CLAUDE.md` to `AGENTS.md` and state that `AGENTS.md` is authoritative.

@@ -2,7 +2,9 @@
 
 use async_trait::async_trait;
 use regex::Regex;
-use reqwest::{header::HeaderMap, Client, StatusCode};
+use reqwest::Client;
+use serde::de::Deserializer;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use tracing::{debug, error, warn};
@@ -10,17 +12,137 @@ use tracing::{debug, error, warn};
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 
 use crate::base::{
-    LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderApiError, ProviderError,
-    ProviderEventStream, ProviderResult, ToolCallRequest,
+    LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
+    ProviderResult, ToolCallRequest,
 };
 use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
+use crate::retry;
 
-use super::dto::{
-    ChatCompletionRequest, ChatCompletionResponse, OpenAiErrorEnvelope, StreamChunk, Usage,
-};
-use super::stream::{finalize_partial_response, parse_sse_events, PartialToolCall};
+/// LiteLLM API request format
+#[derive(Debug, Serialize)]
+struct ChatCompletionRequest {
+    model: String,
+    messages: Vec<Message>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "stream_options")]
+    stream_options: Option<StreamOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<String>,
+    max_tokens: i32,
+    temperature: f64,
+}
 
+/// Stream options for controlling streaming behavior
+#[derive(Debug, Serialize)]
+struct StreamOptions {
+    include_usage: bool,
+}
+
+/// LiteLLM API response format
+#[derive(Debug, Deserialize)]
+struct ChatCompletionResponse {
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    choices: Vec<Choice>,
+    #[serde(default)]
+    usage: Usage,
+}
+
+#[derive(Debug, Deserialize)]
+struct Choice {
+    message: ResponseMessage,
+    finish_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponseMessage {
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    tool_calls: Vec<ToolCall>,
+    #[serde(default)]
+    reasoning_content: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolCall {
+    id: String,
+    #[serde(rename = "type")]
+    #[allow(dead_code)]
+    call_type: String,
+    function: Function,
+}
+
+#[derive(Debug, Deserialize)]
+struct Function {
+    name: String,
+    arguments: String,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct Usage {
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    prompt_tokens: i64,
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    completion_tokens: i64,
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    total_tokens: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct StreamChunk {
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    choices: Vec<StreamChoice>,
+    #[serde(default)]
+    usage: Option<Usage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StreamChoice {
+    #[serde(default)]
+    delta: StreamDelta,
+    #[serde(default)]
+    finish_reason: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct StreamDelta {
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    tool_calls: Vec<StreamToolCall>,
+    #[serde(default)]
+    reasoning_content: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StreamToolCall {
+    #[serde(default)]
+    index: usize,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(rename = "type")]
+    #[serde(default)]
+    #[allow(dead_code)]
+    call_type: Option<String>,
+    #[serde(default)]
+    function: Option<StreamFunction>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct StreamFunction {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    arguments: Option<String>,
+}
+
+#[derive(Debug)]
 struct RequestBuildOptions {
     resolved_model: String,
     max_tokens: i32,
@@ -29,6 +151,15 @@ struct RequestBuildOptions {
     stream: bool,
 }
 
+#[derive(Debug, Default, Clone)]
+struct PartialToolCall {
+    id: Option<String>,
+    call_type: String,
+    name: String,
+    arguments: String,
+}
+
+/// LiteLLM provider client
 pub struct LiteLLMClient {
     client: Client,
     api_base: String,
@@ -39,6 +170,16 @@ pub struct LiteLLMClient {
     selected_provider: Option<ProviderSpec>,
     direct_openai_compatible: bool,
     default_reasoning_effort: Option<String>,
+    /// Per-provider reasoning configuration for dynamic capability detection
+    reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
+}
+
+fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 impl LiteLLMClient {
@@ -50,6 +191,27 @@ impl LiteLLMClient {
         extra_headers: Option<HashMap<String, String>>,
         provider_name: Option<String>,
         default_reasoning_effort: Option<String>,
+    ) -> Self {
+        Self::new_with_config(
+            api_key,
+            api_base,
+            default_model,
+            extra_headers,
+            provider_name,
+            default_reasoning_effort,
+            None,
+        )
+    }
+
+    /// Create a new LiteLLM client with optional reasoning configuration.
+    pub fn new_with_config(
+        api_key: Option<String>,
+        api_base: Option<String>,
+        default_model: String,
+        extra_headers: Option<HashMap<String, String>>,
+        provider_name: Option<String>,
+        default_reasoning_effort: Option<String>,
+        reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
     ) -> Self {
         tracing::info!(
             "Creating LiteLLMClient. Provider: {:?}, Base: {:?}",
@@ -85,6 +247,18 @@ impl LiteLLMClient {
         let direct_openai_compatible =
             provider_name.is_some() && selected_provider.is_none() && !api_base.trim().is_empty();
 
+        // Derive default_reasoning_effort from reasoning_config if not explicitly provided
+        let derived_reasoning_effort = default_reasoning_effort
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                reasoning_config
+                    .as_ref()
+                    .and_then(|c| c.default_effort.clone())
+                    .map(|s| s.trim().to_lowercase())
+                    .filter(|s| !s.is_empty())
+            });
+
         Self {
             client: build_api_http_client(&api_base, std::time::Duration::from_secs(300))
                 .unwrap_or_else(|_| Client::new()),
@@ -95,9 +269,8 @@ impl LiteLLMClient {
             registry,
             selected_provider,
             direct_openai_compatible,
-            default_reasoning_effort: default_reasoning_effort
-                .map(|s| s.trim().to_lowercase())
-                .filter(|s| !s.is_empty()),
+            default_reasoning_effort: derived_reasoning_effort,
+            reasoning_config,
         }
     }
 
@@ -153,72 +326,6 @@ impl LiteLLMClient {
 
         debug!("Model unchanged: {}", model);
         model.to_string()
-    }
-
-    fn provider_name(&self) -> Option<String> {
-        self.selected_provider
-            .as_ref()
-            .map(|provider| provider.name.clone())
-    }
-
-    fn parse_retry_after_secs(headers: &HeaderMap) -> Option<u64> {
-        headers
-            .get(reqwest::header::RETRY_AFTER)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.parse::<u64>().ok())
-    }
-
-    fn parse_request_id(headers: &HeaderMap) -> Option<String> {
-        const REQUEST_ID_HEADERS: [&str; 4] = [
-            "x-request-id",
-            "request-id",
-            "x-litellm-request-id",
-            "x-correlation-id",
-        ];
-
-        REQUEST_ID_HEADERS.iter().find_map(|name| {
-            headers
-                .get(*name)
-                .and_then(|value| value.to_str().ok())
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_string)
-        })
-    }
-
-    fn parse_error_code(code: Option<serde_json::Value>) -> Option<String> {
-        match code? {
-            serde_json::Value::String(value) => Some(value),
-            serde_json::Value::Null => None,
-            other => Some(other.to_string()),
-        }
-    }
-
-    fn build_api_error(
-        &self,
-        status: StatusCode,
-        headers: &HeaderMap,
-        error_text: String,
-        resolved_model: &str,
-    ) -> ProviderApiError {
-        let parsed = serde_json::from_str::<OpenAiErrorEnvelope>(&error_text).ok();
-        let body = parsed.and_then(|envelope| envelope.error);
-        let message = body
-            .as_ref()
-            .and_then(|error| error.message.clone())
-            .filter(|message| !message.trim().is_empty())
-            .unwrap_or_else(|| error_text.clone());
-
-        ProviderApiError {
-            status: Some(status.as_u16()),
-            provider: self.provider_name(),
-            model: Some(resolved_model.to_string()),
-            code: Self::parse_error_code(body.as_ref().and_then(|error| error.code.clone())),
-            message,
-            error_type: body.and_then(|error| error.error_type),
-            retry_after_secs: Self::parse_retry_after_secs(headers),
-            request_id: Self::parse_request_id(headers),
-        }
     }
 
     fn normalize_api_base(base: &str) -> String {
@@ -475,6 +582,13 @@ impl LiteLLMClient {
             tools: None,
             tool_choice: None,
             stream: if options.stream { Some(true) } else { None },
+            stream_options: if options.stream {
+                Some(StreamOptions {
+                    include_usage: true,
+                })
+            } else {
+                None
+            },
             reasoning_effort: options.reasoning_effort,
             max_tokens: options.max_tokens,
             temperature: options.temperature,
@@ -500,99 +614,102 @@ impl LiteLLMClient {
         req_builder
     }
 
+    fn finalize_partial_response(
+        content: String,
+        reasoning_content: String,
+        partial_calls: &[PartialToolCall],
+        finish_reason: Option<String>,
+        usage: Option<Usage>,
+    ) -> LLMResponse {
+        let mut tool_calls = Vec::new();
+        for (i, call) in partial_calls.iter().enumerate() {
+            let id = call
+                .id
+                .clone()
+                .unwrap_or_else(|| format!("stream_tool_call_{}", i));
+            let call_type = if call.call_type.is_empty() {
+                "function".to_string()
+            } else {
+                call.call_type.clone()
+            };
+
+            let arguments =
+                serde_json::from_str::<HashMap<String, serde_json::Value>>(&call.arguments)
+                    .unwrap_or_else(|_| {
+                        // Try unwrapping double-encoded JSON string
+                        if let Ok(inner) = serde_json::from_str::<String>(&call.arguments) {
+                            serde_json::from_str::<HashMap<String, serde_json::Value>>(&inner)
+                                .unwrap_or_else(|_| {
+                                    HashMap::from([(
+                                        "raw".into(),
+                                        serde_json::Value::String(inner),
+                                    )])
+                                })
+                        } else {
+                            HashMap::from([(
+                                "raw".into(),
+                                serde_json::Value::String(call.arguments.clone()),
+                            )])
+                        }
+                    });
+
+            tool_calls.push(ToolCallRequest {
+                id,
+                call_type,
+                name: call.name.clone(),
+                arguments,
+            });
+        }
+
+        let mut usage_map = HashMap::new();
+        if let Some(usage) = usage {
+            usage_map.insert("prompt_tokens".to_string(), usage.prompt_tokens);
+            usage_map.insert("completion_tokens".to_string(), usage.completion_tokens);
+            usage_map.insert("total_tokens".to_string(), usage.total_tokens);
+        }
+
+        LLMResponse {
+            content: if content.is_empty() {
+                None
+            } else {
+                Some(content)
+            },
+            tool_calls,
+            finish_reason: finish_reason.unwrap_or_else(|| "stop".to_string()),
+            usage: usage_map,
+            reasoning_content: if reasoning_content.is_empty() {
+                None
+            } else {
+                Some(reasoning_content)
+            },
+        }
+    }
+
+    fn parse_sse_events(buffer: &mut String) -> Vec<String> {
+        let mut events = Vec::new();
+        while let Some(pos) = buffer.find("\n\n") {
+            let raw = buffer[..pos].to_string();
+            buffer.drain(..pos + 2);
+
+            let mut data_lines = Vec::new();
+            for line in raw.lines() {
+                if let Some(rest) = line.strip_prefix("data:") {
+                    data_lines.push(rest.trim().to_string());
+                }
+            }
+
+            if !data_lines.is_empty() {
+                events.push(data_lines.join("\n"));
+            }
+        }
+        events
+    }
+
     fn serialize_request_body(body: &serde_json::Value) -> ProviderResult<String> {
         serde_json::to_string(body).map_err(|e| {
             error!("Failed to serialize request body: {}", e);
             ProviderError::InvalidResponse(format!("Failed to serialize request body: {}", e))
         })
-    }
-
-    fn extract_message_error_context(error_text: &str, body: &serde_json::Value) -> String {
-        if !error_text.contains("messages[") {
-            return String::new();
-        }
-
-        static MESSAGE_INDEX_RE: OnceLock<Option<Regex>> = OnceLock::new();
-        let re = MESSAGE_INDEX_RE
-            .get_or_init(|| Regex::new(r"messages\[(\d+)\]").ok())
-            .as_ref();
-        let Some(re) = re else {
-            return String::new();
-        };
-
-        let Some(caps) = re.captures(error_text) else {
-            return String::new();
-        };
-        let Some(idx_str) = caps.get(1) else {
-            return String::new();
-        };
-        let Ok(idx) = idx_str.as_str().parse::<usize>() else {
-            return String::new();
-        };
-        let Some(messages) = body.get("messages").and_then(|m| m.as_array()) else {
-            return String::new();
-        };
-        if idx >= messages.len() {
-            return format!(
-                "\n  Message index {} out of range (total: {})",
-                idx,
-                messages.len()
-            );
-        }
-
-        let msg = &messages[idx];
-        let msg_content = msg
-            .get("content")
-            .and_then(|c| c.as_str())
-            .unwrap_or("non-string content");
-        let role = msg
-            .get("role")
-            .and_then(|r| r.as_str())
-            .unwrap_or("unknown");
-        let content_preview: String = msg_content.chars().take(500).collect();
-        let msg_problems = find_problematic_chars(msg_content);
-
-        format!(
-            "\n  Message[{}] (role: {}):\n    Content preview ({} chars): {}\n    Problematic chars in message: {}",
-            idx,
-            role,
-            msg_content.len(),
-            content_preview,
-            if msg_problems.is_empty() {
-                "none".to_string()
-            } else {
-                msg_problems.join("; ")
-            }
-        )
-    }
-
-    fn log_request_failure(
-        operation: &str,
-        status: reqwest::StatusCode,
-        error_text: &str,
-        url: &str,
-        model: &str,
-        body_json: &str,
-        body: &serde_json::Value,
-    ) {
-        let problems = find_problematic_chars(body_json);
-        let msg_info = Self::extract_message_error_context(error_text, body);
-        let ctx = ErrorContext::new(operation, format!("HTTP {}: {}", status, error_text))
-            .with_metadata("url", url.to_string())
-            .with_metadata("model", model.to_string())
-            .with_metadata("request_body_size", body_json.len().to_string());
-        let ctx_str = ctx.to_detailed_string();
-
-        if problems.is_empty() {
-            error!("{}{}", ctx_str, msg_info);
-        } else {
-            error!(
-                "{}\n  Request body problems:\n    - {}{}",
-                ctx_str,
-                problems.join("\n    - "),
-                msg_info
-            );
-        }
     }
 
     fn log_json_error(operation: &str, error: &serde_json::Error, content: &str) {
@@ -609,6 +726,11 @@ impl LiteLLMClient {
                 problems.join("\n    - ")
             );
         }
+    }
+
+    /// Return the provider's reasoning configuration, if any.
+    pub fn reasoning_config(&self) -> Option<&agent_diva_core::reasoning::ReasoningConfig> {
+        self.reasoning_config.as_ref()
     }
 }
 
@@ -677,40 +799,17 @@ impl LLMProvider for LiteLLMClient {
                 .unwrap_or(0)
         );
 
-        let req_builder = self.apply_headers(
-            self.client
-                .post(&url)
-                .body(body_json.clone())
-                .header("Content-Type", "application/json"),
-        );
-
-        // Send request
-        let response = req_builder.send().await?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let headers = response.headers().clone();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-
-            Self::log_request_failure(
-                "chat_api_request",
-                status,
-                &error_text,
-                &url,
-                &resolved_model,
-                &body_json,
-                &body,
+        // Send request with retry on 5xx/network errors + rate limit detection
+        let response = retry::send_with_retry(&resolved_model, || {
+            let req = self.apply_headers(
+                self.client
+                    .post(&url)
+                    .body(body_json.clone())
+                    .header("Content-Type", "application/json"),
             );
-            return Err(ProviderError::ApiError(Box::new(self.build_api_error(
-                status,
-                &headers,
-                error_text,
-                &resolved_model,
-            ))));
-        }
+            async move { req.send().await }
+        })
+        .await?;
 
         let response_text = response.text().await?;
         let response_data: ChatCompletionResponse =
@@ -782,39 +881,17 @@ impl LLMProvider for LiteLLMClient {
                 .unwrap_or(0)
         );
 
-        let req_builder = self.apply_headers(
-            self.client
-                .post(&url)
-                .body(body_json.clone())
-                .header("Content-Type", "application/json"),
-        );
-
-        let response = req_builder.send().await?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let headers = response.headers().clone();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-
-            Self::log_request_failure(
-                "chat_stream_api_request",
-                status,
-                &error_text,
-                &url,
-                &resolved_model,
-                &body_json,
-                &body,
+        // Send request with retry on 5xx/network errors + rate limit detection
+        let response = retry::send_with_retry(&resolved_model, || {
+            let req = self.apply_headers(
+                self.client
+                    .post(&url)
+                    .body(body_json.clone())
+                    .header("Content-Type", "application/json"),
             );
-            return Err(ProviderError::ApiError(Box::new(self.build_api_error(
-                status,
-                &headers,
-                error_text,
-                &resolved_model,
-            ))));
-        }
+            async move { req.send().await }
+        })
+        .await?;
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         tokio::spawn(async move {
@@ -846,10 +923,10 @@ impl LLMProvider for LiteLLMClient {
                 let text = String::from_utf8_lossy(&chunk);
                 buffer.push_str(&text);
 
-                for payload in parse_sse_events(&mut buffer) {
+                for payload in Self::parse_sse_events(&mut buffer) {
                     if payload == "[DONE]" {
                         tracing::debug!("Stream received [DONE]");
-                        let final_response = finalize_partial_response(
+                        let final_response = Self::finalize_partial_response(
                             content.clone(),
                             reasoning_content.clone(),
                             &partial_calls,
@@ -923,7 +1000,7 @@ impl LLMProvider for LiteLLMClient {
                 }
             }
 
-            let final_response = finalize_partial_response(
+            let final_response = Self::finalize_partial_response(
                 content,
                 reasoning_content,
                 &partial_calls,
@@ -1023,66 +1100,10 @@ mod tests {
     }
 
     #[test]
-    fn test_build_api_error_parses_openai_error_envelope() {
-        let client = LiteLLMClient::new(
-            Some("sk-test".to_string()),
-            Some("https://api.deepseek.com/v1".to_string()),
-            "deepseek-chat".to_string(),
-            None,
-            Some("deepseek".to_string()),
-            None,
-        );
-        let mut headers = HeaderMap::new();
-        headers.insert(reqwest::header::RETRY_AFTER, "30".parse().unwrap());
-        headers.insert("x-request-id", "req_123".parse().unwrap());
-
-        let error = client.build_api_error(
-            StatusCode::TOO_MANY_REQUESTS,
-            &headers,
-            serde_json::json!({
-                "error": {
-                    "message": "rate limit exceeded",
-                    "type": "rate_limit_error",
-                    "code": "rate_limit"
-                }
-            })
-            .to_string(),
-            "deepseek-chat",
-        );
-
-        assert_eq!(error.status, Some(429));
-        assert_eq!(error.provider.as_deref(), Some("deepseek"));
-        assert_eq!(error.model.as_deref(), Some("deepseek-chat"));
-        assert_eq!(error.message, "rate limit exceeded");
-        assert_eq!(error.error_type.as_deref(), Some("rate_limit_error"));
-        assert_eq!(error.code.as_deref(), Some("rate_limit"));
-        assert_eq!(error.retry_after_secs, Some(30));
-        assert_eq!(error.request_id.as_deref(), Some("req_123"));
-    }
-
-    #[test]
-    fn test_build_api_error_preserves_non_json_body() {
-        let client = LiteLLMClient::default();
-        let headers = HeaderMap::new();
-
-        let error = client.build_api_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            &headers,
-            "upstream unavailable".to_string(),
-            "gpt-4o",
-        );
-
-        assert_eq!(error.status, Some(500));
-        assert_eq!(error.message, "upstream unavailable");
-        assert_eq!(error.code, None);
-        assert_eq!(error.error_type, None);
-    }
-
-    #[test]
     fn test_parse_sse_events() {
         let mut buffer =
             "data: {\"a\":1}\n\ndata: {\"b\":2}\n\ndata: [DONE]\n\ntrailing".to_string();
-        let events = parse_sse_events(&mut buffer);
+        let events = LiteLLMClient::parse_sse_events(&mut buffer);
         assert_eq!(events.len(), 3);
         assert_eq!(events[0], "{\"a\":1}");
         assert_eq!(events[1], "{\"b\":2}");
@@ -1216,8 +1237,13 @@ mod tests {
             name: "search".to_string(),
             arguments: double_encoded,
         };
-        let response =
-            finalize_partial_response(String::new(), String::new(), &[partial], None, None);
+        let response = LiteLLMClient::finalize_partial_response(
+            String::new(),
+            String::new(),
+            &[partial],
+            None,
+            None,
+        );
         assert_eq!(response.tool_calls.len(), 1);
         assert_eq!(
             response.tool_calls[0]

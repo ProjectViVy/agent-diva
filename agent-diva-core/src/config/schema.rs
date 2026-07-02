@@ -3,6 +3,234 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ── Sandbox configuration types (used by agent-diva-sandbox) ────────────────
+
+/// Sandbox execution mode
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SandboxMode {
+    /// No sandbox isolation — full host access
+    DangerFullAccess,
+    /// Read-only filesystem access
+    ReadOnly,
+    /// Write access limited to the workspace directory
+    #[default]
+    WorkspaceWrite,
+}
+
+/// When to ask the user for approval before executing a command
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AskForApproval {
+    /// Never ask — auto-approve everything
+    Never,
+    /// Ask only when the command fails
+    OnFailure,
+    /// Ask for every command
+    OnRequest,
+    /// Ask unless the command is in a trusted list
+    #[default]
+    UnlessTrusted,
+}
+
+/// Windows-specific sandbox isolation level
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WindowsSandboxLevel {
+    /// No Windows sandbox — rely on general sandbox mode only
+    Disabled,
+    /// Run with a restricted token (reduced privileges)
+    #[default]
+    RestrictedToken,
+    /// Run with elevated isolation (AppContainer-like)
+    Elevated,
+}
+
+/// Sandbox section in the root configuration file
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxConfig {
+    /// Sandbox execution mode
+    #[serde(default)]
+    pub mode: SandboxMode,
+    /// Windows-specific sandbox level
+    #[serde(default)]
+    pub windows_level: WindowsSandboxLevel,
+    /// Whether network access is allowed inside the sandbox
+    #[serde(default)]
+    pub network_access: bool,
+    /// When to ask for user approval
+    #[serde(default)]
+    pub approval_policy: AskForApproval,
+    /// Extra writable root paths (strings; resolved at runtime)
+    #[serde(default)]
+    pub writable_roots: Vec<String>,
+    /// Glob patterns for paths that must never be written to
+    #[serde(default)]
+    pub protected_paths: Vec<String>,
+    /// Patterns for commands that should be denied
+    #[serde(default)]
+    pub deny_patterns: Vec<String>,
+    /// Default command timeout in seconds
+    #[serde(default = "default_sandbox_timeout")]
+    pub timeout_seconds: u64,
+}
+
+fn default_sandbox_timeout() -> u64 {
+    60
+}
+
+impl Default for SandboxConfig {
+    fn default() -> Self {
+        Self {
+            mode: SandboxMode::default(),
+            windows_level: WindowsSandboxLevel::default(),
+            network_access: false,
+            approval_policy: AskForApproval::default(),
+            writable_roots: Vec::new(),
+            protected_paths: Vec::new(),
+            deny_patterns: Vec::new(),
+            timeout_seconds: 60,
+        }
+    }
+}
+
+// ── Mask configuration types ───────────────────────────────────────────────
+
+/// Tool access limits for a mask
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct ToolLimits {
+    /// Tools explicitly allowed (empty = all allowed)
+    #[serde(default)]
+    pub allow: Vec<String>,
+    /// Tools explicitly denied
+    #[serde(default)]
+    pub deny: Vec<String>,
+}
+
+/// Default settings for subagents spawned under a mask
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct SubagentDefaults {
+    /// Model override for subagents
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Maximum iteration count for subagents
+    #[serde(default)]
+    pub max_iterations: Option<u32>,
+}
+
+/// Agent operating mode for a mask.
+///
+/// Controls the behavioral envelope of the agent — whether it operates
+/// normally or is restricted to a read-only reviewer posture.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentMode {
+    /// Default mode — full read/write tool access.
+    #[default]
+    Normal,
+    /// Reviewer mode — read-only tools only; write tools are excluded.
+    Assist,
+}
+
+/// Configuration for a single mask (loaded from a .md file with YAML frontmatter)
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct MaskConfig {
+    /// Display name (required)
+    pub name: String,
+    /// Emoji icon
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Short description
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Agent operating mode (Normal or Assist/reviewer)
+    #[serde(default)]
+    pub mode: Option<AgentMode>,
+    /// Model override when this mask is active
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Default settings for subagents
+    #[serde(default)]
+    pub subagent_defaults: SubagentDefaults,
+    /// Tool access limits
+    #[serde(default)]
+    pub tool_limits: ToolLimits,
+}
+
+// ── Subagent batch-spawn contracts ────────────────────────────────────────
+
+/// Token usage statistics from an LLM call
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TokenUsage {
+    /// Tokens consumed in the prompt
+    #[serde(default)]
+    pub prompt_tokens: u32,
+    /// Tokens generated in the completion
+    #[serde(default)]
+    pub completion_tokens: u32,
+    /// Total tokens used
+    #[serde(default)]
+    pub total_tokens: u32,
+}
+
+/// Terminal status of a subagent task
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SubAgentStatus {
+    /// Task completed successfully
+    Ok,
+    /// Task failed with an error
+    Error,
+    /// Task exceeded its time budget
+    Timeout,
+    /// Task was cancelled externally
+    Cancelled,
+}
+
+/// Result produced by a single subagent after it finishes
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SubAgentResult {
+    /// Correlates back to the originating SubAgentTask.id
+    pub task_id: String,
+    /// Terminal status
+    pub status: SubAgentStatus,
+    /// Human-readable summary of what the subagent did (LLM-generated)
+    #[serde(default)]
+    pub summary: Option<String>,
+    /// Wall-clock time in milliseconds
+    pub elapsed_ms: u64,
+    /// Number of tool calls the subagent made
+    pub tool_call_count: u32,
+    /// Token usage breakdown (may be absent if the provider doesn't report it)
+    #[serde(default)]
+    pub token_usage: Option<TokenUsage>,
+    /// Ordered list of tool names that were invoked during execution
+    #[serde(default)]
+    pub tool_trace: Option<Vec<String>>,
+}
+
+/// A single task inside a batch spawn request
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SubAgentTask {
+    /// Caller-assigned unique identifier for this task
+    pub id: String,
+    /// High-level goal the subagent should accomplish
+    pub goal: String,
+    /// Optional additional context (e.g. prior conversation, file contents)
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
+/// Request to spawn multiple subagents in a single call
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BatchSpawnRequest {
+    /// The tasks to execute concurrently
+    pub tasks: Vec<SubAgentTask>,
+    /// Optional maximum iterations per subagent (defaults via resolve_max_iterations)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_iterations: Option<u32>,
+}
+
 /// Root configuration for agent-diva
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
@@ -16,9 +244,99 @@ pub struct Config {
     pub gateway: GatewayConfig,
     /// Tools configuration
     pub tools: ToolsConfig,
+    /// Mentle memory tool selection configuration
+    #[serde(default)]
+    pub mentle: MentleToolConfig,
+    /// Self-evolution and AutoDream governance policy.
+    #[serde(default)]
+    pub self_evolution: SelfEvolutionConfig,
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+    /// Sandbox configuration
+    #[serde(default)]
+    pub sandbox: SandboxConfig,
+    /// Pet (desktop avatar) configuration
+    #[serde(default)]
+    pub pet: PetConfig,
+}
+
+/// Self-evolution policy configuration used by Evolution and AutoDream UI.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SelfEvolutionConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_autodream_frequency")]
+    pub autodream_frequency: String,
+    #[serde(default = "default_trigger_threshold_sessions")]
+    pub trigger_threshold_sessions: u32,
+    #[serde(default = "default_trigger_threshold_messages")]
+    pub trigger_threshold_messages: u32,
+    #[serde(default = "default_auto_merge_confidence")]
+    pub auto_merge_confidence: f32,
+    #[serde(default)]
+    pub require_confirmation_for: Vec<String>,
+}
+
+fn default_autodream_frequency() -> String {
+    "manual".to_string()
+}
+
+fn default_trigger_threshold_sessions() -> u32 {
+    10
+}
+
+fn default_trigger_threshold_messages() -> u32 {
+    50
+}
+
+fn default_auto_merge_confidence() -> f32 {
+    0.95
+}
+
+impl Default for SelfEvolutionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            autodream_frequency: default_autodream_frequency(),
+            trigger_threshold_sessions: default_trigger_threshold_sessions(),
+            trigger_threshold_messages: default_trigger_threshold_messages(),
+            auto_merge_confidence: default_auto_merge_confidence(),
+            require_confirmation_for: Vec::new(),
+        }
+    }
+}
+
+/// Mentle tool selection configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MentleToolConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub mode: MentleToolMode,
+    #[serde(default)]
+    pub allowed_tools: Vec<String>,
+}
+
+/// Mentle tool exposure mode.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MentleToolMode {
+    #[default]
+    Off,
+    ReadOnly,
+    Full,
+    Custom,
+}
+
+impl Default for MentleToolConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: MentleToolMode::Off,
+            allowed_tools: Vec::new(),
+        }
+    }
 }
 
 /// Logging configuration
@@ -33,21 +351,12 @@ pub struct LoggingConfig {
     /// Directory for log files
     #[serde(default = "default_log_dir")]
     pub dir: String,
-    /// Whether append-only structured runtime JSONL logs are enabled.
-    #[serde(default = "default_true")]
-    pub structured_runtime_logs_enabled: bool,
-    /// How many days logs are retained before cleanup.
-    #[serde(default = "default_log_retention_days")]
-    pub retention_days: u64,
-    /// Optional dedicated directory for runtime JSONL logs; falls back to `dir`.
-    #[serde(default)]
-    pub runtime_log_dir: Option<String>,
-    /// Whether tool output summaries may be recorded in structured runtime logs.
-    #[serde(default = "default_true")]
-    pub record_tool_output_summaries: bool,
     /// Module-specific overrides
     #[serde(default)]
     pub overrides: HashMap<String, String>,
+    /// Number of days to retain log files; 0 = keep all logs
+    #[serde(default = "default_retention_days")]
+    pub retention_days: u64,
 }
 
 fn default_log_level() -> String {
@@ -62,8 +371,8 @@ fn default_log_dir() -> String {
     "logs".to_string()
 }
 
-fn default_log_retention_days() -> u64 {
-    7
+fn default_retention_days() -> u64 {
+    30
 }
 
 impl Default for LoggingConfig {
@@ -72,11 +381,8 @@ impl Default for LoggingConfig {
             level: default_log_level(),
             format: default_log_format(),
             dir: default_log_dir(),
-            structured_runtime_logs_enabled: default_true(),
-            retention_days: default_log_retention_days(),
-            runtime_log_dir: None,
-            record_tool_output_summaries: default_true(),
             overrides: HashMap::new(),
+            retention_days: default_retention_days(),
         }
     }
 }
@@ -110,15 +416,9 @@ pub struct AgentDefaults {
     /// Optional reasoning effort for thinking-capable models (low/medium/high)
     #[serde(default)]
     pub reasoning_effort: Option<String>,
-    /// Soft context budget for prompt assembly and trimming.
-    #[serde(default = "default_context_budget_tokens")]
-    pub context_budget_tokens: u32,
-    /// Reserved tokens for completion output and estimation slack.
-    #[serde(default = "default_context_budget_reserve_tokens")]
-    pub context_budget_reserve_tokens: u32,
-    /// Whether to retry once with stronger compaction after overflow-like errors.
-    #[serde(default = "default_true")]
-    pub context_overflow_retry_enabled: bool,
+    /// Optional thinking mode override (auto/on/off)
+    #[serde(default)]
+    pub thinking_mode: Option<crate::reasoning::ThinkingMode>,
 }
 
 impl Default for AgentDefaults {
@@ -131,19 +431,9 @@ impl Default for AgentDefaults {
             temperature: 0.7,
             max_tool_iterations: 20,
             reasoning_effort: None,
-            context_budget_tokens: default_context_budget_tokens(),
-            context_budget_reserve_tokens: default_context_budget_reserve_tokens(),
-            context_overflow_retry_enabled: true,
+            thinking_mode: None,
         }
     }
-}
-
-fn default_context_budget_tokens() -> u32 {
-    24_000
-}
-
-fn default_context_budget_reserve_tokens() -> u32 {
-    4_000
 }
 
 /// Soul/identity settings
@@ -823,6 +1113,9 @@ pub struct ProviderConfig {
     pub extra_headers: Option<HashMap<String, String>>,
     #[serde(default)]
     pub custom_models: Vec<String>,
+    /// Per-provider reasoning configuration for dynamic model capability detection
+    #[serde(default)]
+    pub reasoning_config: Option<crate::reasoning::ReasoningConfig>,
 }
 
 /// User-defined provider configuration.
@@ -945,13 +1238,53 @@ impl Default for GatewayConfig {
     }
 }
 
+/// Compaction budget configuration — mirrors `BudgetConfig` fields for config file
+/// deserialization.  Lives in core so the config layer has no dependency on agent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactionBudgetConfig {
+    /// Maximum tokens allowed in the full assembled context.
+    #[serde(default = "default_compaction_max_tokens")]
+    pub max_tokens: usize,
+    /// Fraction of `max_tokens` reserved for system prompt. Range [0.0, 1.0).
+    #[serde(default = "default_compaction_system_budget_ratio")]
+    pub system_budget_ratio: f64,
+    /// Fraction of history budget that triggers compaction. Range (0.0, 1.0].
+    #[serde(default = "default_compaction_threshold_ratio")]
+    pub compact_threshold_ratio: f64,
+    /// Number of recent messages to always keep (never compacted).
+    #[serde(default = "default_compaction_keep_recent_count")]
+    pub keep_recent_count: usize,
+}
+
+fn default_compaction_max_tokens() -> usize {
+    180_000
+}
+fn default_compaction_system_budget_ratio() -> f64 {
+    0.15
+}
+fn default_compaction_threshold_ratio() -> f64 {
+    0.80
+}
+fn default_compaction_keep_recent_count() -> usize {
+    10
+}
+
+impl Default for CompactionBudgetConfig {
+    fn default() -> Self {
+        Self {
+            max_tokens: default_compaction_max_tokens(),
+            system_budget_ratio: default_compaction_system_budget_ratio(),
+            compact_threshold_ratio: default_compaction_threshold_ratio(),
+            keep_recent_count: default_compaction_keep_recent_count(),
+        }
+    }
+}
+
 /// Tools configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ToolsConfig {
     #[serde(default)]
     pub builtin: BuiltInToolsConfig,
-    #[serde(default)]
-    pub subagent: SubagentToolsConfig,
     #[serde(default)]
     pub web: WebToolsConfig,
     #[serde(default)]
@@ -962,46 +1295,9 @@ pub struct ToolsConfig {
     pub mcp_servers: HashMap<String, MCPServerConfig>,
     #[serde(default, rename = "mcpManager", alias = "mcp_manager")]
     pub mcp_manager: MCPManagerConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubagentToolsConfig {
-    #[serde(default = "default_subagent_max_concurrent")]
-    pub max_concurrent: usize,
-    #[serde(default = "default_subagent_max_depth")]
-    pub max_depth: usize,
-    #[serde(default = "default_true")]
-    pub allow_shell: bool,
-    #[serde(default = "default_true")]
-    pub allow_filesystem: bool,
+    /// Context compaction budget configuration.
     #[serde(default)]
-    pub allow_web_fetch: bool,
-    #[serde(default)]
-    pub allow_web_search: bool,
-    #[serde(default)]
-    pub allow_mcp: bool,
-}
-
-fn default_subagent_max_concurrent() -> usize {
-    2
-}
-
-fn default_subagent_max_depth() -> usize {
-    1
-}
-
-impl Default for SubagentToolsConfig {
-    fn default() -> Self {
-        Self {
-            max_concurrent: default_subagent_max_concurrent(),
-            max_depth: default_subagent_max_depth(),
-            allow_shell: true,
-            allow_filesystem: true,
-            allow_web_fetch: false,
-            allow_web_search: false,
-            allow_mcp: false,
-        }
-    }
+    pub budget: CompactionBudgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1022,6 +1318,9 @@ pub struct BuiltInToolsConfig {
     pub mcp: bool,
     #[serde(default = "default_enabled")]
     pub attachment: bool,
+    #[serde(default)]
+    pub planning: bool,
+    pub mentle: bool,
 }
 
 impl Default for BuiltInToolsConfig {
@@ -1035,6 +1334,8 @@ impl Default for BuiltInToolsConfig {
             cron: false,
             mcp: true,
             attachment: true,
+            planning: false,
+            mentle: false,
         }
     }
 }
@@ -1141,7 +1442,7 @@ impl Default for WebFetchConfig {
     }
 }
 
-/// Default execution timeout configuration for tool calls.
+/// Exec tool configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecToolConfig {
     #[serde(default = "default_timeout")]
@@ -1157,5 +1458,288 @@ impl Default for ExecToolConfig {
         Self {
             timeout: default_timeout(),
         }
+    }
+}
+
+/// Pet (desktop avatar) configuration
+///
+/// Controls the Diva Pet feature: 3D avatar rendering,
+/// voice interaction (TTS/ASR), and model selection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PetConfig {
+    /// Master switch: show/hide Diva Pet sidebar entry
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Selected VRM model filename (relative to public/vrm/models/)
+    #[serde(default)]
+    pub vrm_model: String,
+    /// Whether TTS auto-play is enabled
+    #[serde(default)]
+    pub tts_enabled: bool,
+    /// Whether ASR / microphone input is enabled
+    #[serde(default = "default_true")]
+    pub asr_enabled: bool,
+    /// ASR provider. Currently "web_speech" is the implemented path.
+    #[serde(default = "default_asr_provider")]
+    pub asr_provider: String,
+    /// BCP-47 ASR language tag.
+    #[serde(default = "default_asr_language")]
+    pub asr_language: String,
+    /// API key for remote ASR providers.
+    #[serde(default)]
+    pub asr_api_key: Option<String>,
+    /// Base URL for remote ASR providers.
+    #[serde(default)]
+    pub asr_base_url: String,
+    /// Model for remote ASR providers.
+    #[serde(default)]
+    pub asr_model: Option<String>,
+    /// TTS provider: "browser" | "openai" | "siliconflow" | "minimax"
+    #[serde(default = "default_tts_provider")]
+    pub tts_provider: String,
+    /// Legacy shared API key for remote TTS providers. New GUI code no longer
+    /// uses this field and instead stores provider-specific keys below.
+    #[serde(default)]
+    pub tts_api_key: Option<String>,
+    /// API key for OpenAI TTS.
+    #[serde(default)]
+    pub tts_openai_api_key: Option<String>,
+    /// API key for SiliconFlow TTS.
+    #[serde(default)]
+    pub tts_siliconflow_api_key: Option<String>,
+    /// API key for MiniMax TTS.
+    #[serde(default)]
+    pub tts_minimax_api_key: Option<String>,
+    /// Base URL for remote TTS providers.
+    #[serde(default)]
+    pub tts_base_url: String,
+    /// Model for remote TTS providers.
+    #[serde(default)]
+    pub tts_model: Option<String>,
+    /// Provider-specific voice id for system voice selection.
+    #[serde(default)]
+    pub tts_voice_id: Option<String>,
+    /// Relative path under voice_resource/ used as a reference voice.
+    #[serde(default)]
+    pub tts_reference_voice: Option<String>,
+    /// Transcript for the reference voice clip.
+    #[serde(default)]
+    pub tts_reference_text: Option<String>,
+    /// TTS playback speed.
+    #[serde(default = "default_tts_speed")]
+    pub tts_speed: f64,
+    /// TTS playback volume.
+    #[serde(default = "default_tts_volume")]
+    pub tts_volume: f64,
+}
+
+fn default_asr_provider() -> String {
+    "web_speech".to_string()
+}
+
+fn default_asr_language() -> String {
+    "zh-CN".to_string()
+}
+
+fn default_tts_provider() -> String {
+    "browser".to_string()
+}
+
+fn default_tts_speed() -> f64 {
+    1.0
+}
+
+fn default_tts_volume() -> f64 {
+    1.0
+}
+
+impl Default for PetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            vrm_model: String::new(),
+            tts_enabled: false,
+            asr_enabled: true,
+            asr_provider: default_asr_provider(),
+            asr_language: default_asr_language(),
+            asr_api_key: None,
+            asr_base_url: String::new(),
+            asr_model: None,
+            tts_provider: default_tts_provider(),
+            tts_api_key: None,
+            tts_openai_api_key: None,
+            tts_siliconflow_api_key: None,
+            tts_minimax_api_key: None,
+            tts_base_url: String::new(),
+            tts_model: None,
+            tts_voice_id: None,
+            tts_reference_voice: None,
+            tts_reference_text: None,
+            tts_speed: default_tts_speed(),
+            tts_volume: default_tts_volume(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── SubAgentStatus tests ───────────────────────────────────────────────
+
+    #[test]
+    fn subagent_status_variants_serialize_correctly() {
+        let cases = vec![
+            (SubAgentStatus::Ok, "\"ok\""),
+            (SubAgentStatus::Error, "\"error\""),
+            (SubAgentStatus::Timeout, "\"timeout\""),
+            (SubAgentStatus::Cancelled, "\"cancelled\""),
+        ];
+        for (variant, expected_json) in cases {
+            let json = serde_json::to_string(&variant).unwrap();
+            assert_eq!(json, expected_json, "failed for {:?}", variant);
+
+            let back: SubAgentStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, variant);
+        }
+    }
+
+    #[test]
+    fn subagent_status_unknown_variant_errors() {
+        let result = serde_json::from_str::<SubAgentStatus>("\"unknown\"");
+        assert!(result.is_err());
+    }
+
+    // ── SubAgentResult tests ───────────────────────────────────────────────
+
+    #[test]
+    fn subagent_result_round_trips_json() {
+        let result = SubAgentResult {
+            task_id: "task-001".to_string(),
+            status: SubAgentStatus::Ok,
+            summary: Some("Completed analysis".to_string()),
+            elapsed_ms: 1523,
+            tool_call_count: 7,
+            token_usage: Some(TokenUsage {
+                prompt_tokens: 1200,
+                completion_tokens: 340,
+                total_tokens: 1540,
+            }),
+            tool_trace: Some(vec!["read_file".to_string(), "write_file".to_string()]),
+        };
+
+        let json = serde_json::to_string_pretty(&result).unwrap();
+        let back: SubAgentResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, result);
+    }
+
+    #[test]
+    fn subagent_result_minimal_json() {
+        let result = SubAgentResult {
+            task_id: "t1".to_string(),
+            status: SubAgentStatus::Error,
+            summary: None,
+            elapsed_ms: 0,
+            tool_call_count: 0,
+            token_usage: None,
+            tool_trace: None,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let back: SubAgentResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, result);
+    }
+
+    #[test]
+    fn subagent_result_deserializes_from_partial_json() {
+        // Simulates a provider that omits optional fields entirely
+        let json = r#"{
+            "task_id": "t2",
+            "status": "timeout",
+            "elapsed_ms": 30000,
+            "tool_call_count": 3
+        }"#;
+        let result: SubAgentResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.task_id, "t2");
+        assert_eq!(result.status, SubAgentStatus::Timeout);
+        assert_eq!(result.summary, None);
+        assert_eq!(result.token_usage, None);
+        assert_eq!(result.tool_trace, None);
+    }
+
+    // ── BatchSpawnRequest tests ────────────────────────────────────────────
+
+    #[test]
+    fn batch_spawn_request_multiple_tasks() {
+        let req = BatchSpawnRequest {
+            tasks: vec![
+                SubAgentTask {
+                    id: "a".to_string(),
+                    goal: "Summarize the file".to_string(),
+                    context: None,
+                },
+                SubAgentTask {
+                    id: "b".to_string(),
+                    goal: "Find bugs".to_string(),
+                    context: Some("Focus on edge cases".to_string()),
+                },
+                SubAgentTask {
+                    id: "c".to_string(),
+                    goal: "Write tests".to_string(),
+                    context: None,
+                },
+            ],
+            max_iterations: None,
+        };
+
+        let json = serde_json::to_string_pretty(&req).unwrap();
+        let back: BatchSpawnRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, req);
+        assert_eq!(back.tasks.len(), 3);
+        assert_eq!(
+            back.tasks[1].context.as_deref(),
+            Some("Focus on edge cases")
+        );
+    }
+
+    #[test]
+    fn batch_spawn_request_empty_tasks() {
+        let req = BatchSpawnRequest {
+            tasks: vec![],
+            max_iterations: None,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert_eq!(json, r#"{"tasks":[]}"#);
+        let back: BatchSpawnRequest = serde_json::from_str(&json).unwrap();
+        assert!(back.tasks.is_empty());
+    }
+
+    // ── Legacy tests (kept from original) ──────────────────────────────────
+
+    #[test]
+    fn mentle_config_defaults_to_off() {
+        let config = Config::default();
+
+        assert!(!config.mentle.enabled);
+        assert_eq!(config.mentle.mode, MentleToolMode::Off);
+        assert!(config.mentle.allowed_tools.is_empty());
+        assert!(!config.tools.builtin.mentle);
+    }
+
+    #[test]
+    fn mentle_config_round_trips_json() {
+        let mentle: MentleToolConfig = serde_json::from_value(serde_json::json!({
+            "enabled": true,
+            "mode": "custom",
+            "allowed_tools": ["memtle_status", "memtle_search"]
+        }))
+        .expect("valid mentle config should deserialize");
+
+        assert!(mentle.enabled);
+        assert_eq!(mentle.mode, MentleToolMode::Custom);
+        assert_eq!(mentle.allowed_tools, ["memtle_status", "memtle_search"]);
+
+        let value = serde_json::to_value(mentle).expect("config should serialize");
+        assert_eq!(value["mode"], "custom");
     }
 }

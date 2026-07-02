@@ -59,6 +59,12 @@ impl From<serde_json::Error> for Error {
     }
 }
 
+impl From<sqlx::Error> for Error {
+    fn from(e: sqlx::Error) -> Self {
+        Error::Internal(format!("Database error: {e}"))
+    }
+}
+
 impl From<config::ConfigError> for Error {
     fn from(e: config::ConfigError) -> Self {
         Error::Config(e.to_string())

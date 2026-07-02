@@ -9,8 +9,15 @@ import ProvidersSettings from './settings/ProvidersSettings.vue';
 import ChannelsSettings from './settings/ChannelsSettings.vue';
 import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
+import PetSettings from './settings/PetSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
+import ThemeSettings from './settings/ThemeSettings.vue'
+import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
+import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
+import CompactionSettings from './settings/CompactionSettings.vue'
+import AuditPage from './settings/audit/AuditPage.vue';
 import { useI18n } from 'vue-i18n';
+import type { ToolsConfigShape } from '../types/toolsConfig';
 
 const { t } = useI18n();
 
@@ -41,18 +48,12 @@ interface ProviderConfigEntry {
   source: 'providers' | 'custom_providers';
 }
 
-interface ToolsConfigShape {
-  web: {
-    search: {
-      provider: string;
-      enabled: boolean;
-      api_key: string;
-      max_results: number;
-    };
-    fetch: {
-      enabled: boolean;
-    };
-  };
+interface SettingsMessage {
+  role: 'user' | 'agent' | 'system' | 'tool';
+  content: string;
+  reasoning?: string;
+  rawMeta?: Record<string, unknown>;
+  fromHistory?: boolean;
 }
 
 type SettingsSubview =
@@ -64,14 +65,23 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
-  | 'about';
+  | 'pet'
+  | 'about'
+  | 'theme'
+  | 'self-evolution'
+  | 'sandbox'
+  | 'compaction'
+  | 'audit';
 
 const props = defineProps<{
   config: AppConfigShape;
   providerConfigs?: Record<string, ProviderConfigEntry>;
   toolsConfig: ToolsConfigShape;
+  currentSessionKey?: string;
+  currentMessages: SettingsMessage[];
   savedModels?: SavedModel[];
   chatDisplayPrefs: ChatDisplayPrefs;
+  themeMode?: string;
   initialView?: SettingsSubview;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
   saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
@@ -81,6 +91,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update-saved-models', models: SavedModel[]): void;
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
+  (e: 'change-theme', theme: string): void;
 }>();
 
 const currentView = ref<SettingsSubview>(props.initialView || 'dashboard');
@@ -95,7 +106,13 @@ const pageTitle = computed(() => {
     channels: t('settings.channels'),
     network: t('settings.network'),
     language: t('settings.language'),
-    about: t('settings.about')
+    pet: t('settings.pet'),
+    about: t('settings.about'),
+    theme: t('dashboard.theme'),
+    'self-evolution': t('dashboard.selfEvolution'),
+    sandbox: t('dashboard.sandbox'),
+    compaction: t('dashboard.compaction'),
+    audit: t('dashboard.audit')
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -149,6 +166,8 @@ watch(
             <GeneralSettings
               v-else-if="currentView === 'general'"
               :chat-display-prefs="chatDisplayPrefs"
+              :tools-config="toolsConfig"
+              :save-tools-config-action="saveToolsConfigAction"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
             />
 
@@ -183,10 +202,35 @@ watch(
             <LanguageSettings 
               v-else-if="currentView === 'language'"
             />
+
+            <PetSettings
+              v-else-if="currentView === 'pet'"
+            />
             
-            <AboutSettings 
+            <AboutSettings
               v-else-if="currentView === 'about'"
             />
+
+            <div v-else-if="currentView === 'theme'">
+              <ThemeSettings :current-theme="themeMode || 'love'" @change-theme="emit('change-theme', $event)" />
+            </div>
+            <div v-else-if="currentView === 'self-evolution'">
+              <SelfEvolutionSettings />
+            </div>
+            <div v-else-if="currentView === 'sandbox'">
+              <SandboxSettingsSection />
+            </div>
+            <div v-else-if="currentView === 'compaction'">
+              <CompactionSettings
+                :tools-config="toolsConfig"
+                :current-session-key="currentSessionKey"
+                :current-messages="currentMessages"
+                :save-tools-config-action="saveToolsConfigAction"
+              />
+            </div>
+            <div v-else-if="currentView === 'audit'" class="h-full min-h-0 overflow-y-auto">
+              <AuditPage />
+            </div>
           </div>
        </Transition>
     </div>

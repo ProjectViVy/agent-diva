@@ -1,0 +1,15 @@
+scenario: basic_math
+description: "验证 Agent 基本算术能力"
+setup:
+  timeout_secs: 30
+messages:
+  - sender: user
+    channel: e2e
+    chat_id: math-test
+    content: "1+1等于多少？"
+assertions:
+  - type: response_contains
+    value: "2"
+    description: "Agent 应该回答 1+1=2"
+  - type: no_errors
+    description: "不应有错误"

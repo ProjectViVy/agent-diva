@@ -32,6 +32,13 @@ struct ChatRequest {
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     options: Option<ChatOptions>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "stream_options")]
+    stream_options: Option<StreamOptions>,
+}
+
+#[derive(Debug, Serialize)]
+struct StreamOptions {
+    include_usage: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -53,6 +60,10 @@ struct OllamaStreamChunk {
     message: OllamaStreamMessage,
     #[serde(default)]
     done: bool,
+    #[serde(default)]
+    prompt_eval_count: Option<i64>,
+    #[serde(default)]
+    eval_count: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -84,6 +95,10 @@ struct OllamaStreamFunction {
 #[derive(Debug, Deserialize)]
 struct ChatResponse {
     message: ResponseMessage,
+    #[serde(default)]
+    prompt_eval_count: Option<i64>,
+    #[serde(default)]
+    eval_count: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,6 +135,16 @@ where
     Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
+/// Generate a short random hex id (no uuid crate needed)
+fn rand_id() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!("{:016x}", t)
+}
+
 impl OllamaProvider {
     /// Normalize the base URL for consistency
     fn normalize_base_url(raw_url: &str) -> String {
@@ -146,6 +171,31 @@ impl OllamaProvider {
     /// Build the chat completion URL
     fn build_chat_url(&self) -> String {
         format!("{}/api/chat", self.base_url)
+    }
+
+    /// Extract token usage from Ollama's eval counts.
+    ///
+    /// Ollama returns `prompt_eval_count` and `eval_count` instead of the
+    /// standard `prompt_tokens` / `completion_tokens`. This method normalizes
+    /// them to the standard LLMResponse usage HashMap format.
+    fn extract_usage(
+        prompt_eval_count: Option<i64>,
+        eval_count: Option<i64>,
+    ) -> HashMap<String, i64> {
+        let mut usage = HashMap::new();
+        if let Some(prompt_eval) = prompt_eval_count {
+            usage.insert("prompt_tokens".to_string(), prompt_eval);
+        }
+        if let Some(eval) = eval_count {
+            usage.insert("completion_tokens".to_string(), eval);
+        }
+        if prompt_eval_count.is_some() || eval_count.is_some() {
+            usage.insert(
+                "total_tokens".to_string(),
+                prompt_eval_count.unwrap_or(0) + eval_count.unwrap_or(0),
+            );
+        }
+        usage
     }
 
     /// Convert internal Message format to Ollama's native format
@@ -216,7 +266,7 @@ impl OllamaProvider {
         let id = tool_call
             .id
             .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            .unwrap_or_else(|| format!("call_{}", rand_id()));
         let name = tool_call.function.name.clone();
         let arguments = tool_call.function.arguments.clone();
 
@@ -233,7 +283,7 @@ impl OllamaProvider {
         let id = tool_call
             .id
             .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            .unwrap_or_else(|| format!("call_{}", rand_id()));
         let name = tool_call.function.name.clone();
         let arguments = tool_call.function.arguments.clone();
 
@@ -270,6 +320,7 @@ impl LLMProvider for OllamaProvider {
             messages: ollama_messages,
             stream: false,
             options: Some(ChatOptions { temperature }),
+            stream_options: None,
         };
 
         // Add tools to request if provided
@@ -353,7 +404,7 @@ impl LLMProvider for OllamaProvider {
             },
             tool_calls,
             finish_reason: "stop".to_string(),
-            usage: Default::default(),
+            usage: Self::extract_usage(chat_response.prompt_eval_count, chat_response.eval_count),
             reasoning_content: chat_response.message.thinking,
         })
     }
@@ -378,6 +429,9 @@ impl LLMProvider for OllamaProvider {
             messages: ollama_messages,
             stream: true,
             options: Some(ChatOptions { temperature }),
+            stream_options: Some(StreamOptions {
+                include_usage: true,
+            }),
         };
 
         debug!(
@@ -452,7 +506,28 @@ impl LLMProvider for OllamaProvider {
                             }
 
                             if chunk.done {
-                                debug!("Stream chunk marked as done");
+                                // Extract usage from the final done chunk
+                                let final_usage =
+                                    Self::extract_usage(chunk.prompt_eval_count, chunk.eval_count);
+                                // Send completed event with usage data
+                                let _ = tx
+                                    .send(Ok(LLMStreamEvent::Completed(LLMResponse {
+                                        content: if content.is_empty() {
+                                            None
+                                        } else {
+                                            Some(content.clone())
+                                        },
+                                        tool_calls: tool_calls.clone(),
+                                        finish_reason: "stop".to_string(),
+                                        usage: final_usage,
+                                        reasoning_content: if reasoning_content.is_empty() {
+                                            None
+                                        } else {
+                                            Some(reasoning_content.clone())
+                                        },
+                                    })))
+                                    .await;
+                                return;
                             }
                         }
                         Err(e) => {
@@ -495,36 +570,120 @@ impl LLMProvider for OllamaProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base::{ImageFile, MessageContent, MessageContentPart};
 
     #[test]
-    fn convert_messages_preserves_text_only_content() {
-        let messages = vec![Message::user("hello")];
-
-        let converted = OllamaProvider::convert_messages(&messages);
-
-        assert_eq!(converted[0].role, "user");
-        assert_eq!(converted[0].content, "hello");
+    fn test_extract_usage_with_both_counts() {
+        let usage = OllamaProvider::extract_usage(Some(42), Some(21));
+        assert_eq!(usage.get("prompt_tokens"), Some(&42));
+        assert_eq!(usage.get("completion_tokens"), Some(&21));
+        assert_eq!(usage.get("total_tokens"), Some(&63));
     }
 
     #[test]
-    fn convert_messages_uses_lossy_text_for_structured_parts() {
-        let messages = vec![Message::user(MessageContent::Parts(vec![
-            MessageContentPart::Text {
-                text: "hello ".to_string(),
-            },
-            MessageContentPart::ImageFile {
-                image_file: ImageFile {
-                    file_id: "file_local_123".to_string(),
-                },
-            },
-            MessageContentPart::Text {
-                text: "world".to_string(),
-            },
-        ]))];
+    fn test_extract_usage_prompt_only() {
+        let usage = OllamaProvider::extract_usage(Some(100), None);
+        assert_eq!(usage.get("prompt_tokens"), Some(&100));
+        assert_eq!(usage.get("completion_tokens"), None);
+        assert_eq!(usage.get("total_tokens"), Some(&100));
+    }
 
-        let converted = OllamaProvider::convert_messages(&messages);
+    #[test]
+    fn test_extract_usage_completion_only() {
+        let usage = OllamaProvider::extract_usage(None, Some(50));
+        assert_eq!(usage.get("prompt_tokens"), None);
+        assert_eq!(usage.get("completion_tokens"), Some(&50));
+        assert_eq!(usage.get("total_tokens"), Some(&50));
+    }
 
-        assert_eq!(converted[0].content, "hello world");
+    #[test]
+    fn test_extract_usage_both_none() {
+        let usage = OllamaProvider::extract_usage(None, None);
+        assert!(usage.is_empty());
+    }
+
+    #[test]
+    fn test_extract_usage_zero_counts() {
+        let usage = OllamaProvider::extract_usage(Some(0), Some(0));
+        assert_eq!(usage.get("prompt_tokens"), Some(&0));
+        assert_eq!(usage.get("completion_tokens"), Some(&0));
+        assert_eq!(usage.get("total_tokens"), Some(&0));
+    }
+
+    #[test]
+    fn test_chat_response_deserialize_with_usage() {
+        let json = r#"{
+            "message": {"content": "Hello!", "thinking": null, "tool_calls": []},
+            "prompt_eval_count": 42,
+            "eval_count": 21
+        }"#;
+        let resp: ChatResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.message.content, "Hello!");
+        assert_eq!(resp.prompt_eval_count, Some(42));
+        assert_eq!(resp.eval_count, Some(21));
+    }
+
+    #[test]
+    fn test_chat_response_deserialize_without_usage() {
+        let json = r#"{
+            "message": {"content": "Hi", "thinking": null, "tool_calls": []}
+        }"#;
+        let resp: ChatResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.message.content, "Hi");
+        assert_eq!(resp.prompt_eval_count, None);
+        assert_eq!(resp.eval_count, None);
+    }
+
+    #[test]
+    fn test_stream_chunk_deserialize_with_usage() {
+        let json = r#"{
+            "message": {"content": "", "thinking": null, "tool_calls": []},
+            "done": true,
+            "prompt_eval_count": 100,
+            "eval_count": 50
+        }"#;
+        let chunk: OllamaStreamChunk = serde_json::from_str(json).unwrap();
+        assert!(chunk.done);
+        assert_eq!(chunk.prompt_eval_count, Some(100));
+        assert_eq!(chunk.eval_count, Some(50));
+    }
+
+    #[test]
+    fn test_chat_request_streaming_includes_stream_options() {
+        let request = ChatRequest {
+            model: "llama3".to_string(),
+            messages: vec![OllamaMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            }],
+            stream: true,
+            options: Some(ChatOptions { temperature: 0.7 }),
+            stream_options: Some(StreamOptions {
+                include_usage: true,
+            }),
+        };
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["model"], "llama3");
+        assert_eq!(json["stream"], true);
+        assert!(json["stream_options"].is_object());
+        assert_eq!(json["stream_options"]["include_usage"], true);
+    }
+
+    #[test]
+    fn test_chat_request_non_streaming_omits_stream_options() {
+        let request = ChatRequest {
+            model: "llama3".to_string(),
+            messages: vec![OllamaMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            }],
+            stream: false,
+            options: None,
+            stream_options: None,
+        };
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["model"], "llama3");
+        assert_eq!(json["stream"], false);
+        assert!(!json.as_object().unwrap().contains_key("stream_options"));
+        assert!(!json.as_object().unwrap().contains_key("options"));
     }
 }

@@ -17,7 +17,7 @@ If you only need the public traits for custom tools, depend on
 ## Minimal usage
 
 ```rust
-use agent_diva_tools::ToolRegistry;
+use agent_diva_tooling::ToolRegistry;
 
 fn main() {
     let _registry = ToolRegistry::new();

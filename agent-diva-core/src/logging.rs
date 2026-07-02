@@ -1,16 +1,11 @@
-use std::io::{self, Write};
 use std::path::Path;
-use std::sync::Arc;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
-    fmt,
-    fmt::{time::LocalTime, writer::MakeWriter},
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-    EnvFilter, Layer, Registry,
+    fmt, fmt::time::LocalTime, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
+    Registry,
 };
 
-use crate::{config::schema::LoggingConfig, redaction::redact_secrets, trace::TraceLogger};
+use crate::config::schema::LoggingConfig;
 
 /// Initialize the logging system
 pub fn init_logging(config: &LoggingConfig) -> WorkerGuard {
@@ -22,12 +17,16 @@ pub fn init_logging_with_terminal_output(
     config: &LoggingConfig,
     enable_terminal_output: bool,
 ) -> WorkerGuard {
+    // 1. Log Level
     let log_level_str = std::env::var("RUST_LOG").unwrap_or_else(|_| config.level.clone());
 
+    // Build the EnvFilter
     let mut filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&log_level_str));
 
+    // Apply module overrides from config
     for (module, level) in &config.overrides {
+        // Directives must be valid
         if let Ok(directive) = format!("{}={}", module, level).parse() {
             filter = filter.add_directive(directive);
         } else {
@@ -35,19 +34,29 @@ pub fn init_logging_with_terminal_output(
         }
     }
 
+    // 2. Log Format
     let format_str = std::env::var("LOG_FORMAT").unwrap_or_else(|_| config.format.clone());
     let is_json = format_str.to_lowercase() == "json";
 
+    // 3. File Appender
+    // We use rolling::daily.
+    // Requirement: gateway-{date}.log
+    // tracing_appender::rolling::daily(dir, "gateway.log") produces gateway.log.YYYY-MM-DD
+    // tracing_appender::rolling::daily(dir, "gateway") produces gateway.YYYY-MM-DD
+    // We'll use "gateway.log" as prefix to get gateway.log.YYYY-MM-DD which is standard.
     let file_appender = tracing_appender::rolling::daily(&config.dir, "gateway.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-    let file_writer = RedactingMakeWriter::new(non_blocking);
 
+    // 4. Layers
+    // We need to use Box<dyn Layer<S>> to unify types for conditional compilation
+    // But since is_json is runtime, we can't easily change the Layer type in the subscriber type chain
+    // without boxing.
+
+    // RFC 3339 in the process local timezone (e.g. `+08:00`), not UTC `Z`.
     let stdout_layer = enable_terminal_output.then(|| {
-        let stdout_writer = RedactingMakeWriter::new(std::io::stdout);
         if is_json {
             fmt::layer()
                 .json()
-                .with_writer(stdout_writer)
                 .with_timer(LocalTime::rfc_3339())
                 .with_target(true)
                 .with_thread_ids(true)
@@ -56,12 +65,12 @@ pub fn init_logging_with_terminal_output(
                 .boxed()
         } else {
             fmt::layer()
-                .with_writer(stdout_writer)
                 .with_timer(LocalTime::rfc_3339())
                 .with_target(true)
                 .with_thread_ids(true)
                 .with_file(true)
                 .with_line_number(true)
+                // .pretty() // Optional: make text output pretty
                 .boxed()
         }
     });
@@ -69,7 +78,7 @@ pub fn init_logging_with_terminal_output(
     let file_layer = if is_json {
         fmt::layer()
             .json()
-            .with_writer(file_writer)
+            .with_writer(non_blocking)
             .with_timer(LocalTime::rfc_3339())
             .with_target(true)
             .with_thread_ids(true)
@@ -79,7 +88,7 @@ pub fn init_logging_with_terminal_output(
             .boxed()
     } else {
         fmt::layer()
-            .with_writer(file_writer)
+            .with_writer(non_blocking)
             .with_timer(LocalTime::rfc_3339())
             .with_ansi(false)
             .with_target(true)
@@ -89,133 +98,19 @@ pub fn init_logging_with_terminal_output(
             .boxed()
     };
 
+    // 5. Init Subscriber
     Registry::default()
         .with(filter)
         .with(stdout_layer)
         .with(file_layer)
         .init();
 
+    // 6. Cleanup old logs
     if let Err(e) = cleanup_old_logs(&config.dir, config.retention_days) {
         eprintln!("Failed to clean up old logs: {}", e);
     }
 
     guard
-}
-
-/// Initialize raw foreground debug logging for `agent-diva gateway run --debug`.
-///
-/// This intentionally bypasses the normal redacting writer because debug mode is
-/// an explicit local diagnostic mode that records complete payloads.
-pub fn init_raw_debug_logging(
-    _config: &LoggingConfig,
-    debug_dir: &Path,
-    enable_terminal_output: bool,
-) -> WorkerGuard {
-    let log_level_str = std::env::var("RUST_LOG").unwrap_or_else(|_| "trace".to_string());
-
-    let filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&log_level_str));
-
-    let file_appender = tracing_appender::rolling::never(debug_dir, "gateway.log");
-    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-
-    let stdout_layer = enable_terminal_output.then(|| {
-        fmt::layer()
-            .with_writer(std::io::stdout)
-            .with_timer(LocalTime::rfc_3339())
-            .with_target(true)
-            .with_thread_ids(true)
-            .with_file(true)
-            .with_line_number(true)
-            .boxed()
-    });
-
-    let file_layer = fmt::layer()
-        .with_writer(non_blocking)
-        .with_timer(LocalTime::rfc_3339())
-        .with_ansi(false)
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true)
-        .boxed();
-
-    Registry::default()
-        .with(filter)
-        .with(stdout_layer)
-        .with(file_layer)
-        .init();
-
-    guard
-}
-
-pub fn build_runtime_trace_logger(config: &LoggingConfig) -> Arc<TraceLogger> {
-    TraceLogger::from_logging_config(config)
-}
-
-#[derive(Clone)]
-pub struct RedactingMakeWriter<M> {
-    inner: M,
-}
-
-impl<M> RedactingMakeWriter<M> {
-    pub fn new(inner: M) -> Self {
-        Self { inner }
-    }
-}
-
-impl<'a, M> MakeWriter<'a> for RedactingMakeWriter<M>
-where
-    M: MakeWriter<'a>,
-{
-    type Writer = RedactingWriter<M::Writer>;
-
-    fn make_writer(&'a self) -> Self::Writer {
-        RedactingWriter::new(self.inner.make_writer())
-    }
-}
-
-pub struct RedactingWriter<W: Write> {
-    inner: W,
-    buffer: Vec<u8>,
-}
-
-impl<W: Write> RedactingWriter<W> {
-    fn new(inner: W) -> Self {
-        Self {
-            inner,
-            buffer: Vec::new(),
-        }
-    }
-
-    fn flush_buffer(&mut self) -> io::Result<()> {
-        if self.buffer.is_empty() {
-            return self.inner.flush();
-        }
-
-        let buffered = String::from_utf8_lossy(&self.buffer);
-        let redacted = redact_secrets(&buffered);
-        self.inner.write_all(redacted.as_bytes())?;
-        self.buffer.clear();
-        self.inner.flush()
-    }
-}
-
-impl<W: Write> Write for RedactingWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buffer.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.flush_buffer()
-    }
-}
-
-impl<W: Write> Drop for RedactingWriter<W> {
-    fn drop(&mut self) {
-        let _ = self.flush_buffer();
-    }
 }
 
 /// Clean up log files older than `days` days
@@ -234,6 +129,7 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
 
         if path.is_file() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                // Match standard patterns
                 if name.starts_with("gateway.log") || name.starts_with("gateway-") {
                     if let Ok(metadata) = entry.metadata() {
                         if let Ok(modified) = metadata.modified() {
@@ -244,6 +140,9 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
                                             "Failed to remove old log file {:?}: {}",
                                             path, e
                                         );
+                                    } else {
+                                        // Use println here as logger might not be fully ready or to avoid recursion loop if we log to file?
+                                        // Actually logger is initializing, so we can use eprintln for internal errors.
                                     }
                                 }
                             }
@@ -258,54 +157,44 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{RedactingMakeWriter, Write};
-    use std::sync::{Arc, Mutex};
-    use tracing_subscriber::fmt::writer::MakeWriter;
+    use super::*;
 
-    #[derive(Clone, Default)]
-    struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
-
-    impl SharedBuffer {
-        fn contents(&self) -> String {
-            String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
-        }
-    }
-
-    struct SharedBufferWriter(Arc<Mutex<Vec<u8>>>);
-
-    impl Write for SharedBufferWriter {
-        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().unwrap().extend_from_slice(buf);
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    impl<'a> MakeWriter<'a> for SharedBuffer {
-        type Writer = SharedBufferWriter;
-
-        fn make_writer(&'a self) -> Self::Writer {
-            SharedBufferWriter(self.0.clone())
-        }
+    #[test]
+    fn logging_retention_default_is_30() {
+        let config: crate::config::schema::LoggingConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(config.retention_days, 30);
     }
 
     #[test]
-    fn redacting_writer_scrubs_buffered_output() {
-        let sink = SharedBuffer::default();
-        let writer_factory = RedactingMakeWriter::new(sink.clone());
-        let mut writer = writer_factory.make_writer();
+    fn logging_retention_custom_value() {
+        let config: crate::config::schema::LoggingConfig =
+            serde_json::from_str(r#"{"retention_days": 7}"#).unwrap();
+        assert_eq!(config.retention_days, 7);
+    }
 
-        writer
-            .write_all(br#"Authorization: Bearer sk-secret api_key: "ghp_demo""#)
-            .unwrap();
-        writer.flush().unwrap();
+    #[test]
+    fn logging_retention_zero_keeps_all() {
+        // With retention_days=0 the threshold duration is 0, meaning no file
+        // can be older than 0s so effectively nothing gets deleted.
+        // Actually: threshold = 0 * 24 * 3600 = 0 seconds.
+        // age > 0 is only true for files modified in the future, so no real
+        // file will be removed. This test verifies the logic with a non-existent
+        // dir (should succeed) and confirms the function accepts 0.
+        let result = cleanup_old_logs("/nonexistent/path", 0);
+        assert!(result.is_ok());
+    }
 
-        let output = sink.contents();
-        assert!(output.contains("***REDACTED***"));
-        assert!(!output.contains("sk-secret"));
-        assert!(!output.contains("ghp_demo"));
+    #[test]
+    fn logging_retention_nonexistent_dir_ok() {
+        let result = cleanup_old_logs("/nonexistent/path", 7);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn logging_retention_threshold_calculation() {
+        // Verify the threshold math: 30 days = 30 * 24 * 3600 seconds
+        let days: u64 = 30;
+        let expected_secs = days * 24 * 3600;
+        assert_eq!(expected_secs, 2_592_000);
     }
 }

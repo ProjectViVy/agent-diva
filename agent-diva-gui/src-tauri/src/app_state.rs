@@ -12,17 +12,12 @@ pub struct AgentState {
 
 impl AgentState {
     pub fn new() -> Self {
-        // Try to load the gateway port from config, defaults to 3000
         let gateway_port = Self::load_gateway_port();
         Self {
-            // Local Manager only: never use the system HTTP proxy (common on Windows with VPN /
-            // corporate proxy). Proxying 127.0.0.1 often yields 502 Bad Gateway from the proxy.
             client: reqwest::Client::builder()
                 .no_proxy()
                 .build()
                 .expect("reqwest client for local Manager API"),
-            // Must match `agent-diva-manager` bind (`127.0.0.1` only). Using `localhost` can
-            // resolve to `::1` first on Windows; nothing listens there → health checks stay offline.
             api_base_url: Arc::new(RwLock::new(Self::api_base_url_for_port(gateway_port))),
             gateway_port: Arc::new(RwLock::new(gateway_port)),
         }
@@ -48,8 +43,11 @@ impl AgentState {
         }
     }
 
-    /// Load gateway port from config file, defaults to 3000
     fn load_gateway_port() -> u16 {
+        if cfg!(debug_assertions) {
+            return 3000;
+        }
+
         if let Ok(config_dir) = std::env::var("AGENT_DIVA_CONFIG_DIR") {
             if !config_dir.trim().is_empty() {
                 let port_file = std::path::PathBuf::from(config_dir).join("gateway.port");
@@ -61,7 +59,6 @@ impl AgentState {
             }
         }
 
-        // Try default config directory location
         let loader = agent_diva_core::config::ConfigLoader::new();
         let port_file = loader.config_dir().join("gateway.port");
         if let Ok(content) = std::fs::read_to_string(&port_file) {
@@ -70,7 +67,6 @@ impl AgentState {
             }
         }
 
-        // Fallback to default port
         3000
     }
 
@@ -134,6 +130,23 @@ impl AgentState {
             return Err(format!("Server error: {}", response.status()));
         }
         Ok(())
+    }
+
+    pub async fn list_mentle_tools(&self) -> Result<serde_json::Value, String> {
+        let url = format!("{}/tools/mentle/available", self.api_base_url());
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
+        }
+        response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Invalid JSON: {}", e))
     }
 
     pub async fn get_provider_views(&self) -> Result<Vec<ProviderView>, String> {
@@ -250,16 +263,8 @@ impl AgentState {
             .send()
             .await
             .map_err(|e| format!("Request failed: {}", e))?;
-        let value = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| format!("Invalid JSON: {}", e))?;
-        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
-            return Err(value
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error")
-                .to_string());
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
         }
         Ok(())
     }
@@ -277,16 +282,8 @@ impl AgentState {
             .send()
             .await
             .map_err(|e| format!("Request failed: {}", e))?;
-        let value = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| format!("Invalid JSON: {}", e))?;
-        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
-            return Err(value
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error")
-                .to_string());
+        if !response.status().is_success() {
+            return Err(format!("Server error: {}", response.status()));
         }
         Ok(())
     }
@@ -302,10 +299,12 @@ impl AgentState {
         if !response.status().is_success() {
             return Err(format!("Server error: {}", response.status()));
         }
+
         let value = response
             .json::<serde_json::Value>()
             .await
             .map_err(|e| format!("Invalid JSON: {}", e))?;
+
         if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
             return Err(value
                 .get("message")
@@ -313,6 +312,7 @@ impl AgentState {
                 .unwrap_or("unknown error")
                 .to_string());
         }
+
         Ok(value
             .get("skills")
             .cloned()
@@ -330,10 +330,12 @@ impl AgentState {
         if !response.status().is_success() {
             return Err(format!("Server error: {}", response.status()));
         }
+
         let value = response
             .json::<serde_json::Value>()
             .await
             .map_err(|e| format!("Invalid JSON: {}", e))?;
+
         if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
             return Err(value
                 .get("message")
@@ -341,6 +343,7 @@ impl AgentState {
                 .unwrap_or("unknown error")
                 .to_string());
         }
+
         Ok(value
             .get("mcps")
             .cloned()

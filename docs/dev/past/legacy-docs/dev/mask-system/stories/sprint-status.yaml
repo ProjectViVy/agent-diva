@@ -1,0 +1,85 @@
+# Sprint Status — Mask System Implementation
+# Generated: 2026-06-10
+
+epics:
+  - id: 1
+    name: "Mask Management & User-Facing Lifecycle"
+    stories:
+      - id: "1.1"
+        title: "Define Mask Schema and Default Mask"
+        status: ready-for-dev
+        priority: P0
+      - id: "1.2"
+        title: "Build Mask Registry from Workspace Directory"
+        status: ready-for-dev
+        priority: P0
+        depends_on: ["1.1"]
+      - id: "1.3"
+        title: "Runtime Mask Activation via ContextBuilder"
+        status: ready-for-dev
+        priority: P0
+        depends_on: ["1.1", "1.2"]
+      - id: "1.4"
+        title: "Implement Mask Switching with Context Compression"
+        status: ready-for-dev
+        priority: P0
+        depends_on: ["1.2", "1.3"]
+      - id: "1.5"
+        title: "Add Mask Status Header to GUI"
+        status: ready-for-dev
+        priority: P1
+        depends_on: ["1.4"]
+      - id: "1.6"
+        title: "Create, Edit, and Ship Predefined Masks"
+        status: ready-for-dev
+        priority: P1
+        depends_on: ["1.2"]
+
+  - id: 2
+    name: "Safe Capability Modes & Runtime Enforcement"
+    stories:
+      - id: "2.1"
+        title: "Compute Effective Capabilities from Mask Policy"
+        status: ready-for-dev
+        priority: P0
+        depends_on: ["1.1"]
+      - id: "2.2"
+        title: "Enforce Reviewer Assist Mode as True Read-Only"
+        status: ready-for-dev
+        priority: P1
+        depends_on: ["2.1"]
+      - id: "2.3"
+        title: "Restrict Child Agents to Parent-Bounded Capabilities"
+        status: ready-for-dev
+        priority: P0
+        depends_on: ["2.1"]
+
+  - id: 3
+    name: "Parallel Sub-Agent Orchestration"
+    stories:
+      - id: "3.1"
+        title: "Define Batch Spawn and Structured Result Contracts"
+        status: ready-for-dev
+        priority: P1
+        depends_on: ["2.3"]
+      - id: "3.2"
+        title: "Execute Isolated Parallel Child Agents"
+        status: ready-for-dev
+        priority: P1
+        depends_on: ["3.1"]
+      - id: "3.3"
+        title: "Resolve Child Models and Runtime Limits Predictably"
+        status: ready-for-dev
+        priority: P1
+        depends_on: ["3.1"]
+      - id: "3.4"
+        title: "Stream Child Lifecycle Events to Sub-Agent Panel"
+        status: ready-for-dev
+        priority: P1
+        depends_on: ["3.2"]
+
+summary:
+  total_stories: 13
+  ready_for_dev: 13
+  in_progress: 0
+  completed: 0

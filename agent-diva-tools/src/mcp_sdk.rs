@@ -44,10 +44,6 @@ fn sanitize_json_strings(value: &mut Value) {
     }
 }
 
-/// Default timeout for MCP operations in seconds.
-#[allow(dead_code)]
-const DEFAULT_TIMEOUT_SECS: u64 = 30;
-
 // ============================================================================
 // Error Types
 // ============================================================================
@@ -257,6 +253,11 @@ impl McpClientWrapper {
             .map_err(|_| McpError::Timeout)?
             .map_err(|e| McpError::Sdk(e.to_string()))?;
 
+        // Check is_error flag before rendering (codex from_error_text pattern)
+        if result.is_error.unwrap_or(false) {
+            return Err(McpError::Server(render_tool_result(&result)));
+        }
+
         Ok(render_tool_result(&result))
     }
 
@@ -288,7 +289,7 @@ impl ClientHandler for SimpleClientHandler {
     ) -> std::result::Result<(), rust_mcp_sdk::schema::RpcError> {
         // Log at debug level since stderr often contains normal status messages,
         // not actual errors. Many MCP servers use stderr for startup banners.
-        tracing::debug!("MCP server stderr: {}", error_message);
+        tracing::warn!("MCP server stderr: {}", error_message);
         Ok(())
     }
 }
@@ -308,11 +309,14 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> String {
         }
     }
 
-    if parts.is_empty() {
+    let raw = if parts.is_empty() {
         "(no output)".to_string()
     } else {
         parts.join("\n")
-    }
+    };
+
+    // Apply truncation to prevent oversized results from causing 400 errors
+    crate::sanitize::truncate_tool_result(&raw)
 }
 
 // ============================================================================
@@ -329,14 +333,16 @@ pub struct McpSdkTool {
     parameters: Value,
     #[allow(dead_code)]
     tool_timeout: u64,
+    /// Saved server config for auto-reconnection on crash
+    server_config: MCPServerConfig,
 }
-
 impl McpSdkTool {
     pub fn new(
         server_name: &str,
         client: Arc<RwLock<Option<McpClientWrapper>>>,
         tool: DiscoveredTool,
         tool_timeout: u64,
+        server_config: MCPServerConfig,
     ) -> Self {
         let wrapped_name = format!(
             "mcp_{}_{}",
@@ -352,6 +358,7 @@ impl McpSdkTool {
             description: format!("[MCP:{}] {}", server_name, tool.description),
             parameters: tool.input_schema,
             tool_timeout,
+            server_config,
         }
     }
 }
@@ -377,9 +384,51 @@ impl Tool for McpSdkTool {
             ));
         }
 
-        let mut guard = self.client.write().await;
-
-        let client = guard.as_mut().ok_or_else(|| {
+        // Read lock first — if client exists, use it directly
+        let guard = self.client.read().await;
+        if guard.is_none() {
+            drop(guard); // Release read lock before acquiring write lock
+            let mut write_guard = self.client.write().await;
+            if write_guard.is_none() {
+                // Attempt reconnection with exponential backoff
+                for attempt in 1..=5 {
+                    let reconnect_result = if !self.server_config.command.trim().is_empty() {
+                        McpClientWrapper::new_stdio(&self.server_name, &self.server_config).await
+                    } else if !self.server_config.url.trim().is_empty() {
+                        McpClientWrapper::new_sse(&self.server_name, &self.server_config).await
+                    } else {
+                        return Err(ToolError::ExecutionFailed(format!(
+                            "MCP server '{}' reconnect impossible: no command or url configured",
+                            self.server_name
+                        )));
+                    };
+                    match reconnect_result {
+                        Ok(client) => {
+                            *write_guard = Some(client);
+                            break;
+                        }
+                        Err(e) if attempt < 5 => {
+                            let delay = Duration::from_secs(2u64.pow(attempt - 1).min(60));
+                            warn!(
+                                "MCP server '{}' reconnect attempt {}/5 failed: {}",
+                                self.server_name, attempt, e
+                            );
+                            tokio::time::sleep(delay).await;
+                        }
+                        Err(e) => {
+                            return Err(ToolError::ExecutionFailed(format!(
+                                "MCP server '{}' reconnect failed after 5 attempts: {}",
+                                self.server_name, e
+                            )));
+                        }
+                    }
+                }
+            }
+            drop(write_guard);
+        }
+        // At this point guard has been dropped; re-acquire read lock
+        let guard = self.client.read().await;
+        let client = guard.as_ref().ok_or_else(|| {
             ToolError::ExecutionFailed(format!(
                 "MCP server '{}' session is closed",
                 self.server_name
@@ -526,9 +575,16 @@ pub fn load_mcp_tools_sync(configs: &HashMap<String, MCPServerConfig>) -> Vec<Ar
                 .get(&server_name)
                 .map(|c| c.tool_timeout)
                 .unwrap_or(30);
+            let server_config = configs.get(&server_name).cloned().unwrap_or_default();
 
             for tool in discovered_tools {
-                let mcp_tool = McpSdkTool::new(&server_name, client.clone(), tool, tool_timeout);
+                let mcp_tool = McpSdkTool::new(
+                    &server_name,
+                    client.clone(),
+                    tool,
+                    tool_timeout,
+                    server_config.clone(),
+                );
                 tools.push(Arc::new(mcp_tool));
             }
         }

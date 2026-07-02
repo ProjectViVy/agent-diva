@@ -7,15 +7,24 @@ import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
-import { getConfigStatus, getRuntimeConfig, type FileAttachmentDto } from "./api/desktop";
+import { getConfigStatus, getRuntimeConfig, FileAttachmentDto } from "./api/desktop";
+import type { ToolsConfigShape } from "./types/toolsConfig";
 import {
   HISTORY_PREFS_KEY,
   SAVED_MODELS_KEY,
   SESSION_CACHE_PREFIX,
   WELCOME_STORAGE_KEY,
 } from "./utils/localStorageAgentDiva";
+import {
+  DEFAULT_DEEPSEEK_API_BASE,
+  DEFAULT_DEEPSEEK_MODEL,
+  DEFAULT_DEEPSEEK_PROVIDER,
+  buildWelcomeDeepSeekConfig,
+} from "./utils/welcomeConfig";
 
 const { t } = useI18n();
+
+type ExecMode = 'agent' | 'plan' | 'ask';
 
 interface Message {
   role: 'user' | 'agent' | 'system' | 'tool';
@@ -32,7 +41,7 @@ interface Message {
   toolCallId?: string;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
-  attachments?: FileAttachmentDto[];
+  attachments?: string[];
 }
 
 interface ToolStartPayload {
@@ -98,7 +107,6 @@ interface BackendChatMessage {
   tool_calls?: serdeJsonValue[] | null;
   name?: string | null;
   thinking_blocks?: serdeJsonValue[] | null;
-  attachments?: FileAttachmentDto[] | null;
 }
 
 interface BackendSessionHistory {
@@ -160,13 +168,13 @@ const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
 
 // Config state
 const config = ref({
-  provider: "deepseek",
-  apiBase: "https://api.deepseek.com/v1",
+  provider: DEFAULT_DEEPSEEK_PROVIDER,
+  apiBase: DEFAULT_DEEPSEEK_API_BASE,
   apiKey: "",
-  model: "deepseek-chat"
+  model: DEFAULT_DEEPSEEK_MODEL
 });
 
-const toolsConfig = ref({
+const toolsConfig = ref<ToolsConfigShape>({
   web: {
     search: {
       provider: 'bocha',
@@ -177,7 +185,18 @@ const toolsConfig = ref({
     fetch: {
       enabled: true
     }
-  }
+  },
+  mentle: {
+    enabled: false,
+    mode: 'off',
+    allowed_tools: [],
+  },
+  budget: {
+    max_tokens: 180000,
+    system_budget_ratio: 0.15,
+    compact_threshold_ratio: 0.8,
+    keep_recent_count: 10,
+  },
 });
 
 const savedModels = ref<SavedModel[]>([]);
@@ -447,7 +466,6 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
     toolCallId: msg.tool_call_id || undefined,
     rawMeta,
     fromHistory: true,
-    attachments: msg.attachments ?? undefined,
   };
 }
 
@@ -575,8 +593,9 @@ function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
   };
 }
 
-async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
-  if ((!content.trim() && !attachments?.length) || isTyping.value) return;
+async function sendMessage(content: string, attachments?: FileAttachmentDto[], mode: ExecMode = 'agent') {
+  if (!content.trim() && (!attachments || attachments.length === 0)) return;
+  if (isTyping.value) return;
   if (content.trim() === '/stop') {
     await stopMessage();
     return;
@@ -588,26 +607,25 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
   });
 
   const attachmentFileIds = attachments?.map(a => a.file_id);
-
   const userMsg: Message = {
     role: 'user',
     content: content,
     timestamp: Date.now(),
-    attachments: attachments ?? []
+    attachments: attachmentFileIds,
   };
   messages.value.push(userMsg);
-
+  
   isTyping.value = true;
   suppressNextStopError.value = false;
   closeStreamingPlaceholder(true);
   const streamRequestId = generateStreamRequestId();
   activeStreamRequestId.value = streamRequestId;
-
+  
   // Create a placeholder for the agent response
-  messages.value.push({
-    role: 'agent',
-    content: '',
-    isStreaming: true,
+  messages.value.push({ 
+    role: 'agent', 
+    content: '', 
+    isStreaming: true, 
     timestamp: Date.now(),
     emotion: currentEmotion.value
   });
@@ -632,6 +650,7 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[]) {
       channel: currentChannel.value,
       chatId: currentChatId.value,
       attachments: attachmentFileIds,
+      mode,
       streamRequestId,
     });
   } catch (error) {
@@ -989,10 +1008,7 @@ async function handleWelcomeDone(payload: WelcomeDonePayload) {
     const dk = payload.deepseekApiKey.trim();
     const bk = payload.bochaApiKey.trim();
     if (dk) {
-      await saveConfig({
-        ...config.value,
-        apiKey: dk,
-      });
+      await saveConfig(buildWelcomeDeepSeekConfig(config.value, dk));
     }
     if (bk) {
       const nextTools = JSON.parse(JSON.stringify(toolsConfig.value)) as typeof toolsConfig.value;
@@ -1029,6 +1045,14 @@ async function checkHealth() {
 }
 
 onMounted(async () => {
+  const markSplashComplete = () => {
+    if (isTauri()) {
+      invoke('set_splash_complete', { task: 'frontend' }).catch((e) =>
+        console.warn('set_splash_complete failed:', e)
+      );
+    }
+  };
+
   if (!isTauri()) {
       console.log("Running in browser mode - Tauri listeners skipped");
       return;
@@ -1340,7 +1364,7 @@ onMounted(async () => {
   } catch (e) {
     console.error("App initialization error:", e);
   } finally {
-    // 暂时停用启动动画流程，保留 splashscreen 页面文件以便后续恢复。
+    markSplashComplete();
   }
 });
 
@@ -1369,6 +1393,7 @@ onUnmounted(() => {
       :saved-models="savedModels"
       :sessions="sessions"
       :chat-display-prefs="chatDisplayPrefs"
+      :current-session-key="currentSessionKey"
       :save-config-action="saveConfig"
       :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"

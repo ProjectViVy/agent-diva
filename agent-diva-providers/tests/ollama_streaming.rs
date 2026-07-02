@@ -2,7 +2,6 @@
 
 use agent_diva_providers::base::{LLMProvider, Message};
 use agent_diva_providers::ollama::OllamaProvider;
-use std::net::TcpListener;
 
 #[tokio::test]
 async fn test_stream_basic_chat() {
@@ -16,7 +15,7 @@ async fn test_stream_basic_chat() {
     let provider = OllamaProvider::new(None, "llama3.2".to_string());
     let messages = vec![Message {
         role: "user".to_string(),
-        content: "Say hello in one word".into(),
+        content: agent_diva_providers::MessageContent::Text("Say hello in one word".to_string()),
         name: None,
         tool_call_id: None,
         tool_calls: None,
@@ -33,18 +32,10 @@ async fn test_stream_basic_chat() {
 
 #[tokio::test]
 async fn test_stream_error_handling() {
-    let unused_port = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
-    let provider = OllamaProvider::new(
-        Some(&format!("http://127.0.0.1:{unused_port}")),
-        "llama3.2".to_string(),
-    );
+    let provider = OllamaProvider::new(Some("http://invalid-host:11434"), "llama3.2".to_string());
     let messages = vec![Message {
         role: "user".to_string(),
-        content: "test".into(),
+        content: agent_diva_providers::MessageContent::Text("test".to_string()),
         name: None,
         tool_call_id: None,
         tool_calls: None,
@@ -54,9 +45,9 @@ async fn test_stream_error_handling() {
 
     let result = provider.chat_stream(messages, None, None, 100, 0.7).await;
 
-    // Should return an error for an unused local port.
+    // Should return an error for invalid host
     assert!(
         result.is_err(),
-        "Should error when connecting to an unused local port"
+        "Should error when connecting to invalid host"
     );
 }

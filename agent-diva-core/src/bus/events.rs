@@ -127,6 +127,41 @@ pub struct OutboundMessage {
     pub metadata: HashMap<String, serde_json::Value>,
 }
 
+/// Lifecycle and audit events for the poke 8 event chain.
+///
+/// These events supplement the streaming `AgentEvent` variants with
+/// system-level lifecycle events used for audit, monitoring, and
+/// cross-module communication.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PokeEvent {
+    /// A poke/message is about to be sent.
+    PokeSend { message: String },
+    /// A chat message is being sent outbound.
+    ChatSend { content: String },
+    /// A chat message was successfully sent.
+    ChatSent { content: String, message_id: String },
+    /// A new chat message arrived from a channel.
+    ChatReceived { content: String, sender_id: String },
+    /// Reasoning/thought content received from the LLM.
+    ReasoningReceived { content: String, model: String },
+    /// A chat turn or conversation ended.
+    ChatOver { reason: String },
+    /// Messages added to persistent chat history.
+    ChatHistoryAdd { message_ids: Vec<String> },
+    /// Token consumption event emitted by providers.
+    TokenUsed {
+        tokens: u32,
+        model: String,
+        provider: String,
+    },
+    /// Config hot-reload: some fields changed but require restart.
+    /// Emitted so the GUI can show a "restart required" indicator.
+    ConfigChangeNeedsRestart {
+        /// Dot-separated field paths that require restart.
+        fields: Vec<String>,
+    },
+}
+
 impl OutboundMessage {
     /// Create a new outbound message
     pub fn new(

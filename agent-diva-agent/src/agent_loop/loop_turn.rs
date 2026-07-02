@@ -1,44 +1,54 @@
-use super::context_retry::{prepare_budgeted_messages, should_retry_context_overflow};
-use super::loop_guard::{
-    is_tool_error_result, LoopGuard, DEFAULT_AGENT_LOOP_TIMEOUT, DEFAULT_REPEATED_FAILURE_THRESHOLD,
-};
 use super::AgentLoop;
+use crate::compaction::ContextCompactor;
 use crate::consolidation;
-use crate::context_budget::CompactionMode;
-use agent_diva_core::attachment::FileAttachmentRef;
-use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
-use agent_diva_core::debug::DebugEvent;
-use agent_diva_core::memory::PrefetchRequest;
-use agent_diva_core::session::ChatMessage;
+use crate::context_budget::check_budget;
+use crate::mask::ToolPolicy;
+use crate::planning::inject_plan_context;
+use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage, PokeEvent};
+use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
+use agent_diva_core::reasoning::ThinkingMode;
+use agent_diva_core::session::{ChatMessage, CompactTrigger, TokenUsage};
 use agent_diva_core::soul::SoulStateStore;
-use agent_diva_core::trace::{TraceEvent, TraceId};
-use agent_diva_files::FileManager;
-use agent_diva_providers::{
-    provider_error_indicates_vision_unsupported, ImageFile, ImageUrl, LLMResponse, LLMStreamEvent,
-    Message, MessageContent, MessageContentPart, ProviderError,
-};
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use base64::Engine;
+use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderError};
+use anyhow;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::io;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
 /// Max size for text attachments to inline (100KB)
 const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
-const MAX_VISION_IMAGE_SIZE: u64 = 5 * 1024 * 1024;
-const VISION_UNSUPPORTED_MODEL_MESSAGE: &str = "This model cannot inspect images. Please switch to a vision-capable model or send a text description of the image.";
+
+fn is_plan_mode(msg: &InboundMessage) -> bool {
+    msg.metadata
+        .get("exec_mode")
+        .and_then(|value| value.as_str())
+        .is_some_and(|mode| mode.eq_ignore_ascii_case("plan"))
+}
+
+fn is_plan_mode_allowed_tool(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "read_file"
+            | "list_dir"
+            | "read_attachment"
+            | "plan_create"
+            | "plan_show"
+            | "plan_approve"
+            | "plan_transition"
+            | "todo_show"
+            | "todo_write"
+    )
+}
 
 impl AgentLoop {
     pub(super) async fn process_inbound_message_inner(
         &mut self,
         msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-        trace_id: TraceId,
+        trace_id: String,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
         trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
 
@@ -56,67 +66,146 @@ impl AgentLoop {
         );
 
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
+        let plan_mode = is_plan_mode(&msg);
+        let active_mask = self.load_active_mask();
+        self.rebuild_tools_for_turn(active_mask.as_ref(), plan_mode);
 
-        // Process attachments: keep images as structured parts and inline text attachments.
-        let message_content =
-            assemble_current_message_content(&self.file_manager, &msg.content, &msg.media).await;
+        // Process attachments: load text file contents and append to message
+        let message_content = if !msg.media.is_empty() {
+            match self.load_attachment_contents(&msg.media).await {
+                Ok(attachment_text) if !attachment_text.is_empty() => {
+                    format!(
+                        "{}\n\n[Attachments]\n{}\n[/Attachments]",
+                        msg.content, attachment_text
+                    )
+                }
+                _ => msg.content.clone(),
+            }
+        } else {
+            msg.content.clone()
+        };
 
         // Derive prefetch intent from raw user message before it's consumed.
-        let prefetch_user_message = message_content.to_text_lossy();
-        let prefetch_intent = derive_prefetch_intent(&prefetch_user_message);
+        let prefetch_intent = derive_prefetch_intent(&message_content);
+        let prefetch_user_message = message_content.clone();
 
         // Get or create session
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
-        self.emit_runtime_trace(
-            "info",
-            &trace_id,
-            &session_key,
-            &msg.channel,
-            "agent_loop",
-            "message_received",
-            format!("Received message from {}", msg.sender_id),
-            serde_json::json!({
-                "sender_id": msg.sender_id,
-                "has_attachments": !msg.media.is_empty(),
-                "preview": preview,
-            }),
-        );
-        self.emit_debug_event(
-            &trace_id,
-            &session_key,
-            "gateway",
-            "inbound_message",
-            serde_json::json!({
-                "channel": msg.channel,
-                "sender_id": msg.sender_id,
-                "chat_id": msg.chat_id,
-                "content": msg.content,
-                "timestamp": msg.timestamp,
-                "media": msg.media,
-                "metadata": msg.metadata,
-            }),
-        );
-        self.emit_debug_raw(
-            &trace_id,
-            &session_key,
-            "gateway",
-            "channel_inbound_raw",
-            serde_json::to_value(&msg).unwrap_or_else(
-                |error| serde_json::json!({"serialization_error": error.to_string()}),
-            ),
-        );
         self.clear_session_cancellation(&session_key);
-        let session = self.sessions.get_or_create(&session_key)?;
 
-        // Build initial messages
-        let history = session.get_history(self.context_budget.history_probe_messages());
-        let history_len = history.len();
-        let mut messages = self.context.build_messages_with_content(
+        // ── Build initial messages with budget-aware compaction ──
+        // Phase 1: check budget and decide if compaction is needed (release borrow before .await)
+        let (history, history_len, should_compact, budget_report) = {
+            let session = self.sessions.get_or_create(&session_key);
+            let history = session.get_history(50); // Last 50 messages
+            let history_len = history.len();
+
+            // Budget check against context window limits
+            let budget_config = self.tool_config.budget.clone();
+            let budget_report = check_budget(&history, &budget_config);
+
+            (
+                history,
+                history_len,
+                budget_report.should_compact,
+                budget_report,
+            )
+        };
+
+        // Phase 2: call async compact() if needed, then update session
+        let (compaction_history, did_compact) = if should_compact {
+            info!(
+                "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
+                budget_report.pressure_ratio * 100.0,
+                budget_report.history_estimated,
+                budget_report.total_estimated.saturating_sub(budget_report.system_estimated),
+            );
+
+            let provider = self.provider.clone();
+            let model = self.model.clone();
+            let budget_config = self.tool_config.budget.clone();
+
+            // Use immutable get() to avoid holding &mut across .await
+            let compact_result = {
+                if let Some(session) = self.sessions.get(&session_key) {
+                    ContextCompactor::compact(
+                        session,
+                        &budget_config,
+                        provider,
+                        &model,
+                        CompactTrigger::Auto,
+                        &session.compaction_history,
+                    )
+                    .await
+                } else {
+                    Err(anyhow::anyhow!("Session not found for compaction"))
+                }
+            };
+
+            match compact_result {
+                Ok(result) => {
+                    let session = self.sessions.get_or_create(&session_key);
+                    session.last_compacted = result.new_compacted_index;
+                    session.compaction_history.push(result.summary);
+                    (session.compaction_history.clone(), true)
+                }
+                Err(e) => {
+                    warn!("Compaction failed (non-blocking): {}", e);
+                    // Carry forward existing compaction history as fallback
+                    let session = self.sessions.get_or_create(&session_key);
+                    (session.compaction_history.clone(), false)
+                }
+            }
+        } else {
+            // Carry forward any existing compaction history from a previous turn
+            let session = self.sessions.get_or_create(&session_key);
+            (session.compaction_history.clone(), false)
+        };
+
+        // Persist compaction state immediately when it just occurred
+        if did_compact {
+            if let Some(s) = self.sessions.get(&session_key) {
+                if let Err(e) = self.sessions.save(s) {
+                    error!("Failed to persist compaction state: {}", e);
+                }
+            }
+        }
+
+        let mut messages = self.context.build_messages(
             history,
-            message_content,
+            message_content.clone(),
             Some(&msg.channel),
             Some(&msg.chat_id),
+            &compaction_history,
         );
+        if let Some(planning) = &self.tool_config.planning {
+            match inject_plan_context(planning.store.as_ref()).await {
+                Ok(Some(block)) => {
+                    messages.insert(1, agent_diva_providers::Message::system(block));
+                }
+                Ok(None) if plan_mode => {
+                    messages.insert(1, agent_diva_providers::Message::system(
+                        "You are in Plan mode. Create or update a plan and TodoList only. Use planning tools such as plan_create, todo_write, plan_show, and todo_show. Do not perform implementation, file modification, shell execution, spawning, scheduling, MCP actions, or other external actions. Stop after presenting the plan and wait for user approval.",
+                    ));
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    warn!("Planning context injection failed (non-fatal): {}", e);
+                }
+            }
+        } else if plan_mode {
+            warn!("Plan mode requested but planning runtime is not configured");
+            messages.insert(1, agent_diva_providers::Message::system(
+                "You are in Plan mode, but the planning runtime is unavailable. Do not perform implementation or external actions; respond with a plan and wait for user approval.",
+            ));
+        }
+        if let Some(mask) = active_mask.as_ref() {
+            if let Some(first) = messages.first_mut() {
+                *first = agent_diva_providers::Message::system(
+                    self.context.build_system_prompt(Some(mask)),
+                );
+            }
+        }
         if is_cron_trigger {
             // Make trigger origin explicit so the model does not treat it as a fresh user request.
             let current_message = messages.pop();
@@ -127,22 +216,13 @@ impl AgentLoop {
                 messages.push(current_message);
             }
         }
-        let user_role = if is_cron_trigger { "system" } else { "user" };
-        let user_attachments = resolve_attachment_refs(&self.file_manager, &msg.media).await;
-        {
-            let session = self.sessions.get_or_create(&session_key)?;
-            persist_inbound_message(session, user_role, &msg.content, user_attachments.clone());
-        }
-        self.persist_session_or_fail(&session_key, &msg, event_tx, "persist inbound user message")?;
 
         // Agent loop
         let mut iteration = 0;
-        let mut loop_guard = LoopGuard::new(
-            self.max_iterations,
-            DEFAULT_AGENT_LOOP_TIMEOUT,
-            DEFAULT_REPEATED_FAILURE_THRESHOLD,
-        );
+        let mut final_content: Option<String> = None;
+        let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
+        let mut turn_token_usage: Option<TokenUsage> = None;
 
         // Intent-aware prefetch: run recall search before the first LLM call
         // when the user message provides a workable intent string.
@@ -157,46 +237,35 @@ impl AgentLoop {
                 })
                 .await;
             match prefetch_result {
-                Ok(response) if response.prompt_block.is_some() => {
-                    let block = response.prompt_block.unwrap();
-                    // Inject recall results as an additional system message
-                    // right after the main system prompt.
-                    messages.insert(1, agent_diva_providers::Message::system(block));
-                    trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
-                }
-                Ok(_) => {
-                    trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
-                }
+                Ok(response) => match response.status {
+                    PrefetchStatus::Failed { reason } => {
+                        warn!("Prefetch recall failed (non-fatal): {}", reason);
+                    }
+                    _ => {
+                        if let Some(block) = response.prompt_block {
+                            // Inject recall results as an additional system message
+                            // right after the main system prompt.
+                            messages.insert(1, agent_diva_providers::Message::system(block));
+                            trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
+                        } else {
+                            trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
+                        }
+                    }
+                },
                 Err(e) => {
                     warn!("Prefetch recall failed (non-fatal): {}", e);
                 }
             }
         }
 
-        let (final_content, final_reasoning) = 'agent_loop: loop {
+        while iteration < self.max_iterations {
             self.drain_runtime_control_commands().await;
             if self.is_session_cancelled(&session_key) {
-                self.emit_runtime_trace(
-                    "warn",
-                    &trace_id,
-                    &session_key,
-                    &msg.channel,
-                    "agent_loop",
-                    "runtime_cancelled",
-                    "Generation stopped before next iteration".to_string(),
-                    serde_json::json!({ "loop_index": iteration }),
-                );
                 self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
                 return Ok(None);
             }
 
-            iteration = match loop_guard.begin_iteration(iteration) {
-                Ok(next_iteration) => next_iteration,
-                Err(reason) => {
-                    warn!(reason = ?reason, "Stopping agent loop before next iteration");
-                    break (Some(reason.user_message()), None);
-                }
-            };
+            iteration += 1;
             debug!("Agent iteration {}/{}", iteration, self.max_iterations);
             trace!(trace_id = %trace_id, loop_index = iteration, step_name = "loop_started", "Agent loop started");
 
@@ -228,338 +297,237 @@ impl AgentLoop {
             } else {
                 self.tools.get_definitions()
             };
-            let response = {
-                let mut compaction_mode = CompactionMode::Normal;
-                let mut overflow_retry_used = false;
-
-                loop {
-                    let prepared_request = prepare_budgeted_messages(
-                        &messages,
-                        &tool_defs,
-                        &self.context_budget,
-                        compaction_mode,
-                    );
-                    trace!(
-                        trace_id = %trace_id,
-                        loop_index = iteration,
-                        compaction_mode = ?prepared_request.report.mode,
-                        estimated_before = prepared_request.report.estimated_tokens_before,
-                        estimated_after = prepared_request.report.estimated_tokens_after,
-                        available_budget = prepared_request.report.available_context_tokens,
-                        removed_history_messages = prepared_request.report.removed_history_messages,
-                        truncated_tool_messages = prepared_request.report.truncated_tool_messages,
-                        step_name = "context_compacted",
-                        "Prepared request under context budget"
-                    );
-
-                    let provider_messages = match prepare_messages_for_openai_vision(
-                        &self.file_manager,
-                        prepared_request.messages,
+            // Call LLM with reactive context-overflow safety net.
+            // On context_length_exceeded, perform emergency compaction and retry once.
+            let mut reactive_retry_attempted = false;
+            let mut stream = loop {
+                let tool_defs_for_call = if !tool_defs.is_empty() {
+                    Some(tool_defs.clone())
+                } else {
+                    None
+                };
+                match self
+                    .provider
+                    .chat_stream(
+                        messages.clone(),
+                        tool_defs_for_call,
+                        Some(model_to_use.clone()),
+                        4096,
+                        0.7,
                     )
                     .await
-                    {
-                        Ok(messages) => messages,
-                        Err(error) => {
-                            warn!("Vision message preparation failed: {}", error);
-                            break 'agent_loop (Some(error.user_message().to_string()), None);
-                        }
-                    };
-                    let llm_started_at = Instant::now();
-                    self.emit_runtime_trace(
-                        "info",
-                        &trace_id,
-                        &session_key,
-                        &msg.channel,
-                        "provider",
-                        "llm_request_started",
-                        format!("Starting LLM request with model {}", model_to_use),
-                        serde_json::json!({
-                            "model": model_to_use,
-                            "status": "started",
-                            "loop_index": iteration,
-                        }),
-                    );
-                    self.emit_debug_event(
-                        &trace_id,
-                        &session_key,
-                        "provider",
-                        "llm_request_started",
-                        serde_json::json!({
-                            "model": model_to_use,
-                            "loop_index": iteration,
-                            "message_count": provider_messages.len(),
-                            "tool_count": tool_defs.len(),
-                        }),
-                    );
-                    self.emit_debug_raw(
-                        &trace_id,
-                        &session_key,
-                        "provider",
-                        "llm_request_raw",
-                        serde_json::json!({
-                            "model": model_to_use,
-                            "messages": provider_messages,
-                            "tools": tool_defs,
-                            "max_tokens": self.request_max_tokens,
-                            "temperature": self.temperature,
-                        }),
-                    );
-
-                    let mut stream = match self
-                        .provider
-                        .chat_stream(
-                            provider_messages,
-                            if !tool_defs.is_empty() {
-                                Some(tool_defs.clone())
-                            } else {
-                                None
-                            },
-                            Some(model_to_use.clone()),
-                            self.request_max_tokens,
-                            self.temperature,
-                        )
-                        .await
-                    {
-                        Ok(stream) => stream,
-                        Err(error) => {
-                            self.emit_llm_failed_event(
-                                &trace_id,
-                                &session_key,
-                                &msg.channel,
-                                &model_to_use,
-                                iteration,
-                                llm_started_at.elapsed(),
-                                &error,
+                {
+                    Ok(s) => break s,
+                    Err(e) => {
+                        if !reactive_retry_attempted && is_context_overflow_error(&e) {
+                            warn!(
+                                "Context overflow detected from provider: {}. Triggering reactive compaction...",
+                                e
                             );
-                            if let Some(user_message) = provider_error_to_user_message(&error) {
-                                warn!("Provider rejected multimodal request: {}", error);
-                                break 'agent_loop (Some(user_message.to_string()), None);
-                            }
-                            if should_retry_context_overflow(
-                                &self.context_budget,
-                                &error,
-                                overflow_retry_used,
-                            ) {
-                                warn!(
-                                    "Provider rejected request for context overflow; retrying with stronger compaction"
-                                );
-                                overflow_retry_used = true;
-                                compaction_mode = CompactionMode::OverflowRecovery;
-                                continue;
-                            }
-                            if crate::context_budget::provider_error_indicates_context_overflow(
-                                &error,
-                            ) {
-                                break 'agent_loop (
-                                    Some(self.context_budget.overflow_user_message().to_string()),
-                                    None,
-                                );
-                            }
-                            return Err(Box::new(error));
-                        }
-                    };
-                    let mut streamed_content = String::new();
-                    let mut streamed_reasoning = String::new();
-                    let mut response: Option<LLMResponse> = None;
-                    let mut retry_with_stronger_compaction = false;
-                    loop {
-                        self.drain_runtime_control_commands().await;
-                        if self.is_session_cancelled(&session_key) {
-                            self.emit_runtime_trace(
-                                "warn",
-                                &trace_id,
-                                &session_key,
-                                &msg.channel,
-                                "agent_loop",
-                                "runtime_cancelled",
-                                "Generation stopped during provider stream".to_string(),
-                                serde_json::json!({ "loop_index": iteration }),
-                            );
-                            self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
-                            return Ok(None);
-                        }
-                        if let Err(reason) = loop_guard.check_elapsed() {
-                            warn!(reason = ?reason, "Stopping agent loop during provider stream");
-                            break 'agent_loop (Some(reason.user_message()), None);
-                        }
+                            reactive_retry_attempted = true;
 
-                        let stream_event =
-                            match tokio::time::timeout(Duration::from_millis(250), stream.next())
-                                .await
-                            {
-                                Ok(Some(event)) => event,
-                                Ok(None) => break,
-                                Err(_) => continue,
+                            // --- Reactive compaction ---
+                            let provider = self.provider.clone();
+                            let model = self.model.clone();
+                            let budget_config = self.tool_config.budget.clone();
+
+                            // Phase 1: call compact() with immutable session ref
+                            let compact_result = {
+                                if let Some(session) = self.sessions.get(&session_key) {
+                                    ContextCompactor::compact(
+                                        session,
+                                        &budget_config,
+                                        provider,
+                                        &model,
+                                        CompactTrigger::Reactive,
+                                        &session.compaction_history,
+                                    )
+                                    .await
+                                } else {
+                                    Err(anyhow::anyhow!(
+                                        "Session not found for reactive compaction"
+                                    ))
+                                }
                             };
 
-                        let stream_event = match stream_event {
-                            Ok(stream_event) => stream_event,
-                            Err(error) => {
-                                self.emit_llm_failed_event(
-                                    &trace_id,
-                                    &session_key,
-                                    &msg.channel,
-                                    &model_to_use,
-                                    iteration,
-                                    llm_started_at.elapsed(),
-                                    &error,
-                                );
-                                if let Some(user_message) = provider_error_to_user_message(&error) {
-                                    warn!("Provider stream rejected multimodal request: {}", error);
-                                    break 'agent_loop (Some(user_message.to_string()), None);
-                                }
-                                if should_retry_context_overflow(
-                                    &self.context_budget,
-                                    &error,
-                                    overflow_retry_used,
-                                ) && streamed_content.is_empty()
-                                    && streamed_reasoning.is_empty()
-                                {
-                                    warn!(
-                                        "Provider stream failed with context overflow before output; retrying once"
-                                    );
-                                    overflow_retry_used = true;
-                                    compaction_mode = CompactionMode::OverflowRecovery;
-                                    retry_with_stronger_compaction = true;
-                                    break;
-                                }
-                                if crate::context_budget::provider_error_indicates_context_overflow(
-                                    &error,
-                                ) {
-                                    break 'agent_loop (
-                                        Some(
-                                            self.context_budget.overflow_user_message().to_string(),
-                                        ),
-                                        None,
-                                    );
-                                }
-                                return Err(Box::new(error));
-                            }
-                        };
-
-                        self.emit_debug_raw(
-                            &trace_id,
-                            &session_key,
-                            "provider",
-                            "llm_stream_event_raw",
-                            serde_json::to_value(&stream_event).unwrap_or_else(|error| {
-                                serde_json::json!({"serialization_error": error.to_string()})
-                            }),
-                        );
-
-                        match stream_event {
-                            LLMStreamEvent::TextDelta(delta) => {
-                                streamed_content.push_str(&delta);
-                                let event = AgentEvent::AssistantDelta { text: delta };
-                                if let Some(tx) = event_tx {
-                                    let _ = tx.send(event.clone());
-                                }
-                                let _ = self.bus.publish_event(
-                                    msg.channel.clone(),
-                                    msg.chat_id.clone(),
-                                    event,
-                                );
-                            }
-                            LLMStreamEvent::ReasoningDelta(delta) => {
-                                debug!("Stream ReasoningDelta: {:?}", delta);
-                                streamed_reasoning.push_str(&delta);
-                                let event = AgentEvent::ReasoningDelta { text: delta };
-                                if let Some(tx) = event_tx {
-                                    let _ = tx.send(event.clone());
-                                }
-                                let _ = self.bus.publish_event(
-                                    msg.channel.clone(),
-                                    msg.chat_id.clone(),
-                                    event,
-                                );
-                            }
-                            LLMStreamEvent::ToolCallDelta {
-                                name,
-                                arguments_delta,
-                                ..
-                            } => {
-                                if let Some(delta) = arguments_delta {
-                                    let event = AgentEvent::ToolCallDelta {
-                                        name,
-                                        args_delta: delta,
-                                    };
-                                    if let Some(tx) = event_tx {
-                                        let _ = tx.send(event.clone());
+                            // Phase 2: apply result and get updated history
+                            let (reactive_history, reactive_compaction_history) =
+                                match compact_result {
+                                    Ok(result) => {
+                                        let session = self.sessions.get_or_create(&session_key);
+                                        session.last_compacted = result.new_compacted_index;
+                                        session.compaction_history.push(result.summary);
+                                        let history = session.get_history(50);
+                                        (history, session.compaction_history.clone())
                                     }
-                                    let _ = self.bus.publish_event(
-                                        msg.channel.clone(),
-                                        msg.chat_id.clone(),
-                                        event,
+                                    Err(e) => {
+                                        warn!("Reactive compaction failed (non-blocking): {}", e);
+                                        // Fallback: use existing session state without updating
+                                        let session = self.sessions.get_or_create(&session_key);
+                                        let history = session.get_history(50);
+                                        (history, session.compaction_history.clone())
+                                    }
+                                };
+
+                            // Persist compaction state
+                            if let Some(s) = self.sessions.get(&session_key) {
+                                if let Err(persist_err) = self.sessions.save(s) {
+                                    error!(
+                                        "Failed to persist reactive compaction state: {}",
+                                        persist_err
                                     );
                                 }
                             }
-                            LLMStreamEvent::Completed(done) => {
-                                response = Some(done);
-                                break;
+
+                            // Rebuild messages with new compaction history
+                            messages = self.context.build_messages(
+                                reactive_history,
+                                message_content.clone(),
+                                Some(&msg.channel),
+                                Some(&msg.chat_id),
+                                &reactive_compaction_history,
+                            );
+                            if is_cron_trigger {
+                                let current_message = messages.pop();
+                                messages.push(agent_diva_providers::Message::system(
+                                    "This turn is triggered automatically by a scheduled cron job, not by a real-time user input. Do not schedule new reminders/jobs from this turn unless explicitly required by prior task design.",
+                                ));
+                                if let Some(current_message) = current_message {
+                                    messages.push(current_message);
+                                }
                             }
+
+                            info!("Reactive compaction complete, retrying provider call...");
+                            continue; // retry once
+                        } else {
+                            return Err(e.into());
                         }
                     }
-                    if retry_with_stronger_compaction {
-                        continue;
-                    }
-
-                    let response = response.unwrap_or_else(|| LLMResponse {
-                        content: if streamed_content.is_empty() {
-                            None
-                        } else {
-                            Some(streamed_content)
-                        },
-                        tool_calls: Vec::new(),
-                        finish_reason: "stop".to_string(),
-                        usage: std::collections::HashMap::new(),
-                        reasoning_content: if streamed_reasoning.is_empty() {
-                            None
-                        } else {
-                            Some(streamed_reasoning)
-                        },
-                    });
-                    self.emit_runtime_trace(
-                        "info",
-                        &trace_id,
-                        &session_key,
-                        &msg.channel,
-                        "provider",
-                        "llm_response_completed",
-                        format!("LLM response completed with {}", response.finish_reason),
-                        serde_json::json!({
-                            "model": model_to_use,
-                            "status": "ok",
-                            "finish_reason": response.finish_reason,
-                            "loop_index": iteration,
-                            "duration_ms": llm_started_at.elapsed().as_millis() as u64,
-                            "tool_call_count": response.tool_calls.len(),
-                        }),
-                    );
-                    self.emit_debug_event(
-                        &trace_id,
-                        &session_key,
-                        "provider",
-                        "llm_response_completed",
-                        serde_json::json!({
-                            "model": model_to_use,
-                            "finish_reason": response.finish_reason,
-                            "loop_index": iteration,
-                            "duration_ms": llm_started_at.elapsed().as_millis() as u64,
-                            "tool_call_count": response.tool_calls.len(),
-                        }),
-                    );
-                    self.emit_debug_raw(
-                        &trace_id,
-                        &session_key,
-                        "provider",
-                        "llm_response_raw",
-                        serde_json::to_value(&response).unwrap_or_else(
-                            |error| serde_json::json!({"serialization_error": error.to_string()}),
-                        ),
-                    );
-                    break response;
                 }
             };
+            let mut streamed_content = String::new();
+            let mut streamed_reasoning = String::new();
+            let mut response: Option<LLMResponse> = None;
+            loop {
+                self.drain_runtime_control_commands().await;
+                if self.is_session_cancelled(&session_key) {
+                    self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
+                    return Ok(None);
+                }
+
+                let stream_event =
+                    match tokio::time::timeout(Duration::from_millis(250), stream.next()).await {
+                        Ok(Some(event)) => event,
+                        Ok(None) => break,
+                        Err(_) => continue,
+                    };
+
+                match stream_event? {
+                    LLMStreamEvent::TextDelta(delta) => {
+                        streamed_content.push_str(&delta);
+                        let event = AgentEvent::AssistantDelta { text: delta };
+                        if let Some(tx) = event_tx {
+                            let _ = tx.send(event.clone());
+                        }
+                        let _ =
+                            self.bus
+                                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    }
+                    LLMStreamEvent::ReasoningDelta(delta) => {
+                        debug!("Stream ReasoningDelta: {:?}", delta);
+                        streamed_reasoning.push_str(&delta);
+                        let event = AgentEvent::ReasoningDelta { text: delta };
+                        if let Some(tx) = event_tx {
+                            let _ = tx.send(event.clone());
+                        }
+                        let _ =
+                            self.bus
+                                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    }
+                    LLMStreamEvent::ToolCallDelta {
+                        name,
+                        arguments_delta,
+                        ..
+                    } => {
+                        if let Some(delta) = arguments_delta {
+                            let event = AgentEvent::ToolCallDelta {
+                                name,
+                                args_delta: delta,
+                            };
+                            if let Some(tx) = event_tx {
+                                let _ = tx.send(event.clone());
+                            }
+                            let _ = self.bus.publish_event(
+                                msg.channel.clone(),
+                                msg.chat_id.clone(),
+                                event,
+                            );
+                        }
+                    }
+                    LLMStreamEvent::Completed(done) => {
+                        response = Some(done);
+                        break;
+                    }
+                }
+            }
+            let response = response.unwrap_or_else(|| LLMResponse {
+                content: if streamed_content.is_empty() {
+                    None
+                } else {
+                    Some(streamed_content)
+                },
+                tool_calls: Vec::new(),
+                finish_reason: "stop".to_string(),
+                usage: std::collections::HashMap::new(),
+                reasoning_content: if streamed_reasoning.is_empty() {
+                    None
+                } else {
+                    Some(streamed_reasoning)
+                },
+            });
+
+            // Emit TokenUsed if usage data is available
+            if let Some(tokens) = response.usage.get("total_tokens") {
+                if *tokens > 0 {
+                    let provider = model_to_use
+                        .split('/')
+                        .next()
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let _ = self.bus.publish_poke_event(PokeEvent::TokenUsed {
+                        tokens: *tokens as u32,
+                        model: model_to_use.clone(),
+                        provider,
+                    });
+                }
+            }
+
+            // Accumulate token usage for this turn
+            let iter_usage = extract_token_usage(&response.usage);
+            turn_token_usage = Some(match turn_token_usage {
+                Some(existing) => TokenUsage {
+                    prompt_tokens: existing
+                        .prompt_tokens
+                        .saturating_add(iter_usage.prompt_tokens),
+                    completion_tokens: existing
+                        .completion_tokens
+                        .saturating_add(iter_usage.completion_tokens),
+                    total_tokens: existing
+                        .total_tokens
+                        .saturating_add(iter_usage.total_tokens),
+                },
+                None => iter_usage,
+            });
+
+            // Emit ReasoningReceived if reasoning content is available
+            if let Some(ref reasoning) = response.reasoning_content {
+                if !reasoning.is_empty() {
+                    let _ = self.bus.publish_poke_event(PokeEvent::ReasoningReceived {
+                        content: reasoning.clone(),
+                        model: model_to_use.clone(),
+                    });
+                }
+            }
 
             // Trace intent decision
             let decision_type = if response.has_tool_calls() {
@@ -586,25 +554,8 @@ impl AgentLoop {
                 for tool_call in &response.tool_calls {
                     self.drain_runtime_control_commands().await;
                     if self.is_session_cancelled(&session_key) {
-                        self.emit_runtime_trace(
-                            "warn",
-                            &trace_id,
-                            &session_key,
-                            &msg.channel,
-                            "agent_loop",
-                            "runtime_cancelled",
-                            "Generation stopped before tool execution".to_string(),
-                            serde_json::json!({
-                                "loop_index": iteration,
-                                "tool": tool_call.name,
-                            }),
-                        );
                         self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
                         return Ok(None);
-                    }
-                    if let Err(reason) = loop_guard.check_elapsed() {
-                        warn!(reason = ?reason, "Stopping agent loop before tool execution");
-                        break 'agent_loop (Some(reason.user_message()), None);
                     }
 
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_invoked", tool_name = %tool_call.name, "Tool invoked");
@@ -616,7 +567,6 @@ impl AgentLoop {
                         args_str.clone()
                     };
                     info!("Tool call: {}({})", tool_call.name, preview);
-                    let tool_started_at = Instant::now();
                     let event = AgentEvent::ToolCallStarted {
                         name: tool_call.name.clone(),
                         args_preview: preview.clone(),
@@ -628,82 +578,57 @@ impl AgentLoop {
                     let _ = self
                         .bus
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-                    self.emit_runtime_trace(
-                        "info",
-                        &trace_id,
-                        &session_key,
-                        &msg.channel,
-                        "tool_runtime",
-                        "tool_call_started",
-                        format!("{} started", tool_call.name),
-                        serde_json::json!({
-                            "tool": tool_call.name,
-                            "status": "started",
-                            "loop_index": iteration,
-                            "call_id": tool_call.id,
-                        }),
-                    );
-                    let tool_component = if tool_call.name.starts_with("mcp_") {
-                        "mcp"
-                    } else {
-                        "tool_runtime"
-                    };
-                    self.emit_debug_event(
-                        &trace_id,
-                        &session_key,
-                        tool_component,
-                        if tool_call.name.starts_with("mcp_") {
-                            "mcp_call_started"
-                        } else {
-                            "tool_call_started"
-                        },
-                        serde_json::json!({
-                            "tool": tool_call.name,
-                            "call_id": tool_call.id,
-                            "loop_index": iteration,
-                        }),
-                    );
 
-                    let result = match serde_json::to_value(&tool_call.arguments) {
+                    let (result, is_error) = match serde_json::to_value(&tool_call.arguments) {
                         Ok(mut params_value) => {
-                            if tool_call.name == "cron" {
-                                if let Some(params_obj) = params_value.as_object_mut() {
-                                    params_obj.insert(
-                                        "context_channel".to_string(),
-                                        serde_json::Value::String(msg.channel.clone()),
-                                    );
-                                    params_obj.insert(
-                                        "context_chat_id".to_string(),
-                                        serde_json::Value::String(msg.chat_id.clone()),
-                                    );
-                                    if msg.channel == "cron" || is_cron_trigger {
+                            let read_only_rejected = active_mask
+                                .as_ref()
+                                .is_some_and(ToolPolicy::is_read_only_mode)
+                                && !ToolPolicy::is_read_only_tool(&tool_call.name);
+                            let plan_mode_rejected =
+                                plan_mode && !is_plan_mode_allowed_tool(&tool_call.name);
+
+                            if read_only_rejected {
+                                (
+                                    format!(
+                                        "Error: tool '{}' is disabled in reviewer read-only mode",
+                                        tool_call.name
+                                    ),
+                                    true,
+                                )
+                            } else if plan_mode_rejected {
+                                (format!(
+                                    "Error: tool '{}' is disabled in Plan mode. Plan mode can only use planning and read-only inspection tools.",
+                                    tool_call.name
+                                ), true)
+                            } else {
+                                if tool_call.name == "cron" {
+                                    if let Some(params_obj) = params_value.as_object_mut() {
                                         params_obj.insert(
-                                            "_in_cron_context".to_string(),
-                                            serde_json::Value::Bool(true),
+                                            "context_channel".to_string(),
+                                            serde_json::Value::String(msg.channel.clone()),
                                         );
+                                        params_obj.insert(
+                                            "context_chat_id".to_string(),
+                                            serde_json::Value::String(msg.chat_id.clone()),
+                                        );
+                                        if msg.channel == "cron" || is_cron_trigger {
+                                            params_obj.insert(
+                                                "_in_cron_context".to_string(),
+                                                serde_json::Value::Bool(true),
+                                            );
+                                        }
                                     }
                                 }
-                            }
-                            self.emit_debug_raw(
-                                &trace_id,
-                                &session_key,
-                                tool_component,
-                                if tool_call.name.starts_with("mcp_") {
-                                    "mcp_request_raw"
+
+                                if is_cron_trigger && tool_call.name == "cron" {
+                                    ("Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string(), true)
                                 } else {
-                                    "tool_input_raw"
-                                },
-                                serde_json::json!({
-                                    "tool": tool_call.name,
-                                    "call_id": tool_call.id,
-                                    "arguments": tool_call.arguments,
-                                    "params": params_value.clone(),
-                                }),
-                            );
-                            if is_cron_trigger && tool_call.name == "cron" {
-                                "Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string()
-                            } else {
-                                self.tools.execute(&tool_call.name, params_value).await
+                                    match self.tools.execute(&tool_call.name, params_value).await {
+                                        Ok(text) => (text, false),
+                                        Err(e) => (format!("Error: {}", e), true),
+                                    }
+                                }
                             }
                         }
                         Err(e) => {
@@ -711,13 +636,16 @@ impl AgentLoop {
                                 "Failed to serialize arguments for tool '{}' (call_id: {}): {}",
                                 tool_call.name, tool_call.id, e
                             );
-                            format!(
-                                "Error: failed to serialize arguments for tool '{}': {}",
-                                tool_call.name, e
+                            (
+                                format!(
+                                    "Error: failed to serialize arguments for tool '{}': {}",
+                                    tool_call.name, e
+                                ),
+                                true,
                             )
                         }
                     };
-                    if self.notify_on_soul_change {
+                    if self.notify_on_soul_change && !is_error {
                         if let Some(changed_file) =
                             changed_soul_file(&tool_call.name, &tool_call.arguments, &result)
                         {
@@ -733,7 +661,7 @@ impl AgentLoop {
 
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),
-                        is_error: is_tool_error_result(&result),
+                        is_error,
                         result: result.clone(),
                         call_id: tool_call.id.clone(),
                     };
@@ -743,127 +671,37 @@ impl AgentLoop {
                     let _ = self
                         .bus
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-                    let duration_ms = tool_started_at.elapsed().as_millis() as u64;
-                    let tool_failed = is_tool_error_result(&result);
-                    let mut metadata = serde_json::json!({
-                        "tool": tool_call.name,
-                        "status": if tool_failed { "error" } else { "ok" },
-                        "duration_ms": duration_ms,
-                        "loop_index": iteration,
-                        "call_id": tool_call.id,
-                    });
-                    if self
-                        .trace_logger
-                        .as_ref()
-                        .is_some_and(|logger| logger.record_tool_output_summaries())
-                    {
-                        metadata["result_summary"] = serde_json::Value::String(result.clone());
-                    }
-                    self.emit_runtime_trace(
-                        if tool_failed { "warn" } else { "info" },
-                        &trace_id,
-                        &session_key,
-                        &msg.channel,
-                        "tool_runtime",
-                        if tool_failed {
-                            "tool_call_failed"
-                        } else {
-                            "tool_call_completed"
-                        },
-                        if tool_failed {
-                            format!("{} failed", tool_call.name)
-                        } else {
-                            format!("{} completed", tool_call.name)
-                        },
-                        metadata,
-                    );
-                    self.emit_debug_event(
-                        &trace_id,
-                        &session_key,
-                        tool_component,
-                        if tool_call.name.starts_with("mcp_") {
-                            if tool_failed {
-                                "mcp_call_failed"
-                            } else {
-                                "mcp_call_completed"
-                            }
-                        } else if tool_failed {
-                            "tool_call_failed"
-                        } else {
-                            "tool_call_completed"
-                        },
-                        serde_json::json!({
-                            "tool": tool_call.name,
-                            "status": if tool_failed { "error" } else { "ok" },
-                            "duration_ms": duration_ms,
-                            "loop_index": iteration,
-                            "call_id": tool_call.id,
-                        }),
-                    );
-                    self.emit_debug_raw(
-                        &trace_id,
-                        &session_key,
-                        tool_component,
-                        if tool_call.name.starts_with("mcp_") {
-                            "mcp_response_raw"
-                        } else {
-                            "tool_output_raw"
-                        },
-                        serde_json::json!({
-                            "tool": tool_call.name,
-                            "call_id": tool_call.id,
-                            "status": if tool_failed { "error" } else { "ok" },
-                            "result": result,
-                        }),
-                    );
-                    let stop_reason = loop_guard.record_tool_result(
-                        &tool_call.name,
-                        &serde_json::json!(tool_call.arguments),
-                        &result,
-                    );
                     self.context.add_tool_result(
                         &mut messages,
                         tool_call.id.clone(),
                         tool_call.name.clone(),
                         result,
                     );
-                    if let Some(reason) = stop_reason {
-                        warn!(reason = ?reason, tool_name = %tool_call.name, "Stopping agent loop after repeated tool failure");
-                        break 'agent_loop (Some(reason.user_message()), None);
-                    }
                 }
             } else {
                 // No tool calls, we're done
                 if response.finish_reason == "error" {
-                    self.emit_runtime_trace(
-                        "error",
-                        &trace_id,
-                        &session_key,
-                        &msg.channel,
-                        "provider",
-                        "llm_response_failed",
-                        "LLM returned error finish_reason".to_string(),
-                        serde_json::json!({
-                            "model": model_to_use,
-                            "status": "error",
-                            "finish_reason": response.finish_reason,
-                            "loop_index": iteration,
-                        }),
-                    );
                     let preview = response
                         .content
                         .as_deref()
                         .map(|s| s.chars().take(200).collect::<String>())
                         .unwrap_or_default();
                     error!("LLM returned error finish_reason with content: {}", preview);
-                    break (
-                        Some("Sorry, I encountered an error calling the AI model.".to_string()),
-                        None,
-                    );
+                    final_content =
+                        Some("Sorry, I encountered an error calling the AI model.".to_string());
+                    final_reasoning = None;
+                    break;
                 }
-                break (response.content, response.reasoning_content);
+                final_content = response.content;
+                final_reasoning = response.reasoning_content;
+                // Honor thinking mode: Off clears reasoning, Auto/On pass through
+                if self.thinking_mode == ThinkingMode::Off {
+                    final_reasoning = None;
+                }
+                break;
             }
-        };
+        }
+
         let mut final_content = final_content.unwrap_or_else(|| {
             "I've completed processing but have no response to give.".to_string()
         });
@@ -898,14 +736,22 @@ impl AgentLoop {
 
         // Save complete turn to session
         {
-            let session = self.sessions.get_or_create(&session_key)?;
-            append_turn_outputs(session, &messages, history_len, &final_content);
+            let session = self.sessions.get_or_create(&session_key);
+            let user_role = if is_cron_trigger { "system" } else { "user" };
+            save_turn(
+                session,
+                &messages,
+                history_len,
+                user_role,
+                &msg.content,
+                &final_content,
+                turn_token_usage,
+            );
         }
-        self.persist_session_or_fail(&session_key, &msg, event_tx, "persist final turn state")?;
 
         // Run memory consolidation if threshold reached
         {
-            let session = self.sessions.get_or_create(&session_key)?;
+            let session = self.sessions.get_or_create(&session_key);
             if consolidation::should_consolidate(session, self.memory_window) {
                 if let Err(e) = consolidation::consolidate(
                     session,
@@ -921,7 +767,13 @@ impl AgentLoop {
                 }
             }
         }
-        self.persist_session_or_fail(&session_key, &msg, event_tx, "persist consolidation cursor")?;
+
+        // Persist session to disk
+        if let Some(session) = self.sessions.get(&session_key) {
+            if let Err(e) = self.sessions.save(session) {
+                error!("Failed to save session: {}", e);
+            }
+        }
 
         // Extract reply_to from metadata if available (critical for platforms like QQ)
         let reply_to = msg
@@ -944,461 +796,90 @@ impl AgentLoop {
             metadata: msg.metadata,
         }))
     }
-}
 
-impl AgentLoop {
-    #[allow(clippy::too_many_arguments)]
-    fn emit_runtime_trace(
+    /// Load and format attachment contents for inclusion in the message.
+    /// Only text files under MAX_INLINE_ATTACHMENT_SIZE are inlined.
+    /// For other files, adds a placeholder telling AI to use read_file tool.
+    async fn load_attachment_contents(
         &self,
-        level: &str,
-        trace_id: &TraceId,
-        session_id: &str,
-        channel: &str,
-        component: &str,
-        event: &str,
-        summary: String,
-        metadata: serde_json::Value,
-    ) {
-        let Some(logger) = &self.trace_logger else {
-            return;
-        };
+        file_ids: &[String],
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let storage_path = dirs::data_local_dir()
+            .map(|p| p.join("agent-diva").join("files"))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
+        info!("Loading attachments from: {}", storage_path.display());
+        info!("File IDs to load: {:?}", file_ids);
+        let mut parts = Vec::new();
 
-        let trace_event = TraceEvent::new(
-            level,
-            trace_id.clone(),
-            session_id.to_string(),
-            channel.to_string(),
-            component.to_string(),
-            event.to_string(),
-            summary,
-            metadata,
-        );
-        if let Err(error) = logger.write_event(&trace_event) {
-            warn!(event = %event, error = %error, "Failed to write structured runtime trace");
-        }
-    }
+        for file_id in file_ids {
+            match self.file_manager.get(file_id).await {
+                Ok(handle) => {
+                    let size = handle.metadata.size;
+                    let mime_type = handle
+                        .metadata
+                        .mime_type
+                        .as_deref()
+                        .unwrap_or("application/octet-stream");
+                    let is_text = mime_type.starts_with("text/")
+                        || mime_type == "application/json"
+                        || mime_type == "application/javascript"
+                        || mime_type == "application/typescript"
+                        || mime_type == "application/x-yaml"
+                        || mime_type == "application/xml";
 
-    fn emit_debug_event(
-        &self,
-        trace_id: &TraceId,
-        session_id: &str,
-        component: &str,
-        event: &str,
-        payload: serde_json::Value,
-    ) {
-        let Some(logger) = &self.debug_logger else {
-            return;
-        };
-        let debug_event = DebugEvent::new(
-            Some(trace_id.as_str().to_string()),
-            Some(session_id.to_string()),
-            component,
-            event,
-            payload,
-        );
-        if let Err(error) = logger.write_event(debug_event) {
-            warn!(event = %event, error = %error, "Failed to write debug event");
-        }
-    }
-
-    fn emit_debug_raw(
-        &self,
-        trace_id: &TraceId,
-        session_id: &str,
-        component: &str,
-        event: &str,
-        payload: serde_json::Value,
-    ) {
-        let Some(logger) = &self.debug_logger else {
-            return;
-        };
-        let debug_event = DebugEvent::new(
-            Some(trace_id.as_str().to_string()),
-            Some(session_id.to_string()),
-            component,
-            event,
-            payload,
-        );
-        if let Err(error) = logger.write_raw(debug_event) {
-            warn!(event = %event, error = %error, "Failed to write raw debug event");
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn emit_llm_failed_event(
-        &self,
-        trace_id: &TraceId,
-        session_id: &str,
-        channel: &str,
-        model: &str,
-        iteration: usize,
-        duration: Duration,
-        error: &ProviderError,
-    ) {
-        self.emit_runtime_trace(
-            "error",
-            trace_id,
-            session_id,
-            channel,
-            "provider",
-            "llm_response_failed",
-            format!("LLM request failed for model {}", model),
-            serde_json::json!({
-                "model": model,
-                "status": "error",
-                "error_kind": error.to_string(),
-                "loop_index": iteration,
-                "duration_ms": duration.as_millis() as u64,
-            }),
-        );
-        self.emit_debug_event(
-            trace_id,
-            session_id,
-            "provider",
-            "llm_response_failed",
-            serde_json::json!({
-                "model": model,
-                "loop_index": iteration,
-                "duration_ms": duration.as_millis() as u64,
-                "error": error.to_string(),
-            }),
-        );
-        self.emit_debug_raw(
-            trace_id,
-            session_id,
-            "provider",
-            "llm_error_raw",
-            serde_json::json!({
-                "model": model,
-                "loop_index": iteration,
-                "duration_ms": duration.as_millis() as u64,
-                "error": format!("{:?}", error),
-                "display": error.to_string(),
-            }),
-        );
-    }
-
-    fn persist_session_or_fail(
-        &self,
-        session_key: &str,
-        msg: &InboundMessage,
-        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-        action: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let session = self.sessions.get(session_key).ok_or_else(|| {
-            io::Error::other(format!(
-                "session '{session_key}' missing from cache before {action}"
-            ))
-        })?;
-
-        if let Err(error) = self.sessions.save(session) {
-            error!(session_key = %session_key, action = %action, error = %error, "Failed to persist session");
-            self.emit_error_event(
-                msg,
-                event_tx,
-                format!("Failed to persist session history during {action}: {error}"),
-            );
-            return Err(Box::new(io::Error::other(format!(
-                "failed to persist session history during {action}: {error}"
-            ))));
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum VisionMessagePreparationError {
-    MissingFile {
-        file_id: String,
-    },
-    UnsupportedMime {
-        file_id: String,
-        mime_type: String,
-    },
-    ImageTooLarge {
-        file_id: String,
-        size: u64,
-        max_size: u64,
-    },
-    ReadFailed {
-        file_id: String,
-        error: String,
-    },
-}
-
-impl VisionMessagePreparationError {
-    fn user_message(&self) -> &'static str {
-        match self {
-            Self::MissingFile { .. } | Self::ReadFailed { .. } => {
-                "I could not read one of the attached images. Please upload it again and retry."
-            }
-            Self::UnsupportedMime { .. } => {
-                "This image format is not supported yet. Please use PNG, JPEG, or WebP."
-            }
-            Self::ImageTooLarge { .. } => {
-                "This image is too large to inspect. Please upload an image under 5 MB."
-            }
-        }
-    }
-}
-
-impl fmt::Display for VisionMessagePreparationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingFile { file_id } => write!(f, "image file '{}' is missing", file_id),
-            Self::UnsupportedMime { file_id, mime_type } => write!(
-                f,
-                "image file '{}' has unsupported MIME type '{}'",
-                file_id, mime_type
-            ),
-            Self::ImageTooLarge {
-                file_id,
-                size,
-                max_size,
-            } => write!(
-                f,
-                "image file '{}' is too large: {} bytes > {} bytes",
-                file_id, size, max_size
-            ),
-            Self::ReadFailed { file_id, error } => {
-                write!(f, "failed to read image file '{}': {}", file_id, error)
-            }
-        }
-    }
-}
-
-impl std::error::Error for VisionMessagePreparationError {}
-
-async fn prepare_messages_for_openai_vision(
-    file_manager: &FileManager,
-    messages: Vec<Message>,
-) -> Result<Vec<Message>, VisionMessagePreparationError> {
-    if !messages.iter().any(Message::has_image_content) {
-        return Ok(messages);
-    }
-
-    let mut prepared = Vec::with_capacity(messages.len());
-    for mut message in messages {
-        message.content = resolve_message_content_images(file_manager, message.content).await?;
-        prepared.push(message);
-    }
-
-    Ok(prepared)
-}
-
-async fn resolve_message_content_images(
-    file_manager: &FileManager,
-    content: MessageContent,
-) -> Result<MessageContent, VisionMessagePreparationError> {
-    let MessageContent::Parts(parts) = content else {
-        return Ok(content);
-    };
-
-    let mut resolved_parts = Vec::with_capacity(parts.len());
-    for part in parts {
-        match part {
-            MessageContentPart::ImageFile { image_file } => {
-                let url = resolve_image_file_to_data_uri(file_manager, &image_file.file_id).await?;
-                resolved_parts.push(MessageContentPart::ImageUrl {
-                    image_url: ImageUrl { url },
-                });
-            }
-            MessageContentPart::ImageData { image_data } => {
-                resolved_parts.push(MessageContentPart::ImageUrl {
-                    image_url: ImageUrl {
-                        url: image_data.data_uri,
-                    },
-                });
-            }
-            other => resolved_parts.push(other),
-        }
-    }
-
-    Ok(MessageContent::Parts(resolved_parts))
-}
-
-async fn resolve_image_file_to_data_uri(
-    file_manager: &FileManager,
-    file_id: &str,
-) -> Result<String, VisionMessagePreparationError> {
-    let handle = file_manager.get(file_id).await.map_err(|_| {
-        VisionMessagePreparationError::MissingFile {
-            file_id: file_id.to_string(),
-        }
-    })?;
-
-    let mime_type = handle
-        .metadata
-        .mime_type
-        .clone()
-        .unwrap_or_else(|| "application/octet-stream".to_string());
-    if !is_supported_vision_mime(&mime_type) {
-        return Err(VisionMessagePreparationError::UnsupportedMime {
-            file_id: file_id.to_string(),
-            mime_type,
-        });
-    }
-
-    let size = handle.metadata.size;
-    if size > MAX_VISION_IMAGE_SIZE {
-        return Err(VisionMessagePreparationError::ImageTooLarge {
-            file_id: file_id.to_string(),
-            size,
-            max_size: MAX_VISION_IMAGE_SIZE,
-        });
-    }
-
-    let bytes = file_manager.read(&handle).await.map_err(|error| {
-        VisionMessagePreparationError::ReadFailed {
-            file_id: file_id.to_string(),
-            error: error.to_string(),
-        }
-    })?;
-    if bytes.len() as u64 > MAX_VISION_IMAGE_SIZE {
-        return Err(VisionMessagePreparationError::ImageTooLarge {
-            file_id: file_id.to_string(),
-            size: bytes.len() as u64,
-            max_size: MAX_VISION_IMAGE_SIZE,
-        });
-    }
-
-    Ok(format!(
-        "data:{};base64,{}",
-        mime_type,
-        BASE64_STANDARD.encode(bytes)
-    ))
-}
-
-fn provider_error_to_user_message(error: &ProviderError) -> Option<&'static str> {
-    provider_error_indicates_vision_unsupported(error).then_some(VISION_UNSUPPORTED_MODEL_MESSAGE)
-}
-
-fn is_supported_vision_mime(mime_type: &str) -> bool {
-    matches!(mime_type, "image/png" | "image/jpeg" | "image/webp")
-}
-
-/// Build the current user message content from prompt text and attachment file IDs.
-///
-/// Image attachments become structured image parts; text and non-image attachments
-/// keep the legacy inline/placeholder text behavior.
-async fn assemble_current_message_content(
-    file_manager: &FileManager,
-    user_content: &str,
-    file_ids: &[String],
-) -> MessageContent {
-    if file_ids.is_empty() {
-        return MessageContent::Text(user_content.to_string());
-    }
-
-    let storage_path = dirs::data_local_dir()
-        .map(|p| p.join("agent-diva").join("files"))
-        .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
-    info!("Loading attachments from: {}", storage_path.display());
-    info!("File IDs to load: {:?}", file_ids);
-
-    let mut attachment_text_parts = Vec::new();
-    let mut image_parts = Vec::new();
-
-    for file_id in file_ids {
-        match file_manager.get(file_id).await {
-            Ok(handle) => {
-                let size = handle.metadata.size;
-                let mime_type = handle
-                    .metadata
-                    .mime_type
-                    .as_deref()
-                    .unwrap_or("application/octet-stream");
-
-                if mime_type.starts_with("image/") {
-                    image_parts.push(MessageContentPart::ImageFile {
-                        image_file: ImageFile {
-                            file_id: handle.id.clone(),
-                        },
-                    });
-                    continue;
-                }
-
-                if is_inline_text_mime(mime_type) && size <= MAX_INLINE_ATTACHMENT_SIZE {
-                    match file_manager.read(&handle).await {
-                        Ok(bytes) => match String::from_utf8(bytes) {
-                            Ok(content) => {
-                                attachment_text_parts.push(format!(
-                                    "--- {} ---\n{}\n---",
-                                    handle.metadata.name, content
+                    if is_text && size <= MAX_INLINE_ATTACHMENT_SIZE {
+                        match self.file_manager.read(&handle).await {
+                            Ok(bytes) => match String::from_utf8(bytes) {
+                                Ok(content) => {
+                                    parts.push(format!(
+                                        "--- {} ---\n{}\n---",
+                                        handle.metadata.name, content
+                                    ));
+                                }
+                                Err(_) => {
+                                    parts.push(format!(
+                                        "[File: {} ({} bytes, binary)]",
+                                        handle.metadata.name, size
+                                    ));
+                                }
+                            },
+                            Err(e) => {
+                                warn!("Failed to read file {}: {}", file_id, e);
+                                parts.push(format!(
+                                    "[File: {} (error reading: {})]",
+                                    handle.metadata.name, e
                                 ));
                             }
-                            Err(_) => {
-                                attachment_text_parts.push(format!(
-                                    "[File: {} ({} bytes, binary)]",
-                                    handle.metadata.name, size
-                                ));
-                            }
-                        },
-                        Err(e) => {
-                            warn!("Failed to read file {}: {}", file_id, e);
-                            attachment_text_parts.push(format!(
-                                "[File: {} (could not be read)]",
-                                handle.metadata.name
-                            ));
                         }
+                    } else {
+                        // Non-text or too large - tell AI to use tool
+                        parts.push(format!(
+                            "[File: {} ({} bytes, {}) - Use read_file tool to access]",
+                            handle.metadata.name, size, mime_type
+                        ));
                     }
-                } else {
-                    attachment_text_parts.push(format!(
-                        "[File: {} ({} bytes, {}) - Use read_file tool to access]",
-                        handle.metadata.name, size, mime_type
-                    ));
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to get file handle for {}: {}. Storage path: {}",
+                        file_id,
+                        e,
+                        storage_path.display()
+                    );
+                    parts.push(format!("[Attachment: {} (not found - {})]", file_id, e));
                 }
             }
-            Err(e) => {
-                warn!(
-                    "Failed to get file handle for {}: {}. Storage path: {}",
-                    file_id,
-                    e,
-                    storage_path.display()
-                );
-                attachment_text_parts.push("[Attachment unavailable]".to_string());
-            }
         }
+
+        Ok(parts.join("\n\n"))
     }
-
-    let text_content = if attachment_text_parts.is_empty() {
-        user_content.to_string()
-    } else {
-        format!(
-            "{}\n\n[Attachments]\n{}\n[/Attachments]",
-            user_content,
-            attachment_text_parts.join("\n\n")
-        )
-    };
-
-    if image_parts.is_empty() {
-        MessageContent::Text(text_content)
-    } else {
-        let mut parts = Vec::with_capacity(image_parts.len() + 1);
-        parts.push(MessageContentPart::Text { text: text_content });
-        parts.extend(image_parts);
-        MessageContent::Parts(parts)
-    }
-}
-
-fn is_inline_text_mime(mime_type: &str) -> bool {
-    mime_type.starts_with("text/")
-        || mime_type == "application/json"
-        || mime_type == "application/javascript"
-        || mime_type == "application/typescript"
-        || mime_type == "application/x-yaml"
-        || mime_type == "application/xml"
 }
 
 fn changed_soul_file(
     tool_name: &str,
     arguments: &HashMap<String, serde_json::Value>,
-    result: &str,
+    _result: &str,
 ) -> Option<&'static str> {
-    if result.starts_with("Error") || result.starts_with("Warning") {
-        return None;
-    }
     if tool_name != "write_file" && tool_name != "edit_file" {
         return None;
     }
@@ -1438,39 +919,26 @@ fn format_soul_transparency_notice(
     notice
 }
 
-fn persist_inbound_message(
-    session: &mut agent_diva_core::session::Session,
-    user_role: &str,
-    user_content: &str,
-    user_attachments: Option<Vec<FileAttachmentRef>>,
-) {
-    match user_attachments {
-        Some(attachments) => {
-            session.add_full_message(ChatMessage::with_attachments(
-                user_role,
-                user_content,
-                attachments,
-            ));
-        }
-        None => session.add_message(user_role, user_content),
-    }
-}
-
-/// Save assistant/tool outputs from the current turn to the session.
-fn append_turn_outputs(
+/// Save all messages from the current turn to the session
+fn save_turn(
     session: &mut agent_diva_core::session::Session,
     messages: &[agent_diva_providers::Message],
     history_len: usize,
+    user_role: &str,
+    user_content: &str,
     final_content: &str,
+    turn_token_usage: Option<TokenUsage>,
 ) {
+    // Save trigger message; cron-triggered turns are not real-time user input.
+    session.add_message(user_role, user_content);
+
     // Skip system prompt (1) + history (history_len) + current user message (1)
     let turn_start = 1 + history_len + 1;
     if turn_start < messages.len() {
         for m in &messages[turn_start..] {
             match m.role.as_str() {
                 "assistant" => {
-                    let content = m.content.to_text_lossy();
-                    if content.trim().is_empty()
+                    if m.content.to_text_lossy().trim().is_empty()
                         && m.tool_calls
                             .as_ref()
                             .map(|calls| calls.is_empty())
@@ -1487,7 +955,7 @@ fn append_turn_outputs(
                     });
                     let mut msg = ChatMessage::with_tool_metadata(
                         "assistant",
-                        content,
+                        m.content.to_text_lossy(),
                         None,
                         tool_calls_json,
                         None,
@@ -1497,11 +965,17 @@ fn append_turn_outputs(
                     session.add_full_message(msg);
                 }
                 "tool" => {
-                    let text_content = m.content.to_text_lossy();
-                    let content = if text_content.chars().count() > 500 {
-                        format!("{}...", text_content.chars().take(500).collect::<String>())
+                    let content = if m.content.to_text_lossy().chars().count() > 500 {
+                        format!(
+                            "{}...",
+                            m.content
+                                .to_text_lossy()
+                                .chars()
+                                .take(500)
+                                .collect::<String>()
+                        )
                     } else {
-                        text_content
+                        m.content.to_text_lossy()
                     };
                     session.add_full_message(ChatMessage::with_tool_metadata(
                         "tool",
@@ -1524,35 +998,31 @@ fn append_turn_outputs(
             final_msg.reasoning_content = last.reasoning_content.clone();
             final_msg.thinking_blocks = last.thinking_blocks.clone();
         }
+        final_msg.token_usage = turn_token_usage;
         session.add_full_message(final_msg);
-    }
-}
-
-async fn resolve_attachment_refs(
-    file_manager: &FileManager,
-    file_ids: &[String],
-) -> Option<Vec<FileAttachmentRef>> {
-    if file_ids.is_empty() {
-        return None;
-    }
-
-    let mut attachments = Vec::new();
-    for file_id in file_ids {
-        match file_manager.get(file_id).await {
-            Ok(handle) => attachments.push(FileAttachmentRef::from_handle(&handle)),
-            Err(e) => {
-                warn!(
-                    "Failed to resolve attachment metadata for {} while saving session: {}",
-                    file_id, e
-                );
+    } else {
+        // The last message was an assistant message already added above.
+        // Attach token usage to it if provided.
+        if turn_token_usage.is_some() {
+            if let Some(last) = session.messages.last_mut() {
+                last.token_usage = turn_token_usage;
             }
         }
     }
+}
 
-    if attachments.is_empty() {
-        None
-    } else {
-        Some(attachments)
+/// Extract token usage from the LLM response usage map.
+///
+/// Converts the provider's `HashMap<String, i64>` into a structured `TokenUsage`.
+/// Missing fields default to 0. Negative values are clamped to 0.
+fn extract_token_usage(usage: &std::collections::HashMap<String, i64>) -> TokenUsage {
+    let prompt = usage.get("prompt_tokens").copied().unwrap_or(0).max(0) as u32;
+    let completion = usage.get("completion_tokens").copied().unwrap_or(0).max(0) as u32;
+    let total = usage.get("total_tokens").copied().unwrap_or(0).max(0) as u32;
+    TokenUsage {
+        prompt_tokens: prompt,
+        completion_tokens: completion,
+        total_tokens: total,
     }
 }
 
@@ -1604,11 +1074,27 @@ fn derive_prefetch_intent(message: &str) -> String {
     }
 }
 
+/// Check whether a provider error indicates a context-length overflow.
+///
+/// Matches against known error patterns from various LLM providers
+/// (DeepSeek, OpenAI, Anthropic, etc.) that signal the request exceeded
+/// the model's maximum context window.
+fn is_context_overflow_error(err: &ProviderError) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("context_length_exceeded")
+        || msg.contains("prompt_too_long")
+        || msg.contains("maximum context length")
+        || msg.contains("context length")
+        || msg.contains("token limit")
+        || msg.contains("too many tokens")
+        || msg.contains("input length exceeded")
+        || msg.contains("max tokens")
+        || msg.contains("context window")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_files::handle::FileMetadata;
-    use agent_diva_files::FileConfig;
 
     #[test]
     fn test_derive_prefetch_intent_is_empty_for_non_question() {
@@ -1647,19 +1133,17 @@ mod tests {
     }
 
     #[test]
-    fn test_changed_soul_file_ignores_errors_and_other_tools() {
+    fn test_changed_soul_file_ignores_non_write_tools() {
         let args = HashMap::from([(
             "path".to_string(),
             serde_json::Value::String("SOUL.md".to_string()),
         )]);
-        assert_eq!(
-            changed_soul_file("write_file", &args, "Error writing file: denied"),
-            None
-        );
+        // Non-write_file/edit_file tools should return None regardless of result
         assert_eq!(
             changed_soul_file("list_dir", &args, "Successfully listed"),
             None
         );
+        assert_eq!(changed_soul_file("read_file", &args, "content"), None);
     }
 
     #[test]
@@ -1695,558 +1179,91 @@ mod tests {
         assert!(!notice.contains("Governance hint:"));
     }
 
-    #[test]
-    fn test_save_turn_attaches_metadata_to_user_message_only() {
-        let mut session = agent_diva_core::session::Session::new("gui:chat");
-        let messages = vec![agent_diva_providers::Message::system("system")];
-        let attachments = vec![FileAttachmentRef {
-            file_id: "sha256:image123".to_string(),
-            filename: "image.png".to_string(),
-            mime_type: Some("image/png".to_string()),
-            size: 4096,
-        }];
-
-        persist_inbound_message(
-            &mut session,
-            "user",
-            "see attached",
-            Some(attachments.clone()),
-        );
-        append_turn_outputs(&mut session, &messages, 0, "done");
-
-        assert_eq!(session.messages.len(), 2);
-        assert_eq!(session.messages[0].role, "user");
-        assert_eq!(session.messages[0].attachments, Some(attachments));
-        assert_eq!(session.messages[1].role, "assistant");
-        assert_eq!(session.messages[1].attachments, None);
-    }
+    // ── Reactive compact: context-overflow detection ──────────────
 
     #[test]
-    fn test_append_turn_outputs_does_not_duplicate_inbound_user_message() {
-        let mut session = agent_diva_core::session::Session::new("gui:chat");
-        persist_inbound_message(&mut session, "user", "hello", None);
-        let messages = vec![
-            agent_diva_providers::Message::system("system"),
-            agent_diva_providers::Message::user("hello"),
-            agent_diva_providers::Message::assistant("done"),
-        ];
-
-        append_turn_outputs(&mut session, &messages, 0, "done");
-
-        assert_eq!(session.messages.len(), 2);
-        assert_eq!(session.messages[0].role, "user");
-        assert_eq!(session.messages[0].content, "hello");
-        assert_eq!(session.messages[1].role, "assistant");
-        assert_eq!(session.messages[1].content, "done");
+    fn test_is_context_overflow_detects_known_patterns() {
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "context_length_exceeded".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "prompt_too_long".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::InvalidResponse(
+            "maximum context length exceeded".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "token limit reached".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "too many tokens in request".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "input length exceeded maximum".into()
+        )));
+        assert!(is_context_overflow_error(&ProviderError::ApiError(
+            "context window exceeded".into()
+        )));
     }
 
-    #[tokio::test]
-    async fn test_resolve_attachment_refs_reads_metadata_without_bytes() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let handle = file_manager
-            .store(
-                b"not persisted in session",
-                FileMetadata {
-                    name: "image.png".to_string(),
-                    size: 24,
-                    mime_type: Some("image/png".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: Some("preview should not be copied".to_string()),
-                },
-            )
-            .await
-            .unwrap();
-
-        let refs = resolve_attachment_refs(&file_manager, &[handle.id.clone()])
-            .await
-            .unwrap();
-
-        assert_eq!(refs.len(), 1);
-        assert_eq!(refs[0].file_id, handle.id);
-        assert_eq!(refs[0].filename, "image.png");
-        assert_eq!(refs[0].mime_type, Some("image/png".to_string()));
-        assert_eq!(refs[0].size, 24);
-
-        let json = serde_json::to_string(&refs).unwrap();
-        assert!(!json.contains("not persisted in session"));
-        assert!(!json.contains("preview should not be copied"));
-        assert!(!json.contains("base64"));
-        assert!(!json.contains("bytes"));
+    #[test]
+    fn test_is_context_overflow_ignores_unrelated_errors() {
+        assert!(!is_context_overflow_error(&ProviderError::ApiError(
+            "rate limit exceeded".into()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::ApiError(
+            "invalid api key".into()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::JsonError(
+            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err()
+        )));
+        assert!(!is_context_overflow_error(&ProviderError::ConfigError(
+            "missing config".into()
+        )));
     }
 
-    #[tokio::test]
-    async fn test_resolve_attachment_refs_skips_missing_files() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
+    // ── Token usage extraction ──────────────────────────────────────
 
-        let refs = resolve_attachment_refs(&file_manager, &["sha256:missing".to_string()]).await;
-
-        assert_eq!(refs, None);
+    #[test]
+    fn test_extract_token_usage_all_fields() {
+        let mut usage = HashMap::new();
+        usage.insert("prompt_tokens".to_string(), 100);
+        usage.insert("completion_tokens".to_string(), 50);
+        usage.insert("total_tokens".to_string(), 150);
+        let result = extract_token_usage(&usage);
+        assert_eq!(result.prompt_tokens, 100);
+        assert_eq!(result.completion_tokens, 50);
+        assert_eq!(result.total_tokens, 150);
     }
 
-    #[tokio::test]
-    async fn test_assemble_current_message_content_image_becomes_part() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let handle = file_manager
-            .store(
-                b"png bytes",
-                FileMetadata {
-                    name: "photo.png".to_string(),
-                    size: 9,
-                    mime_type: Some("image/png".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-
-        let content =
-            assemble_current_message_content(&file_manager, "describe this", &[handle.id.clone()])
-                .await;
-
-        match content {
-            MessageContent::Parts(parts) => {
-                assert_eq!(parts.len(), 2);
-                assert_eq!(
-                    parts[0],
-                    MessageContentPart::Text {
-                        text: "describe this".to_string()
-                    }
-                );
-                assert_eq!(
-                    parts[1],
-                    MessageContentPart::ImageFile {
-                        image_file: ImageFile { file_id: handle.id }
-                    }
-                );
-            }
-            other => panic!("expected structured parts, got {:?}", other),
-        }
+    #[test]
+    fn test_extract_token_usage_missing_fields() {
+        let usage: HashMap<String, i64> = HashMap::new();
+        let result = extract_token_usage(&usage);
+        assert_eq!(result.prompt_tokens, 0);
+        assert_eq!(result.completion_tokens, 0);
+        assert_eq!(result.total_tokens, 0);
     }
 
-    #[tokio::test]
-    async fn test_assemble_current_message_content_text_attachment_stays_text() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let handle = file_manager
-            .store(
-                b"hello from file",
-                FileMetadata {
-                    name: "note.txt".to_string(),
-                    size: 15,
-                    mime_type: Some("text/plain".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-
-        let content =
-            assemble_current_message_content(&file_manager, "read this", &[handle.id]).await;
-
-        let text = content
-            .as_text()
-            .expect("text-only attachment should stay text");
-        assert!(text.contains("read this"));
-        assert!(text.contains("[Attachments]"));
-        assert!(text.contains("--- note.txt ---"));
-        assert!(text.contains("hello from file"));
-        assert!(text.contains("[/Attachments]"));
+    #[test]
+    fn test_extract_token_usage_partial_fields() {
+        let mut usage = HashMap::new();
+        usage.insert("total_tokens".to_string(), 200);
+        let result = extract_token_usage(&usage);
+        assert_eq!(result.prompt_tokens, 0);
+        assert_eq!(result.completion_tokens, 0);
+        assert_eq!(result.total_tokens, 200);
     }
 
-    #[tokio::test]
-    async fn test_assemble_current_message_content_binary_attachment_keeps_placeholder() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let handle = file_manager
-            .store(
-                b"%PDF-1.7",
-                FileMetadata {
-                    name: "doc.pdf".to_string(),
-                    size: 8,
-                    mime_type: Some("application/pdf".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-
-        let content =
-            assemble_current_message_content(&file_manager, "inspect", &[handle.id]).await;
-
-        let text = content
-            .as_text()
-            .expect("binary attachment should stay text");
-        assert!(text.contains("doc.pdf"));
-        assert!(text.contains("application/pdf"));
-        assert!(text.contains("Use read_file tool to access"));
-    }
-
-    #[tokio::test]
-    async fn test_assemble_current_message_content_missing_file_keeps_error_text() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-
-        let content = assemble_current_message_content(
-            &file_manager,
-            "check missing",
-            &["sha256:missing".to_string()],
-        )
-        .await;
-
-        let text = content
-            .as_text()
-            .expect("missing attachment should stay text");
-        assert!(text.contains("check missing"));
-        assert!(text.contains("[Attachment unavailable]"));
-        assert!(!text.contains("sha256:missing"));
-    }
-
-    #[tokio::test]
-    async fn test_assemble_current_message_content_read_failure_hides_internal_error() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let handle = file_manager
-            .store(
-                b"hello",
-                FileMetadata {
-                    name: "note.txt".to_string(),
-                    size: 5,
-                    mime_type: Some("text/plain".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-
-        let stored_path = handle.full_path(&temp_dir.path().join("data"));
-        std::fs::remove_file(stored_path).unwrap();
-
-        let content =
-            assemble_current_message_content(&file_manager, "read this", &[handle.id]).await;
-
-        let text = content
-            .as_text()
-            .expect("unreadable attachment should stay text");
-        assert!(text.contains("[File: note.txt (could not be read)]"));
-        assert!(!text.contains("No such file"));
-    }
-
-    #[tokio::test]
-    async fn test_prepare_messages_for_openai_vision_allows_unknown_model() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let messages = vec![Message::user(MessageContent::Parts(vec![
-            MessageContentPart::Text {
-                text: "describe".to_string(),
-            },
-            MessageContentPart::ImageUrl {
-                image_url: ImageUrl {
-                    url: "data:image/png;base64,AAAA".to_string(),
-                },
-            },
-        ]))];
-
-        let prepared = prepare_messages_for_openai_vision(&file_manager, messages)
-            .await
-            .unwrap();
-
-        assert_eq!(prepared.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_prepare_messages_for_openai_vision_converts_image_file_to_data_uri() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let handle = file_manager
-            .store(
-                b"png bytes",
-                FileMetadata {
-                    name: "photo.png".to_string(),
-                    size: 9,
-                    mime_type: Some("image/png".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-        let messages = vec![Message::user(MessageContent::Parts(vec![
-            MessageContentPart::Text {
-                text: "describe".to_string(),
-            },
-            MessageContentPart::ImageFile {
-                image_file: ImageFile { file_id: handle.id },
-            },
-        ]))];
-
-        let prepared = prepare_messages_for_openai_vision(&file_manager, messages)
-            .await
-            .unwrap();
-        let value = serde_json::to_value(&prepared[0]).unwrap();
-
-        assert_eq!(value["content"][0]["type"], "text");
-        assert_eq!(value["content"][1]["type"], "image_url");
-        assert_eq!(
-            value["content"][1]["image_url"]["url"],
-            "data:image/png;base64,cG5nIGJ5dGVz"
-        );
-        assert!(!value.to_string().contains("image_file"));
-        assert!(!value.to_string().contains("image_data"));
-    }
-
-    #[tokio::test]
-    async fn test_prepare_messages_for_openai_vision_converts_image_data_to_image_url() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let messages = vec![Message::user(MessageContent::Parts(vec![
-            MessageContentPart::Text {
-                text: "describe".to_string(),
-            },
-            MessageContentPart::ImageData {
-                image_data: agent_diva_providers::ImageData {
-                    data_uri: "data:image/webp;base64,AAAA".to_string(),
-                },
-            },
-        ]))];
-
-        let prepared = prepare_messages_for_openai_vision(&file_manager, messages)
-            .await
-            .unwrap();
-        let value = serde_json::to_value(&prepared[0]).unwrap();
-
-        assert_eq!(value["content"][1]["type"], "image_url");
-        assert_eq!(
-            value["content"][1]["image_url"]["url"],
-            "data:image/webp;base64,AAAA"
-        );
-        assert!(!value.to_string().contains("image_data"));
-    }
-
-    #[tokio::test]
-    async fn test_prepare_messages_for_openai_vision_rejects_unsupported_mime() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let handle = file_manager
-            .store(
-                b"<svg/>",
-                FileMetadata {
-                    name: "vector.svg".to_string(),
-                    size: 6,
-                    mime_type: Some("image/svg+xml".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-        let messages = vec![Message::user(MessageContent::Parts(vec![
-            MessageContentPart::ImageFile {
-                image_file: ImageFile {
-                    file_id: handle.id.clone(),
-                },
-            },
-        ]))];
-
-        let error = prepare_messages_for_openai_vision(&file_manager, messages)
-            .await
-            .unwrap_err();
-
-        assert!(matches!(
-            error,
-            VisionMessagePreparationError::UnsupportedMime { .. }
-        ));
-    }
-
-    #[tokio::test]
-    async fn test_prepare_messages_for_openai_vision_rejects_missing_file() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let messages = vec![Message::user(MessageContent::Parts(vec![
-            MessageContentPart::ImageFile {
-                image_file: ImageFile {
-                    file_id: "sha256:missing".to_string(),
-                },
-            },
-        ]))];
-
-        let error = prepare_messages_for_openai_vision(&file_manager, messages)
-            .await
-            .unwrap_err();
-
-        assert!(matches!(
-            error,
-            VisionMessagePreparationError::MissingFile { .. }
-        ));
-    }
-
-    #[tokio::test]
-    async fn test_prepare_messages_for_openai_vision_rejects_oversize_image() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let bytes = vec![0_u8; (MAX_VISION_IMAGE_SIZE + 1) as usize];
-        let handle = file_manager
-            .store(
-                &bytes,
-                FileMetadata {
-                    name: "large.png".to_string(),
-                    size: MAX_VISION_IMAGE_SIZE + 1,
-                    mime_type: Some("image/png".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-        let messages = vec![Message::user(MessageContent::Parts(vec![
-            MessageContentPart::ImageFile {
-                image_file: ImageFile {
-                    file_id: handle.id.clone(),
-                },
-            },
-        ]))];
-
-        let error = prepare_messages_for_openai_vision(&file_manager, messages)
-            .await
-            .unwrap_err();
-
-        assert!(matches!(
-            error,
-            VisionMessagePreparationError::ImageTooLarge { .. }
-        ));
-    }
-
-    #[tokio::test]
-    async fn test_assemble_current_message_content_mixed_attachments_share_user_message() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let file_manager = FileManager::new(FileConfig::with_path(temp_dir.path()))
-            .await
-            .unwrap();
-        let text_handle = file_manager
-            .store(
-                b"alpha",
-                FileMetadata {
-                    name: "a.txt".to_string(),
-                    size: 5,
-                    mime_type: Some("text/plain".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-        let image_handle = file_manager
-            .store(
-                b"image",
-                FileMetadata {
-                    name: "a.webp".to_string(),
-                    size: 5,
-                    mime_type: Some("image/webp".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-        let binary_handle = file_manager
-            .store(
-                b"zip",
-                FileMetadata {
-                    name: "a.zip".to_string(),
-                    size: 3,
-                    mime_type: Some("application/zip".to_string()),
-                    source: Some("gui".to_string()),
-                    created_at: chrono::Utc::now(),
-                    last_accessed_at: None,
-                    preview: None,
-                },
-            )
-            .await
-            .unwrap();
-
-        let content = assemble_current_message_content(
-            &file_manager,
-            "mixed",
-            &[text_handle.id, image_handle.id.clone(), binary_handle.id],
-        )
-        .await;
-
-        match content {
-            MessageContent::Parts(parts) => {
-                assert_eq!(parts.len(), 2);
-                match &parts[0] {
-                    MessageContentPart::Text { text } => {
-                        assert!(text.contains("mixed"));
-                        assert!(text.contains("--- a.txt ---"));
-                        assert!(text.contains("alpha"));
-                        assert!(text.contains("a.zip"));
-                        assert!(text.contains("Use read_file tool to access"));
-                        assert!(!text.contains("a.webp"));
-                    }
-                    other => panic!("expected text part first, got {:?}", other),
-                }
-                assert_eq!(
-                    parts[1],
-                    MessageContentPart::ImageFile {
-                        image_file: ImageFile {
-                            file_id: image_handle.id
-                        }
-                    }
-                );
-            }
-            other => panic!("expected structured parts, got {:?}", other),
-        }
+    #[test]
+    fn test_extract_token_usage_clamps_negative() {
+        let mut usage = HashMap::new();
+        usage.insert("prompt_tokens".to_string(), -10);
+        usage.insert("completion_tokens".to_string(), -5);
+        usage.insert("total_tokens".to_string(), -1);
+        let result = extract_token_usage(&usage);
+        assert_eq!(result.prompt_tokens, 0);
+        assert_eq!(result.completion_tokens, 0);
+        assert_eq!(result.total_tokens, 0);
     }
 }

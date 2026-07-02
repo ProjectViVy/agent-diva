@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Validation Report — Agent-Diva Pro 报表系统 &amp; Session 历史检索 PRD</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --fg: #c9d1d9;
+      --muted: #8b949e;
+      --border: #30363d;
+      --card: #161b22;
+      --critical: #f85149;
+      --high: #f0883e;
+      --medium: #d29922;
+      --low: #58a6ff;
+      --good: #3fb950;
+      --fair: #d29922;
+      --poor: #f85149;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; max-width: 960px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 1.6rem; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+    h2 { font-size: 1.2rem; margin-top: 2rem; color: var(--fg); }
+    h3 { font-size: 1rem; margin-top: 1.5rem; }
+    .meta { color: var(--muted); font-size: .9rem; margin-bottom: 1rem; }
+    .grade { display: inline-block; padding: .25rem .6rem; border-radius: 4px; font-weight: 600; font-size: .9rem; }
+    .grade-fair { background: rgba(210,153,34,.15); color: var(--fair); border: 1px solid var(--fair); }
+    .verdict { font-size: 1.1rem; margin: 1rem 0; padding: 1rem; background: var(--card); border-radius: 6px; border-left: 4px solid var(--fair); }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+    th, td { border: 1px solid var(--border); padding: .5rem .75rem; text-align: left; }
+    th { background: var(--card); font-weight: 600; }
+    .severity-critical { color: var(--critical); font-weight: 600; }
+    .severity-high { color: var(--high); font-weight: 600; }
+    .severity-medium { color: var(--medium); }
+    .severity-low { color: var(--low); }
+    details { background: var(--card); border-radius: 6px; margin: .5rem 0; border: 1px solid var(--border); }
+    summary { padding: .75rem 1rem; cursor: pointer; font-weight: 600; }
+    details > div { padding: 0 1rem 1rem; }
+    .finding { margin: .75rem 0; padding: .75rem; background: rgba(255,255,255,.03); border-radius: 4px; }
+    .finding-title { font-weight: 600; margin-bottom: .25rem; }
+    .finding-fix { color: var(--muted); font-size: .85rem; margin-top: .25rem; }
+    ul { margin: .5rem 0; padding-left: 1.5rem; }
+    li { margin: .25rem 0; }
+    .reviewer-section { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Validation Report</h1>
+  <p class="meta">PRD: <code>C:\Users\Administrator\Desktop\morediva\agent-diva-pro\docs\prd-report-system\prd.md</code></p>
+  <p class="meta">Rubric: <code>assets/prd-validation-checklist.md</code></p>
+  <p class="meta">Run at: 2026-06-08</p>
+  <p class="meta">Grade: <span class="grade grade-fair">Fair</span></p>
+
+  <div class="verdict">
+    <strong>Overall verdict:</strong> 该 PRD 结构清晰、意图明确，基本覆盖报表生成与 Session 检索两大功能域，但作为内部工具级 PRD 仍存在明显的决策就绪度不足。核心问题集中在三个方面：<strong>Decision log 与 PRD 正文存在严重的数据不一致</strong>（5 项 Open Questions 状态矛盾）、<strong>所有 FR 均缺少可测试的 acceptance criteria</strong>、以及<strong>关键运营假设（LLM 成本、失败重试、搜索迁移路径）完全缺失</strong>。当前状态处于 "可开工但风险可控" 的边界，建议在进入开发前修复 P0 项并补充 acceptance criteria。
+  </div>
+
+  <h2>Dimension Verdicts</h2>
+  <table>
+    <tr><th>Dimension</th><th>Verdict</th><th>Notes</th></tr>
+    <tr><td>Decision-readiness</td><td class="severity-high">thin</td><td>关键决策缺乏权衡分析；Decision log 与 PRD 状态冲突</td></tr>
+    <tr><td>Substance over theater</td><td class="severity-medium">adequate</td><td>整体实质，但存在 NFR theater 和 "Agent 智能搜索" innovation theater</td></tr>
+    <tr><td>Strategic coherence</td><td class="severity-medium">adequate</td><td>有统一弧线，但功能间依赖关系和优先级未清晰表达</td></tr>
+    <tr><td>Done-ness clarity</td><td class="severity-high">thin</td><td>所有 FR 缺少 acceptance criteria；输出格式/schema 未定义</td></tr>
+    <tr><td>Scope honesty</td><td class="severity-medium">adequate</td><td>Non-Goals 和 Assumptions 基本完整，但存在隐式遗漏和状态不一致</td></tr>
+    <tr><td>Downstream usability</td><td class="severity-medium">adequate</td><td>Glossary 基本一致，ID 连续，但术语漂移和交叉引用不足</td></tr>
+    <tr><td>Shape fit</td><td class="severity-medium">adequate</td><td>基本匹配内部工具，但 "固化" 功能跨度偏大</td></tr>
+  </table>
+
+  <h2>Findings</h2>
+
+  <details open>
+    <summary class="severity-critical">Critical (1)</summary>
+    <div>
+      <div class="finding">
+        <div class="finding-title">[Done-ness clarity] 所有 FR 均缺少明确的 acceptance criteria (§4.1–§4.3)</div>
+        <div>现有的 "Consequences" 仅为行为描述，而非测试用例。例如 FR-1 的 "日报包含：对话摘要、关键决策、完成的任务、待跟进事项" 无法测试（何为 "关键决策"？由谁判定？）。工程师无法据此判断 "完成" 边界，QA 无法编写测试用例。</div>
+        <div class="finding-fix"><strong>Fix:</strong> 为每个 FR 增加 Given-When-Then 或验收清单格式的 acceptance criteria。</div>
+      </div>
+    </div>
+  </details>
+
+  <details open>
+    <summary class="severity-high">High (7)</summary>
+    <div>
+      <div class="finding">
+        <div class="finding-title">[Decision-readiness] 缺少 LLM 选型与成本权衡分析 (§7, §11.3)</div>
+        <div>PRD 承认报表生成依赖 LLM 调用且需控制频率，但未说明选用哪个模型、token 预算、成本上限，也未提供 "日报生成成本 > X 时降级" 的决策路径。</div>
+        <div class="finding-fix"><strong>Fix:</strong> 增加 LLM 选型决策矩阵（模型 / 成本 / 质量 / 延迟），并定义成本 guardrail。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Decision-readiness] "Agent 智能搜索" 的实现路径未做技术方案比选 (§4.3 FR-9)</div>
+        <div>文档仅说明 "内存遍历 + 正则匹配（短期方案）"，但未解释为何不用 SQLite FTS、向量检索或简单文件 grep，也未定义 "短期" 的退出条件。</div>
+        <div class="finding-fix"><strong>Fix:</strong> 补充搜索方案演进路线图（短期正则 → 中期 SQLite FTS → 长期语义搜索），并标注各阶段的取舍。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Scope honesty] Decision Log 与 PRD 正文存在信息冲突 (§8 Open Questions vs Decision log)</div>
+        <div>Decision log 中 5 项决策均标记为 "已确认"，但 Open Items 表格中对应的 5 项仍显示 "Open"。这种三角不一致会导致下游对依赖状态的困惑。</div>
+        <div class="finding-fix"><strong>Fix:</strong> 统一状态，将 Open Items 中已确认项关闭，或明确标注 "Decision log #N 已确认"。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Done-ness clarity] 报表生成的输出格式未定义 schema (§4.1 FR-1/2/3)</div>
+        <div>仅说明 "Markdown 文件"，但未提供模板、header 结构、必填字段。工程师无法据此实现。</div>
+        <div class="finding-fix"><strong>Fix:</strong> 提供日报/周报/月报的 Markdown 模板示例（含 frontmatter schema）。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Done-ness clarity] "固化为 Skill" 缺少格式规范引用 (§4.2 FR-7)</div>
+        <div>文档说 "参考 GenericAgent skill 规范（见 `.workspace/` 目录）"，但未提供具体文件路径或格式示例。下游无法提取。</div>
+        <div class="finding-fix"><strong>Fix:</strong> 在 References 中补充具体的文件路径，或内联一个最小示例。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Strategic coherence] 报表固化与报表生成之间的依赖关系未明确 (§4.2)</div>
+        <div>FR-6/7/8 假设报表已生成且内容可用，但未说明如果报表生成失败或内容为空，固化流程如何处理。</div>
+        <div class="finding-fix"><strong>Fix:</strong> 在 FR-6/7/8 的 Consequences 中增加前置条件："仅当关联报表已成功生成且内容非空时，固化功能可用"。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Adversarial] "GUI 已就绪" 声明未经验证 (§6.1 In Scope)</div>
+        <div>PRD 声称 GUI 已就绪但无证据（commit hash、测试覆盖、设计评审）。若 GUI 实为 stub，则成为隐藏依赖阻塞整个 MVP。</div>
+        <div class="finding-fix"><strong>Fix:</strong> 添加 GUI 组件当前状态的引用（commit hash、测试覆盖、设计评审签核）。若为 stub，移至 Out of Scope。</div>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary class="severity-medium">Medium (11)</summary>
+    <div>
+      <div class="finding">
+        <div class="finding-title">[Substance over theater] NFR 章节流于形式，缺乏与 FR 的映射和量化指标 (§10)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 为每条 NFR 增加验证方法（测试用例或监控指标），并与具体 FR 建立可追溯链接。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Substance over theater] "Agent 智能搜索" 的命名带有 innovation theater 色彩 (§4.3, Glossary)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 将术语更名为 "Session 关键词搜索" 或 "历史对话检索"，在 v2 引入语义搜索后再恢复 "智能搜索"。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Decision-readiness] 报表生成质量的验收标准模糊 (§7 SM-1)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 明确 "成功" 的 operational definition。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Done-ness clarity] "固化为 SOP" 的 "参考 GenericAgent SOP 格式" 同样缺少具体引用 (§4.2 FR-6)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 补充具体文件路径或内联示例。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Done-ness clarity] 搜索结果的 "结构化 JSON" 格式未定义 schema (§4.3 FR-10)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 提供 JSON schema 示例，包含字段：session_key, timestamp, message_content, match_type, relevance_score（如有）。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Scope honesty] 未显式声明的隐式假设：用户 workspace 目录可写 (§4.1, §4.2)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 增加 ASSUMPTION-5: "用户 workspace 目录具有写权限，且磁盘空间充足"。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Scope honesty] "Non-Users (v1)" 的表述方式暗示 v2 会覆盖这些用户，但无承诺 (§2.2)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 明确 "配置关闭" 是 MVP In Scope 还是 Out of Scope。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Downstream usability] 术语漂移："Report" vs "报表" vs "报告" 混用 (全文)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 统一使用 Glossary 定义的 "Report / 报表"，删除或替换所有 "报告" 用法。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Downstream usability] FR ID 不连续：缺少 UJ 和 FR 的交叉引用矩阵</div>
+        <div class="finding-fix"><strong>Fix:</strong> 在 §2.3 末尾或 §4 Features 开头增加 UJ-FR 映射表。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Shape fit] "固化为 SOP/Skill/Memory" 的功能跨度超出内部工具的典型需求 (§4.2)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 考虑将 §4.2 拆分为独立的 "知识沉淀子系统 PRD"，或在当前 PRD 中增加架构概览图。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Adversarial] LLM Token Cost &amp; Failure Retry Strategy Completely Missing (§10, §11.3)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 增加 NFR：max token budget per report type、retry policy（3 次指数退避）、fallback 行为、cost monitoring。</div>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary class="severity-low">Low (6)</summary>
+    <div>
+      <div class="finding">
+        <div class="finding-title">[Substance over theater] Vision 段落存在轻微的 vision theater (§1)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 缩减 vision rhetoric，聚焦 "减少用户重复回顾 session 的时间成本"。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Strategic coherence] MVP Scope 中 "Session 原子写入修复" 的纳入理由不足 (§6.1 In Scope)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 增加一行说明："Session 原子写入修复是报表生成和搜索的数据完整性前置依赖"。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Done-ness clarity] GUI 的 "双栏布局" 未定义交互细节 (§4.1 FR-5)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 补充 GUI 交互状态图或引用已有的 GUI 设计文档。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Scope honesty] 缺少对 "报表生成失败重试策略" 的 scope 声明</div>
+        <div class="finding-fix"><strong>Fix:</strong> 在 §6 MVP Scope 或 FR-1 Consequences 中补充重试策略声明。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Downstream usability] References 中的文件路径未验证存在性 (§12 References)</div>
+        <div class="finding-fix"><strong>Fix:</strong> 在提交 PRD 前确认所有引用路径有效，或增加备注 "路径以实际仓库结构为准"。</div>
+      </div>
+      <div class="finding">
+        <div class="finding-title">[Shape fit] Success Metrics 中的 "用户每周至少查看 1 次报表" (§7 SM-2) 对于内部工具而言过于产品化</div>
+        <div class="finding-fix"><strong>Fix:</strong> 将 SM-2 调整为内部工具导向的指标，如 "开发者平均每周节省 X 分钟用于手动回顾 session"。</div>
+      </div>
+    </div>
+  </details>
+
+  <h2>Mechanical Notes</h2>
+  <ul>
+    <li><strong>术语漂移：</strong>"Report / 报表 / 报告" 混用；"Session 任务" 与 "搜索任务" 语义重叠。</li>
+    <li><strong>ID 连续性：</strong>FR-1 到 FR-10 连续；UJ-1、UJ-2 连续；SM-1 到 SM-C1 连续；ASSUMPTION-1 到 ASSUMPTION-4 连续。</li>
+    <li><strong>交叉引用：</strong>FR 与 UJ 的引用通过 "Realizes UJ-N" 实现，但缺少反向索引。§12 References 中的路径未经验证。</li>
+    <li><strong>Decision log 不一致：</strong>Decision log 与 §8 Open Questions、§9 Assumptions Index 之间存在状态冲突。</li>
+    <li><strong>格式问题：</strong>文档使用 <code>---</code> 作为 section 分隔符，与标准 Markdown 的 horizontal rule 语法冲突，在某些渲染器中可能导致显示异常。</li>
+  </ul>
+
+  <h2>Reviewer Files</h2>
+  <ul>
+    <li><code>review-rubric.md</code> — Rubric walker 评审（7 个维度，25 个 findings）</li>
+    <li><code>review-adversarial.md</code> — Adversarial 评审（3 个 P0 blocking + 3 个 P1 + 5 个 P2）</li>
+  </ul>
+
+  <footer style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem;">
+    Generated by BMad PRD Validate · 2026-06-08
+  </footer>
+</body>
+</html>

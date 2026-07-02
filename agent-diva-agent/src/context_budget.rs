@@ -1,359 +1,439 @@
-use agent_diva_providers::{
-    provider_error_indicates_context_overflow as provider_context_overflow, Message,
-    MessageContent, MessageContentPart, ProviderError,
-};
+//! Context budget monitoring.
+//!
+//! Tracks estimated token usage against a configured budget and decides
+//! when compaction is needed to avoid exceeding the provider's context window.
+//!
+//! # Budget allocation
+//!
+//! ```text
+//! total_budget = max_tokens
+//! system_budget = total_budget × system_budget_ratio    (reserved for system prompt)
+//! history_budget = total_budget - system_budget           (available for messages)
+//! compact_threshold = history_budget × compact_threshold_ratio
+//! ```
+//!
+//! Compaction is triggered when `history_estimated > compact_threshold`.
+//!
+//! # References
+//!
+//! - ADR-0010: Context Compaction architecture
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContextBudgetPolicy {
-    pub context_budget_tokens: usize,
-    pub reserve_tokens: usize,
-    pub overflow_retry_enabled: bool,
+use agent_diva_core::session::ChatMessage;
+
+use super::token_estimate;
+
+/// Configuration for context budget management.
+///
+/// # Default values
+///
+/// | Parameter                | Default    | Rationale                                      |
+/// |--------------------------|------------|------------------------------------------------|
+/// | `max_tokens`             | 180_000    | DeepSeek V3 context = 128K, with headroom      |
+/// | `system_budget_ratio`    | 0.15       | 15% reserved for system prompt + skills        |
+/// | `compact_threshold_ratio`| 0.80       | Compact when history budget reaches 80%        |
+/// | `keep_recent_count`      | 10         | Always keep 10 most recent messages            |
+#[derive(Debug, Clone)]
+pub struct BudgetConfig {
+    /// Maximum tokens allowed in the full assembled context.
+    pub max_tokens: usize,
+
+    /// Fraction of `max_tokens` reserved for system prompt, skills, and memory.
+    /// Must be in range [0.0, 1.0).
+    pub system_budget_ratio: f64,
+
+    /// Fraction of history budget that triggers compaction.
+    /// Must be in range (0.0, 1.0].
+    pub compact_threshold_ratio: f64,
+
+    /// Number of recent messages to always keep (never compacted).
+    pub keep_recent_count: usize,
 }
 
-impl ContextBudgetPolicy {
-    pub fn available_context_tokens(&self) -> usize {
-        self.context_budget_tokens
-            .saturating_sub(self.reserve_tokens)
-            .max(1)
-    }
-
-    pub const fn history_probe_messages(&self) -> usize {
-        200
-    }
-
-    pub fn overflow_user_message(&self) -> &'static str {
-        "The conversation context is too large for this model. I automatically shrank it once, but it still did not fit. Please start a fresh session or shorten the request."
-    }
-}
-
-impl Default for ContextBudgetPolicy {
+impl Default for BudgetConfig {
     fn default() -> Self {
         Self {
-            context_budget_tokens: 24_000,
-            reserve_tokens: 4_000,
-            overflow_retry_enabled: true,
+            max_tokens: 180_000,
+            system_budget_ratio: 0.15,
+            compact_threshold_ratio: 0.80,
+            keep_recent_count: 10,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompactionMode {
-    Normal,
-    OverflowRecovery,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContextBudgetReport {
-    pub mode: CompactionMode,
-    pub estimated_tokens_before: usize,
-    pub estimated_tokens_after: usize,
-    pub available_context_tokens: usize,
-    pub removed_history_messages: usize,
-    pub truncated_tool_messages: usize,
-}
-
-pub fn compact_messages_to_budget(
-    messages: &[Message],
-    tool_defs: &[serde_json::Value],
-    policy: &ContextBudgetPolicy,
-    mode: CompactionMode,
-) -> (Vec<Message>, ContextBudgetReport) {
-    let available_context_tokens = policy.available_context_tokens();
-    let estimated_tokens_before = estimate_request_tokens(messages, tool_defs);
-    let mut compacted = messages.to_vec();
-    let mut truncated_tool_messages = 0;
-
-    let tool_char_limit = match mode {
-        CompactionMode::Normal => 12_000,
-        CompactionMode::OverflowRecovery => 4_000,
-    };
-
-    for message in &mut compacted {
-        if message.role == "tool" && trim_message_text(message, tool_char_limit) {
-            truncated_tool_messages += 1;
+impl From<agent_diva_core::config::CompactionBudgetConfig> for BudgetConfig {
+    fn from(cfg: agent_diva_core::config::CompactionBudgetConfig) -> Self {
+        Self {
+            max_tokens: cfg.max_tokens,
+            system_budget_ratio: cfg.system_budget_ratio,
+            compact_threshold_ratio: cfg.compact_threshold_ratio,
+            keep_recent_count: cfg.keep_recent_count,
         }
     }
-
-    let mut estimated_tokens_after = estimate_request_tokens(&compacted, tool_defs);
-    let mut removed_history_messages = 0;
-    while estimated_tokens_after > available_context_tokens {
-        let Some(index) = oldest_removable_index(&compacted, mode) else {
-            break;
-        };
-        compacted.remove(index);
-        removed_history_messages += 1;
-        estimated_tokens_after = estimate_request_tokens(&compacted, tool_defs);
-    }
-
-    (
-        compacted,
-        ContextBudgetReport {
-            mode,
-            estimated_tokens_before,
-            estimated_tokens_after,
-            available_context_tokens,
-            removed_history_messages,
-            truncated_tool_messages,
-        },
-    )
 }
-
-pub fn estimate_request_tokens(messages: &[Message], tool_defs: &[serde_json::Value]) -> usize {
-    let message_tokens: usize = messages.iter().map(estimate_message_tokens).sum();
-    let tool_tokens: usize = tool_defs.iter().map(estimate_serialized_tokens).sum();
-    message_tokens + tool_tokens
-}
-
-pub fn provider_error_indicates_context_overflow(error: &ProviderError) -> bool {
-    provider_context_overflow(error)
-}
-
-fn oldest_removable_index(messages: &[Message], mode: CompactionMode) -> Option<usize> {
-    if messages.len() <= 2 {
-        return None;
-    }
-
-    let protected_tail_non_system = match mode {
-        CompactionMode::Normal => 3,
-        CompactionMode::OverflowRecovery => 1,
-    };
-
-    let mut protected = vec![false; messages.len()];
-    protected[0] = true;
-    protected[messages.len() - 1] = true;
-
-    let mut protected_count = 0;
-    for index in (0..messages.len().saturating_sub(1)).rev() {
-        if messages[index].role == "system" {
-            protected[index] = true;
-            continue;
-        }
-        if protected_count < protected_tail_non_system {
-            protected[index] = true;
-            protected_count += 1;
-        } else {
-            break;
+impl BudgetConfig {
+    /// Build a [`BudgetConfig`] using the hardcoded context window for the given model.
+    ///
+    /// Looks up the model in the hardcoded table via
+    /// [`agent_diva_providers::model_capabilities_for_model`].
+    /// Falls back to 128_000 for unknown models (conservative default).
+    ///
+    /// Other config fields (`system_budget_ratio`, `compact_threshold_ratio`,
+    /// `keep_recent_count`) use their default values.
+    pub fn for_model(model: &str) -> Self {
+        let max_tokens = agent_diva_providers::model_capabilities_for_model(model)
+            .context_window
+            .unwrap_or(128_000);
+        Self {
+            max_tokens,
+            ..Self::default()
         }
     }
-
-    (1..messages.len().saturating_sub(1)).find(|index| {
-        let message = &messages[*index];
-        !protected[*index] && message.role != "system"
-    })
-}
-
-fn trim_message_text(message: &mut Message, max_chars: usize) -> bool {
-    match &mut message.content {
-        MessageContent::Text(text) => trim_text(text, max_chars),
-        MessageContent::Parts(parts) => {
-            let mut changed = false;
-            for part in parts {
-                if let MessageContentPart::Text { text } = part {
-                    changed |= trim_text(text, max_chars);
+    /// Build a [`BudgetConfig`] with the full priority chain:
+    ///
+    /// 1. Environment variable `AGENT_DIVA_MAX_CONTEXT_TOKENS` (highest priority)
+    /// 2. Hardcoded model table via [`for_model`](Self::for_model)
+    /// 3. Conservative default of 128_000 tokens
+    ///
+    /// This is the recommended constructor for runtime use — it respects
+    /// operator overrides while still being model-aware.
+    pub fn from_env_or_model(model: &str) -> Self {
+        if let Ok(val) = std::env::var("AGENT_DIVA_MAX_CONTEXT_TOKENS") {
+            if let Ok(tokens) = val.parse::<usize>() {
+                if tokens > 0 {
+                    return Self {
+                        max_tokens: tokens,
+                        ..Self::default()
+                    };
                 }
             }
-            changed
         }
+        Self::for_model(model)
     }
 }
 
-fn trim_text(text: &mut String, max_chars: usize) -> bool {
-    let char_count = text.chars().count();
-    if char_count <= max_chars {
-        return false;
+/// Report produced by [`check_budget`].
+///
+/// Contains token estimates and the compaction decision.
+#[derive(Debug, Clone)]
+pub struct BudgetReport {
+    /// Total estimated tokens (history + system allocation).
+    pub total_estimated: usize,
+
+    /// System budget allocation (reserved headroom, not measured from messages).
+    pub system_estimated: usize,
+
+    /// Estimated tokens consumed by the message history.
+    pub history_estimated: usize,
+
+    /// Pressure ratio: `history_estimated / history_budget`.
+    ///
+    /// - `0.0` = empty history
+    /// - `< 0.80` = safe zone
+    /// - `≥ 0.80` = compaction threshold approaching
+    /// - `> 1.0` = history exceeds its allocated budget
+    pub pressure_ratio: f64,
+
+    /// Whether compaction should be triggered.
+    ///
+    /// True when `history_estimated > compact_threshold` and history is non-empty.
+    pub should_compact: bool,
+}
+
+/// Check whether the message history is approaching the context budget limit.
+///
+/// # Arguments
+///
+/// * `history` - Slice of chat messages representing the history to be included
+///   in the context window.
+/// * `config` - Budget configuration specifying limits and thresholds.
+///
+/// # Returns
+///
+/// A [`BudgetReport`] with token estimates, pressure ratio, and compaction decision.
+///
+/// # Algorithm
+///
+/// 1. Estimate total tokens for `history` using [`token_estimate::estimate_total_tokens`].
+/// 2. Compute `history_budget = max_tokens × (1 - system_budget_ratio)`.
+/// 3. Compute `compact_threshold = history_budget × compact_threshold_ratio`.
+/// 4. Set `should_compact = history_estimated > compact_threshold && history_estimated > 0`.
+pub fn check_budget(history: &[ChatMessage], config: &BudgetConfig) -> BudgetReport {
+    let history_estimated = token_estimate::estimate_total_tokens(history);
+
+    let system_budget = (config.max_tokens as f64 * config.system_budget_ratio) as usize;
+    let history_budget = config.max_tokens.saturating_sub(system_budget);
+    let compact_threshold = (history_budget as f64 * config.compact_threshold_ratio) as usize;
+
+    let system_estimated = system_budget;
+    let total_estimated = history_estimated.saturating_add(system_estimated);
+
+    let pressure_ratio = if history_budget > 0 {
+        history_estimated as f64 / history_budget as f64
+    } else {
+        // Degenerate case: no history budget → always at pressure
+        if history_estimated > 0 {
+            f64::INFINITY
+        } else {
+            0.0
+        }
+    };
+
+    let should_compact = history_estimated > compact_threshold && history_estimated > 0;
+
+    BudgetReport {
+        total_estimated,
+        system_estimated,
+        history_estimated,
+        pressure_ratio,
+        should_compact,
     }
-
-    let head_chars = max_chars.saturating_sub(96);
-    let mut trimmed: String = text.chars().take(head_chars).collect();
-    trimmed.push_str(&format!(
-        "\n...[context budget trimmed {} chars]...",
-        char_count.saturating_sub(max_chars)
-    ));
-    *text = trimmed;
-    true
-}
-
-fn estimate_message_tokens(message: &Message) -> usize {
-    let base = 12;
-    let content_tokens = estimate_content_tokens(&message.content);
-    let name_tokens = message
-        .name
-        .as_deref()
-        .map(estimate_text_tokens)
-        .unwrap_or(0);
-    let tool_call_id_tokens = message
-        .tool_call_id
-        .as_deref()
-        .map(estimate_text_tokens)
-        .unwrap_or(0);
-    let tool_calls_tokens = message
-        .tool_calls
-        .as_ref()
-        .map(|calls| {
-            calls
-                .iter()
-                .map(|call| {
-                    let mut tokens = estimate_text_tokens(&call.id)
-                        + estimate_text_tokens(&call.call_type)
-                        + estimate_text_tokens(&call.name);
-                    tokens += estimate_serialized_tokens(&call.arguments);
-                    tokens
-                })
-                .sum::<usize>()
-        })
-        .unwrap_or(0);
-    let reasoning_tokens = message
-        .reasoning_content
-        .as_deref()
-        .map(estimate_text_tokens)
-        .unwrap_or(0);
-    let thinking_tokens = message
-        .thinking_blocks
-        .as_ref()
-        .map(estimate_serialized_tokens)
-        .unwrap_or(0);
-
-    base + content_tokens
-        + name_tokens
-        + tool_call_id_tokens
-        + tool_calls_tokens
-        + reasoning_tokens
-        + thinking_tokens
-}
-
-fn estimate_content_tokens(content: &MessageContent) -> usize {
-    match content {
-        MessageContent::Text(text) => estimate_text_tokens(text),
-        MessageContent::Parts(parts) => parts
-            .iter()
-            .map(|part| match part {
-                MessageContentPart::Text { text } => estimate_text_tokens(text),
-                MessageContentPart::ImageUrl { image_url } => estimate_text_tokens(&image_url.url),
-                MessageContentPart::ImageFile { image_file } => {
-                    estimate_text_tokens(&image_file.file_id)
-                }
-                MessageContentPart::ImageData { image_data } => {
-                    estimate_text_tokens(&image_data.data_uri)
-                }
-            })
-            .sum(),
-    }
-}
-
-fn estimate_serialized_tokens<T: serde::Serialize>(value: &T) -> usize {
-    serde_json::to_string(value)
-        .map(|json| estimate_text_tokens(&json))
-        .unwrap_or(64)
-}
-
-fn estimate_text_tokens(text: &str) -> usize {
-    let chars = text.chars().count();
-    (chars / 4).max(1) + 2
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_providers::{ImageFile, ToolCallRequest};
-    use std::collections::HashMap;
+    use chrono::Utc;
+
+    fn make_msg(content: &str) -> ChatMessage {
+        ChatMessage {
+            role: "user".to_string(),
+            content: content.to_string(),
+            timestamp: Utc::now(),
+            tool_call_id: None,
+            tool_calls: None,
+            name: None,
+            reasoning_content: None,
+            thinking_blocks: None,
+            token_usage: None,
+        }
+    }
+
+    // ── Basic behaviour ──────────────────────────────────────────
 
     #[test]
-    fn compact_messages_trims_tool_results_before_dropping_history() {
-        let long_tool_output = "x".repeat(20_000);
-        let messages = vec![
-            Message::system("system"),
-            Message::user("old user"),
-            Message::assistant("old assistant"),
-            Message::tool(long_tool_output, "call-1"),
-            Message::user("current user"),
-        ];
-        let policy = ContextBudgetPolicy {
-            context_budget_tokens: 3_000,
-            reserve_tokens: 500,
-            overflow_retry_enabled: true,
+    fn empty_history_no_compact() {
+        let config = BudgetConfig::default();
+        let report = check_budget(&[], &config);
+        assert!(!report.should_compact);
+        assert_eq!(report.history_estimated, 0);
+        assert_eq!(report.pressure_ratio, 0.0);
+        // system_estimated should be the reserved budget
+        assert_eq!(report.system_estimated, (180_000.0 * 0.15) as usize);
+    }
+
+    #[test]
+    fn small_history_no_compact() {
+        let config = BudgetConfig::default();
+        let msgs: Vec<_> = (0..5)
+            .map(|i| make_msg(&format!("message number {}", i)))
+            .collect();
+        let report = check_budget(&msgs, &config);
+        assert!(!report.should_compact);
+        assert!(report.pressure_ratio < 0.01);
+    }
+
+    // ── Threshold triggering ─────────────────────────────────────
+
+    #[test]
+    fn above_threshold_triggers_compact() {
+        let config = BudgetConfig {
+            max_tokens: 1000,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.80,
+            keep_recent_count: 10,
         };
+        // Each message: 402 chars → ceil(402/3) = 134 tokens
+        // 7 messages → 938 tokens
+        // history_budget = 1000, compact_threshold = 800
+        // 938 > 800 → should_compact = true
+        let msgs: Vec<_> = (0..7).map(|_| make_msg(&"x".repeat(402))).collect();
+        let report = check_budget(&msgs, &config);
+        assert!(report.should_compact);
+        assert!(report.pressure_ratio > 0.8);
+    }
 
-        let (compacted, report) =
-            compact_messages_to_budget(&messages, &[], &policy, CompactionMode::Normal);
+    #[test]
+    fn below_threshold_no_compact() {
+        let config = BudgetConfig {
+            max_tokens: 1000,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.80,
+            keep_recent_count: 10,
+        };
+        // 1 message = 134 tokens < 800 → no compact
+        let msgs = vec![make_msg(&"x".repeat(402))];
+        let report = check_budget(&msgs, &config);
+        assert!(!report.should_compact);
+        assert!(report.pressure_ratio < 0.8);
+    }
 
-        assert!(report.truncated_tool_messages >= 1);
+    #[test]
+    fn zero_history_with_nonzero_budget_no_compact() {
+        let config = BudgetConfig {
+            max_tokens: 100,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.80,
+            keep_recent_count: 10,
+        };
+        let report = check_budget(&[], &config);
+        assert!(!report.should_compact);
+    }
+
+    // ── System budget ratio ──────────────────────────────────────
+
+    #[test]
+    fn system_budget_ratio_reduces_history_budget() {
+        let config = BudgetConfig {
+            max_tokens: 1000,
+            system_budget_ratio: 0.5,
+            compact_threshold_ratio: 0.80,
+            keep_recent_count: 10,
+        };
+        // Each message: 300 chars → ceil(300/3) = 100 tokens
+        // 5 messages → 500 tokens
+        // system_budget = 500, history_budget = 500, threshold = 400
+        // 500 > 400 → should_compact = true
+        let msgs: Vec<_> = (0..5).map(|_| make_msg(&"x".repeat(300))).collect();
+        let report = check_budget(&msgs, &config);
+        assert!(report.should_compact);
+        assert_eq!(report.system_estimated, 500);
+    }
+
+    // ── Report field consistency ─────────────────────────────────
+
+    #[test]
+    fn report_total_equals_sum() {
+        let config = BudgetConfig::default();
+        let msgs = vec![make_msg("test message")];
+        let report = check_budget(&msgs, &config);
         assert_eq!(
-            compacted.last().unwrap().content.as_text(),
-            Some("current user")
+            report.total_estimated,
+            report
+                .history_estimated
+                .saturating_add(report.system_estimated)
         );
     }
 
     #[test]
-    fn compact_messages_drops_oldest_history_first() {
-        let messages = vec![
-            Message::system("system"),
-            Message::user("user-1"),
-            Message::assistant("assistant-1"),
-            Message::user("user-2"),
-            Message::assistant("assistant-2"),
-            Message::user("current"),
-        ];
-        let policy = ContextBudgetPolicy {
-            context_budget_tokens: 40,
-            reserve_tokens: 10,
-            overflow_retry_enabled: true,
+    fn pressure_ratio_non_negative() {
+        let config = BudgetConfig::default();
+        let msgs = vec![make_msg("test")];
+        let report = check_budget(&msgs, &config);
+        assert!(report.pressure_ratio >= 0.0);
+    }
+
+    // ── Default values ───────────────────────────────────────────
+
+    #[test]
+    fn default_config_values() {
+        let config = BudgetConfig::default();
+        assert_eq!(config.max_tokens, 180_000);
+        assert_eq!(config.system_budget_ratio, 0.15);
+        assert_eq!(config.compact_threshold_ratio, 0.80);
+        assert_eq!(config.keep_recent_count, 10);
+    }
+
+    // ── Edge cases ───────────────────────────────────────────────
+
+    #[test]
+    fn zero_max_tokens() {
+        let config = BudgetConfig {
+            max_tokens: 0,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.80,
+            keep_recent_count: 0,
         };
-
-        let (compacted, report) =
-            compact_messages_to_budget(&messages, &[], &policy, CompactionMode::OverflowRecovery);
-
-        assert!(report.removed_history_messages >= 1);
-        assert!(!compacted
-            .iter()
-            .any(|message| message.content.as_text() == Some("user-1")));
-        assert_eq!(compacted.last().unwrap().content.as_text(), Some("current"));
+        // history_budget = 0, threshold = 0, pressure_ratio = INF
+        let msgs = vec![make_msg("hello")];
+        let report = check_budget(&msgs, &config);
+        assert!(report.should_compact);
+        assert!(report.pressure_ratio.is_infinite());
     }
 
     #[test]
-    fn estimate_request_tokens_counts_tool_defs_and_calls() {
-        let mut call_args = HashMap::new();
-        call_args.insert("path".to_string(), serde_json::json!("README.md"));
-        let mut assistant = Message::assistant("using tool");
-        assistant.tool_calls = Some(vec![ToolCallRequest {
-            id: "call-1".to_string(),
-            call_type: "function".to_string(),
-            name: "read_file".to_string(),
-            arguments: call_args,
-        }]);
-        let messages = vec![
-            Message::system("system"),
-            assistant,
-            Message::user(MessageContent::Parts(vec![
-                MessageContentPart::Text {
-                    text: "look".to_string(),
-                },
-                MessageContentPart::ImageFile {
-                    image_file: ImageFile {
-                        file_id: "sha256:image".to_string(),
-                    },
-                },
-            ])),
-        ];
-        let tool_defs = vec![serde_json::json!({
-            "type": "function",
-            "function": {"name": "read_file", "parameters": {"type": "object"}}
-        })];
-
-        assert!(estimate_request_tokens(&messages, &tool_defs) > 0);
+    fn max_system_budget_ratio() {
+        let config = BudgetConfig {
+            max_tokens: 1000,
+            system_budget_ratio: 0.99,
+            compact_threshold_ratio: 0.80,
+            keep_recent_count: 10,
+        };
+        // system_budget = 990, history_budget = 10, threshold = 8
+        // Need a message longer than ~24 chars to exceed 8 tokens
+        let msgs = vec![make_msg(&"x".repeat(30))]; // 30 chars → 10 tokens > 8
+        let report = check_budget(&msgs, &config);
+        assert!(report.should_compact);
     }
 
     #[test]
-    fn provider_error_detects_context_overflow() {
-        assert!(provider_error_indicates_context_overflow(&ProviderError::api_message(
-            "This model's maximum context length is 8192 tokens, however you requested 12000 tokens".to_string()
-        )));
-        assert!(provider_error_indicates_context_overflow(
-            &ProviderError::InvalidResponse(
-                "prompt is too long; reduce the length and retry".to_string()
-            )
-        ));
-        assert!(!provider_error_indicates_context_overflow(
-            &ProviderError::api_message("rate limit exceeded".to_string())
-        ));
+    fn compact_threshold_at_one_hundred_percent() {
+        let config = BudgetConfig {
+            max_tokens: 1000,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 1.0,
+            keep_recent_count: 10,
+        };
+        // threshold = 1000, need to exceed that
+        let msgs = vec![make_msg(&"x".repeat(900))]; // ≈ 300 tokens
+        let report = check_budget(&msgs, &config);
+        assert!(!report.should_compact);
+    }
+    // ── for_model / from_env_or_model ─────────────────────────────
+    #[test]
+    fn for_model_known_model() {
+        // DeepSeek chat → 128K context window
+        let config = BudgetConfig::for_model("deepseek-chat");
+        assert_eq!(config.max_tokens, 128_000);
+        // Other fields use defaults
+        assert_eq!(config.system_budget_ratio, 0.15);
+        assert_eq!(config.compact_threshold_ratio, 0.80);
+        assert_eq!(config.keep_recent_count, 10);
+    }
+    #[test]
+    fn for_model_large_context_model() {
+        // Claude Sonnet 4.6 → 1M context window
+        let config = BudgetConfig::for_model("claude-sonnet-4-6");
+        assert_eq!(config.max_tokens, 1_000_000);
+    }
+    #[test]
+    fn for_model_unknown_model_falls_back_to_128k() {
+        let config = BudgetConfig::for_model("some-unknown-model");
+        assert_eq!(config.max_tokens, 128_000);
+    }
+    #[test]
+    fn for_model_with_provider_prefix() {
+        // Provider prefix should be stripped
+        let config = BudgetConfig::for_model("openai/gpt-4o");
+        assert_eq!(config.max_tokens, 128_000);
+        let config = BudgetConfig::for_model("anthropic/claude-sonnet-4-6");
+        assert_eq!(config.max_tokens, 1_000_000);
+    }
+    #[test]
+    fn from_env_or_model_uses_model_when_no_env() {
+        // Ensure env var is not set
+        std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
+        let config = BudgetConfig::from_env_or_model("gpt-5");
+        assert_eq!(config.max_tokens, 400_000);
+    }
+    #[test]
+    fn from_env_or_model_env_overrides_model() {
+        std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "500000");
+        let config = BudgetConfig::from_env_or_model("deepseek-chat");
+        assert_eq!(config.max_tokens, 500_000);
+        std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
+    }
+    #[test]
+    fn from_env_or_model_ignores_invalid_env() {
+        std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "not-a-number");
+        let config = BudgetConfig::from_env_or_model("gpt-4o");
+        assert_eq!(config.max_tokens, 128_000); // Falls through to model table
+        std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
+    }
+    #[test]
+    fn from_env_or_model_ignores_zero_env() {
+        std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "0");
+        let config = BudgetConfig::from_env_or_model("gpt-4o");
+        assert_eq!(config.max_tokens, 128_000); // Zero is treated as invalid
+        std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
     }
 }
