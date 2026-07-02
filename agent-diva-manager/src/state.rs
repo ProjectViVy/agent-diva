@@ -11,6 +11,7 @@ use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, Provi
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Instant;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::mcp_service::{McpServerDto, McpServerUpsert};
@@ -24,6 +25,8 @@ pub struct AppState {
     pub workspace_root: PathBuf,
     pub autodream: AutoDreamService,
     pub laputa: LaputaService,
+    /// Server start time, used for uptime calculation in the health endpoint.
+    pub started_at: Instant,
 }
 
 impl AppState {
@@ -41,6 +44,7 @@ impl AppState {
             workspace_root,
             autodream,
             laputa,
+            started_at: Instant::now(),
         })
     }
 }

@@ -63,3 +63,8 @@ mentle = ["dep:memtle"]
 [dev-dependencies]
 tokio-test = { workspace = true }
 tempfile = { workspace = true }
+criterion = "0.5"
+
+[[bench]]
+name = "performance"
+harness = false

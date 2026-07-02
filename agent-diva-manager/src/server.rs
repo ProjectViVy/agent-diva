@@ -19,7 +19,7 @@ use crate::handlers::{
     get_laputa_snapshot_handler, get_mcps_handler, get_provider_handler,
     get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
     get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
-    heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
+    health_handler, heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
     list_laputa_changelog_handler, list_laputa_proposals_handler, list_mentle_tools_handler,
     poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
     resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
@@ -262,7 +262,9 @@ fn audit_routes() -> Router<AppState> {
 }
 
 fn misc_routes() -> Router<AppState> {
-    Router::new().route("/api/health", get(heartbeat_handler))
+    Router::new()
+        .route("/api/health", get(health_handler))
+        .route("/api/heartbeat", get(heartbeat_handler))
 }
 
 #[cfg(test)]
