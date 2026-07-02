@@ -202,13 +202,13 @@ W2-W6 设计阶段(对应 `DECISION-v2-next-phase.md` Harness Engineering)发现
 ### 6.3 已知但还没读完的
 
 - `agent-diva-agent-new/docs/logs/2026-05-memory-architecture-deep-dive/v0.0.1-architecture-analysis/` 还差 `acceptance.md` / `verification.md` / `release.md` 没看
-- `agent-diva-pro/docs/dev/archive(old-docs-dont-read-me)/morediva-root/` 整个目录是 archive(可能不读),但需确认是否有非 archive 内容
+- `agent-diva/docs/dev/archive(old-docs-dont-read-me)/morediva-root/` 整个目录是 archive(可能不读),但需确认是否有非 archive 内容
 
 ### 6.4 调研优先级建议(下次会话起手)
 
 1. **先读未读完整文档**(上面 #4 #5 #6 #7 #8 #9 #10 的完整版本)
-2. **再扫 `agent-diva-pro/docs/dev/genericagent/`** 目录(可能有 4 公理 + 决策树的源文件)
-3. **检查 `agent-diva-pro/docs/dev/archive(old-docs-dont-read-me)/`** 是否真的可忽略
+2. **再扫 `agent-diva/docs/dev/genericagent/`** 目录(可能有 4 公理 + 决策树的源文件)
+3. **检查 `agent-diva/docs/dev/archive(old-docs-dont-read-me)/`** 是否真的可忽略
 4. **如发现矛盾设计,优先遵循 `2026-05-*` 的决策**,而不是自己重判
 
 ### 6.5 关键约束(调研时必须遵守)
