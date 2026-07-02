@@ -83,6 +83,10 @@ migrate *ARGS:
 clean:
     cargo clean
 
+# Verify each non-default feature gate compiles individually
+feature-gate-check:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/feature-gate-check.ps1
+
 # Run all checks (CI pipeline)
 ci: fmt-check check test
     @echo "All checks passed!"
