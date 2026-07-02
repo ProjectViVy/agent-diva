@@ -212,6 +212,8 @@ export default {
     compactionDesc: '配置上下文窗口压缩与预算管理',
     pet: '宠物',
     petDesc: '桌面数字人与语音交互设置',
+    audit: '审计日志',
+    auditDesc: '查看审计事件与原始网关日志',
   },
   nav: {
     section: '导航',

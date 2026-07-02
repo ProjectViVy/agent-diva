@@ -7,5 +7,5 @@ pub mod loader;
 pub mod schema;
 pub mod validate;
 
-pub use loader::ConfigLoader;
+pub use loader::{compute_diff, ChangedField, ConfigDiff, ConfigLoader};
 pub use schema::*;

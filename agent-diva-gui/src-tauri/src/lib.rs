@@ -403,7 +403,9 @@ pub fn run() {
             commands::close_desktop_pet,
             commands::set_desktop_pet_ignore_mouse,
             commands::set_desktop_pet_always_on_top,
-            commands::minimize_desktop_pet
+            commands::minimize_desktop_pet,
+            commands::get_audit_events,
+            commands::get_raw_log_lines
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

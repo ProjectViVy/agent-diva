@@ -278,6 +278,7 @@ mod tests {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            token_usage: None,
         });
         manager.save(&session).unwrap();
 
@@ -328,6 +329,7 @@ mod tests {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            token_usage: None,
         });
         manager.save(&session).unwrap();
 

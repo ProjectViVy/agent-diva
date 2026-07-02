@@ -27,4 +27,4 @@ pub mod quality;
 
 pub use compaction_exec::ContextCompactor;
 pub use prompt::{COMPACTION_SYSTEM_PROMPT, PRIOR_SUMMARIES_PREFIX};
-pub use quality::{validate_summary, QualityReport};
+pub use quality::{validate_summary, QualityGate, QualityReport, QualityResult};

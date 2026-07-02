@@ -10,6 +10,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
 use crate::heartbeat::types::{is_heartbeat_empty, HeartbeatConfig, HeartbeatDecision};
+use crate::presence::types::PresenceState;
 
 /// Callback for the LLM decision phase: takes HEARTBEAT.md content and returns a HeartbeatDecision.
 pub type HeartbeatDecideCallback = Arc<
@@ -146,6 +147,29 @@ impl HeartbeatService {
             Err(e) => {
                 warn!("Heartbeat decide error: {}", e);
                 Some(format!("error: {}", e))
+            }
+        }
+    }
+
+    /// Adapt heartbeat interval based on presence state multiplier.
+    ///
+    /// Called by the presence service when state changes.
+    /// - Active: 1x normal interval
+    /// - Distracted: 2x interval (heartbeat slows)
+    /// - Gone: 0x pause (SOUL consolidation mode)
+    pub async fn set_presence_mode(&self, state: &PresenceState) {
+        let multiplier = state.heartbeat_multiplier();
+        match multiplier {
+            0 => {
+                info!("Presence=Gone: pausing heartbeat, entering SOUL consolidation");
+            }
+            _ => {
+                let base_interval = self.config.interval_s;
+                let adapted = base_interval * multiplier;
+                info!(
+                    "Presence={:?}: adapting heartbeat interval to {}s ({}x)",
+                    state, adapted, multiplier
+                );
             }
         }
     }
@@ -305,6 +329,7 @@ mod tests {
         let config = HeartbeatConfig {
             enabled: false,
             interval_s: 60,
+            interval_override: None,
         };
         let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
         service.start().await;
@@ -317,6 +342,7 @@ mod tests {
         let config = HeartbeatConfig {
             enabled: true,
             interval_s: 3600,
+            interval_override: None,
         };
         let service = HeartbeatService::new(temp_dir.path().to_path_buf(), config, None, None);
         service.start().await;
@@ -431,6 +457,7 @@ mod tests {
         let config = HeartbeatConfig {
             enabled: true,
             interval_s: 1,
+            interval_override: None,
         };
         let service = HeartbeatService::new(
             temp_dir.path().to_path_buf(),
@@ -472,6 +499,7 @@ mod tests {
         let config = HeartbeatConfig {
             enabled: true,
             interval_s: 1,
+            interval_override: None,
         };
         let service =
             HeartbeatService::new(temp_dir.path().to_path_buf(), config, Some(on_decide), None);
@@ -506,6 +534,7 @@ mod tests {
         let config = HeartbeatConfig {
             enabled: true,
             interval_s: 1,
+            interval_override: None,
         };
         let service = HeartbeatService::new(
             temp_dir.path().to_path_buf(),

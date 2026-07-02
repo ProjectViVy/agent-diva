@@ -1,5 +1,6 @@
 //! Memory consolidation: summarizes old conversation history into long-term memory
 
+use crate::compaction::quality::QualityGate;
 use agent_diva_core::memory::{MemoryProvider, SyncTurnRequest, SyncTurnStatus};
 use agent_diva_core::session::Session;
 use agent_diva_providers::{LLMProvider, Message};
@@ -58,6 +59,33 @@ pub async fn consolidate(
     memory_provider: &dyn MemoryProvider,
     memory_window: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    consolidate_with_gate(
+        session,
+        provider,
+        model,
+        workspace,
+        memory_provider,
+        memory_window,
+        QualityGate::default(),
+    )
+    .await
+}
+
+/// Consolidate old messages into long-term memory with a configurable quality gate.
+///
+/// After each consolidation attempt, the quality gate validates the `memory_update`
+/// against the source messages. If quality is below threshold and retries remain,
+/// the consolidation is retried with a feedback prompt. After all retries are
+/// exhausted, the best result is used.
+pub async fn consolidate_with_gate(
+    session: &mut Session,
+    provider: &Arc<dyn LLMProvider>,
+    model: &str,
+    workspace: &Path,
+    memory_provider: &dyn MemoryProvider,
+    memory_window: usize,
+    quality_gate: QualityGate,
+) -> Result<(), Box<dyn std::error::Error>> {
     let consolidated = session.last_consolidated.min(session.messages.len());
     let unconsolidated_count = session.messages.len() - consolidated;
     if unconsolidated_count < memory_window {
@@ -97,9 +125,8 @@ pub async fn consolidate(
         .map(|block| block.markdown)
         .unwrap_or_default();
 
-    // Build the LLM request
-    let system_msg = Message::system(CONSOLIDATION_PROMPT);
-    let user_content = format!(
+    // Build the base user prompt
+    let base_user_content = format!(
         "## Existing Memory\n{}\n\n## Conversation to Consolidate\n{}",
         if existing_memory.is_empty() {
             "(none)".to_string()
@@ -108,49 +135,134 @@ pub async fn consolidate(
         },
         conversation,
     );
-    let user_msg = Message::user(user_content);
 
     let tools = vec![save_memory_tool_schema()];
-    let response = provider
-        .chat(
-            vec![system_msg, user_msg],
-            Some(tools),
-            Some(model.to_string()),
-            2048,
-            0.3,
-        )
-        .await?;
 
-    // Parse the save_memory tool call from the response
-    let tool_call = response
-        .tool_calls
-        .iter()
-        .find(|tc| tc.name == "save_memory");
+    // Retry loop: quality gate with configurable max_retry
+    let max_retry = quality_gate.max_retry;
+    let mut best_memory_update: Option<String> = None;
+    let mut best_history_entry: Option<String> = None;
+    let mut best_score: f64 = 0.0;
+    let mut best_issues: Vec<String> = Vec::new();
 
-    if let Some(tc) = tool_call {
+    for attempt in 0..=max_retry {
+        let user_content = if attempt == 0 {
+            base_user_content.clone()
+        } else {
+            // On retry, prepend quality feedback
+            format!(
+                "注意：上一次整合质量不合格（得分 {:.2}/1.0），原因：{}。\n请生成更详细、更完整的记忆更新，确保覆盖所有关键信息。\n\n{}",
+                best_score,
+                best_issues.join("；"),
+                base_user_content
+            )
+        };
+
+        let system_msg = Message::system(CONSOLIDATION_PROMPT);
+        let user_msg = Message::user(user_content);
+
+        let response = match provider
+            .chat(
+                vec![system_msg, user_msg],
+                Some(tools.clone()),
+                Some(model.to_string()),
+                2048,
+                0.3,
+            )
+            .await
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                warn!(
+                    "Consolidation LLM call failed on attempt {}: {}",
+                    attempt + 1,
+                    e
+                );
+                continue;
+            }
+        };
+
+        // Parse the save_memory tool call from the response
+        let tool_call = response
+            .tool_calls
+            .iter()
+            .find(|tc| tc.name == "save_memory");
+
+        let Some(tc) = tool_call else {
+            warn!(
+                "Consolidation LLM call did not return a save_memory tool call on attempt {}",
+                attempt + 1
+            );
+            continue;
+        };
+
         let memory_update = tc
             .arguments
             .get("memory_update")
             .and_then(|v| v.as_str())
-            .unwrap_or("");
+            .unwrap_or("")
+            .to_string();
         let history_entry = tc
             .arguments
             .get("history_entry")
             .and_then(|v| v.as_str())
-            .unwrap_or("");
+            .unwrap_or("")
+            .to_string();
 
-        if !memory_update.is_empty() {
-            debug!("Updated MEMORY.md");
+        // Run quality gate on the memory_update against source messages
+        let quality_result = quality_gate.evaluate(&memory_update, old_messages);
+
+        info!(
+            "Consolidation attempt {}/{}: quality score={:.2} (completeness={:.2}, keyword_coverage={:.2}), passes={}",
+            attempt + 1,
+            max_retry + 1,
+            quality_result.score,
+            quality_result.completeness,
+            quality_result.keyword_coverage,
+            quality_result.passes,
+        );
+
+        // Track the best attempt
+        if quality_result.score > best_score {
+            best_score = quality_result.score;
+            best_issues = quality_result.issues.clone();
+            if !memory_update.is_empty() {
+                best_memory_update = Some(memory_update);
+            }
+            if !history_entry.is_empty() {
+                best_history_entry = Some(history_entry);
+            }
         }
 
-        if !history_entry.is_empty() {
+        // Early exit if quality passes
+        if quality_result.passes {
+            info!(
+                "Consolidation quality passed on attempt {} (score {:.2})",
+                attempt + 1,
+                quality_result.score
+            );
+            break;
+        }
+
+        if attempt < max_retry {
+            warn!(
+                "Consolidation quality insufficient (score {:.2}), retrying…",
+                quality_result.score
+            );
+        }
+    }
+
+    // Apply the best result
+    if let Some(ref memory_update) = best_memory_update {
+        debug!("Updated MEMORY.md");
+
+        if let Some(ref history_entry) = best_history_entry {
             let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC");
             let entry = format!("[{}] {}", timestamp, history_entry);
             memory_provider
                 .sync_turn(SyncTurnRequest {
                     workspace_root: workspace.to_path_buf(),
-                    memory_update_markdown: (!memory_update.is_empty())
-                        .then(|| memory_update.to_string()),
+                    memory_update_markdown: Some(memory_update.clone()),
                     history_entry: Some(entry),
                 })
                 .await
@@ -161,11 +273,11 @@ pub async fn consolidate(
                     }
                 })?;
             debug!("Appended to HISTORY.md");
-        } else if !memory_update.is_empty() {
+        } else {
             memory_provider
                 .sync_turn(SyncTurnRequest {
                     workspace_root: workspace.to_path_buf(),
-                    memory_update_markdown: Some(memory_update.to_string()),
+                    memory_update_markdown: Some(memory_update.clone()),
                     history_entry: None,
                 })
                 .await
@@ -177,10 +289,14 @@ pub async fn consolidate(
                 })?;
         }
 
-        info!("Consolidation complete with memory update");
+        info!(
+            "Consolidation complete with memory update (best score {:.2})",
+            best_score
+        );
     } else {
         warn!(
-            "Consolidation LLM call did not return a save_memory tool call, skipping memory write"
+            "Consolidation LLM call did not produce any usable result after {} attempts",
+            max_retry + 1
         );
     }
 

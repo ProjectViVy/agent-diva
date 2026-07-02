@@ -4959,3 +4959,145 @@ pub fn minimize_desktop_pet(app: AppHandle) -> Result<(), String> {
         .minimize()
         .map_err(|e| format!("Failed to minimize desktop-pet window: {}", e))
 }
+
+// ============================================================
+// Audit Log Commands
+// ============================================================
+
+/// DTO returned to the frontend for each parsed audit event.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditEventDto {
+    pub event_type: String,
+    pub data: serde_json::Value,
+    pub timestamp: String,
+}
+
+/// Parse audit events from gateway.log for a given date.
+///
+/// Reads ~/.diva/logs/gateway.log.YYYY-MM-DD, filters lines where
+/// `target == "audit"`, and deserializes each line into an AuditEventDto.
+#[tauri::command]
+pub fn get_audit_events(date: String) -> Result<Vec<AuditEventDto>, String> {
+    let log_path = resolve_audit_log_path(&date)?;
+    if !log_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = std::fs::read_to_string(&log_path)
+        .map_err(|e| format!("failed to read audit log for {}: {}", date, e))?;
+
+    let events: Vec<AuditEventDto> = content
+        .lines()
+        .filter(|line| {
+            line.contains(r#""target":"audit""#) || line.contains(r#""target": "audit""#)
+        })
+        .filter_map(parse_audit_event_from_json_line)
+        .collect();
+
+    Ok(events)
+}
+
+/// Read raw log lines from gateway.log for a given date.
+#[tauri::command]
+pub fn get_raw_log_lines(date: String, max_lines: u32) -> Result<Vec<String>, String> {
+    let log_path = resolve_audit_log_path(&date)?;
+    if !log_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = std::fs::read_to_string(&log_path)
+        .map_err(|e| format!("failed to read log for {}: {}", date, e))?;
+
+    let mut all_lines: Vec<String> = content.lines().map(ToString::to_string).collect();
+    let keep = max_lines.max(1) as usize;
+    if all_lines.len() > keep {
+        all_lines = all_lines.split_off(all_lines.len().saturating_sub(keep));
+    }
+    Ok(all_lines)
+}
+
+fn resolve_audit_log_path(date: &str) -> Result<std::path::PathBuf, String> {
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+
+    // The logging dir is resolved relative to config dir (see lib.rs resolve_logging_config).
+    // Default config.logging.dir = "logs" → ~/.agent-diva/logs
+    let log_dir = resolve_configured_path(&config.logging.dir, loader.config_dir());
+
+    // tracing_appender::rolling::daily(dir, "gateway.log") produces gateway.log.YYYY-MM-DD
+    let log_path = log_dir.join(format!("gateway.log.{}", date));
+    Ok(log_path)
+}
+
+fn parse_audit_event_from_json_line(line: &str) -> Option<AuditEventDto> {
+    let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
+    let timestamp = parsed.get("timestamp")?.as_str()?.to_string();
+
+    // The tracing JSON format wraps the event in the message/fields.
+    // Two formats are supported:
+    // 1. Structured: {"timestamp":"...","level":"INFO","target":"audit","fields":{"event":"..."}}
+    // 2. Direct: {"timestamp":"...","type":"tool_invoked","data":{...}}
+
+    // Try structured format first (tracing_subscriber JSON output)
+    if let Some(fields) = parsed.get("fields") {
+        if let Some(event_val) = fields.get("event") {
+            // event_val might be an object with type/data — fall through to direct format
+            let event_str = event_val.as_str().or(None)?;
+            let event_type = rust_variant_to_snake_case(event_str);
+            return Some(AuditEventDto {
+                event_type,
+                data: serde_json::json!({"raw": event_str}),
+                timestamp,
+            });
+        }
+
+        // Try message field as fallback
+        if let Some(msg_val) = fields.get("message") {
+            if let Some(msg_str) = msg_val.as_str() {
+                let event_type = rust_variant_to_snake_case(msg_str);
+                return Some(AuditEventDto {
+                    event_type,
+                    data: serde_json::json!({"raw": msg_str}),
+                    timestamp,
+                });
+            }
+        }
+    }
+
+    // Try direct AuditEvent JSON format (serde tagged enum)
+    if let Some(event_type) = parsed.get("type").and_then(|v| v.as_str()) {
+        let data = parsed
+            .get("data")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        return Some(AuditEventDto {
+            event_type: event_type.to_string(),
+            data,
+            timestamp,
+        });
+    }
+
+    None
+}
+
+fn rust_variant_to_snake_case(variant_debug: &str) -> String {
+    let name = variant_debug
+        .split(&['{', '('][..])
+        .next()
+        .unwrap_or(variant_debug);
+    let mut result = String::new();
+    for (i, ch) in name.char_indices() {
+        if ch.is_uppercase() && i > 0 {
+            result.push('_');
+        }
+        // Skip non-alphanumeric characters except underscore
+        if ch.is_alphanumeric() || ch == '_' {
+            result.push(ch.to_ascii_lowercase());
+        }
+    }
+    if result.is_empty() {
+        result = "unknown".to_string();
+    }
+    result
+}

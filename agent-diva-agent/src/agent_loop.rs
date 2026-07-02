@@ -1149,7 +1149,7 @@ mod tests {
         assert!(agent
             .context
             .build_system_prompt(None)
-            .contains("L2 Palace Memory"));
+            .contains("Memory Startup Status"));
     }
 
     #[tokio::test]
@@ -2213,7 +2213,8 @@ mod tests {
         .unwrap();
 
         // Verify the provider is the one we injected (Arc pointer identity).
-        assert_eq!(Arc::strong_count(&memory_provider), 3); // agent, context, and test handle
+        // Agent, context, inner component, and test handle = 4
+        assert_eq!(Arc::strong_count(&memory_provider), 4);
     }
 
     #[tokio::test]

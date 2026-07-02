@@ -13,16 +13,17 @@ use crate::handlers::{
     chat_handler, create_cron_job_handler, create_laputa_proposal_handler, create_mcp_handler,
     create_provider_handler, delete_cron_job_handler, delete_mcp_handler, delete_provider_handler,
     delete_provider_model_handler, delete_session_handler, delete_skill_handler,
-    edit_laputa_proposal_handler, events_handler, get_autodream_run_handler, get_channels_handler,
-    get_config_handler, get_cron_job_handler, get_laputa_changelog_handler,
-    get_laputa_proposal_handler, get_laputa_section_handler, get_laputa_snapshot_handler,
-    get_mcps_handler, get_provider_handler, get_provider_models_handler, get_providers_handler,
-    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
-    get_skills_handler, get_tools_handler, heartbeat_handler, list_autodream_runs_handler,
-    list_cron_jobs_handler, list_laputa_changelog_handler, list_laputa_proposals_handler,
-    list_mentle_tools_handler, poll_laputa_events_handler, refresh_mcp_status_handler,
-    reset_session_handler, resolve_provider_handler, rollback_laputa_changelog_handler,
-    run_cron_job_handler, set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
+    edit_laputa_proposal_handler, events_handler, get_audit_events_handler, get_audit_log_handler,
+    get_autodream_run_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
+    get_laputa_changelog_handler, get_laputa_proposal_handler, get_laputa_section_handler,
+    get_laputa_snapshot_handler, get_mcps_handler, get_provider_handler,
+    get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
+    get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
+    heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
+    list_laputa_changelog_handler, list_laputa_proposals_handler, list_mentle_tools_handler,
+    poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
+    resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
+    set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, transition_laputa_proposal_handler,
     trigger_autodream_run_handler, update_channel_handler, update_config_handler,
     update_cron_job_handler, update_mcp_handler, update_provider_handler,
@@ -87,6 +88,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(planning_routes())
         .merge(autodream_routes())
         .merge(laputa_routes())
+        .merge(audit_routes())
         .merge(misc_routes())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -251,6 +253,12 @@ fn planning_routes() -> Router<AppState> {
                 .put(update_plan_handler)
                 .delete(delete_plan_handler),
         )
+}
+
+fn audit_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/audit/log", get(get_audit_log_handler))
+        .route("/api/audit/events", get(get_audit_events_handler))
 }
 
 fn misc_routes() -> Router<AppState> {

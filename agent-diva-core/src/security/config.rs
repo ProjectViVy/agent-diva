@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::audit::PiiSeverity;
+
 /// Security level presets
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -73,6 +75,18 @@ pub struct SecurityConfig {
 
     /// Enable symlink following
     pub allow_symlinks: bool,
+
+    /// PII detection severity (default: warning)
+    pub pii_severity: PiiSeverity,
+
+    /// Enable PII detection
+    pub pii_enabled: bool,
+
+    /// Enable prompt injection detection
+    pub injection_enabled: bool,
+
+    /// Confidence threshold above which injection is blocked (0.0–1.0)
+    pub injection_block_threshold: f32,
 }
 
 impl Default for SecurityConfig {
@@ -101,6 +115,10 @@ impl Default for SecurityConfig {
             read_only: None,
             max_file_size: 10 * 1024 * 1024, // 10MB
             allow_symlinks: false,
+            pii_severity: PiiSeverity::Warning,
+            pii_enabled: true,
+            injection_enabled: true,
+            injection_block_threshold: 0.8,
         }
     }
 }
@@ -132,6 +150,13 @@ impl SecurityConfig {
             if path.contains('\0') {
                 return Err(format!("Forbidden path contains null byte: {}", path));
             }
+        }
+
+        if self.injection_block_threshold < 0.0 || self.injection_block_threshold > 1.0 {
+            return Err(format!(
+                "injection_block_threshold must be between 0.0 and 1.0, got {}",
+                self.injection_block_threshold
+            ));
         }
 
         Ok(())

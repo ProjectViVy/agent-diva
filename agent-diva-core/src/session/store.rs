@@ -1,5 +1,6 @@
 //! Session data structures
 
+use crate::config::schema::TokenUsage;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -119,6 +120,7 @@ impl Session {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            token_usage: None,
         });
         self.updated_at = Utc::now();
     }
@@ -205,6 +207,9 @@ pub struct ChatMessage {
     /// Optional structured thinking blocks (provider-specific)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub thinking_blocks: Option<Vec<serde_json::Value>>,
+    /// Token usage from the LLM response for this turn (assistant messages only)
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub token_usage: Option<TokenUsage>,
 }
 
 impl ChatMessage {
@@ -219,6 +224,7 @@ impl ChatMessage {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            token_usage: None,
         }
     }
 
@@ -239,6 +245,7 @@ impl ChatMessage {
             name,
             reasoning_content: None,
             thinking_blocks: None,
+            token_usage: None,
         }
     }
 
@@ -317,5 +324,49 @@ mod tests {
 
         let history = session.get_history(50);
         assert_eq!(history.len(), 50);
+    }
+
+    #[test]
+    fn test_chat_message_token_usage_serialization() {
+        let mut msg = ChatMessage::new("assistant", "Hello!");
+        msg.token_usage = Some(TokenUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+        });
+
+        let json = serde_json::to_string(&msg).unwrap();
+        // token_usage should appear in serialized form
+        assert!(json.contains("token_usage"));
+        assert!(json.contains("prompt_tokens"));
+
+        // Roundtrip
+        let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            deserialized.token_usage.as_ref().unwrap().prompt_tokens,
+            100
+        );
+        assert_eq!(
+            deserialized.token_usage.as_ref().unwrap().completion_tokens,
+            50
+        );
+        assert_eq!(deserialized.token_usage.as_ref().unwrap().total_tokens, 150);
+    }
+
+    #[test]
+    fn test_chat_message_without_token_usage_omits_field() {
+        let msg = ChatMessage::new("user", "Hello");
+        let json = serde_json::to_string(&msg).unwrap();
+        // When token_usage is None, skip_serializing_if should omit it
+        assert!(!json.contains("token_usage"));
+    }
+
+    #[test]
+    fn test_chat_message_backward_compat_deserialization() {
+        // Old messages without token_usage field should deserialize fine
+        let json = r#"{"role":"assistant","content":"Hi","timestamp":"2025-01-01T00:00:00Z"}"#;
+        let msg: ChatMessage = serde_json::from_str(json).unwrap();
+        assert_eq!(msg.role, "assistant");
+        assert!(msg.token_usage.is_none());
     }
 }

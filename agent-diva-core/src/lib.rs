@@ -18,9 +18,12 @@ pub mod planning;
 pub mod presence;
 pub mod reasoning;
 pub mod reports;
+pub mod scheduler;
 pub mod security;
 pub mod session;
 pub mod soul;
+pub mod supervised;
+pub mod todo;
 pub mod utils;
 
 pub use attachment::FileAttachment;

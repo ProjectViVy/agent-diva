@@ -12,3 +12,7 @@ pub use search::{
     SessionSearchDiagnostic, SessionSearchHit, SessionSearchQuery, SessionSearchResponse,
 };
 pub use store::{ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session};
+
+// Re-export TokenUsage for convenience — it's used alongside ChatMessage
+// to record per-turn LLM token consumption.
+pub use crate::config::schema::TokenUsage;

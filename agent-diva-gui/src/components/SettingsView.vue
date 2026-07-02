@@ -15,6 +15,7 @@ import ThemeSettings from './settings/ThemeSettings.vue'
 import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
 import CompactionSettings from './settings/CompactionSettings.vue'
+import AuditPage from './settings/audit/AuditPage.vue';
 import { useI18n } from 'vue-i18n';
 import type { ToolsConfigShape } from '../types/toolsConfig';
 
@@ -69,7 +70,8 @@ type SettingsSubview =
   | 'theme'
   | 'self-evolution'
   | 'sandbox'
-  | 'compaction';
+  | 'compaction'
+  | 'audit';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -109,7 +111,8 @@ const pageTitle = computed(() => {
     theme: t('dashboard.theme'),
     'self-evolution': t('dashboard.selfEvolution'),
     sandbox: t('dashboard.sandbox'),
-    compaction: t('dashboard.compaction')
+    compaction: t('dashboard.compaction'),
+    audit: t('dashboard.audit')
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -224,6 +227,9 @@ watch(
                 :current-messages="currentMessages"
                 :save-tools-config-action="saveToolsConfigAction"
               />
+            </div>
+            <div v-else-if="currentView === 'audit'" class="h-full min-h-0 overflow-y-auto">
+              <AuditPage />
             </div>
           </div>
        </Transition>

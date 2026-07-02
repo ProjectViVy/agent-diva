@@ -53,6 +53,10 @@ struct OllamaStreamChunk {
     message: OllamaStreamMessage,
     #[serde(default)]
     done: bool,
+    #[serde(default)]
+    prompt_eval_count: Option<i64>,
+    #[serde(default)]
+    eval_count: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -84,6 +88,10 @@ struct OllamaStreamFunction {
 #[derive(Debug, Deserialize)]
 struct ChatResponse {
     message: ResponseMessage,
+    #[serde(default)]
+    prompt_eval_count: Option<i64>,
+    #[serde(default)]
+    eval_count: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -156,6 +164,31 @@ impl OllamaProvider {
     /// Build the chat completion URL
     fn build_chat_url(&self) -> String {
         format!("{}/api/chat", self.base_url)
+    }
+
+    /// Extract token usage from Ollama's eval counts.
+    ///
+    /// Ollama returns `prompt_eval_count` and `eval_count` instead of the
+    /// standard `prompt_tokens` / `completion_tokens`. This method normalizes
+    /// them to the standard LLMResponse usage HashMap format.
+    fn extract_usage(
+        prompt_eval_count: Option<i64>,
+        eval_count: Option<i64>,
+    ) -> HashMap<String, i64> {
+        let mut usage = HashMap::new();
+        if let Some(prompt_eval) = prompt_eval_count {
+            usage.insert("prompt_tokens".to_string(), prompt_eval);
+        }
+        if let Some(eval) = eval_count {
+            usage.insert("completion_tokens".to_string(), eval);
+        }
+        if prompt_eval_count.is_some() || eval_count.is_some() {
+            usage.insert(
+                "total_tokens".to_string(),
+                prompt_eval_count.unwrap_or(0) + eval_count.unwrap_or(0),
+            );
+        }
+        usage
     }
 
     /// Convert internal Message format to Ollama's native format
@@ -363,7 +396,7 @@ impl LLMProvider for OllamaProvider {
             },
             tool_calls,
             finish_reason: "stop".to_string(),
-            usage: Default::default(),
+            usage: Self::extract_usage(chat_response.prompt_eval_count, chat_response.eval_count),
             reasoning_content: chat_response.message.thinking,
         })
     }
@@ -462,7 +495,28 @@ impl LLMProvider for OllamaProvider {
                             }
 
                             if chunk.done {
-                                debug!("Stream chunk marked as done");
+                                // Extract usage from the final done chunk
+                                let final_usage =
+                                    Self::extract_usage(chunk.prompt_eval_count, chunk.eval_count);
+                                // Send completed event with usage data
+                                let _ = tx
+                                    .send(Ok(LLMStreamEvent::Completed(LLMResponse {
+                                        content: if content.is_empty() {
+                                            None
+                                        } else {
+                                            Some(content.clone())
+                                        },
+                                        tool_calls: tool_calls.clone(),
+                                        finish_reason: "stop".to_string(),
+                                        usage: final_usage,
+                                        reasoning_content: if reasoning_content.is_empty() {
+                                            None
+                                        } else {
+                                            Some(reasoning_content.clone())
+                                        },
+                                    })))
+                                    .await;
+                                return;
                             }
                         }
                         Err(e) => {
@@ -499,5 +553,86 @@ impl LLMProvider for OllamaProvider {
 
     fn get_default_model(&self) -> String {
         self.default_model.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_usage_with_both_counts() {
+        let usage = OllamaProvider::extract_usage(Some(42), Some(21));
+        assert_eq!(usage.get("prompt_tokens"), Some(&42));
+        assert_eq!(usage.get("completion_tokens"), Some(&21));
+        assert_eq!(usage.get("total_tokens"), Some(&63));
+    }
+
+    #[test]
+    fn test_extract_usage_prompt_only() {
+        let usage = OllamaProvider::extract_usage(Some(100), None);
+        assert_eq!(usage.get("prompt_tokens"), Some(&100));
+        assert_eq!(usage.get("completion_tokens"), None);
+        assert_eq!(usage.get("total_tokens"), Some(&100));
+    }
+
+    #[test]
+    fn test_extract_usage_completion_only() {
+        let usage = OllamaProvider::extract_usage(None, Some(50));
+        assert_eq!(usage.get("prompt_tokens"), None);
+        assert_eq!(usage.get("completion_tokens"), Some(&50));
+        assert_eq!(usage.get("total_tokens"), Some(&50));
+    }
+
+    #[test]
+    fn test_extract_usage_both_none() {
+        let usage = OllamaProvider::extract_usage(None, None);
+        assert!(usage.is_empty());
+    }
+
+    #[test]
+    fn test_extract_usage_zero_counts() {
+        let usage = OllamaProvider::extract_usage(Some(0), Some(0));
+        assert_eq!(usage.get("prompt_tokens"), Some(&0));
+        assert_eq!(usage.get("completion_tokens"), Some(&0));
+        assert_eq!(usage.get("total_tokens"), Some(&0));
+    }
+
+    #[test]
+    fn test_chat_response_deserialize_with_usage() {
+        let json = r#"{
+            "message": {"content": "Hello!", "thinking": null, "tool_calls": []},
+            "prompt_eval_count": 42,
+            "eval_count": 21
+        }"#;
+        let resp: ChatResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.message.content, "Hello!");
+        assert_eq!(resp.prompt_eval_count, Some(42));
+        assert_eq!(resp.eval_count, Some(21));
+    }
+
+    #[test]
+    fn test_chat_response_deserialize_without_usage() {
+        let json = r#"{
+            "message": {"content": "Hi", "thinking": null, "tool_calls": []}
+        }"#;
+        let resp: ChatResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.message.content, "Hi");
+        assert_eq!(resp.prompt_eval_count, None);
+        assert_eq!(resp.eval_count, None);
+    }
+
+    #[test]
+    fn test_stream_chunk_deserialize_with_usage() {
+        let json = r#"{
+            "message": {"content": "", "thinking": null, "tool_calls": []},
+            "done": true,
+            "prompt_eval_count": 100,
+            "eval_count": 50
+        }"#;
+        let chunk: OllamaStreamChunk = serde_json::from_str(json).unwrap();
+        assert!(chunk.done);
+        assert_eq!(chunk.prompt_eval_count, Some(100));
+        assert_eq!(chunk.eval_count, Some(50));
     }
 }

@@ -9,6 +9,7 @@ mod http_util;
 pub mod litellm;
 pub mod ollama;
 pub mod registry;
+pub mod retry;
 pub mod transcription;
 
 pub use base::{

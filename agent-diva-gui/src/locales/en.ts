@@ -212,6 +212,8 @@ export default {
     compactionDesc: 'Configure context window compaction and budget management',
     pet: 'Pet',
     petDesc: 'Desktop avatar and voice interaction settings',
+    audit: 'Audit',
+    auditDesc: 'View audit events and raw gateway logs',
   },
   nav: {
     section: 'Navigation',

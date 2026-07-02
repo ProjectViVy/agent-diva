@@ -1,5 +1,7 @@
 //! Security-related error types
 
+use crate::audit::PiiSeverity;
+use crate::security::injection::InjectionKind;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -45,6 +47,17 @@ pub enum SecurityError {
     /// Forbidden file extension
     #[error("Forbidden file extension: {ext}")]
     ForbiddenExtension { ext: String },
+
+    /// PII detected at error severity
+    #[error("PII detected: {count} item(s) of severity {severity:?}")]
+    PiiDetected { count: usize, severity: PiiSeverity },
+
+    /// Prompt injection detected
+    #[error("Injection detected: {kind:?} with confidence {confidence}")]
+    InjectionDetected {
+        kind: InjectionKind,
+        confidence: f32,
+    },
 }
 
 impl SecurityError {
@@ -82,6 +95,15 @@ impl SecurityError {
             Self::ForbiddenExtension { ext } => {
                 format!("Files with extension '{}' are not allowed", ext)
             }
+            Self::PiiDetected { count, severity } => {
+                format!("PII detected: {} item(s) of severity {:?}", count, severity)
+            }
+            Self::InjectionDetected { kind, confidence } => {
+                format!(
+                    "Prompt injection detected: {:?} (confidence: {:.2})",
+                    kind, confidence
+                )
+            }
         }
     }
 
@@ -113,11 +135,27 @@ mod tests {
     }
 
     #[test]
+    fn test_injection_error_message() {
+        let err = SecurityError::InjectionDetected {
+            kind: InjectionKind::RoleOverride,
+            confidence: 0.9,
+        };
+        assert!(err.user_message().contains("injection"));
+        assert!(err.user_message().contains("RoleOverride"));
+    }
+
+    #[test]
     fn test_is_retryable() {
         assert!(SecurityError::RateLimitExceeded { count: 1, max: 0 }.is_retryable());
 
         assert!(!SecurityError::PathNotAllowed {
             path: "/test".to_string()
+        }
+        .is_retryable());
+
+        assert!(!SecurityError::InjectionDetected {
+            kind: InjectionKind::Jailbreak,
+            confidence: 0.85,
         }
         .is_retryable());
     }

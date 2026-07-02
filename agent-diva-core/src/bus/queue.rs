@@ -337,6 +337,12 @@ mod tests {
                 model: "gpt-4o".to_string(),
                 provider: "openai".to_string(),
             },
+            PokeEvent::ConfigChangeNeedsRestart {
+                fields: vec![
+                    "providers.openai.api_key".to_string(),
+                    "gateway.port".to_string(),
+                ],
+            },
         ];
 
         for variant in variants {

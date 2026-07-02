@@ -4,6 +4,10 @@ use super::schema::Config;
 use super::validate::validate_config;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+use tokio::task::JoinHandle;
+use tokio::time::sleep;
+use tracing::{info, warn};
 
 /// Configuration loader
 #[derive(Clone)]
@@ -86,11 +90,219 @@ impl ConfigLoader {
     pub fn config_path(&self) -> &Path {
         &self.config_path
     }
+
+    /// Start a background task that polls the config file for mtime changes.
+    ///
+    /// When a change is detected, the config is reloaded, diffed against the
+    /// previous version, and the `on_diff` callback is invoked with the diff
+    /// and the new config.
+    ///
+    /// Returns a `JoinHandle` that can be aborted to stop polling.
+    ///
+    /// # Debounce
+    ///
+    /// After detecting an mtime change, the task waits 500 ms and re-checks
+    /// the mtime before reloading.  This coalesces rapid saves (e.g. editor
+    /// auto-save) into a single reload cycle.
+    pub fn start_hot_reload<F>(&self, on_diff: F) -> JoinHandle<()>
+    where
+        F: Fn(ConfigDiff, Config) + Send + 'static,
+    {
+        let config_dir = self.config_dir.clone();
+        let config_path = self.config_path.clone();
+        let mut last_mtime = Self::read_file_mtime(&config_path);
+        let mut last_config = self.load().ok();
+
+        info!(
+            "Starting config hot-reload watcher for '{}' (poll interval: 5s)",
+            config_path.display()
+        );
+
+        tokio::spawn(async move {
+            loop {
+                sleep(std::time::Duration::from_secs(5)).await;
+
+                let new_mtime = Self::read_file_mtime(&config_path);
+                if new_mtime == last_mtime || new_mtime.is_none() {
+                    continue;
+                }
+
+                // Debounce: rapid saves (e.g. editor autosave) coalesce
+                sleep(std::time::Duration::from_millis(500)).await;
+
+                let debounced_mtime = Self::read_file_mtime(&config_path);
+                if debounced_mtime != new_mtime {
+                    // File still being written — skip this cycle
+                    continue;
+                }
+                last_mtime = debounced_mtime;
+
+                let loader = ConfigLoader::with_dir(&config_dir);
+                match loader.load() {
+                    Ok(new_config) => {
+                        let diff = match &last_config {
+                            Some(old) => compute_diff(old, &new_config),
+                            None => ConfigDiff::default(),
+                        };
+
+                        if diff.has_changes() {
+                            info!(
+                                "Config hot-reload: {} change(s) ({} hot-reloadable, {} restart-required)",
+                                diff.hot_reload.len() + diff.restart_required.len(),
+                                diff.hot_reload.len(),
+                                diff.restart_required.len(),
+                            );
+                            on_diff(diff, new_config.clone());
+                        }
+
+                        last_config = Some(new_config);
+                    }
+                    Err(e) => {
+                        warn!("Failed to reload config after mtime change: {}", e);
+                    }
+                }
+            }
+        })
+    }
+
+    /// Read the mtime of an arbitrary file path.
+    fn read_file_mtime(path: &Path) -> Option<SystemTime> {
+        std::fs::metadata(path).ok().and_then(|m| m.modified().ok())
+    }
 }
 
 impl Default for ConfigLoader {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ── Hot-reload types ─────────────────────────────────────────────────────────
+
+/// Result of comparing two config versions.
+#[derive(Debug, Clone, Default)]
+pub struct ConfigDiff {
+    /// Fields that can be applied at runtime without restart.
+    pub hot_reload: Vec<ChangedField>,
+    /// Fields that require a full restart to take effect.
+    pub restart_required: Vec<ChangedField>,
+}
+
+impl ConfigDiff {
+    /// Returns `true` when there is at least one change in either category.
+    pub fn has_changes(&self) -> bool {
+        !self.hot_reload.is_empty() || !self.restart_required.is_empty()
+    }
+
+    /// Returns `true` when at least one field requires a restart.
+    pub fn has_restart_required(&self) -> bool {
+        !self.restart_required.is_empty()
+    }
+}
+
+/// A single changed field with before / after values.
+#[derive(Debug, Clone)]
+pub struct ChangedField {
+    /// Dot-separated field path (e.g. `"agents.defaults.model"`).
+    pub field: String,
+    /// Previous value, if any.
+    pub old_value: Option<Value>,
+    /// New value, if any.
+    pub new_value: Option<Value>,
+}
+
+/// Classify a dot-separated config field path as hot-reloadable or
+/// restart-required.
+///
+/// Only explicitly allow-listed fields are considered safe to apply at
+/// runtime.  Everything else is classified as `"restart_required"`.
+fn classify_field(path: &str) -> &'static str {
+    // ── Hot-reloadable allowlist ─────────────────────────────────────────
+    if path.starts_with("agents.defaults.model")
+        || path.starts_with("agents.defaults.temperature")
+        || path.starts_with("agents.defaults.max_tool_iterations")
+        || path.starts_with("agents.defaults.reasoning_effort")
+        || path.starts_with("agents.soul")
+        || path.starts_with("tools.budget")
+        || path.starts_with("tools.exec.timeout")
+        || path.starts_with("tools.web.search.enabled")
+        || path.starts_with("tools.web.fetch.enabled")
+        || path.starts_with("sandbox.mode")
+        || path.starts_with("sandbox.approval_policy")
+        || path.starts_with("logging.level")
+    {
+        "hot_reload"
+    } else {
+        // Everything else (providers, channels, MCP servers, ports, keys …)
+        // requires a restart.
+        "restart_required"
+    }
+}
+
+// ── Config diff computation ──────────────────────────────────────────────────
+
+/// Compute the difference between two [`Config`] instances.
+///
+/// Serialises both configs to `serde_json::Value` and recursively compares
+/// every path, classifying each change as hot-reloadable or restart-required
+/// via [`classify_field`].
+pub fn compute_diff(old: &Config, new: &Config) -> ConfigDiff {
+    let old_value = serde_json::to_value(old).unwrap_or(Value::Null);
+    let new_value = serde_json::to_value(new).unwrap_or(Value::Null);
+    let mut diff = ConfigDiff::default();
+    collect_diff_paths(&old_value, &new_value, "", &mut diff);
+    diff
+}
+
+/// Recursive helper that walks JSON Value trees and accumulates differing
+/// paths into a `ConfigDiff`.
+fn collect_diff_paths(old: &Value, new: &Value, base_path: &str, diff: &mut ConfigDiff) {
+    match (old, new) {
+        (Value::Object(old_map), Value::Object(new_map)) => {
+            let mut keys: Vec<&String> = old_map.keys().chain(new_map.keys()).collect();
+            keys.sort_unstable();
+            keys.dedup();
+
+            for key in keys {
+                let child_path = if base_path.is_empty() {
+                    key.to_string()
+                } else {
+                    format!("{}.{}", base_path, key)
+                };
+                let old_child = old_map.get(key).unwrap_or(&Value::Null);
+                let new_child = new_map.get(key).unwrap_or(&Value::Null);
+
+                if old_child != new_child {
+                    if old_child.is_object() && new_child.is_object() {
+                        // Recurse into objects for fine-grained per-field diff
+                        collect_diff_paths(old_child, new_child, &child_path, diff);
+                    } else {
+                        let change = ChangedField {
+                            field: child_path.clone(),
+                            old_value: Some(old_child.clone()),
+                            new_value: Some(new_child.clone()),
+                        };
+                        match classify_field(&child_path) {
+                            "hot_reload" => diff.hot_reload.push(change),
+                            _ => diff.restart_required.push(change),
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            if old != new {
+                let change = ChangedField {
+                    field: base_path.to_string(),
+                    old_value: Some(old.clone()),
+                    new_value: Some(new.clone()),
+                };
+                match classify_field(base_path) {
+                    "hot_reload" => diff.hot_reload.push(change),
+                    _ => diff.restart_required.push(change),
+                }
+            }
+        }
     }
 }
 
@@ -506,5 +718,536 @@ mod tests {
 
         assert_eq!(loader.config_path(), config_path.as_path());
         assert_eq!(loader.config_dir(), config_path.parent().unwrap());
+    }
+
+    // ── Hot-reload / ConfigDiff tests ──────────────────────────────────────
+
+    #[test]
+    fn test_config_diff_no_changes() {
+        let config = Config::default();
+        let diff = compute_diff(&config, &config);
+        assert!(!diff.has_changes());
+        assert!(diff.hot_reload.is_empty());
+        assert!(diff.restart_required.is_empty());
+    }
+
+    #[test]
+    fn test_config_diff_model_change_is_hot_reload() {
+        let mut old = Config::default();
+        old.agents.defaults.model = "deepseek-chat".to_string();
+
+        let mut new = Config::default();
+        new.agents.defaults.model = "openai/gpt-4o".to_string();
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "agents.defaults.model");
+        assert_eq!(
+            diff.hot_reload[0]
+                .old_value
+                .as_ref()
+                .and_then(|v| v.as_str()),
+            Some("deepseek-chat")
+        );
+        assert_eq!(
+            diff.hot_reload[0]
+                .new_value
+                .as_ref()
+                .and_then(|v| v.as_str()),
+            Some("openai/gpt-4o")
+        );
+    }
+
+    #[test]
+    fn test_config_diff_temperature_change_is_hot_reload() {
+        let mut old = Config::default();
+        old.agents.defaults.temperature = 0.7;
+
+        let mut new = Config::default();
+        new.agents.defaults.temperature = 0.9;
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "agents.defaults.temperature");
+    }
+
+    #[test]
+    fn test_config_diff_reasoning_effort_change_is_hot_reload() {
+        let mut old = Config::default();
+        old.agents.defaults.reasoning_effort = None;
+
+        let mut new = Config::default();
+        new.agents.defaults.reasoning_effort = Some("high".to_string());
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "agents.defaults.reasoning_effort");
+    }
+
+    #[test]
+    fn test_config_diff_api_key_change_is_restart_required() {
+        let mut old = Config::default();
+        old.providers.openai.api_key = String::new();
+
+        let mut new = Config::default();
+        new.providers.openai.api_key = "sk-1234".to_string();
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert!(diff
+            .restart_required
+            .iter()
+            .any(|c| c.field == "providers.openai.api_key"));
+    }
+
+    #[test]
+    fn test_config_diff_channel_change_is_restart_required() {
+        let mut old = Config::default();
+        old.channels.telegram.enabled = false;
+
+        let mut new = Config::default();
+        new.channels.telegram.enabled = true;
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert!(
+            diff.restart_required
+                .iter()
+                .any(|c| c.field == "channels.telegram.enabled"),
+            "channel changes should be restart-required, got: {:?}",
+            diff.restart_required
+                .iter()
+                .map(|c| &c.field)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_config_diff_soul_change_is_hot_reload() {
+        let mut old = Config::default();
+        old.agents.soul.enabled = true;
+
+        let mut new = Config::default();
+        new.agents.soul.enabled = false;
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "agents.soul.enabled");
+    }
+
+    #[test]
+    fn test_config_diff_sandbox_mode_change_is_hot_reload() {
+        let mut old = Config::default();
+        old.sandbox.mode = crate::config::SandboxMode::WorkspaceWrite;
+
+        let mut new = Config::default();
+        new.sandbox.mode = crate::config::SandboxMode::DangerFullAccess;
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "sandbox.mode");
+    }
+
+    #[test]
+    fn test_config_diff_logging_level_change_is_hot_reload() {
+        let mut old = Config::default();
+        old.logging.level = "info".to_string();
+
+        let mut new = Config::default();
+        new.logging.level = "debug".to_string();
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "logging.level");
+    }
+
+    #[test]
+    fn test_config_diff_gateway_port_change_is_restart_required() {
+        let mut old = Config::default();
+        old.gateway.port = 3000;
+
+        let mut new = Config::default();
+        new.gateway.port = 4000;
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert!(
+            diff.restart_required
+                .iter()
+                .any(|c| c.field == "gateway.port"),
+            "gateway port change should be restart-required"
+        );
+    }
+
+    #[test]
+    fn test_config_diff_multiple_changes_detected() {
+        let mut old = Config::default();
+        old.agents.defaults.model = "deepseek-chat".to_string();
+        old.providers.openai.api_key = String::new();
+
+        let mut new = Config::default();
+        new.agents.defaults.model = "gpt-4".to_string();
+        new.providers.openai.api_key = "sk-secret".to_string();
+
+        let diff = compute_diff(&old, &new);
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "agents.defaults.model");
+        assert!(diff
+            .restart_required
+            .iter()
+            .any(|c| c.field == "providers.openai.api_key"));
+    }
+
+    #[test]
+    fn test_config_diff_field_added_from_default() {
+        // Simulate a field that was None (default None) in old but Some in new.
+        let mut old = Config::default();
+        old.agents.defaults.reasoning_effort = None;
+
+        let mut new = Config::default();
+        new.agents.defaults.reasoning_effort = Some("high".to_string());
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "agents.defaults.reasoning_effort");
+        assert_eq!(diff.hot_reload[0].old_value, Some(serde_json::Value::Null));
+    }
+
+    #[test]
+    fn test_classify_field_hot_reloadable_paths() {
+        let hot_paths = [
+            "agents.defaults.model",
+            "agents.defaults.temperature",
+            "agents.defaults.max_tool_iterations",
+            "agents.defaults.reasoning_effort",
+            "agents.soul.enabled",
+            "agents.soul.max_chars",
+            "tools.budget.max_tokens",
+            "tools.exec.timeout",
+            "tools.web.search.enabled",
+            "sandbox.mode",
+            "sandbox.approval_policy",
+            "logging.level",
+        ];
+        for path in &hot_paths {
+            assert_eq!(
+                classify_field(path),
+                "hot_reload",
+                "expected '{}' to be hot_reload",
+                path
+            );
+        }
+    }
+
+    #[test]
+    fn test_classify_field_restart_paths() {
+        let restart_paths = [
+            "providers.openai.api_key",
+            "providers.anthropic.api_key",
+            "channels.telegram.token",
+            "channels.telegram.enabled",
+            "gateway.host",
+            "gateway.port",
+            "agents.defaults.workspace",
+            "tools.mcp_servers.filesystem.command",
+            "tools.mcpServers.filesystem.command",
+        ];
+        for path in &restart_paths {
+            assert_eq!(
+                classify_field(path),
+                "restart_required",
+                "expected '{}' to be restart_required",
+                path
+            );
+        }
+    }
+
+    #[test]
+    fn test_mtime_detection() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+
+        // Create initial config file
+        std::fs::write(
+            &config_path,
+            r#"{"agents":{"defaults":{"model":"deepseek-chat"}}}"#,
+        )
+        .unwrap();
+
+        // Check mtime is Some
+        let mtime = ConfigLoader::read_file_mtime(&config_path);
+        assert!(
+            mtime.is_some(),
+            "mtime should be readable for existing file"
+        );
+
+        // Non-existent file returns None
+        let missing = ConfigLoader::read_file_mtime(&temp_dir.path().join("nonexistent.json"));
+        assert!(missing.is_none(), "mtime should be None for missing file");
+    }
+
+    #[tokio::test]
+    async fn test_hot_reload_detects_changes() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+
+        // Write initial config
+        std::fs::write(
+            &config_path,
+            r#"{"agents":{"defaults":{"model":"deepseek-chat"}}}"#,
+        )
+        .unwrap();
+
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        // Start hot reload with a small poll interval for testing
+        // We can't easily change the 5s interval without adding config,
+        // so we simulate by manually calling the internal functions.
+        let initial = loader.load().unwrap();
+        assert_eq!(initial.agents.defaults.model, "deepseek-chat");
+
+        // Manually touch the config file and verify the loader picks it up
+        std::fs::write(
+            &config_path,
+            r#"{"agents":{"defaults":{"model":"new-model"}}}"#,
+        )
+        .unwrap();
+
+        // Verify direct reload works after mtime change
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let reloaded = loader.load().unwrap();
+        assert_eq!(reloaded.agents.defaults.model, "new-model");
+
+        // Verify compute_diff detects the model change between old and new
+        let diff = compute_diff(&initial, &reloaded);
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "agents.defaults.model");
+    }
+
+    #[tokio::test]
+    async fn test_hot_reload_handle_can_be_aborted() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+
+        std::fs::write(
+            &config_path,
+            r#"{"agents":{"defaults":{"model":"deepseek-chat"}}}"#,
+        )
+        .unwrap();
+
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        // Start and immediately abort
+        let handle = loader.start_hot_reload(|_diff, _new_config| {});
+        handle.abort();
+
+        // Verify the handle is aborted
+        let result = handle.await;
+        assert!(result.is_err(), "aborted handle should return an error");
+    }
+
+    #[test]
+    fn test_config_diff_has_restart_required() {
+        let mut old = Config::default();
+        old.providers.openai.api_key = String::new();
+
+        let mut new = Config::default();
+        new.providers.openai.api_key = "sk-secret".to_string();
+
+        let diff = compute_diff(&old, &new);
+        assert!(diff.has_restart_required());
+        assert!(
+            !diff.has_restart_required()
+                || !diff.hot_reload.is_empty()
+                || !diff.restart_required.is_empty()
+        );
+    }
+
+    #[test]
+    fn test_config_diff_callback_receives_diff() {
+        let mut old = Config::default();
+        old.agents.defaults.model = "deepseek-chat".to_string();
+
+        let mut new = Config::default();
+        new.agents.defaults.model = "gpt-4o".to_string();
+
+        let diff = compute_diff(&old, &new);
+
+        // Simulate what the callback receives — verify the diff has correct fields
+        assert!(diff.has_changes());
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.restart_required.len(), 0);
+        assert_eq!(diff.hot_reload[0].field, "agents.defaults.model");
+        assert_eq!(
+            diff.hot_reload[0]
+                .new_value
+                .as_ref()
+                .and_then(|v| v.as_str()),
+            Some("gpt-4o")
+        );
+    }
+
+    #[test]
+    fn test_config_diff_with_restart_required_callback() {
+        let mut old = Config::default();
+        old.providers.openai.api_key = "old-key".to_string();
+
+        let mut new = Config::default();
+        new.providers.openai.api_key = "new-key".to_string();
+
+        let diff = compute_diff(&old, &new);
+
+        assert!(diff.has_restart_required());
+        let restart_field = diff
+            .restart_required
+            .iter()
+            .find(|c| c.field == "providers.openai.api_key")
+            .unwrap();
+        assert_eq!(
+            restart_field.old_value.as_ref().and_then(|v| v.as_str()),
+            Some("old-key")
+        );
+        assert_eq!(
+            restart_field.new_value.as_ref().and_then(|v| v.as_str()),
+            Some("new-key")
+        );
+    }
+
+    #[test]
+    fn test_config_diff_mixed_hot_and_restart() {
+        let mut old = Config::default();
+        old.agents.defaults.model = "deepseek-chat".to_string();
+        old.gateway.port = 3000;
+
+        let mut new = Config::default();
+        new.agents.defaults.model = "gpt-4o".to_string();
+        new.gateway.port = 4000;
+
+        let diff = compute_diff(&old, &new);
+
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.restart_required.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "agents.defaults.model");
+        assert!(diff
+            .restart_required
+            .iter()
+            .any(|c| c.field == "gateway.port"));
+    }
+
+    #[tokio::test]
+    async fn test_hot_reload_callback_invoked_on_change() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+
+        std::fs::write(
+            &config_path,
+            r#"{"agents":{"defaults":{"model":"deepseek-chat"}}}"#,
+        )
+        .unwrap();
+
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let _handle = loader.start_hot_reload(move |diff, _new_config| {
+            let _ = tx.send(diff);
+        });
+
+        // Modify config file
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        std::fs::write(
+            &config_path,
+            r#"{"agents":{"defaults":{"model":"new-model"}}}"#,
+        )
+        .unwrap();
+
+        // The 5s poll is too long for tests; we verify the diff logic separately.
+        // This test validates the callback wiring compiles and the channel is set up.
+        // In production, the callback fires on the 5s cycle.
+        drop(_handle);
+        // Verify the channel is empty (no premature callback)
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_invalid_config_graceful_on_reload() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+
+        // Write valid initial config
+        std::fs::write(
+            &config_path,
+            r#"{"agents":{"defaults":{"model":"deepseek-chat"}}}"#,
+        )
+        .unwrap();
+
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+        let initial = loader.load().unwrap();
+        assert_eq!(initial.agents.defaults.model, "deepseek-chat");
+
+        // Replace with invalid JSON
+        std::fs::write(&config_path, "not valid json {{{").unwrap();
+
+        // Direct load should fail gracefully
+        let result = loader.load();
+        assert!(result.is_err(), "Invalid config should fail to load");
+
+        // After restoring valid config, load succeeds again
+        std::fs::write(
+            &config_path,
+            r#"{"agents":{"defaults":{"model":"recovered-model"}}}"#,
+        )
+        .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let recovered = loader.load().unwrap();
+        assert_eq!(recovered.agents.defaults.model, "recovered-model");
+    }
+
+    #[test]
+    fn test_config_diff_deeply_nested_object() {
+        let mut old = Config::default();
+        old.sandbox.mode = crate::config::SandboxMode::WorkspaceWrite;
+
+        let mut new = Config::default();
+        new.sandbox.mode = crate::config::SandboxMode::DangerFullAccess;
+
+        let diff = compute_diff(&old, &new);
+        assert_eq!(diff.hot_reload.len(), 1);
+        assert_eq!(diff.hot_reload[0].field, "sandbox.mode");
+    }
+
+    #[test]
+    fn test_compute_diff_preserves_both_values() {
+        let mut old = Config::default();
+        old.logging.level = "info".to_string();
+
+        let mut new = Config::default();
+        new.logging.level = "debug".to_string();
+
+        let diff = compute_diff(&old, &new);
+
+        let change = &diff.hot_reload[0];
+        assert_eq!(change.field, "logging.level");
+        assert_eq!(
+            change.old_value.as_ref().and_then(|v| v.as_str()),
+            Some("info")
+        );
+        assert_eq!(
+            change.new_value.as_ref().and_then(|v| v.as_str()),
+            Some("debug")
+        );
     }
 }

@@ -339,6 +339,7 @@ mod tests {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            token_usage: None,
         }
     }
 

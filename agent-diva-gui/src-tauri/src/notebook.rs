@@ -17,7 +17,11 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const MAX_RENDER_LINES: usize = 5_000;
+// Monthly generation pipeline: public API reserved for future Tauri command wiring.
+// Suppress dead_code until the GUI command layer is connected.
+#[allow(dead_code)]
 const REPORT_SYSTEM_GENERATED_BY: &str = "agent-diva-report-system";
+#[allow(dead_code)]
 const REPORT_SYSTEM_SCHEMA_VERSION: u8 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,6 +91,7 @@ struct ReportFrontmatter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct NotebookGenerationResult {
     pub path: PathBuf,
     pub date_key: String,
@@ -245,6 +250,7 @@ pub fn search_notebook_session_evidence(
         .map_err(|error| format!("failed to search session evidence: {error}"))
 }
 
+#[allow(dead_code)]
 pub fn generate_monthly_notebook_report(
     workspace: &Path,
 ) -> Result<NotebookGenerationResult, String> {
@@ -257,6 +263,7 @@ pub fn generate_monthly_notebook_report(
     )
 }
 
+#[allow(dead_code)]
 fn generate_monthly_notebook_report_for(
     workspace: &Path,
     year: i32,
@@ -611,6 +618,7 @@ fn schema_version_to_string(value: &serde_yaml::Value) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn render_monthly_report_content(
     workspace: &Path,
     year: i32,
@@ -741,6 +749,7 @@ fn render_monthly_report_content(
     Ok(markdown)
 }
 
+#[allow(dead_code)]
 fn render_monthly_synthesis_paragraphs(
     month_key: &str,
     daily_inputs: &[(NaiveDate, PathBuf, RhythmReportDocument)],
@@ -781,6 +790,7 @@ fn render_monthly_synthesis_paragraphs(
     format!("{}\n", paragraphs.join("\n\n"))
 }
 
+#[allow(dead_code)]
 fn dates_in_month(year: i32, month: u32) -> Result<Vec<NaiveDate>, String> {
     let start = NaiveDate::from_ymd_opt(year, month, 1)
         .ok_or_else(|| format!("invalid month key: {year:04}-{month:02}"))?;
@@ -801,6 +811,7 @@ fn dates_in_month(year: i32, month: u32) -> Result<Vec<NaiveDate>, String> {
     Ok(dates)
 }
 
+#[allow(dead_code)]
 fn write_monthly_error_marker(path: &Path, month_key: &str, generated_at: &str, error: &str) {
     let error_path = path.with_extension("error.json");
     let payload = serde_json::json!({
@@ -814,11 +825,13 @@ fn write_monthly_error_marker(path: &Path, month_key: &str, generated_at: &str, 
     }
 }
 
+#[allow(dead_code)]
 fn remove_monthly_error_marker(path: &Path) {
     let error_path = path.with_extension("error.json");
     let _ = fs::remove_file(error_path);
 }
 
+#[allow(dead_code)]
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let parent = path
         .parent()
@@ -844,6 +857,7 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn temp_path(path: &Path) -> PathBuf {
     let file_name = path
         .file_name()
@@ -852,6 +866,7 @@ fn temp_path(path: &Path) -> PathBuf {
     path.with_file_name(format!(".{file_name}.tmp"))
 }
 
+#[allow(dead_code)]
 fn sync_parent_dir(parent: &Path) {
     if let Ok(dir) = fs::File::open(parent) {
         let _ = dir.sync_all();
@@ -916,7 +931,7 @@ Summary paragraph.
             Some("agent-diva-autodream")
         );
         assert_eq!(
-            reports[0].source_path,
+            reports[0].source_path.replace('\\', "/"),
             ".agent-diva/autodream/reports/daily/2026-06-14.md"
         );
     }
@@ -992,7 +1007,10 @@ Should not be read.
         let reports = load_notebook_reports(temp.path(), NotebookPeriod::Monthly).unwrap();
         assert_eq!(reports.len(), 1);
         assert_eq!(reports[0].title, "June Report");
-        assert_eq!(reports[0].source_path, "reports/monthly/2026-06.md");
+        assert_eq!(
+            reports[0].source_path.replace('\\', "/"),
+            "reports/monthly/2026-06.md"
+        );
     }
 
     #[test]

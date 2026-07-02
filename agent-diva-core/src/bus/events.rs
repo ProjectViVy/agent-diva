@@ -154,6 +154,12 @@ pub enum PokeEvent {
         model: String,
         provider: String,
     },
+    /// Config hot-reload: some fields changed but require restart.
+    /// Emitted so the GUI can show a "restart required" indicator.
+    ConfigChangeNeedsRestart {
+        /// Dot-separated field paths that require restart.
+        fields: Vec<String>,
+    },
 }
 
 impl OutboundMessage {

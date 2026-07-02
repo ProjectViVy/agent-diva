@@ -78,9 +78,9 @@ pub struct BaseChannel {
     pub config: Config,
     /// Running state
     pub running: bool,
-    /// Allowed senders list (empty = allow all)
+    /// Allowed senders list (empty + deny_by_default = deny all)
     pub allow_from: Vec<String>,
-    /// Whether to deny by default when allow_from is empty
+    /// Whether to deny by default when allow_from is empty (default: true)
     pub deny_by_default: bool,
     /// Inbound message sender
     pub inbound_tx: Option<mpsc::Sender<InboundMessage>>,
@@ -88,8 +88,13 @@ pub struct BaseChannel {
 
 impl BaseChannel {
     /// Create a new base channel
+    ///
+    /// **Breaking change (deny-by-default):** An empty `allow_from` list now
+    /// means "deny all senders" instead of "allow all". Set `deny_by_default`
+    /// to `false` explicitly via [`with_default_policy`] if the old behaviour
+    /// is required.
     pub fn new(name: impl Into<String>, config: Config, allow_from: Vec<String>) -> Self {
-        Self::with_default_policy(name, config, allow_from, false)
+        Self::with_default_policy(name, config, allow_from, true)
     }
 
     /// Create a new base channel with specific deny_by_default policy
@@ -228,14 +233,61 @@ impl BaseChannel {
 /// Shared channel handler type
 pub type ChannelHandlerPtr = Arc<RwLock<dyn ChannelHandler>>;
 
+// ---------------------------------------------------------------------------
+// Validation helpers
+// ---------------------------------------------------------------------------
+
+/// Validate a channel session key.
+///
+/// Session keys must match the pattern `sk_chan_[A-Za-z0-9]{32}`.
+pub fn validate_session_key(key: &str) -> std::result::Result<(), String> {
+    let pattern = regex::Regex::new(r"^sk_chan_[A-Za-z0-9]{32}$")
+        .unwrap_or_else(|e| unreachable!("hardcoded session-key regex is valid: {}", e));
+    if pattern.is_match(key) {
+        Ok(())
+    } else {
+        Err(format!(
+            "invalid session key: must match sk_chan_[A-Za-z0-9]{{32}}, got {:?}",
+            key
+        ))
+    }
+}
+
+/// Validate a Neuro-link host address.
+///
+/// Returns `Ok(())` if the host is `127.0.0.1` or `localhost`.
+/// Returns a warning-style `Err` for non-localhost addresses so callers
+/// can decide whether to proceed.
+pub fn validate_neurolink_host(host: &str) -> std::result::Result<(), String> {
+    match host {
+        "127.0.0.1" | "localhost" => Ok(()),
+        _ => Err(format!(
+            "neuro-link host {} is not localhost — binding to non-loopback addresses may expose the channel to remote connections",
+            host
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_base_channel_is_allowed_empty_list() {
+    fn test_base_channel_is_allowed_empty_list_deny_by_default() {
         let config = Config::default();
+        // new() now defaults to deny_by_default = true
         let channel = BaseChannel::new("test", config, vec![]);
+
+        assert!(!channel.is_allowed("user1"));
+        assert!(!channel.is_allowed("12345"));
+        assert!(!channel.is_allowed("anyone"));
+    }
+
+    #[test]
+    fn test_base_channel_is_allowed_empty_list_allow_all() {
+        let config = Config::default();
+        // Explicitly opt in to the old allow-all behaviour
+        let channel = BaseChannel::with_default_policy("test", config, vec![], false);
 
         assert!(channel.is_allowed("user1"));
         assert!(channel.is_allowed("12345"));
@@ -301,5 +353,72 @@ mod tests {
 
         let err = ChannelError::AccessDenied("user1".to_string());
         assert_eq!(err.to_string(), "Access denied for sender: user1");
+    }
+
+    // -- session key validation ---------------------------------------------
+
+    #[test]
+    fn test_validate_session_key_valid() {
+        let key = "sk_chan_abcdefghijklmnopqrstuvwxyz123456"; // 32 alphanums
+        assert!(validate_session_key(key).is_ok());
+    }
+
+    #[test]
+    fn test_validate_session_key_invalid_prefix() {
+        let key = "sk_other_abcdefghijklmnopqrstuvwxyz123456";
+        assert!(validate_session_key(key).is_err());
+    }
+
+    #[test]
+    fn test_validate_session_key_too_short() {
+        let key = "sk_chan_abc";
+        assert!(validate_session_key(key).is_err());
+    }
+
+    #[test]
+    fn test_validate_session_key_special_chars() {
+        let key = "sk_chan_abcdefghijklmnopqrstuvwxyz12345!"; // '!' is invalid
+        assert!(validate_session_key(key).is_err());
+    }
+
+    #[test]
+    fn test_validate_session_key_empty() {
+        assert!(validate_session_key("").is_err());
+    }
+
+    // -- neurolink host validation ------------------------------------------
+
+    #[test]
+    fn test_validate_neurolink_host_localhost() {
+        assert!(validate_neurolink_host("127.0.0.1").is_ok());
+        assert!(validate_neurolink_host("localhost").is_ok());
+    }
+
+    #[test]
+    fn test_validate_neurolink_host_non_localhost_warns() {
+        let result = validate_neurolink_host("0.0.0.0");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("0.0.0.0"));
+    }
+    #[test]
+    fn test_validate_neurolink_host_external_warns() {
+        let result = validate_neurolink_host("192.168.1.1");
+        assert!(result.is_err());
+    }
+
+    // -- populated allow_from with deny_by_default --------------------------
+
+    #[test]
+    fn test_base_channel_populated_allow_from_allows_matching() {
+        let config = Config::default();
+        let channel = BaseChannel::new(
+            "test",
+            config,
+            vec!["user1".to_string(), "12345".to_string()],
+        );
+        // deny_by_default is true but allow_from is populated → matching works
+        assert!(channel.is_allowed("user1"));
+        assert!(channel.is_allowed("12345"));
+        assert!(!channel.is_allowed("unknown"));
     }
 }

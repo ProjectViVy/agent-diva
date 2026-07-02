@@ -24,6 +24,9 @@ pub enum ProviderError {
 
     #[error("Configuration error: {0}")]
     ConfigError(String),
+
+    #[error("Rate limited")]
+    RateLimited { retry_after: Option<u64> },
 }
 
 pub type ProviderResult<T> = Result<T, ProviderError>;

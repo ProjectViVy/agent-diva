@@ -202,6 +202,9 @@ impl SubagentManager {
         let display_label_clone = display_label.clone();
         let running_tasks = Arc::clone(&self.running_tasks);
 
+        // Resolve max_iterations for this subagent
+        let max_iterations = SubagentManager::resolve_max_iterations(None, None);
+
         // Create background task
         let bg_task = tokio::spawn(async move {
             Self::run_subagent(
@@ -220,6 +223,7 @@ impl SubagentManager {
                 restrict_to_workspace,
                 mcp_servers,
                 memory_provider,
+                max_iterations,
             )
             .await;
 
@@ -261,10 +265,23 @@ impl SubagentManager {
         let restrict_to_workspace = self.restrict_to_workspace;
         let mcp_servers = self.mcp_servers.read().await.clone();
         let memory_provider = Arc::clone(&self.memory_provider);
+        let running_tasks = Arc::clone(&self.running_tasks);
+
+        // Resolve max_iterations once for the entire batch
+        let max_iterations = request
+            .max_iterations
+            .unwrap_or_else(|| SubagentManager::resolve_max_iterations(None, None));
 
         let mut join_set = JoinSet::new();
         let mut tasks = VecDeque::from(request.tasks);
         let max_concurrent = MAX_CONCURRENT_SUBAGENTS.max(1);
+
+        // Register a sentinel in running_tasks so cancellation has visibility
+        let batch_id = format!("batch-{}", &Uuid::new_v4().to_string()[..8]);
+        {
+            let mut tasks_map = running_tasks.lock().await;
+            tasks_map.insert(batch_id.clone(), tokio::spawn(async {}));
+        }
 
         for _ in 0..max_concurrent {
             let Some(task) = tasks.pop_front() else {
@@ -292,6 +309,7 @@ impl SubagentManager {
                     restrict_to_workspace,
                     &mcp_servers,
                     memory_provider.clone(),
+                    max_iterations,
                 )
                 .await
             });
@@ -339,10 +357,17 @@ impl SubagentManager {
                         restrict_to_workspace,
                         &mcp_servers,
                         memory_provider.clone(),
+                        max_iterations,
                     )
                     .await
                 });
             }
+        }
+
+        // Remove the batch sentinel from running_tasks
+        {
+            let mut tasks_map = running_tasks.lock().await;
+            tasks_map.remove(&batch_id);
         }
 
         results
@@ -366,6 +391,7 @@ impl SubagentManager {
         restrict_to_workspace: bool,
         mcp_servers: &HashMap<String, MCPServerConfig>,
         memory_provider: Arc<dyn MemoryProvider>,
+        max_iterations: u32,
     ) -> SubAgentResult {
         let start = Instant::now();
         let task_prompt = match &context {
@@ -389,6 +415,7 @@ impl SubagentManager {
                 restrict_to_workspace,
                 mcp_servers,
                 memory_provider,
+                max_iterations,
             ),
         )
         .await;
@@ -396,7 +423,7 @@ impl SubagentManager {
         let elapsed_ms = start.elapsed().as_millis() as u64;
 
         match exec_result {
-            Ok(Ok((summary, tool_call_count, tool_trace))) => {
+            Ok(Ok((summary, tool_call_count, tool_trace, usage))) => {
                 info!(
                     "Batch subagent [{}] completed in {}ms ({} tool calls)",
                     task_id, elapsed_ms, tool_call_count
@@ -407,7 +434,7 @@ impl SubagentManager {
                     summary: Some(summary),
                     elapsed_ms,
                     tool_call_count,
-                    token_usage: None,
+                    token_usage: extract_token_usage(&usage),
                     tool_trace: Some(tool_trace),
                 }
             }
@@ -537,6 +564,8 @@ impl SubagentManager {
     }
 
     /// Execute the subagent task with LLM and tools
+    ///
+    /// Returns `(final_text, token_usage)` on success.
     #[allow(clippy::too_many_arguments)]
     async fn execute_subagent_task(
         task_id: &str,
@@ -550,7 +579,8 @@ impl SubagentManager {
         restrict_to_workspace: bool,
         mcp_servers: &HashMap<String, MCPServerConfig>,
         memory_provider: Arc<dyn MemoryProvider>,
-    ) -> Result<String> {
+        max_iterations: u32,
+    ) -> Result<(String, HashMap<String, i64>)> {
         let tools: ToolRegistry = ToolAssembly::new(workspace.to_path_buf())
             .builtin(builtin_tools.clone())
             .with_network_config(network_config.clone())
@@ -567,9 +597,9 @@ impl SubagentManager {
         ];
 
         // Run agent loop (limited iterations)
-        let max_iterations = 15;
         let mut iteration = 0;
         let mut final_result: Option<String> = None;
+        let mut final_usage: HashMap<String, i64> = HashMap::new();
 
         while iteration < max_iterations {
             iteration += 1;
@@ -583,6 +613,11 @@ impl SubagentManager {
                     0.7,
                 )
                 .await?;
+
+            // Capture usage from each response; last non-empty one wins
+            if !response.usage.is_empty() {
+                final_usage = response.usage.clone();
+            }
 
             if response.has_tool_calls() {
                 // Add assistant message with tool calls
@@ -618,8 +653,9 @@ impl SubagentManager {
             }
         }
 
-        Ok(final_result
-            .unwrap_or_else(|| "Task completed but no final response was generated.".to_string()))
+        let result_text = final_result
+            .unwrap_or_else(|| "Task completed but no final response was generated.".to_string());
+        Ok((result_text, final_usage))
     }
 
     /// Announce the subagent result to the main agent via the message bus
@@ -770,6 +806,7 @@ When you have completed the task, provide a clear summary of your findings or ac
         restrict_to_workspace: bool,
         mcp_servers: HashMap<String, MCPServerConfig>,
         memory_provider: Arc<dyn MemoryProvider>,
+        max_iterations: u32,
     ) {
         info!("Subagent [{}] starting task: {}", task_id, label);
 
@@ -785,12 +822,16 @@ When you have completed the task, provide a clear summary of your findings or ac
             restrict_to_workspace,
             &mcp_servers,
             memory_provider,
+            max_iterations,
         )
         .await;
 
         let (final_result, status) = match result {
-            Ok(content) => {
+            Ok((content, usage)) => {
                 info!("Subagent [{}] completed successfully", task_id);
+                if !usage.is_empty() {
+                    debug!("Subagent [{}] token usage: {:?}", task_id, usage);
+                }
                 (content, "ok")
             }
             Err(e) => {
@@ -833,20 +874,16 @@ fn extract_token_usage(usage: &HashMap<String, i64>) -> Option<TokenUsage> {
     }
     Some(TokenUsage {
         prompt_tokens: usage.get("prompt_tokens").copied().unwrap_or(0).max(0) as u32,
-        completion_tokens: usage
-            .get("completion_tokens")
-            .copied()
-            .unwrap_or(0)
-            .max(0) as u32,
+        completion_tokens: usage.get("completion_tokens").copied().unwrap_or(0).max(0) as u32,
         total_tokens: usage.get("total_tokens").copied().unwrap_or(0).max(0) as u32,
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::SubagentManager;
+    use super::{extract_token_usage, SubagentManager};
     use agent_diva_core::config::schema::{
-        BatchSpawnRequest, MaskConfig, SubAgentStatus, SubAgentTask, SubagentDefaults,
+        BatchSpawnRequest, MaskConfig, SubAgentStatus, SubAgentTask, SubagentDefaults, TokenUsage,
     };
     use agent_diva_core::memory::{
         MemoryProvider, StartupInjectionShape, SystemPromptBlock, SystemPromptRequest,
@@ -1031,7 +1068,7 @@ mod tests {
             temp.path(),
             &TestMemoryProvider,
         );
-        assert!(prompt.contains("No applied Laputa authority context is available"));
+        assert!(prompt.contains("## Applied Laputa Authority"));
         assert!(!prompt.contains("### SOUL.md"));
         assert!(!prompt.contains("### IDENTITY.md"));
         assert!(!prompt.contains("### USER.md"));
@@ -1117,12 +1154,24 @@ mod tests {
             summary: Some("Done".to_string()),
             elapsed_ms: 100,
             tool_call_count: 3,
-            token_usage: None,
+            token_usage: Some(TokenUsage {
+                prompt_tokens: 50,
+                completion_tokens: 100,
+                total_tokens: 150,
+            }),
             tool_trace: Some(vec!["read_file".to_string(), "write_file".to_string()]),
         };
         assert_eq!(result.task_id, "batch-task-1");
         assert_eq!(result.status, SubAgentStatus::Ok);
         assert_eq!(result.tool_call_count, 3);
+        assert_eq!(
+            result.token_usage,
+            Some(TokenUsage {
+                prompt_tokens: 50,
+                completion_tokens: 100,
+                total_tokens: 150,
+            })
+        );
         assert!(result.tool_trace.is_some());
         assert_eq!(result.tool_trace.unwrap().len(), 2);
     }
@@ -1139,5 +1188,87 @@ mod tests {
             tool_trace: None,
         };
         assert_eq!(result.status, SubAgentStatus::Timeout);
+    }
+
+    // ── extract_token_usage tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_extract_token_usage_empty_returns_none() {
+        let empty: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        assert_eq!(extract_token_usage(&empty), None);
+    }
+
+    #[test]
+    fn test_extract_token_usage_full_map() {
+        let mut usage = std::collections::HashMap::new();
+        usage.insert("prompt_tokens".to_string(), 50);
+        usage.insert("completion_tokens".to_string(), 100);
+        usage.insert("total_tokens".to_string(), 150);
+        let result = extract_token_usage(&usage);
+        assert_eq!(
+            result,
+            Some(TokenUsage {
+                prompt_tokens: 50,
+                completion_tokens: 100,
+                total_tokens: 150,
+            })
+        );
+    }
+
+    #[test]
+    fn test_extract_token_usage_partial_map() {
+        let mut usage = std::collections::HashMap::new();
+        usage.insert("total_tokens".to_string(), 200);
+        let result = extract_token_usage(&usage);
+        assert_eq!(
+            result,
+            Some(TokenUsage {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 200,
+            })
+        );
+    }
+
+    #[test]
+    fn test_extract_token_usage_negative_value_clamped() {
+        let mut usage = std::collections::HashMap::new();
+        usage.insert("prompt_tokens".to_string(), -5);
+        usage.insert("completion_tokens".to_string(), 42);
+        usage.insert("total_tokens".to_string(), 37);
+        let result = extract_token_usage(&usage);
+        assert_eq!(
+            result,
+            Some(TokenUsage {
+                prompt_tokens: 0,
+                completion_tokens: 42,
+                total_tokens: 37,
+            })
+        );
+    }
+
+    #[test]
+    fn test_resolve_max_iterations_default_value() {
+        // Assert that the default is 30 (not the old hardcoded 15)
+        assert_eq!(SubagentManager::resolve_max_iterations(None, None), 30);
+    }
+
+    #[test]
+    fn test_batch_spawn_request_max_iterations_field() {
+        let request = BatchSpawnRequest {
+            tasks: vec![SubAgentTask {
+                id: "t1".to_string(),
+                goal: "test".to_string(),
+                context: None,
+            }],
+            max_iterations: Some(15),
+        };
+        assert_eq!(request.max_iterations, Some(15));
+
+        let request_none = BatchSpawnRequest {
+            tasks: vec![],
+            max_iterations: None,
+        };
+        assert_eq!(request_none.max_iterations, None);
     }
 }

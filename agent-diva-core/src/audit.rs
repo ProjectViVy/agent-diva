@@ -10,6 +10,8 @@
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::presence::PresenceState;
+
 /// Severity levels for security-related events.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -21,20 +23,11 @@ pub enum Severity {
 }
 
 /// Severity levels for PII detection.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PiiSeverity {
     Warning,
     Error,
-}
-
-/// User presence states.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum PresenceState {
-    Active,
-    Distracted,
-    Gone,
 }
 
 /// All auditable system events.

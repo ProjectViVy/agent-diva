@@ -226,6 +226,9 @@ pub struct SubAgentTask {
 pub struct BatchSpawnRequest {
     /// The tasks to execute concurrently
     pub tasks: Vec<SubAgentTask>,
+    /// Optional maximum iterations per subagent (defaults via resolve_max_iterations)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_iterations: Option<u32>,
 }
 
 /// Root configuration for agent-diva
@@ -1678,6 +1681,7 @@ mod tests {
                     context: None,
                 },
             ],
+            max_iterations: None,
         };
 
         let json = serde_json::to_string_pretty(&req).unwrap();
@@ -1692,7 +1696,10 @@ mod tests {
 
     #[test]
     fn batch_spawn_request_empty_tasks() {
-        let req = BatchSpawnRequest { tasks: vec![] };
+        let req = BatchSpawnRequest {
+            tasks: vec![],
+            max_iterations: None,
+        };
         let json = serde_json::to_string(&req).unwrap();
         assert_eq!(json, r#"{"tasks":[]}"#);
         let back: BatchSpawnRequest = serde_json::from_str(&json).unwrap();

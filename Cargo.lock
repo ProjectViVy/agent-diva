@@ -349,6 +349,7 @@ dependencies = [
  "http 1.4.0",
  "mockito",
  "native-tls",
+ "rand 0.8.5",
  "regex",
  "reqwest 0.11.27",
  "serde",

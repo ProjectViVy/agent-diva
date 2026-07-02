@@ -30,6 +30,72 @@ pub struct QualityReport {
 }
 
 // ---------------------------------------------------------------------------
+// QualityGate — configurable threshold gate
+// ---------------------------------------------------------------------------
+
+/// Configurable quality gate for consolidation summary validation.
+///
+/// Wraps [`validate_summary`] with configurable thresholds for completeness
+/// and keyword coverage, plus a retry budget. Used by the consolidation
+/// flow to decide whether to accept a summary or retry.
+#[derive(Debug, Clone)]
+pub struct QualityGate {
+    /// Minimum completeness sub-score (0.0–1.0) to pass.
+    pub min_completeness: f64,
+    /// Minimum keyword coverage sub-score (0.0–1.0) to pass.
+    pub min_keyword_coverage: f64,
+    /// Minimum composite score (0.0–1.0) to pass.
+    pub min_score: f64,
+    /// Maximum retry attempts when quality check fails (default: 2).
+    pub max_retry: u32,
+}
+
+impl Default for QualityGate {
+    fn default() -> Self {
+        Self {
+            min_completeness: 0.4,
+            min_keyword_coverage: 0.2,
+            min_score: 0.5,
+            max_retry: 2,
+        }
+    }
+}
+
+/// Result of a [`QualityGate`] evaluation.
+#[derive(Debug, Clone)]
+pub struct QualityResult {
+    /// Overall composite score (0.0–1.0).
+    pub score: f64,
+    /// Completeness sub-score (0.0–1.0).
+    pub completeness: f64,
+    /// Keyword coverage sub-score (0.0–1.0).
+    pub keyword_coverage: f64,
+    /// Whether the summary passes the quality gate.
+    pub passes: bool,
+    /// Human-readable issues from the evaluation.
+    pub issues: Vec<String>,
+}
+
+impl QualityGate {
+    /// Evaluate a summary against the source messages using this gate's thresholds.
+    pub fn evaluate(&self, summary: &str, source_messages: &[ChatMessage]) -> QualityResult {
+        let report = validate_summary(summary, source_messages);
+
+        let passes = report.score >= self.min_score
+            && report.completeness_score >= self.min_completeness
+            && report.keyword_score >= self.min_keyword_coverage;
+
+        QualityResult {
+            score: report.score,
+            completeness: report.completeness_score,
+            keyword_coverage: report.keyword_score,
+            passes,
+            issues: report.issues,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Keyword extraction
 // ---------------------------------------------------------------------------
 
@@ -254,6 +320,7 @@ mod tests {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            token_usage: None,
         }
     }
 
@@ -445,5 +512,95 @@ mod tests {
         let sources = vec![make_msg("user", &"x".repeat(5000))];
         let report = validate_summary("短", &sources);
         assert!(report.score >= 0.0 && report.score <= 1.0);
+    }
+
+    // -- QualityGate --
+
+    #[test]
+    fn test_quality_gate_default_values() {
+        let gate = QualityGate::default();
+        assert!((gate.min_completeness - 0.4).abs() < f64::EPSILON);
+        assert!((gate.min_keyword_coverage - 0.2).abs() < f64::EPSILON);
+        assert!((gate.min_score - 0.5).abs() < f64::EPSILON);
+        assert_eq!(gate.max_retry, 2);
+    }
+
+    #[test]
+    fn test_quality_gate_pass_good_summary() {
+        let gate = QualityGate::default();
+        let sources = vec![
+            make_msg("user", "请帮我修改 src/main.rs 文件中的配置"),
+            make_msg(
+                "assistant",
+                "已修改配置文件，添加了新的 config 选项。编译通过。",
+            ),
+        ];
+        let summary =
+            "用户请求修改 src/main.rs 配置文件，助手成功添加了新的 config 选项，项目编译顺利通过。";
+        let result = gate.evaluate(summary, &sources);
+        assert!(
+            result.passes,
+            "good summary should pass, score={:.2}",
+            result.score
+        );
+        assert!(result.score >= 0.5);
+    }
+
+    #[test]
+    fn test_quality_gate_fail_empty_summary() {
+        let gate = QualityGate::default();
+        let sources = vec![make_msg("user", "测试内容")];
+        let result = gate.evaluate("", &sources);
+        assert!(!result.passes, "empty summary should fail");
+        assert!(!result.issues.is_empty());
+    }
+
+    #[test]
+    fn test_quality_gate_fail_too_short() {
+        let gate = QualityGate::default();
+        let sources = vec![
+            make_msg("user", "请帮我修改 src/main.rs 文件中的配置"),
+            make_msg("assistant", "已修改配置文件"),
+        ];
+        let result = gate.evaluate("嗯", &sources);
+        assert!(!result.passes, "too-short summary should fail");
+    }
+
+    #[test]
+    fn test_quality_gate_custom_thresholds() {
+        // Very strict gate
+        let gate = QualityGate {
+            min_completeness: 0.9,
+            min_keyword_coverage: 0.8,
+            min_score: 0.9,
+            max_retry: 0,
+        };
+        let sources = vec![
+            make_msg("user", "请帮我修改 src/main.rs 文件中的配置"),
+            make_msg(
+                "assistant",
+                "已修改配置文件，添加了新的 config 选项。编译通过。",
+            ),
+        ];
+        let summary =
+            "用户请求修改 src/main.rs 配置文件，助手成功添加了新的 config 选项，项目编译顺利通过。";
+        let result = gate.evaluate(summary, &sources);
+        // With very strict thresholds, even a decent summary may not pass
+        // The important thing is that the gate applies the thresholds correctly
+        assert!(
+            result.score < 0.9 || !result.passes,
+            "strict gate should reject or score below 0.9"
+        );
+    }
+
+    #[test]
+    fn test_quality_gate_zero_retry() {
+        let gate = QualityGate {
+            min_completeness: 0.4,
+            min_keyword_coverage: 0.2,
+            min_score: 0.5,
+            max_retry: 0,
+        };
+        assert_eq!(gate.max_retry, 0);
     }
 }

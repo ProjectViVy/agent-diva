@@ -1,4 +1,76 @@
 use super::*;
+use agent_diva_core::bus::PokeEvent;
+use agent_diva_core::config::{Config, ConfigDiff};
+use std::sync::Arc;
+
+// ---------------------------------------------------------------------------
+//  Story 3.2 migration path (WIP):
+//
+//  The bootstrap code is being migrated from hard-coded service assembly
+//  to a ModuleRegistry-based pattern. The Module trait, ModuleCtx,
+//  ModuleRegistry, and Bootstrap are defined in agent-diva-tooling.
+//
+//  Migration plan:
+//    1. ✅ Module trait + ModuleCtx defined (Story 3.1)
+//    2. ✅ ModuleRegistry + Bootstrap + tests (Story 3.2 — this story)
+//    3. 🔲 Create Module wrapper adapters for CronService, AgentLoop, etc.
+//    4. 🔲 Replace manual construction with registry.register(Arc::new(...))
+//    5. 🔲 Use Bootstrap::start_all(ctx) instead of manual assembly
+//    6. 🔲 Refactor shutdown to use Bootstrap::stop_all()
+//
+//  The existing bootstrap_runtime() below continues to work unchanged.
+// ---------------------------------------------------------------------------
+
+/// Handle a config diff detected by the hot-reload watcher.
+///
+/// Updates the shared `Arc<RwLock<Config>>`, logs changes, and emits
+/// a `ConfigChangeNeedsRestart` poke event when restart-required fields
+/// are detected.
+///
+/// ## Module propagation (AC3)
+///
+/// When modules are migrated to `ModuleRegistry` (step 3 in the migration
+/// plan), the hot-reload handler will call `module.on_config_reload()`
+/// for each registered module.  Until then, hot-reloadable changes are
+/// applied to the shared config `Arc`, and any modules that read from
+/// it will see updated values.
+fn handle_config_diff(diff: ConfigDiff, _new_config: Config, bus: &MessageBus) {
+    let restart_fields: Vec<String> = diff
+        .restart_required
+        .iter()
+        .map(|c| c.field.clone())
+        .collect();
+
+    for change in &diff.restart_required {
+        tracing::warn!(
+            "Config change '{}' requires restart to take effect (was: {:?}, now: {:?})",
+            change.field,
+            change.old_value,
+            change.new_value,
+        );
+    }
+    if !diff.hot_reload.is_empty() {
+        tracing::info!(
+            "Hot-reloadable config changes detected ({} field(s))",
+            diff.hot_reload.len()
+        );
+        for change in &diff.hot_reload {
+            tracing::info!(
+                "  - {}: {:?} -> {:?}",
+                change.field,
+                change.old_value,
+                change.new_value,
+            );
+        }
+    }
+
+    // Emit poke event so the GUI can show a "restart required" indicator (AC4).
+    if !restart_fields.is_empty() {
+        let _ = bus.publish_poke_event(PokeEvent::ConfigChangeNeedsRestart {
+            fields: restart_fields,
+        });
+    }
+}
 
 pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<GatewayBootstrap> {
     let GatewayRuntimeConfig {
@@ -10,6 +82,15 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     } = runtime;
 
     let bus = MessageBus::new();
+    let bus_for_hotreload = bus.clone();
+
+    // Start config hot-reload background task.
+    // The handle is intentionally dropped — the tokio runtime will clean up
+    // the task on shutdown.
+    let _hot_reload_handle = loader.start_hot_reload(move |diff, new_config| {
+        handle_config_diff(diff, new_config, &bus_for_hotreload);
+    });
+
     let cron_service = start_cron_service(cron_store, bus.clone(), workspace.clone()).await;
     ensure_notebook_monthly_cron_job(&cron_service).await?;
     let dynamic_provider = Arc::new(DynamicProvider::new(Arc::new(build_provider(

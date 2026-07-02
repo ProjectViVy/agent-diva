@@ -1,7 +1,10 @@
+pub mod audit;
 pub mod autodream;
 pub mod laputa;
 pub mod planning;
 mod provider_companion;
+
+pub use audit::{get_audit_events_handler, get_audit_log_handler};
 
 pub use autodream::{
     cancel_autodream_run_handler, get_autodream_run_handler, list_autodream_runs_handler,

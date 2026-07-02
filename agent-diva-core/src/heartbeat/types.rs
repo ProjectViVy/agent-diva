@@ -76,6 +76,9 @@ pub struct HeartbeatConfig {
     /// Interval in seconds between heartbeats
     #[serde(default = "default_interval")]
     pub interval_s: i64,
+    /// Optional override for dynamic interval adaptation (set by presence service).
+    #[serde(default)]
+    pub interval_override: Option<i64>,
 }
 
 impl Default for HeartbeatConfig {
@@ -83,6 +86,7 @@ impl Default for HeartbeatConfig {
         Self {
             enabled: true,
             interval_s: DEFAULT_HEARTBEAT_INTERVAL_S,
+            interval_override: None,
         }
     }
 }

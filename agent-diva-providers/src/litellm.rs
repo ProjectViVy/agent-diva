@@ -17,6 +17,7 @@ use crate::base::{
 };
 use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
+use crate::retry;
 
 /// LiteLLM API request format
 #[derive(Debug, Serialize)]
@@ -696,94 +697,6 @@ impl LiteLLMClient {
         })
     }
 
-    fn extract_message_error_context(error_text: &str, body: &serde_json::Value) -> String {
-        if !error_text.contains("messages[") {
-            return String::new();
-        }
-
-        static MESSAGE_INDEX_RE: OnceLock<Option<Regex>> = OnceLock::new();
-        let re = MESSAGE_INDEX_RE
-            .get_or_init(|| Regex::new(r"messages\[(\d+)\]").ok())
-            .as_ref();
-        let Some(re) = re else {
-            return String::new();
-        };
-
-        let Some(caps) = re.captures(error_text) else {
-            return String::new();
-        };
-        let Some(idx_str) = caps.get(1) else {
-            return String::new();
-        };
-        let Ok(idx) = idx_str.as_str().parse::<usize>() else {
-            return String::new();
-        };
-        let Some(messages) = body.get("messages").and_then(|m| m.as_array()) else {
-            return String::new();
-        };
-        if idx >= messages.len() {
-            return format!(
-                "\n  Message index {} out of range (total: {})",
-                idx,
-                messages.len()
-            );
-        }
-
-        let msg = &messages[idx];
-        let msg_content = msg
-            .get("content")
-            .and_then(|c| c.as_str())
-            .unwrap_or("non-string content");
-        let role = msg
-            .get("role")
-            .and_then(|r| r.as_str())
-            .unwrap_or("unknown");
-        let content_preview: String = msg_content.chars().take(500).collect();
-        let msg_problems = find_problematic_chars(msg_content);
-
-        format!(
-            "\n  Message[{}] (role: {}):\n    Content preview ({} chars): {}\n    Problematic chars in message: {}",
-            idx,
-            role,
-            msg_content.len(),
-            content_preview,
-            if msg_problems.is_empty() {
-                "none".to_string()
-            } else {
-                msg_problems.join("; ")
-            }
-        )
-    }
-
-    fn log_request_failure(
-        operation: &str,
-        status: reqwest::StatusCode,
-        error_text: &str,
-        url: &str,
-        model: &str,
-        body_json: &str,
-        body: &serde_json::Value,
-    ) {
-        let problems = find_problematic_chars(body_json);
-        let msg_info = Self::extract_message_error_context(error_text, body);
-        let ctx = ErrorContext::new(operation, format!("HTTP {}: {}", status, error_text))
-            .with_metadata("url", url.to_string())
-            .with_metadata("model", model.to_string())
-            .with_metadata("request_body_size", body_json.len().to_string());
-        let ctx_str = ctx.to_detailed_string();
-
-        if problems.is_empty() {
-            error!("{}{}", ctx_str, msg_info);
-        } else {
-            error!(
-                "{}\n  Request body problems:\n    - {}{}",
-                ctx_str,
-                problems.join("\n    - "),
-                msg_info
-            );
-        }
-    }
-
     fn log_json_error(operation: &str, error: &serde_json::Error, content: &str) {
         let problems = find_problematic_chars(content);
         let ctx = ErrorContext::new(operation, error.to_string()).with_content(content);
@@ -871,37 +784,17 @@ impl LLMProvider for LiteLLMClient {
                 .unwrap_or(0)
         );
 
-        let req_builder = self.apply_headers(
-            self.client
-                .post(&url)
-                .body(body_json.clone())
-                .header("Content-Type", "application/json"),
-        );
-
-        // Send request
-        let response = req_builder.send().await?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-
-            Self::log_request_failure(
-                "chat_api_request",
-                status,
-                &error_text,
-                &url,
-                &resolved_model,
-                &body_json,
-                &body,
+        // Send request with retry on 5xx/network errors + rate limit detection
+        let response = retry::send_with_retry(&resolved_model, || {
+            let req = self.apply_headers(
+                self.client
+                    .post(&url)
+                    .body(body_json.clone())
+                    .header("Content-Type", "application/json"),
             );
-            return Err(ProviderError::ApiError(format!(
-                "HTTP {}: {}",
-                status, error_text
-            )));
-        }
+            async move { req.send().await }
+        })
+        .await?;
 
         let response_text = response.text().await?;
         let response_data: ChatCompletionResponse =
@@ -973,36 +866,17 @@ impl LLMProvider for LiteLLMClient {
                 .unwrap_or(0)
         );
 
-        let req_builder = self.apply_headers(
-            self.client
-                .post(&url)
-                .body(body_json.clone())
-                .header("Content-Type", "application/json"),
-        );
-
-        let response = req_builder.send().await?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-
-            Self::log_request_failure(
-                "chat_stream_api_request",
-                status,
-                &error_text,
-                &url,
-                &resolved_model,
-                &body_json,
-                &body,
+        // Send request with retry on 5xx/network errors + rate limit detection
+        let response = retry::send_with_retry(&resolved_model, || {
+            let req = self.apply_headers(
+                self.client
+                    .post(&url)
+                    .body(body_json.clone())
+                    .header("Content-Type", "application/json"),
             );
-            return Err(ProviderError::ApiError(format!(
-                "HTTP {}: {}",
-                status, error_text
-            )));
-        }
+            async move { req.send().await }
+        })
+        .await?;
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         tokio::spawn(async move {

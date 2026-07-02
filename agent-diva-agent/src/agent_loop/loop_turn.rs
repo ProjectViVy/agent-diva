@@ -7,7 +7,7 @@ use crate::planning::inject_plan_context;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage, PokeEvent};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
-use agent_diva_core::session::{ChatMessage, CompactTrigger};
+use agent_diva_core::session::{ChatMessage, CompactTrigger, TokenUsage};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderError};
 use anyhow;
@@ -222,6 +222,7 @@ impl AgentLoop {
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
+        let mut turn_token_usage: Option<TokenUsage> = None;
 
         // Intent-aware prefetch: run recall search before the first LLM call
         // when the user message provides a workable intent string.
@@ -501,6 +502,23 @@ impl AgentLoop {
                 }
             }
 
+            // Accumulate token usage for this turn
+            let iter_usage = extract_token_usage(&response.usage);
+            turn_token_usage = Some(match turn_token_usage {
+                Some(existing) => TokenUsage {
+                    prompt_tokens: existing
+                        .prompt_tokens
+                        .saturating_add(iter_usage.prompt_tokens),
+                    completion_tokens: existing
+                        .completion_tokens
+                        .saturating_add(iter_usage.completion_tokens),
+                    total_tokens: existing
+                        .total_tokens
+                        .saturating_add(iter_usage.total_tokens),
+                },
+                None => iter_usage,
+            });
+
             // Emit ReasoningReceived if reasoning content is available
             if let Some(ref reasoning) = response.reasoning_content {
                 if !reasoning.is_empty() {
@@ -727,6 +745,7 @@ impl AgentLoop {
                 user_role,
                 &msg.content,
                 &final_content,
+                turn_token_usage,
             );
         }
 
@@ -908,6 +927,7 @@ fn save_turn(
     user_role: &str,
     user_content: &str,
     final_content: &str,
+    turn_token_usage: Option<TokenUsage>,
 ) {
     // Save trigger message; cron-triggered turns are not real-time user input.
     session.add_message(user_role, user_content);
@@ -978,7 +998,31 @@ fn save_turn(
             final_msg.reasoning_content = last.reasoning_content.clone();
             final_msg.thinking_blocks = last.thinking_blocks.clone();
         }
+        final_msg.token_usage = turn_token_usage;
         session.add_full_message(final_msg);
+    } else {
+        // The last message was an assistant message already added above.
+        // Attach token usage to it if provided.
+        if turn_token_usage.is_some() {
+            if let Some(last) = session.messages.last_mut() {
+                last.token_usage = turn_token_usage;
+            }
+        }
+    }
+}
+
+/// Extract token usage from the LLM response usage map.
+///
+/// Converts the provider's `HashMap<String, i64>` into a structured `TokenUsage`.
+/// Missing fields default to 0. Negative values are clamped to 0.
+fn extract_token_usage(usage: &std::collections::HashMap<String, i64>) -> TokenUsage {
+    let prompt = usage.get("prompt_tokens").copied().unwrap_or(0).max(0) as u32;
+    let completion = usage.get("completion_tokens").copied().unwrap_or(0).max(0) as u32;
+    let total = usage.get("total_tokens").copied().unwrap_or(0).max(0) as u32;
+    TokenUsage {
+        prompt_tokens: prompt,
+        completion_tokens: completion,
+        total_tokens: total,
     }
 }
 
@@ -1176,5 +1220,50 @@ mod tests {
         assert!(!is_context_overflow_error(&ProviderError::ConfigError(
             "missing config".into()
         )));
+    }
+
+    // ── Token usage extraction ──────────────────────────────────────
+
+    #[test]
+    fn test_extract_token_usage_all_fields() {
+        let mut usage = HashMap::new();
+        usage.insert("prompt_tokens".to_string(), 100);
+        usage.insert("completion_tokens".to_string(), 50);
+        usage.insert("total_tokens".to_string(), 150);
+        let result = extract_token_usage(&usage);
+        assert_eq!(result.prompt_tokens, 100);
+        assert_eq!(result.completion_tokens, 50);
+        assert_eq!(result.total_tokens, 150);
+    }
+
+    #[test]
+    fn test_extract_token_usage_missing_fields() {
+        let usage: HashMap<String, i64> = HashMap::new();
+        let result = extract_token_usage(&usage);
+        assert_eq!(result.prompt_tokens, 0);
+        assert_eq!(result.completion_tokens, 0);
+        assert_eq!(result.total_tokens, 0);
+    }
+
+    #[test]
+    fn test_extract_token_usage_partial_fields() {
+        let mut usage = HashMap::new();
+        usage.insert("total_tokens".to_string(), 200);
+        let result = extract_token_usage(&usage);
+        assert_eq!(result.prompt_tokens, 0);
+        assert_eq!(result.completion_tokens, 0);
+        assert_eq!(result.total_tokens, 200);
+    }
+
+    #[test]
+    fn test_extract_token_usage_clamps_negative() {
+        let mut usage = HashMap::new();
+        usage.insert("prompt_tokens".to_string(), -10);
+        usage.insert("completion_tokens".to_string(), -5);
+        usage.insert("total_tokens".to_string(), -1);
+        let result = extract_token_usage(&usage);
+        assert_eq!(result.prompt_tokens, 0);
+        assert_eq!(result.completion_tokens, 0);
+        assert_eq!(result.total_tokens, 0);
     }
 }
