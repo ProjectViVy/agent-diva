@@ -2,10 +2,12 @@ pub mod audit;
 pub mod autodream;
 pub mod health;
 pub mod laputa;
+pub mod logs;
 pub mod planning;
 mod provider_companion;
 
 pub use audit::{get_audit_events_handler, get_audit_log_handler};
+pub use logs::{logs_routes, query_logs_handler};
 
 pub use health::health_handler;
 

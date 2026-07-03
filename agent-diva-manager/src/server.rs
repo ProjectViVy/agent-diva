@@ -21,7 +21,7 @@ use crate::handlers::{
     get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
     health_handler, heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
     list_laputa_changelog_handler, list_laputa_proposals_handler, list_mentle_tools_handler,
-    poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
+    logs_routes, poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
     resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, transition_laputa_proposal_handler,
@@ -259,6 +259,7 @@ fn audit_routes() -> Router<AppState> {
     Router::new()
         .route("/api/audit/log", get(get_audit_log_handler))
         .route("/api/audit/events", get(get_audit_events_handler))
+        .merge(logs_routes())
 }
 
 fn misc_routes() -> Router<AppState> {
