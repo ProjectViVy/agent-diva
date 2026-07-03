@@ -1,11 +1,12 @@
 //! Tool registry.
 
 use crate::{Tool, ToolError};
+use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tracing::{error, warn};
 
 /// Maximum length for tool results (in characters) to prevent oversized API requests.
@@ -112,14 +113,35 @@ impl ToolRegistry {
         }
 
         let timeout_secs = self.global_timeout_secs;
+        let start = Instant::now();
         let inner = tool.execute(params.clone());
 
-        match tokio::time::timeout(Duration::from_secs(timeout_secs), inner).await {
-            Ok(Ok(result)) => Ok(truncate_tool_result(&result)),
-            Ok(Err(e)) => {
+        let result = tokio::time::timeout(Duration::from_secs(timeout_secs), inner).await;
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        match result {
+            Ok(Ok(output)) => {
+                let result_size = output.len() as u32;
+                audit::emit(AuditEvent::ToolExecuted {
+                    tool_name: name.to_string(),
+                    duration_ms,
+                    result_size,
+                    status: "ok".to_string(),
+                });
+                Ok(truncate_tool_result(&output))
+            }
+            Ok(Err(tool_err)) => {
+                let error_msg = tool_err.to_string();
+                let result_size = error_msg.len() as u32;
+                audit::emit(AuditEvent::ToolExecuted {
+                    tool_name: name.to_string(),
+                    duration_ms,
+                    result_size,
+                    status: "error".to_string(),
+                });
                 let params_str = serde_json::to_string(&params).unwrap_or_default();
                 let problems = find_problematic_chars(&params_str);
-                let ctx = ErrorContext::new("tool_execution", e.to_string())
+                let ctx = ErrorContext::new("tool_execution", error_msg)
                     .with_content(&params_str)
                     .with_metadata("tool_name", name.to_string());
                 let ctx_str = ctx.to_detailed_string();
@@ -132,9 +154,18 @@ impl ToolRegistry {
                         problems.join("\n    - ")
                     );
                 }
-                Err(e)
+                Err(tool_err)
             }
-            Err(_) => Err(ToolError::Timeout { secs: timeout_secs }),
+            Err(_) => {
+                let error_msg = format!("Tool execution timed out after {}s", timeout_secs);
+                audit::emit(AuditEvent::ToolExecuted {
+                    tool_name: name.to_string(),
+                    duration_ms,
+                    result_size: error_msg.len() as u32,
+                    status: "error".to_string(),
+                });
+                Err(ToolError::Timeout { secs: timeout_secs })
+            }
         }
     }
 
@@ -422,5 +453,145 @@ mod tests {
         registry.register(Arc::new(MockTool));
         let result = registry.execute("mock", serde_json::json!({})).await;
         assert_eq!(result.unwrap(), "mock result");
+    }
+
+    // ------------------------------------------------------------------
+    //  ToolExecutionTap audit tests
+    // ------------------------------------------------------------------
+
+    use std::sync::{Arc as StdArc, Mutex};
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+
+    /// A tracing layer that captures audit events by their type name.
+    struct AuditCaptureLayer {
+        events: StdArc<Mutex<Vec<String>>>,
+    }
+
+    impl<S> Layer<S> for AuditCaptureLayer
+    where
+        S: tracing::Subscriber,
+    {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _ctx: tracing_subscriber::layer::Context<'_, S>,
+        ) {
+            if event.metadata().target() == "audit" {
+                let mut visitor = AuditEventVisitor::default();
+                event.record(&mut visitor);
+                if let Some(type_name) = visitor.type_name {
+                    self.events.lock().unwrap().push(type_name);
+                }
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct AuditEventVisitor {
+        type_name: Option<String>,
+    }
+
+    impl tracing::field::Visit for AuditEventVisitor {
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            if field.name() == "event" {
+                let s = format!("{:?}", value);
+                // Extract the variant name from the debug output, e.g.:
+                // ToolExecuted { tool_name: "...", ... }
+                if let Some(end) = s.find(" {") {
+                    self.type_name = Some(s[..end].to_string());
+                } else if let Some(end) = s.find("(") {
+                    self.type_name = Some(s[..end].to_string());
+                } else {
+                    self.type_name = Some(s);
+                }
+            }
+        }
+    }
+
+    /// Helper to run an async test with an audit-capture layer installed.
+    async fn with_audit_capture<F, Fut>(f: F) -> Vec<String>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = ()>,
+    {
+        let events = StdArc::new(Mutex::new(Vec::new()));
+        let layer = AuditCaptureLayer {
+            events: events.clone(),
+        };
+
+        let subscriber = tracing_subscriber::registry().with(layer);
+        let _guard = subscriber.set_default();
+
+        f().await;
+
+        drop(_guard);
+        let result = events.lock().unwrap().clone();
+        result
+    }
+
+    #[tokio::test]
+    async fn test_tool_executed_audit_event_on_success() {
+        let captured = with_audit_capture(|| async {
+            let mut registry = ToolRegistry::new();
+            registry.register(std::sync::Arc::new(MockTool));
+            let _ = registry.execute("mock", serde_json::json!({})).await;
+        })
+        .await;
+
+        let tool_events: Vec<_> = captured
+            .iter()
+            .filter(|e| e == &&"ToolExecuted".to_string())
+            .collect();
+
+        assert_eq!(
+            tool_events.len(),
+            1,
+            "expected exactly one ToolExecuted audit event, got: {:?}",
+            captured
+        );
+    }
+
+    #[tokio::test]
+    async fn test_tool_executed_audit_event_on_failure() {
+        let captured = with_audit_capture(|| async {
+            let mut registry = ToolRegistry::new();
+            registry.register(std::sync::Arc::new(MockFailingTool));
+            let _ = registry.execute("mock_fail", serde_json::json!({})).await;
+        })
+        .await;
+
+        let tool_events: Vec<_> = captured
+            .iter()
+            .filter(|e| e == &&"ToolExecuted".to_string())
+            .collect();
+
+        assert_eq!(
+            tool_events.len(),
+            1,
+            "expected exactly one ToolExecuted audit event, got: {:?}",
+            captured
+        );
+    }
+
+    #[tokio::test]
+    async fn test_tool_executed_audit_event_on_timeout() {
+        let captured = with_audit_capture(|| async {
+            let mut registry = ToolRegistry::with_timeout(1);
+            registry.register(std::sync::Arc::new(MockSlowTool));
+            let _ = registry.execute("mock_slow", serde_json::json!({})).await;
+        })
+        .await;
+
+        let tool_events: Vec<_> = captured
+            .iter()
+            .filter(|e| e == &&"ToolExecuted".to_string())
+            .collect();
+
+        assert_eq!(
+            tool_events.len(),
+            1,
+            "expected exactly one ToolExecuted audit event on timeout, got: {:?}",
+            captured
+        );
     }
 }

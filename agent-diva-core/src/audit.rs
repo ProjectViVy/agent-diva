@@ -399,6 +399,12 @@ mod tests {
                 tokens: 150,
                 status: "ok".into(),
             },
+            AuditEvent::ToolExecuted {
+                tool_name: "bash".into(),
+                duration_ms: 500,
+                result_size: 1024,
+                status: "ok".into(),
+            },
         ];
         for event in &events {
             let json = serde_json::to_string(event).unwrap();
