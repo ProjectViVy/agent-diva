@@ -140,6 +140,20 @@ pub enum AuditEvent {
         skill_name: String,
         reason: String,
     },
+    /// A skill was uploaded/installed.
+    SkillUploaded {
+        skill_name: String,
+        source: String,
+    },
+    /// A skill was deleted/uninstalled.
+    SkillDeleted {
+        skill_name: String,
+    },
+    /// A skill injection check failed and the skill was blocked.
+    SkillInjectionBlocked {
+        skill_name: String,
+        reason: String,
+    },
     /// Channel authentication failed.
     ChannelAuthFailed {
         channel_id: String,
@@ -323,6 +337,17 @@ mod tests {
                 skill_name: "suspicious_skill".into(),
                 reason: "untrusted provenance".into(),
             },
+            AuditEvent::SkillUploaded {
+                skill_name: "test_skill".into(),
+                source: "workspace".into(),
+            },
+            AuditEvent::SkillDeleted {
+                skill_name: "test_skill".into(),
+            },
+            AuditEvent::SkillInjectionBlocked {
+                skill_name: "bad_skill".into(),
+                reason: "injection detected".into(),
+            },
             AuditEvent::ChannelAuthFailed {
                 channel_id: "chan_1".into(),
                 reason: "invalid session key".into(),
@@ -357,6 +382,28 @@ mod tests {
             let json = serde_json::to_string(event).unwrap();
             let back: AuditEvent = serde_json::from_str(&json).unwrap();
             assert_eq!(*event, back, "round-trip failed for variant");
+        }
+    }
+
+    #[test]
+    fn test_skill_audit_events_roundtrip() {
+        let events = vec![
+            AuditEvent::SkillUploaded {
+                skill_name: "test_skill".into(),
+                source: "workspace".into(),
+            },
+            AuditEvent::SkillDeleted {
+                skill_name: "test_skill".into(),
+            },
+            AuditEvent::SkillInjectionBlocked {
+                skill_name: "bad_skill".into(),
+                reason: "injection detected".into(),
+            },
+        ];
+        for event in &events {
+            let json = serde_json::to_string(event).unwrap();
+            let back: AuditEvent = serde_json::from_str(&json).unwrap();
+            assert_eq!(*event, back, "round-trip failed for skill variant");
         }
     }
 }
