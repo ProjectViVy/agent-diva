@@ -41,14 +41,15 @@ impl AgentLoop {
                 reply_tx,
             } => {
                 let result = match self.sessions.get_or_load(&session_key) {
-                    Ok(session) => Ok(session.cloned()),
-                    Err(error) => {
+                    Some(session) => Ok(Some(session.clone())),
+                    None => {
+                        let error = format!("Session not found: {}", session_key);
                         tracing::error!(
                             session_key = %session_key,
                             error = %error,
                             "Failed to load session for runtime control"
                         );
-                        Err(error.to_string())
+                        Err(error)
                     }
                 };
                 let _ = reply_tx.send(result);

@@ -28,6 +28,7 @@ use crate::memory_boundary::default_memory_provider;
 use crate::mentle_runtime::MentleRuntime;
 use crate::runtime_control::RuntimeControlCommand;
 use crate::subagent::SubagentManager;
+use crate::subagent_policy::SubagentPolicy;
 use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
 use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::mentle::MentleToolRuntimeConfig;
@@ -295,7 +296,7 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            BuiltInToolsConfig::default().for_subagent(),
+            BuiltInToolsConfig::default().for_subagent(&SubagentPolicy::default()),
             NetworkToolConfig::default(),
             None,
             false,
@@ -467,7 +468,7 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            tool_config.builtin.for_subagent(),
+            tool_config.builtin.for_subagent(&SubagentPolicy::default()),
             tool_config.network.clone(),
             Some(tool_config.exec_timeout),
             tool_config.restrict_to_workspace,
@@ -572,7 +573,7 @@ impl AgentLoop {
             workspace.clone(),
             bus.clone(),
             Some(model.clone()),
-            toolset.config.builtin.for_subagent(),
+            toolset.config.builtin.for_subagent(&SubagentPolicy::default()),
             toolset.config.network.clone(),
             Some(toolset.config.exec_timeout),
             toolset.config.restrict_to_workspace,

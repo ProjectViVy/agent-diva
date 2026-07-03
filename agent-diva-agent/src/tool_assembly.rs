@@ -2,6 +2,7 @@ use crate::mask::{MaskFile, ToolPolicy};
 use crate::planning::{PlanApproveTool, PlanShowTool, PlanTransitionTool};
 use crate::tool_config::PlanningConfig;
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
+use crate::subagent_policy::SubagentPolicy;
 use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
@@ -134,7 +135,7 @@ impl ToolAssembly {
     }
 
     pub fn build_subagent_registry(mut self) -> ToolRegistry {
-        self.builtin_config = self.builtin_config.for_subagent();
+        self.builtin_config = self.builtin_config.for_subagent(&SubagentPolicy::default());
         self.subagent_spawner = None;
         self.cron_service = None;
         self.file_manager = None;

@@ -141,6 +141,7 @@ impl Default for BuiltInToolsConfig {
 #[cfg(test)]
 mod tests {
     use super::BuiltInToolsConfig;
+    use crate::subagent_policy::SubagentPolicy;
 
     #[test]
     fn default_does_not_enable_mentle() {
@@ -153,7 +154,7 @@ mod tests {
             mentle: true,
             ..BuiltInToolsConfig::all()
         };
-        let subagent = config.for_subagent();
+        let subagent = config.for_subagent(&SubagentPolicy::default());
 
         assert!(!subagent.mentle);
         assert!(!subagent.spawn);
