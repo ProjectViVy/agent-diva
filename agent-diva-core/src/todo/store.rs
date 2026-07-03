@@ -119,7 +119,7 @@ impl JsonlTodoStore {
         let store_dir = self
             .path
             .parent()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "invalid store path"))?;
+            .ok_or_else(|| std::io::Error::other("invalid store path"))?;
 
         let mut deleted = 0;
         for entry in std::fs::read_dir(store_dir)? {
