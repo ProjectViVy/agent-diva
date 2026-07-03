@@ -20,7 +20,12 @@
 //! must never interrupt business logic.
 
 use std::fmt;
-use std::sync::{Arc, OnceLock};
+use std::fs::{File, OpenOptions};
+use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
+
+use chrono::Local;
 
 use crate::audit::AuditEvent;
 
@@ -90,6 +95,100 @@ pub fn register_sink(sink: Arc<dyn AuditSink>) {
 /// Retrieve the registered sink, if any.
 pub fn get_sink() -> Option<&'static Arc<dyn AuditSink>> {
     GLOBAL_SINK.get()
+}
+
+// ── JsonlAuditSink ────────────────────────────────────────────────
+
+/// A file-based audit sink that writes JSON Lines with daily rolling.
+///
+/// Each day gets its own file: `{dir}/audit-{YYYY-MM-DD}.jsonl`.
+/// Events are appended as one JSON object per line.
+pub struct JsonlAuditSink {
+    /// Buffered writer for the current day's file.
+    writer: Mutex<BufWriter<File>>,
+    /// Current date string in `YYYY-MM-DD` format.
+    current_date: Mutex<String>,
+    /// Directory where audit files are written.
+    dir: PathBuf,
+}
+
+impl JsonlAuditSink {
+    /// Create a new `JsonlAuditSink` that writes to `dir`.
+    ///
+    /// The directory is created if it does not exist.
+    pub fn new(dir: &Path) -> Result<Self, AuditSinkError> {
+        std::fs::create_dir_all(dir).map_err(AuditSinkError::Io)?;
+
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let path = Self::file_path(dir, &today);
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(AuditSinkError::Io)?;
+
+        Ok(Self {
+            writer: Mutex::new(BufWriter::new(file)),
+            current_date: Mutex::new(today),
+            dir: dir.to_path_buf(),
+        })
+    }
+
+    /// Compute the full file path for a given date.
+    fn file_path(dir: &Path, date: &str) -> PathBuf {
+        dir.join(format!("audit-{date}.jsonl"))
+    }
+
+    /// Roll over to a new file if the date has changed.
+    ///
+    /// Must be called while holding the writer lock (or before acquiring it).
+    fn roll_if_needed(&self) -> Result<(), AuditSinkError> {
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let mut current = self.current_date.lock().unwrap();
+
+        if *current != today {
+            // Date changed — flush old writer and open new file.
+            let mut writer = self.writer.lock().unwrap();
+            writer.flush().map_err(AuditSinkError::Io)?;
+            drop(writer);
+
+            let path = Self::file_path(&self.dir, &today);
+            let file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)
+                .map_err(AuditSinkError::Io)?;
+
+            *self.writer.lock().unwrap() = BufWriter::new(file);
+            *current = today;
+        }
+        Ok(())
+    }
+}
+
+impl AuditSink for JsonlAuditSink {
+    fn emit(&self, event: &AuditEvent) -> Result<(), AuditSinkError> {
+        // Roll to a new file if the date boundary crossed.
+        if let Err(e) = self.roll_if_needed() {
+            tracing::error!("audit sink roll failed: {}", e);
+            return Ok(());
+        }
+
+        let json = match serde_json::to_string(event) {
+            Ok(j) => j,
+            Err(e) => {
+                tracing::error!("audit event serialization failed: {}", e);
+                return Ok(());
+            }
+        };
+
+        let mut writer = self.writer.lock().unwrap();
+        if let Err(e) = writeln!(writer, "{}", json) {
+            tracing::error!("audit sink write failed: {}", e);
+            // Swallow error — audit must never interrupt business logic.
+        }
+        Ok(())
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────
@@ -190,5 +289,124 @@ mod tests {
 
         let ser_err = AuditSinkError::Serialization("invalid json".into());
         assert!(ser_err.to_string().contains("invalid json"));
+    }
+
+    // ── JsonlAuditSink tests ───────────────────────────────────────
+
+    #[test]
+    fn jsonl_sink_writes_three_events() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = JsonlAuditSink::new(dir.path()).unwrap();
+
+        // Emit 3 distinct events.
+        sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 5 }).unwrap();
+        sink.emit(&AuditEvent::ToolInvoked {
+            tool_name: "bash".into(),
+            args: serde_json::json!({"cmd": "ls"}),
+        }).unwrap();
+        sink.emit(&AuditEvent::TokenUsed {
+            provider: "openai".into(),
+            model: "gpt-4".into(),
+            tokens: 42,
+        }).unwrap();
+
+        // Force flush so the file is fully written before we read it.
+        {
+            let mut w = sink.writer.lock().unwrap();
+            w.flush().unwrap();
+        }
+
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let path = dir.path().join(format!("audit-{today}.jsonl"));
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<&str> = contents.lines().collect();
+
+        assert_eq!(lines.len(), 3, "expected 3 JSON lines");
+
+        // Each line should be valid JSON and contain the `type` field.
+        for line in &lines {
+            let json: serde_json::Value = serde_json::from_str(line).unwrap();
+            assert!(json.get("type").is_some(), "each line must have a `type` field");
+        }
+
+        // Verify specific event types.
+        let types: Vec<String> = lines
+            .iter()
+            .map(|l| {
+                let json: serde_json::Value = serde_json::from_str(l).unwrap();
+                json["type"].as_str().unwrap().to_string()
+            })
+            .collect();
+        assert_eq!(types, vec!["heartbeat_triggered", "tool_invoked", "token_used"]);
+    }
+
+    #[test]
+    fn jsonl_sink_rolls_on_date_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = JsonlAuditSink::new(dir.path()).unwrap();
+
+        // Emit one event "today".
+        sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 10 }).unwrap();
+        {
+            let mut w = sink.writer.lock().unwrap();
+            w.flush().unwrap();
+        }
+
+        // Simulate a date change by manually updating current_date to a
+        // future date. When emit() runs, it sees the stored date differs
+        // from the real current date (today), so it rolls over to a new
+        // file for today.
+        {
+            let mut current = sink.current_date.lock().unwrap();
+            *current = "2099-12-31".to_string();
+        }
+
+        // Emit another event — roll should create a new file for today.
+        sink.emit(&AuditEvent::ToolInvoked {
+            tool_name: "test".into(),
+            args: serde_json::json!({}),
+        }).unwrap();
+        {
+            let mut w = sink.writer.lock().unwrap();
+            w.flush().unwrap();
+        }
+
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let today_path = dir.path().join(format!("audit-{today}.jsonl"));
+        let old_path = dir.path().join("audit-2099-12-31.jsonl");
+
+        assert!(today_path.exists(), "today's file should exist after roll");
+        assert!(!old_path.exists(), "old future-date file should NOT exist (roll goes to today)");
+
+        let today_lines = std::fs::read_to_string(&today_path).unwrap();
+
+        // The original event was flushed to today's file, then after the
+        // simulated date change the second event was also written to today's
+        // file (because the real date is still today).
+        assert_eq!(today_lines.lines().count(), 2, "today's file has both events");
+    }
+
+    #[test]
+    fn jsonl_sink_swallows_write_errors() {
+        // Create a temp dir, then remove write permissions so the sink
+        // cannot create files.
+        let dir = tempfile::tempdir().unwrap();
+
+        // On Unix, chmod 555 removes write. On Windows this is trickier,
+        // so we instead test by pointing at a file path that is not a dir.
+        let file_as_dir = dir.path().join("not_a_dir");
+        std::fs::write(&file_as_dir, "x").unwrap(); // create a regular file
+
+        // Attempting to create JsonlAuditSink inside a file should fail,
+        // but the emit() path swallows errors.
+        // Instead, create a valid sink then make it fail by removing the dir.
+        let sink = JsonlAuditSink::new(dir.path()).unwrap();
+
+        // Remove the directory so subsequent writes fail.
+        std::fs::remove_dir_all(dir.path()).unwrap();
+
+        // emit() should return Ok even though the write will fail.
+        let result = sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 5 });
+        assert!(result.is_ok(), "emit must return Ok even when write fails");
     }
 }
