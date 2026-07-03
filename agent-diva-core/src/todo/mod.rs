@@ -4,4 +4,4 @@ pub mod store;
 pub mod types;
 
 pub use store::JsonlTodoStore;
-pub use types::{TodoItem, TodoStatus};
+pub use types::{TodoItem, TodoSource, TodoStatus};

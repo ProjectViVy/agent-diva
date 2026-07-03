@@ -6,7 +6,7 @@
 use crate::cron::CronPayload;
 use crate::error::{Error, Result};
 use crate::supervised::{RunItem, RunStatus, RunStore};
-use crate::todo::{JsonlTodoStore, TodoItem};
+use crate::todo::{JsonlTodoStore, TodoItem, TodoSource};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -79,7 +79,7 @@ impl CronBridge {
 
         // Create a linked todo item if the payload requests delivery
         if payload.deliver {
-            let mut todo = TodoItem::new(&payload.message, "cron");
+            let mut todo = TodoItem::new(&payload.message, TodoSource::Cron);
             todo.linked_run_id = Some(enqueued.id.clone());
             if let Some(ref channel) = payload.channel {
                 // Store channel context in session_id field as a lightweight link

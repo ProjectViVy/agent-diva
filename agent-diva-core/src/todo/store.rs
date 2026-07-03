@@ -1,6 +1,8 @@
 //! JSONL append-only store for runtime todo items
 
 use super::types::{TodoItem, TodoStatus};
+#[cfg(test)]
+use super::types::TodoSource;
 use chrono::Utc;
 use std::fs::OpenOptions;
 use std::io::{BufRead, Write};
@@ -126,14 +128,14 @@ mod tests {
     }
 
     /// Helper to create a sample TodoItem
-    fn sample_item(title: &str, source: &str) -> TodoItem {
+    fn sample_item(title: &str, source: TodoSource) -> TodoItem {
         TodoItem::new(title, source)
     }
 
     #[tokio::test]
     async fn test_create_and_list() {
         let (_dir, store) = setup();
-        let item = sample_item("Write tests", "user");
+        let item = sample_item("Write tests", TodoSource::User);
         let created = store.create(item).await.expect("create");
         let items = store.list().await.expect("list");
         assert_eq!(items.len(), 1);
@@ -144,7 +146,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_found() {
         let (_dir, store) = setup();
-        let item = sample_item("Find me", "agent");
+        let item = sample_item("Find me", TodoSource::Agent);
         let created = store.create(item).await.expect("create");
         let found = store.get(&created.id).await.expect("get");
         assert!(found.is_some());
@@ -164,15 +166,15 @@ mod tests {
     async fn test_list_multiple() {
         let (_dir, store) = setup();
         store
-            .create(sample_item("Task 1", "user"))
+            .create(sample_item("Task 1", TodoSource::User))
             .await
             .expect("create");
         store
-            .create(sample_item("Task 2", "cron"))
+            .create(sample_item("Task 2", TodoSource::Cron))
             .await
             .expect("create");
         store
-            .create(sample_item("Task 3", "agent"))
+            .create(sample_item("Task 3", TodoSource::Agent))
             .await
             .expect("create");
         let items = store.list().await.expect("list");
@@ -183,7 +185,7 @@ mod tests {
     async fn test_update_status_pending_to_active() {
         let (_dir, store) = setup();
         let created = store
-            .create(sample_item("Status change", "user"))
+            .create(sample_item("Status change", TodoSource::User))
             .await
             .expect("create");
         assert_eq!(created.status, TodoStatus::Pending);
@@ -204,7 +206,7 @@ mod tests {
     #[tokio::test]
     async fn test_terminal_state_completed_noop() {
         let (_dir, store) = setup();
-        let mut item = sample_item("Already done", "user");
+        let mut item = sample_item("Already done", TodoSource::User);
         item.status = TodoStatus::Completed;
         let created = store.create(item).await.expect("create");
 
@@ -219,7 +221,7 @@ mod tests {
     #[tokio::test]
     async fn test_terminal_state_cancelled_noop() {
         let (_dir, store) = setup();
-        let mut item = sample_item("Never mind", "user");
+        let mut item = sample_item("Never mind", TodoSource::User);
         item.status = TodoStatus::Cancelled;
         let created = store.create(item).await.expect("create");
 
@@ -236,11 +238,11 @@ mod tests {
         let dir = TempDir::new().expect("tempdir");
         let store = JsonlTodoStore::new(dir.path()).expect("store");
         store
-            .create(sample_item("Line 1", "user"))
+            .create(sample_item("Line 1", TodoSource::User))
             .await
             .expect("create");
         store
-            .create(sample_item("Line 2", "cron"))
+            .create(sample_item("Line 2", TodoSource::Cron))
             .await
             .expect("create");
 

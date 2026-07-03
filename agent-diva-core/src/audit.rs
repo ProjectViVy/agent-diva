@@ -156,6 +156,12 @@ pub enum AuditEvent {
         decision_kind: String,
         reason: String,
     },
+    /// A todo item's status was changed.
+    TodoStatusChanged {
+        todo_id: String,
+        from: String,
+        to: String,
+    },
 }
 
 /// Emit an audit event as a structured JSON log line.
@@ -185,6 +191,20 @@ pub fn emit(event: AuditEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_todo_status_changed_serialization() {
+        let event = AuditEvent::TodoStatusChanged {
+            todo_id: "abc-123".into(),
+            from: "pending".into(),
+            to: "completed".into(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("todo_status_changed"));
+        assert!(json.contains("abc-123"));
+        assert!(json.contains("pending"));
+        assert!(json.contains("completed"));
+    }
 
     #[test]
     fn test_emit_does_not_panic() {
@@ -309,6 +329,11 @@ mod tests {
                 source_type: "user_input".into(),
                 decision_kind: "block".into(),
                 reason: "injection detected".into(),
+            },
+            AuditEvent::TodoStatusChanged {
+                todo_id: "todo_1".into(),
+                from: "pending".into(),
+                to: "active".into(),
             },
         ];
         for event in &events {
