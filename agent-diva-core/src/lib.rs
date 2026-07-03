@@ -6,6 +6,7 @@
 pub mod attachment;
 pub mod audit;
 pub mod audit_parse;
+pub mod audit_sink;
 pub mod bus;
 pub mod config;
 pub mod cron;

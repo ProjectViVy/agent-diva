@@ -180,6 +180,13 @@ pub enum AuditEvent {
 /// ```
 pub fn emit(event: AuditEvent) {
     info!(target: "audit", event = ?event);
+
+    // Forward to the global audit sink if one is registered.
+    // Sink errors are deliberately swallowed — audit failure
+    // must never interrupt business logic.
+    if let Some(sink) = crate::audit_sink::get_sink() {
+        let _ = sink.emit(&event);
+    }
 }
 
 #[cfg(test)]
