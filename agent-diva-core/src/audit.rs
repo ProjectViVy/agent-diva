@@ -189,6 +189,21 @@ pub enum AuditEvent {
         job_name: String,
         error: String,
     },
+    /// An LLM provider call completed (success or error).
+    ProviderCallCompleted {
+        provider: String,
+        model: String,
+        latency_ms: u64,
+        tokens: u32,
+        status: String,
+    },
+    /// A tool was executed by the registry.
+    ToolExecuted {
+        tool_name: String,
+        duration_ms: u64,
+        result_size: u32,
+        status: String,
+    },
 }
 
 /// Emit an audit event as a structured JSON log line.
@@ -376,6 +391,13 @@ mod tests {
                 job_id: "job_2".into(),
                 job_name: "weekly_report".into(),
                 error: "connection timeout".into(),
+            },
+            AuditEvent::ProviderCallCompleted {
+                provider: "openai".into(),
+                model: "gpt-4".into(),
+                latency_ms: 1234,
+                tokens: 150,
+                status: "ok".into(),
             },
         ];
         for event in &events {

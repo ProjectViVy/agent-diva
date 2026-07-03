@@ -10,6 +10,7 @@ pub mod litellm;
 pub mod ollama;
 pub mod registry;
 pub mod retry;
+pub mod tap;
 pub mod transcription;
 
 pub use base::{
