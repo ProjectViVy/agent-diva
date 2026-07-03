@@ -220,15 +220,26 @@ fn classify_field(path: &str) -> &'static str {
     if path.starts_with("agents.defaults.model")
         || path.starts_with("agents.defaults.temperature")
         || path.starts_with("agents.defaults.max_tool_iterations")
+        || path.starts_with("agents.defaults.max_tokens")
         || path.starts_with("agents.defaults.reasoning_effort")
+        || path.starts_with("agents.defaults.thinking_mode")
         || path.starts_with("agents.soul")
         || path.starts_with("tools.budget")
+        || path.starts_with("tools.builtin")
+        || path.starts_with("tools.restrict_to_workspace")
         || path.starts_with("tools.exec.timeout")
         || path.starts_with("tools.web.search.enabled")
         || path.starts_with("tools.web.fetch.enabled")
         || path.starts_with("sandbox.mode")
         || path.starts_with("sandbox.approval_policy")
+        || path.starts_with("sandbox.network_access")
+        || path.starts_with("sandbox.timeout_seconds")
+        || path.starts_with("sandbox.windows_level")
         || path.starts_with("logging.level")
+        || path.starts_with("logging.format")
+        || path.starts_with("logging.dir")
+        || path.starts_with("logging.retention")
+        || path.starts_with("self_evolution.enabled")
     {
         "hot_reload"
     } else {
@@ -925,15 +936,32 @@ mod tests {
             "agents.defaults.model",
             "agents.defaults.temperature",
             "agents.defaults.max_tool_iterations",
+            "agents.defaults.max_tokens",
             "agents.defaults.reasoning_effort",
+            "agents.defaults.thinking_mode",
             "agents.soul.enabled",
             "agents.soul.max_chars",
+            "agents.soul.notify_on_change",
+            "agents.soul.bootstrap_once",
             "tools.budget.max_tokens",
+            "tools.builtin.filesystem",
+            "tools.builtin.shell",
+            "tools.builtin.web_search",
+            "tools.builtin.cron",
+            "tools.restrict_to_workspace",
             "tools.exec.timeout",
             "tools.web.search.enabled",
+            "tools.web.fetch.enabled",
             "sandbox.mode",
             "sandbox.approval_policy",
+            "sandbox.network_access",
+            "sandbox.timeout_seconds",
+            "sandbox.windows_level",
             "logging.level",
+            "logging.format",
+            "logging.dir",
+            "logging.retention_days",
+            "self_evolution.enabled",
         ];
         for path in &hot_paths {
             assert_eq!(
