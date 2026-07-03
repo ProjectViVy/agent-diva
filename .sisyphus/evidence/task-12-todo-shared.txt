@@ -1,8 +1,0 @@
-Evidence: Todo Manager API shares data directory with CLI
-
-Test: Both CLI and API use workspace_root/todos directory for JsonlTodoStore.
-Verification: JsonlTodoStore::new(data_root) creates {data_root}/todos.jsonl.
-The handler uses state.workspace_root.join("todos") as the data root.
-This matches the CLI pattern which uses the same workspace_root.
-
-Result: PASS — shared data directory confirmed.
