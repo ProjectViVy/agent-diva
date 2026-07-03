@@ -78,14 +78,20 @@ pub async fn run(command: TodoCommands, data_root: &Path) -> Result<()> {
                 .archive_completed(days)
                 .await
                 .context("Failed to archive todos")?;
-            println!("Archived {} completed todo(s) older than {} days", archived, days);
+            println!(
+                "Archived {} completed todo(s) older than {} days",
+                archived, days
+            );
         }
         TodoCommands::Purge { months } => {
             let deleted = store
                 .purge_archived(months)
                 .await
                 .context("Failed to purge archived todos")?;
-            println!("Purged {} archive file(s) older than {} months", deleted, months);
+            println!(
+                "Purged {} archive file(s) older than {} months",
+                deleted, months
+            );
         }
     }
 

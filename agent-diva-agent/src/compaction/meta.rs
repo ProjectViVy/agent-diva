@@ -18,7 +18,10 @@ pub enum CompactionError {
     /// The summaries vector became empty during compaction.
     EmptyAfterCompaction,
     /// Failed to compress summaries within the allowed recursion depth.
-    BudgetExceeded { remaining_tokens: usize, max_tokens: usize },
+    BudgetExceeded {
+        remaining_tokens: usize,
+        max_tokens: usize,
+    },
 }
 
 impl std::fmt::Display for CompactionError {
@@ -95,7 +98,10 @@ impl MetaCompactor {
 
     /// Compute the total estimated tokens for a slice of summaries.
     fn total_tokens(summaries: &[String]) -> usize {
-        summaries.iter().map(|s| Self::estimate_summary_tokens(s)).sum()
+        summaries
+            .iter()
+            .map(|s| Self::estimate_summary_tokens(s))
+            .sum()
     }
 
     /// Merge two adjacent summaries into a single compressed summary.
@@ -149,10 +155,8 @@ impl MetaCompactor {
                 while !passed && retries < self.quality_gate.max_retry {
                     // Retry: append a hint and re-merge with more aggressive truncation
                     let hint = "[压缩摘要]";
-                    let retry_merged = Self::merge_pair(
-                        &truncate_chars(left, 250),
-                        &truncate_chars(right, 250),
-                    );
+                    let retry_merged =
+                        Self::merge_pair(&truncate_chars(left, 250), &truncate_chars(right, 250));
                     accepted = format!("{} {}", hint, retry_merged);
                     passed = self.validate_merged(&accepted);
                     retries += 1;
@@ -191,7 +195,11 @@ impl MetaCompactor {
     /// `Ok(())` if the summaries fit within the budget (either naturally or
     /// after compression/truncation).  `Err(CompactionError)` if an
     /// unrecoverable error occurs.
-    pub fn compact(&self, summaries: &mut Vec<String>, max_tokens: usize) -> Result<(), CompactionError> {
+    pub fn compact(
+        &self,
+        summaries: &mut Vec<String>,
+        max_tokens: usize,
+    ) -> Result<(), CompactionError> {
         if summaries.is_empty() {
             return Ok(());
         }
@@ -237,7 +245,10 @@ impl MetaCompactor {
 
             // If no reduction happened (e.g., only 1 summary left), stop recursing
             if after_count >= before_count {
-                warn!("Meta-compaction stopped: no further reduction possible at depth {}", depth + 1);
+                warn!(
+                    "Meta-compaction stopped: no further reduction possible at depth {}",
+                    depth + 1
+                );
                 break;
             }
 
@@ -272,7 +283,10 @@ impl MetaCompactor {
         while !summaries.is_empty() && Self::total_tokens(summaries) > max_tokens {
             let removed = summaries.remove(0);
             let removed_tokens = Self::estimate_summary_tokens(&removed);
-            info!("Meta-compaction truncated oldest summary ({} tokens)", removed_tokens);
+            info!(
+                "Meta-compaction truncated oldest summary ({} tokens)",
+                removed_tokens
+            );
         }
 
         // Edge case: empty after removal — nothing to do
@@ -286,7 +300,11 @@ impl MetaCompactor {
             let first = &summaries[0];
             let max_chars = max_tokens * 3; // rough inverse of chars/3 token estimate
             let truncated = truncate_chars(first, max_chars);
-            info!("Meta-compaction truncated first summary from {} to {} chars", first.len(), truncated.len());
+            info!(
+                "Meta-compaction truncated first summary from {} to {} chars",
+                first.len(),
+                truncated.len()
+            );
             summaries[0] = truncated;
         }
     }
@@ -321,7 +339,11 @@ mod tests {
     // -- helpers --
 
     fn make_long_summary(id: usize, char_count: usize) -> String {
-        format!("Summary {}: {}", id, "x".repeat(char_count.saturating_sub(10)))
+        format!(
+            "Summary {}: {}",
+            id,
+            "x".repeat(char_count.saturating_sub(10))
+        )
     }
 
     fn make_gate() -> QualityGate {
@@ -490,9 +512,7 @@ mod tests {
         let gate = make_gate();
         let compactor = MetaCompactor::new(gate);
         // Create summaries that exceed a small budget
-        let mut summaries: Vec<String> = (0..10)
-            .map(|i| make_long_summary(i, 300))
-            .collect();
+        let mut summaries: Vec<String> = (0..10).map(|i| make_long_summary(i, 300)).collect();
         let initial_count = summaries.len();
         let max_tokens = 500; // small budget
 
@@ -508,9 +528,7 @@ mod tests {
     fn test_compact_depth_limit_respected() {
         let gate = make_gate();
         let compactor = MetaCompactor::with_max_depth(gate, 1);
-        let mut summaries: Vec<String> = (0..8)
-            .map(|i| make_long_summary(i, 300))
-            .collect();
+        let mut summaries: Vec<String> = (0..8).map(|i| make_long_summary(i, 300)).collect();
 
         let max_tokens = 500;
         compactor.compact(&mut summaries, max_tokens).unwrap();
@@ -526,9 +544,7 @@ mod tests {
         let gate = make_gate();
         let compactor = MetaCompactor::with_max_depth(gate, 1);
         // Create many long summaries that won't fit even after one compression
-        let mut summaries: Vec<String> = (0..20)
-            .map(|i| make_long_summary(i, 500))
-            .collect();
+        let mut summaries: Vec<String> = (0..20).map(|i| make_long_summary(i, 500)).collect();
 
         let max_tokens = 100;
         compactor.compact(&mut summaries, max_tokens).unwrap();
@@ -597,9 +613,7 @@ mod tests {
         let gate = make_gate();
         let compactor = MetaCompactor::new(gate);
         // Simulate 15 compaction sessions with long summaries
-        let mut summaries: Vec<String> = (0..15)
-            .map(|i| make_long_summary(i, 400))
-            .collect();
+        let mut summaries: Vec<String> = (0..15).map(|i| make_long_summary(i, 400)).collect();
         let initial_count = summaries.len();
         let initial_tokens = MetaCompactor::total_tokens(&summaries);
 
@@ -613,8 +627,16 @@ mod tests {
         assert!(
             final_count < initial_count || final_tokens <= max_tokens,
             "meta-compaction should reduce summaries: {} -> {} summaries, {} -> {} tokens",
-            initial_count, final_count, initial_tokens, final_tokens
+            initial_count,
+            final_count,
+            initial_tokens,
+            final_tokens
         );
-        assert!(final_tokens <= max_tokens, "final tokens {} should be <= {}", final_tokens, max_tokens);
+        assert!(
+            final_tokens <= max_tokens,
+            "final tokens {} should be <= {}",
+            final_tokens,
+            max_tokens
+        );
     }
 }

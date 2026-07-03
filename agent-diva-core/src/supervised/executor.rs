@@ -225,7 +225,10 @@ mod tests {
         let created = store.create(&spec).await.expect("create");
 
         let mut executor = TaskExecutor::new(store.clone(), "worker-test");
-        executor.register_handler(RunKind::Generic, Arc::new(SleepHandler::new(10, "completed")));
+        executor.register_handler(
+            RunKind::Generic,
+            Arc::new(SleepHandler::new(10, "completed")),
+        );
 
         // Run a single tick
         executor.tick().await.expect("tick");
@@ -245,7 +248,10 @@ mod tests {
         let (_dir, store) = setup().await;
 
         let mut executor = TaskExecutor::new(store.clone(), "worker-test");
-        executor.register_handler(RunKind::Generic, Arc::new(SleepHandler::new(10, "completed")));
+        executor.register_handler(
+            RunKind::Generic,
+            Arc::new(SleepHandler::new(10, "completed")),
+        );
 
         // Should return Ok(()) immediately when no queued runs
         let result = executor.tick().await;
@@ -273,6 +279,10 @@ mod tests {
             .expect("get")
             .expect("record");
         assert_eq!(reloaded.status, RunStatus::Failed);
-        assert!(reloaded.error_message.as_ref().unwrap().contains("no handler registered"));
+        assert!(reloaded
+            .error_message
+            .as_ref()
+            .unwrap()
+            .contains("no handler registered"));
     }
 }

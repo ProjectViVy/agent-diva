@@ -289,6 +289,7 @@ dependencies = [
  "agent-diva-tools",
  "anyhow",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "dirs 5.0.1",
@@ -408,6 +409,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

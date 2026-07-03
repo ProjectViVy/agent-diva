@@ -207,7 +207,10 @@ pub async fn update_todo_handler(
 /// Build the router for todo routes.
 pub fn todo_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/todos", axum::routing::get(query_todos_handler).post(create_todo_handler))
+        .route(
+            "/api/todos",
+            axum::routing::get(query_todos_handler).post(create_todo_handler),
+        )
         .route("/api/todos/:id", axum::routing::patch(update_todo_handler))
 }
 
@@ -476,6 +479,9 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["status"], "error");
-        assert!(value["message"].as_str().unwrap().contains("invalid status"));
+        assert!(value["message"]
+            .as_str()
+            .unwrap()
+            .contains("invalid status"));
     }
 }

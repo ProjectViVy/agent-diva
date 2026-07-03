@@ -206,10 +206,12 @@ impl OllamaProvider {
                 provider,
                 model
             );
-            agent_diva_core::audit::emit(agent_diva_core::audit::AuditEvent::UsageMissingFallback {
-                provider: provider.to_string(),
-                model: model.to_string(),
-            });
+            agent_diva_core::audit::emit(
+                agent_diva_core::audit::AuditEvent::UsageMissingFallback {
+                    provider: provider.to_string(),
+                    model: model.to_string(),
+                },
+            );
         }
     }
 

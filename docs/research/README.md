@@ -30,6 +30,9 @@
 - `diva-alife-integration-plan.md` - Diva Alife 集成计划
 - `harness-engineering-three-way-comparison.md` - Harness Engineering 三方对比
 - `harness-engineering-three-way-detailed-checklist.md` - Harness Engineering 三方详细清单
+- `workspace-capability-matrix.md` - .workspace 13 项目 × agent-diva 综合能力矩阵（2026-07-03；15 维度合成）
+- `workspace-hooks-comparison.md` - .workspace Agent Hooks 实现横向对比（2026-07-03）
+- `workspace-subagent-comparison.md` - .workspace Sub-Agent 实现横向对比（2026-07-03；§7.1 含 `feature-swarm-humanlike` 分支预览）
 
 ## 使用说明
 

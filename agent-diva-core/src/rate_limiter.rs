@@ -141,7 +141,11 @@ mod tests {
     async fn burst_10_requests_succeed() {
         let limiter = RateLimiter::new();
         for i in 0..10 {
-            assert!(limiter.check("test-key").await.is_ok(), "request {} should succeed", i + 1);
+            assert!(
+                limiter.check("test-key").await.is_ok(),
+                "request {} should succeed",
+                i + 1
+            );
         }
     }
 

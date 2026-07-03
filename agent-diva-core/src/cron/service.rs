@@ -1182,9 +1182,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let store_path = temp_dir.path().join("cron.json");
 
-        let callback: JobCallback = Arc::new(|_job, _token| {
-            Box::pin(async move { Some("done".to_string()) })
-        });
+        let callback: JobCallback =
+            Arc::new(|_job, _token| Box::pin(async move { Some("done".to_string()) }));
 
         let service = Arc::new(CronService::new(store_path, Some(callback)));
         service.start().await;

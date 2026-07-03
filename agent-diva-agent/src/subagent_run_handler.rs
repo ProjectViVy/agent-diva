@@ -149,7 +149,10 @@ mod tests {
             .expect("get")
             .expect("record");
         assert_eq!(reloaded.status, RunStatus::Completed);
-        assert_eq!(reloaded.result_summary, Some("mock-subagent-done".to_string()));
+        assert_eq!(
+            reloaded.result_summary,
+            Some("mock-subagent-done".to_string())
+        );
     }
 
     /// Mock handler for integration testing

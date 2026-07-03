@@ -281,10 +281,8 @@ mod tests {
 
     #[test]
     fn sink_error_types_display() {
-        let io_err = AuditSinkError::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "disk full",
-        ));
+        let io_err =
+            AuditSinkError::Io(std::io::Error::new(std::io::ErrorKind::Other, "disk full"));
         assert!(io_err.to_string().contains("disk full"));
 
         let ser_err = AuditSinkError::Serialization("invalid json".into());
@@ -299,16 +297,19 @@ mod tests {
         let sink = JsonlAuditSink::new(dir.path()).unwrap();
 
         // Emit 3 distinct events.
-        sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 5 }).unwrap();
+        sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 5 })
+            .unwrap();
         sink.emit(&AuditEvent::ToolInvoked {
             tool_name: "bash".into(),
             args: serde_json::json!({"cmd": "ls"}),
-        }).unwrap();
+        })
+        .unwrap();
         sink.emit(&AuditEvent::TokenUsed {
             provider: "openai".into(),
             model: "gpt-4".into(),
             tokens: 42,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Force flush so the file is fully written before we read it.
         {
@@ -326,7 +327,10 @@ mod tests {
         // Each line should be valid JSON and contain the `type` field.
         for line in &lines {
             let json: serde_json::Value = serde_json::from_str(line).unwrap();
-            assert!(json.get("type").is_some(), "each line must have a `type` field");
+            assert!(
+                json.get("type").is_some(),
+                "each line must have a `type` field"
+            );
         }
 
         // Verify specific event types.
@@ -337,7 +341,10 @@ mod tests {
                 json["type"].as_str().unwrap().to_string()
             })
             .collect();
-        assert_eq!(types, vec!["heartbeat_triggered", "tool_invoked", "token_used"]);
+        assert_eq!(
+            types,
+            vec!["heartbeat_triggered", "tool_invoked", "token_used"]
+        );
     }
 
     #[test]
@@ -346,7 +353,8 @@ mod tests {
         let sink = JsonlAuditSink::new(dir.path()).unwrap();
 
         // Emit one event "today".
-        sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 10 }).unwrap();
+        sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 10 })
+            .unwrap();
         {
             let mut w = sink.writer.lock().unwrap();
             w.flush().unwrap();
@@ -365,7 +373,8 @@ mod tests {
         sink.emit(&AuditEvent::ToolInvoked {
             tool_name: "test".into(),
             args: serde_json::json!({}),
-        }).unwrap();
+        })
+        .unwrap();
         {
             let mut w = sink.writer.lock().unwrap();
             w.flush().unwrap();
@@ -376,14 +385,21 @@ mod tests {
         let old_path = dir.path().join("audit-2099-12-31.jsonl");
 
         assert!(today_path.exists(), "today's file should exist after roll");
-        assert!(!old_path.exists(), "old future-date file should NOT exist (roll goes to today)");
+        assert!(
+            !old_path.exists(),
+            "old future-date file should NOT exist (roll goes to today)"
+        );
 
         let today_lines = std::fs::read_to_string(&today_path).unwrap();
 
         // The original event was flushed to today's file, then after the
         // simulated date change the second event was also written to today's
         // file (because the real date is still today).
-        assert_eq!(today_lines.lines().count(), 2, "today's file has both events");
+        assert_eq!(
+            today_lines.lines().count(),
+            2,
+            "today's file has both events"
+        );
     }
 
     #[test]

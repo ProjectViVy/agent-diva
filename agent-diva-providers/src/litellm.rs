@@ -497,10 +497,9 @@ impl LiteLLMClient {
                 provider,
                 model
             );
-            agent_diva_core::audit::emit(agent_diva_core::audit::AuditEvent::UsageMissingFallback {
-                provider,
-                model,
-            });
+            agent_diva_core::audit::emit(
+                agent_diva_core::audit::AuditEvent::UsageMissingFallback { provider, model },
+            );
         }
 
         Ok(LLMResponse {

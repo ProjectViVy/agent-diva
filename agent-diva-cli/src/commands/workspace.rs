@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use clap::Subcommand;
 use std::path::PathBuf;
 
-use agent_diva_core::config::Config;
 use crate::cli_runtime::CliRuntime;
+use agent_diva_core::config::Config;
 
 #[derive(Subcommand)]
 #[command(rename_all = "kebab-case")]
@@ -39,8 +39,12 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
 
     match command {
         WorkspaceCommands::List => {
-            let entries = std::fs::read_dir(&workspaces_root)
-                .with_context(|| format!("Failed to read workspaces dir: {}", workspaces_root.display()))?;
+            let entries = std::fs::read_dir(&workspaces_root).with_context(|| {
+                format!(
+                    "Failed to read workspaces dir: {}",
+                    workspaces_root.display()
+                )
+            })?;
 
             let mut names: Vec<String> = Vec::new();
             for entry in entries {
@@ -108,7 +112,10 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
 
             if !force {
                 let confirm = dialoguer::Confirm::new()
-                    .with_prompt(format!("Are you sure you want to delete workspace '{}'?", name))
+                    .with_prompt(format!(
+                        "Are you sure you want to delete workspace '{}'?",
+                        name
+                    ))
                     .default(false)
                     .interact()?;
                 if !confirm {

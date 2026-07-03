@@ -373,7 +373,11 @@ mod tests {
         assert!(remaining.iter().any(|i| i.id == pending_item.id));
 
         // Archive file should have the old item
-        let archive_path = dir.path().join(format!("todos.archive.{:04}-{:02}.jsonl", Utc::now().year(), Utc::now().month()));
+        let archive_path = dir.path().join(format!(
+            "todos.archive.{:04}-{:02}.jsonl",
+            Utc::now().year(),
+            Utc::now().month()
+        ));
         let archive_content = std::fs::read_to_string(&archive_path).expect("read archive");
         assert!(archive_content.contains(&old_item.id));
     }
@@ -409,7 +413,11 @@ mod tests {
 
         // Create a recent archive file
         let now = Utc::now();
-        let recent_archive = dir.path().join(format!("todos.archive.{:04}-{:02}.jsonl", now.year(), now.month()));
+        let recent_archive = dir.path().join(format!(
+            "todos.archive.{:04}-{:02}.jsonl",
+            now.year(),
+            now.month()
+        ));
         std::fs::write(&recent_archive, "{}\n").expect("write recent archive");
 
         // Purge archives older than 6 months
@@ -429,7 +437,11 @@ mod tests {
 
         // Create a recent archive file
         let now = Utc::now();
-        let recent_archive = dir.path().join(format!("todos.archive.{:04}-{:02}.jsonl", now.year(), now.month()));
+        let recent_archive = dir.path().join(format!(
+            "todos.archive.{:04}-{:02}.jsonl",
+            now.year(),
+            now.month()
+        ));
         std::fs::write(&recent_archive, "{}\n").expect("write recent archive");
 
         // Purge archives older than 6 months — nothing should match

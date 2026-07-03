@@ -97,10 +97,8 @@ impl ContextCompactor {
 
         // Build prior summaries context (if any)
         // Apply meta-compaction if prior summaries exceed budget
-        let mut prior_summary_texts: Vec<String> = prior_summaries
-            .iter()
-            .map(|s| s.summary.clone())
-            .collect();
+        let mut prior_summary_texts: Vec<String> =
+            prior_summaries.iter().map(|s| s.summary.clone()).collect();
 
         // Meta-compaction: keep prior summaries within a reasonable token budget.
         // The budget is a fraction of the overall context budget, reserved for
@@ -118,7 +116,9 @@ impl ContextCompactor {
             );
             let quality_gate = QualityGate::default();
             let meta_compactor = MetaCompactor::new(quality_gate);
-            if let Err(e) = meta_compactor.compact(&mut prior_summary_texts, max_prior_summary_tokens) {
+            if let Err(e) =
+                meta_compactor.compact(&mut prior_summary_texts, max_prior_summary_tokens)
+            {
                 warn!("Meta-compaction failed: {}; falling back to truncation", e);
             }
         }
