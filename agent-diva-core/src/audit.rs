@@ -204,6 +204,11 @@ pub enum AuditEvent {
         result_size: u32,
         status: String,
     },
+    /// Provider response missing usage field; fallback applied.
+    UsageMissingFallback {
+        provider: String,
+        model: String,
+    },
 }
 
 /// Emit an audit event as a structured JSON log line.
@@ -404,6 +409,10 @@ mod tests {
                 duration_ms: 500,
                 result_size: 1024,
                 status: "ok".into(),
+            },
+            AuditEvent::UsageMissingFallback {
+                provider: "openai".into(),
+                model: "gpt-4".into(),
             },
         ];
         for event in &events {

@@ -198,6 +198,21 @@ impl OllamaProvider {
         usage
     }
 
+    /// Detect missing usage and emit fallback warning + audit event.
+    fn handle_missing_usage(provider: &str, model: &str, usage: &HashMap<String, i64>) {
+        if usage.is_empty() {
+            tracing::warn!(
+                "Provider response missing usage field: provider={} model={}",
+                provider,
+                model
+            );
+            agent_diva_core::audit::emit(agent_diva_core::audit::AuditEvent::UsageMissingFallback {
+                provider: provider.to_string(),
+                model: model.to_string(),
+            });
+        }
+    }
+
     /// Convert internal Message format to Ollama's native format
     fn convert_messages(messages: &[Message]) -> Vec<OllamaMessage> {
         messages
@@ -396,6 +411,9 @@ impl LLMProvider for OllamaProvider {
             chat_response.message.content
         };
 
+        let usage = Self::extract_usage(chat_response.prompt_eval_count, chat_response.eval_count);
+        Self::handle_missing_usage("ollama", &resolved_model, &usage);
+
         Ok(LLMResponse {
             content: if content.is_empty() {
                 None
@@ -404,7 +422,7 @@ impl LLMProvider for OllamaProvider {
             },
             tool_calls,
             finish_reason: "stop".to_string(),
-            usage: Self::extract_usage(chat_response.prompt_eval_count, chat_response.eval_count),
+            usage,
             reasoning_content: chat_response.message.thinking,
         })
     }
@@ -509,6 +527,7 @@ impl LLMProvider for OllamaProvider {
                                 // Extract usage from the final done chunk
                                 let final_usage =
                                     Self::extract_usage(chunk.prompt_eval_count, chunk.eval_count);
+                                Self::handle_missing_usage("ollama", &resolved_model, &final_usage);
                                 // Send completed event with usage data
                                 let _ = tx
                                     .send(Ok(LLMStreamEvent::Completed(LLMResponse {
@@ -538,6 +557,8 @@ impl LLMProvider for OllamaProvider {
             }
 
             // Send completed response
+            let final_usage = HashMap::new();
+            Self::handle_missing_usage("ollama", &resolved_model, &final_usage);
             let final_response = LLMResponse {
                 content: if content.is_empty() {
                     None
@@ -546,7 +567,7 @@ impl LLMProvider for OllamaProvider {
                 },
                 tool_calls,
                 finish_reason: "stop".to_string(),
-                usage: Default::default(),
+                usage: final_usage,
                 reasoning_content: if reasoning_content.is_empty() {
                     None
                 } else {

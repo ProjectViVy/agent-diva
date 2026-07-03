@@ -50,7 +50,7 @@ struct ChatCompletionResponse {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     choices: Vec<Choice>,
     #[serde(default)]
-    usage: Usage,
+    usage: Option<Usage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,7 +84,7 @@ struct Function {
     arguments: String,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 struct Usage {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     prompt_tokens: i64,
@@ -475,13 +475,33 @@ impl LiteLLMClient {
             });
         }
 
+        let usage_data = response.usage.clone().unwrap_or_default();
         let mut usage = HashMap::new();
-        usage.insert("prompt_tokens".to_string(), response.usage.prompt_tokens);
+        usage.insert("prompt_tokens".to_string(), usage_data.prompt_tokens);
         usage.insert(
             "completion_tokens".to_string(),
-            response.usage.completion_tokens,
+            usage_data.completion_tokens,
         );
-        usage.insert("total_tokens".to_string(), response.usage.total_tokens);
+        usage.insert("total_tokens".to_string(), usage_data.total_tokens);
+
+        // Detect missing usage field and emit fallback warning + audit event
+        if response.usage.is_none() {
+            let provider = self
+                .selected_provider
+                .as_ref()
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| "litellm".to_string());
+            let model = self.default_model.clone();
+            tracing::warn!(
+                "Provider response missing usage field: provider={} model={}",
+                provider,
+                model
+            );
+            agent_diva_core::audit::emit(agent_diva_core::audit::AuditEvent::UsageMissingFallback {
+                provider,
+                model,
+            });
+        }
 
         Ok(LLMResponse {
             content: choice.message.content.clone(),
@@ -1130,7 +1150,7 @@ mod tests {
                 },
                 finish_reason: Some("tool_calls".to_string()),
             }],
-            usage: Usage::default(),
+            usage: Some(Usage::default()),
         };
         let result = client.parse_response(response).unwrap();
         assert_eq!(result.tool_calls.len(), 1);
@@ -1162,7 +1182,7 @@ mod tests {
                 },
                 finish_reason: Some("tool_calls".to_string()),
             }],
-            usage: Usage::default(),
+            usage: Some(Usage::default()),
         };
         let result = client.parse_response(response).unwrap();
         assert_eq!(result.tool_calls.len(), 1);
@@ -1191,7 +1211,7 @@ mod tests {
                 },
                 finish_reason: Some("tool_calls".to_string()),
             }],
-            usage: Usage::default(),
+            usage: Some(Usage::default()),
         };
         let result = client.parse_response(response).unwrap();
         assert_eq!(result.tool_calls.len(), 1);
@@ -1222,9 +1242,10 @@ mod tests {
 
         assert_eq!(response.choices.len(), 1);
         assert!(response.choices[0].message.tool_calls.is_empty());
-        assert_eq!(response.usage.prompt_tokens, 0);
-        assert_eq!(response.usage.completion_tokens, 0);
-        assert_eq!(response.usage.total_tokens, 0);
+        let usage = response.usage.unwrap_or_default();
+        assert_eq!(usage.prompt_tokens, 0);
+        assert_eq!(usage.completion_tokens, 0);
+        assert_eq!(usage.total_tokens, 0);
     }
 
     #[test]
@@ -1525,5 +1546,74 @@ mod tests {
         );
         assert!(!value.to_string().contains("image_file"));
         assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[test]
+    fn test_parse_response_with_missing_usage_emits_fallback() {
+        let client = LiteLLMClient::default();
+        let response = ChatCompletionResponse {
+            choices: vec![Choice {
+                message: ResponseMessage {
+                    content: Some("hello".to_string()),
+                    tool_calls: vec![],
+                    reasoning_content: None,
+                },
+                finish_reason: Some("stop".to_string()),
+            }],
+            usage: None,
+        };
+        let result = client.parse_response(response).unwrap();
+        assert_eq!(result.content, Some("hello".to_string()));
+        assert!(result.usage.contains_key("prompt_tokens"));
+        assert!(result.usage.contains_key("completion_tokens"));
+        assert!(result.usage.contains_key("total_tokens"));
+        // All should be 0 since usage was missing
+        assert_eq!(result.usage.get("prompt_tokens"), Some(&0));
+        assert_eq!(result.usage.get("completion_tokens"), Some(&0));
+        assert_eq!(result.usage.get("total_tokens"), Some(&0));
+    }
+
+    #[test]
+    fn test_parse_response_with_present_usage_does_not_emit_fallback() {
+        let client = LiteLLMClient::default();
+        let response = ChatCompletionResponse {
+            choices: vec![Choice {
+                message: ResponseMessage {
+                    content: Some("hello".to_string()),
+                    tool_calls: vec![],
+                    reasoning_content: None,
+                },
+                finish_reason: Some("stop".to_string()),
+            }],
+            usage: Some(Usage {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15,
+            }),
+        };
+        let result = client.parse_response(response).unwrap();
+        assert_eq!(result.content, Some("hello".to_string()));
+        assert_eq!(result.usage.get("prompt_tokens"), Some(&10));
+        assert_eq!(result.usage.get("completion_tokens"), Some(&5));
+        assert_eq!(result.usage.get("total_tokens"), Some(&15));
+    }
+
+    #[test]
+    fn test_deserialize_response_without_usage_field() {
+        let payload = serde_json::json!({
+            "choices": [
+                {
+                    "message": {
+                        "content": "hello",
+                        "tool_calls": null,
+                        "reasoning_content": null
+                    },
+                    "finish_reason": "stop"
+                }
+            ]
+        });
+
+        let response: ChatCompletionResponse = serde_json::from_value(payload).unwrap();
+        assert!(response.usage.is_none());
     }
 }
