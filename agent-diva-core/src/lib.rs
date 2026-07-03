@@ -3,6 +3,7 @@
 //! This crate provides the foundational types, traits, and utilities
 //! used by all other agent-diva components.
 
+pub mod workspace;
 pub mod attachment;
 pub mod audit;
 pub mod audit_parse;
@@ -32,6 +33,7 @@ pub mod todo;
 pub mod token_ledger;
 pub mod utils;
 
+pub use workspace::create_dual_root_dirs;
 pub use attachment::FileAttachment;
 pub use audit::emit;
 pub use error::{Error, Result};
