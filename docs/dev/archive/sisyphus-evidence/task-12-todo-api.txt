@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.57s
+warning: the following packages contain code that will be rejected by a future version of Rust: imap-proto v0.10.2
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src\lib.rs (target\debug\deps\agent_diva_manager-6fd10e25baf21742.exe)
+
+running 6 tests
+test handlers::todo::tests::create_todo_returns_200_with_id ... ok
+test handlers::todo::tests::patch_todo_not_found_returns_404 ... ok
+test handlers::todo::tests::list_todos_contains_created ... ok
+test handlers::todo::tests::patch_todo_invalid_status_returns_400 ... ok
+test handlers::todo::tests::patch_todo_status_updates ... ok
+test handlers::todo::tests::filter_todos_by_status ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 39 filtered out; finished in 0.07s
+
+   Doc-tests agent_diva_manager
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
