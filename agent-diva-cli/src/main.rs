@@ -15,6 +15,7 @@ use agent_diva_cli::cli_runtime::{
     current_provider_name, default_model_from_registry, doctor_report, ensure_workspace_templates,
     fetch_provider_models, print_json, redacted_config_value, set_provider_credentials, CliRuntime,
 };
+use agent_diva_cli::commands::todo::TodoCommands;
 use agent_diva_cli::provider_commands::{
     run_provider_list, run_provider_login, run_provider_models, run_provider_set,
     run_provider_status,
@@ -172,6 +173,11 @@ enum Commands {
     Cron {
         #[command(subcommand)]
         command: CronCommands,
+    },
+    /// Manage todos
+    Todo {
+        #[command(subcommand)]
+        command: TodoCommands,
     },
 }
 
@@ -561,6 +567,15 @@ async fn main() -> Result<()> {
                 run_cron_run(&runtime, job_id, force).await?;
             }
         },
+        Commands::Todo { command } => {
+            if !structured_output {
+                info!("Processing todo command");
+            }
+            let config = runtime.load_config()?;
+            let workspace = runtime.effective_workspace(&config);
+            let data_root = workspace.join("todos");
+            agent_diva_cli::commands::todo::run(command, &data_root).await?;
+        }
     }
 
     Ok(())
