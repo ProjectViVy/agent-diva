@@ -20,6 +20,7 @@ pub mod memory;
 pub mod planning;
 pub mod presence;
 pub mod quality;
+pub mod rate_limiter;
 pub mod reasoning;
 pub mod reports;
 pub mod scheduler;

@@ -4,6 +4,7 @@
 //! after each call, capturing latency, token usage, and status.
 
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
@@ -21,12 +22,21 @@ use crate::{
 /// is emitted after each `chat()` or `chat_stream()` invocation.
 pub struct ProviderTap<P> {
     inner: P,
+    rate_limiter: Arc<agent_diva_core::rate_limiter::RateLimiter>,
 }
 
 impl<P> ProviderTap<P> {
     /// Create a new `ProviderTap` wrapping the given provider.
     pub fn new(inner: P) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            rate_limiter: Arc::new(agent_diva_core::rate_limiter::RateLimiter::new()),
+        }
+    }
+
+    fn rate_limit_key(provider_name: &str, model: Option<&str>, default_model: &str) -> String {
+        let model_str = model.unwrap_or(default_model);
+        format!("{}:{}", provider_name, model_str)
     }
 }
 
@@ -40,6 +50,18 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         max_tokens: i32,
         temperature: f64,
     ) -> ProviderResult<LLMResponse> {
+        let provider_name = std::any::type_name::<P>().to_string();
+        let default_model = self.inner.get_default_model();
+        let key = Self::rate_limit_key(&provider_name, model.as_deref(), &default_model);
+
+        if let Err(agent_diva_core::rate_limiter::RateLimitError::Exceeded { retry_after }) =
+            self.rate_limiter.check(&key).await
+        {
+            return Err(ProviderError::RateLimited {
+                retry_after: Some(retry_after),
+            });
+        }
+
         let start = std::time::Instant::now();
         let result = self
             .inner
@@ -54,17 +76,21 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
                     .get("total_tokens")
                     .copied()
                     .or_else(|| {
-                        response
-                            .usage
-                            .get("prompt_tokens")
-                            .copied()
-                            .and_then(|p| {
-                                response.usage.get("completion_tokens").copied().map(|c| p + c)
-                            })
+                        response.usage.get("prompt_tokens").copied().and_then(|p| {
+                            response
+                                .usage
+                                .get("completion_tokens")
+                                .copied()
+                                .map(|c| p + c)
+                        })
                     })
                     .map(|t| t.max(0) as u32)
                     .unwrap_or_else(|| {
-                        response.content.as_ref().map(|c| c.len() as u32 / 4).unwrap_or(0)
+                        response
+                            .content
+                            .as_ref()
+                            .map(|c| c.len() as u32 / 4)
+                            .unwrap_or(0)
                     });
                 ("ok".to_string(), tokens)
             }
@@ -72,7 +98,7 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         };
 
         agent_diva_core::audit::emit(agent_diva_core::audit::AuditEvent::ProviderCallCompleted {
-            provider: std::any::type_name::<P>().to_string(),
+            provider: provider_name,
             model: model.unwrap_or_else(|| self.inner.get_default_model()),
             latency_ms,
             tokens,
@@ -90,9 +116,22 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         max_tokens: i32,
         temperature: f64,
     ) -> ProviderResult<ProviderEventStream> {
-        let start = std::time::Instant::now();
-        let model_str = model.clone().unwrap_or_else(|| self.inner.get_default_model());
         let provider_name = std::any::type_name::<P>().to_string();
+        let default_model = self.inner.get_default_model();
+        let key = Self::rate_limit_key(&provider_name, model.as_deref(), &default_model);
+
+        if let Err(agent_diva_core::rate_limiter::RateLimitError::Exceeded { retry_after }) =
+            self.rate_limiter.check(&key).await
+        {
+            return Err(ProviderError::RateLimited {
+                retry_after: Some(retry_after),
+            });
+        }
+
+        let start = std::time::Instant::now();
+        let model_str = model
+            .clone()
+            .unwrap_or_else(|| self.inner.get_default_model());
 
         match self
             .inner
@@ -155,7 +194,12 @@ impl Stream for TappedStream {
                 this.token_count += text.len() as u32 / 4;
                 Poll::Ready(Some(Ok(LLMStreamEvent::ReasoningDelta(text.clone()))))
             }
-            Poll::Ready(Some(Ok(LLMStreamEvent::ToolCallDelta { index, id, name, arguments_delta }))) => {
+            Poll::Ready(Some(Ok(LLMStreamEvent::ToolCallDelta {
+                index,
+                id,
+                name,
+                arguments_delta,
+            }))) => {
                 // Tool call deltas don't contribute to token count in a meaningful way here
                 Poll::Ready(Some(Ok(LLMStreamEvent::ToolCallDelta {
                     index,
@@ -184,7 +228,9 @@ impl Stream for TappedStream {
                     ProviderError::InvalidResponse(s) => ProviderError::InvalidResponse(s.clone()),
                     ProviderError::ApiError(s) => ProviderError::ApiError(s.clone()),
                     ProviderError::ConfigError(s) => ProviderError::ConfigError(s.clone()),
-                    ProviderError::RateLimited { retry_after } => ProviderError::RateLimited { retry_after: *retry_after },
+                    ProviderError::RateLimited { retry_after } => ProviderError::RateLimited {
+                        retry_after: *retry_after,
+                    },
                 };
                 this.emit_event("error");
                 Poll::Ready(Some(Err(err)))
@@ -307,9 +353,7 @@ mod tests {
         let mock = MockProvider::new(false);
         let tap = ProviderTap::new(mock);
 
-        let result = tap
-            .chat(vec![], None, Some("gpt-4".into()), 100, 0.7)
-            .await;
+        let result = tap.chat(vec![], None, Some("gpt-4".into()), 100, 0.7).await;
         assert!(result.is_ok());
         // Event is emitted via tracing; we verify the call succeeds
     }
@@ -319,9 +363,7 @@ mod tests {
         let mock = MockProvider::new(true);
         let tap = ProviderTap::new(mock);
 
-        let result = tap
-            .chat(vec![], None, Some("gpt-4".into()), 100, 0.7)
-            .await;
+        let result = tap.chat(vec![], None, Some("gpt-4".into()), 100, 0.7).await;
         assert!(result.is_err());
         // Event is emitted via tracing; we verify the call returns error
     }
