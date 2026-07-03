@@ -156,6 +156,25 @@ pub enum AuditEvent {
         decision_kind: String,
         reason: String,
     },
+    /// A cron job execution started.
+    CronJobStarted {
+        job_id: String,
+        job_name: String,
+        scheduled_at: String,
+    },
+    /// A cron job execution completed.
+    CronJobCompleted {
+        job_id: String,
+        job_name: String,
+        duration_ms: u64,
+        success: bool,
+    },
+    /// A cron job execution failed.
+    CronJobFailed {
+        job_id: String,
+        job_name: String,
+        error: String,
+    },
 }
 
 /// Emit an audit event as a structured JSON log line.
@@ -316,6 +335,22 @@ mod tests {
                 source_type: "user_input".into(),
                 decision_kind: "block".into(),
                 reason: "injection detected".into(),
+            },
+            AuditEvent::CronJobStarted {
+                job_id: "job_1".into(),
+                job_name: "daily_backup".into(),
+                scheduled_at: "2026-07-03T09:00:00Z".into(),
+            },
+            AuditEvent::CronJobCompleted {
+                job_id: "job_1".into(),
+                job_name: "daily_backup".into(),
+                duration_ms: 1500,
+                success: true,
+            },
+            AuditEvent::CronJobFailed {
+                job_id: "job_2".into(),
+                job_name: "weekly_report".into(),
+                error: "connection timeout".into(),
             },
         ];
         for event in &events {

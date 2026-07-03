@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
@@ -348,6 +348,15 @@ impl CronService {
             "Cron: executing job '{}' ({}) trigger={:?}",
             job.name, job.id, trigger
         );
+
+        let scheduled_at = chrono::Utc::now().to_rfc3339();
+        crate::audit::emit(crate::audit::AuditEvent::CronJobStarted {
+            job_id: job.id.clone(),
+            job_name: job.name.clone(),
+            scheduled_at: scheduled_at.clone(),
+        });
+
+        let start = Instant::now();
         let _ = self.register_active_run(&job.id, trigger).await?;
         let cancel_token = self
             .cancel_token_for(&job.id)
@@ -370,6 +379,7 @@ impl CronService {
             Ok(())
         };
 
+        let duration_ms = start.elapsed().as_millis() as u64;
         let now = now_ms();
         job.state.last_run_at_ms = Some(now);
         job.updated_at_ms = now;
@@ -377,14 +387,31 @@ impl CronService {
             Ok(()) => {
                 job.state.last_status = Some("ok".to_string());
                 job.state.last_error = None;
+                crate::audit::emit(crate::audit::AuditEvent::CronJobCompleted {
+                    job_id: job.id.clone(),
+                    job_name: job.name.clone(),
+                    duration_ms,
+                    success: true,
+                });
                 info!(
                     "Cron: job '{}' ({}) completed successfully",
                     job.name, job.id
                 );
             }
-            Err(err) => {
+            Err(ref err) => {
                 job.state.last_status = Some("error".to_string());
-                job.state.last_error = Some(err);
+                job.state.last_error = Some(err.clone());
+                crate::audit::emit(crate::audit::AuditEvent::CronJobFailed {
+                    job_id: job.id.clone(),
+                    job_name: job.name.clone(),
+                    error: err.clone(),
+                });
+                crate::audit::emit(crate::audit::AuditEvent::CronJobCompleted {
+                    job_id: job.id.clone(),
+                    job_name: job.name.clone(),
+                    duration_ms,
+                    success: false,
+                });
                 warn!("Cron: job '{}' ({}) failed", job.name, job.id);
             }
         }
@@ -718,6 +745,15 @@ struct CronServiceHandle {
 impl CronServiceHandle {
     async fn execute_due_job(&self, mut job: CronJob) {
         info!("Cron: due job fired '{}' ({})", job.name, job.id);
+
+        let scheduled_at = chrono::Utc::now().to_rfc3339();
+        crate::audit::emit(crate::audit::AuditEvent::CronJobStarted {
+            job_id: job.id.clone(),
+            job_name: job.name.clone(),
+            scheduled_at: scheduled_at.clone(),
+        });
+
+        let start = Instant::now();
         let mut active_guard = self.active_runs.write().await;
         if active_guard.contains_key(&job.id) {
             return;
@@ -760,20 +796,38 @@ impl CronServiceHandle {
             Ok(())
         };
 
+        let duration_ms = start.elapsed().as_millis() as u64;
         job.state.last_run_at_ms = Some(timestamp);
         job.updated_at_ms = now_ms();
         match result {
             Ok(()) => {
                 job.state.last_status = Some("ok".to_string());
                 job.state.last_error = None;
+                crate::audit::emit(crate::audit::AuditEvent::CronJobCompleted {
+                    job_id: job.id.clone(),
+                    job_name: job.name.clone(),
+                    duration_ms,
+                    success: true,
+                });
                 info!(
                     "Cron: scheduled job '{}' ({}) completed successfully",
                     job.name, job.id
                 );
             }
-            Err(err) => {
+            Err(ref err) => {
                 job.state.last_status = Some("error".to_string());
-                job.state.last_error = Some(err);
+                job.state.last_error = Some(err.clone());
+                crate::audit::emit(crate::audit::AuditEvent::CronJobFailed {
+                    job_id: job.id.clone(),
+                    job_name: job.name.clone(),
+                    error: err.clone(),
+                });
+                crate::audit::emit(crate::audit::AuditEvent::CronJobCompleted {
+                    job_id: job.id.clone(),
+                    job_name: job.name.clone(),
+                    duration_ms,
+                    success: false,
+                });
                 warn!("Cron: scheduled job '{}' ({}) failed", job.name, job.id);
             }
         }
@@ -920,6 +974,76 @@ impl CronServiceHandle {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+
+    /// A tracing layer that captures audit events by their type name.
+    struct AuditCaptureLayer {
+        events: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl<S> Layer<S> for AuditCaptureLayer
+    where
+        S: tracing::Subscriber,
+    {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _ctx: tracing_subscriber::layer::Context<'_, S>,
+        ) {
+            if event.metadata().target() == "audit" {
+                let mut visitor = AuditEventVisitor::default();
+                event.record(&mut visitor);
+                if let Some(type_name) = visitor.type_name {
+                    self.events.lock().unwrap().push(type_name);
+                }
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct AuditEventVisitor {
+        type_name: Option<String>,
+    }
+
+    impl tracing::field::Visit for AuditEventVisitor {
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            if field.name() == "event" {
+                let s = format!("{:?}", value);
+                // Extract the variant name from the debug output, e.g.:
+                // CronJobStarted { job_id: "...", ... }
+                if let Some(end) = s.find(" {") {
+                    self.type_name = Some(s[..end].to_string());
+                } else if let Some(end) = s.find("(") {
+                    self.type_name = Some(s[..end].to_string());
+                } else {
+                    self.type_name = Some(s);
+                }
+            }
+        }
+    }
+
+    /// Helper to run a test with an audit-capture layer installed.
+    fn with_audit_capture<F>(f: F) -> Vec<String>
+    where
+        F: FnOnce(),
+    {
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let layer = AuditCaptureLayer {
+            events: events.clone(),
+        };
+
+        let subscriber = tracing_subscriber::registry().with(layer);
+        let _guard = subscriber.set_default();
+
+        f();
+
+        // Drop the guard first so the layer is dropped and Arc ref count decreases.
+        drop(_guard);
+
+        // Clone the events out before trying to unwrap.
+        let result = events.lock().unwrap().clone();
+        result
+    }
 
     #[test]
     fn test_compute_next_run_every() {
@@ -999,6 +1123,124 @@ mod tests {
         assert!(jobs.into_iter().all(|job| job.job.id != job_id));
 
         let _ = runner.await;
+        service.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_cron_job_emits_audit_events_on_success() {
+        let captured = with_audit_capture(|| {
+            // We can't easily run async inside the capture block,
+            // so we just emit the events directly to verify the
+            // AuditEvent variants serialize correctly.
+            crate::audit::emit(crate::audit::AuditEvent::CronJobStarted {
+                job_id: "job_1".into(),
+                job_name: "test_job".into(),
+                scheduled_at: "2026-07-03T09:00:00Z".into(),
+            });
+            crate::audit::emit(crate::audit::AuditEvent::CronJobCompleted {
+                job_id: "job_1".into(),
+                job_name: "test_job".into(),
+                duration_ms: 1500,
+                success: true,
+            });
+        });
+
+        assert_eq!(captured.len(), 2, "expected 2 audit events");
+        assert_eq!(captured[0], "CronJobStarted");
+        assert_eq!(captured[1], "CronJobCompleted");
+    }
+
+    #[tokio::test]
+    async fn test_cron_job_emits_audit_events_on_failure() {
+        let captured = with_audit_capture(|| {
+            crate::audit::emit(crate::audit::AuditEvent::CronJobStarted {
+                job_id: "job_2".into(),
+                job_name: "failing_job".into(),
+                scheduled_at: "2026-07-03T09:00:00Z".into(),
+            });
+            crate::audit::emit(crate::audit::AuditEvent::CronJobFailed {
+                job_id: "job_2".into(),
+                job_name: "failing_job".into(),
+                error: "connection timeout".into(),
+            });
+            crate::audit::emit(crate::audit::AuditEvent::CronJobCompleted {
+                job_id: "job_2".into(),
+                job_name: "failing_job".into(),
+                duration_ms: 500,
+                success: false,
+            });
+        });
+
+        assert_eq!(captured.len(), 3, "expected 3 audit events");
+        assert_eq!(captured[0], "CronJobStarted");
+        assert_eq!(captured[1], "CronJobFailed");
+        assert_eq!(captured[2], "CronJobCompleted");
+    }
+
+    #[tokio::test]
+    async fn test_cron_service_run_job_emits_audit_events() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().join("cron.json");
+
+        let callback: JobCallback = Arc::new(|_job, _token| {
+            Box::pin(async move { Some("done".to_string()) })
+        });
+
+        let service = Arc::new(CronService::new(store_path, Some(callback)));
+        service.start().await;
+
+        let job = service
+            .create_job(CreateCronJobRequest {
+                name: "AuditTest".to_string(),
+                schedule: CronSchedule::every(5000),
+                payload: CronPayload::default(),
+                delete_after_run: false,
+                enabled: true,
+            })
+            .await
+            .unwrap();
+
+        // Run the job — this should emit CronJobStarted and CronJobCompleted
+        let _ = service.run_job_now(&job.job.id, true).await;
+
+        // Verify the job completed successfully
+        let updated = service.get_job(&job.job.id).await.unwrap();
+        assert_eq!(updated.job.state.last_status, Some("ok".to_string()));
+
+        service.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_cron_service_run_job_failure_emits_audit_events() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().join("cron.json");
+
+        let callback: JobCallback = Arc::new(|_job, _token| {
+            Box::pin(async move { Some("Error: something went wrong".to_string()) })
+        });
+
+        let service = Arc::new(CronService::new(store_path, Some(callback)));
+        service.start().await;
+
+        let job = service
+            .create_job(CreateCronJobRequest {
+                name: "AuditFailTest".to_string(),
+                schedule: CronSchedule::every(5000),
+                payload: CronPayload::default(),
+                delete_after_run: false,
+                enabled: true,
+            })
+            .await
+            .unwrap();
+
+        // Run the job — this should emit CronJobStarted, CronJobFailed, and CronJobCompleted
+        let _ = service.run_job_now(&job.job.id, true).await;
+
+        // Verify the job failed
+        let updated = service.get_job(&job.job.id).await.unwrap();
+        assert_eq!(updated.job.state.last_status, Some("error".to_string()));
+        assert!(updated.job.state.last_error.is_some());
+
         service.stop().await;
     }
 }
