@@ -12,8 +12,9 @@ use chrono::Utc;
 use std::sync::Arc;
 use tracing::{info, warn};
 
+use super::meta::MetaCompactor;
 use super::prompt::{COMPACTION_SYSTEM_PROMPT, PRIOR_SUMMARIES_PREFIX};
-use super::quality::validate_summary;
+use super::quality::{validate_summary, QualityGate};
 use crate::context_budget::BudgetConfig;
 use crate::token_estimate::estimate_total_tokens;
 
@@ -95,13 +96,40 @@ impl ContextCompactor {
         let formatted = Self::format_messages_for_compaction(range);
 
         // Build prior summaries context (if any)
-        let prior_context = if prior_summaries.is_empty() {
+        // Apply meta-compaction if prior summaries exceed budget
+        let mut prior_summary_texts: Vec<String> = prior_summaries
+            .iter()
+            .map(|s| s.summary.clone())
+            .collect();
+
+        // Meta-compaction: keep prior summaries within a reasonable token budget.
+        // The budget is a fraction of the overall context budget, reserved for
+        // prior summaries.  Default: 10% of max_tokens, capped at 2000 tokens.
+        let max_prior_summary_tokens = config.max_tokens / 10;
+        let prior_tokens: usize = prior_summary_texts
+            .iter()
+            .map(|s| crate::token_estimate::estimate_tokens(s))
+            .sum();
+
+        if prior_tokens > max_prior_summary_tokens {
+            info!(
+                "Prior summaries token count ({} tokens) exceeds budget ({} tokens); triggering meta-compaction",
+                prior_tokens, max_prior_summary_tokens
+            );
+            let quality_gate = QualityGate::default();
+            let meta_compactor = MetaCompactor::new(quality_gate);
+            if let Err(e) = meta_compactor.compact(&mut prior_summary_texts, max_prior_summary_tokens) {
+                warn!("Meta-compaction failed: {}; falling back to truncation", e);
+            }
+        }
+
+        let prior_context = if prior_summary_texts.is_empty() {
             String::new()
         } else {
-            let combined = prior_summaries
+            let combined = prior_summary_texts
                 .iter()
                 .enumerate()
-                .map(|(i, s)| format!("[{}/{}] {}", i + 1, prior_summaries.len(), s.summary))
+                .map(|(i, s)| format!("[{}/{}] {}", i + 1, prior_summary_texts.len(), s))
                 .collect::<Vec<_>>()
                 .join("\n\n");
             format!(

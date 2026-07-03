@@ -22,9 +22,11 @@
 //! and are re-used by this module.
 
 pub mod compaction_exec;
+pub mod meta;
 pub mod prompt;
 pub mod quality;
 
 pub use compaction_exec::ContextCompactor;
+pub use meta::{CompactionError, MetaCompactor};
 pub use prompt::{COMPACTION_SYSTEM_PROMPT, PRIOR_SUMMARIES_PREFIX};
 pub use quality::{validate_summary, QualityGate, QualityReport, QualityResult};
