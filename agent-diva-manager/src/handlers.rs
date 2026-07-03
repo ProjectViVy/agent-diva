@@ -4,10 +4,12 @@ pub mod health;
 pub mod laputa;
 pub mod logs;
 pub mod planning;
+pub mod todo;
 mod provider_companion;
 
 pub use audit::{get_audit_events_handler, get_audit_log_handler};
 pub use logs::{logs_routes, query_logs_handler};
+pub use todo::{todo_routes, query_todos_handler, create_todo_handler, update_todo_handler};
 
 pub use health::health_handler;
 

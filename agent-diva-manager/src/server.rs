@@ -24,7 +24,7 @@ use crate::handlers::{
     logs_routes, poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
     resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
-    stop_cron_job_handler, stream_laputa_events_handler, transition_laputa_proposal_handler,
+    stop_cron_job_handler, stream_laputa_events_handler, todo_routes, transition_laputa_proposal_handler,
     trigger_autodream_run_handler, update_channel_handler, update_config_handler,
     update_cron_job_handler, update_mcp_handler, update_provider_handler,
     update_self_evolution_config_handler, update_tools_handler, upload_file_handler,
@@ -89,6 +89,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(autodream_routes())
         .merge(laputa_routes())
         .merge(audit_routes())
+        .merge(todo_routes())
         .merge(misc_routes())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
