@@ -16,6 +16,7 @@ use agent_diva_cli::cli_runtime::{
     fetch_provider_models, print_json, redacted_config_value, set_provider_credentials, CliRuntime,
 };
 use agent_diva_cli::commands::todo::TodoCommands;
+use agent_diva_cli::commands::workspace::WorkspaceCommands;
 use agent_diva_cli::provider_commands::{
     run_provider_list, run_provider_login, run_provider_models, run_provider_set,
     run_provider_status,
@@ -173,6 +174,11 @@ enum Commands {
     Cron {
         #[command(subcommand)]
         command: CronCommands,
+    },
+    /// Manage workspaces
+    Workspace {
+        #[command(subcommand)]
+        command: WorkspaceCommands,
     },
     /// Manage todos
     Todo {
@@ -567,6 +573,12 @@ async fn main() -> Result<()> {
                 run_cron_run(&runtime, job_id, force).await?;
             }
         },
+        Commands::Workspace { command } => {
+            if !structured_output {
+                info!("Processing workspace command");
+            }
+            agent_diva_cli::commands::workspace::run(command, &runtime).await?;
+        }
         Commands::Todo { command } => {
             if !structured_output {
                 info!("Processing todo command");
