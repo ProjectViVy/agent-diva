@@ -10,8 +10,9 @@ use agent_diva_files::FileManager;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::planning::{PlanCreateTool, TodoShowTool, TodoWriteTool};
 use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadAttachmentTool,
-    ReadFileTool, SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
+    load_mcp_tools_sync, CronTool, DelegateTool, EditFileTool, ExecTool, ExecuteCodeTool,
+    ListDirTool, PatchTool, ProcessTool, ReadAttachmentTool, ReadFileTool, SearchFilesTool,
+    SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -215,7 +216,8 @@ impl ToolAssembly {
         }
 
         if self.builtin_config.spawn && !subagent_mode && !action_restricted {
-            if let Some(spawner) = self.subagent_spawner {
+            if let Some(ref spawner) = self.subagent_spawner {
+                let spawner = spawner.clone();
                 registry.register(Arc::new(SpawnTool::new(
                     move |task, label, channel, chat_id| {
                         let spawner = spawner.clone();
@@ -234,6 +236,50 @@ impl ToolAssembly {
         if self.builtin_config.cron && !subagent_mode && !action_restricted {
             if let Some(cron_service) = self.cron_service {
                 registry.register(Arc::new(CronTool::new(cron_service)));
+            }
+        }
+
+        if self.builtin_config.patch && !action_restricted {
+            let security = Arc::new(SecurityPolicy::with_config(
+                self.workspace.clone(),
+                SecurityConfig {
+                    level: SecurityLevel::Standard,
+                    workspace_only: true,
+                    ..SecurityConfig::default()
+                },
+            ));
+            registry.register(Arc::new(PatchTool::new(security)));
+        }
+
+        if self.builtin_config.search_files {
+            registry.register(Arc::new(SearchFilesTool::new(self.workspace.clone())));
+        }
+
+        if self.builtin_config.process && !action_restricted && !subagent_mode {
+            registry.register(Arc::new(ProcessTool::new(self.workspace.clone())));
+        }
+
+        if self.builtin_config.code_execution && !action_restricted && !subagent_mode {
+            registry.register(Arc::new(ExecuteCodeTool::new(self.workspace.clone())));
+        }
+
+        if self.builtin_config.delegate && !subagent_mode && !action_restricted {
+            if let Some(spawner) = self.subagent_spawner.clone() {
+                let delegate_tool = DelegateTool::new(
+                    move |agent: String, task: String| {
+                        let spawner = spawner.clone();
+                        async move {
+                            match spawner
+                                .spawn(task.clone(), Some(agent.clone()), String::new(), String::new())
+                                .await
+                            {
+                                Ok(result) => result,
+                                Err(e) => format!("Subagent error: {}", e),
+                            }
+                        }
+                    },
+                );
+                registry.register(Arc::new(delegate_tool));
             }
         }
 

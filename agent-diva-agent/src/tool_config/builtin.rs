@@ -23,6 +23,16 @@ pub struct BuiltInToolsConfig {
     pub attachment: bool,
     #[serde(default)]
     pub mentle: bool,
+    #[serde(default = "default_true")]
+    pub patch: bool,
+    #[serde(default = "default_true")]
+    pub search_files: bool,
+    #[serde(default = "default_true")]
+    pub process: bool,
+    #[serde(default = "default_true")]
+    pub code_execution: bool,
+    #[serde(default = "default_true")]
+    pub delegate: bool,
 }
 
 fn default_true() -> bool {
@@ -41,6 +51,11 @@ impl BuiltInToolsConfig {
             mcp: false,
             attachment: false,
             mentle: false,
+            patch: false,
+            search_files: false,
+            process: false,
+            code_execution: false,
+            delegate: false,
         }
     }
 
@@ -55,6 +70,11 @@ impl BuiltInToolsConfig {
             mcp: false,
             attachment: false,
             mentle: false,
+            patch: false,
+            search_files: false,
+            process: false,
+            code_execution: false,
+            delegate: false,
         }
     }
 
@@ -69,6 +89,11 @@ impl BuiltInToolsConfig {
             mcp: true,
             attachment: true,
             mentle: true,
+            patch: true,
+            search_files: true,
+            process: true,
+            code_execution: true,
+            delegate: true,
         }
     }
 
@@ -83,6 +108,11 @@ impl BuiltInToolsConfig {
             mcp: self.mcp && policy.allow_mcp,
             attachment: false,
             mentle: false,
+            patch: false,
+            search_files: false,
+            process: false,
+            code_execution: false,
+            delegate: false,
         }
     }
 }
@@ -99,6 +129,11 @@ impl Default for BuiltInToolsConfig {
             mcp: true,
             attachment: true,
             mentle: false,
+            patch: true,
+            search_files: true,
+            process: true,
+            code_execution: true,
+            delegate: true,
         }
     }
 }

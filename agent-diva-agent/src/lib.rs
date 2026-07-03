@@ -16,6 +16,7 @@ pub mod planning;
 pub mod runtime_control;
 pub mod skills;
 pub mod subagent;
+pub mod subagent_policy;
 pub mod token_estimate;
 pub mod tool_assembly;
 pub mod tool_config;

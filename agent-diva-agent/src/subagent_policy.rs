@@ -1,5 +1,5 @@
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
-use agent_diva_core::config::{MCPServerConfig, SubagentToolsConfig};
+use agent_diva_core::config::MCPServerConfig;
 use std::collections::HashMap;
 
 /// Runtime policy applied to every spawned subagent.
@@ -16,20 +16,14 @@ pub struct SubagentPolicy {
 
 impl Default for SubagentPolicy {
     fn default() -> Self {
-        Self::from(SubagentToolsConfig::default())
-    }
-}
-
-impl From<SubagentToolsConfig> for SubagentPolicy {
-    fn from(value: SubagentToolsConfig) -> Self {
         Self {
-            max_concurrent: value.max_concurrent,
-            max_depth: value.max_depth,
-            allow_shell: value.allow_shell,
-            allow_filesystem: value.allow_filesystem,
-            allow_web_fetch: value.allow_web_fetch,
-            allow_web_search: value.allow_web_search,
-            allow_mcp: value.allow_mcp,
+            max_concurrent: 5,
+            max_depth: 3,
+            allow_shell: false,
+            allow_filesystem: true,
+            allow_web_fetch: false,
+            allow_web_search: false,
+            allow_mcp: false,
         }
     }
 }
