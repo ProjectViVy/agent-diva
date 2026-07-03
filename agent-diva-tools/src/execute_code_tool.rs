@@ -4,7 +4,6 @@
 //! Uses timeout-based subprocess execution following ExecTool's pattern.
 //! Temp files are cleaned up after execution.
 
-use agent_diva_tooling::base::ToolCapabilities;
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
