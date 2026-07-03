@@ -202,6 +202,7 @@ fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         mcp: config.tools.builtin.mcp,
         attachment: config.tools.builtin.attachment,
         mentle: config.tools.builtin.mentle,
+        enqueue_background_task: config.tools.builtin.enqueue_background_task,
     }
 }
 

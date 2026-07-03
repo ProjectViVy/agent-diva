@@ -6,12 +6,13 @@ use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
+use agent_diva_core::supervised::RunStore;
 use agent_diva_files::FileManager;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::planning::{PlanCreateTool, TodoShowTool, TodoWriteTool};
 use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, ExecTool, ListDirTool, ReadAttachmentTool,
-    ReadFileTool, SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
+    load_mcp_tools_sync, CronTool, EditFileTool, EnqueueBackgroundTaskTool, ExecTool, ListDirTool,
+    ReadAttachmentTool, ReadFileTool, SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -39,6 +40,7 @@ pub struct ToolAssembly {
     custom_tools: Vec<Arc<dyn Tool>>,
     subagent_spawner: Option<Arc<dyn SubagentSpawner>>,
     file_manager: Option<Arc<FileManager>>,
+    run_store: Option<Arc<RunStore>>,
     mask_config: Option<MaskConfig>,
     planning_config: Option<PlanningConfig>,
     plan_mode: bool,
@@ -57,6 +59,7 @@ impl ToolAssembly {
             custom_tools: Vec::new(),
             subagent_spawner: None,
             file_manager: None,
+            run_store: None,
             mask_config: None,
             planning_config: None,
             plan_mode: false,
@@ -103,6 +106,11 @@ impl ToolAssembly {
         self
     }
 
+    pub fn with_run_store(mut self, run_store: Arc<RunStore>) -> Self {
+        self.run_store = Some(run_store);
+        self
+    }
+
     pub fn with_tool(mut self, tool: Arc<dyn Tool>) -> Self {
         self.custom_tools.push(tool);
         self
@@ -137,6 +145,7 @@ impl ToolAssembly {
         self.subagent_spawner = None;
         self.cron_service = None;
         self.file_manager = None;
+        self.run_store = None;
         self.custom_tools.clear();
         self.build_internal(true)
     }
@@ -234,6 +243,14 @@ impl ToolAssembly {
         if self.builtin_config.cron && !subagent_mode && !action_restricted {
             if let Some(cron_service) = self.cron_service {
                 registry.register(Arc::new(CronTool::new(cron_service)));
+            }
+        }
+
+        if self.builtin_config.enqueue_background_task && !subagent_mode && !action_restricted {
+            if let Some(run_store) = self.run_store {
+                registry.register(Arc::new(EnqueueBackgroundTaskTool::new(
+                    (*run_store).clone(),
+                )));
             }
         }
 
@@ -403,6 +420,57 @@ mod tests {
         assert!(!registry.has("web_search"));
         assert!(!registry.has("web_fetch"));
         assert!(!registry.has("memtle_status"));
+    }
+
+    #[test]
+    fn test_tool_assembly_enqueue_background_task_when_config_true() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig {
+                enqueue_background_task: true,
+                ..BuiltInToolsConfig::none()
+            })
+            .build();
+
+        // Without run_store, the tool is not registered
+        assert!(!registry.has("enqueue_background_task"));
+    }
+
+    #[tokio::test]
+    async fn test_tool_assembly_enqueue_background_task_with_run_store() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let run_store = Arc::new(
+            RunStore::new(temp_dir.path())
+                .await
+                .expect("store creation"),
+        );
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig {
+                enqueue_background_task: true,
+                ..BuiltInToolsConfig::none()
+            })
+            .with_run_store(run_store)
+            .build();
+
+        assert!(registry.has("enqueue_background_task"));
+    }
+
+    #[tokio::test]
+    async fn test_tool_assembly_subagent_mode_excludes_enqueue_background_task() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let run_store = Arc::new(
+            RunStore::new(temp_dir.path())
+                .await
+                .expect("store creation"),
+        );
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig {
+                enqueue_background_task: true,
+                ..BuiltInToolsConfig::none()
+            })
+            .with_run_store(run_store)
+            .build_subagent_registry();
+
+        assert!(!registry.has("enqueue_background_task"));
     }
 
     #[test]

@@ -1321,6 +1321,8 @@ pub struct BuiltInToolsConfig {
     #[serde(default)]
     pub planning: bool,
     pub mentle: bool,
+    #[serde(default = "default_enabled")]
+    pub enqueue_background_task: bool,
 }
 
 impl Default for BuiltInToolsConfig {
@@ -1336,6 +1338,7 @@ impl Default for BuiltInToolsConfig {
             attachment: true,
             planning: false,
             mentle: false,
+            enqueue_background_task: true,
         }
     }
 }

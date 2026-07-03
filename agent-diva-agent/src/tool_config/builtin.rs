@@ -19,8 +19,10 @@ pub struct BuiltInToolsConfig {
     pub mcp: bool,
     #[serde(default = "default_true")]
     pub attachment: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub mentle: bool,
+    #[serde(default = "default_true")]
+    pub enqueue_background_task: bool,
 }
 
 fn default_true() -> bool {
@@ -39,6 +41,7 @@ impl BuiltInToolsConfig {
             mcp: false,
             attachment: false,
             mentle: false,
+            enqueue_background_task: false,
         }
     }
 
@@ -53,6 +56,7 @@ impl BuiltInToolsConfig {
             mcp: false,
             attachment: false,
             mentle: false,
+            enqueue_background_task: false,
         }
     }
 
@@ -67,6 +71,7 @@ impl BuiltInToolsConfig {
             mcp: true,
             attachment: true,
             mentle: true,
+            enqueue_background_task: true,
         }
     }
 
@@ -81,6 +86,7 @@ impl BuiltInToolsConfig {
             mcp: self.mcp,
             attachment: false,
             mentle: false,
+            enqueue_background_task: false,
         }
     }
 }
@@ -97,6 +103,7 @@ impl Default for BuiltInToolsConfig {
             mcp: true,
             attachment: true,
             mentle: false,
+            enqueue_background_task: false,
         }
     }
 }
@@ -122,5 +129,6 @@ mod tests {
         assert!(!subagent.spawn);
         assert!(!subagent.cron);
         assert!(!subagent.attachment);
+        assert!(!subagent.enqueue_background_task);
     }
 }
