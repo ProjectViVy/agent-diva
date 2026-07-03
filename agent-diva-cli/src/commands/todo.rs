@@ -21,6 +21,18 @@ pub enum TodoCommands {
         #[arg(long)]
         status: String,
     },
+    /// Archive completed todos older than N days
+    Archive {
+        /// Number of days old to archive
+        #[arg(long, default_value = "30")]
+        days: u64,
+    },
+    /// Purge archived todo files older than N months
+    Purge {
+        /// Number of months old to purge
+        #[arg(long, default_value = "6")]
+        months: u64,
+    },
 }
 
 pub async fn run(command: TodoCommands, data_root: &Path) -> Result<()> {
@@ -60,6 +72,20 @@ pub async fn run(command: TodoCommands, data_root: &Path) -> Result<()> {
                     anyhow::bail!("Todo not found: {}", id);
                 }
             }
+        }
+        TodoCommands::Archive { days } => {
+            let archived = store
+                .archive_completed(days)
+                .await
+                .context("Failed to archive todos")?;
+            println!("Archived {} completed todo(s) older than {} days", archived, days);
+        }
+        TodoCommands::Purge { months } => {
+            let deleted = store
+                .purge_archived(months)
+                .await
+                .context("Failed to purge archived todos")?;
+            println!("Purged {} archive file(s) older than {} months", deleted, months);
         }
     }
 
