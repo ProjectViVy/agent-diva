@@ -23,8 +23,9 @@ use tokio::sync::Mutex;
 /// Error returned when a rate limit is exceeded.
 #[derive(Debug, PartialEq, Eq)]
 pub enum RateLimitError {
-    /// The bucket is empty; caller should retry after `retry_after` seconds.
-    Exceeded { retry_after: u64 },
+    /// The bucket is empty; caller should retry after `retry_after` seconds
+    /// when it can be determined.
+    Exceeded { retry_after: Option<u64> },
 }
 
 /// Token bucket for a single rate-limit key.
@@ -63,25 +64,62 @@ impl TokenBucket {
     }
 
     /// Seconds until the next token becomes available.
-    pub fn retry_after_secs(&self) -> u64 {
-        if self.tokens >= 1.0 {
-            0
-        } else {
-            let missing = 1.0 - self.tokens;
-            let seconds = missing / self.refill_rate_per_sec;
-            seconds.ceil().max(0.0) as u64
-        }
+    pub fn retry_after_secs(&self) -> Option<u64> {
+        compute_retry_after_secs(self.tokens, self.refill_rate_per_sec)
     }
 
     fn refill(&mut self) {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_refill).as_secs_f64();
         if elapsed > 0.0 {
-            let tokens_to_add = elapsed * self.refill_rate_per_sec;
-            self.tokens = (self.tokens + tokens_to_add).min(self.capacity as f64);
+            self.tokens = compute_refilled_tokens(
+                self.tokens,
+                self.capacity,
+                self.refill_rate_per_sec,
+                elapsed,
+            );
             self.last_refill = now;
         }
     }
+}
+
+fn compute_refilled_tokens(
+    current_tokens: f64,
+    capacity: u32,
+    refill_rate_per_sec: f64,
+    elapsed_secs: f64,
+) -> f64 {
+    if !current_tokens.is_finite() {
+        return capacity as f64;
+    }
+
+    let capacity = capacity as f64;
+    let clamped_tokens = current_tokens.clamp(0.0, capacity);
+    if elapsed_secs <= 0.0 || !elapsed_secs.is_finite() {
+        return clamped_tokens;
+    }
+    if refill_rate_per_sec <= 0.0 || !refill_rate_per_sec.is_finite() {
+        return clamped_tokens;
+    }
+
+    (clamped_tokens + elapsed_secs * refill_rate_per_sec).min(capacity)
+}
+
+fn compute_retry_after_secs(tokens: f64, refill_rate_per_sec: f64) -> Option<u64> {
+    if tokens >= 1.0 {
+        return Some(0);
+    }
+    if refill_rate_per_sec <= 0.0 || !refill_rate_per_sec.is_finite() {
+        return None;
+    }
+
+    let missing = (1.0 - tokens).max(0.0);
+    let seconds = missing / refill_rate_per_sec;
+    if !seconds.is_finite() {
+        return None;
+    }
+
+    Some(seconds.ceil().clamp(0.0, u64::MAX as f64) as u64)
 }
 
 /// In-memory rate limiter backed by a `HashMap` of token buckets.
@@ -194,7 +232,10 @@ mod tests {
         let result = limiter.check("test-key").await;
         match result {
             Err(RateLimitError::Exceeded { retry_after }) => {
-                assert!(retry_after > 0, "retry_after should be > 0 when exceeded");
+                assert!(
+                    retry_after.is_some_and(|retry_after| retry_after > 0),
+                    "retry_after should be > 0 when exceeded"
+                );
             }
             _ => panic!("Expected RateLimitError::Exceeded"),
         }
@@ -215,9 +256,56 @@ mod tests {
         let result = limiter.check("test-key").await;
         match result {
             Err(RateLimitError::Exceeded { retry_after }) => {
-                assert!(retry_after > 0);
+                assert!(retry_after.is_some_and(|retry_after| retry_after > 0));
             }
             _ => panic!("Expected rate limit exceeded after burst"),
         }
+    }
+
+    #[test]
+    fn zero_refill_has_no_retry_after() {
+        assert_eq!(compute_retry_after_secs(0.0, 0.0), None);
+        assert_eq!(compute_retry_after_secs(0.5, -1.0), None);
+    }
+
+    #[test]
+    fn tiny_refill_retry_after_saturates() {
+        assert_eq!(
+            compute_retry_after_secs(0.0, f64::MIN_POSITIVE),
+            Some(u64::MAX)
+        );
+    }
+
+    #[test]
+    fn long_elapsed_refill_caps_at_capacity() {
+        let tokens = compute_refilled_tokens(0.0, 5, 0.5, 10_000.0);
+        assert_eq!(tokens, 5.0);
+    }
+
+    #[test]
+    fn zero_refill_does_not_restore_tokens() {
+        let tokens = compute_refilled_tokens(0.0, 5, 0.0, 10.0);
+        assert_eq!(tokens, 0.0);
+    }
+
+    #[tokio::test]
+    async fn zero_refill_same_key_stays_depleted() {
+        let limiter = RateLimiter::with_config(2, 0.0);
+        assert!(limiter.check("same-key").await.is_ok());
+        assert!(limiter.check("same-key").await.is_ok());
+
+        let result = limiter.check("same-key").await;
+        assert_eq!(result, Err(RateLimitError::Exceeded { retry_after: None }));
+    }
+
+    #[tokio::test]
+    async fn zero_refill_different_keys_are_isolated() {
+        let limiter = RateLimiter::with_config(1, 0.0);
+        assert!(limiter.check("key-a").await.is_ok());
+        assert_eq!(
+            limiter.check("key-a").await,
+            Err(RateLimitError::Exceeded { retry_after: None })
+        );
+        assert!(limiter.check("key-b").await.is_ok());
     }
 }

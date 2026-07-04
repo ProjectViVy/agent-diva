@@ -38,6 +38,10 @@ impl<P> ProviderTap<P> {
         let model_str = model.unwrap_or(default_model);
         format!("{}:{}", provider_name, model_str)
     }
+
+    fn into_rate_limited_error(retry_after: Option<u64>) -> ProviderError {
+        ProviderError::RateLimited { retry_after }
+    }
 }
 
 #[async_trait]
@@ -66,9 +70,7 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
                     status: "rate_limited".to_string(),
                 },
             );
-            return Err(ProviderError::RateLimited {
-                retry_after: Some(retry_after),
-            });
+            return Err(Self::into_rate_limited_error(retry_after));
         }
 
         let start = std::time::Instant::now();
@@ -141,9 +143,7 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
                     status: "rate_limited".to_string(),
                 },
             );
-            return Err(ProviderError::RateLimited {
-                retry_after: Some(retry_after),
-            });
+            return Err(Self::into_rate_limited_error(retry_after));
         }
 
         let start = std::time::Instant::now();
@@ -421,5 +421,23 @@ mod tests {
         let tap = ProviderTap::new(mock);
 
         assert_eq!(tap.get_default_model(), "mock-model");
+    }
+
+    #[test]
+    fn test_rate_limited_error_preserves_unknown_retry_after() {
+        assert!(matches!(
+            ProviderTap::<MockProvider>::into_rate_limited_error(None),
+            ProviderError::RateLimited { retry_after: None }
+        ));
+    }
+
+    #[test]
+    fn test_rate_limited_error_preserves_known_retry_after() {
+        assert!(matches!(
+            ProviderTap::<MockProvider>::into_rate_limited_error(Some(3)),
+            ProviderError::RateLimited {
+                retry_after: Some(3)
+            }
+        ));
     }
 }
