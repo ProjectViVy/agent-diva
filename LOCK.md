@@ -51,3 +51,5 @@ Codex/Cursor/人工协作并行开发互斥锁。
 - `2026-07-04`: Codex 已释放锁；`TODOLIST.md` 现已完成 backlog 收口、延期标注，以及 `94baa4b..HEAD` 的全量 review checklist 与 Wave 规划写入。
 - `2026-07-04`: Codex 重新占用 `TODOLIST.md`、`LOCK.md` 和 `docs/logs/2026-07-wave1-review-planning/`，目标是落地 Wave 1 子 agent 并行审查计划与迭代日志。
 - `2026-07-04`: Codex 已释放 `Wave 1 subagent review plan implementation` 锁；`TODOLIST.md` 已写入并行派工方案，迭代日志位于 `docs/logs/2026-07-wave1-review-planning/v0.0.1-wave1-subagent-plan/`。
+- `2026-07-04`: Codex 占用 `LOCK.md` 和 `docs/logs/2026-07-wave1-review-report/`，目标是汇总子 agent 结果并产出 Wave 1 正式审查报告。
+- `2026-07-04`: Codex 已释放 `Wave 1 review report drafting` 锁；正式报告位于 `docs/logs/2026-07-wave1-review-report/v0.0.1-wave1-summary/`。
