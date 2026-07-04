@@ -155,3 +155,5 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 - [x] **Wave 0 CI stabilization** Previous CI and workspace verification blockers were already cleared.
 - [x] **Plan mode runtime wiring** Previously completed and validated in `docs/logs/2026-06-plan-mode-runtime/v0.0.1-plan-mode-runtime-wiring/verification.md`.
 - [x] **Parallel lock mechanism** Repository-level `LOCK.md` workflow had already been introduced before this pass.
+- [x] **Wave 1 remediation on 2026-07-04** Closed the reviewed release blockers for E2E false-green behavior, token-budget enforcement, supervised-run cancellation, and security production wiring.
+  - Related log: `docs/logs/2026-07-wave1-remediation/v0.0.1-wave1-remediation/`
