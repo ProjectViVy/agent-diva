@@ -472,9 +472,9 @@ onBeforeUnmount(() => {
   display: flex;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel);
   flex-direction: column;
 }
 
@@ -483,7 +483,7 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--line);
   padding: 14px;
 }
 
@@ -497,7 +497,7 @@ onBeforeUnmount(() => {
 .proposal-inbox__header p {
   margin: 4px 0 0;
   overflow-wrap: anywhere;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -508,8 +508,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--line);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -518,7 +518,7 @@ onBeforeUnmount(() => {
 .proposal-inbox__batch {
   display: grid;
   gap: 10px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--line);
   padding: 12px;
 }
 
@@ -527,11 +527,11 @@ onBeforeUnmount(() => {
   min-height: 34px;
   align-items: center;
   gap: 8px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--panel);
   padding: 0 10px;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .proposal-inbox__search input {
@@ -539,7 +539,7 @@ onBeforeUnmount(() => {
   flex: 1;
   border: 0;
   background: transparent;
-  color: #111827;
+  color: var(--text);
   font-size: 12px;
   outline: 0;
 }
@@ -557,7 +557,7 @@ onBeforeUnmount(() => {
 }
 
 .proposal-inbox__filter-grid span {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
 }
@@ -565,11 +565,11 @@ onBeforeUnmount(() => {
 .proposal-inbox__filter-grid select {
   min-width: 0;
   height: 32px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--panel);
   padding: 0 8px;
-  color: #111827;
+  color: var(--text);
   font-size: 12px;
 }
 
@@ -593,15 +593,18 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: #ffffff;
-  color: #374151;
+  background: var(--panel);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 }
 
 .proposal-inbox__batch button {
+  border-color: var(--accent-border);
+  background: var(--accent-bg-light);
+  color: var(--accent);
   padding: 0 9px;
 }
 
@@ -622,13 +625,13 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 20px;
   text-align: center;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .proposal-inbox__state strong {
   max-width: 100%;
   overflow-wrap: anywhere;
-  color: #111827;
+  color: var(--text);
   font-size: 14px;
 }
 
@@ -640,7 +643,7 @@ onBeforeUnmount(() => {
 }
 
 .proposal-inbox__state--error {
-  color: #991b1b;
+  color: var(--danger);
 }
 
 .proposal-inbox__list {
@@ -660,9 +663,9 @@ onBeforeUnmount(() => {
   grid-template-columns: 20px minmax(0, 1fr) 30px;
   align-items: center;
   gap: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--panel);
   padding: 10px;
 }
 
@@ -671,14 +674,14 @@ onBeforeUnmount(() => {
   inset: 0 auto 0 0;
   width: 4px;
   border-radius: 7px 0 0 7px;
-  background: #dc2626;
+  background: var(--danger);
   content: "";
 }
 
 .proposal-inbox__row:hover,
 .proposal-inbox__row.active {
-  border-color: #bfdbfe;
-  background: #f8fafc;
+  border-color: var(--accent-border);
+  background: var(--accent-bg-light);
 }
 
 .proposal-inbox__row.unread .proposal-inbox__row-button strong::after {
@@ -687,12 +690,12 @@ onBeforeUnmount(() => {
   height: 7px;
   margin-left: 7px;
   border-radius: 999px;
-  background: #2563eb;
+  background: var(--accent);
   content: "";
 }
 
 .proposal-inbox__row.deferred {
-  background: #f9fafb;
+  background: var(--line);
 }
 
 .proposal-inbox__row-check {
@@ -721,7 +724,7 @@ onBeforeUnmount(() => {
 
 .proposal-inbox__row-top strong {
   overflow-wrap: anywhere;
-  color: #111827;
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -732,24 +735,24 @@ onBeforeUnmount(() => {
   min-height: 22px;
   align-items: center;
   border-radius: 6px;
-  background: #f3f4f6;
+  background: var(--line);
   padding: 0 7px;
-  color: #4b5563;
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 }
 
 .proposal-inbox__risk[data-risk="high"],
 .proposal-inbox__risk[data-risk="critical"] {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .proposal-inbox__blocked {
   display: block;
   min-width: 0;
   overflow: hidden;
-  color: #991b1b;
+  color: var(--danger);
   font-size: 11px;
   line-height: 1.4;
   text-overflow: ellipsis;
