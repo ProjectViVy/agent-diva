@@ -1,70 +1,157 @@
 # TODOLIST
 
-项目级待办与已完成缺陷/差距/未竟工作追踪。
+项目级待办、延期项、评审计划与已完成事项记录。
 
 ## Open
 
-_(No stale open items remain.)_
+_(No active open items. This pass closes what can be closed and explicitly defers everything else.)_
 
-## Backlog
+## Deferred
 
-- [ ] **Production cron clock abstraction** — `runtime.rs:274` uses a hardcoded clock path; needs abstraction for testability and portability.
+- [ ] **Production cron clock abstraction** Deferred. `runtime.rs:274` still uses a hardcoded clock path and needs abstraction for testability and portability.
   - Related files: `agent-diva-manager/src/runtime.rs`
-- [ ] **Audit GUI i18n** — 3 Vue components use hardcoded English strings without `useI18n`; should be wired to the i18n system.
-  - Related files: `agent-diva-gui/src/components/` (affected components TBD)
-- [ ] **UX-DR-3/4/7** — Deferred UX gaps identified during sprint review (design review items 3, 4, 7).
-  - Context: Sprint closure review; specifics to be elaborated when picked up.
+- [ ] **Audit GUI i18n** Deferred. 3 Vue components still use hardcoded English strings without `useI18n`.
+  - Related files: `agent-diva-gui/src/components/`
+- [ ] **UX-DR-3/4/7** Deferred. UX gaps from sprint review remain postponed until a dedicated design pass.
+  - Context: Sprint closure review items 3, 4, and 7
+
+## Review Program
+
+### Scope
+
+- Range: `94baa4b..HEAD`
+- Exclude: `docs:*`, research/archive-only changes, `cbab379`, `ba1d17b`
+- Include: `feat:*`, `merge:*`, behavior-relevant `refactor:*`, validation-relevant `chore:*`, and `style:*` only for semantic-risk sampling
+
+### Wave Plan
+
+- [ ] **Wave A - 基础设施与 Harness 基线**
+  - Commits: `e3cd30c`, `3322aac`, `1627ea3`, `0183c3c`
+  - Focus: `ToolRegistry::execute()` 调用链迁移、`PokeEvent` 广播安全、Harness 与真实运行语义一致性、E2E 迁移后的断言与环境假设
+- [ ] **Wave B - 安全 / 监督运行 / 预算治理**
+  - Commits: `45b6aa6`, `9242579`, `ce70902`, `7ca1c92`, `f43ff96`, `0c1d1bd`, `8ecf041`
+  - Focus: Token ledger 记账时机、subagent budget 强制生效、`UsageRecord`/`ContextBudgetPolicy`/`OverflowAction` 落点、安全收口默认行为、merge 带来的逻辑分叉
+- [ ] **Wave C - 观测性 / Audit 主线**
+  - Commits: `c58054c`, `28b00ce`, `41c829a`, `bd96dd2`, `de031fa`, `0851c4c`, `6ac4056`, `166fd16`, `b3fd4e8`
+  - Focus: Audit schema 一致性、`GLOBAL_SINK` 初始化和线程安全、JSONL rolling 并发写、`/api/logs` 查询闭环、parser refactor 兼容性
+- [ ] **Wave D - 上下文压缩 / 限流**
+  - Commits: `0eb0cce`, `e2e2ad3`
+  - Focus: TokenBucket refill/burst 边界、MetaCompactor 语义保持、触发顺序、失败路径稳定性
+- [ ] **Wave E - Todo 数据面**
+  - Commits: `909a573`, `84c5803`, `2445984`
+  - Focus: API/CLI/store 状态机一致、archive/purge 误删风险、并发写入与重复 ID 边界
+- [ ] **Wave F - 后台任务 / 子代理 / workspace CLI**
+  - Commits: `c0f2712`, `c705538`, `b633b0d`
+  - Focus: background task 生命周期、`SubagentRunHandler` 覆盖度、预算/权限/审计继承、workspace 路径隔离
+- [ ] **Wave G - 横切补强**
+  - Commits: `11728fa`, `9438b25`, `48dd875`, `e9336d9`, `e2941a8`
+  - Focus: usage fallback 统计准确性、`ErrorCategory` 分类失真、timeout wrapper 语义变化、feature gate 漏检、rustfmt 大提交夹带逻辑改动
+
+### Execution Order
+
+- [ ] **Priority 1** Review `Wave B`
+- [ ] **Priority 2** Review `Wave C`
+- [ ] **Priority 3** Review `Wave F`
+- [ ] **Priority 4** Review `Wave E`
+- [ ] **Priority 5** Review `Wave D`
+- [ ] **Priority 6** Review `Wave A`
+- [ ] **Priority 7** Review `Wave G`
+
+### Wave 1 Parallel Review
+
+- [ ] **Wave 1 scope lock**
+  - Coverage: `Wave A` and `Priority 1` (`Wave B`)
+  - Goal: launch parallel review for the foundation path and the first release-risk path together
+  - Output: one `Wave A` report, one `Wave B` report, and one cross-wave risk matrix
+- [ ] **Lead-Agent**
+  - Responsibilities: freeze commit map, assign tasks, deduplicate findings, arbitrate overlaps, publish final summary
+  - Required outputs: commit-to-owner table, merged findings list, release/block recommendation
+- [ ] **A1-Infrastructure**
+  - Commits: `e3cd30c`, `3322aac`
+  - Focus: `PokeEvent` fan-out, subscriber lifecycle, backpressure, `ToolRegistry::execute()` error propagation and caller migration completeness
+- [ ] **A2-Harness**
+  - Commits: `1627ea3`, `0183c3c`
+  - Focus: Harness V2 entrypoints, fixture realism, CI baseline assumptions, E2E migration assertion drift and environment contract changes
+- [ ] **B1-Budget**
+  - Commits: `45b6aa6`, `9242579`, `7ca1c92`
+  - Focus: token ledger write timing, budget enforcement on hot paths, subagent per-task budget coverage, policy definitions vs real execution
+- [ ] **B2-SupervisedRun**
+  - Commits: `ce70902`
+  - Focus: supervised-run state transitions, persistence, cancellation ownership, budget/audit/security wiring
+- [ ] **B3-SecurityMerge**
+  - Commits: `f43ff96`, `0c1d1bd`, `8ecf041`
+  - Focus: `SecurityDecision`, `check_security()`, audit emissions, default policy semantics, merge regression risk, high-risk drift sampling
+- [ ] **Wave 1 execution flow**
+  - Phase 0: `Lead-Agent` publishes commit map and review packet
+  - Phase 1: `A1`, `A2`, `B1`, `B2`, `B3` review in parallel
+  - Phase 2: `Lead-Agent` runs cross-checks for budget/security, harness/supervised-run, and error propagation gaps
+  - Phase 3: `Lead-Agent` publishes `Wave A` and `Wave B` summaries plus one shared priority pool
+- [ ] **Wave 1 report template**
+  - Required sections: `Scope`, `Findings`, `No-finding checks`, `Open questions`, `Verdict`
+  - Required finding fields: severity, title, commit, files, why it matters, reasoning or repro, expected behavior, suggested fix direction, test gap
+  - Verdict format: `Block release: yes|no`, `Confidence: high|medium|low`
+
+### Standard Checklist
+
+- [ ] **接口契约** Public types, traits, and APIs changed in the wave do not break downstream callers.
+- [ ] **状态一致性** In-memory state, persisted state, and event state remain aligned.
+- [ ] **并发/异步安全** Channels, background jobs, globals, locks, cancellation, and task ownership are safe.
+- [ ] **错误传播** Errors preserve context and classification; no silent swallowing or lossy wrapping.
+- [ ] **测试覆盖** Success paths, failure paths, boundaries, and regressions are covered.
+- [ ] **集成闭环** Producer, storage, consumer, CLI/API/UI links are fully wired.
+
+### Commit Checklist
+
+- [ ] **Wave A / `e3cd30c`** Verify `PokeEvent` broadcast fan-out, subscriber lifecycle, and backpressure assumptions.
+- [ ] **Wave A / `3322aac`** Verify every `ToolRegistry::execute()` caller correctly handles `Result<ToolError>`.
+- [ ] **Wave A / `1627ea3`** Review Harness V2 entrypoints, fixture realism, and CI baseline assumptions.
+- [ ] **Wave A / `0183c3c`** Review E2E migration for assertion drift and environment contract changes.
+- [ ] **Wave B / `45b6aa6`** Verify token ledger writes exactly once per billable usage and enforces budgets on the real hot path.
+- [ ] **Wave B / `9242579`** Verify per-task subagent budget is enforced, not merely logged.
+- [ ] **Wave B / `ce70902`** Review supervised-run MVP state transitions, persistence, and cancellation ownership.
+- [ ] **Wave B / `7ca1c92`** Verify usage source mapping and context budget policy integration points.
+- [ ] **Wave B / `f43ff96`** Review `SecurityDecision`, `check_security()`, audit emissions, and default-deny/default-allow semantics.
+- [ ] **Wave B / `0c1d1bd`** Audit merge integration for duplicate paths, stale gates, and branch-resolution regressions.
+- [ ] **Wave B / `8ecf041`** Sample high-risk files for accidental behavior drift in the pre-merge catch-up commit.
+- [ ] **Wave C / `c58054c`** Verify skill upload/delete/block audit events are emitted on all outcome paths.
+- [ ] **Wave C / `28b00ce`** Verify cron start/completion/failure events do not double-fire or miss failures.
+- [ ] **Wave C / `41c829a`** Review `ProviderTap` timing, streaming accumulation, and token accounting correctness.
+- [ ] **Wave C / `bd96dd2`** Review `ToolExecutionTap` around success/error/timeout and nested tool calls.
+- [ ] **Wave C / `de031fa`** Verify JSONL daily rolling, concurrent writes, and write-error swallowing behavior are intentional.
+- [ ] **Wave C / `0851c4c`** Review `AuditSink` registration, `GLOBAL_SINK` initialization ordering, and no-op fallback behavior.
+- [ ] **Wave C / `6ac4056`** Verify `/api/logs` query fields match persisted audit schema exactly.
+- [ ] **Wave C / `166fd16`** Review parser refactor for GUI/manager compatibility and malformed-line handling.
+- [ ] **Wave C / `b3fd4e8`** Verify health endpoint criteria and benchmark assumptions are stable and meaningful.
+- [ ] **Wave D / `0eb0cce`** Review token bucket refill math, monotonic-time assumptions, and burst depletion edges.
+- [ ] **Wave D / `e2e2ad3`** Review MetaCompactor summary fidelity, fallback behavior, and serialization compatibility.
+- [ ] **Wave E / `909a573`** Verify todo CRUD routes, filters, 404 paths, and store integration.
+- [ ] **Wave E / `84c5803`** Verify todo CLI behavior matches HTTP and store semantics.
+- [ ] **Wave E / `2445984`** Review archive/purge for active-item safety, historical retention, and concurrent update behavior.
+- [ ] **Wave F / `c0f2712`** Review enqueue background task lifetime, observability, cancellation, and error return path.
+- [ ] **Wave F / `c705538`** Verify `RunKind::Subagent` dispatch covers every subagent execution path.
+- [ ] **Wave F / `b633b0d`** Review workspace CLI path resolution, isolation, and failure output quality.
+- [ ] **Wave G / `11728fa`** Verify usage fallback metrics/warnings neither double-report nor mask real provider usage.
+- [ ] **Wave G / `9438b25`** Review `ErrorCategory` trait adoption and risk of over-generalized classification.
+- [ ] **Wave G / `48dd875`** Verify timeout wrapper preserves cancellation, retry, and tool-specific error identity.
+- [ ] **Wave G / `e9336d9`** Review feature-gate CI script for missing crate/feature combinations.
+- [ ] **Wave G / `e2941a8`** Sample rustfmt-only commit for accidental semantic edits in touched modules.
+
+### Deliverables
+
+- [ ] **Wave reports** Each wave should end with scope, risk summary, findings, and release/block recommendation.
+- [ ] **Cross-wave matrix** Aggregate findings by security, observability, persistence, concurrency, CLI/API consistency, and test gaps.
+- [ ] **Priority pool** Classify review findings into `P0`/`P1`/`P2`/`P3`.
+
+### Timebox
+
+- [ ] **Day 1** `Wave B` + `Wave C`
+- [ ] **Day 2** `Wave F` + `Wave E`
+- [ ] **Day 3** `Wave D` + `Wave A` + `Wave G`
+- [ ] **Day 4** Cross-wave regression pass, unified conclusion, and priority-pool cleanup
 
 ## Done
 
-- [x] **GUI 预算状态改动后的全局验证仍受既有阻塞影响** — clippy/tests now pass after Wave 0 CI fixes; fmt-check and GUI embedded gateway health check stable.
-  - Related files: `agent-diva-core/src/lib.rs`, `agent-diva-gui/src-tauri/src/embedded_server.rs`
-- [x] **Workspace 全局验证门禁阻塞** — Resolved by Wave 0 CI cleanup; `just check` and `just test` pass on default workspace config.
-  - Related files: `agent-diva-gui/src-tauri/src/notebook.rs`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/subagent.rs`
-- [x] **Claude 规则镜像同步** — 重写 `CLAUDE.md`，使其与当前 `AGENTS.md` 的工作区结构、并行锁机制、验证规则、提交协议和中文通信要求保持一致
-  - 修复范围：`CLAUDE.md`
-  - 期望行为：Claude 会话读取仓库说明时，不再使用过时 crate 列表、错误路径或缺失的并行协作规则
-- [x] **Codex 并行互斥锁机制** — 新增根级 `LOCK.md` 作为并行会话互斥文件，并把锁获取/释放/过期接管流程写入 `AGENTS.md`
-  - 修复范围：`LOCK.md`, `AGENTS.md`
-  - 期望行为：并行 Codex/Cursor/人工会话在写入前先登记锁范围、心跳和工作区边界，避免覆盖同一批文件
-- [x] **Plan mode 运行时生效修复** — GUI `execMode = 'plan'` 已随 `send_message` 传到 Manager；AgentLoop 接入 workspace-local planning store、Plan mode 工具限制、active plan context 注入和 planning/todo 工具注册；GUI PlanningView 依赖的 Tauri commands/nav 已注册。
-  - 修复范围：`agent-diva-gui/src/components/ChatView.vue`, `agent-diva-gui/src/App.vue`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-agent/src/tool_config/mod.rs`, `agent-diva-manager/src/handlers.rs`, `agent-diva-manager/src/manager.rs`, `agent-diva-gui/src-tauri/src/commands.rs`。
-  - 验证记录：`docs/logs/2026-06-plan-mode-runtime/v0.0.1-plan-mode-runtime-wiring/verification.md`。
-- [x] **月度报告产品化** — 月报已接入 `notebook-monthly` 触发链路、AutoDream 共享生成器、失败 error marker attempt 计数、manager 启动时自动安装的月报 cron 调度，以及 GUI 统一的 manager 触发入口（`monthly.rs`, `service.rs`, `runtime.rs`, `bootstrap.rs`, `commands.rs`）
-- [x] **日报聚合与会话回退** — AutoDream 日/周触发器生成真实报告文件；月度从日报合成，缺失日期回退到会话摘要
-- [x] **并行状态工作区隔离** — 规则已写入 `AGENTS.md`（`parallel-state-worktree-isolation`），通过 git worktree/branch 执行
-- [x] **GUI vitest 修复** — `SubAgentPanel.test.ts`（vue-i18n）、`DivaPetView.test.ts`（ChevronDown mock），全套件通过
-- [x] **workspace rustfmt 漂移修复** — 重格式化 `memory_boundary.rs`，`just fmt-check` 通过
-- [x] **Mentle release-gate 测试升级** — 静态过滤测试替换为启用运行时治理边界覆盖（Story 6.5）
-- [x] **2026-06 待办清理** — 关闭过期 Open 项；确认 `epic6-release-gate` 含权威边界测试；治理守卫不再豁免 `notebook.rs`
-- [x] **Story 5.1 Laputa 会话压缩持久化** — Laputa 为默认 MemoryProvider 时，会话压缩须持久化或显式失败，不可静默推进 `last_consolidated`
-- [x] **Story 5.1 移除 MemoryManager 回退** — Laputa 初始化失败时不可恢复旧版 `MEMORY.md`/`HISTORY.md` 权威写入
-- [x] **Story 5.1 子代理权威走 MemoryProvider 注入边界** — 禁止直接实例化 `LaputaMemoryProvider`（`subagent.rs`）
-- [x] **Story 5.2 Mentle 治理排除** — 治理 prompt 不再注入 Mentle 召回/路由引导（`context.rs`）
-- [x] **Story 5.2 Mentle 启用时回归覆盖** — 治理组装依赖 Mentle 运行时状态时测试须失败（`mentle_governance_boundaries.rs`）
-- [x] **Story 5.3 压缩证据在提案边界拒绝** — Laputa 提案创建/编辑拒绝纯压缩证据（`proposals.rs`）
-- [x] **Epic 4 Notebook 前后端联动修复** — 畸形文件跳过、`source_run_id` 修正、会话证据附加、预览模态清理、Evolution 深链导航（`notebook.rs`, `NotebookView.vue`, `EvolutionView.vue`）
-- [x] **Story 4.4 `session_hits` 编译修复** — Notebook 测试调用点适配新签名
-- [x] **Story 6.1 Laputa 迁移写锁** — 迁移提交前获取 proposals 写锁（`migration.rs`）
-- [x] **Story 6.1 `state.json` 字段保留** — 迁移合并 schema 版本到现有 state，非覆盖
-- [x] **Story 6.1 根级遗留文件发现** — 迁移扫描根目录 `MEMORY.md`/`HISTORY.md`，不仅限 `memory/` 子目录
-- [x] **Story 6.1 `BOOTSTRAP.md` 不再作为运行时权威** — 迁移后 prompt 组装停止注入 BOOTSTRAP 内容（`context.rs`）
-- [x] **Story 6.1 schema 版本从 state 读取** — 读 API 返回迁移后版本，非硬编码 `1.0.0`
-- [x] **Story 6.4 治理直写守卫移除白名单** — 文件白名单替换为共享权威边界守卫（`direct_write_guard.rs`）
-- [x] **Story 6.4 治理证明循环调用权威守卫** — `governance_proof_loop` 调用共享边界守卫（`governance_proof_loop.rs`）
-- [x] **Story 5.2 验证阻塞修复** — 压缩次要证据标记路径 + Laputa 缺失 migration/apply API 补全
-- [x] **agent-diva-laputa clippy 清理** — `too_many_arguments`、`manual_inspect` 等已修
-- [x] **agent-diva-sandbox 编译修复** — 添加 `fs2` 锁，修正 `bool`/`&bool` 匹配（`exec_policy.rs`, `macos.rs`）
-- [x] **agent-diva-sandbox 全目标验证** — 移除未用测试导入，修正 shell 注入断言（`manager.rs`, `macos.rs`）
-- [x] **agent-diva-gui Rust 编译修复** — 改用 `state.client`，启用 Tauri `macos-private-api`（`commands.rs`, `tauri.conf.json`）
-- [x] **agent-diva-manager skill 服务测试** — 测试注入临时 builtin-skill fixture（`skill_service.rs`）
-- [x] **agent-diva-agent clippy 清理** — 移除冗余导入、无谓借用、字段重赋值（agent_loop, context, compaction tests）
-- [x] **agent-diva-agent mask/runtime 警告清理** — 警告产生导入已随 clippy 清理移除
-- [x] **Story 2.4 GUI 验证阻塞** — 清理 `vue-tsc` 错误，修复 i18n 插件、ChevronDown mock、mood 断言
-- [x] **GUI 构建阻塞** — 移除 settings 组件残留未用导入，修正 `TodoCard.vue` API 路径
-- [x] **Story 2.4/3.1 阻塞拆分** — Laputa lint、sandbox 编译已确认解决，剩余项拆为独立 TODO
-- [x] **agent-diva-manager AutoDream 错误匹配** — 映射 `InputCollection`/`ProposalPersistence` 变体到现有错误类（`handlers/autodream.rs`）
-- [x] **Story 2.2 Inbox 行为补全** — `ProposalInbox.vue` 含过滤器、键盘导航、批量操作、加载/空态（`ProposalInbox.vue`）
-- [x] **GUI 剪贴板图片粘贴** — commit `53bc086`：`handlePaste` 捕获 → `uploadFile` 上传 → 图片预览 → 多图支持
-- [x] **2026-06-11 sandbox clippy 清理** — 12 个 lint 错误修复（`windows.rs`, `orchestrator.rs`），`cargo test` 99 通过
-- [x] **2026-06-11 sandbox 审计整改** — 10 项关闭（2C+4H+3M+1P3）：shell 注入防护、沙箱不可用 fail-closed、guardian 默认收紧、解释器别名禁令、受保护路径扩展、非零退出码、审批缓存统一、orchestrator 解耦、feature gates、安全策略桥接
+- [x] **Backlog normalization on 2026-07-04** Closed all already-resolved items and converted all remaining unfinished items to explicit deferred status.
+- [x] **Wave 0 CI stabilization** Previous CI and workspace verification blockers were already cleared.
+- [x] **Plan mode runtime wiring** Previously completed and validated in `docs/logs/2026-06-plan-mode-runtime/v0.0.1-plan-mode-runtime-wiring/verification.md`.
+- [x] **Parallel lock mechanism** Repository-level `LOCK.md` workflow had already been introduced before this pass.

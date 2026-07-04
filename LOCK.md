@@ -2,7 +2,7 @@
 
 Codex/Cursor/人工协作并行开发互斥锁。
 
-本文件的目标不是记录长期计划，而是声明“当前谁正在改什么”，避免多个并行会话直接改到同一批文件。
+本文件用于声明“当前谁正在改什么”，避免多个并行会话直接改到同一批文件。
 
 ## Status
 
@@ -21,7 +21,7 @@ Codex/Cursor/人工协作并行开发互斥锁。
 2. 如果 `Lock State` 是 `HELD`，并且 `Last Heartbeat` 仍在有效期内，后续会话不得修改 `Scope` 覆盖的文件。
 3. 如果新任务必须并行推进，优先创建独立 `git worktree`/分支；即便如此，也要在这里登记自己的锁定范围。
 4. `Scope` 必须写明文件、目录或模块，不允许只写“修 bug”“做功能”这种模糊描述。
-5. 持锁会话至少每 30 分钟刷新一次 `Last Heartbeat`；离开前必须释放锁，或把状态改成 `STALE` 并写清原因。
+5. 持锁会话至少每 30 分钟刷新一次 `Last Heartbeat`，离开前必须释放锁，或把状态改成 `STALE` 并写清原因。
 6. 如果发现锁过期，接手者先在 `Handoff Notes` 记录观察，再更新 `Status` 并接管，避免静默覆盖。
 7. 如果需要阻止任何并行写入，把 `Scope` 设为 `GLOBAL`；仅在大范围重构、迁移、批量格式化时允许这样做。
 
@@ -42,8 +42,12 @@ Codex/Cursor/人工协作并行开发互斥锁。
 
 ## Active Lock
 
-在这里填写当前唯一有效锁。没有活跃任务时保持默认值。
+- none
 
 ## Handoff Notes
 
-- `2026-06-21`: 初始化锁文件模板。后续每次接管/释放任务时在此追加简短记录，保留最近上下文。
+- `2026-06-21`: 初始化锁文件模板。
+- `2026-07-04`: Codex 占用 `TODOLIST.md` 和 `LOCK.md`，目标是关闭或延期未完成事项，并追加完整 `94baa4b..HEAD` review checklist 与 Wave 规划。
+- `2026-07-04`: Codex 已释放锁；`TODOLIST.md` 现已完成 backlog 收口、延期标注，以及 `94baa4b..HEAD` 的全量 review checklist 与 Wave 规划写入。
+- `2026-07-04`: Codex 重新占用 `TODOLIST.md`、`LOCK.md` 和 `docs/logs/2026-07-wave1-review-planning/`，目标是落地 Wave 1 子 agent 并行审查计划与迭代日志。
+- `2026-07-04`: Codex 已释放 `Wave 1 subagent review plan implementation` 锁；`TODOLIST.md` 已写入并行派工方案，迭代日志位于 `docs/logs/2026-07-wave1-review-planning/v0.0.1-wave1-subagent-plan/`。
