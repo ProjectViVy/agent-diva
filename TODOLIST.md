@@ -10,6 +10,16 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 
 - [ ] **GUI: migrate `lucide-vue-next` to `@lucide/vue`** Deferred. `lucide-vue-next@0.575.0` is deprecated; npm install warns to use `@lucide/vue` instead. Migration touches ~71 Vue/TS files that import from `lucide-vue-next`, so it needs a dedicated pass and import-name verification.
   - Related files: `agent-diva-gui/src/**/*.vue`, `agent-diva-gui/src/**/*.ts`, `agent-diva-gui/package.json`, `agent-diva-gui/pnpm-lock.yaml`
+- [ ] **Wave G residual: LiteLLM usage fallback masks missing usage as real zero tokens** Deferred. Missing usage currently becomes `0` token fields on the non-streaming LiteLLM path, and the streaming path still lacks equivalent missing-usage fallback visibility, so downstream audit/billing consumers cannot distinguish "provider omitted usage" from "provider reported zero".
+  - Related files: `agent-diva-providers/src/litellm.rs`, `agent-diva-providers/src/tap.rs`, `agent-diva-core/src/audit.rs`
+- [ ] **Wave G residual: ErrorCategory retry semantics are over-generalized** Deferred. `ProviderError::ApiError(_)` is classified as fatal after retries even when it encodes retryable HTTP/server failures, core/security classifications are too coarse, and `Timeout` does not count as retryable via the trait helper.
+  - Related files: `agent-diva-core/src/error_category.rs`, `agent-diva-providers/src/base.rs`, `agent-diva-sandbox/src/error.rs`, `agent-diva-providers/src/retry.rs`
+- [ ] **Wave G residual: global tool timeout config is not wired into production ToolRegistry construction** Deferred. `global_tool_timeout_secs` validates and tests locally but the agent/tool assembly path still constructs `ToolRegistry::new()` instead of carrying the configured timeout, and timeout returns do not emit the same structured context as normal tool failures.
+  - Related files: `agent-diva-core/src/security/config.rs`, `agent-diva-tooling/src/registry.rs`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/tool_assembly.rs`
+- [ ] **Wave G residual: logging retention `0 = keep all` is implemented incorrectly** Deferred. The config and docs say `retention_days = 0` keeps all logs, but the cleanup logic compares age against `Duration::ZERO`, which removes almost every existing log file instead of skipping cleanup.
+  - Related files: `agent-diva-core/src/logging.rs`, `agent-diva-core/src/config/schema.rs`
+- [ ] **Wave G residual: feature-gate check is not a real CI gate and misses platform coverage** Deferred. The new script is not wired into `ci.yml`/`just ci`, the workflow path filters do not include the script, the recipe is Windows-shell-specific, and sandbox platform feature checks do not compile the real parent feature/target combinations.
+  - Related files: `scripts/feature-gate-check.ps1`, `justfile`, `.github/workflows/ci.yml`, `agent-diva-sandbox/src/lib.rs`
 - [ ] **Wave 3 residual: JsonlTodoStore concurrent rewrite data loss** Deferred. `create/update/archive` share one JSONL file but `update_status()` and `archive_completed()` still do read-then-truncate rewrites without mutual exclusion, so concurrent writes can drop freshly appended or updated todos.
   - Related files: `agent-diva-core/src/todo/store.rs`, `agent-diva-manager/src/handlers/todo.rs`, `agent-diva-cli/src/commands/todo.rs`
 - [ ] **Wave 3 residual: todo API/CLI status contract drift** Deferred. `open/pending/active/done/completed` semantics are inconsistent across CLI help, CLI parsing, API list filtering, and API patch validation.
@@ -57,7 +67,7 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 - [x] **Wave F - 后台任务 / 子代理 / workspace CLI**
   - Commits: `c0f2712`, `c705538`, `b633b0d`
   - Focus: background task 生命周期、`SubagentRunHandler` 覆盖度、预算/权限/审计继承、workspace 路径隔离
-- [ ] **Wave G - 横切补强**
+- [x] **Wave G - 横切补强**
   - Commits: `11728fa`, `9438b25`, `48dd875`, `e9336d9`, `e2941a8`
   - Focus: usage fallback 统计准确性、`ErrorCategory` 分类失真、timeout wrapper 语义变化、feature gate 漏检、rustfmt 大提交夹带逻辑改动
 
@@ -69,7 +79,7 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 - [x] **Priority 4** Review `Wave E`
 - [x] **Priority 5** Review `Wave D`
 - [x] **Priority 6** Review `Wave A`
-- [ ] **Priority 7** Review `Wave G`
+- [x] **Priority 7** Review `Wave G`
 
 ### Wave 1 Parallel Review
 
@@ -144,11 +154,11 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 - [x] **Wave F / `c0f2712`** Review enqueue background task lifetime, observability, cancellation, and error return path.
 - [x] **Wave F / `c705538`** Verify `RunKind::Subagent` dispatch covers every subagent execution path.
 - [x] **Wave F / `b633b0d`** Review workspace CLI path resolution, isolation, and failure output quality.
-- [ ] **Wave G / `11728fa`** Verify usage fallback metrics/warnings neither double-report nor mask real provider usage.
-- [ ] **Wave G / `9438b25`** Review `ErrorCategory` trait adoption and risk of over-generalized classification.
-- [ ] **Wave G / `48dd875`** Verify timeout wrapper preserves cancellation, retry, and tool-specific error identity.
-- [ ] **Wave G / `e9336d9`** Review feature-gate CI script for missing crate/feature combinations.
-- [ ] **Wave G / `e2941a8`** Sample rustfmt-only commit for accidental semantic edits in touched modules.
+- [x] **Wave G / `11728fa`** Verify usage fallback metrics/warnings neither double-report nor mask real provider usage.
+- [x] **Wave G / `9438b25`** Review `ErrorCategory` trait adoption and risk of over-generalized classification.
+- [x] **Wave G / `48dd875`** Verify timeout wrapper preserves cancellation, retry, and tool-specific error identity.
+- [x] **Wave G / `e9336d9`** Review feature-gate CI script for missing crate/feature combinations.
+- [x] **Wave G / `e2941a8`** Sample rustfmt-only commit for accidental semantic edits in touched modules.
 
 ### Deliverables
 
@@ -181,3 +191,5 @@ _(No active open items. This pass closes what can be closed and explicitly defer
   - Related log: `docs/logs/2026-07-wavec-remediation/v0.0.1-wavec-remediation/`
 - [x] **Wave C + Wave D review closure on 2026-07-05** Closed the remaining `/api/logs` malformed/schema-drift visibility tests, `/api/health` benchmark CI gate, rate limiter retry-after edge semantics, compaction ordering/retry-once guarantees, meta-compaction fact preservation, and session compaction serde compatibility coverage.
   - Related log: `docs/logs/2026-07-wavecd-remediation/v0.0.1-wavecd-review-closure/`
+- [x] **Wave G review on 2026-07-05** Completed the parallel review of usage fallback metrics, ErrorCategory adoption, global timeout wiring, feature-gate CI coverage, and the rustfmt-only catch-up commit; review blockers were recorded as deferred residuals instead of being fixed in this read-only pass.
+  - Related log: `docs/logs/2026-07-waveg-review/v0.0.1-waveg-summary/`
