@@ -569,13 +569,15 @@ impl RunStore {
         reason: Option<String>,
     ) -> Result<(), RunStoreError> {
         let now = Utc::now();
+        let audit_reason = reason.clone().unwrap_or_default();
 
         let result = sqlx::query(
             "UPDATE supervised_runs
-             SET status = 'cancelled', error_message = ?1, updated_at = ?2
-             WHERE id = ?3 AND status IN ('queued', 'running')",
+             SET status = 'cancelled', error_message = ?1, completed_at = COALESCE(completed_at, ?2), updated_at = ?3
+             WHERE id = ?4 AND status IN ('queued', 'running')",
         )
         .bind(reason)
+        .bind(now.to_rfc3339())
         .bind(now.to_rfc3339())
         .bind(id)
         .execute(&self.pool)
@@ -597,6 +599,11 @@ impl RunStore {
                 None => return Err(RunStoreError::NotFound(id.to_string())),
             }
         }
+
+        audit::emit(audit::AuditEvent::RunCancelled {
+            run_id: id.to_string(),
+            reason: audit_reason,
+        });
 
         Ok(())
     }
@@ -626,21 +633,30 @@ impl RunStore {
             let heartbeat_str: Option<String> = row.get(5);
             let now = Utc::now();
 
-            sqlx::query(
-                "UPDATE supervised_runs SET status = 'lost', updated_at = ?1 WHERE id = ?2",
+            let result = sqlx::query(
+                "UPDATE supervised_runs
+                 SET status = 'lost', completed_at = COALESCE(completed_at, ?1), updated_at = ?2
+                 WHERE id = ?3 AND status = 'running'",
             )
+            .bind(now.to_rfc3339())
             .bind(now.to_rfc3339())
             .bind(&id)
             .execute(&self.pool)
             .await
             .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
 
+            if result.rows_affected() == 0 {
+                continue;
+            }
+
             audit::emit(audit::AuditEvent::RunLost {
                 run_id: id.clone(),
                 last_heartbeat: heartbeat_str,
             });
 
-            records.push(self.row_to_record(&row)?);
+            if let Some(record) = self.get_record(&id).await? {
+                records.push(record);
+            }
         }
 
         Ok(records)
@@ -683,9 +699,17 @@ impl RunStore {
             return Err(RunStoreError::NotFound(id.to_string()));
         }
 
-        self.get_record(id)
+        let requeued = self
+            .get_record(id)
             .await?
-            .ok_or_else(|| RunStoreError::NotFound(id.to_string()))
+            .ok_or_else(|| RunStoreError::NotFound(id.to_string()))?;
+
+        audit::emit(audit::AuditEvent::RunRequeued {
+            run_id: id.to_string(),
+            attempt: requeued.attempt,
+        });
+
+        Ok(requeued)
     }
 
     // -- private helpers --

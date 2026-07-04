@@ -58,9 +58,8 @@ impl RunStatus {
                 target,
                 RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled | RunStatus::Lost
             ),
-            RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled | RunStatus::Lost => {
-                false
-            }
+            RunStatus::Completed | RunStatus::Cancelled => false,
+            RunStatus::Failed | RunStatus::Lost => matches!(target, RunStatus::Queued),
         }
     }
 }
@@ -456,28 +455,9 @@ mod tests {
         assert!(!RunStatus::Running.can_transition_to(RunStatus::Queued));
         assert!(!RunStatus::Running.can_transition_to(RunStatus::Running));
 
-        // Terminal states cannot transition to anything
-        for terminal in [
-            RunStatus::Completed,
-            RunStatus::Failed,
-            RunStatus::Cancelled,
-            RunStatus::Lost,
-        ] {
-            for target in [
-                RunStatus::Queued,
-                RunStatus::Running,
-                RunStatus::Completed,
-                RunStatus::Failed,
-                RunStatus::Cancelled,
-                RunStatus::Lost,
-            ] {
-                assert!(
-                    !terminal.can_transition_to(target),
-                    "{:?} should not be able to transition to {:?}",
-                    terminal,
-                    target
-                );
-            }
-        }
+        assert!(!RunStatus::Completed.can_transition_to(RunStatus::Queued));
+        assert!(!RunStatus::Cancelled.can_transition_to(RunStatus::Queued));
+        assert!(RunStatus::Failed.can_transition_to(RunStatus::Queued));
+        assert!(RunStatus::Lost.can_transition_to(RunStatus::Queued));
     }
 }

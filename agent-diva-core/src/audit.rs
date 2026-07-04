@@ -105,6 +105,16 @@ pub enum AuditEvent {
         run_id: String,
         last_heartbeat: Option<String>,
     },
+    /// A supervised run was cancelled before completion.
+    RunCancelled {
+        run_id: String,
+        reason: String,
+    },
+    /// A supervised run was requeued for another attempt.
+    RunRequeued {
+        run_id: String,
+        attempt: i32,
+    },
     /// A message was blocked due to security policy.
     MessageBlocked {
         source: String,
@@ -326,6 +336,14 @@ mod tests {
             AuditEvent::RunLost {
                 run_id: "r1".into(),
                 last_heartbeat: None,
+            },
+            AuditEvent::RunCancelled {
+                run_id: "r1".into(),
+                reason: "shutdown".into(),
+            },
+            AuditEvent::RunRequeued {
+                run_id: "r1".into(),
+                attempt: 1,
             },
             // New variants
             AuditEvent::MessageBlocked {
