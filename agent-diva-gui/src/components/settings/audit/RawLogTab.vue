@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Copy, Activity } from 'lucide-vue-next';
 import { showAppToast } from '../../../utils/appToast';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   lines: string[];
@@ -24,11 +27,9 @@ watch(autoRefresh, (val: boolean) => {
     pollTimer = setInterval(() => {
       emit('refresh');
     }, 5000);
-  } else {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
+  } else if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 });
 
@@ -45,9 +46,9 @@ function isAuditLine(line: string): boolean {
 async function copyLine(content: string) {
   try {
     await navigator.clipboard.writeText(content);
-    showAppToast('Copied to clipboard', 'success');
+    showAppToast(t('auditPage.raw.copySuccess'), 'success');
   } catch {
-    showAppToast('Failed to copy', 'error');
+    showAppToast(t('auditPage.raw.copyFailed'), 'error');
   }
 }
 
@@ -60,10 +61,9 @@ function formatLineNumber(n: number): string {
   <div
     class="raw-log-tab"
     role="tabpanel"
-    aria-label="Raw Log"
+    :aria-label="t('auditPage.raw.panelLabel')"
     :aria-busy="loading"
   >
-    <!-- Toolbar -->
     <div class="log-toolbar">
       <button
         class="log-toolbar-btn"
@@ -74,12 +74,11 @@ function formatLineNumber(n: number): string {
         @keydown.space.prevent="toggleAutoRefresh"
       >
         <Activity :size="14" aria-hidden="true" />
-        <span>{{ autoRefresh ? 'Auto-refresh On' : 'Auto-refresh Off' }}</span>
+        <span>{{ autoRefresh ? t('auditPage.raw.autoRefreshOn') : t('auditPage.raw.autoRefreshOff') }}</span>
       </button>
-      <span v-if="autoRefresh" class="log-live-badge" role="status">LIVE</span>
+      <span v-if="autoRefresh" class="log-live-badge" role="status">{{ t('auditPage.raw.live') }}</span>
     </div>
 
-    <!-- Skeleton Loading -->
     <div v-if="loading && lines.length === 0" class="skeleton-container" aria-hidden="true">
       <div v-for="i in 8" :key="i" class="skeleton-log-row">
         <div class="skeleton-line-num" />
@@ -87,18 +86,16 @@ function formatLineNumber(n: number): string {
       </div>
     </div>
 
-    <!-- Empty State -->
     <div
       v-else-if="!loading && lines.length === 0"
       class="empty-state"
       role="status"
     >
-      <span class="empty-icon" aria-hidden="true">📄</span>
-      <p class="empty-title">No log entries found</p>
-      <p class="empty-hint">Select a date with log activity</p>
+      <span class="empty-icon" aria-hidden="true">馃搫</span>
+      <p class="empty-title">{{ t('auditPage.raw.emptyTitle') }}</p>
+      <p class="empty-hint">{{ t('auditPage.raw.emptyHint') }}</p>
     </div>
 
-    <!-- Log Lines -->
     <div v-else class="log-lines-container">
       <div
         v-for="(line, idx) in lines"
@@ -111,8 +108,8 @@ function formatLineNumber(n: number): string {
         <code class="log-line-content">{{ line }}</code>
         <button
           class="log-line-copy"
-          :aria-label="`Copy line ${idx + 1}`"
-          :title="'Copy line ' + (idx + 1)"
+          :aria-label="t('auditPage.raw.copyLineLabel', { line: idx + 1 })"
+          :title="t('auditPage.raw.copyLineLabel', { line: idx + 1 })"
           @click="copyLine(line)"
           @keydown.enter.prevent="copyLine(line)"
           @keydown.space.prevent="copyLine(line)"
@@ -129,7 +126,6 @@ function formatLineNumber(n: number): string {
   min-height: 200px;
 }
 
-/* Toolbar */
 .log-toolbar {
   display: flex;
   align-items: center;
@@ -188,7 +184,6 @@ function formatLineNumber(n: number): string {
   50% { opacity: 0.6; }
 }
 
-/* Skeleton */
 .skeleton-container {
   display: flex;
   flex-direction: column;
@@ -223,7 +218,6 @@ function formatLineNumber(n: number): string {
   50% { opacity: 0.8; }
 }
 
-/* Empty state */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -252,7 +246,6 @@ function formatLineNumber(n: number): string {
   margin: 0;
 }
 
-/* Log lines */
 .log-lines-container {
   border: 1px solid var(--line, #e5e7eb);
   border-radius: var(--radius-sm, 8px);

@@ -26,18 +26,8 @@ _(No active open items. This pass closes what can be closed and explicitly defer
   - Related files: `agent-diva-tools/src/enqueue_background_task.rs`, `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`
 - [ ] **Wave 3 residual: workspace CLI managed-path model drift** Deferred. The path traversal/delete guard issues are now closed, but the managed `config_dir/workspaces/*` model still diverges from the broader runtime support for arbitrary workspace paths and needs an explicit product contract.
   - Related files: `agent-diva-cli/src/commands/workspace.rs`, `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/main.rs`
-- [ ] **Wave 2 residual: CLI provider audit tap** Deferred. Manager runtime and hot-update paths now wrap providers with `ProviderTap`, but direct CLI provider construction still bypasses provider-call audit events.
-  - Related files: `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/chat_commands.rs`, `agent-diva-cli/src/main.rs`
-- [ ] **Wave 2 residual: skill rejection audit coverage** Deferred. Skill upload malformed zip / missing `SKILL.md` / validation-reject paths still do not emit stable skill audit payloads with the derived skill name.
-  - Related files: `agent-diva-manager/src/skill_service.rs`, `agent-diva-core/src/security/skill/mod.rs`
-- [ ] **Wave 2 residual: health endpoint is liveness-only** Deferred. `/api/health` still reports hardcoded component states and the related benchmarks are not CI-gated.
+- [ ] **Health benchmark CI gate** Deferred. `/api/health` now reports readiness, but the related benchmark/CI coverage is still not wired into the validation gate.
   - Related files: `agent-diva-manager/src/handlers/health.rs`, `agent-diva-core/benches/performance.rs`
-- [ ] **Wave 2 residual: JsonlAuditSink visibility contract** Deferred. The sink now has production wiring, but immediate read-after-write visibility and deterministic rolling/write-error tests still need a stronger explicit contract.
-  - Related files: `agent-diva-core/src/audit_sink.rs`
-- [ ] **Production cron clock abstraction** Deferred. `runtime.rs:274` still uses a hardcoded clock path and needs abstraction for testability and portability.
-  - Related files: `agent-diva-manager/src/runtime.rs`
-- [ ] **Audit GUI i18n** Deferred. 3 Vue components still use hardcoded English strings without `useI18n`.
-  - Related files: `agent-diva-gui/src/components/`
 - [ ] **UX-DR-3/4/7** Deferred. UX gaps from sprint review remain postponed until a dedicated design pass.
   - Context: Sprint closure review items 3, 4, and 7
 
@@ -189,3 +179,5 @@ _(No active open items. This pass closes what can be closed and explicitly defer
   - Related log: `docs/logs/2026-07-wave3-review/v0.0.1-wave3-summary/`
 - [x] **Wave 3 workspace CLI hardening on 2026-07-04** Closed the `workspace` command path traversal, active-workspace delete bypass, and `list` write-side-effect findings, with focused CLI regression coverage.
   - Related log: `docs/logs/2026-07-wave3-remediation/v0.0.1-workspace-cli-hardening/`
+- [x] **Wave C readiness and audit closure on 2026-07-05** Closed the direct CLI `ProviderTap` gap, stable skill rejection audit payloads, `JsonlAuditSink` read-after-write/rolling contracts, manager cron clock injection, `/api/health` readiness semantics, and audit-page i18n cleanup.
+  - Related log: `docs/logs/2026-07-wavec-remediation/v0.0.1-wavec-remediation/`

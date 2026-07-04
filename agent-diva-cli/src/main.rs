@@ -1003,7 +1003,7 @@ async fn run_tui(
     let _ = ensure_workspace_templates(&workspace)?;
 
     let bus = MessageBus::new();
-    let provider = Arc::new(build_provider(&config, &selected_model)?);
+    let provider = build_provider(&config, &selected_model)?;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
 
     let tool_config = ToolConfig {

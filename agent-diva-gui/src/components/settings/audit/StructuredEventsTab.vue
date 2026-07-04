@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { AuditEvent, AuditEventType } from './types';
 import { EVENT_LABELS, EVENT_ICONS } from './types';
+
+const { t } = useI18n();
 
 defineProps<{
   events: AuditEvent[];
@@ -22,7 +25,7 @@ function getEventLabel(type: AuditEventType): string {
 }
 
 function getEventIcon(type: AuditEventType): string {
-  return EVENT_ICONS[type] || '📋';
+  return EVENT_ICONS[type] || '馃搵';
 }
 
 function getEventDataPreview(data: Record<string, unknown>): string {
@@ -38,10 +41,9 @@ function getEventDataPreview(data: Record<string, unknown>): string {
   <div
     class="structured-events-tab"
     role="tabpanel"
-    aria-label="Structured Events"
+    :aria-label="t('auditPage.structured.panelLabel')"
     :aria-busy="loading"
   >
-    <!-- Skeleton Loading -->
     <div v-if="loading && events.length === 0" class="skeleton-container" aria-hidden="true">
       <div
         v-for="i in 5"
@@ -55,18 +57,16 @@ function getEventDataPreview(data: Record<string, unknown>): string {
       </div>
     </div>
 
-    <!-- Empty State -->
     <div
       v-else-if="!loading && events.length === 0"
       class="empty-state"
       role="status"
     >
-      <span class="empty-icon" aria-hidden="true">📋</span>
-      <p class="empty-title">No events recorded on this date</p>
-      <p class="empty-hint">Select a different date to view audit events</p>
+      <span class="empty-icon" aria-hidden="true">馃搵</span>
+      <p class="empty-title">{{ t('auditPage.structured.emptyTitle') }}</p>
+      <p class="empty-hint">{{ t('auditPage.structured.emptyHint') }}</p>
     </div>
 
-    <!-- Event Table -->
     <div
       v-else
       class="event-table-wrapper"
@@ -74,18 +74,16 @@ function getEventDataPreview(data: Record<string, unknown>): string {
       <div
         class="event-table"
         role="table"
-        aria-label="Audit events"
+        :aria-label="t('auditPage.structured.tableLabel')"
         :aria-rowcount="events.length"
       >
-        <!-- Header Row (visually hidden but accessible) -->
         <div class="event-table-header" role="row" aria-hidden="true">
-          <span class="col-icon" role="columnheader">Type</span>
-          <span class="col-label" role="columnheader">Event</span>
-          <span class="col-time" role="columnheader">Time</span>
-          <span class="col-data" role="columnheader">Details</span>
+          <span class="col-icon" role="columnheader">{{ t('auditPage.structured.columns.type') }}</span>
+          <span class="col-label" role="columnheader">{{ t('auditPage.structured.columns.event') }}</span>
+          <span class="col-time" role="columnheader">{{ t('auditPage.structured.columns.time') }}</span>
+          <span class="col-data" role="columnheader">{{ t('auditPage.structured.columns.details') }}</span>
         </div>
 
-        <!-- Data Rows -->
         <div
           v-for="(event, idx) in events"
           :key="idx"
@@ -118,7 +116,6 @@ function getEventDataPreview(data: Record<string, unknown>): string {
   min-height: 200px;
 }
 
-/* Skeleton loading */
 .skeleton-container {
   display: flex;
   flex-direction: column;
@@ -165,7 +162,6 @@ function getEventDataPreview(data: Record<string, unknown>): string {
   50% { opacity: 0.8; }
 }
 
-/* Empty state */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -194,7 +190,6 @@ function getEventDataPreview(data: Record<string, unknown>): string {
   margin: 0;
 }
 
-/* Event table */
 .event-table-wrapper {
   border: 1px solid var(--line, #e5e7eb);
   border-radius: var(--radius-sm, 8px);

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { useI18n } from 'vue-i18n';
 import StructuredEventsTab from './StructuredEventsTab.vue';
 import RawLogTab from './RawLogTab.vue';
 import type { AuditEvent } from './types';
 
+const { t } = useI18n();
 const activeTab = ref<'structured' | 'raw'>('structured');
 const selectedDate = ref(new Date().toISOString().slice(0, 10));
 const events = ref<AuditEvent[]>([]);
@@ -77,21 +79,21 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="audit-page" role="region" aria-label="Audit Log">
+  <div class="audit-page" role="region" :aria-label="t('auditPage.regionLabel')">
     <!-- Header -->
     <div class="audit-header">
-      <h2 class="audit-title">Audit Log</h2>
+      <h2 class="audit-title">{{ t('auditPage.title') }}</h2>
       <input
         type="date"
         :value="selectedDate"
         @change="onDateChange"
         class="audit-date-picker"
-        aria-label="Select date for audit log"
+        :aria-label="t('auditPage.datePickerLabel')"
       />
     </div>
 
     <!-- Tab Bar -->
-    <div class="audit-tabs" role="tablist" aria-label="Audit view mode">
+    <div class="audit-tabs" role="tablist" :aria-label="t('auditPage.tabListLabel')">
       <button
         role="tab"
         :aria-selected="activeTab === 'structured'"
@@ -100,7 +102,7 @@ onMounted(() => {
         @click="onTabChange('structured')"
         @keydown="onTabKeydown($event, 'structured')"
       >
-        Structured Events
+        {{ t('auditPage.tabs.structured') }}
       </button>
       <button
         role="tab"
@@ -110,7 +112,7 @@ onMounted(() => {
         @click="onTabChange('raw')"
         @keydown="onTabKeydown($event, 'raw')"
       >
-        Raw Log
+        {{ t('auditPage.tabs.raw') }}
       </button>
     </div>
 

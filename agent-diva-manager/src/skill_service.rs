@@ -3,6 +3,7 @@ use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::config::ConfigLoader;
 use agent_diva_core::security::{
     check_security, validate_skill_md, validate_skill_zip_size, SecurityContext, SecurityDecision,
+    SkillError,
 };
 use anyhow::{anyhow, Context};
 use serde::{Deserialize, Serialize};
@@ -80,10 +81,18 @@ impl SkillService {
             format!("failed to create skills directory {}", skills_dir.display())
         })?;
 
-        let archive_paths = list_archive_entries(&bytes)?;
+        let fallback_skill_name = fallback_skill_name(file_name);
+        let archive_paths = list_archive_entries(&bytes).map_err(|error| {
+            emit_skill_rejected(&fallback_skill_name, error.to_string());
+            error
+        })?;
         let single_root = shared_archive_root(&archive_paths);
-        let skill_name = derive_skill_name(file_name, &bytes, single_root.as_deref())?;
-        validate_skill_zip_size(bytes.len() as u64)?;
+        let skill_name = derive_skill_name(file_name, &bytes, single_root.as_deref())
+            .unwrap_or_else(|_| fallback_skill_name.clone());
+        validate_skill_zip_size(bytes.len() as u64).map_err(|error| {
+            emit_skill_rejected(&skill_name, skill_error_reason(&error));
+            anyhow!(error)
+        })?;
 
         let target_dir = skills_dir.join(&skill_name);
         let tmp_dir = skills_dir.join(format!(".upload-{}-{}", skill_name, std::process::id()));
@@ -94,17 +103,29 @@ impl SkillService {
         fs::create_dir_all(&tmp_dir)
             .with_context(|| format!("failed to create temp directory {}", tmp_dir.display()))?;
 
-        extract_archive(&bytes, &tmp_dir, single_root.as_deref())?;
+        extract_archive(&bytes, &tmp_dir, single_root.as_deref()).map_err(|error| {
+            let _ = fs::remove_dir_all(&tmp_dir);
+            emit_skill_rejected(&skill_name, error.to_string());
+            error
+        })?;
 
         let skill_file = tmp_dir.join("SKILL.md");
         if !skill_file.exists() {
             let _ = fs::remove_dir_all(&tmp_dir);
+            emit_skill_rejected(
+                &skill_name,
+                "uploaded zip must contain SKILL.md".to_string(),
+            );
             return Err(anyhow!("uploaded zip must contain SKILL.md"));
         }
 
         let skill_content = fs::read_to_string(&skill_file)
             .with_context(|| format!("failed to read {}", skill_file.display()))?;
-        validate_skill_md(&skill_content)?;
+        validate_skill_md(&skill_content).map_err(|error| {
+            let _ = fs::remove_dir_all(&tmp_dir);
+            emit_skill_rejected(&skill_name, skill_error_reason(&error));
+            anyhow!(error)
+        })?;
 
         let security_context = SecurityContext {
             source_type: "skill".to_string(),
@@ -114,14 +135,21 @@ impl SkillService {
             tool_name: None,
         };
         match check_security(&skill_content, &security_context) {
-            SecurityDecision::Block { reason, .. }
-            | SecurityDecision::Quarantine { reason, .. } => {
+            SecurityDecision::Block { reason, .. } => {
                 let _ = fs::remove_dir_all(&tmp_dir);
                 audit::emit(AuditEvent::SkillInjectionBlocked {
                     skill_name: skill_name.clone(),
                     reason: reason.clone(),
                 });
                 return Err(anyhow!("skill blocked: {}", reason));
+            }
+            SecurityDecision::Quarantine { reason, .. } => {
+                let _ = fs::remove_dir_all(&tmp_dir);
+                audit::emit(AuditEvent::SkillQuarantined {
+                    skill_name: skill_name.clone(),
+                    reason: reason.clone(),
+                });
+                return Err(anyhow!("skill quarantined: {}", reason));
             }
             SecurityDecision::Sanitize { .. } | SecurityDecision::Allow => {}
         }
@@ -199,6 +227,37 @@ impl SkillService {
     }
 }
 
+fn emit_skill_rejected(skill_name: &str, reason: String) {
+    audit::emit(AuditEvent::SkillRejected {
+        skill_name: skill_name.to_string(),
+        reason,
+    });
+}
+
+fn fallback_skill_name(file_name: &str) -> String {
+    let fallback = Path::new(file_name)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .map(sanitize_skill_name)
+        .unwrap_or_default();
+    if fallback.is_empty() {
+        "uploaded-skill".to_string()
+    } else {
+        fallback
+    }
+}
+
+fn skill_error_reason(error: &SkillError) -> String {
+    match error {
+        SkillError::ZipTooLarge { size, max } => {
+            format!("zip too large: {size} bytes (max {max} bytes)")
+        }
+        SkillError::InvalidSkillMd { reason } => reason.clone(),
+        SkillError::ReviewRequired { name } => format!("skill requires review: {name}"),
+        SkillError::ContextBudgetExceeded { detail, .. } => detail.clone(),
+    }
+}
+
 fn expand_tilde(path: &str) -> PathBuf {
     if let Some(stripped) = path.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {
@@ -262,11 +321,7 @@ fn derive_skill_name(
         }
     }
 
-    let fallback = Path::new(file_name)
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .map(sanitize_skill_name)
-        .unwrap_or_default();
+    let fallback = fallback_skill_name(file_name);
     if fallback.is_empty() {
         return Err(anyhow!("failed to derive skill name from uploaded zip"));
     }

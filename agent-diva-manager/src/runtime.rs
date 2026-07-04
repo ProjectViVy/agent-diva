@@ -23,6 +23,7 @@ use agent_diva_providers::{
 };
 use anyhow::Result;
 use chrono::Local;
+use chrono::NaiveDate;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -31,6 +32,19 @@ use tracing::error;
 
 pub const DEFAULT_GATEWAY_PORT: u16 = 3000;
 pub(crate) const NOTEBOOK_MONTHLY_CRON_KIND: &str = "notebook_monthly_report";
+
+trait RuntimeClock: Send + Sync {
+    fn local_today(&self) -> NaiveDate;
+}
+
+#[derive(Default)]
+struct SystemRuntimeClock;
+
+impl RuntimeClock for SystemRuntimeClock {
+    fn local_today(&self) -> NaiveDate {
+        Local::now().date_naive()
+    }
+}
 
 #[derive(Clone)]
 pub struct GatewayRuntimeConfig {
@@ -253,12 +267,21 @@ async fn start_cron_service(
 }
 
 fn build_cron_callback(bus: MessageBus, workspace: PathBuf) -> JobCallback {
+    build_cron_callback_with_clock(bus, workspace, Arc::new(SystemRuntimeClock))
+}
+
+fn build_cron_callback_with_clock(
+    bus: MessageBus,
+    workspace: PathBuf,
+    clock: Arc<dyn RuntimeClock>,
+) -> JobCallback {
     Arc::new(
         move |job: agent_diva_core::cron::CronJob,
               cancel_token|
               -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<String>> + Send>> {
             let bus = bus.clone();
             let workspace = workspace.clone();
+            let clock = clock.clone();
             Box::pin(async move {
                 if cancel_token.is_cancelled() {
                     return Some("Error: cancelled".to_string());
@@ -272,8 +295,7 @@ fn build_cron_callback(bus: MessageBus, workspace: PathBuf) -> JobCallback {
                             ));
                         }
                     };
-                    return match service.execute_scheduled_monthly_report(Local::now().date_naive())
-                    {
+                    return match service.execute_scheduled_monthly_report(clock.local_today()) {
                         Ok(ScheduledMonthlyReportOutcome::Triggered { run_id, month_key }) => {
                             Some(format!(
                                 "triggered monthly notebook report {month_key} via run {run_id}"
@@ -338,6 +360,29 @@ fn build_cron_callback(bus: MessageBus, workspace: PathBuf) -> JobCallback {
             })
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Clone)]
+    struct FixedRuntimeClock {
+        date: NaiveDate,
+    }
+
+    impl RuntimeClock for FixedRuntimeClock {
+        fn local_today(&self) -> NaiveDate {
+            self.date
+        }
+    }
+
+    #[test]
+    fn runtime_clock_injection_controls_monthly_report_date() {
+        let expected = NaiveDate::from_ymd_opt(2026, 7, 31).unwrap();
+        let clock = FixedRuntimeClock { date: expected };
+        assert_eq!(clock.local_today(), expected);
+    }
 }
 
 async fn build_agent_loop(

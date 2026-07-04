@@ -3,8 +3,8 @@ use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersCon
 use agent_diva_core::cron::CronService;
 use agent_diva_core::utils::sync_workspace_templates;
 use agent_diva_providers::{
-    fetch_provider_model_catalog, LiteLLMClient, ProviderAccess, ProviderCatalogService,
-    ProviderModelCatalog, ProviderRegistry, ProviderSpec,
+    fetch_provider_model_catalog, tap::ProviderTap, LLMProvider, LiteLLMClient, ProviderAccess,
+    ProviderCatalogService, ProviderModelCatalog, ProviderRegistry, ProviderSpec,
 };
 use anyhow::Result;
 use serde::Serialize;
@@ -315,7 +315,7 @@ pub fn session_channel_and_chat_id(session_key: &str) -> (&str, &str) {
     session_key.split_once(':').unwrap_or(("cli", session_key))
 }
 
-pub fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
+pub fn build_provider(config: &Config, model: &str) -> Result<Arc<dyn LLMProvider>> {
     let catalog = ProviderCatalogService::new();
     let provider_name = resolve_provider_name_for_model(
         config,
@@ -337,14 +337,14 @@ pub fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
             .collect::<std::collections::HashMap<String, String>>()
     });
 
-    Ok(LiteLLMClient::new(
+    Ok(Arc::new(ProviderTap::new(LiteLLMClient::new(
         api_key,
         api_base,
         model.to_string(),
         extra_headers,
         Some(provider_name),
         config.agents.defaults.reasoning_effort.clone(),
-    ))
+    ))))
 }
 
 pub fn set_provider_credentials(
@@ -791,4 +791,20 @@ pub async fn collect_status_report(runtime: &CliRuntime) -> Result<StatusReport>
             warnings: doctor.warnings,
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_provider_wraps_selected_model_in_llm_provider() {
+        let mut config = Config::default();
+        config.agents.defaults.provider = Some("openai".to_string());
+        config.agents.defaults.model = "openai/gpt-4o-mini".to_string();
+
+        let provider = build_provider(&config, &config.agents.defaults.model).unwrap();
+
+        assert_eq!(provider.get_default_model(), "openai/gpt-4o-mini");
+    }
 }

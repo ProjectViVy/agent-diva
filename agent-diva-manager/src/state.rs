@@ -11,12 +11,47 @@ use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, Provi
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::mcp_service::{McpServerDto, McpServerUpsert};
 use crate::planning_service::{CreatePlanRequest, PlanDetail, PlanSummary, UpdatePlanRequest};
 use crate::skill_service::SkillDto;
+
+#[derive(Clone)]
+pub struct HealthSignals {
+    cron: Arc<AtomicU8>,
+    audit_sink_ready: bool,
+}
+
+impl HealthSignals {
+    const UNKNOWN: u8 = 0;
+    const READY: u8 = 1;
+
+    fn new(audit_sink_ready: bool) -> Self {
+        Self {
+            cron: Arc::new(AtomicU8::new(Self::UNKNOWN)),
+            audit_sink_ready,
+        }
+    }
+
+    pub fn mark_cron_ready(&self) {
+        self.cron.store(Self::READY, Ordering::Relaxed);
+    }
+
+    pub fn cron_ready(&self) -> Option<bool> {
+        match self.cron.load(Ordering::Relaxed) {
+            Self::READY => Some(true),
+            _ => None,
+        }
+    }
+
+    pub fn audit_sink_ready(&self) -> bool {
+        self.audit_sink_ready
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -26,6 +61,7 @@ pub struct AppState {
     pub audit_root: PathBuf,
     pub autodream: AutoDreamService,
     pub laputa: LaputaService,
+    pub health: HealthSignals,
     /// Server start time, used for uptime calculation in the health endpoint.
     pub started_at: Instant,
 }
@@ -39,6 +75,8 @@ impl AppState {
         let workspace_root = workspace_root.into();
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
         std::fs::create_dir_all(&audit_root)?;
+        let audit_sink_ready = agent_diva_core::audit_sink::get_sink().is_some()
+            || agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace_root).is_ok();
         let autodream = AutoDreamService::open(workspace_root.clone())?;
         let laputa = LaputaService::open(workspace_root.clone())?;
         Ok(Self {
@@ -48,6 +86,7 @@ impl AppState {
             audit_root,
             autodream,
             laputa,
+            health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
         })
     }

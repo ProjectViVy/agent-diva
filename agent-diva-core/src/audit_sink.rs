@@ -1,4 +1,4 @@
-//! Pluggable audit event sink — global dispatch layer.
+//! Pluggable audit event sink - global dispatch layer.
 //!
 //! The `AuditSink` trait allows consumers to register a single global
 //! backend (file, in-memory buffer, network transport) that receives
@@ -16,20 +16,18 @@
 //!
 //! # Error handling
 //!
-//! Sink errors are **swallowed** by the `emit()` path — audit failure
+//! Sink errors are **swallowed** by the `emit()` path - audit failure
 //! must never interrupt business logic.
 
 use std::fmt;
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use chrono::Local;
+use chrono::{DateTime, Local, NaiveDate, Utc};
 
 use crate::audit::AuditEvent;
-
-// ── Error type ────────────────────────────────────────────────────
 
 /// Errors that can occur inside an [`AuditSink`] implementation.
 #[derive(Debug)]
@@ -58,33 +56,15 @@ impl std::error::Error for AuditSinkError {
     }
 }
 
-// ── Trait ─────────────────────────────────────────────────────────
-
 /// A backend that receives structured audit events.
-///
-/// Implementors write events to a file, buffer, database, or
-/// network transport. Only one implementation can be registered
-/// globally via [`register_sink`].
 pub trait AuditSink: Send + Sync {
     /// Consume one audit event.
-    ///
-    /// Implementations should be non-blocking and fast (<1 ms is
-    /// ideal). Errors are logged but never propagated to the caller
-    /// of [`crate::audit::emit`].
     fn emit(&self, event: &AuditEvent) -> Result<(), AuditSinkError>;
 }
 
-// ── Global registration ───────────────────────────────────────────
-
-/// The single registered audit sink.
 static GLOBAL_SINK: OnceLock<Arc<dyn AuditSink>> = OnceLock::new();
 
 /// Register the global audit sink.
-///
-/// # Panics
-///
-/// Panics if a sink has already been registered. Registration is
-/// one-shot by design.
 pub fn register_sink(sink: Arc<dyn AuditSink>) {
     GLOBAL_SINK
         .set(sink)
@@ -122,49 +102,98 @@ fn lock_mutex<'a, T>(
         .map_err(|_| AuditSinkError::Serialization(format!("{label} mutex poisoned")))
 }
 
-// ── JsonlAuditSink ────────────────────────────────────────────────
+trait AuditClock: Send + Sync {
+    fn now_utc(&self) -> DateTime<Utc>;
+    fn today_local(&self) -> NaiveDate;
+}
+
+#[derive(Default)]
+struct SystemAuditClock;
+
+impl AuditClock for SystemAuditClock {
+    fn now_utc(&self) -> DateTime<Utc> {
+        Utc::now()
+    }
+
+    fn today_local(&self) -> NaiveDate {
+        Local::now().date_naive()
+    }
+}
+
+trait AuditWriter: Write + Send {}
+
+impl<T: Write + Send> AuditWriter for T {}
+
+trait AuditWriterFactory: Send + Sync {
+    fn open(&self, path: &Path) -> Result<Box<dyn AuditWriter>, AuditSinkError>;
+}
+
+#[derive(Default)]
+struct FileAuditWriterFactory;
+
+impl AuditWriterFactory for FileAuditWriterFactory {
+    fn open(&self, path: &Path) -> Result<Box<dyn AuditWriter>, AuditSinkError> {
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(AuditSinkError::Io)?;
+        Ok(Box::new(BufWriter::new(file)))
+    }
+}
 
 /// A file-based audit sink that writes JSON Lines with daily rolling.
 ///
 /// Each day gets its own file: `{dir}/audit-{YYYY-MM-DD}.jsonl`.
-/// Events are appended as one JSON object per line.
+/// Events are appended as one JSON object per line and flushed before
+/// returning so same-process readers can observe the write immediately.
 pub struct JsonlAuditSink {
-    /// Buffered writer for the current day's file.
-    writer: Mutex<BufWriter<File>>,
-    /// Current date string in `YYYY-MM-DD` format.
+    writer: Mutex<Box<dyn AuditWriter>>,
     current_date: Mutex<String>,
-    /// Directory where audit files are written.
     dir: PathBuf,
+    clock: Arc<dyn AuditClock>,
+    writer_factory: Arc<dyn AuditWriterFactory>,
 }
 
 impl JsonlAuditSink {
     /// Create a new `JsonlAuditSink` that writes to `dir`.
-    ///
-    /// The directory is created if it does not exist.
     pub fn new(dir: &Path) -> Result<Self, AuditSinkError> {
+        Self::with_clock_and_factory(
+            dir,
+            Arc::new(SystemAuditClock),
+            Arc::new(FileAuditWriterFactory),
+        )
+    }
+
+    #[cfg(test)]
+    fn with_clock(dir: &Path, clock: Arc<dyn AuditClock>) -> Result<Self, AuditSinkError> {
+        Self::with_clock_and_factory(dir, clock, Arc::new(FileAuditWriterFactory))
+    }
+
+    fn with_clock_and_factory(
+        dir: &Path,
+        clock: Arc<dyn AuditClock>,
+        writer_factory: Arc<dyn AuditWriterFactory>,
+    ) -> Result<Self, AuditSinkError> {
         std::fs::create_dir_all(dir).map_err(AuditSinkError::Io)?;
 
-        let today = Local::now().format("%Y-%m-%d").to_string();
-        let path = Self::file_path(dir, &today);
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-            .map_err(AuditSinkError::Io)?;
+        let today = clock.today_local().format("%Y-%m-%d").to_string();
+        let writer = writer_factory.open(&Self::file_path(dir, &today))?;
 
         Ok(Self {
-            writer: Mutex::new(BufWriter::new(file)),
+            writer: Mutex::new(writer),
             current_date: Mutex::new(today),
             dir: dir.to_path_buf(),
+            clock,
+            writer_factory,
         })
     }
 
-    /// Compute the full file path for a given date.
     fn file_path(dir: &Path, date: &str) -> PathBuf {
         dir.join(format!("audit-{date}.jsonl"))
     }
 
-    fn serialize_event_line(event: &AuditEvent) -> Result<String, AuditSinkError> {
+    fn serialize_event_line(&self, event: &AuditEvent) -> Result<String, AuditSinkError> {
         let mut value = serde_json::to_value(event)
             .map_err(|e| AuditSinkError::Serialization(e.to_string()))?;
         let object = value
@@ -172,50 +201,39 @@ impl JsonlAuditSink {
             .ok_or_else(|| AuditSinkError::Serialization("audit event was not an object".into()))?;
         object.insert(
             "timestamp".to_string(),
-            serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+            serde_json::Value::String(self.clock.now_utc().to_rfc3339()),
         );
         serde_json::to_string(&value).map_err(|e| AuditSinkError::Serialization(e.to_string()))
     }
 
-    /// Roll over to a new file if the date has changed.
-    ///
-    /// Must be called while holding the writer lock (or before acquiring it).
     fn roll_if_needed(&self) -> Result<(), AuditSinkError> {
-        let today = Local::now().format("%Y-%m-%d").to_string();
+        let today = self.clock.today_local().format("%Y-%m-%d").to_string();
         let mut current = lock_mutex(&self.current_date, "current_date")?;
-
-        if *current != today {
-            // Date changed — flush old writer and open new file.
-            let mut writer = lock_mutex(&self.writer, "writer")?;
-            writer.flush().map_err(AuditSinkError::Io)?;
-            drop(writer);
-
-            let path = Self::file_path(&self.dir, &today);
-            let file = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&path)
-                .map_err(AuditSinkError::Io)?;
-
-            *lock_mutex(&self.writer, "writer")? = BufWriter::new(file);
-            *current = today;
+        if *current == today {
+            return Ok(());
         }
+
+        let mut writer = lock_mutex(&self.writer, "writer")?;
+        writer.flush().map_err(AuditSinkError::Io)?;
+        *writer = self
+            .writer_factory
+            .open(&Self::file_path(&self.dir, &today))?;
+        *current = today;
         Ok(())
     }
 }
 
 impl AuditSink for JsonlAuditSink {
     fn emit(&self, event: &AuditEvent) -> Result<(), AuditSinkError> {
-        // Roll to a new file if the date boundary crossed.
-        if let Err(e) = self.roll_if_needed() {
-            tracing::error!("audit sink roll failed: {}", e);
+        if let Err(error) = self.roll_if_needed() {
+            tracing::error!("audit sink roll failed: {}", error);
             return Ok(());
         }
 
-        let json = match Self::serialize_event_line(event) {
-            Ok(j) => j,
-            Err(e) => {
-                tracing::error!("audit event serialization failed: {}", e);
+        let json = match self.serialize_event_line(event) {
+            Ok(json) => json,
+            Err(error) => {
+                tracing::error!("audit event serialization failed: {}", error);
                 return Ok(());
             }
         };
@@ -227,24 +245,26 @@ impl AuditSink for JsonlAuditSink {
                 return Ok(());
             }
         };
-        if let Err(e) = writeln!(writer, "{}", json) {
-            tracing::error!("audit sink write failed: {}", e);
-            // Swallow error — audit must never interrupt business logic.
+
+        if let Err(error) = writeln!(writer, "{}", json) {
+            tracing::error!("audit sink write failed: {}", error);
+            return Ok(());
+        }
+        if let Err(error) = writer.flush() {
+            tracing::error!("audit sink flush failed: {}", error);
         }
         Ok(())
     }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audit::AuditEvent;
+    use chrono::TimeZone;
+    use std::io;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
 
-    /// A test sink that counts calls and remembers the last event.
     struct CountSink {
         count: AtomicUsize,
         last: Mutex<Option<AuditEvent>>,
@@ -267,32 +287,19 @@ mod tests {
         }
     }
 
-    // ── NOTE ─────────────────────────────────────────────────────
-    // These tests share a static OnceLock. Because `cargo test`
-    // runs each test in its own thread within the same process,
-    // registration in one test would poison the lock for the next.
-    // We work around this by testing registration + emit + retrieval
-    // inside a **single** test function. This is intentional and safe.
-    // ──────────────────────────────────────────────────────────────
-
     #[test]
     fn lifecycle_register_emit_retrieve() {
-        // 1. Before registration, get_sink() returns None.
         assert!(get_sink().is_none(), "no sink registered yet");
 
-        // 2. Register a counting sink.
         let sink = Arc::new(CountSink::new());
         register_sink(sink.clone());
 
-        // 3. After registration, get_sink() returns the registered sink.
         assert!(get_sink().is_some(), "sink should be registered");
 
-        // 4. Emit an event through the sink directly — verify it counts.
         let event = AuditEvent::HeartbeatTriggered { interval_secs: 10 };
         get_sink().unwrap().emit(&event).unwrap();
         assert_eq!(sink.count.load(Ordering::SeqCst), 1);
 
-        // 5. Emit a second event.
         let event2 = AuditEvent::ToolInvoked {
             tool_name: "bash".into(),
             args: serde_json::json!({}),
@@ -300,47 +307,59 @@ mod tests {
         get_sink().unwrap().emit(&event2).unwrap();
         assert_eq!(sink.count.load(Ordering::SeqCst), 2);
 
-        // 6. Last event captured correctly.
         let last = sink.last.lock().unwrap().clone().unwrap();
         assert_eq!(last, event2);
     }
 
     #[test]
     fn emit_without_sink_does_not_panic() {
-        // If no sink is registered, calling get_sink() returns None
-        // and the if-let in audit.rs simply skips the dispatch.
-        //
-        // Because GLOBAL_SINK is a static OnceLock and might already
-        // be set by lifecycle_register_emit_retrieve (which runs
-        // first in the same process), we can only test this reliably
-        // by checking that get_sink() itself doesn't panic regardless
-        // of state.
-        //
-        // The actual "no sink → no panic → tracing still works"
-        // behaviour is verified by the existing `test_emit_does_not_panic`
-        // test in audit.rs, which calls emit() before any sink is
-        // registered.
-        let _ = get_sink(); // Must not panic
+        let _ = get_sink();
     }
 
     #[test]
     fn sink_error_types_display() {
-        let io_err =
-            AuditSinkError::Io(std::io::Error::new(std::io::ErrorKind::Other, "disk full"));
+        let io_err = AuditSinkError::Io(std::io::Error::other("disk full"));
         assert!(io_err.to_string().contains("disk full"));
 
         let ser_err = AuditSinkError::Serialization("invalid json".into());
         assert!(ser_err.to_string().contains("invalid json"));
     }
 
-    // ── JsonlAuditSink tests ───────────────────────────────────────
+    #[derive(Clone)]
+    struct FakeClock {
+        local_date: Arc<Mutex<NaiveDate>>,
+        utc_now: Arc<Mutex<DateTime<Utc>>>,
+    }
+
+    impl FakeClock {
+        fn new(local_date: NaiveDate, utc_now: DateTime<Utc>) -> Self {
+            Self {
+                local_date: Arc::new(Mutex::new(local_date)),
+                utc_now: Arc::new(Mutex::new(utc_now)),
+            }
+        }
+
+        fn set(&self, local_date: NaiveDate, utc_now: DateTime<Utc>) {
+            *self.local_date.lock().unwrap() = local_date;
+            *self.utc_now.lock().unwrap() = utc_now;
+        }
+    }
+
+    impl AuditClock for FakeClock {
+        fn now_utc(&self) -> DateTime<Utc> {
+            self.utc_now.lock().unwrap().clone()
+        }
+
+        fn today_local(&self) -> NaiveDate {
+            *self.local_date.lock().unwrap()
+        }
+    }
 
     #[test]
     fn jsonl_sink_writes_three_events() {
         let dir = tempfile::tempdir().unwrap();
         let sink = JsonlAuditSink::new(dir.path()).unwrap();
 
-        // Emit 3 distinct events.
         sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 5 })
             .unwrap();
         sink.emit(&AuditEvent::ToolInvoked {
@@ -355,12 +374,6 @@ mod tests {
         })
         .unwrap();
 
-        // Force flush so the file is fully written before we read it.
-        {
-            let mut w = sink.writer.lock().unwrap();
-            w.flush().unwrap();
-        }
-
         let today = Local::now().format("%Y-%m-%d").to_string();
         let path = dir.path().join(format!("audit-{today}.jsonl"));
         let contents = std::fs::read_to_string(&path).unwrap();
@@ -368,24 +381,19 @@ mod tests {
 
         assert_eq!(lines.len(), 3, "expected 3 JSON lines");
 
-        // Each line should be valid JSON and contain the `type` field.
         for line in &lines {
             let json: serde_json::Value = serde_json::from_str(line).unwrap();
-            assert!(
-                json.get("type").is_some(),
-                "each line must have a `type` field"
-            );
-            assert!(
-                json.get("timestamp").and_then(|value| value.as_str()).is_some(),
-                "each line must include a timestamp"
-            );
+            assert!(json.get("type").is_some());
+            assert!(json
+                .get("timestamp")
+                .and_then(|value| value.as_str())
+                .is_some());
         }
 
-        // Verify specific event types.
         let types: Vec<String> = lines
             .iter()
-            .map(|l| {
-                let json: serde_json::Value = serde_json::from_str(l).unwrap();
+            .map(|line| {
+                let json: serde_json::Value = serde_json::from_str(line).unwrap();
                 json["type"].as_str().unwrap().to_string()
             })
             .collect();
@@ -396,81 +404,128 @@ mod tests {
     }
 
     #[test]
-    fn jsonl_sink_rolls_on_date_change() {
+    fn jsonl_sink_emit_is_immediately_visible_to_readers() {
         let dir = tempfile::tempdir().unwrap();
         let sink = JsonlAuditSink::new(dir.path()).unwrap();
 
-        // Emit one event "today".
+        sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 7 })
+            .unwrap();
+
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let path = dir.path().join(format!("audit-{today}.jsonl"));
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(contents.lines().count(), 1);
+    }
+
+    #[test]
+    fn jsonl_sink_rolls_on_date_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let day1 = NaiveDate::from_ymd_opt(2026, 7, 4).unwrap();
+        let day2 = NaiveDate::from_ymd_opt(2026, 7, 5).unwrap();
+        let clock = Arc::new(FakeClock::new(
+            day1,
+            Utc.with_ymd_and_hms(2026, 7, 4, 8, 0, 0).unwrap(),
+        ));
+        let sink = JsonlAuditSink::with_clock(dir.path(), clock.clone()).unwrap();
+
         sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 10 })
             .unwrap();
-        {
-            let mut w = sink.writer.lock().unwrap();
-            w.flush().unwrap();
-        }
-
-        // Simulate a date change by manually updating current_date to a
-        // future date. When emit() runs, it sees the stored date differs
-        // from the real current date (today), so it rolls over to a new
-        // file for today.
-        {
-            let mut current = sink.current_date.lock().unwrap();
-            *current = "2099-12-31".to_string();
-        }
-
-        // Emit another event — roll should create a new file for today.
+        clock.set(day2, Utc.with_ymd_and_hms(2026, 7, 5, 8, 0, 0).unwrap());
         sink.emit(&AuditEvent::ToolInvoked {
             tool_name: "test".into(),
             args: serde_json::json!({}),
         })
         .unwrap();
-        {
-            let mut w = sink.writer.lock().unwrap();
-            w.flush().unwrap();
-        }
 
-        let today = Local::now().format("%Y-%m-%d").to_string();
-        let today_path = dir.path().join(format!("audit-{today}.jsonl"));
-        let old_path = dir.path().join("audit-2099-12-31.jsonl");
-
-        assert!(today_path.exists(), "today's file should exist after roll");
-        assert!(
-            !old_path.exists(),
-            "old future-date file should NOT exist (roll goes to today)"
-        );
-
-        let today_lines = std::fs::read_to_string(&today_path).unwrap();
-
-        // The original event was flushed to today's file, then after the
-        // simulated date change the second event was also written to today's
-        // file (because the real date is still today).
+        let day1_path = dir.path().join("audit-2026-07-04.jsonl");
+        let day2_path = dir.path().join("audit-2026-07-05.jsonl");
         assert_eq!(
-            today_lines.lines().count(),
-            2,
-            "today's file has both events"
+            std::fs::read_to_string(day1_path).unwrap().lines().count(),
+            1
+        );
+        assert_eq!(
+            std::fs::read_to_string(day2_path).unwrap().lines().count(),
+            1
         );
     }
 
     #[test]
     fn jsonl_sink_swallows_write_errors() {
-        // Create a temp dir, then remove write permissions so the sink
-        // cannot create files.
+        struct FailWriter;
+
+        impl Write for FailWriter {
+            fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+                Err(io::Error::other("write failed"))
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Err(io::Error::other("flush failed"))
+            }
+        }
+
+        struct FailFactory;
+
+        impl AuditWriterFactory for FailFactory {
+            fn open(&self, _path: &Path) -> Result<Box<dyn AuditWriter>, AuditSinkError> {
+                Ok(Box::new(FailWriter))
+            }
+        }
+
         let dir = tempfile::tempdir().unwrap();
+        let clock = Arc::new(FakeClock::new(
+            NaiveDate::from_ymd_opt(2026, 7, 5).unwrap(),
+            Utc.with_ymd_and_hms(2026, 7, 5, 9, 0, 0).unwrap(),
+        ));
+        let sink = JsonlAuditSink::with_clock_and_factory(dir.path(), clock, Arc::new(FailFactory))
+            .unwrap();
 
-        // On Unix, chmod 555 removes write. On Windows this is trickier,
-        // so we instead test by pointing at a file path that is not a dir.
-        let file_as_dir = dir.path().join("not_a_dir");
-        std::fs::write(&file_as_dir, "x").unwrap(); // create a regular file
-
-        // Attempting to create JsonlAuditSink inside a file should fail,
-        // but the emit() path swallows errors.
-        // Instead, create a valid sink then make it fail by removing the dir.
-        let sink = JsonlAuditSink::new(dir.path()).unwrap();
-
-        // Remove the directory so subsequent writes fail.
-        std::fs::remove_dir_all(dir.path()).unwrap();
-
-        // emit() should return Ok even though the write will fail.
         let result = sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 5 });
         assert!(result.is_ok(), "emit must return Ok even when write fails");
+    }
+
+    #[test]
+    fn jsonl_sink_swallows_roll_errors() {
+        struct FlakyFactory {
+            opens: AtomicUsize,
+        }
+
+        impl AuditWriterFactory for FlakyFactory {
+            fn open(&self, path: &Path) -> Result<Box<dyn AuditWriter>, AuditSinkError> {
+                let count = self.opens.fetch_add(1, Ordering::SeqCst);
+                if count == 0 {
+                    let file = OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(path)
+                        .map_err(AuditSinkError::Io)?;
+                    Ok(Box::new(BufWriter::new(file)))
+                } else {
+                    Err(AuditSinkError::Io(io::Error::other("roll open failed")))
+                }
+            }
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let day1 = NaiveDate::from_ymd_opt(2026, 7, 5).unwrap();
+        let day2 = NaiveDate::from_ymd_opt(2026, 7, 6).unwrap();
+        let clock = Arc::new(FakeClock::new(
+            day1,
+            Utc.with_ymd_and_hms(2026, 7, 5, 9, 0, 0).unwrap(),
+        ));
+        let sink = JsonlAuditSink::with_clock_and_factory(
+            dir.path(),
+            clock.clone(),
+            Arc::new(FlakyFactory {
+                opens: AtomicUsize::new(0),
+            }),
+        )
+        .unwrap();
+
+        sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 5 })
+            .unwrap();
+        clock.set(day2, Utc.with_ymd_and_hms(2026, 7, 6, 9, 0, 0).unwrap());
+
+        let result = sink.emit(&AuditEvent::HeartbeatTriggered { interval_secs: 6 });
+        assert!(result.is_ok(), "emit must return Ok even when roll fails");
     }
 }

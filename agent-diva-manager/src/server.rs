@@ -340,7 +340,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(health_response.status(), StatusCode::OK);
+        assert_eq!(health_response.status(), StatusCode::SERVICE_UNAVAILABLE);
 
         let skills_response = app
             .oneshot(
