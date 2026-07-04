@@ -74,7 +74,10 @@ fn evaluate_single(
             }
         }
 
-        E2EAssertion::ResponseMatches { pattern, description } => {
+        E2EAssertion::ResponseMatches {
+            pattern,
+            description,
+        } => {
             let desc = description
                 .clone()
                 .unwrap_or_else(|| format!("response matches pattern '{pattern}'"));
@@ -130,8 +133,11 @@ fn evaluate_single(
                 detail: if passed {
                     format!("Tool '{}' was called {} time(s)", name, actual_calls)
                 } else {
-                    let all_tools: Vec<&str> =
-                        events.tool_calls.iter().map(|tc| tc.tool_name.as_str()).collect();
+                    let all_tools: Vec<&str> = events
+                        .tool_calls
+                        .iter()
+                        .map(|tc| tc.tool_name.as_str())
+                        .collect();
                     format!(
                         "Tool '{}' was called {} time(s), expected at least {}. Tools called: {:?}",
                         name, actual_calls, min_times, all_tools
@@ -178,13 +184,12 @@ fn evaluate_single(
         }
 
         E2EAssertion::Judge { description } => {
-            // Synchronous path: when called via evaluate_assertions directly,
-            // Judge assertions cannot be evaluated without an LLM provider.
-            // Use evaluate_assertions_with_judge for proper LLM-as-Judge evaluation.
+            // Fail safe when the caller forgets to route Judge assertions through
+            // evaluate_assertions_with_judge.
             AssertionResult {
-                passed: true,
+                passed: false,
                 description: description.clone(),
-                detail: "Judge assertion skipped (use evaluate_assertions_with_judge)".to_string(),
+                detail: "Judge assertion requires evaluate_assertions_with_judge".to_string(),
             }
         }
     }
@@ -232,10 +237,7 @@ async fn evaluate_judge(
     provider: &Arc<dyn LLMProvider>,
     model: &str,
 ) -> AssertionResult {
-    let response = events
-        .final_response
-        .as_deref()
-        .unwrap_or("[no response]");
+    let response = events.final_response.as_deref().unwrap_or("[no response]");
 
     let judge_prompt = format!(
         r#"You are an E2E test judge. Evaluate whether the following AI response satisfies the assertion criteria.
@@ -266,10 +268,7 @@ or
 
             match serde_json::from_str::<serde_json::Value>(&json_str) {
                 Ok(val) => {
-                    let passed = val
-                        .get("passed")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
+                    let passed = val.get("passed").and_then(|v| v.as_bool()).unwrap_or(false);
                     let reason = val
                         .get("reason")
                         .and_then(|v| v.as_str())
@@ -332,6 +331,9 @@ fn truncate(s: &str, max: usize) -> String {
 mod tests {
     use super::*;
     use crate::collector::ToolCallRecord;
+    use agent_diva_providers::{LLMResponse, ProviderError, ProviderResult};
+    use async_trait::async_trait;
+    use std::collections::HashMap;
 
     // -----------------------------------------------------------------------
     // Helpers
@@ -539,9 +541,7 @@ mod tests {
     #[test]
     fn test_no_errors_fail() {
         let events = make_events(None, vec![], vec!["something went wrong", "another error"]);
-        let assertion = E2EAssertion::NoErrors {
-            description: None,
-        };
+        let assertion = E2EAssertion::NoErrors { description: None };
         let result = evaluate_single(&assertion, &events, Path::new("/tmp"));
         assert!(!result.passed, "expected FAIL");
         assert!(result.detail.contains("2 error(s)"));
@@ -552,15 +552,96 @@ mod tests {
     // Judge: placeholder (sync path — use evaluate_assertions_with_judge)
     // -----------------------------------------------------------------------
     #[test]
-    fn test_judge_placeholder() {
+    fn test_judge_placeholder_fails_safe() {
         let events = make_events(Some("anything"), vec![], vec!["error!"]);
         let assertion = E2EAssertion::Judge {
             description: "response is helpful".into(),
         };
         let result = evaluate_single(&assertion, &events, Path::new("/tmp"));
-        assert!(result.passed, "Judge placeholder must always pass");
+        assert!(
+            !result.passed,
+            "Judge assertion must fail safe on sync path"
+        );
         assert_eq!(result.description, "response is helpful");
-        assert!(result.detail.contains("evaluate_assertions_with_judge"));
+        assert!(result
+            .detail
+            .contains("requires evaluate_assertions_with_judge"));
+    }
+
+    struct MockJudgeProvider {
+        should_fail: bool,
+    }
+
+    #[async_trait]
+    impl LLMProvider for MockJudgeProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            if self.should_fail {
+                Err(ProviderError::ApiError("judge unavailable".into()))
+            } else {
+                Ok(LLMResponse {
+                    content: Some(r#"{"passed": true, "reason": "contains answer"}"#.into()),
+                    tool_calls: vec![],
+                    finish_reason: "stop".into(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                })
+            }
+        }
+
+        fn get_default_model(&self) -> String {
+            "mock-judge".to_string()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_evaluate_assertions_with_judge_uses_provider() {
+        let events = make_events(Some("The answer is 42."), vec![], vec![]);
+        let assertions = vec![E2EAssertion::Judge {
+            description: "response contains the answer".into(),
+        }];
+        let provider = Arc::new(MockJudgeProvider { should_fail: false });
+
+        let results = evaluate_assertions_with_judge(
+            &assertions,
+            &events,
+            Path::new("/tmp"),
+            provider,
+            "judge-model",
+        )
+        .await;
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].passed, "judge path should use provider verdict");
+        assert!(results[0].detail.contains("PASS"));
+    }
+
+    #[tokio::test]
+    async fn test_evaluate_assertions_with_judge_fails_on_provider_error() {
+        let events = make_events(Some("The answer is 42."), vec![], vec![]);
+        let assertions = vec![E2EAssertion::Judge {
+            description: "response contains the answer".into(),
+        }];
+        let provider = Arc::new(MockJudgeProvider { should_fail: true });
+
+        let results = evaluate_assertions_with_judge(
+            &assertions,
+            &events,
+            Path::new("/tmp"),
+            provider,
+            "judge-model",
+        )
+        .await;
+
+        assert_eq!(results.len(), 1);
+        assert!(!results[0].passed, "judge provider failure must fail safe");
+        assert!(results[0].detail.contains("Judge LLM call failed"));
     }
 
     // -----------------------------------------------------------------------
@@ -601,9 +682,7 @@ mod tests {
                 path: "output.txt".into(),
                 description: None,
             },
-            E2EAssertion::NoErrors {
-                description: None,
-            },
+            E2EAssertion::NoErrors { description: None },
         ];
 
         let results = evaluate_assertions(&assertions, &events, dir.path());

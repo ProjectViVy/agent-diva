@@ -1,7 +1,7 @@
-use std::path::Path;
-use std::time::Duration;
 use agent_diva_e2e::config::E2EConfig;
 use agent_diva_e2e::runner::ScenarioRunner;
+use std::path::Path;
+use std::time::Duration;
 
 /// E2E test: verify Agent does not crash when a tool encounters an error.
 ///
@@ -37,8 +37,8 @@ async fn test_error_handling_scenario() {
         scenario_path
     );
 
-    let result = tokio::time::timeout(Duration::from_secs(60), runner.run_single(&scenario_path))
-        .await;
+    let result =
+        tokio::time::timeout(Duration::from_secs(60), runner.run_single(&scenario_path)).await;
 
     match result {
         Ok(Ok(scenario_result)) => {
@@ -66,18 +66,10 @@ async fn test_error_handling_scenario() {
             }
         }
         Ok(Err(e)) => {
-            if cfg!(feature = "ci") {
-                panic!("error_handling scenario failed with error: {}", e);
-            } else {
-                eprintln!("WARN: error_handling scenario could not run: {}", e);
-            }
+            panic!("error_handling scenario failed with error: {}", e);
         }
         Err(_elapsed) => {
-            if cfg!(feature = "ci") {
-                panic!("error_handling scenario timed out after 60s");
-            } else {
-                eprintln!("WARN: error_handling scenario timed out after 60s (not failing in non-CI mode)");
-            }
+            panic!("error_handling scenario timed out after 60s");
         }
     }
 }

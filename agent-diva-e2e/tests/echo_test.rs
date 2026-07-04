@@ -1,7 +1,7 @@
-use std::path::Path;
-use std::time::Duration;
 use agent_diva_e2e::config::E2EConfig;
 use agent_diva_e2e::runner::ScenarioRunner;
+use std::path::Path;
+use std::time::Duration;
 
 /// E2E test: verify Agent's basic conversation echo capability.
 ///
@@ -36,8 +36,8 @@ async fn test_echo_scenario() {
         scenario_path
     );
 
-    let result = tokio::time::timeout(Duration::from_secs(60), runner.run_single(&scenario_path))
-        .await;
+    let result =
+        tokio::time::timeout(Duration::from_secs(60), runner.run_single(&scenario_path)).await;
 
     match result {
         Ok(Ok(scenario_result)) => {
@@ -65,18 +65,10 @@ async fn test_echo_scenario() {
             }
         }
         Ok(Err(e)) => {
-            if cfg!(feature = "ci") {
-                panic!("echo scenario failed with error: {}", e);
-            } else {
-                eprintln!("WARN: echo scenario could not run: {}", e);
-            }
+            panic!("echo scenario failed with error: {}", e);
         }
         Err(_elapsed) => {
-            if cfg!(feature = "ci") {
-                panic!("echo scenario timed out after 60s");
-            } else {
-                eprintln!("WARN: echo scenario timed out after 60s (not failing in non-CI mode)");
-            }
+            panic!("echo scenario timed out after 60s");
         }
     }
 }

@@ -1,7 +1,7 @@
-use std::path::Path;
-use std::time::Duration;
 use agent_diva_e2e::config::E2EConfig;
 use agent_diva_e2e::runner::ScenarioRunner;
+use std::path::Path;
+use std::time::Duration;
 
 /// E2E test: verify Agent can invoke the list_dir tool.
 ///
@@ -37,8 +37,8 @@ async fn test_tool_call_scenario() {
     );
 
     // Tool call scenarios may take longer due to tool execution
-    let result = tokio::time::timeout(Duration::from_secs(75), runner.run_single(&scenario_path))
-        .await;
+    let result =
+        tokio::time::timeout(Duration::from_secs(75), runner.run_single(&scenario_path)).await;
 
     match result {
         Ok(Ok(scenario_result)) => {
@@ -66,18 +66,10 @@ async fn test_tool_call_scenario() {
             }
         }
         Ok(Err(e)) => {
-            if cfg!(feature = "ci") {
-                panic!("tool_call scenario failed with error: {}", e);
-            } else {
-                eprintln!("WARN: tool_call scenario could not run: {}", e);
-            }
+            panic!("tool_call scenario failed with error: {}", e);
         }
         Err(_elapsed) => {
-            if cfg!(feature = "ci") {
-                panic!("tool_call scenario timed out after 75s");
-            } else {
-                eprintln!("WARN: tool_call scenario timed out after 75s (not failing in non-CI mode)");
-            }
+            panic!("tool_call scenario timed out after 75s");
         }
     }
 }

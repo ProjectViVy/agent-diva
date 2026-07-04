@@ -1,7 +1,7 @@
-use std::path::Path;
-use std::time::Duration;
 use agent_diva_e2e::config::E2EConfig;
 use agent_diva_e2e::runner::ScenarioRunner;
+use std::path::Path;
+use std::time::Duration;
 
 /// E2E test: verify Agent's multi-turn conversation context retention.
 ///
@@ -41,8 +41,8 @@ async fn test_multi_turn_scenario() {
     );
 
     // Multi-turn scenarios may take longer due to two message turns
-    let result = tokio::time::timeout(Duration::from_secs(90), runner.run_single(&scenario_path))
-        .await;
+    let result =
+        tokio::time::timeout(Duration::from_secs(90), runner.run_single(&scenario_path)).await;
 
     match result {
         Ok(Ok(scenario_result)) => {
@@ -70,18 +70,10 @@ async fn test_multi_turn_scenario() {
             }
         }
         Ok(Err(e)) => {
-            if cfg!(feature = "ci") {
-                panic!("multi_turn scenario failed with error: {}", e);
-            } else {
-                eprintln!("WARN: multi_turn scenario could not run: {}", e);
-            }
+            panic!("multi_turn scenario failed with error: {}", e);
         }
         Err(_elapsed) => {
-            if cfg!(feature = "ci") {
-                panic!("multi_turn scenario timed out after 90s");
-            } else {
-                eprintln!("WARN: multi_turn scenario timed out after 90s (not failing in non-CI mode)");
-            }
+            panic!("multi_turn scenario timed out after 90s");
         }
     }
 }

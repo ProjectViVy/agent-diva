@@ -1,7 +1,7 @@
-use std::path::Path;
-use std::time::Duration;
 use agent_diva_e2e::config::E2EConfig;
 use agent_diva_e2e::runner::ScenarioRunner;
+use std::path::Path;
+use std::time::Duration;
 
 /// Smoke test: verify the full E2E pipeline works with a real LLM.
 ///
@@ -36,8 +36,8 @@ async fn test_smoke_scenario() {
         smoke_path
     );
 
-    let result = tokio::time::timeout(Duration::from_secs(60), runner.run_single(&smoke_path))
-        .await;
+    let result =
+        tokio::time::timeout(Duration::from_secs(60), runner.run_single(&smoke_path)).await;
 
     match result {
         Ok(Ok(scenario_result)) => {
@@ -65,20 +65,10 @@ async fn test_smoke_scenario() {
             }
         }
         Ok(Err(e)) => {
-            // If API call fails (network, auth) - this is expected without valid key
-            // but still report it
-            if cfg!(feature = "ci") {
-                panic!("Smoke scenario failed with error: {}", e);
-            } else {
-                eprintln!("WARN: smoke scenario could not run: {}", e);
-            }
+            panic!("Smoke scenario failed with error: {}", e);
         }
         Err(_elapsed) => {
-            if cfg!(feature = "ci") {
-                panic!("Smoke scenario timed out after 60s");
-            } else {
-                eprintln!("WARN: smoke scenario timed out after 60s (not failing in non-CI mode)");
-            }
+            panic!("Smoke scenario timed out after 60s");
         }
     }
 }

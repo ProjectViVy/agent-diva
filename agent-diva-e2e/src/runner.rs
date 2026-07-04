@@ -17,7 +17,7 @@
 //! the `EventCollector::collect()` method blocks until the sender is dropped,
 //! so every turn must close its channel before collection.
 
-use crate::assertions::{evaluate_assertions, AssertionResult};
+use crate::assertions::{evaluate_assertions, evaluate_assertions_with_judge, AssertionResult};
 use crate::collector::{CollectedEvents, EventCollector};
 use crate::config::E2EConfig;
 use crate::tracer::E2ETracer;
@@ -26,8 +26,8 @@ use crate::types::E2EScenario;
 use agent_diva_agent::{AgentLoop, ToolConfig};
 use agent_diva_core::bus::events::{AgentEvent, InboundMessage};
 use agent_diva_core::bus::MessageBus;
-use agent_diva_providers::LiteLLMClient;
 use agent_diva_providers::LLMProvider;
+use agent_diva_providers::LiteLLMClient;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -144,10 +144,16 @@ impl ScenarioRunner {
 
         // ---- 1. Parse YAML ----
         let file = std::fs::File::open(path).map_err(|e| {
-            format!("[{scenario_name}] Failed to open scenario file '{}': {e}", path.display())
+            format!(
+                "[{scenario_name}] Failed to open scenario file '{}': {e}",
+                path.display()
+            )
         })?;
         let scenario: E2EScenario = serde_yaml::from_reader(file).map_err(|e| {
-            format!("[{scenario_name}] Failed to parse YAML in '{}': {e}", path.display())
+            format!(
+                "[{scenario_name}] Failed to parse YAML in '{}': {e}",
+                path.display()
+            )
         })?;
 
         // ---- 2. Create working directory ----
@@ -177,18 +183,23 @@ impl ScenarioRunner {
                 })?;
             }
             std::fs::write(&file_path, &entry.content).map_err(|e| {
-                format!("[{scenario_name}] Failed to write file '{}': {e}", entry.path)
+                format!(
+                    "[{scenario_name}] Failed to write file '{}': {e}",
+                    entry.path
+                )
             })?;
             tracing::debug!("[{scenario_name}] Created file: {}", file_path.display());
         }
 
         // ---- 4. Build provider ----
-        let provider = build_provider(&self.config).map_err(|e| {
-            format!("[{scenario_name}] Failed to build LLM provider: {e}")
-        })?;
+        let provider = build_provider(&self.config)
+            .map_err(|e| format!("[{scenario_name}] Failed to build LLM provider: {e}"))?;
 
         // ---- 5. Determine timeout (scenario value capped by config max) ----
-        let timeout_secs = scenario.setup.timeout_secs.min(self.config.max_timeout_secs);
+        let timeout_secs = scenario
+            .setup
+            .timeout_secs
+            .min(self.config.max_timeout_secs);
         let timeout_duration = Duration::from_secs(timeout_secs);
 
         // ---- 6. Build MessageBus and AgentLoop ----
@@ -199,15 +210,9 @@ impl ScenarioRunner {
             .clone()
             .or(Some(self.config.default_model.clone()));
 
-        let mut agent_loop = AgentLoop::new(
-            bus,
-            provider,
-            workspace.clone(),
-            model,
-            Some(20),
-        )
-        .await
-        .map_err(|e| format!("[{scenario_name}] Failed to create AgentLoop: {e}"))?;
+        let mut agent_loop = AgentLoop::new(bus, provider, workspace.clone(), model, Some(20))
+            .await
+            .map_err(|e| format!("[{scenario_name}] Failed to create AgentLoop: {e}"))?;
 
         agent_loop.register_default_tools(ToolConfig::default());
 
@@ -218,12 +223,8 @@ impl ScenarioRunner {
             let channel = msg.channel.clone().unwrap_or_else(|| "e2e".to_string());
             let chat_id = msg.chat_id.clone().unwrap_or_else(|| "default".to_string());
 
-            let inbound = InboundMessage::new(
-                channel,
-                msg.sender.clone(),
-                chat_id,
-                msg.content.clone(),
-            );
+            let inbound =
+                InboundMessage::new(channel, msg.sender.clone(), chat_id, msg.content.clone());
 
             let (tx, mut rx) = mpsc::unbounded_channel::<AgentEvent>();
 
@@ -245,19 +246,30 @@ impl ScenarioRunner {
             let turn_events = EventCollector::new()
                 .collect(&mut rx, timeout_duration)
                 .await
-                .map_err(|e| {
-                    format!(
-                        "[{scenario_name}] Turn {i} event collection failed: {e}"
-                    )
-                })?;
+                .map_err(|e| format!("[{scenario_name}] Turn {i} event collection failed: {e}"))?;
 
             // Merge this turn's events into the accumulated result
             merge_collected_events(&mut merged_events, turn_events);
         }
 
         // ---- 8. Evaluate assertions ----
-        let assertion_results =
-            evaluate_assertions(&scenario.assertions, &merged_events, &workspace);
+        let assertion_results = if scenario_uses_judge(&scenario) {
+            let judge_model = self
+                .config
+                .judge_model
+                .as_deref()
+                .unwrap_or(self.config.default_model.as_str());
+            evaluate_assertions_with_judge(
+                &scenario.assertions,
+                &merged_events,
+                &workspace,
+                Arc::clone(&provider),
+                judge_model,
+            )
+            .await
+        } else {
+            evaluate_assertions(&scenario.assertions, &merged_events, &workspace)
+        };
 
         // ---- 9. Determine overall pass/fail ----
         let passed = assertion_results.iter().all(|r| r.passed);
@@ -296,7 +308,10 @@ impl ScenarioRunner {
         }
 
         let entries = std::fs::read_dir(dir).map_err(|e| {
-            format!("Failed to read scenarios directory '{}': {e}", dir.display())
+            format!(
+                "Failed to read scenarios directory '{}': {e}",
+                dir.display()
+            )
         })?;
 
         let mut scenarios = Vec::new();
@@ -315,6 +330,13 @@ impl ScenarioRunner {
         scenarios.sort();
         Ok(scenarios)
     }
+}
+
+fn scenario_uses_judge(scenario: &E2EScenario) -> bool {
+    scenario
+        .assertions
+        .iter()
+        .any(|assertion| matches!(assertion, crate::types::E2EAssertion::Judge { .. }))
 }
 
 /// Merge a single turn's [`CollectedEvents`] into the accumulated result.
@@ -347,9 +369,7 @@ fn merge_collected_events(accumulated: &mut CollectedEvents, turn_events: Collec
 ///
 /// Constructs a [`LiteLLMClient`] using the configured API key, base URL,
 /// and default model, then wraps it in an `Arc<dyn LLMProvider>`.
-fn build_provider(
-    config: &E2EConfig,
-) -> Result<Arc<dyn LLMProvider>, Box<dyn std::error::Error>> {
+fn build_provider(config: &E2EConfig) -> Result<Arc<dyn LLMProvider>, Box<dyn std::error::Error>> {
     let client = LiteLLMClient::new(
         Some(config.api_key.clone()),
         Some(config.api_base.clone()),
@@ -365,6 +385,7 @@ fn build_provider(
 mod tests {
     use super::*;
     use crate::collector::ToolCallRecord;
+    use crate::types::{E2EAssertion, E2EScenario, E2ESetup};
 
     // -----------------------------------------------------------------------
     // merge_collected_events
@@ -488,7 +509,11 @@ mod tests {
         };
 
         let result = build_provider(&config);
-        assert!(result.is_ok(), "build_provider should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "build_provider should succeed: {:?}",
+            result.err()
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -540,5 +565,28 @@ mod tests {
             result.unwrap_err().contains("does not exist"),
             "Error should mention 'does not exist'"
         );
+    }
+
+    #[test]
+    fn test_scenario_uses_judge_detects_judge_assertion() {
+        let with_judge = E2EScenario {
+            scenario: "judge".into(),
+            description: None,
+            setup: E2ESetup::default(),
+            messages: vec![],
+            assertions: vec![E2EAssertion::Judge {
+                description: "response is helpful".into(),
+            }],
+        };
+        let without_judge = E2EScenario {
+            scenario: "plain".into(),
+            description: None,
+            setup: E2ESetup::default(),
+            messages: vec![],
+            assertions: vec![E2EAssertion::NoErrors { description: None }],
+        };
+
+        assert!(scenario_uses_judge(&with_judge));
+        assert!(!scenario_uses_judge(&without_judge));
     }
 }

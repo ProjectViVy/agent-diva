@@ -1,7 +1,7 @@
-use std::path::Path;
-use std::time::Duration;
 use agent_diva_e2e::config::E2EConfig;
 use agent_diva_e2e::runner::ScenarioRunner;
+use std::path::Path;
+use std::time::Duration;
 
 /// E2E test: verify Agent can generate a long-form response.
 ///
@@ -38,8 +38,8 @@ async fn test_long_response_scenario() {
     );
 
     // Long response scenarios may need more time for the full output
-    let result = tokio::time::timeout(Duration::from_secs(75), runner.run_single(&scenario_path))
-        .await;
+    let result =
+        tokio::time::timeout(Duration::from_secs(75), runner.run_single(&scenario_path)).await;
 
     match result {
         Ok(Ok(scenario_result)) => {
@@ -67,18 +67,10 @@ async fn test_long_response_scenario() {
             }
         }
         Ok(Err(e)) => {
-            if cfg!(feature = "ci") {
-                panic!("long_response scenario failed with error: {}", e);
-            } else {
-                eprintln!("WARN: long_response scenario could not run: {}", e);
-            }
+            panic!("long_response scenario failed with error: {}", e);
         }
         Err(_elapsed) => {
-            if cfg!(feature = "ci") {
-                panic!("long_response scenario timed out after 75s");
-            } else {
-                eprintln!("WARN: long_response scenario timed out after 75s (not failing in non-CI mode)");
-            }
+            panic!("long_response scenario timed out after 75s");
         }
     }
 }
