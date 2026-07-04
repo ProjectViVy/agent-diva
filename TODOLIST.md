@@ -22,7 +22,7 @@ _(No active open items. This pass closes what can be closed and explicitly defer
   - Related files: `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-core/src/supervised/executor.rs`
 - [ ] **Wave 3 residual: background task context and budget inheritance is incomplete** Deferred. Enqueued tasks do not persist `chat_id/session_key/trace_id`, default their reply route to `supervised`, and do not inherit token-ledger semantics from the parent session.
   - Related files: `agent-diva-tools/src/enqueue_background_task.rs`, `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`
-- [ ] **Wave 3 residual: workspace CLI path traversal and model drift** Deferred. `workspace create/switch/delete` accept raw path-like names that can escape `config_dir/workspaces`, and the new managed-workspace model still diverges from the broader runtime support for arbitrary workspace paths.
+- [ ] **Wave 3 residual: workspace CLI managed-path model drift** Deferred. The path traversal/delete guard issues are now closed, but the managed `config_dir/workspaces/*` model still diverges from the broader runtime support for arbitrary workspace paths and needs an explicit product contract.
   - Related files: `agent-diva-cli/src/commands/workspace.rs`, `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/main.rs`
 - [ ] **Wave 2 residual: CLI provider audit tap** Deferred. Manager runtime and hot-update paths now wrap providers with `ProviderTap`, but direct CLI provider construction still bypasses provider-call audit events.
   - Related files: `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/chat_commands.rs`, `agent-diva-cli/src/main.rs`
@@ -185,3 +185,5 @@ _(No active open items. This pass closes what can be closed and explicitly defer
   - Related log: `docs/logs/2026-07-wave2-observability/v0.0.1-wave2-observability-remediation/`
 - [x] **Wave 3 review on 2026-07-04** Completed the next parallel review stage covering `Wave E` (Todo data plane) and `Wave F` (background task / subagent / workspace CLI), and recorded the resulting release blockers plus deferred follow-ups.
   - Related log: `docs/logs/2026-07-wave3-review/v0.0.1-wave3-summary/`
+- [x] **Wave 3 workspace CLI hardening on 2026-07-04** Closed the `workspace` command path traversal, active-workspace delete bypass, and `list` write-side-effect findings, with focused CLI regression coverage.
+  - Related log: `docs/logs/2026-07-wave3-remediation/v0.0.1-workspace-cli-hardening/`

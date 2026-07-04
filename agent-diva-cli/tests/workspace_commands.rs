@@ -189,3 +189,116 @@ fn workspace_delete_removes_workspace() {
         list_stdout
     );
 }
+
+#[test]
+fn workspace_list_does_not_create_workspaces_dir() {
+    let temp = tempdir().unwrap();
+    let config_path = write_config(temp.path());
+    let config_dir = config_path.parent().unwrap();
+    let workspaces_dir = config_dir.join("workspaces");
+
+    let list_output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config-dir",
+            config_dir.to_str().unwrap(),
+            "workspace",
+            "list",
+        ])
+        .output()
+        .expect("failed to run workspace list");
+
+    assert!(list_output.status.success(), "{:?}", list_output);
+    assert!(
+        !workspaces_dir.exists(),
+        "list should not create the workspaces dir"
+    );
+}
+
+#[test]
+fn workspace_create_rejects_traversal_name() {
+    let temp = tempdir().unwrap();
+    let config_path = write_config(temp.path());
+    let config_dir = config_path.parent().unwrap();
+
+    let create_output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config-dir",
+            config_dir.to_str().unwrap(),
+            "workspace",
+            "create",
+            "..\\escape",
+        ])
+        .output()
+        .expect("failed to run workspace create");
+
+    assert!(
+        !create_output.status.success(),
+        "traversal name should be rejected"
+    );
+    let create_stderr = String::from_utf8(create_output.stderr).unwrap();
+    assert!(
+        create_stderr.contains("Invalid workspace name"),
+        "stderr: {}",
+        create_stderr
+    );
+}
+
+#[test]
+fn workspace_delete_blocks_persisted_active_workspace_even_with_override() {
+    let temp = tempdir().unwrap();
+    let config_path = write_config(temp.path());
+    let config_dir = config_path.parent().unwrap();
+
+    for name in ["active-ws", "other-ws"] {
+        let create_output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+            .args([
+                "--config-dir",
+                config_dir.to_str().unwrap(),
+                "workspace",
+                "create",
+                name,
+            ])
+            .output()
+            .expect("failed to run workspace create");
+        assert!(create_output.status.success(), "{:?}", create_output);
+    }
+
+    let switch_output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config-dir",
+            config_dir.to_str().unwrap(),
+            "workspace",
+            "switch",
+            "active-ws",
+        ])
+        .output()
+        .expect("failed to run workspace switch");
+    assert!(switch_output.status.success(), "{:?}", switch_output);
+
+    let override_workspace = temp.path().join("override");
+    fs::create_dir_all(&override_workspace).unwrap();
+    let delete_output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config-dir",
+            config_dir.to_str().unwrap(),
+            "--workspace",
+            override_workspace.to_str().unwrap(),
+            "workspace",
+            "delete",
+            "active-ws",
+            "--force",
+        ])
+        .output()
+        .expect("failed to run workspace delete");
+
+    assert!(
+        !delete_output.status.success(),
+        "delete should reject persisted active workspace even with override"
+    );
+    let delete_stderr = String::from_utf8(delete_output.stderr).unwrap();
+    assert!(
+        delete_stderr.contains("Cannot delete the currently active workspace"),
+        "stderr: {}",
+        delete_stderr
+    );
+}

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 use crate::cli_runtime::CliRuntime;
 use agent_diva_core::config::Config;
@@ -35,10 +35,14 @@ pub enum WorkspaceCommands {
 
 pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()> {
     let workspaces_root = runtime.config_dir().join("workspaces");
-    std::fs::create_dir_all(&workspaces_root)?;
 
     match command {
         WorkspaceCommands::List => {
+            if !workspaces_root.exists() {
+                println!("No workspaces found.");
+                return Ok(());
+            }
+
             let entries = std::fs::read_dir(&workspaces_root).with_context(|| {
                 format!(
                     "Failed to read workspaces dir: {}",
@@ -67,7 +71,8 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
             }
         }
         WorkspaceCommands::Create { name, path } => {
-            let target = workspaces_root.join(&name);
+            std::fs::create_dir_all(&workspaces_root)?;
+            let target = resolve_workspace_target(&workspaces_root, &name)?;
             if target.exists() {
                 anyhow::bail!("Workspace '{}' already exists.", name);
             }
@@ -82,7 +87,7 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
             }
         }
         WorkspaceCommands::Switch { name } => {
-            let target = workspaces_root.join(&name);
+            let target = resolve_workspace_target(&workspaces_root, &name)?;
             if !target.exists() {
                 anyhow::bail!("Workspace '{}' does not exist.", name);
             }
@@ -96,15 +101,15 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
             println!("Restart gateway for changes to take effect.");
         }
         WorkspaceCommands::Delete { name, force } => {
-            let target = workspaces_root.join(&name);
+            let target = resolve_workspace_target(&workspaces_root, &name)?;
             if !target.exists() {
                 anyhow::bail!("Workspace '{}' does not exist.", name);
             }
 
             // Prevent deleting the currently active workspace
             let config = runtime.load_config()?;
-            let current_workspace = runtime.effective_workspace(&config);
-            let canonical_current = std::fs::canonicalize(&current_workspace).ok();
+            let persisted_workspace = expand_config_workspace(&config);
+            let canonical_current = std::fs::canonicalize(&persisted_workspace).ok();
             let canonical_target = std::fs::canonicalize(&target).ok();
             if canonical_current.is_some() && canonical_current == canonical_target {
                 anyhow::bail!("Cannot delete the currently active workspace. Switch to another workspace first.");
@@ -132,7 +137,41 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
     Ok(())
 }
 
-fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> Result<()> {
+fn resolve_workspace_target(workspaces_root: &Path, name: &str) -> Result<PathBuf> {
+    anyhow::ensure!(
+        is_valid_workspace_name(name),
+        "Invalid workspace name '{}'. Use a single directory name without path separators or traversal segments.",
+        name
+    );
+
+    Ok(workspaces_root.join(name))
+}
+
+fn is_valid_workspace_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+
+    matches!(
+        Path::new(name).components().next(),
+        Some(Component::Normal(_))
+    ) && Path::new(name).components().count() == 1
+}
+
+fn expand_config_workspace(config: &Config) -> PathBuf {
+    let workspace = &config.agents.defaults.workspace;
+    if workspace == "~" {
+        dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"))
+    } else if let Some(rest) = workspace.strip_prefix("~/") {
+        dirs::home_dir()
+            .map(|home| home.join(rest))
+            .unwrap_or_else(|| PathBuf::from(workspace))
+    } else {
+        PathBuf::from(workspace)
+    }
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
