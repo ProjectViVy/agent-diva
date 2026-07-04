@@ -8,6 +8,22 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 
 ## Deferred
 
+- [ ] **Wave 3 residual: JsonlTodoStore concurrent rewrite data loss** Deferred. `create/update/archive` share one JSONL file but `update_status()` and `archive_completed()` still do read-then-truncate rewrites without mutual exclusion, so concurrent writes can drop freshly appended or updated todos.
+  - Related files: `agent-diva-core/src/todo/store.rs`, `agent-diva-manager/src/handlers/todo.rs`, `agent-diva-cli/src/commands/todo.rs`
+- [ ] **Wave 3 residual: todo API/CLI status contract drift** Deferred. `open/pending/active/done/completed` semantics are inconsistent across CLI help, CLI parsing, API list filtering, and API patch validation.
+  - Related files: `agent-diva-core/src/todo/types.rs`, `agent-diva-manager/src/handlers/todo.rs`, `agent-diva-cli/src/commands/todo.rs`
+- [ ] **Wave 3 residual: todo API error semantics mismatch** Deferred. `GET /api/todos` still returns HTTP 200 on store failure and accepts invalid `status` filters by silently returning all todos.
+  - Related files: `agent-diva-manager/src/handlers/todo.rs`
+- [ ] **Wave 3 residual: enqueue_background_task production wiring is dead** Deferred. The builtin tool requires `ToolAssembly::with_run_store(...)`, but no production `AgentLoop` construction path injects a `RunStore`, so the tool never appears in real registries.
+  - Related files: `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-tools/src/enqueue_background_task.rs`
+- [ ] **Wave 3 residual: supervised subagent worker is not bootstrapped** Deferred. `SubagentRunHandler` and `TaskExecutor` exist, but no reviewed runtime startup path registers `RunKind::Subagent` and drains queued supervised runs in production.
+  - Related files: `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-core/src/supervised/executor.rs`, `agent-diva-manager/src/runtime/`
+- [ ] **Wave 3 residual: supervised subagent run closes before real work finishes** Deferred. `SubagentRunHandler` marks the supervised run completed once `SubagentManager::spawn()` returns, even though the detached subagent task is still running and can later fail or time out.
+  - Related files: `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-core/src/supervised/executor.rs`
+- [ ] **Wave 3 residual: background task context and budget inheritance is incomplete** Deferred. Enqueued tasks do not persist `chat_id/session_key/trace_id`, default their reply route to `supervised`, and do not inherit token-ledger semantics from the parent session.
+  - Related files: `agent-diva-tools/src/enqueue_background_task.rs`, `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`
+- [ ] **Wave 3 residual: workspace CLI path traversal and model drift** Deferred. `workspace create/switch/delete` accept raw path-like names that can escape `config_dir/workspaces`, and the new managed-workspace model still diverges from the broader runtime support for arbitrary workspace paths.
+  - Related files: `agent-diva-cli/src/commands/workspace.rs`, `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/main.rs`
 - [ ] **Wave 2 residual: CLI provider audit tap** Deferred. Manager runtime and hot-update paths now wrap providers with `ProviderTap`, but direct CLI provider construction still bypasses provider-call audit events.
   - Related files: `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/chat_commands.rs`, `agent-diva-cli/src/main.rs`
 - [ ] **Wave 2 residual: skill rejection audit coverage** Deferred. Skill upload malformed zip / missing `SKILL.md` / validation-reject paths still do not emit stable skill audit payloads with the derived skill name.
@@ -59,8 +75,8 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 
 - [ ] **Priority 1** Review `Wave B`
 - [ ] **Priority 2** Review `Wave C`
-- [ ] **Priority 3** Review `Wave F`
-- [ ] **Priority 4** Review `Wave E`
+- [x] **Priority 3** Review `Wave F`
+- [x] **Priority 4** Review `Wave E`
 - [ ] **Priority 5** Review `Wave D`
 - [ ] **Priority 6** Review `Wave A`
 - [ ] **Priority 7** Review `Wave G`
@@ -132,12 +148,12 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 - [ ] **Wave C / `b3fd4e8`** Verify health endpoint criteria and benchmark assumptions are stable and meaningful.
 - [ ] **Wave D / `0eb0cce`** Review token bucket refill math, monotonic-time assumptions, and burst depletion edges.
 - [ ] **Wave D / `e2e2ad3`** Review MetaCompactor summary fidelity, fallback behavior, and serialization compatibility.
-- [ ] **Wave E / `909a573`** Verify todo CRUD routes, filters, 404 paths, and store integration.
-- [ ] **Wave E / `84c5803`** Verify todo CLI behavior matches HTTP and store semantics.
-- [ ] **Wave E / `2445984`** Review archive/purge for active-item safety, historical retention, and concurrent update behavior.
-- [ ] **Wave F / `c0f2712`** Review enqueue background task lifetime, observability, cancellation, and error return path.
-- [ ] **Wave F / `c705538`** Verify `RunKind::Subagent` dispatch covers every subagent execution path.
-- [ ] **Wave F / `b633b0d`** Review workspace CLI path resolution, isolation, and failure output quality.
+- [x] **Wave E / `909a573`** Verify todo CRUD routes, filters, 404 paths, and store integration.
+- [x] **Wave E / `84c5803`** Verify todo CLI behavior matches HTTP and store semantics.
+- [x] **Wave E / `2445984`** Review archive/purge for active-item safety, historical retention, and concurrent update behavior.
+- [x] **Wave F / `c0f2712`** Review enqueue background task lifetime, observability, cancellation, and error return path.
+- [x] **Wave F / `c705538`** Verify `RunKind::Subagent` dispatch covers every subagent execution path.
+- [x] **Wave F / `b633b0d`** Review workspace CLI path resolution, isolation, and failure output quality.
 - [ ] **Wave G / `11728fa`** Verify usage fallback metrics/warnings neither double-report nor mask real provider usage.
 - [ ] **Wave G / `9438b25`** Review `ErrorCategory` trait adoption and risk of over-generalized classification.
 - [ ] **Wave G / `48dd875`** Verify timeout wrapper preserves cancellation, retry, and tool-specific error identity.
@@ -167,3 +183,5 @@ _(No active open items. This pass closes what can be closed and explicitly defer
   - Related log: `docs/logs/2026-07-wave1-remediation/v0.0.1-wave1-remediation/`
 - [x] **Wave 2 observability remediation on 2026-07-04** Closed the first Wave C runtime blockers around audit sink wiring, `/api/logs` path/cursor behavior, manager audit filtering, cron started-event ordering, and early tool denial audit emission.
   - Related log: `docs/logs/2026-07-wave2-observability/v0.0.1-wave2-observability-remediation/`
+- [x] **Wave 3 review on 2026-07-04** Completed the next parallel review stage covering `Wave E` (Todo data plane) and `Wave F` (background task / subagent / workspace CLI), and recorded the resulting release blockers plus deferred follow-ups.
+  - Related log: `docs/logs/2026-07-wave3-review/v0.0.1-wave3-summary/`
