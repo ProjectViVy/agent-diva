@@ -9,6 +9,8 @@ use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::{ChatMessage, CompactTrigger, TokenUsage};
 use agent_diva_core::soul::SoulStateStore;
+use agent_diva_core::token_ledger::budget::check_budget_at_path;
+use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
 use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderError};
 use anyhow;
 use futures::StreamExt;
@@ -44,6 +46,31 @@ fn is_plan_mode_allowed_tool(tool_name: &str) -> bool {
 }
 
 impl AgentLoop {
+    fn enforce_session_token_budget(
+        &self,
+        session_key: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(limit) = self.session_token_budget_limit {
+            check_budget_at_path(&self.token_ledger_data_root, session_key, limit)?;
+        }
+        Ok(())
+    }
+
+    fn append_session_token_usage(
+        &self,
+        session_key: &str,
+        model: &str,
+        usage: &TokenUsage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if usage.total_tokens == 0 {
+            return Ok(());
+        }
+
+        let ledger = JsonlTokenLedger::new(&self.token_ledger_data_root)?;
+        ledger.append(TokenLedgerEntry::from_usage(session_key, model, usage))?;
+        Ok(())
+    }
+
     pub(super) async fn process_inbound_message_inner(
         &mut self,
         msg: InboundMessage,
@@ -301,6 +328,7 @@ impl AgentLoop {
             // On context_length_exceeded, perform emergency compaction and retry once.
             let mut reactive_retry_attempted = false;
             let mut stream = loop {
+                self.enforce_session_token_budget(&session_key)?;
                 let tool_defs_for_call = if !tool_defs.is_empty() {
                     Some(tool_defs.clone())
                 } else {
@@ -504,6 +532,11 @@ impl AgentLoop {
 
             // Accumulate token usage for this turn
             let iter_usage = extract_token_usage(&response.usage);
+            if let Err(e) =
+                self.append_session_token_usage(&session_key, &model_to_use, &iter_usage)
+            {
+                warn!("Failed to append token ledger entry: {}", e);
+            }
             turn_token_usage = Some(match turn_token_usage {
                 Some(existing) => TokenUsage {
                     prompt_tokens: existing

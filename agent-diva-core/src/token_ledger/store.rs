@@ -1,6 +1,7 @@
 //! JSONL append-only store for token usage ledger entries
 
 use chrono::{DateTime, Utc};
+use crate::session::TokenUsage;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::{BufRead, Write};
@@ -42,6 +43,26 @@ impl TokenLedgerEntry {
             input_tokens,
             output_tokens,
             total_tokens: input_tokens + output_tokens,
+            cost_estimate: None,
+        }
+    }
+
+    /// Create a ledger entry from structured token usage.
+    ///
+    /// This preserves provider-reported `total_tokens` even when it does not
+    /// exactly match `prompt_tokens + completion_tokens`.
+    pub fn from_usage(
+        session_id: impl Into<String>,
+        model: impl Into<String>,
+        usage: &TokenUsage,
+    ) -> Self {
+        Self {
+            timestamp: Utc::now(),
+            session_id: session_id.into(),
+            model: model.into(),
+            input_tokens: usage.prompt_tokens,
+            output_tokens: usage.completion_tokens,
+            total_tokens: usage.total_tokens,
             cost_estimate: None,
         }
     }
@@ -189,6 +210,19 @@ mod tests {
     fn test_entry_with_cost() {
         let entry = TokenLedgerEntry::new("sess-1", "deepseek-chat", 100, 50).with_cost(0.003);
         assert_eq!(entry.cost_estimate, Some(0.003));
+    }
+
+    #[test]
+    fn test_entry_from_usage_preserves_reported_total() {
+        let usage = TokenUsage {
+            prompt_tokens: 80,
+            completion_tokens: 40,
+            total_tokens: 150,
+        };
+        let entry = TokenLedgerEntry::from_usage("sess-1", "deepseek-chat", &usage);
+        assert_eq!(entry.input_tokens, 80);
+        assert_eq!(entry.output_tokens, 40);
+        assert_eq!(entry.total_tokens, 150);
     }
 
     #[test]

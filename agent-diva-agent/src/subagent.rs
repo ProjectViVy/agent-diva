@@ -544,9 +544,9 @@ impl SubagentManager {
                 )
                 .await?;
 
-            // Capture usage from each response; last non-empty one wins
+            // Capture cumulative usage for the whole task.
             if !response.usage.is_empty() {
-                final_usage = response.usage.clone();
+                accumulate_usage(&mut final_usage, &response.usage);
             }
 
             // Track cumulative tokens for budget enforcement
@@ -657,9 +657,9 @@ impl SubagentManager {
                 )
                 .await?;
 
-            // Capture usage from each response; last non-empty one wins
+            // Capture cumulative usage for the whole task.
             if !response.usage.is_empty() {
-                final_usage = response.usage.clone();
+                accumulate_usage(&mut final_usage, &response.usage);
             }
 
             // Track cumulative tokens for budget enforcement
@@ -913,6 +913,11 @@ When you have completed the task, provide a clear summary of your findings or ac
     pub(crate) fn builtin_tools_for_test(&self) -> &BuiltInToolsConfig {
         &self.builtin_tools
     }
+
+    #[cfg(test)]
+    pub(crate) fn per_task_token_budget_for_test(&self) -> Option<u64> {
+        self.per_task_token_budget
+    }
 }
 
 /// Convert an LLM provider usage map (`HashMap<String, i64>`) into a
@@ -928,9 +933,16 @@ fn extract_token_usage(usage: &HashMap<String, i64>) -> Option<TokenUsage> {
     })
 }
 
+fn accumulate_usage(total_usage: &mut HashMap<String, i64>, delta: &HashMap<String, i64>) {
+    for (key, value) in delta {
+        let entry = total_usage.entry(key.clone()).or_insert(0);
+        *entry = entry.saturating_add((*value).max(0));
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{extract_token_usage, SubagentManager};
+    use super::{accumulate_usage, extract_token_usage, SubagentManager};
     use agent_diva_core::config::schema::{
         BatchSpawnRequest, MaskConfig, SubAgentStatus, SubAgentTask, SubagentDefaults, TokenUsage,
     };
@@ -1294,6 +1306,31 @@ mod tests {
                 total_tokens: 37,
             })
         );
+    }
+
+    #[test]
+    fn test_accumulate_usage_sums_multiple_iterations() {
+        let mut total = std::collections::HashMap::new();
+        accumulate_usage(
+            &mut total,
+            &std::collections::HashMap::from([
+                ("prompt_tokens".to_string(), 10),
+                ("completion_tokens".to_string(), 15),
+                ("total_tokens".to_string(), 25),
+            ]),
+        );
+        accumulate_usage(
+            &mut total,
+            &std::collections::HashMap::from([
+                ("prompt_tokens".to_string(), 7),
+                ("completion_tokens".to_string(), 8),
+                ("total_tokens".to_string(), 15),
+            ]),
+        );
+
+        assert_eq!(extract_token_usage(&total).unwrap().prompt_tokens, 17);
+        assert_eq!(extract_token_usage(&total).unwrap().completion_tokens, 23);
+        assert_eq!(extract_token_usage(&total).unwrap().total_tokens, 40);
     }
 
     #[test]

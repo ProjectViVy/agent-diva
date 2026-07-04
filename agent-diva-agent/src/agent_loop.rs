@@ -7,6 +7,7 @@ use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
 use agent_diva_core::reasoning::ThinkingMode;
+use agent_diva_core::security::SecurityConfig;
 use agent_diva_core::session::SessionManager;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
@@ -120,6 +121,8 @@ pub struct AgentLoop {
     context: ContextBuilder,
     sessions: SessionManager,
     tool_config: ToolConfig,
+    session_token_budget_limit: Option<u64>,
+    token_ledger_data_root: PathBuf,
     tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
@@ -243,6 +246,10 @@ fn build_agent_tools(
 }
 
 impl AgentLoop {
+    fn load_runtime_security_config(workspace: &std::path::Path) -> SecurityConfig {
+        SecurityConfig::load_budget_overrides_for_workspace(workspace)
+    }
+
     pub(crate) fn load_active_mask(&self) -> Option<MaskFile> {
         let registry = MaskRegistry::new(self.workspace.join("masks"));
         registry.current_mask().cloned()
@@ -278,11 +285,13 @@ impl AgentLoop {
         max_iterations: Option<usize>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
+        let runtime_security = Self::load_runtime_security_config(&workspace);
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(SoulContextSettings::default());
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::new();
         let memory_provider = default_memory_provider(&workspace);
+        let token_ledger_data_root = workspace.join(".agent-diva");
 
         // Initialize file manager for attachment handling
         let storage_path = dirs::data_local_dir()
@@ -302,7 +311,7 @@ impl AgentLoop {
             HashMap::new(),
             ToolLimits::default(),
             memory_provider.clone(),
-            None,
+            runtime_security.per_task_token_budget,
         ));
 
         Ok(Self {
@@ -315,6 +324,8 @@ impl AgentLoop {
             context,
             sessions,
             tool_config: ToolConfig::default(),
+            session_token_budget_limit: runtime_security.token_budget_limit,
+            token_ledger_data_root,
             tools,
             subagent_manager,
             runtime_control_rx: None,
@@ -335,6 +346,11 @@ impl AgentLoop {
     /// Get the file manager
     pub fn file_manager(&self) -> Arc<FileManager> {
         self.file_manager.clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn session_token_budget_limit_for_test(&self) -> Option<u64> {
+        self.session_token_budget_limit
     }
 
     /// Create a new agent loop with tool configuration
@@ -408,9 +424,11 @@ impl AgentLoop {
         #[cfg(feature = "mentle")] mentle_runtime_override: Option<Option<MentleRuntime>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
+        let runtime_security = Self::load_runtime_security_config(&workspace);
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
+        let token_ledger_data_root = workspace.join(".agent-diva");
 
         #[cfg(feature = "mentle")]
         let (mentle_active, custom_tools, active_memory_provider, mentle_runtime) = {
@@ -474,7 +492,7 @@ impl AgentLoop {
             tool_config.mcp_servers.clone(),
             ToolLimits::default(),
             memory_provider.clone(),
-            None,
+            runtime_security.per_task_token_budget,
         ));
         let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
             manager: subagent_manager.clone(),
@@ -508,6 +526,8 @@ impl AgentLoop {
             context,
             sessions,
             tool_config: tool_config.clone(),
+            session_token_budget_limit: runtime_security.token_budget_limit,
+            token_ledger_data_root,
             tools,
             subagent_manager,
             runtime_control_rx,
@@ -553,6 +573,7 @@ impl AgentLoop {
         file_manager: Arc<FileManager>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
+        let runtime_security = Self::load_runtime_security_config(&workspace);
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(toolset.config.soul_context.clone());
         let mentle_active = toolset.registry.has("memtle_status");
@@ -561,6 +582,7 @@ impl AgentLoop {
         }
         let sessions = SessionManager::new(workspace.clone());
         let memory_provider = default_memory_provider(&workspace);
+        let token_ledger_data_root = workspace.join(".agent-diva");
         let mentle_tool_names = toolset
             .registry
             .tool_names()
@@ -579,7 +601,7 @@ impl AgentLoop {
             toolset.config.mcp_servers.clone(),
             ToolLimits::default(),
             memory_provider.clone(),
-            None,
+            runtime_security.per_task_token_budget,
         ));
         context = context
             .with_memory_provider(memory_provider.clone())
@@ -596,6 +618,8 @@ impl AgentLoop {
             context,
             sessions,
             tool_config: toolset.config.clone(),
+            session_token_budget_limit: runtime_security.token_budget_limit,
+            token_ledger_data_root,
             tools: toolset.registry,
             subagent_manager,
             runtime_control_rx,
@@ -950,6 +974,49 @@ mod tests {
                     tool_calls: Vec::new(),
                     finish_reason: "stop".to_string(),
                     usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    struct UsageStreamProvider {
+        usage: HashMap<String, i64>,
+    }
+
+    #[async_trait]
+    impl LLMProvider for UsageStreamProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                LLMResponse {
+                    content: Some("done".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: self.usage.clone(),
                     reasoning_content: None,
                 },
             ))])))
@@ -2399,6 +2466,122 @@ mod tests {
             prompt.contains("Test continuity injected"),
             "startup continuity should appear in the system prompt"
         );
+    }
+
+    #[tokio::test]
+    async fn test_agent_loop_loads_workspace_budget_settings() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        std::fs::create_dir_all(workspace.join(".agent-diva")).unwrap();
+        std::fs::write(
+            workspace.join(".agent-diva").join("security.json"),
+            r#"{"token_budget_limit":150,"per_task_token_budget":75}"#,
+        )
+        .unwrap();
+
+        let agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
+            .await
+            .unwrap();
+
+        assert_eq!(agent.session_token_budget_limit_for_test(), Some(150));
+        assert_eq!(
+            agent.subagent_manager.per_task_token_budget_for_test(),
+            Some(75)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_process_direct_rejects_when_session_budget_exceeded() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        std::fs::create_dir_all(workspace.join(".agent-diva")).unwrap();
+        std::fs::write(
+            workspace.join(".agent-diva").join("security.json"),
+            r#"{"token_budget_limit":100}"#,
+        )
+        .unwrap();
+
+        let ledger =
+            agent_diva_core::token_ledger::JsonlTokenLedger::new(&workspace.join(".agent-diva"))
+                .unwrap();
+        ledger
+            .append(agent_diva_core::token_ledger::TokenLedgerEntry::new(
+                "gui:chat-1",
+                "test-model",
+                60,
+                60,
+            ))
+            .unwrap();
+
+        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
+            .await
+            .unwrap();
+        let err = agent
+            .process_direct("hello", "session-1", "gui", "chat-1")
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("Token budget exceeded"));
+    }
+
+    #[tokio::test]
+    async fn test_process_direct_appends_usage_to_token_ledger() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(UsageStreamProvider {
+            usage: HashMap::from([
+                ("prompt_tokens".to_string(), 40),
+                ("completion_tokens".to_string(), 30),
+                ("total_tokens".to_string(), 70),
+            ]),
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace.clone(),
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_direct("hello", "session-1", "gui", "chat-1")
+            .await
+            .unwrap();
+        assert_eq!(response, "done");
+
+        let ledger =
+            agent_diva_core::token_ledger::JsonlTokenLedger::new(&workspace.join(".agent-diva"))
+                .unwrap();
+        let entries = ledger
+            .read(&agent_diva_core::token_ledger::UsageFilters {
+                session_id: Some("gui:chat-1".to_string()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].model, "test-model");
+        assert_eq!(entries[0].input_tokens, 40);
+        assert_eq!(entries[0].output_tokens, 30);
+        assert_eq!(entries[0].total_tokens, 70);
     }
 
     #[tokio::test]

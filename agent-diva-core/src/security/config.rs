@@ -1,6 +1,9 @@
 //! Security policy configuration
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
 use crate::audit::PiiSeverity;
@@ -151,6 +154,57 @@ impl Default for SecurityConfig {
 }
 
 impl SecurityConfig {
+    /// Load runtime security overrides relevant to budget enforcement.
+    ///
+    /// Resolution order:
+    /// 1. `{workspace}/.agent-diva/security.json`
+    /// 2. `${HOME}/.agent-diva/security.json`
+    /// 3. `${HOME}/.agent-diva/config.json` nested `security` section
+    ///
+    /// Missing or malformed files are ignored and fall back to defaults.
+    pub fn load_budget_overrides_for_workspace(workspace: &Path) -> Self {
+        let workspace_security = workspace.join(".agent-diva").join("security.json");
+        let home_root = dirs::home_dir()
+            .map(|dir| dir.join(".agent-diva"))
+            .unwrap_or_else(|| PathBuf::from(".agent-diva"));
+        let home_security = home_root.join("security.json");
+        let home_config = home_root.join("config.json");
+
+        Self::load_budget_overrides_from_paths(
+            &workspace_security,
+            Some(&home_security),
+            Some(&home_config),
+        )
+    }
+
+    fn load_budget_overrides_from_paths(
+        workspace_security: &Path,
+        home_security: Option<&Path>,
+        home_config: Option<&Path>,
+    ) -> Self {
+        let mut merged = Self::default();
+
+        if let Some(config) = Self::load_from_json_file(workspace_security) {
+            merged.merge(config);
+            return merged;
+        }
+
+        if let Some(path) = home_security {
+            if let Some(config) = Self::load_from_json_file(path) {
+                merged.merge(config);
+                return merged;
+            }
+        }
+
+        if let Some(path) = home_config {
+            if let Some(config) = Self::load_from_nested_security_section(path) {
+                merged.merge(config);
+            }
+        }
+
+        merged
+    }
+
     /// Create config from security level
     pub fn from_level(level: SecurityLevel) -> Self {
         Self {
@@ -215,6 +269,24 @@ impl SecurityConfig {
         if other.max_actions_per_hour != SecurityLevel::default().default_max_actions_per_hour() {
             self.max_actions_per_hour = other.max_actions_per_hour;
         }
+        if other.token_budget_limit.is_some() {
+            self.token_budget_limit = other.token_budget_limit;
+        }
+        if other.per_task_token_budget.is_some() {
+            self.per_task_token_budget = other.per_task_token_budget;
+        }
+    }
+
+    fn load_from_json_file(path: &Path) -> Option<Self> {
+        let content = fs::read_to_string(path).ok()?;
+        serde_json::from_str(&content).ok()
+    }
+
+    fn load_from_nested_security_section(path: &Path) -> Option<Self> {
+        let content = fs::read_to_string(path).ok()?;
+        let value: Value = serde_json::from_str(&content).ok()?;
+        let section = value.get("security")?.clone();
+        serde_json::from_value(section).ok()
     }
 }
 
@@ -284,5 +356,59 @@ mod tests {
         base.merge(other);
         assert_eq!(base.level, SecurityLevel::Strict);
         assert_eq!(base.max_actions_per_hour, 50);
+    }
+
+    #[test]
+    fn test_config_merge_copies_budget_fields() {
+        let mut base = SecurityConfig::default();
+        let other = SecurityConfig {
+            token_budget_limit: Some(1200),
+            per_task_token_budget: Some(400),
+            ..Default::default()
+        };
+
+        base.merge(other);
+        assert_eq!(base.token_budget_limit, Some(1200));
+        assert_eq!(base.per_task_token_budget, Some(400));
+    }
+
+    #[test]
+    fn test_load_budget_overrides_prefers_workspace_security_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace_security = temp.path().join(".agent-diva").join("security.json");
+        std::fs::create_dir_all(workspace_security.parent().unwrap()).unwrap();
+        std::fs::write(
+            &workspace_security,
+            r#"{"token_budget_limit":321,"per_task_token_budget":123}"#,
+        )
+        .unwrap();
+
+        let loaded = SecurityConfig::load_budget_overrides_from_paths(
+            &workspace_security,
+            None,
+            None,
+        );
+        assert_eq!(loaded.token_budget_limit, Some(321));
+        assert_eq!(loaded.per_task_token_budget, Some(123));
+    }
+
+    #[test]
+    fn test_load_budget_overrides_falls_back_to_nested_home_config() {
+        let temp = tempfile::tempdir().unwrap();
+        let missing_workspace = temp.path().join(".agent-diva").join("security.json");
+        let home_config = temp.path().join("home-config.json");
+        std::fs::write(
+            &home_config,
+            r#"{"security":{"token_budget_limit":777,"per_task_token_budget":222}}"#,
+        )
+        .unwrap();
+
+        let loaded = SecurityConfig::load_budget_overrides_from_paths(
+            &missing_workspace,
+            None,
+            Some(&home_config),
+        );
+        assert_eq!(loaded.token_budget_limit, Some(777));
+        assert_eq!(loaded.per_task_token_budget, Some(222));
     }
 }
