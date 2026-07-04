@@ -125,11 +125,6 @@ pub fn validate_skill_md(content: &str) -> Result<(), SkillError> {
             ),
         });
     }
-    crate::audit::emit(crate::audit::AuditEvent::SkillLoaded {
-        skill_name: "unknown".to_string(),
-        trust_tier: "trusted".to_string(),
-        provenance: "workspace".to_string(),
-    });
     Ok(())
 }
 

@@ -4,9 +4,11 @@ use crate::consolidation;
 use crate::context_budget::check_budget;
 use crate::mask::ToolPolicy;
 use crate::planning::inject_plan_context;
+use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage, PokeEvent};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
+use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
 use agent_diva_core::session::{ChatMessage, CompactTrigger, TokenUsage};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
@@ -97,7 +99,8 @@ impl AgentLoop {
         let active_mask = self.load_active_mask();
         self.rebuild_tools_for_turn(active_mask.as_ref(), plan_mode);
 
-        // Process attachments: load text file contents and append to message
+        // Process attachments first, then run the combined user-visible payload through
+        // the security gate before any session or provider work starts.
         let message_content = if !msg.media.is_empty() {
             match self.load_attachment_contents(&msg.media).await {
                 Ok(attachment_text) if !attachment_text.is_empty() => {
@@ -110,6 +113,27 @@ impl AgentLoop {
             }
         } else {
             msg.content.clone()
+        };
+        let security_context = SecurityContext {
+            source_type: "channel".to_string(),
+            workspace_id: Some(self.workspace.display().to_string()),
+            run_id: None,
+            channel_id: Some(msg.channel.clone()),
+            tool_name: None,
+        };
+        let message_content = match check_security(&message_content, &security_context) {
+            SecurityDecision::Allow => message_content,
+            SecurityDecision::Sanitize { redacted, .. } => redacted,
+            SecurityDecision::Block { reason, .. }
+            | SecurityDecision::Quarantine { reason, .. } => {
+                audit::emit(AuditEvent::ChannelMessageBlocked {
+                    channel_id: msg.channel.clone(),
+                    reason: reason.clone(),
+                });
+                return Err(
+                    anyhow::anyhow!("Security policy blocked inbound message: {}", reason).into(),
+                );
+            }
         };
 
         // Derive prefetch intent from raw user message before it's consumed.

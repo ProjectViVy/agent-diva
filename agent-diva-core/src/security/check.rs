@@ -4,6 +4,7 @@
 //! PII detection, injection detection, and instruction hierarchy
 //! resolution into a single [`SecurityDecision`].
 
+use crate::audit::{self, AuditEvent, Severity};
 use crate::security::{
     decision::{SecurityContext, SecurityDecision, SecurityFinding, SecurityKind},
     detect_injection, redact_pii, resolve_tier_conflict, InjectionContext, InjectionKind,
@@ -29,27 +30,21 @@ use crate::security::{
 /// let decision = check_security("Hello world", &ctx);
 /// ```
 pub fn check_security(content: &str, context: &SecurityContext) -> SecurityDecision {
+    let mut findings: Vec<SecurityFinding> = Vec::new();
+
     // 1. PII check
     let pii_config = PiiConfig::default();
     let pii_result = redact_pii(content, &pii_config);
+    let redacted = pii_result.redacted.clone();
 
     if !pii_result.detected.is_empty() {
-        let findings: Vec<SecurityFinding> = pii_result
-            .detected
-            .iter()
-            .map(|m| SecurityFinding {
-                kind: SecurityKind::PiiDetected,
-                severity: crate::audit::Severity::Medium,
-                span: (m.start, m.end),
-                reason: format!("PII detected: {}", m.kind),
-                source: context.clone(),
-            })
-            .collect();
-
-        return SecurityDecision::Sanitize {
-            redacted: pii_result.redacted,
-            findings,
-        };
+        findings.extend(pii_result.detected.iter().map(|m| SecurityFinding {
+            kind: SecurityKind::PiiDetected,
+            severity: Severity::Medium,
+            span: (m.start, m.end),
+            reason: format!("PII detected: {}", m.kind),
+            source: context.clone(),
+        }));
     }
 
     // 2. Injection check
@@ -61,25 +56,18 @@ pub fn check_security(content: &str, context: &SecurityContext) -> SecurityDecis
 
     if injection.is_injection {
         let severity = match injection.kind {
-            Some(InjectionKind::Jailbreak) | Some(InjectionKind::RoleOverride) => {
-                crate::audit::Severity::High
-            }
-            Some(InjectionKind::ToolOutputInjection) => crate::audit::Severity::Medium,
-            None => crate::audit::Severity::Low,
+            Some(InjectionKind::Jailbreak) | Some(InjectionKind::RoleOverride) => Severity::High,
+            Some(InjectionKind::ToolOutputInjection) => Severity::Medium,
+            None => Severity::Low,
         };
 
-        let finding = SecurityFinding {
+        findings.push(SecurityFinding {
             kind: SecurityKind::InjectionDetected,
             severity,
             span: (0, content.len()),
             reason: format!("Injection detected: {:?}", injection.kind),
             source: context.clone(),
-        };
-
-        return SecurityDecision::Block {
-            reason: "Injection detected".into(),
-            findings: vec![finding],
-        };
+        });
     }
 
     // 3. Instruction hierarchy check (only for user input)
@@ -96,29 +84,102 @@ pub fn check_security(content: &str, context: &SecurityContext) -> SecurityDecis
         let (_, conflicts) = resolve_tier_conflict(vec![tiered]);
 
         if !conflicts.is_empty() {
-            let findings: Vec<SecurityFinding> = conflicts
-                .iter()
-                .map(|c| SecurityFinding {
-                    kind: SecurityKind::InstructionConflict,
-                    severity: crate::audit::Severity::Medium,
-                    span: (0, content.len()),
-                    reason: format!(
-                        "Tier conflict: {} vs {}",
-                        c.lower_source, c.conflict_pattern
-                    ),
-                    source: context.clone(),
-                })
-                .collect();
-
-            return SecurityDecision::Block {
-                reason: "Instruction hierarchy conflict detected".into(),
-                findings,
-            };
+            for conflict in &conflicts {
+                audit::emit(AuditEvent::InstructionConflictDetected {
+                    lower_tier: conflict.lower_source.clone(),
+                    higher_tier: "system".to_string(),
+                    action: "block".to_string(),
+                });
+            }
+            findings.extend(conflicts.iter().map(|c| SecurityFinding {
+                kind: SecurityKind::InstructionConflict,
+                severity: Severity::Medium,
+                span: (0, content.len()),
+                reason: format!(
+                    "Tier conflict: {} vs {}",
+                    c.lower_source, c.conflict_pattern
+                ),
+                source: context.clone(),
+            }));
         }
     }
 
-    // 4. Default: Allow
-    SecurityDecision::Allow
+    // 4. Resolve final decision using the strictest finding.
+    let decision = if findings.iter().any(|finding| {
+        matches!(
+            finding.kind,
+            SecurityKind::InjectionDetected | SecurityKind::InstructionConflict
+        )
+    }) {
+        let reason = if findings
+            .iter()
+            .any(|finding| matches!(finding.kind, SecurityKind::InjectionDetected))
+        {
+            "Injection detected"
+        } else {
+            "Instruction hierarchy conflict detected"
+        };
+        SecurityDecision::Block {
+            reason: reason.to_string(),
+            findings,
+        }
+    } else if !pii_result.detected.is_empty() {
+        SecurityDecision::Sanitize { redacted, findings }
+    } else {
+        SecurityDecision::Allow
+    };
+
+    emit_security_audit(content, context, &decision);
+    decision
+}
+
+fn emit_security_audit(content: &str, context: &SecurityContext, decision: &SecurityDecision) {
+    let (decision_kind, reason, severity) = match decision {
+        SecurityDecision::Allow => return,
+        SecurityDecision::Sanitize { findings, .. } => (
+            "sanitize",
+            "PII detected".to_string(),
+            highest_severity(findings),
+        ),
+        SecurityDecision::Block { reason, findings } => {
+            ("block", reason.clone(), highest_severity(findings))
+        }
+        SecurityDecision::Quarantine { reason, findings } => {
+            ("quarantine", reason.clone(), highest_severity(findings))
+        }
+    };
+
+    audit::emit(AuditEvent::SecurityPolicyDecision {
+        source_type: context.source_type.clone(),
+        decision_kind: decision_kind.to_string(),
+        reason: reason.clone(),
+    });
+
+    if matches!(decision, SecurityDecision::Block { .. }) {
+        audit::emit(AuditEvent::MessageBlocked {
+            source: context.source_type.clone(),
+            reason,
+            severity,
+        });
+    }
+    let _ = content;
+}
+
+fn highest_severity(findings: &[SecurityFinding]) -> Severity {
+    findings
+        .iter()
+        .map(|finding| finding.severity.clone())
+        .max_by_key(severity_rank)
+        .unwrap_or(Severity::Low)
+}
+
+fn severity_rank(severity: &Severity) -> u8 {
+    match severity {
+        Severity::Low => 0,
+        Severity::Medium => 1,
+        Severity::High => 2,
+        Severity::Critical => 3,
+    }
 }
 
 #[cfg(test)]

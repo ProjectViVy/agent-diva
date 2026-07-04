@@ -3,6 +3,7 @@
 use crate::{Tool, ToolError};
 use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
+use agent_diva_core::security::sanitize_tool_output;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -121,14 +122,15 @@ impl ToolRegistry {
 
         match result {
             Ok(Ok(output)) => {
-                let result_size = output.len() as u32;
+                let sanitized_output = sanitize_tool_output(&output);
+                let result_size = sanitized_output.len() as u32;
                 audit::emit(AuditEvent::ToolExecuted {
                     tool_name: name.to_string(),
                     duration_ms,
                     result_size,
                     status: "ok".to_string(),
                 });
-                Ok(truncate_tool_result(&output))
+                Ok(truncate_tool_result(&sanitized_output))
             }
             Ok(Err(tool_err)) => {
                 let error_msg = tool_err.to_string();
