@@ -18,8 +18,8 @@ use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
-    DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess, ProviderCatalogService,
-    ProviderRegistry,
+    tap::ProviderTap, DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess,
+    ProviderCatalogService, ProviderRegistry,
 };
 use anyhow::Result;
 use chrono::Local;
@@ -140,7 +140,7 @@ fn resolve_provider_name_for_model(
     })
 }
 
-fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
+fn build_provider(config: &Config, model: &str) -> Result<Arc<dyn LLMProvider>> {
     let catalog = ProviderCatalogService::new();
     let provider_name = resolve_provider_name_for_model(
         config,
@@ -160,14 +160,14 @@ fn build_provider(config: &Config, model: &str) -> Result<LiteLLMClient> {
             .collect::<std::collections::HashMap<String, String>>()
     });
 
-    Ok(LiteLLMClient::new(
+    Ok(Arc::new(ProviderTap::new(LiteLLMClient::new(
         access.api_key,
         access.api_base,
         model.to_string(),
         extra_headers,
         Some(provider_name),
         config.agents.defaults.reasoning_effort.clone(),
-    ))
+    ))))
 }
 
 fn build_network_tool_config(config: &Config) -> NetworkToolConfig {

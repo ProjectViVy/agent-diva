@@ -57,6 +57,15 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         if let Err(agent_diva_core::rate_limiter::RateLimitError::Exceeded { retry_after }) =
             self.rate_limiter.check(&key).await
         {
+            agent_diva_core::audit::emit(
+                agent_diva_core::audit::AuditEvent::ProviderCallCompleted {
+                    provider: provider_name,
+                    model: model.unwrap_or(default_model),
+                    latency_ms: 0,
+                    tokens: 0,
+                    status: "rate_limited".to_string(),
+                },
+            );
             return Err(ProviderError::RateLimited {
                 retry_after: Some(retry_after),
             });
@@ -123,6 +132,15 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         if let Err(agent_diva_core::rate_limiter::RateLimitError::Exceeded { retry_after }) =
             self.rate_limiter.check(&key).await
         {
+            agent_diva_core::audit::emit(
+                agent_diva_core::audit::AuditEvent::ProviderCallCompleted {
+                    provider: provider_name,
+                    model: model.unwrap_or(default_model),
+                    latency_ms: 0,
+                    tokens: 0,
+                    status: "rate_limited".to_string(),
+                },
+            );
             return Err(ProviderError::RateLimited {
                 retry_after: Some(retry_after),
             });
@@ -265,7 +283,7 @@ impl TappedStream {
 impl Drop for TappedStream {
     fn drop(&mut self) {
         if !self.emitted {
-            self.emit_event("ok");
+            self.emit_event("cancelled");
         }
     }
 }

@@ -81,6 +81,12 @@ impl ToolRegistry {
         let tool = match self.tools.get(name) {
             Some(tool) => tool,
             None => {
+                audit::emit(AuditEvent::ToolExecuted {
+                    tool_name: name.to_string(),
+                    duration_ms: 0,
+                    result_size: 0,
+                    status: "not_found".to_string(),
+                });
                 let ctx = ErrorContext::new("tool_lookup", format!("Tool '{}' not found", name))
                     .with_metadata("tool_name", name.to_string())
                     .with_metadata("available_tools", self.tool_names().join(", "));
@@ -91,9 +97,16 @@ impl ToolRegistry {
 
         let errors = tool.validate_params(&params);
         if !errors.is_empty() {
+            let validation_message = errors.join("; ");
+            audit::emit(AuditEvent::ToolExecuted {
+                tool_name: name.to_string(),
+                duration_ms: 0,
+                result_size: validation_message.len() as u32,
+                status: "invalid_params".to_string(),
+            });
             let params_str = serde_json::to_string(&params).unwrap_or_default();
             let problems = find_problematic_chars(&params_str);
-            let ctx = ErrorContext::new("tool_validation", errors.join("; "))
+            let ctx = ErrorContext::new("tool_validation", validation_message.clone())
                 .with_content(&params_str)
                 .with_metadata("tool_name", name.to_string());
             let ctx_str = ctx.to_detailed_string();
@@ -109,7 +122,7 @@ impl ToolRegistry {
             return Err(ToolError::InvalidParams(format!(
                 "Invalid parameters for tool '{}': {}",
                 name,
-                errors.join("; "),
+                validation_message,
             )));
         }
 

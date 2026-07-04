@@ -349,15 +349,14 @@ impl CronService {
             job.name, job.id, trigger
         );
 
+        let start = Instant::now();
+        let _ = self.register_active_run(&job.id, trigger).await?;
         let scheduled_at = chrono::Utc::now().to_rfc3339();
         crate::audit::emit(crate::audit::AuditEvent::CronJobStarted {
             job_id: job.id.clone(),
             job_name: job.name.clone(),
-            scheduled_at: scheduled_at.clone(),
+            scheduled_at,
         });
-
-        let start = Instant::now();
-        let _ = self.register_active_run(&job.id, trigger).await?;
         let cancel_token = self
             .cancel_token_for(&job.id)
             .await
@@ -746,13 +745,6 @@ impl CronServiceHandle {
     async fn execute_due_job(&self, mut job: CronJob) {
         info!("Cron: due job fired '{}' ({})", job.name, job.id);
 
-        let scheduled_at = chrono::Utc::now().to_rfc3339();
-        crate::audit::emit(crate::audit::AuditEvent::CronJobStarted {
-            job_id: job.id.clone(),
-            job_name: job.name.clone(),
-            scheduled_at: scheduled_at.clone(),
-        });
-
         let start = Instant::now();
         let mut active_guard = self.active_runs.write().await;
         if active_guard.contains_key(&job.id) {
@@ -779,6 +771,12 @@ impl CronServiceHandle {
             .map(|run| run.cancel_token.clone())
             .expect("inserted active run");
         drop(active_guard);
+        let scheduled_at = chrono::Utc::now().to_rfc3339();
+        crate::audit::emit(crate::audit::AuditEvent::CronJobStarted {
+            job_id: job.id.clone(),
+            job_name: job.name.clone(),
+            scheduled_at,
+        });
 
         let result = if cancel_token.is_cancelled() {
             Err("job cancelled before start".to_string())

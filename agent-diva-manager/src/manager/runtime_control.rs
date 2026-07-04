@@ -7,7 +7,9 @@ use agent_diva_core::config::schema::{
     ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, MatrixConfig,
     QQConfig, SelfEvolutionConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
 };
-use agent_diva_providers::{LiteLLMClient, ProviderAccess, ProviderCatalogService};
+use agent_diva_providers::{
+    tap::ProviderTap, LiteLLMClient, ProviderAccess, ProviderCatalogService,
+};
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, warn};
 
@@ -531,7 +533,7 @@ impl Manager {
             config.agents.defaults.reasoning_effort.clone(),
         );
 
-        self.provider.update(Arc::new(new_client));
+        self.provider.update(Arc::new(ProviderTap::new(new_client)));
         info!("Provider updated successfully");
     }
 

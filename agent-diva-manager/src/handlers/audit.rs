@@ -113,6 +113,14 @@ fn read_lines_from_file(path: &PathBuf, max_lines: u64) -> Result<Vec<String>, S
     Ok(all_lines)
 }
 
+fn is_audit_line(line: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(line)
+        .ok()
+        .and_then(|value| value.get("target").and_then(|target| target.as_str()).map(str::to_string))
+        .map(|target| target == "audit")
+        .unwrap_or(false)
+}
+
 // ── Handlers ──────────────────────────────────────────────────────────
 
 /// GET /api/audit/log?date=YYYY-MM-DD&max_lines=200
@@ -152,6 +160,7 @@ pub async fn get_audit_events_handler(
         Ok(lines) => {
             let events: Vec<AuditEventDto> = lines
                 .iter()
+                .filter(|line| is_audit_line(line))
                 .filter_map(|line| {
                     agent_diva_core::audit_parse::parse_audit_event_from_json_line(line)
                         .map(AuditEventDto::from)
@@ -211,5 +220,15 @@ mod tests {
     #[test]
     fn parse_non_json_returns_none() {
         assert!(audit_parse::parse_audit_event_from_json_line("not json").is_none());
+    }
+
+    #[test]
+    fn audit_line_filter_accepts_only_audit_target() {
+        assert!(super::is_audit_line(
+            r#"{"timestamp":"2026-07-01T12:00:00Z","target":"audit","fields":{"event":"ToolInvoked"}}"#
+        ));
+        assert!(!super::is_audit_line(
+            r#"{"timestamp":"2026-07-01T12:00:00Z","target":"agent","fields":{"message":"hello"}}"#
+        ));
     }
 }

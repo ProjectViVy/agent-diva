@@ -45,13 +45,17 @@ pub struct LogQueryResponse {
     pub next_cursor: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LogCursor {
+    last_timestamp: String,
+    skipped: usize,
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 /// Resolve the data root where `audit-*.jsonl` files are stored.
-///
-/// Currently uses the workspace root from `AppState` as the data directory.
 fn resolve_data_root(state: &AppState) -> PathBuf {
-    state.workspace_root.clone()
+    state.audit_root.clone()
 }
 
 /// Parse a range string into a `Duration`.
@@ -68,19 +72,21 @@ fn parse_range(range: &str) -> Option<Duration> {
 /// Build a cursor from the last event's timestamp and the number of events skipped.
 fn build_cursor(last_ts: &str, skipped: usize) -> String {
     use base64::{engine::general_purpose, Engine};
-    let data = format!("{}:{}", last_ts, skipped);
-    general_purpose::STANDARD.encode(&data)
+    let cursor = LogCursor {
+        last_timestamp: last_ts.to_string(),
+        skipped,
+    };
+    general_purpose::URL_SAFE_NO_PAD
+        .encode(serde_json::to_vec(&cursor).unwrap_or_default())
 }
 
 /// Parse a cursor into (last_timestamp, skipped_count).
-fn parse_cursor(cursor: &str) -> Option<(String, usize)> {
+fn parse_cursor(cursor: &str) -> Result<LogCursor, String> {
     use base64::{engine::general_purpose, Engine};
-    let decoded = general_purpose::STANDARD.decode(cursor).ok()?;
-    let text = String::from_utf8(decoded).ok()?;
-    let mut parts = text.splitn(2, ':');
-    let ts = parts.next()?.to_string();
-    let skipped = parts.next()?.parse().ok()?;
-    Some((ts, skipped))
+    let decoded = general_purpose::URL_SAFE_NO_PAD
+        .decode(cursor)
+        .map_err(|_| "invalid cursor encoding".to_string())?;
+    serde_json::from_slice(&decoded).map_err(|_| "invalid cursor payload".to_string())
 }
 
 /// Extract timestamp from a JSON event value.
@@ -108,6 +114,10 @@ fn scan_audit_files(
     limit: usize,
     cursor: Option<&str>,
 ) -> Result<(Vec<serde_json::Value>, Option<String>), String> {
+    if !data_root.exists() {
+        return Ok((Vec::new(), None));
+    }
+
     let mut files: Vec<std::fs::DirEntry> = std::fs::read_dir(data_root)
         .map_err(|e| format!("failed to read data root: {}", e))?
         .filter_map(|e| e.ok())
@@ -129,10 +139,10 @@ fn scan_audit_files(
     let mut total_skipped = 0usize;
 
     // If cursor provided, parse it to know how many to skip
-    let skip_count = cursor
-        .and_then(parse_cursor)
-        .map(|(_, skipped)| skipped)
-        .unwrap_or(0);
+    let skip_count = match cursor {
+        Some(cursor) => parse_cursor(cursor)?.skipped,
+        None => 0,
+    };
 
     for entry in files {
         let path = entry.path();
@@ -298,15 +308,21 @@ mod tests {
     #[tokio::test]
     async fn logs_filter_by_event_type() {
         let temp = tempfile::tempdir().unwrap();
+        let first_ts = (Utc::now() - Duration::minutes(10)).to_rfc3339();
+        let second_ts = (Utc::now() - Duration::minutes(5)).to_rfc3339();
         // Write an mock audit file with two events
         let audit_file = temp
             .path()
+            .join(".agent-diva")
+            .join("audit")
             .join(format!("audit-{}.jsonl", Utc::now().format("%Y-%m-%d")));
+        std::fs::create_dir_all(audit_file.parent().unwrap()).unwrap();
         std::fs::write(
             &audit_file,
-            r#"{"type":"tool_invoked","data":{"tool":"bash"},"timestamp":"2026-07-03T10:00:00Z"}
-{"type":"heartbeat_triggered","data":{"interval_secs":5},"timestamp":"2026-07-03T10:01:00Z"}
-"#,
+            format!(
+                "{{\"type\":\"tool_invoked\",\"data\":{{\"tool\":\"bash\"}},\"timestamp\":\"{}\"}}\n{{\"type\":\"heartbeat_triggered\",\"data\":{{\"interval_secs\":5}},\"timestamp\":\"{}\"}}\n",
+                first_ts, second_ts
+            ),
         )
         .unwrap();
 
@@ -336,7 +352,10 @@ mod tests {
         // Write an event with a very old timestamp
         let audit_file = temp
             .path()
+            .join(".agent-diva")
+            .join("audit")
             .join(format!("audit-{}.jsonl", Utc::now().format("%Y-%m-%d")));
+        std::fs::create_dir_all(audit_file.parent().unwrap()).unwrap();
         std::fs::write(
             &audit_file,
             r#"{"type":"tool_invoked","data":{"tool":"bash"},"timestamp":"2020-01-01T00:00:00Z"}
@@ -367,16 +386,22 @@ mod tests {
     #[tokio::test]
     async fn logs_pagination_with_cursor() {
         let temp = tempfile::tempdir().unwrap();
+        let ts1 = (Utc::now() - Duration::minutes(3)).to_rfc3339();
+        let ts2 = (Utc::now() - Duration::minutes(2)).to_rfc3339();
+        let ts3 = (Utc::now() - Duration::minutes(1)).to_rfc3339();
         let audit_file = temp
             .path()
+            .join(".agent-diva")
+            .join("audit")
             .join(format!("audit-{}.jsonl", Utc::now().format("%Y-%m-%d")));
+        std::fs::create_dir_all(audit_file.parent().unwrap()).unwrap();
         // Write 3 events
         std::fs::write(
             &audit_file,
-            r#"{"type":"event1","data":{},"timestamp":"2026-07-03T10:00:00Z"}
-{"type":"event2","data":{},"timestamp":"2026-07-03T10:01:00Z"}
-{"type":"event3","data":{},"timestamp":"2026-07-03T10:02:00Z"}
-"#,
+            format!(
+                "{{\"type\":\"event1\",\"data\":{{}},\"timestamp\":\"{}\"}}\n{{\"type\":\"event2\",\"data\":{{}},\"timestamp\":\"{}\"}}\n{{\"type\":\"event3\",\"data\":{{}},\"timestamp\":\"{}\"}}\n",
+                ts1, ts2, ts3
+            ),
         )
         .unwrap();
 
@@ -417,5 +442,6 @@ mod tests {
         let body2 = to_bytes(response2.into_body(), usize::MAX).await.unwrap();
         let value2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
         assert_eq!(value2["events"].as_array().unwrap().len(), 1);
+        assert_eq!(value2["events"][0]["type"], "event2");
     }
 }

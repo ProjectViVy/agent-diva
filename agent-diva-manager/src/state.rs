@@ -23,6 +23,7 @@ pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
     pub bus: MessageBus,
     pub workspace_root: PathBuf,
+    pub audit_root: PathBuf,
     pub autodream: AutoDreamService,
     pub laputa: LaputaService,
     /// Server start time, used for uptime calculation in the health endpoint.
@@ -36,12 +37,15 @@ impl AppState {
         workspace_root: impl Into<PathBuf>,
     ) -> anyhow::Result<Self> {
         let workspace_root = workspace_root.into();
+        let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
+        std::fs::create_dir_all(&audit_root)?;
         let autodream = AutoDreamService::open(workspace_root.clone())?;
         let laputa = LaputaService::open(workspace_root.clone())?;
         Ok(Self {
             api_tx,
             bus,
             workspace_root,
+            audit_root,
             autodream,
             laputa,
             started_at: Instant::now(),

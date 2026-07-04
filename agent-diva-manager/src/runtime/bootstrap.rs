@@ -93,10 +93,10 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
 
     let cron_service = start_cron_service(cron_store, bus.clone(), workspace.clone()).await;
     ensure_notebook_monthly_cron_job(&cron_service).await?;
-    let dynamic_provider = Arc::new(DynamicProvider::new(Arc::new(build_provider(
+    let dynamic_provider = Arc::new(DynamicProvider::new(build_provider(
         &config,
         &config.agents.defaults.model,
-    )?)));
+    )?));
 
     // Initialize shared FileManager for attachment handling
     let storage_path = default_data_dir_or_fallback();

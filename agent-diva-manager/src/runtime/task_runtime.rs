@@ -60,6 +60,14 @@ async fn start_runtime_tasks_inner(
         inbound_bridge_handle,
     } = channel_bootstrap;
 
+    if let Err(error) = agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace) {
+        tracing::error!(
+            "failed to initialize workspace audit sink for {}: {}",
+            workspace.display(),
+            error
+        );
+    }
+
     subscribe_configured_outbound_channels(&bus, &channel_manager, &config).await;
     let neuro_link_bridge_handle = config
         .channels

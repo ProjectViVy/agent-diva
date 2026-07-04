@@ -23,7 +23,7 @@ use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use chrono::Local;
 
@@ -97,6 +97,31 @@ pub fn get_sink() -> Option<&'static Arc<dyn AuditSink>> {
     GLOBAL_SINK.get()
 }
 
+/// Resolve the workspace-local audit directory.
+pub fn workspace_audit_dir(workspace_root: &Path) -> PathBuf {
+    workspace_root.join(".agent-diva").join("audit")
+}
+
+/// Register a workspace-local JSONL sink if no global sink exists yet.
+pub fn ensure_workspace_jsonl_sink(workspace_root: &Path) -> Result<(), AuditSinkError> {
+    if get_sink().is_some() {
+        return Ok(());
+    }
+
+    let sink = Arc::new(JsonlAuditSink::new(&workspace_audit_dir(workspace_root))?);
+    let _ = GLOBAL_SINK.set(sink);
+    Ok(())
+}
+
+fn lock_mutex<'a, T>(
+    mutex: &'a Mutex<T>,
+    label: &str,
+) -> Result<MutexGuard<'a, T>, AuditSinkError> {
+    mutex
+        .lock()
+        .map_err(|_| AuditSinkError::Serialization(format!("{label} mutex poisoned")))
+}
+
 // ── JsonlAuditSink ────────────────────────────────────────────────
 
 /// A file-based audit sink that writes JSON Lines with daily rolling.
@@ -139,16 +164,29 @@ impl JsonlAuditSink {
         dir.join(format!("audit-{date}.jsonl"))
     }
 
+    fn serialize_event_line(event: &AuditEvent) -> Result<String, AuditSinkError> {
+        let mut value = serde_json::to_value(event)
+            .map_err(|e| AuditSinkError::Serialization(e.to_string()))?;
+        let object = value
+            .as_object_mut()
+            .ok_or_else(|| AuditSinkError::Serialization("audit event was not an object".into()))?;
+        object.insert(
+            "timestamp".to_string(),
+            serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+        );
+        serde_json::to_string(&value).map_err(|e| AuditSinkError::Serialization(e.to_string()))
+    }
+
     /// Roll over to a new file if the date has changed.
     ///
     /// Must be called while holding the writer lock (or before acquiring it).
     fn roll_if_needed(&self) -> Result<(), AuditSinkError> {
         let today = Local::now().format("%Y-%m-%d").to_string();
-        let mut current = self.current_date.lock().unwrap();
+        let mut current = lock_mutex(&self.current_date, "current_date")?;
 
         if *current != today {
             // Date changed — flush old writer and open new file.
-            let mut writer = self.writer.lock().unwrap();
+            let mut writer = lock_mutex(&self.writer, "writer")?;
             writer.flush().map_err(AuditSinkError::Io)?;
             drop(writer);
 
@@ -159,7 +197,7 @@ impl JsonlAuditSink {
                 .open(&path)
                 .map_err(AuditSinkError::Io)?;
 
-            *self.writer.lock().unwrap() = BufWriter::new(file);
+            *lock_mutex(&self.writer, "writer")? = BufWriter::new(file);
             *current = today;
         }
         Ok(())
@@ -174,7 +212,7 @@ impl AuditSink for JsonlAuditSink {
             return Ok(());
         }
 
-        let json = match serde_json::to_string(event) {
+        let json = match Self::serialize_event_line(event) {
             Ok(j) => j,
             Err(e) => {
                 tracing::error!("audit event serialization failed: {}", e);
@@ -182,7 +220,13 @@ impl AuditSink for JsonlAuditSink {
             }
         };
 
-        let mut writer = self.writer.lock().unwrap();
+        let mut writer = match lock_mutex(&self.writer, "writer") {
+            Ok(writer) => writer,
+            Err(error) => {
+                tracing::error!("audit sink writer lock failed: {}", error);
+                return Ok(());
+            }
+        };
         if let Err(e) = writeln!(writer, "{}", json) {
             tracing::error!("audit sink write failed: {}", e);
             // Swallow error — audit must never interrupt business logic.
@@ -330,6 +374,10 @@ mod tests {
             assert!(
                 json.get("type").is_some(),
                 "each line must have a `type` field"
+            );
+            assert!(
+                json.get("timestamp").and_then(|value| value.as_str()).is_some(),
+                "each line must include a timestamp"
             );
         }
 
