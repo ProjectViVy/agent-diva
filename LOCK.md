@@ -10,9 +10,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro @ C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-07-04T16:08:00+08:00`
-- Last Heartbeat: `2026-07-04T16:14:00+08:00`
-- Expires At: `2026-07-04T16:14:00+08:00`
+- Started At: `none`
+- Last Heartbeat: `2026-07-05T00:00:00+08:00`
+- Expires At: `none`
 
 ## Lock Rules
 
@@ -50,3 +50,5 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-04`: Codex claimed the Wave 3 parallel review lead scope for `Wave E` and `Wave F`, including review reports and backlog updates.
 - `2026-07-04`: Codex released the Wave 3 review lock after recording `docs/logs/2026-07-wave3-review/v0.0.1-wave3-summary/` and updating `TODOLIST.md` with deferred blockers.
 - `2026-07-04`: Codex released the Wave 3 workspace CLI remediation lock after hardening managed workspace name validation, delete protection, and list-side effects in `agent-diva-cli`.
+- `2026-07-04`: Codex released the isolated Wave 3 remediation batch-2 lock after landing `905e5eb` in `C:\Users\Administrator\Desktop\morediva\agent-diva-wave3-batch`, closing the health/audit-sink/cron runtime residuals and leaving only the health benchmark CI gate deferred.
+- `2026-07-05`: Codex released the backlog-state sync lock after reconciling completed Wave A/B/E/F review items and commit checklists in `TODOLIST.md`.

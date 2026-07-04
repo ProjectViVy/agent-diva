@@ -49,10 +49,10 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 
 ### Wave Plan
 
-- [ ] **Wave A - 基础设施与 Harness 基线**
+- [x] **Wave A - 基础设施与 Harness 基线**
   - Commits: `e3cd30c`, `3322aac`, `1627ea3`, `0183c3c`
   - Focus: `ToolRegistry::execute()` 调用链迁移、`PokeEvent` 广播安全、Harness 与真实运行语义一致性、E2E 迁移后的断言与环境假设
-- [ ] **Wave B - 安全 / 监督运行 / 预算治理**
+- [x] **Wave B - 安全 / 监督运行 / 预算治理**
   - Commits: `45b6aa6`, `9242579`, `ce70902`, `7ca1c92`, `f43ff96`, `0c1d1bd`, `8ecf041`
   - Focus: Token ledger 记账时机、subagent budget 强制生效、`UsageRecord`/`ContextBudgetPolicy`/`OverflowAction` 落点、安全收口默认行为、merge 带来的逻辑分叉
 - [ ] **Wave C - 观测性 / Audit 主线**
@@ -61,10 +61,10 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 - [ ] **Wave D - 上下文压缩 / 限流**
   - Commits: `0eb0cce`, `e2e2ad3`
   - Focus: TokenBucket refill/burst 边界、MetaCompactor 语义保持、触发顺序、失败路径稳定性
-- [ ] **Wave E - Todo 数据面**
+- [x] **Wave E - Todo 数据面**
   - Commits: `909a573`, `84c5803`, `2445984`
   - Focus: API/CLI/store 状态机一致、archive/purge 误删风险、并发写入与重复 ID 边界
-- [ ] **Wave F - 后台任务 / 子代理 / workspace CLI**
+- [x] **Wave F - 后台任务 / 子代理 / workspace CLI**
   - Commits: `c0f2712`, `c705538`, `b633b0d`
   - Focus: background task 生命周期、`SubagentRunHandler` 覆盖度、预算/权限/审计继承、workspace 路径隔离
 - [ ] **Wave G - 横切补强**
@@ -73,44 +73,44 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 
 ### Execution Order
 
-- [ ] **Priority 1** Review `Wave B`
+- [x] **Priority 1** Review `Wave B`
 - [ ] **Priority 2** Review `Wave C`
 - [x] **Priority 3** Review `Wave F`
 - [x] **Priority 4** Review `Wave E`
 - [ ] **Priority 5** Review `Wave D`
-- [ ] **Priority 6** Review `Wave A`
+- [x] **Priority 6** Review `Wave A`
 - [ ] **Priority 7** Review `Wave G`
 
 ### Wave 1 Parallel Review
 
-- [ ] **Wave 1 scope lock**
+- [x] **Wave 1 scope lock**
   - Coverage: `Wave A` and `Priority 1` (`Wave B`)
   - Goal: launch parallel review for the foundation path and the first release-risk path together
   - Output: one `Wave A` report, one `Wave B` report, and one cross-wave risk matrix
-- [ ] **Lead-Agent**
+- [x] **Lead-Agent**
   - Responsibilities: freeze commit map, assign tasks, deduplicate findings, arbitrate overlaps, publish final summary
   - Required outputs: commit-to-owner table, merged findings list, release/block recommendation
-- [ ] **A1-Infrastructure**
+- [x] **A1-Infrastructure**
   - Commits: `e3cd30c`, `3322aac`
   - Focus: `PokeEvent` fan-out, subscriber lifecycle, backpressure, `ToolRegistry::execute()` error propagation and caller migration completeness
-- [ ] **A2-Harness**
+- [x] **A2-Harness**
   - Commits: `1627ea3`, `0183c3c`
   - Focus: Harness V2 entrypoints, fixture realism, CI baseline assumptions, E2E migration assertion drift and environment contract changes
-- [ ] **B1-Budget**
+- [x] **B1-Budget**
   - Commits: `45b6aa6`, `9242579`, `7ca1c92`
   - Focus: token ledger write timing, budget enforcement on hot paths, subagent per-task budget coverage, policy definitions vs real execution
-- [ ] **B2-SupervisedRun**
+- [x] **B2-SupervisedRun**
   - Commits: `ce70902`
   - Focus: supervised-run state transitions, persistence, cancellation ownership, budget/audit/security wiring
-- [ ] **B3-SecurityMerge**
+- [x] **B3-SecurityMerge**
   - Commits: `f43ff96`, `0c1d1bd`, `8ecf041`
   - Focus: `SecurityDecision`, `check_security()`, audit emissions, default policy semantics, merge regression risk, high-risk drift sampling
-- [ ] **Wave 1 execution flow**
+- [x] **Wave 1 execution flow**
   - Phase 0: `Lead-Agent` publishes commit map and review packet
   - Phase 1: `A1`, `A2`, `B1`, `B2`, `B3` review in parallel
   - Phase 2: `Lead-Agent` runs cross-checks for budget/security, harness/supervised-run, and error propagation gaps
   - Phase 3: `Lead-Agent` publishes `Wave A` and `Wave B` summaries plus one shared priority pool
-- [ ] **Wave 1 report template**
+- [x] **Wave 1 report template**
   - Required sections: `Scope`, `Findings`, `No-finding checks`, `Open questions`, `Verdict`
   - Required finding fields: severity, title, commit, files, why it matters, reasoning or repro, expected behavior, suggested fix direction, test gap
   - Verdict format: `Block release: yes|no`, `Confidence: high|medium|low`
@@ -126,17 +126,17 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 
 ### Commit Checklist
 
-- [ ] **Wave A / `e3cd30c`** Verify `PokeEvent` broadcast fan-out, subscriber lifecycle, and backpressure assumptions.
-- [ ] **Wave A / `3322aac`** Verify every `ToolRegistry::execute()` caller correctly handles `Result<ToolError>`.
-- [ ] **Wave A / `1627ea3`** Review Harness V2 entrypoints, fixture realism, and CI baseline assumptions.
-- [ ] **Wave A / `0183c3c`** Review E2E migration for assertion drift and environment contract changes.
-- [ ] **Wave B / `45b6aa6`** Verify token ledger writes exactly once per billable usage and enforces budgets on the real hot path.
-- [ ] **Wave B / `9242579`** Verify per-task subagent budget is enforced, not merely logged.
-- [ ] **Wave B / `ce70902`** Review supervised-run MVP state transitions, persistence, and cancellation ownership.
-- [ ] **Wave B / `7ca1c92`** Verify usage source mapping and context budget policy integration points.
-- [ ] **Wave B / `f43ff96`** Review `SecurityDecision`, `check_security()`, audit emissions, and default-deny/default-allow semantics.
-- [ ] **Wave B / `0c1d1bd`** Audit merge integration for duplicate paths, stale gates, and branch-resolution regressions.
-- [ ] **Wave B / `8ecf041`** Sample high-risk files for accidental behavior drift in the pre-merge catch-up commit.
+- [x] **Wave A / `e3cd30c`** Verify `PokeEvent` broadcast fan-out, subscriber lifecycle, and backpressure assumptions.
+- [x] **Wave A / `3322aac`** Verify every `ToolRegistry::execute()` caller correctly handles `Result<ToolError>`.
+- [x] **Wave A / `1627ea3`** Review Harness V2 entrypoints, fixture realism, and CI baseline assumptions.
+- [x] **Wave A / `0183c3c`** Review E2E migration for assertion drift and environment contract changes.
+- [x] **Wave B / `45b6aa6`** Verify token ledger writes exactly once per billable usage and enforces budgets on the real hot path.
+- [x] **Wave B / `9242579`** Verify per-task subagent budget is enforced, not merely logged.
+- [x] **Wave B / `ce70902`** Review supervised-run MVP state transitions, persistence, and cancellation ownership.
+- [x] **Wave B / `7ca1c92`** Verify usage source mapping and context budget policy integration points.
+- [x] **Wave B / `f43ff96`** Review `SecurityDecision`, `check_security()`, audit emissions, and default-deny/default-allow semantics.
+- [x] **Wave B / `0c1d1bd`** Audit merge integration for duplicate paths, stale gates, and branch-resolution regressions.
+- [x] **Wave B / `8ecf041`** Sample high-risk files for accidental behavior drift in the pre-merge catch-up commit.
 - [ ] **Wave C / `c58054c`** Verify skill upload/delete/block audit events are emitted on all outcome paths.
 - [ ] **Wave C / `28b00ce`** Verify cron start/completion/failure events do not double-fire or miss failures.
 - [ ] **Wave C / `41c829a`** Review `ProviderTap` timing, streaming accumulation, and token accounting correctness.
