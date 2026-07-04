@@ -13,15 +13,25 @@ use agent_diva_agent::compaction::ContextCompactor;
 use agent_diva_agent::context::ContextBuilder;
 use agent_diva_agent::context_budget::{self, BudgetConfig};
 use agent_diva_agent::token_estimate::{estimate_tokens, estimate_total_tokens};
+use agent_diva_agent::{AgentLoop, ToolConfig};
+use agent_diva_core::bus::MessageBus;
+use agent_diva_core::session::SessionManager;
 use agent_diva_core::session::{
     ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session,
 };
-use agent_diva_providers::{LLMProvider, LLMResponse, ProviderResult};
+use agent_diva_files::{FileConfig, FileManager};
+use agent_diva_providers::{
+    LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
+    ProviderResult,
+};
 use async_trait::async_trait;
 use chrono::Utc;
+use futures::stream;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::Mutex;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Mock LLM Provider
@@ -145,6 +155,32 @@ fn make_session(key: &str, count: usize, content_template: &str) -> Session {
         session.add_message(role, format!("[turn-{}] {}", i, content_template));
     }
     session
+}
+
+fn make_compact_summary(
+    summary_text: &str,
+    trigger: CompactTrigger,
+    start: usize,
+    end: usize,
+    kept: usize,
+    pre_count: usize,
+) -> CompactSummary {
+    CompactSummary {
+        schema_version: 1,
+        compact_id: uuid::Uuid::new_v4().to_string(),
+        created_at: Utc::now().to_rfc3339(),
+        trigger,
+        source_range: CompactionRange {
+            start_index: start,
+            end_index: end,
+        },
+        kept_recent_count: kept,
+        pre_compact_message_count: pre_count,
+        pre_compact_estimated_tokens: 0,
+        summary: summary_text.to_string(),
+        quality_score: None,
+        retry_count: 0,
+    }
 }
 
 /// Small budget config for testing — triggers compaction quickly
@@ -893,4 +929,486 @@ fn test_e2e_build_messages_multi_boundary() {
     assert!(messages[8].content.to_text_lossy().contains("测试与优化"));
 
     println!("Test H passed: 3 boundary groups injected correctly in build_messages");
+}
+
+#[derive(Debug, Default, Clone)]
+struct ProviderObservation {
+    persisted_last_compacted: usize,
+    persisted_compaction_count: usize,
+    saw_boundary: bool,
+    first_history_text: Option<String>,
+}
+
+fn session_file_path(workspace: &Path, session_key: &str) -> PathBuf {
+    let safe_key = session_key.replace([':', '/', '\\'], "_");
+    workspace
+        .join("sessions")
+        .join(format!("{}.jsonl", safe_key))
+}
+
+fn persisted_compaction_state(path: &Path) -> (usize, usize) {
+    let content = std::fs::read_to_string(path).expect("session file should exist");
+    let metadata = content
+        .lines()
+        .next()
+        .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .expect("metadata line should deserialize");
+    let last_compacted = metadata
+        .get("last_compacted")
+        .and_then(|value| value.as_u64())
+        .unwrap_or_default() as usize;
+    let compaction_count = metadata
+        .get("compaction_history")
+        .and_then(|value| value.as_array())
+        .map(|entries| entries.len())
+        .unwrap_or_default();
+    (last_compacted, compaction_count)
+}
+
+fn first_non_system_message(messages: &[Message], current_user: &str) -> Option<String> {
+    messages
+        .iter()
+        .find(|message| message.role != "system" && message.content.to_text_lossy() != current_user)
+        .map(|message| message.content.to_text_lossy())
+}
+
+struct OrderingStreamProvider {
+    workspace: PathBuf,
+    session_key: String,
+    current_user: String,
+    observations: Mutex<Vec<ProviderObservation>>,
+    responses: Mutex<Vec<Result<String, ProviderError>>>,
+}
+
+impl OrderingStreamProvider {
+    fn new(
+        workspace: PathBuf,
+        session_key: impl Into<String>,
+        current_user: impl Into<String>,
+        responses: Vec<Result<String, ProviderError>>,
+    ) -> Self {
+        Self {
+            workspace,
+            session_key: session_key.into(),
+            current_user: current_user.into(),
+            observations: Mutex::new(Vec::new()),
+            responses: Mutex::new(responses),
+        }
+    }
+
+    fn observations(&self) -> Vec<ProviderObservation> {
+        self.observations.lock().unwrap().clone()
+    }
+}
+
+#[async_trait]
+impl LLMProvider for OrderingStreamProvider {
+    async fn chat(
+        &self,
+        _messages: Vec<Message>,
+        _tools: Option<Vec<serde_json::Value>>,
+        _model: Option<String>,
+        _max_tokens: i32,
+        _temperature: f64,
+    ) -> ProviderResult<LLMResponse> {
+        Ok(LLMResponse {
+            content: Some(
+                "<summary>compacted history keeps only the recent tail for provider calls</summary>"
+                    .to_string(),
+            ),
+            tool_calls: Vec::new(),
+            finish_reason: "stop".to_string(),
+            usage: HashMap::new(),
+            reasoning_content: None,
+        })
+    }
+
+    async fn chat_stream(
+        &self,
+        messages: Vec<Message>,
+        _tools: Option<Vec<serde_json::Value>>,
+        _model: Option<String>,
+        _max_tokens: i32,
+        _temperature: f64,
+    ) -> ProviderResult<ProviderEventStream> {
+        let path = session_file_path(&self.workspace, &self.session_key);
+        let (persisted_last_compacted, persisted_compaction_count) =
+            persisted_compaction_state(&path);
+        let observation = ProviderObservation {
+            persisted_last_compacted,
+            persisted_compaction_count,
+            saw_boundary: messages.iter().any(|message| {
+                message.role == "system"
+                    && message
+                        .content
+                        .to_text_lossy()
+                        .contains("Context Compaction Boundary")
+            }),
+            first_history_text: first_non_system_message(&messages, &self.current_user),
+        };
+        self.observations.lock().unwrap().push(observation);
+
+        let next = self.responses.lock().unwrap().remove(0);
+        match next {
+            Ok(content) => Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                LLMResponse {
+                    content: Some(content),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+            ))]))),
+            Err(err) => Err(err),
+        }
+    }
+
+    fn get_default_model(&self) -> String {
+        "mock-model".to_string()
+    }
+}
+
+async fn make_agent_for_ordering_test(
+    workspace: &Path,
+    provider: Arc<dyn LLMProvider>,
+    budget: BudgetConfig,
+) -> AgentLoop {
+    let file_manager = Arc::new(
+        FileManager::new(FileConfig::with_path(workspace.join("files")))
+            .await
+            .unwrap(),
+    );
+    let tool_config = ToolConfig {
+        budget,
+        ..ToolConfig::default()
+    };
+
+    AgentLoop::with_tools(
+        MessageBus::new(),
+        provider,
+        workspace.to_path_buf(),
+        None,
+        Some(1),
+        tool_config,
+        None,
+        file_manager,
+    )
+    .await
+    .unwrap()
+}
+
+fn seed_session(
+    workspace: &Path,
+    session_key: &str,
+    message_count: usize,
+    content: impl Fn(usize) -> String,
+) {
+    let mut manager = SessionManager::new(workspace);
+    let session = manager.get_or_create(session_key);
+    for idx in 0..message_count {
+        session.add_message("user", content(idx));
+    }
+    let snapshot = manager.get(session_key).unwrap().clone();
+    manager.save(&snapshot).unwrap();
+}
+
+#[tokio::test]
+async fn test_e2e_auto_compaction_persists_before_first_provider_call() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let workspace = temp_dir.path().to_path_buf();
+    let session_key = "gui:chat-auto";
+    let current_user = "current auto turn";
+    seed_session(&workspace, session_key, 60, |idx| {
+        format!("[seed-{idx}] {}", "x".repeat(360))
+    });
+
+    let budget = BudgetConfig {
+        max_tokens: 3_000,
+        system_budget_ratio: 0.0,
+        compact_threshold_ratio: 0.8,
+        keep_recent_count: 8,
+    };
+    let provider = Arc::new(OrderingStreamProvider::new(
+        workspace.clone(),
+        session_key,
+        current_user,
+        vec![Ok("done".to_string())],
+    ));
+    let mut agent = make_agent_for_ordering_test(&workspace, provider.clone(), budget).await;
+
+    let response = agent
+        .process_direct(current_user, "session-1", "gui", "chat-auto")
+        .await
+        .unwrap();
+
+    assert_eq!(response, "done");
+    let observations = provider.observations();
+    assert_eq!(observations.len(), 1);
+    let first = &observations[0];
+    assert!(
+        first.saw_boundary,
+        "provider should receive compacted boundary markers"
+    );
+    assert_eq!(first.persisted_compaction_count, 1);
+    assert!(
+        first.persisted_last_compacted >= 52,
+        "compaction should be persisted before provider call"
+    );
+    let expected_first = format!("[seed-52] {}", "x".repeat(360));
+    assert_eq!(
+        first.first_history_text.as_deref(),
+        Some(expected_first.as_str())
+    );
+}
+
+#[tokio::test]
+async fn test_e2e_reactive_compaction_persists_then_retries_once() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let workspace = temp_dir.path().to_path_buf();
+    let session_key = "gui:chat-reactive";
+    let current_user = "current reactive turn";
+    seed_session(&workspace, session_key, 24, |idx| {
+        format!("[seed-{idx}] {}", "y".repeat(60))
+    });
+
+    let budget = BudgetConfig {
+        max_tokens: 20_000,
+        system_budget_ratio: 0.0,
+        compact_threshold_ratio: 0.95,
+        keep_recent_count: 6,
+    };
+    let provider = Arc::new(OrderingStreamProvider::new(
+        workspace.clone(),
+        session_key,
+        current_user,
+        vec![
+            Err(ProviderError::ApiError(
+                "context_length_exceeded: mocked overflow".to_string(),
+            )),
+            Ok("done".to_string()),
+        ],
+    ));
+    let mut agent = make_agent_for_ordering_test(&workspace, provider.clone(), budget).await;
+
+    let response = agent
+        .process_direct(current_user, "session-1", "gui", "chat-reactive")
+        .await
+        .unwrap();
+
+    assert_eq!(response, "done");
+    let observations = provider.observations();
+    assert_eq!(
+        observations.len(),
+        2,
+        "overflow path should retry exactly once"
+    );
+    assert_eq!(observations[0].persisted_compaction_count, 0);
+    assert!(!observations[0].saw_boundary);
+    assert_eq!(observations[1].persisted_compaction_count, 1);
+    assert!(observations[1].persisted_last_compacted >= 18);
+    assert!(observations[1].saw_boundary);
+    let expected_first = format!("[seed-18] {}", "y".repeat(60));
+    assert_eq!(
+        observations[1].first_history_text.as_deref(),
+        Some(expected_first.as_str())
+    );
+}
+
+#[tokio::test]
+async fn test_e2e_reactive_overflow_retries_only_once_on_second_failure() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let workspace = temp_dir.path().to_path_buf();
+    let session_key = "gui:chat-reactive-fail";
+    let current_user = "current overflow turn";
+    seed_session(&workspace, session_key, 18, |idx| {
+        format!("[seed-{idx}] {}", "z".repeat(80))
+    });
+
+    let provider = Arc::new(OrderingStreamProvider::new(
+        workspace.clone(),
+        session_key,
+        current_user,
+        vec![
+            Err(ProviderError::ApiError(
+                "context_length_exceeded: first overflow".to_string(),
+            )),
+            Err(ProviderError::ApiError(
+                "context_length_exceeded: second overflow".to_string(),
+            )),
+        ],
+    ));
+    let mut agent = make_agent_for_ordering_test(
+        &workspace,
+        provider.clone(),
+        BudgetConfig {
+            max_tokens: 50_000,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.99,
+            keep_recent_count: 4,
+        },
+    )
+    .await;
+
+    let err = agent
+        .process_direct(current_user, "session-1", "gui", "chat-reactive-fail")
+        .await
+        .unwrap_err();
+
+    assert!(err.to_string().contains("second overflow"));
+    assert_eq!(provider.observations().len(), 2);
+}
+
+struct PromptCaptureProvider {
+    prompt: Mutex<Option<String>>,
+}
+
+impl PromptCaptureProvider {
+    fn new() -> Self {
+        Self {
+            prompt: Mutex::new(None),
+        }
+    }
+
+    fn prompt(&self) -> String {
+        self.prompt.lock().unwrap().clone().unwrap()
+    }
+}
+
+#[async_trait]
+impl LLMProvider for PromptCaptureProvider {
+    async fn chat(
+        &self,
+        messages: Vec<Message>,
+        _tools: Option<Vec<serde_json::Value>>,
+        _model: Option<String>,
+        _max_tokens: i32,
+        _temperature: f64,
+    ) -> ProviderResult<LLMResponse> {
+        let user_prompt = messages
+            .iter()
+            .find(|message| message.role == "user")
+            .map(|message| message.content.to_text_lossy())
+            .unwrap_or_default();
+        *self.prompt.lock().unwrap() = Some(user_prompt);
+        Ok(LLMResponse {
+            content: Some("<summary>meta compacted summary</summary>".to_string()),
+            tool_calls: Vec::new(),
+            finish_reason: "stop".to_string(),
+            usage: HashMap::new(),
+            reasoning_content: None,
+        })
+    }
+
+    fn get_default_model(&self) -> String {
+        "mock-model".to_string()
+    }
+}
+
+#[tokio::test]
+async fn test_e2e_meta_compaction_truncation_preserves_newer_prior_facts() {
+    let mut session = Session::new("e2e:meta-priors");
+    for idx in 0..20 {
+        session.add_message("user", format!("[turn-{idx}] {}", "message ".repeat(20)));
+    }
+
+    let prior_summaries = vec![
+        make_compact_summary(
+            "older fact: deprecated endpoint",
+            CompactTrigger::Auto,
+            0,
+            5,
+            5,
+            5,
+        ),
+        make_compact_summary(
+            "newer fact: keep timeout=30s and preserve retry once semantics",
+            CompactTrigger::Auto,
+            5,
+            10,
+            5,
+            5,
+        ),
+        make_compact_summary(
+            "latest fact: rebuild messages from the post-compaction snapshot before provider retry",
+            CompactTrigger::Reactive,
+            10,
+            15,
+            5,
+            5,
+        ),
+    ];
+
+    let provider = Arc::new(PromptCaptureProvider::new());
+    let result = ContextCompactor::compact(
+        &session,
+        &BudgetConfig {
+            max_tokens: 500,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.8,
+            keep_recent_count: 4,
+        },
+        provider.clone(),
+        "mock-model",
+        CompactTrigger::Auto,
+        &prior_summaries,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result.summary.summary, "meta compacted summary");
+    let prompt = provider.prompt();
+    assert!(prompt.contains("timeout=30s"));
+    assert!(prompt.contains("retry once semantics"));
+    assert!(prompt.contains("post-compaction"));
+}
+
+#[test]
+fn test_e2e_session_compaction_compat_tolerates_unknown_fields_and_future_schema() {
+    let session_json = serde_json::json!({
+        "key": "gui:future-compaction",
+        "messages": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "metadata": {
+            "room": "wave-d",
+            "unknown_meta_flag": true
+        },
+        "last_consolidated": 0,
+        "last_compacted": 9,
+        "compaction_history": [
+            {
+                "schema_version": 77,
+                "compact_id": "future-001",
+                "created_at": "2026-01-01T00:00:00Z",
+                "trigger": "reactive",
+                "source_range": { "start_index": 0, "end_index": 9 },
+                "kept_recent_count": 4,
+                "pre_compact_message_count": 9,
+                "pre_compact_estimated_tokens": 900,
+                "summary": "future schema compaction summary",
+                "quality_score": 0.95,
+                "retry_count": 1,
+                "unknown_future_field": {
+                    "nested": true
+                }
+            }
+        ],
+        "top_level_future_field": "ignored"
+    });
+
+    let session: Session = serde_json::from_value(session_json).unwrap();
+    assert_eq!(session.last_compacted, 9);
+    assert_eq!(session.compaction_history.len(), 1);
+    assert_eq!(session.compaction_history[0].schema_version, 77);
+    assert!(matches!(
+        session.compaction_history[0].trigger,
+        CompactTrigger::Reactive
+    ));
+    assert_eq!(
+        session
+            .metadata
+            .get("unknown_meta_flag")
+            .and_then(|v| v.as_bool()),
+        Some(true)
+    );
 }

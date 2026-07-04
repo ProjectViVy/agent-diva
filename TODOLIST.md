@@ -26,8 +26,6 @@ _(No active open items. This pass closes what can be closed and explicitly defer
   - Related files: `agent-diva-tools/src/enqueue_background_task.rs`, `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`
 - [ ] **Wave 3 residual: workspace CLI managed-path model drift** Deferred. The path traversal/delete guard issues are now closed, but the managed `config_dir/workspaces/*` model still diverges from the broader runtime support for arbitrary workspace paths and needs an explicit product contract.
   - Related files: `agent-diva-cli/src/commands/workspace.rs`, `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/main.rs`
-- [ ] **Health benchmark CI gate** Deferred. `/api/health` now reports readiness, but the related benchmark/CI coverage is still not wired into the validation gate.
-  - Related files: `agent-diva-manager/src/handlers/health.rs`, `agent-diva-core/benches/performance.rs`
 - [ ] **UX-DR-3/4/7** Deferred. UX gaps from sprint review remain postponed until a dedicated design pass.
   - Context: Sprint closure review items 3, 4, and 7
 
@@ -47,10 +45,10 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 - [x] **Wave B - 安全 / 监督运行 / 预算治理**
   - Commits: `45b6aa6`, `9242579`, `ce70902`, `7ca1c92`, `f43ff96`, `0c1d1bd`, `8ecf041`
   - Focus: Token ledger 记账时机、subagent budget 强制生效、`UsageRecord`/`ContextBudgetPolicy`/`OverflowAction` 落点、安全收口默认行为、merge 带来的逻辑分叉
-- [ ] **Wave C - 观测性 / Audit 主线**
+- [x] **Wave C - 观测性 / Audit 主线**
   - Commits: `c58054c`, `28b00ce`, `41c829a`, `bd96dd2`, `de031fa`, `0851c4c`, `6ac4056`, `166fd16`, `b3fd4e8`
   - Focus: Audit schema 一致性、`GLOBAL_SINK` 初始化和线程安全、JSONL rolling 并发写、`/api/logs` 查询闭环、parser refactor 兼容性
-- [ ] **Wave D - 上下文压缩 / 限流**
+- [x] **Wave D - 上下文压缩 / 限流**
   - Commits: `0eb0cce`, `e2e2ad3`
   - Focus: TokenBucket refill/burst 边界、MetaCompactor 语义保持、触发顺序、失败路径稳定性
 - [x] **Wave E - Todo 数据面**
@@ -66,10 +64,10 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 ### Execution Order
 
 - [x] **Priority 1** Review `Wave B`
-- [ ] **Priority 2** Review `Wave C`
+- [x] **Priority 2** Review `Wave C`
 - [x] **Priority 3** Review `Wave F`
 - [x] **Priority 4** Review `Wave E`
-- [ ] **Priority 5** Review `Wave D`
+- [x] **Priority 5** Review `Wave D`
 - [x] **Priority 6** Review `Wave A`
 - [ ] **Priority 7** Review `Wave G`
 
@@ -129,17 +127,17 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 - [x] **Wave B / `f43ff96`** Review `SecurityDecision`, `check_security()`, audit emissions, and default-deny/default-allow semantics.
 - [x] **Wave B / `0c1d1bd`** Audit merge integration for duplicate paths, stale gates, and branch-resolution regressions.
 - [x] **Wave B / `8ecf041`** Sample high-risk files for accidental behavior drift in the pre-merge catch-up commit.
-- [ ] **Wave C / `c58054c`** Verify skill upload/delete/block audit events are emitted on all outcome paths.
-- [ ] **Wave C / `28b00ce`** Verify cron start/completion/failure events do not double-fire or miss failures.
-- [ ] **Wave C / `41c829a`** Review `ProviderTap` timing, streaming accumulation, and token accounting correctness.
-- [ ] **Wave C / `bd96dd2`** Review `ToolExecutionTap` around success/error/timeout and nested tool calls.
-- [ ] **Wave C / `de031fa`** Verify JSONL daily rolling, concurrent writes, and write-error swallowing behavior are intentional.
-- [ ] **Wave C / `0851c4c`** Review `AuditSink` registration, `GLOBAL_SINK` initialization ordering, and no-op fallback behavior.
-- [ ] **Wave C / `6ac4056`** Verify `/api/logs` query fields match persisted audit schema exactly.
-- [ ] **Wave C / `166fd16`** Review parser refactor for GUI/manager compatibility and malformed-line handling.
-- [ ] **Wave C / `b3fd4e8`** Verify health endpoint criteria and benchmark assumptions are stable and meaningful.
-- [ ] **Wave D / `0eb0cce`** Review token bucket refill math, monotonic-time assumptions, and burst depletion edges.
-- [ ] **Wave D / `e2e2ad3`** Review MetaCompactor summary fidelity, fallback behavior, and serialization compatibility.
+- [x] **Wave C / `c58054c`** Verify skill upload/delete/block audit events are emitted on all outcome paths.
+- [x] **Wave C / `28b00ce`** Verify cron start/completion/failure events do not double-fire or miss failures.
+- [x] **Wave C / `41c829a`** Review `ProviderTap` timing, streaming accumulation, and token accounting correctness.
+- [x] **Wave C / `bd96dd2`** Review `ToolExecutionTap` around success/error/timeout and nested tool calls.
+- [x] **Wave C / `de031fa`** Verify JSONL daily rolling, concurrent writes, and write-error swallowing behavior are intentional.
+- [x] **Wave C / `0851c4c`** Review `AuditSink` registration, `GLOBAL_SINK` initialization ordering, and no-op fallback behavior.
+- [x] **Wave C / `6ac4056`** Verify `/api/logs` query fields match persisted audit schema exactly.
+- [x] **Wave C / `166fd16`** Review parser refactor for GUI/manager compatibility and malformed-line handling.
+- [x] **Wave C / `b3fd4e8`** Verify health endpoint criteria and benchmark assumptions are stable and meaningful.
+- [x] **Wave D / `0eb0cce`** Review token bucket refill math, monotonic-time assumptions, and burst depletion edges.
+- [x] **Wave D / `e2e2ad3`** Review MetaCompactor summary fidelity, fallback behavior, and serialization compatibility.
 - [x] **Wave E / `909a573`** Verify todo CRUD routes, filters, 404 paths, and store integration.
 - [x] **Wave E / `84c5803`** Verify todo CLI behavior matches HTTP and store semantics.
 - [x] **Wave E / `2445984`** Review archive/purge for active-item safety, historical retention, and concurrent update behavior.
@@ -181,3 +179,5 @@ _(No active open items. This pass closes what can be closed and explicitly defer
   - Related log: `docs/logs/2026-07-wave3-remediation/v0.0.1-workspace-cli-hardening/`
 - [x] **Wave C readiness and audit closure on 2026-07-05** Closed the direct CLI `ProviderTap` gap, stable skill rejection audit payloads, `JsonlAuditSink` read-after-write/rolling contracts, manager cron clock injection, `/api/health` readiness semantics, and audit-page i18n cleanup.
   - Related log: `docs/logs/2026-07-wavec-remediation/v0.0.1-wavec-remediation/`
+- [x] **Wave C + Wave D review closure on 2026-07-05** Closed the remaining `/api/logs` malformed/schema-drift visibility tests, `/api/health` benchmark CI gate, rate limiter retry-after edge semantics, compaction ordering/retry-once guarantees, meta-compaction fact preservation, and session compaction serde compatibility coverage.
+  - Related log: `docs/logs/2026-07-wavecd-remediation/v0.0.1-wavecd-review-closure/`

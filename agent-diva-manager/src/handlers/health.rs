@@ -84,6 +84,7 @@ mod tests {
     use axum::body::to_bytes;
     use axum::http::Request;
     use axum::Router;
+    use std::time::{Duration, Instant};
     use tokio::sync::mpsc;
     use tower::util::ServiceExt;
 
@@ -152,5 +153,34 @@ mod tests {
         assert!(value["components"]["audit_sink"]["ready"].is_boolean());
         assert_eq!(value["components"]["cron"]["status"], "unknown");
         assert!(value.get("database").is_none());
+    }
+
+    #[tokio::test]
+    async fn health_benchmark_ci_gate_stays_within_budget() {
+        let app = test_app(true);
+        let iterations = 500usize;
+        let started = Instant::now();
+
+        for _ in 0..iterations {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/api/health")
+                        .body(axum::body::Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < Duration::from_secs(3),
+            "health benchmark CI gate exceeded budget: {:?} for {} requests",
+            elapsed,
+            iterations
+        );
     }
 }

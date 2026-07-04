@@ -10,6 +10,7 @@ use axum::{
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tracing::warn;
 
 use crate::state::AppState;
 
@@ -51,6 +52,12 @@ struct LogCursor {
     skipped: usize,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct ScanStats {
+    malformed_lines: usize,
+    unknown_events: usize,
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 /// Resolve the data root where `audit-*.jsonl` files are stored.
@@ -76,8 +83,7 @@ fn build_cursor(last_ts: &str, skipped: usize) -> String {
         last_timestamp: last_ts.to_string(),
         skipped,
     };
-    general_purpose::URL_SAFE_NO_PAD
-        .encode(serde_json::to_vec(&cursor).unwrap_or_default())
+    general_purpose::URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).unwrap_or_default())
 }
 
 /// Parse a cursor into (last_timestamp, skipped_count).
@@ -113,9 +119,9 @@ fn scan_audit_files(
     since: DateTime<Utc>,
     limit: usize,
     cursor: Option<&str>,
-) -> Result<(Vec<serde_json::Value>, Option<String>), String> {
+) -> Result<(Vec<serde_json::Value>, Option<String>, ScanStats), String> {
     if !data_root.exists() {
-        return Ok((Vec::new(), None));
+        return Ok((Vec::new(), None, ScanStats::default()));
     }
 
     let mut files: Vec<std::fs::DirEntry> = std::fs::read_dir(data_root)
@@ -137,6 +143,7 @@ fn scan_audit_files(
 
     let mut events = Vec::new();
     let mut total_skipped = 0usize;
+    let mut stats = ScanStats::default();
 
     // If cursor provided, parse it to know how many to skip
     let skip_count = match cursor {
@@ -155,12 +162,18 @@ fn scan_audit_files(
         for line_result in std::io::BufRead::lines(reader) {
             let line = match line_result {
                 Ok(l) => l,
-                Err(_) => continue,
+                Err(_) => {
+                    stats.malformed_lines += 1;
+                    continue;
+                }
             };
 
             let value: serde_json::Value = match serde_json::from_str(&line) {
                 Ok(v) => v,
-                Err(_) => continue,
+                Err(_) => {
+                    stats.malformed_lines += 1;
+                    continue;
+                }
             };
 
             // Filter by event_type if provided
@@ -179,6 +192,16 @@ fn scan_audit_files(
             let ts = extract_timestamp(&value).unwrap_or_else(Utc::now);
             if ts < since {
                 continue;
+            }
+
+            if value.get("type").and_then(|t| t.as_str()).is_none()
+                && value
+                    .get("fields")
+                    .and_then(|fields| fields.get("event").or_else(|| fields.get("message")))
+                    .and_then(|event| event.as_str())
+                    .is_none()
+            {
+                stats.unknown_events += 1;
             }
 
             // Handle cursor-based skip
@@ -213,7 +236,7 @@ fn scan_audit_files(
         None
     };
 
-    Ok((events, next_cursor))
+    Ok((events, next_cursor, stats))
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────
@@ -247,11 +270,20 @@ pub async fn query_logs_handler(
     let cursor = params.cursor.as_deref();
 
     match scan_audit_files(&data_root, event_type, since, limit, cursor) {
-        Ok((events, next_cursor)) => Json(serde_json::json!({
+        Ok((events, next_cursor, stats)) => {
+            if stats.malformed_lines > 0 || stats.unknown_events > 0 {
+                warn!(
+                    malformed_lines = stats.malformed_lines,
+                    unknown_events = stats.unknown_events,
+                    "scan_audit_files skipped malformed audit lines or observed schema drift"
+                );
+            }
+            Json(serde_json::json!({
             "status": "ok",
             "events": events,
             "next_cursor": next_cursor,
-        })),
+            }))
+        }
         Err(e) => Json(serde_json::json!({
             "status": "error",
             "message": e,
@@ -303,6 +335,31 @@ mod tests {
         assert_eq!(value["status"], "ok");
         assert!(value["events"].as_array().unwrap().is_empty());
         assert!(value["next_cursor"].is_null());
+    }
+
+    #[test]
+    fn scan_audit_files_counts_malformed_and_unknown_lines() {
+        let temp = tempfile::tempdir().unwrap();
+        let audit_dir = temp.path().join(".agent-diva").join("audit");
+        std::fs::create_dir_all(&audit_dir).unwrap();
+        let audit_file = audit_dir.join(format!("audit-{}.jsonl", Utc::now().format("%Y-%m-%d")));
+        let valid_ts = (Utc::now() - Duration::minutes(1)).to_rfc3339();
+        std::fs::write(
+            &audit_file,
+            format!(
+                "{{\"type\":\"tool_invoked\",\"data\":{{}},\"timestamp\":\"{}\"}}\nnot-json\n{{\"timestamp\":\"{}\",\"level\":\"INFO\",\"message\":\"drifted\"}}\n",
+                valid_ts, valid_ts
+            ),
+        )
+        .unwrap();
+
+        let (events, next_cursor, stats) =
+            scan_audit_files(&audit_dir, None, Utc::now() - Duration::hours(1), 10, None).unwrap();
+
+        assert_eq!(events.len(), 2);
+        assert!(next_cursor.is_none());
+        assert_eq!(stats.malformed_lines, 1);
+        assert_eq!(stats.unknown_events, 1);
     }
 
     #[tokio::test]
@@ -443,5 +500,65 @@ mod tests {
         let value2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
         assert_eq!(value2["events"].as_array().unwrap().len(), 1);
         assert_eq!(value2["events"][0]["type"], "event2");
+    }
+
+    #[tokio::test]
+    async fn logs_returns_error_for_invalid_cursor_payload() {
+        let temp = tempfile::tempdir().unwrap();
+        let app = test_app_with_dir(temp.path());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/logs?cursor=not-base64")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "error");
+        assert_eq!(value["message"], "invalid cursor encoding");
+    }
+
+    #[tokio::test]
+    async fn logs_preserve_unknown_schema_drift_events() {
+        let temp = tempfile::tempdir().unwrap();
+        let audit_file = temp
+            .path()
+            .join(".agent-diva")
+            .join("audit")
+            .join(format!("audit-{}.jsonl", Utc::now().format("%Y-%m-%d")));
+        std::fs::create_dir_all(audit_file.parent().unwrap()).unwrap();
+        let ts = (Utc::now() - Duration::minutes(2)).to_rfc3339();
+        std::fs::write(
+            &audit_file,
+            format!(
+                "{{\"timestamp\":\"{}\",\"level\":\"INFO\",\"message\":\"unexpected-shape\"}}\n",
+                ts
+            ),
+        )
+        .unwrap();
+
+        let app = test_app_with_dir(temp.path());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/logs")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "ok");
+        assert_eq!(value["events"].as_array().unwrap().len(), 1);
+        assert_eq!(value["events"][0]["timestamp"], ts);
+        assert!(value["events"][0]["type"].is_null());
     }
 }

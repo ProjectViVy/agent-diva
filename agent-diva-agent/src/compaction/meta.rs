@@ -279,8 +279,8 @@ impl MetaCompactor {
             return;
         }
 
-        // Remove oldest summaries until we fit
-        while !summaries.is_empty() && Self::total_tokens(summaries) > max_tokens {
+        // Remove oldest summaries until we fit or only the newest summary remains.
+        while summaries.len() > 1 && Self::total_tokens(summaries) > max_tokens {
             let removed = summaries.remove(0);
             let removed_tokens = Self::estimate_summary_tokens(&removed);
             info!(
@@ -294,18 +294,19 @@ impl MetaCompactor {
             return;
         }
 
-        // If the first remaining summary still exceeds budget, truncate it in place
-        let first_tokens = Self::estimate_summary_tokens(&summaries[0]);
-        if first_tokens > max_tokens {
-            let first = &summaries[0];
+        // If the newest remaining summary still exceeds budget, truncate it in place
+        let newest_idx = summaries.len() - 1;
+        let newest_tokens = Self::estimate_summary_tokens(&summaries[newest_idx]);
+        if newest_tokens > max_tokens {
+            let newest = &summaries[newest_idx];
             let max_chars = max_tokens * 3; // rough inverse of chars/3 token estimate
-            let truncated = truncate_chars(first, max_chars);
+            let truncated = truncate_chars(newest, max_chars);
             info!(
-                "Meta-compaction truncated first summary from {} to {} chars",
-                first.len(),
+                "Meta-compaction truncated newest summary from {} to {} chars",
+                newest.len(),
                 truncated.len()
             );
-            summaries[0] = truncated;
+            summaries[newest_idx] = truncated;
         }
     }
 }
@@ -603,7 +604,26 @@ mod tests {
         MetaCompactor::truncate_to_fit(&mut summaries, max_tokens);
         // Should remove oldest until it fits (or empty)
         let total = MetaCompactor::total_tokens(&summaries);
-        assert!(total <= max_tokens || summaries.is_empty());
+        assert!(total <= max_tokens);
+        assert_eq!(summaries.len(), 1, "should preserve the newest summary");
+    }
+
+    #[test]
+    fn test_truncate_to_fit_preserves_last_summary_under_tiny_budget() {
+        let mut summaries = vec![
+            "old deployment notes".to_string(),
+            "newest critical fact: rotate api key and keep timeout=30s".to_string(),
+        ];
+
+        MetaCompactor::truncate_to_fit(&mut summaries, 2);
+
+        assert_eq!(summaries.len(), 1);
+        assert!(
+            summaries[0].starts_with("new")
+                || summaries[0].starts_with("ne")
+                || summaries[0].is_empty(),
+            "newest summary should be preserved even after truncation"
+        );
     }
 
     // -- simulate >10 compaction sessions --
@@ -638,5 +658,26 @@ mod tests {
             final_tokens,
             max_tokens
         );
+    }
+
+    #[test]
+    fn test_meta_compaction_fixture_retains_key_facts() {
+        let gate = make_gate();
+        let compactor = MetaCompactor::new(gate);
+        let mut summaries = vec![
+            "Decision log: migrate the provider stack to DeepSeek native endpoint and keep raw model id deepseek-chat without LiteLLM prefix.".to_string(),
+            "Operational facts: rotate the staging API key on Monday, keep timeout=30s, and preserve workspace-write sandbox semantics for tool execution.".to_string(),
+            "Delivery notes: compaction must stay best-effort, retry the provider once after overflow, and rebuild messages from the persisted post-compaction session snapshot.".to_string(),
+        ];
+
+        let initial_tokens = MetaCompactor::total_tokens(&summaries);
+        let max_tokens = initial_tokens.saturating_sub(20);
+        compactor.compact(&mut summaries, max_tokens).unwrap();
+
+        let merged = summaries.join("\n");
+        assert!(merged.contains("deepseek-chat"));
+        assert!(merged.contains("timeout=30s"));
+        assert!(merged.contains("best-effort"));
+        assert!(MetaCompactor::total_tokens(&summaries) <= max_tokens);
     }
 }

@@ -146,25 +146,21 @@ impl AgentLoop {
 
         // ── Build initial messages with budget-aware compaction ──
         // Phase 1: check budget and decide if compaction is needed (release borrow before .await)
-        let (history, history_len, should_compact, budget_report) = {
+        let (should_compact, budget_report) = {
             let session = self.sessions.get_or_create(&session_key);
             let history = session.get_history(50); // Last 50 messages
-            let history_len = history.len();
 
             // Budget check against context window limits
             let budget_config = self.tool_config.budget.clone();
             let budget_report = check_budget(&history, &budget_config);
 
-            (
-                history,
-                history_len,
-                budget_report.should_compact,
-                budget_report,
-            )
+            (budget_report.should_compact, budget_report)
         };
 
-        // Phase 2: call async compact() if needed, then update session
-        let (compaction_history, did_compact) = if should_compact {
+        // Phase 2: run best-effort auto compaction before any provider call.
+        // The first provider request for this turn must see the post-compaction
+        // session snapshot, not the pre-compaction history captured above.
+        let (history, history_len, compaction_history, did_compact) = if should_compact {
             info!(
                 "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
                 budget_report.pressure_ratio * 100.0,
@@ -198,19 +194,40 @@ impl AgentLoop {
                     let session = self.sessions.get_or_create(&session_key);
                     session.last_compacted = result.new_compacted_index;
                     session.compaction_history.push(result.summary);
-                    (session.compaction_history.clone(), true)
+                    let history = session.get_history(50);
+                    let history_len = history.len();
+                    (
+                        history,
+                        history_len,
+                        session.compaction_history.clone(),
+                        true,
+                    )
                 }
                 Err(e) => {
                     warn!("Compaction failed (non-blocking): {}", e);
                     // Carry forward existing compaction history as fallback
                     let session = self.sessions.get_or_create(&session_key);
-                    (session.compaction_history.clone(), false)
+                    let history = session.get_history(50);
+                    let history_len = history.len();
+                    (
+                        history,
+                        history_len,
+                        session.compaction_history.clone(),
+                        false,
+                    )
                 }
             }
         } else {
             // Carry forward any existing compaction history from a previous turn
             let session = self.sessions.get_or_create(&session_key);
-            (session.compaction_history.clone(), false)
+            let history = session.get_history(50);
+            let history_len = history.len();
+            (
+                history,
+                history_len,
+                session.compaction_history.clone(),
+                false,
+            )
         };
 
         // Persist compaction state immediately when it just occurred

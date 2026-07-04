@@ -63,6 +63,10 @@ fmt:
 fmt-check:
     cargo fmt --all -- --check
 
+# Targeted `/api/health` benchmark-style validation used by CI/review closure
+health-benchmark-check:
+    cargo test -p agent-diva-manager health_benchmark_ci_gate_stays_within_budget -- --nocapture
+
 # Generate documentation
 doc:
     cargo doc --all --no-deps
@@ -88,7 +92,7 @@ feature-gate-check:
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/feature-gate-check.ps1
 
 # Run all checks (CI pipeline)
-ci: fmt-check check test
+ci: fmt-check check test health-benchmark-check
     @echo "All checks passed!"
 
 # Run Sprint 5 local hardening checks

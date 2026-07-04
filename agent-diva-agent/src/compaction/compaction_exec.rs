@@ -355,7 +355,12 @@ impl ContextCompactor {
 mod tests {
     use super::*;
     use agent_diva_core::session::ChatMessage;
+    use agent_diva_providers::{LLMProvider, LLMResponse, ProviderError, ProviderResult};
+    use async_trait::async_trait;
     use chrono::Utc;
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     fn make_msg(role: &str, content: &str) -> ChatMessage {
         ChatMessage {
@@ -368,6 +373,65 @@ mod tests {
             reasoning_content: None,
             thinking_blocks: None,
             token_usage: None,
+        }
+    }
+
+    struct AlwaysFailProvider;
+
+    #[async_trait]
+    impl LLMProvider for AlwaysFailProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "forced provider failure".to_string(),
+            ))
+        }
+
+        fn get_default_model(&self) -> String {
+            "mock-model".to_string()
+        }
+    }
+
+    struct LowQualityProvider {
+        call_count: AtomicUsize,
+    }
+
+    impl LowQualityProvider {
+        fn new() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for LowQualityProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            Ok(LLMResponse {
+                content: Some("<summary>too short</summary>".to_string()),
+                tool_calls: Vec::new(),
+                finish_reason: "stop".to_string(),
+                usage: HashMap::new(),
+                reasoning_content: None,
+            })
+        }
+
+        fn get_default_model(&self) -> String {
+            "mock-model".to_string()
         }
     }
 
@@ -427,5 +491,77 @@ mod tests {
         let formatted = ContextCompactor::format_messages_for_compaction(&msgs);
         assert!(formatted.contains("[truncated"));
         assert!(formatted.len() < long_content.len() + 100);
+    }
+
+    #[tokio::test]
+    async fn test_compact_returns_error_when_provider_fails_every_attempt() {
+        let mut session = Session::new("provider-failure");
+        for idx in 0..20 {
+            session.add_message(
+                if idx % 2 == 0 { "user" } else { "assistant" },
+                format!("message {} with enough context to compact", idx),
+            );
+        }
+
+        let config = BudgetConfig {
+            max_tokens: 5_000,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.8,
+            keep_recent_count: 4,
+        };
+
+        let err = ContextCompactor::compact(
+            &session,
+            &config,
+            Arc::new(AlwaysFailProvider),
+            "mock-model",
+            CompactTrigger::Auto,
+            &[],
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.to_string().contains("empty summaries"));
+    }
+
+    #[tokio::test]
+    async fn test_compact_keeps_best_effort_summary_after_quality_gate_rejects_all_attempts() {
+        let mut session = Session::new("quality-degraded");
+        for idx in 0..24 {
+            session.add_message(
+                if idx % 2 == 0 { "user" } else { "assistant" },
+                format!(
+                    "turn {} discusses provider routing, retries, and persistence ordering",
+                    idx
+                ),
+            );
+        }
+
+        let config = BudgetConfig {
+            max_tokens: 5_000,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.8,
+            keep_recent_count: 6,
+        };
+        let provider = Arc::new(LowQualityProvider::new());
+
+        let result = ContextCompactor::compact(
+            &session,
+            &config,
+            provider.clone(),
+            "mock-model",
+            CompactTrigger::Auto,
+            &[],
+        )
+        .await
+        .expect("best-effort compaction should still succeed");
+
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 3);
+        assert_eq!(result.summary.retry_count, 2);
+        assert_eq!(result.summary.summary, "too short");
+        assert!(
+            result.summary.quality_score.unwrap_or_default() < 0.6,
+            "degraded summary should keep the best attempt even below the quality gate"
+        );
     }
 }

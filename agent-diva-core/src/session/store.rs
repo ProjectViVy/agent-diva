@@ -369,4 +369,73 @@ mod tests {
         assert_eq!(msg.role, "assistant");
         assert!(msg.token_usage.is_none());
     }
+
+    #[test]
+    fn test_session_deserialization_tolerates_unknown_fields() {
+        let json = serde_json::json!({
+            "key": "gui:compat-unknown",
+            "messages": [],
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "metadata": {},
+            "last_consolidated": 0,
+            "last_compacted": 1,
+            "compaction_history": [{
+                "schema_version": 1,
+                "compact_id": "compact-001",
+                "created_at": "2026-01-01T00:00:00Z",
+                "trigger": "auto",
+                "source_range": { "start_index": 0, "end_index": 1 },
+                "kept_recent_count": 8,
+                "pre_compact_message_count": 1,
+                "pre_compact_estimated_tokens": 42,
+                "summary": "kept fact",
+                "future_field": "ignored"
+            }],
+            "unexpected_top_level": {
+                "schema_version": 99,
+                "note": "should be ignored"
+            }
+        });
+
+        let session: Session = serde_json::from_value(json).unwrap();
+        assert_eq!(session.key, "gui:compat-unknown");
+        assert_eq!(session.compaction_history.len(), 1);
+        assert_eq!(session.compaction_history[0].summary, "kept fact");
+    }
+
+    #[test]
+    fn test_session_deserialization_tolerates_future_compaction_schema_version() {
+        let json = serde_json::json!({
+            "key": "gui:compat-future",
+            "messages": [],
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "metadata": {},
+            "last_consolidated": 0,
+            "last_compacted": 4,
+            "compaction_history": [{
+                "schema_version": 7,
+                "compact_id": "compact-future",
+                "created_at": "2026-01-02T00:00:00Z",
+                "trigger": "reactive",
+                "source_range": { "start_index": 0, "end_index": 4 },
+                "kept_recent_count": 6,
+                "pre_compact_message_count": 4,
+                "pre_compact_estimated_tokens": 120,
+                "summary": "future schema summary",
+                "quality_score": 0.91,
+                "retry_count": 1
+            }]
+        });
+
+        let session: Session = serde_json::from_value(json).unwrap();
+        assert_eq!(session.last_compacted, 4);
+        assert_eq!(session.compaction_history.len(), 1);
+        assert_eq!(session.compaction_history[0].schema_version, 7);
+        assert!(matches!(
+            session.compaction_history[0].trigger,
+            CompactTrigger::Reactive
+        ));
+    }
 }
