@@ -21,6 +21,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'saved', sectionName: LaputaSectionName): void;
   (e: 'save-failed', sectionName: LaputaSectionName, message: string): void;
+  (e: 'update:dirty', isDirty: boolean): void;
 }>();
 
 const md = new MarkdownIt({
@@ -51,6 +52,10 @@ const historyOpen = ref(false);
 const historyTriggerRef = ref<HTMLButtonElement | null>(null);
 
 const isDirty = computed(() => draftContent.value !== originalContent.value);
+
+watch(isDirty, (next) => {
+  emit('update:dirty', next);
+}, { immediate: true });
 
 watch(
   () => props.initialContent,
@@ -131,6 +136,7 @@ function onKeyDown(event: KeyboardEvent): void {
           type="button"
           class="section-editor-history-btn"
           :disabled="!props.sectionName"
+          :aria-label="t('laputa.a11y.historyButton', { section: props.displayName })"
           @click="historyOpen = true"
         >
           {{ t('laputa.history') }}
@@ -139,6 +145,7 @@ function onKeyDown(event: KeyboardEvent): void {
           type="button"
           class="section-editor-save-btn"
           :disabled="!isDirty || saving"
+          :aria-label="t('laputa.a11y.saveButton', { section: props.displayName })"
           @click="handleSave"
         >
           <Loader2 v-if="saving" :size="14" class="spin" />
@@ -192,7 +199,7 @@ function onKeyDown(event: KeyboardEvent): void {
         <textarea
           v-model="draftContent"
           class="section-editor-textarea"
-          aria-label="Laputa section editor"
+          :aria-label="t('laputa.a11y.editor', { section: props.displayName })"
           @keydown="onKeyDown"
         />
       </div>
@@ -277,6 +284,11 @@ function onKeyDown(event: KeyboardEvent): void {
   cursor: not-allowed;
 }
 
+.section-editor-save-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
+}
+
 .section-editor-history-btn {
   display: inline-flex;
   align-items: center;
@@ -301,6 +313,22 @@ function onKeyDown(event: KeyboardEvent): void {
 .section-editor-history-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.section-editor-history-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
+}
+
+.section-editor-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
+}
+
+.section-editor-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .section-editor-save-error {

@@ -29,9 +29,13 @@ const error = ref<string | null>(null);
 const copiedId = ref<string | null>(null);
 
 const sectionDisplayName = computed(() => t('laputa.sections.' + props.sectionName));
+const modalCardRef = ref<HTMLElement | null>(null);
+const previousFocusRef = ref<Element | null>(null);
+const titleId = `history-modal-title-${Math.random().toString(36).slice(2)}`;
 
 watch(() => props.open, async (isOpen) => {
   if (!isOpen) return;
+  previousFocusRef.value = document.activeElement;
   loading.value = true;
   error.value = null;
   try {
@@ -49,6 +53,13 @@ watch(() => props.open, async (isOpen) => {
 
 function close() {
   emit('close');
+}
+
+function restoreFocus() {
+  const target = previousFocusRef.value;
+  if (target instanceof HTMLElement) {
+    nextTick(() => target.focus());
+  }
 }
 
 function onScrimClick(event: MouseEvent) {
@@ -85,8 +96,6 @@ function getFocusable(root: HTMLElement): HTMLElement[] {
   );
 }
 
-const modalCardRef = ref<HTMLElement | null>(null);
-
 function focusFirst() {
   if (!modalCardRef.value) return;
   const focusable = getFocusable(modalCardRef.value);
@@ -109,7 +118,10 @@ function detachFocusTrap() {
 onBeforeUnmount(detachFocusTrap);
 
 watch(() => props.open, (isOpen) => {
-  if (!isOpen) detachFocusTrap();
+  if (!isOpen) {
+    detachFocusTrap();
+    restoreFocus();
+  }
 });
 
 function formatDate(value: string): string {
@@ -165,10 +177,10 @@ async function retry() {
           class="history-modal-card"
           role="dialog"
           aria-modal="true"
-          :aria-label="t('laputa.historyModal.title', { section: sectionDisplayName })"
+          :aria-labelledby="titleId"
         >
           <header class="history-modal-header">
-            <h2 class="history-modal-title">
+            <h2 :id="titleId" class="history-modal-title">
               {{ t('laputa.historyModal.title', { section: sectionDisplayName }) }}
             </h2>
             <button
@@ -389,6 +401,16 @@ async function retry() {
 .history-modal-copy:hover {
   border-color: var(--accent-border);
   background: var(--accent-bg-light);
+}
+
+.history-modal-copy:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
+}
+
+.history-modal-retry:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
 }
 
 .modal-fade-enter-active,

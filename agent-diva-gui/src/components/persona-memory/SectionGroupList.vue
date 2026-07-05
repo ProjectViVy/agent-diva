@@ -87,6 +87,7 @@ function getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd' {
           class="section-item"
           :class="{ 'section-item--active': section === selectedSection }"
           :aria-current="section === selectedSection ? 'true' : undefined"
+          :aria-label="t('laputa.a11y.sectionItem', { name: t('laputa.sections.' + section) })"
           @click="selectSection(section)"
         >
           <FileText :size="15" aria-hidden="true" />
@@ -144,6 +145,11 @@ function getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd' {
   background: var(--accent-bg-light);
 }
 
+.group-header:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
+}
+
 .group-title {
   flex: 1;
   min-width: 0;
@@ -191,6 +197,11 @@ function getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd' {
 
 .section-item:hover {
   background: var(--accent-bg-light);
+}
+
+.section-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
 }
 
 .section-item svg {

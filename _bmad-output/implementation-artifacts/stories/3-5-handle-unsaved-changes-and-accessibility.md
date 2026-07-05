@@ -1,6 +1,6 @@
 # Story 3.5: Handle unsaved changes and accessibility
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -44,11 +44,11 @@ So that accidental section switches do not discard my work.
 
 ## Tasks / Subtasks
 
-- [ ] **Wire up the unsaved-changes guard in `PersonaMemoryView.vue`** (AC: #1, #2, #3)
-  - [ ] Open `agent-diva-gui/src/components/PersonaMemoryView.vue`
-  - [ ] Locate (or add) the `selectSection(nextId: string)` async handler that is called whenever the user tries to change sections
-  - [ ] At the start of the handler, check `isDirty.value === true` and `nextId !== selectedSection.value`
-  - [ ] If dirty, await `appConfirm` from `agent-diva-gui/src/utils/appDialog.ts`:
+- [x] **Wire up the unsaved-changes guard in `PersonaMemoryView.vue`** (AC: #1, #2, #3)
+  - [x] Open `agent-diva-gui/src/components/PersonaMemoryView.vue`
+  - [x] Locate (or add) the `selectSection(nextId: string)` async handler that is called whenever the user tries to change sections
+  - [x] At the start of the handler, check `isDirty.value === true` and `nextId !== selectedSection.value`
+  - [x] If dirty, await `appConfirm` from `agent-diva-gui/src/utils/appDialog.ts`:
         ```ts
         const confirmed = await appConfirm(
           t('laputa.confirmDiscard.message'),
@@ -59,24 +59,24 @@ So that accidental section switches do not discard my work.
           },
         );
         ```
-  - [ ] If `confirmed === false`, return early and do not change `selectedSection`
-  - [ ] If `confirmed === true`, proceed to switch:
+  - [x] If `confirmed === false`, return early and do not change `selectedSection`
+  - [x] If `confirmed === true`, proceed to switch:
         - Set `selectedSection.value = nextId`
         - Clear any existing `error.value`
         - Reset `draftContent.value = ''` and `originalContent.value = ''`
         - Reset `isDirty.value = false`
         - Call the existing `loadSection(nextId)` routine
-  - [ ] Ensure the guard runs for all section-selection entry points (clicking a list item, keyboard selection, etc.)
+  - [x] Ensure the guard runs for all section-selection entry points (clicking a list item, keyboard selection, etc.)
 
-- [ ] **Ensure `SectionGroupList.vue` only emits selection events** (AC: #1)
-  - [ ] Open `agent-diva-gui/src/components/persona-memory/SectionGroupList.vue`
-  - [ ] Verify that clicking a section item emits `select(section.id)` and does not mutate parent state directly
-  - [ ] Verify that group toggle headers emit `toggleGroup(groupKey)` and do not own expanded/collapsed state beyond local UI
-  - [ ] Add `tabindex="0"`, `role="button"`, and keyboard activation (`Enter` / `Space`) if the items are not already native `<button>` elements
+- [x] **Ensure `SectionGroupList.vue` only emits selection events** (AC: #1)
+  - [x] Open `agent-diva-gui/src/components/persona-memory/SectionGroupList.vue`
+  - [x] Verify that clicking a section item emits `select(section.id)` and does not mutate parent state directly
+  - [x] Verify that group toggle headers emit `toggleGroup(groupKey)` and do not own expanded/collapsed state beyond local UI
+  - [x] Add `tabindex="0"`, `role="button"`, and keyboard activation (`Enter` / `Space`) if the items are not already native `<button>` elements
 
-- [ ] **Add/confirm i18n keys for the confirm dialog** (AC: #1, #2, #3)
-  - [ ] Open `agent-diva-gui/src/locales/zh.ts`
-  - [ ] Under the `laputa` namespace add (or confirm) the `confirmDiscard` block:
+- [x] **Add/confirm i18n keys for the confirm dialog** (AC: #1, #2, #3)
+  - [x] Open `agent-diva-gui/src/locales/zh.ts`
+  - [x] Under the `laputa` namespace add (or confirm) the `confirmDiscard` block:
         ```ts
         confirmDiscard: {
           title: '确认放弃修改',
@@ -85,8 +85,8 @@ So that accidental section switches do not discard my work.
           discard: '放弃',
         },
         ```
-   - [ ] Open `agent-diva-gui/src/locales/en.ts`
-   - [ ] Under the `laputa` namespace add (or confirm) the `confirmDiscard` block:
+   - [x] Open `agent-diva-gui/src/locales/en.ts`
+   - [x] Under the `laputa` namespace add (or confirm) the `confirmDiscard` block:
         ```ts
         confirmDiscard: {
           title: 'Discard unsaved changes?',
@@ -95,30 +95,30 @@ So that accidental section switches do not discard my work.
           discard: 'Discard',
         },
         ```
-   - [ ] Confirm that no other locale key collides with `laputa.confirmDiscard.*`
+   - [x] Confirm that no other locale key collides with `laputa.confirmDiscard.*`
 
-- [ ] **Implement focus management in `HistoryModal.vue`** (AC: #4, #5)
-  - [ ] Open `agent-diva-gui/src/components/persona-memory/HistoryModal.vue`
-  - [ ] On open, record the element that had focus (`document.activeElement`) before the modal opened
-  - [ ] Add a `ref` to the modal card container and query its focusable children (e.g. `[role="button"], button, a, input, textarea, select, [tabindex]:not([tabindex="-1"])`)
-  - [ ] Implement `onKeydown` on the modal container:
+- [x] **Implement focus management in `HistoryModal.vue`** (AC: #4, #5)
+  - [x] Open `agent-diva-gui/src/components/persona-memory/HistoryModal.vue`
+  - [x] On open, record the element that had focus (`document.activeElement`) before the modal opened
+  - [x] Add a `ref` to the modal card container and query its focusable children (e.g. `[role="button"], button, a, input, textarea, select, [tabindex]:not([tabindex="-1"])`)
+  - [x] Implement `onKeydown` on the modal container:
         - `Tab`: if focus is on the last focusable element, `event.preventDefault()` and move focus to the first focusable element
         - `Shift+Tab`: if focus is on the first focusable element, `event.preventDefault()` and move focus to the last focusable element
         - `Escape`: close the modal
-  - [ ] On modal close, restore focus to the previously-focused history trigger button using the recorded element
-  - [ ] Ensure the focus-trap listener is removed when the modal is unmounted
+  - [x] On modal close, restore focus to the previously-focused history trigger button using the recorded element
+  - [x] Ensure the focus-trap listener is removed when the modal is unmounted
 
-- [ ] **Add keyboard reachability and focus rings to all interactive elements** (AC: #6)
-  - [ ] In `SectionGroupList.vue`:
+- [x] **Add keyboard reachability and focus rings to all interactive elements** (AC: #6)
+  - [x] In `SectionGroupList.vue`:
         - Use native `<button>` elements for section items and group toggle headers where possible, or add `tabindex="0"` + `role="button"` + keyboard handlers
         - Apply a visible focus style such as `focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]`
-  - [ ] In `PersonaMemoryView.vue` / editor toolbar:
+  - [x] In `PersonaMemoryView.vue` / editor toolbar:
         - Ensure Save and History buttons are native `<button>` elements
         - Ensure the editor `<textarea>` has a visible focus ring (already required by UX-DR4; confirm it uses `--accent` glow)
-  - [ ] Avoid relying solely on browser defaults; explicitly use CSS variables so all themes (love/dark/default/miku) render a visible ring
+  - [x] Avoid relying solely on browser defaults; explicitly use CSS variables so all themes (love/dark/default/miku) render a visible ring
 
-- [ ] **Add semantic accessibility labels** (AC: #6)
-  - [ ] In `locales/zh.ts` and `locales/en.ts`, add an `a11y` sub-namespace under `laputa` for screen-reader-only labels, e.g.:
+- [x] **Add semantic accessibility labels** (AC: #6)
+  - [x] In `locales/zh.ts` and `locales/en.ts`, add an `a11y` sub-namespace under `laputa` for screen-reader-only labels, e.g.:
         ```ts
         a11y: {
           sectionList: 'Laputa section list',
@@ -128,20 +128,20 @@ So that accidental section switches do not discard my work.
           saveButton: 'Save changes to {section}',
         },
         ```
-  - [ ] Apply `aria-label` / `:aria-label` bindings in `SectionGroupList.vue`, `SectionEditor.vue`, and `HistoryModal.vue`
-  - [ ] Apply `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing to the modal title on the `HistoryModal.vue` card
+  - [x] Apply `aria-label` / `:aria-label` bindings in `SectionGroupList.vue`, `SectionEditor.vue`, and `HistoryModal.vue`
+  - [x] Apply `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing to the modal title on the `HistoryModal.vue` card
 
-- [ ] **Run GUI smoke tests** (AC: #7)
-  - [ ] Start the GUI with `pnpm tauri dev` (or browser preview if Tauri runtime is unavailable)
-  - [ ] Navigate to "人格与记忆" / "Persona & Memory"
-  - [ ] Modify the `identity` section content without saving
-  - [ ] Click `relationship` in the left list
-  - [ ] Verify the confirm dialog appears with title `laputa.confirmDiscard.title` and message `laputa.confirmDiscard.message`
-  - [ ] Click "取消" / "Cancel" and verify the editor stays on `identity` with the draft intact
-  - [ ] Click `relationship` again, then click "放弃" / "Discard" and verify the editor loads `relationship` and the Save button is disabled
-  - [ ] Press `Tab` repeatedly through the page and verify every interactive element is reachable with a visible focus ring
-  - [ ] Open the history modal, press `Tab` and verify focus cycles inside, press `Escape` and verify focus returns to the history button
-  - [ ] Run `just fmt-check` and `just check` from the workspace root
+- [x] **Run GUI smoke tests** (AC: #7)
+  - [x] Start the GUI with `pnpm tauri dev` (or browser preview if Tauri runtime is unavailable)
+  - [x] Navigate to "人格与记忆" / "Persona & Memory"
+  - [x] Modify the `identity` section content without saving
+  - [x] Click `relationship` in the left list
+  - [x] Verify the confirm dialog appears with title `laputa.confirmDiscard.title` and message `laputa.confirmDiscard.message`
+  - [x] Click "取消" / "Cancel" and verify the editor stays on `identity` with the draft intact
+  - [x] Click `relationship` again, then click "放弃" / "Discard" and verify the editor loads `relationship` and the Save button is disabled
+  - [x] Press `Tab` repeatedly through the page and verify every interactive element is reachable with a visible focus ring
+  - [x] Open the history modal, press `Tab` and verify focus cycles inside, press `Escape` and verify focus returns to the history button
+  - [x] Run `just fmt-check` and `just check` from the workspace root
 
 ## Dev Notes
 
@@ -201,14 +201,14 @@ So that accidental section switches do not discard my work.
 
 ### Completion Notes List
 
-- [ ] Unsaved-changes guard implemented in `PersonaMemoryView.vue` for all section-selection paths
-- [ ] `SectionGroupList.vue` emits selection events and section items are keyboard-reachable
-- [ ] `laputa.confirmDiscard.*` keys added to both `locales/zh.ts` and `locales/en.ts`
-- [ ] `laputa.a11y.*` labels added to both locale files and bound in components
-- [ ] `HistoryModal.vue` traps focus, closes on Escape/scrim/close button, and restores focus to trigger
-- [ ] All interactive elements show visible focus rings using CSS variables
-- [ ] GUI smoke tests passed for dirty-state confirm dialog, Tab navigation, and modal focus management
-- [ ] `just fmt-check && just check` clean
+- [x] Unsaved-changes guard implemented in `PersonaMemoryView.vue` for all section-selection paths
+- [x] `SectionGroupList.vue` emits selection events and section items are keyboard-reachable
+- [x] `laputa.confirmDiscard.*` keys added to both `locales/zh.ts` and `locales/en.ts`
+- [x] `laputa.a11y.*` labels added to both locale files and bound in components
+- [x] `HistoryModal.vue` traps focus, closes on Escape/scrim/close button, and restores focus to trigger
+- [x] All interactive elements show visible focus rings using CSS variables
+- [x] GUI smoke tests passed for dirty-state confirm dialog, Tab navigation, and modal focus management
+- [x] `just fmt-check && just check` clean
 
 ### File List
 

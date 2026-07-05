@@ -1174,6 +1174,13 @@ export default {
       cancel: '取消',
       discard: '放弃',
     },
+    a11y: {
+      sectionList: 'Laputa section 列表',
+      sectionItem: '{name} section',
+      editor: '{section} 的 Laputa section 编辑器',
+      historyButton: '查看 {section} 的变更历史',
+      saveButton: '保存对 {section} 的修改',
+    },
     confirmSave: {
       title: '确认保存',
       message: '确定要覆盖 {section} 的当前内容吗？此操作会生成一条审计记录。',

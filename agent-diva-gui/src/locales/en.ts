@@ -1237,6 +1237,13 @@ export default {
       confirm: 'Overwrite',
       cancel: 'Cancel',
     },
+    a11y: {
+      sectionList: 'Laputa section list',
+      sectionItem: 'Section {name}',
+      editor: 'Laputa section editor for {section}',
+      historyButton: 'View change history for {section}',
+      saveButton: 'Save changes to {section}',
+    },
     historyModal: {
       title: 'Change history for {section}',
       empty: 'No change records yet',

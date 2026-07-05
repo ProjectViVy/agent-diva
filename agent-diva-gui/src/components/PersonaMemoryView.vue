@@ -9,6 +9,7 @@ import PersonaMemoryErrorState from './persona-memory/PersonaMemoryErrorState.vu
 import { getLaputaSnapshot, getLaputaSection, isTauriRuntime } from '../api/desktop';
 import type { LaputaSection, LaputaSectionName } from '../api/desktop';
 import { showAppToast } from '../utils/appToast';
+import { appConfirm } from '../utils/appDialog';
 
 const { t } = useI18n();
 
@@ -26,6 +27,8 @@ const loadingSection = ref(false);
 const sectionError = ref('');
 const sectionContent = ref<LaputaSection | null>(null);
 const draftContent = ref('');
+const originalContent = ref('');
+const isDirty = ref(false);
 
 const displayName = computed(() => t('laputa.sections.' + selectedSection.value));
 
@@ -87,7 +90,9 @@ async function loadSection(name: LaputaSectionName): Promise<void> {
       sectionContent.value = null;
     }
     const raw = sectionContent.value?.content;
-    draftContent.value = raw === null || raw === undefined ? '' : String(raw);
+    const text = raw === null || raw === undefined ? '' : String(raw);
+    draftContent.value = text;
+    originalContent.value = text;
   } catch (err: unknown) {
     sectionError.value = normalizeError(err);
     showAppToast(t('laputa.loadError'), 'error');
@@ -96,9 +101,29 @@ async function loadSection(name: LaputaSectionName): Promise<void> {
   }
 }
 
+async function selectSection(nextId: LaputaSectionName): Promise<void> {
+  if (nextId === selectedSection.value) return;
+  if (isDirty.value) {
+    const confirmed = await appConfirm(
+      t('laputa.confirmDiscard.message'),
+      {
+        title: t('laputa.confirmDiscard.title'),
+        confirmLabel: t('laputa.confirmDiscard.discard'),
+        cancelLabel: t('laputa.confirmDiscard.cancel'),
+      },
+    );
+    if (!confirmed) return;
+  }
+  selectedSection.value = nextId;
+  sectionError.value = '';
+  draftContent.value = '';
+  originalContent.value = '';
+  isDirty.value = false;
+  await loadSection(nextId);
+}
+
 async function onSectionSelect(name: LaputaSectionName): Promise<void> {
-  selectedSection.value = name;
-  await loadSection(name);
+  await selectSection(name);
 }
 
 async function onRefresh(): Promise<void> {
@@ -108,8 +133,7 @@ async function onRefresh(): Promise<void> {
   if (selectedSection.value in validSections) {
     await loadSection(selectedSection.value);
   } else {
-    selectedSection.value = 'identity';
-    await loadSection('identity');
+    await selectSection('identity');
   }
 }
 
@@ -121,6 +145,10 @@ async function onSaved(_name: LaputaSectionName): Promise<void> {
 
 function onSaveFailed(_name: LaputaSectionName, message: string): void {
   showAppToast(t('laputa.saveFailed', { message }), 'error');
+}
+
+function onDirtyUpdate(next: boolean): void {
+  isDirty.value = next;
 }
 
 onMounted(() => {
@@ -161,6 +189,7 @@ onMounted(() => {
           v-else-if="snapshot && !isUninitialized"
           :snapshot="snapshot"
           :selected-section="selectedSection"
+          :aria-label="t('laputa.a11y.sectionList')"
           @select="onSectionSelect"
         />
       </div>
@@ -198,6 +227,7 @@ onMounted(() => {
             :initial-content="draftContent"
             @saved="onSaved"
             @save-failed="onSaveFailed"
+            @update:dirty="onDirtyUpdate"
           />
         </template>
       </div>
@@ -259,6 +289,11 @@ onMounted(() => {
 .persona-memory-refresh:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.persona-memory-refresh:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
 }
 
 .persona-memory-body {
