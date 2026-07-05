@@ -1,93 +1,76 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { createI18n } from 'vue-i18n';
 import SectionEditor from '../SectionEditor.vue';
-import en from '../../../locales/en';
 
-const i18n = createI18n({
-  legacy: false,
-  locale: 'en',
-  messages: { en },
-});
-
-function factory(props: Record<string, unknown> = {}) {
+function factory(props: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
   return mount(SectionEditor, {
     props: {
       sectionName: 'identity',
+      modelValue: '',
       ...props,
     },
-    global: {
-      plugins: [i18n],
-    },
+    slots,
   });
 }
 
 describe('SectionEditor', () => {
-  it('renders markdown content in the body', () => {
-    const wrapper = factory({
-      content: '# Identity\n\n- Trait one\n- Trait two',
-      status: 'owned',
-      lastUpdated: '2026-07-05T12:00:00Z',
-    });
-
-    const html = wrapper.html();
-    expect(html).toContain('<h1>Identity</h1>');
-    expect(html).toContain('<li>Trait one</li>');
-  });
-
-  it('shows the localized section title, status badge, and last updated time', () => {
-    const wrapper = factory({
-      sectionName: 'identity',
-      status: 'owned',
-      lastUpdated: '2026-07-05T12:00:00Z',
-    });
-
-    const text = wrapper.text();
-    expect(text).toContain(en.laputa.sections.identity);
-    expect(text).toContain(en.laputa.status.owned);
-    expect(text).toContain('2026-07-05T12:00:00Z');
-  });
-
-  it('shows a loading skeleton instead of content while loading', () => {
-    const wrapper = factory({ loading: true });
-
-    expect(wrapper.find('.section-editor-skeleton').exists()).toBe(true);
-    expect(wrapper.find('.section-editor-content').exists()).toBe(false);
-    expect(wrapper.find('.persona-memory-empty-state').exists()).toBe(false);
-  });
-
-  it('shows an error state and emits retry when the retry button is clicked', async () => {
-    const wrapper = factory({ error: 'Backend unreachable' });
-
-    expect(wrapper.text()).toContain(en.laputa.loadError);
-    expect(wrapper.text()).toContain('Backend unreachable');
-
-    await wrapper.find('.error-retry').trigger('click');
-    expect(wrapper.emitted('retry')).toHaveLength(1);
-  });
-
-  it('shows the empty state when the section exists but has no content', () => {
-    const wrapper = factory({
-      status: 'owned',
-      lastUpdated: '2026-07-05T12:00:00Z',
-    });
-
-    expect(wrapper.find('.persona-memory-empty-state').exists()).toBe(true);
-    expect(wrapper.text()).toContain(en.laputa.emptyTitle);
-    expect(wrapper.text()).toContain(en.laputa.emptyDesc);
-  });
-
-  it('shows the uninitialized state when no section metadata is provided', () => {
+  it('renders a textarea with the correct aria-label', () => {
     const wrapper = factory();
-
-    expect(wrapper.find('.persona-memory-empty-state').exists()).toBe(true);
-    expect(wrapper.text()).toContain(en.laputa.uninitializedTitle);
-    expect(wrapper.text()).toContain(en.laputa.uninitializedDesc);
+    const textarea = wrapper.find('textarea');
+    expect(textarea.exists()).toBe(true);
+    expect(textarea.attributes('aria-label')).toBe('Laputa section editor');
   });
 
-  it('falls back to the tbd badge for unknown status values', () => {
-    const wrapper = factory({ status: 'unknown', lastUpdated: '2026-07-05T12:00:00Z' });
+  it('initializes the textarea from modelValue', () => {
+    const wrapper = factory({ modelValue: '# Identity\n\nHello' });
+    expect(wrapper.find('textarea').element.value).toBe('# Identity\n\nHello');
+  });
 
-    expect(wrapper.text()).toContain(en.laputa.status.tbd);
+  it('emits update:modelValue on textarea input', async () => {
+    const wrapper = factory();
+    const textarea = wrapper.find('textarea');
+    await textarea.setValue('# Updated');
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(1);
+    expect(wrapper.emitted('update:modelValue')![0]).toEqual(['# Updated']);
+  });
+
+  it('renders the Markdown preview from modelValue', () => {
+    const wrapper = factory({ modelValue: '# Identity\n\n- Trait one\n- Trait two' });
+    const preview = wrapper.find('.section-editor-preview');
+    expect(preview.exists()).toBe(true);
+    expect(preview.html()).toContain('<h1>Identity</h1>');
+    expect(preview.html()).toContain('<li>Trait one</li>');
+  });
+
+  it('emits save on Ctrl+S keydown', async () => {
+    const wrapper = factory();
+    const textarea = wrapper.find('textarea');
+    await textarea.trigger('keydown', { key: 's', ctrlKey: true });
+    expect(wrapper.emitted('save')).toHaveLength(1);
+  });
+
+  it('emits save on Meta+S keydown', async () => {
+    const wrapper = factory();
+    const textarea = wrapper.find('textarea');
+    await textarea.trigger('keydown', { key: 's', metaKey: true });
+    expect(wrapper.emitted('save')).toHaveLength(1);
+  });
+
+  it('renders the toolbar-actions slot content', () => {
+    const wrapper = factory({}, { 'toolbar-actions': '<button type="button">Save</button>' });
+    expect(wrapper.find('button').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Save');
+  });
+
+  it('shows the section name in the toolbar', () => {
+    const wrapper = factory({ sectionName: 'memory_md' });
+    expect(wrapper.text()).toContain('memory_md');
+  });
+
+  it('updates the textarea when modelValue prop changes', async () => {
+    const wrapper = factory({ modelValue: 'initial' });
+    expect(wrapper.find('textarea').element.value).toBe('initial');
+    await wrapper.setProps({ modelValue: 'updated' });
+    expect(wrapper.find('textarea').element.value).toBe('updated');
   });
 });
