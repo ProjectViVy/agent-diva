@@ -4,6 +4,7 @@ import {
   AlarmClock,
   BookOpen,
   Bot,
+  Brain,
   Cat,
   Check,
   ChevronDown,
@@ -33,6 +34,7 @@ import SkillsSettings from './settings/SkillsSettings.vue';
 import NotebookView from './NotebookView.vue';
 import PlanningView from './planning/PlanningView.vue';
 import EvolutionView from './EvolutionView.vue';
+import PersonaMemoryView from './PersonaMemoryView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
@@ -41,6 +43,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 
 interface Message {
+  id: string;
   role: 'user' | 'agent' | 'system' | 'tool';
   content: string;
   reasoning?: string;
@@ -53,6 +56,7 @@ interface Message {
   isStreaming?: boolean;
   timestamp?: number;
   emotion?: string;
+  attachments?: string[];
 }
 
 interface ChatDisplayPrefs {
@@ -122,6 +126,7 @@ const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
+  (e: 'regenerate', messageId: string): void;
   (e: 'toggle-sidebar'): void;
   (e: 'update-saved-models', models: SavedModel[]): void;
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
@@ -134,6 +139,7 @@ type SidebarSection =
   | 'settings'
   | 'evolution'
   | 'console'
+  | 'persona-memory'
   | 'neuro'
   | 'cron'
   | 'mcp'
@@ -144,7 +150,7 @@ type SidebarSection =
 type EvolutionBadgeTone = 'none' | 'accent' | 'warning' | 'danger';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'evolution' | 'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
+const activeMenu = ref<'evolution' | 'console' | 'persona-memory' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -395,6 +401,8 @@ const isSectionActive = (section: SidebarSection) => {
   return activeMenu.value === section;
 };
 
+const navSectionLabel = (section: string) => t('nav.' + (section === 'persona-memory' ? 'personaMemory' : section));
+
 const openEvolutionDeepLink = (payload: ChatGovernanceDeepLink) => {
   evolutionDeepLink.value = {
     ...payload,
@@ -406,6 +414,7 @@ const openEvolutionDeepLink = (payload: ChatGovernanceDeepLink) => {
 const openEvolutionDefault = () => {
   evolutionDeepLink.value = null;
   navigateTo('evolution');
+  closeCollapsedPopup();
 };
 
 const normalizeEvolutionCount = (count: number) => {
@@ -616,37 +625,6 @@ defineExpose({
             {{ chatBadgeValue }}
           </span>
         </button>
-        <button
-          class="nav-item"
-          :class="{ active: isSectionActive('evolution') }"
-          :title="evolutionBadge.tooltip"
-          @click="openEvolutionDefault"
-        >
-          <GitBranch />
-          <span v-if="!sidebarCollapsed">{{ t('nav.evolution') }}</span>
-          <span
-            v-if="evolutionBadge.total > 0"
-            class="evolution-nav-badge ml-auto text-white text-[10px] rounded-full flex items-center justify-center leading-none"
-            :class="[
-              evolutionBadge.total < 10 ? 'w-4 h-4 px-0' : 'min-w-[20px] h-4 px-2',
-              evolutionBadge.tone === 'danger'
-                ? 'bg-red-600'
-                : evolutionBadge.tone === 'warning'
-                  ? 'bg-amber-500'
-                  : 'bg-blue-500',
-            ]"
-          >
-            {{ normalizeEvolutionCount(evolutionBadge.total) }}
-          </span>
-        </button>
-        <button class="nav-item" :class="{ active: isSectionActive('notebook') }" @click="navigateTo('notebook')">
-          <BookOpen />
-          <span v-if="!sidebarCollapsed">{{ t('nav.notebook') }}</span>
-        </button>
-        <button class="nav-item" :class="{ active: isSectionActive('planning') }" @click="navigateTo('planning')">
-          <ClipboardList />
-          <span v-if="!sidebarCollapsed">{{ t('nav.planning') }}</span>
-        </button>
         <button class="nav-item" :class="{ active: isSectionActive('pet') }" @click="navigateTo('pet')">
           <Cat />
           <span v-if="!sidebarCollapsed">{{ t('nav.pet') }}</span>
@@ -658,7 +636,11 @@ defineExpose({
 
         <!-- NavGroup: Capabilities -->
         <div class="nav-group">
-          <div class="nav-group-header" @click.stop="handleCollapsedGroupClick('capabilities', $event)">
+          <div
+            class="nav-group-header"
+            :class="{ active: isSectionActive('persona-memory') || isSectionActive('neuro') || isSectionActive('cron') || isSectionActive('evolution') || isSectionActive('notebook') || isSectionActive('planning') }"
+            @click.stop="handleCollapsedGroupClick('capabilities', $event)"
+          >
             <Zap />
             <span v-if="!sidebarCollapsed">{{ t('nav.capabilities') }}</span>
             <div v-if="!sidebarCollapsed" class="nav-group-chevron">
@@ -667,6 +649,10 @@ defineExpose({
             </div>
           </div>
           <div v-show="!sidebarCollapsed && groups.capabilities" class="nav-group-items">
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('persona-memory') }" @click="handleNavigateAndClose('persona-memory')">
+              <Brain />
+              <span>{{ t('nav.personaMemory') }}</span>
+            </button>
             <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('neuro') }" @click="handleNavigateAndClose('neuro')">
               <Heart />
               <span>{{ t('nav.neuro') }}</span>
@@ -675,12 +661,47 @@ defineExpose({
               <AlarmClock />
               <span>{{ t('cron.title') }}</span>
             </button>
+            <button
+              class="nav-item nav-item-sub"
+              :class="{ active: isSectionActive('evolution') }"
+              :title="evolutionBadge.tooltip"
+              @click="openEvolutionDefault"
+            >
+              <GitBranch />
+              <span>{{ t('nav.evolution') }}</span>
+              <span
+                v-if="evolutionBadge.total > 0"
+                class="evolution-nav-badge ml-auto text-white text-[10px] rounded-full flex items-center justify-center leading-none"
+                :class="[
+                  evolutionBadge.total < 10 ? 'w-4 h-4 px-0' : 'min-w-[20px] h-4 px-2',
+                  evolutionBadge.tone === 'danger'
+                    ? 'bg-red-600'
+                    : evolutionBadge.tone === 'warning'
+                      ? 'bg-amber-500'
+                      : 'bg-blue-500',
+                ]"
+              >
+                {{ normalizeEvolutionCount(evolutionBadge.total) }}
+              </span>
+            </button>
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('notebook') }" @click="handleNavigateAndClose('notebook')">
+              <BookOpen />
+              <span>{{ t('nav.notebook') }}</span>
+            </button>
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('planning') }" @click="handleNavigateAndClose('planning')">
+              <ClipboardList />
+              <span>{{ t('nav.planning') }}</span>
+            </button>
           </div>
         </div>
 
         <!-- NavGroup: Tools -->
         <div class="nav-group">
-          <div class="nav-group-header" @click.stop="handleCollapsedGroupClick('tools', $event)">
+          <div
+            class="nav-group-header"
+            :class="{ active: isSectionActive('mcp') || isSectionActive('skills') }"
+            @click.stop="handleCollapsedGroupClick('tools', $event)"
+          >
             <Wrench />
             <span v-if="!sidebarCollapsed">{{ t('nav.toolsGroup') }}</span>
             <div v-if="!sidebarCollapsed" class="nav-group-chevron">
@@ -722,6 +743,14 @@ defineExpose({
         <template v-if="collapsedPopup.type === 'capabilities'">
           <button
             class="popup-menu-item"
+            :class="{ active: isSectionActive('persona-memory') }"
+            @click="handleNavigateAndClose('persona-memory')"
+          >
+            <Brain class="popup-menu-icon" />
+            <span>{{ t('nav.personaMemory') }}</span>
+          </button>
+          <button
+            class="popup-menu-item"
             :class="{ active: isSectionActive('neuro') }"
             @click="handleNavigateAndClose('neuro')"
           >
@@ -735,6 +764,30 @@ defineExpose({
           >
             <AlarmClock class="popup-menu-icon" />
             <span>{{ t('cron.title') }}</span>
+          </button>
+          <button
+            class="popup-menu-item"
+            :class="{ active: isSectionActive('evolution') }"
+            @click="openEvolutionDefault"
+          >
+            <GitBranch class="popup-menu-icon" />
+            <span>{{ t('nav.evolution') }}</span>
+          </button>
+          <button
+            class="popup-menu-item"
+            :class="{ active: isSectionActive('notebook') }"
+            @click="handleNavigateAndClose('notebook')"
+          >
+            <BookOpen class="popup-menu-icon" />
+            <span>{{ t('nav.notebook') }}</span>
+          </button>
+          <button
+            class="popup-menu-item"
+            :class="{ active: isSectionActive('planning') }"
+            @click="handleNavigateAndClose('planning')"
+          >
+            <ClipboardList class="popup-menu-icon" />
+            <span>{{ t('nav.planning') }}</span>
           </button>
         </template>
         <!-- Tools 菜单 -->
@@ -931,28 +984,31 @@ defineExpose({
           />
           <aside
             v-if="overlaySidebarOpen"
-            class="fixed left-0 top-0 bottom-0 z-[160] w-64 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-2xl transform transition-transform duration-300"
+            class="sidebar overlay-sidebar left-0 top-0 bottom-0 z-[160] transform transition-transform duration-300"
           >
-            <div class="p-4">
-              <div class="flex items-center justify-between mb-4">
-                <span class="font-bold text-lg">DiVA</span>
-                <button @click="closeOverlaySidebar" class="p-1 hover:bg-gray-100 rounded">
-                  <X :size="18" />
-                </button>
-              </div>
-              <nav class="space-y-1">
-                <button
-                  v-for="section in ['chat', 'evolution', 'notebook', 'planning', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
-                  :key="section"
-                  class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  :class="{ 'bg-pink-50 text-pink-600 font-medium': isSectionActive(section as SidebarSection) }"
-                  @click="navigateTo(section as SidebarSection); closeOverlaySidebar()"
-                >
-                  {{ t('nav.' + section) }}
-                </button>
-              </nav>
+            <div class="sidebar-header">
+              <div class="brand-logo">V</div>
+              <span class="brand-text">DiVA</span>
+              <button class="overlay-close-btn no-drag ml-auto" @click="closeOverlaySidebar">
+                <X :size="18" />
+              </button>
             </div>
+            <nav class="sidebar-nav">
+              <button
+                v-for="section in ['chat', 'persona-memory', 'evolution', 'notebook', 'planning', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
+                :key="section"
+                class="nav-item"
+                :class="{ active: isSectionActive(section as SidebarSection) }"
+                @click="navigateTo(section as SidebarSection); closeOverlaySidebar()"
+              >
+                {{ navSectionLabel(section) }}
+              </button>
+            </nav>
           </aside>
+        </div>
+        <!-- Persona & Memory 视图 -->
+        <div v-else-if="activeMenu === 'persona-memory'" class="h-full">
+          <PersonaMemoryView />
         </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
@@ -973,9 +1029,10 @@ defineExpose({
               :sessions="sessions"
               :tools-config="toolsConfig"
               :active-session-key="activeSessionKey"
-	              @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
+              @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @clear="handleClearSession"
               @stop="emit('stop')"
+              @regenerate="(id) => emit('regenerate', id)"
               @select-session="(key) => emit('load-session', key)"
               @delete-session="(key) => emit('delete-session', key)"
               @new-session="handleClearSession"
@@ -1017,5 +1074,28 @@ defineExpose({
 </template>
 
 <style scoped>
-/* Scoped styles */
+/* Overlay sidebar: fixed slide-out panel that reuses global sidebar tokens */
+.overlay-sidebar {
+  position: fixed;
+  width: var(--sidebar-width);
+  box-shadow: var(--shadow);
+}
+
+.overlay-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.overlay-close-btn:hover {
+  background: var(--nav-hover);
+  color: var(--text);
+}
 </style>
