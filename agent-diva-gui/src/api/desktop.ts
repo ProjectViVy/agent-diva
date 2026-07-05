@@ -274,6 +274,14 @@ export interface LaputaSection {
   version: string;
 }
 
+export interface LaputaSnapshot {
+  schema_version: string;
+  sections: Record<string, LaputaSection>;
+  changed_sections: string[];
+  updated_at?: string | null;
+  server_time: string;
+}
+
 export type ChangelogAction = 'apply' | 'revert' | 'rollback';
 
 export interface ChangelogRecord {
@@ -432,6 +440,9 @@ export interface WriteLaputaSectionResult {
 export const getLaputaSection = (name: LaputaSectionName) =>
   invoke<LaputaSection>("laputa_get_section", { name });
 
+export const getLaputaSnapshot = (since?: string) =>
+  invoke<LaputaSnapshot>("laputa_get_snapshot", { since: since ?? null });
+
 export const writeLaputaSection = (
   name: LaputaSectionName,
   content: string,
@@ -446,16 +457,33 @@ export const writeLaputaSection = (
 export const pollLaputaEvents = (kind: LaputaEventKind, since?: string) =>
   invoke<LaputaEvent[]>("laputa_poll_events", { kind, since: since ?? null });
 
+export interface ListLaputaChangelogFilters {
+  section?: LaputaSectionName;
+  limit?: number;
+  page?: number;
+  proposalId?: string;
+}
+
 export const listLaputaChangelog = (
-  page?: number,
+  pageOrFilters?: number | ListLaputaChangelogFilters,
   pageSize?: number,
   proposalId?: string,
-) =>
-  invoke<ChangelogPage>("laputa_list_changelog", {
-    page: page ?? null,
+) => {
+  if (typeof pageOrFilters === 'object') {
+    const { section, limit, page, proposalId: pid } = pageOrFilters;
+    return invoke<ChangelogPage>("laputa_list_changelog", {
+      target_section: section ?? null,
+      pageSize: limit ?? null,
+      page: page ?? null,
+      proposalId: pid ?? null,
+    });
+  }
+  return invoke<ChangelogPage>("laputa_list_changelog", {
+    page: pageOrFilters ?? null,
     pageSize: pageSize ?? null,
     proposalId: proposalId ?? null,
   });
+};
 
 export const getLaputaChangelog = (id: string) =>
   invoke<ChangelogRecord>("laputa_get_changelog", { id });
