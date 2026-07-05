@@ -12,16 +12,27 @@ import type { LaputaSectionName } from '../../api/desktop';
 
 const { t } = useI18n();
 
-const props = defineProps<{
-  sectionName: LaputaSectionName;
-  displayName: string;
-  initialContent: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: string;
+    displayName: string;
+    sectionName: LaputaSectionName;
+    initialContent: string;
+    status?: 'owned' | 'tbd';
+    lastUpdated?: string;
+  }>(),
+  {
+    modelValue: '',
+    status: 'tbd',
+    lastUpdated: undefined,
+  },
+);
 
 const emit = defineEmits<{
+  (e: 'update:modelValue', value: string): void;
+  (e: 'update:dirty', isDirty: boolean): void;
   (e: 'saved', sectionName: LaputaSectionName): void;
   (e: 'save-failed', sectionName: LaputaSectionName, message: string): void;
-  (e: 'update:dirty', isDirty: boolean): void;
 }>();
 
 const md = new MarkdownIt({
@@ -44,7 +55,7 @@ const md = new MarkdownIt({
 });
 
 const originalContent = ref<string>(props.initialContent ?? '');
-const draftContent = ref<string>(props.initialContent ?? '');
+const draftContent = ref<string>(props.modelValue ?? '');
 const saving = ref(false);
 const saveError = ref<string | null>(null);
 const activeTab = ref<'edit' | 'preview'>('edit');
@@ -58,15 +69,34 @@ watch(isDirty, (next) => {
 }, { immediate: true });
 
 watch(
+  () => props.modelValue,
+  (next) => {
+    draftContent.value = next ?? '';
+  },
+);
+
+watch(
   () => props.initialContent,
   (next) => {
     originalContent.value = next ?? '';
-    draftContent.value = next ?? '';
     saveError.value = null;
   },
 );
 
+function formatDate(value?: string): string {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}
+
 const renderedHtml = computed(() => md.render(draftContent.value));
+
+function onInput(): void {
+  emit('update:modelValue', draftContent.value);
+}
 
 function formatError(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -129,28 +159,43 @@ function onKeyDown(event: KeyboardEvent): void {
     <header class="section-editor-toolbar">
       <div class="section-editor-toolbar-title">
         <span>{{ t('laputa.sections.' + sectionName) }}</span>
+        <span
+          v-if="status"
+          class="section-editor-status-badge"
+          :class="'section-editor-status-badge--' + status"
+        >
+          {{ t('laputa.status.' + status) }}
+        </span>
+        <span
+          v-if="lastUpdated"
+          class="section-editor-last-updated"
+        >
+          {{ t('laputa.lastUpdated', { time: formatDate(lastUpdated) }) }}
+        </span>
       </div>
       <div class="section-editor-toolbar-actions">
-        <button
-          ref="historyTriggerRef"
-          type="button"
-          class="section-editor-history-btn"
-          :disabled="!props.sectionName"
-          :aria-label="t('laputa.a11y.historyButton', { section: props.displayName })"
-          @click="historyOpen = true"
-        >
-          {{ t('laputa.history') }}
-        </button>
-        <button
-          type="button"
-          class="section-editor-save-btn"
-          :disabled="!isDirty || saving"
-          :aria-label="t('laputa.a11y.saveButton', { section: props.displayName })"
-          @click="handleSave"
-        >
-          <Loader2 v-if="saving" :size="14" class="spin" />
-          <span>{{ saving ? t('laputa.saving') : t('laputa.save') }}</span>
-        </button>
+        <slot name="toolbar-actions">
+          <button
+            ref="historyTriggerRef"
+            type="button"
+            class="section-editor-history-btn"
+            :disabled="!props.sectionName"
+            :aria-label="t('laputa.a11y.historyButton', { section: props.displayName })"
+            @click="historyOpen = true"
+          >
+            {{ t('laputa.history') }}
+          </button>
+          <button
+            type="button"
+            class="section-editor-save-btn"
+            :disabled="!isDirty || saving"
+            :aria-label="t('laputa.a11y.saveButton', { section: props.displayName })"
+            @click="handleSave"
+          >
+            <Loader2 v-if="saving" :size="14" class="spin" />
+            <span>{{ saving ? t('laputa.saving') : t('laputa.save') }}</span>
+          </button>
+        </slot>
       </div>
     </header>
 
@@ -200,6 +245,7 @@ function onKeyDown(event: KeyboardEvent): void {
           v-model="draftContent"
           class="section-editor-textarea"
           :aria-label="t('laputa.a11y.editor', { section: props.displayName })"
+          @input="onInput"
           @keydown="onKeyDown"
         />
       </div>
@@ -239,10 +285,12 @@ function onKeyDown(event: KeyboardEvent): void {
 .section-editor-toolbar-title {
   display: flex;
   align-items: center;
+  gap: 10px;
   min-width: 0;
+  flex: 1;
 }
 
-.section-editor-toolbar-title span {
+.section-editor-toolbar-title > span:first-child {
   margin: 0;
   font-size: 0.875rem;
   font-weight: 500;
@@ -250,6 +298,36 @@ function onKeyDown(event: KeyboardEvent): void {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.section-editor-status-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.section-editor-status-badge--owned {
+  background: var(--accent-bg-light);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.section-editor-status-badge--tbd {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--line);
+}
+
+.section-editor-last-updated {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .section-editor-toolbar-actions {

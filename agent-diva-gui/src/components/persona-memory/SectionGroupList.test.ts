@@ -15,9 +15,9 @@ vi.mock('lucide-vue-next', () => ({
   FileText: { name: 'FileText', template: '<span class="file-text" />' },
 }));
 
-const ALL_SECTIONS: Record<string, { status: 'owned' | 'tbd' }> = {
-  identity: { status: 'owned' },
-  relationship: { status: 'owned' },
+const ALL_SECTIONS: Record<string, { status: 'owned' | 'tbd'; last_modified?: string | null }> = {
+  identity: { status: 'owned', last_modified: '2026-07-05T12:00:00Z' },
+  relationship: { status: 'owned', last_modified: '2026-07-05T11:00:00Z' },
   commitment: { status: 'tbd' },
   preferences: { status: 'tbd' },
   memory_md: { status: 'owned' },
@@ -106,5 +106,18 @@ describe('SectionGroupList', () => {
 
     expect(ownedBadge.length).toBeGreaterThan(0);
     expect(tbdBadge.length).toBeGreaterThan(0);
+  });
+
+  it('renders last_modified timestamps for sections that have them', () => {
+    const wrapper = mountList();
+
+    const updatedItems = wrapper.findAll('.section-updated');
+    expect(updatedItems.length).toBe(2);
+
+    const identityItem = wrapper.findAll('.section-item').find(
+      (item) => item.text().includes('identity')
+    );
+    expect(identityItem?.find('.section-updated').exists()).toBe(true);
+    expect(identityItem?.find('.section-updated').text()).toContain('2026');
   });
 });

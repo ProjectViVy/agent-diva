@@ -32,6 +32,14 @@ const isDirty = ref(false);
 
 const displayName = computed(() => t('laputa.sections.' + selectedSection.value));
 
+const selectedSectionStatus = computed(() =>
+  snapshot.value?.sections[selectedSection.value]?.status ?? 'tbd',
+);
+
+const selectedSectionLastUpdated = computed(() =>
+  snapshot.value?.sections[selectedSection.value]?.last_modified ?? undefined,
+);
+
 const isUninitialized = computed(() => {
   return snapshot.value !== null && Object.keys(snapshot.value.sections).length === 0;
 });
@@ -222,9 +230,12 @@ onMounted(() => {
 
         <template v-else>
           <SectionEditor
+            v-model="draftContent"
             :section-name="selectedSection"
             :display-name="displayName"
-            :initial-content="draftContent"
+            :initial-content="originalContent"
+            :status="selectedSectionStatus"
+            :last-updated="selectedSectionLastUpdated"
             @saved="onSaved"
             @save-failed="onSaveFailed"
             @update:dirty="onDirtyUpdate"

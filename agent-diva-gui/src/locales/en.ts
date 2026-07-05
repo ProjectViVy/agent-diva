@@ -1219,6 +1219,7 @@ export default {
     saved: 'Saved',
     saveFailed: 'Save failed: {message}',
     saving: 'Saving…',
+    lastUpdated: 'Last updated {time}',
     copy: 'Copy content',
     copied: 'Copied',
     emptyTitle: 'This section has no content yet',

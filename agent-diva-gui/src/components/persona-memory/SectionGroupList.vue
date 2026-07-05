@@ -50,6 +50,19 @@ function selectSection(name: LaputaSectionName): void {
 function getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd' {
   return props.snapshot?.sections[name]?.status ?? 'tbd';
 }
+
+function getSectionLastModified(name: LaputaSectionName): string | null | undefined {
+  return props.snapshot?.sections[name]?.last_modified;
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}
 </script>
 
 <template>
@@ -94,6 +107,12 @@ function getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd' {
           <div class="section-meta">
             <span class="section-name">{{ t('laputa.sections.' + section) }}</span>
             <span class="section-key">{{ section }}</span>
+            <span
+              v-if="getSectionLastModified(section)"
+              class="section-updated"
+            >
+              {{ formatDate(getSectionLastModified(section)) }}
+            </span>
           </div>
           <span
             class="section-status"
@@ -249,7 +268,20 @@ function getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd' {
   white-space: nowrap;
 }
 
+.section-updated {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .section-item--active .section-key {
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.section-item--active .section-updated {
   color: var(--accent);
   opacity: 0.8;
 }

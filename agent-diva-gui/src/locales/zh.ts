@@ -1162,6 +1162,7 @@ export default {
     saved: '已保存',
     saveFailed: '保存失败：{message}',
     saving: '保存中…',
+    lastUpdated: '最后更新于 {time}',
     copy: '复制内容',
     copied: '已复制',
     emptyTitle: '此 section 还没有内容',

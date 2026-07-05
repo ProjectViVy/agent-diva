@@ -21,11 +21,14 @@ const i18n = createI18n({
 });
 
 function factory(props: Record<string, unknown> = {}) {
+  const initialContent = (props.initialContent as string | undefined) ?? '';
+  const modelValue = (props.modelValue as string | undefined) ?? initialContent;
   return mount(SectionEditor, {
     props: {
       sectionName: 'identity',
       displayName: en.laputa.sections.identity,
-      initialContent: '',
+      modelValue,
+      initialContent,
       ...props,
     },
     global: {
@@ -42,6 +45,25 @@ describe('SectionEditor', () => {
   it('initializes the textarea from initialContent', () => {
     const wrapper = factory({ initialContent: '# Identity\n\nHello' });
     expect(wrapper.find('textarea').element.value).toBe('# Identity\n\nHello');
+  });
+
+  it('emits update:modelValue on textarea input', async () => {
+    const wrapper = factory({ initialContent: 'original' });
+    await wrapper.find('textarea').setValue('changed');
+    await flushPromises();
+
+    expect(wrapper.emitted('update:modelValue')).toContainEqual(['changed']);
+  });
+
+  it('renders status badge and last updated time in the toolbar', () => {
+    const wrapper = factory({
+      initialContent: '',
+      status: 'owned',
+      lastUpdated: '2026-07-05T12:00:00Z',
+    });
+
+    expect(wrapper.find('.section-editor-status-badge').text()).toBe(en.laputa.status.owned);
+    expect(wrapper.find('.section-editor-last-updated').text()).toContain('2026');
   });
 
   it('enables the Save button when content changes', async () => {
