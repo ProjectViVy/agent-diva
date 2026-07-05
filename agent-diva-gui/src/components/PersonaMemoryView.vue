@@ -199,6 +199,7 @@ onMounted(() => {
           <SectionEditor
             v-model="draftContent"
             :section-name="selectedSection"
+            @update:model-value="isDirty = true"
             @save="onSave"
           >
             <template #toolbar-actions>

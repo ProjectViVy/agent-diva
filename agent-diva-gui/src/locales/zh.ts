@@ -1184,6 +1184,8 @@ export default {
       title: '{section} 的变更历史',
       empty: '暂无变更记录',
     },
+    edit: '编辑',
+    preview: '预览',
     groups: {
       persona: '人格',
       memory: '记忆',

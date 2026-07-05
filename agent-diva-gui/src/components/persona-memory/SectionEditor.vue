@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import type { LaputaSectionName } from '../../api/desktop';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelValue: string;
@@ -62,7 +65,7 @@ function onKeyDown(event: KeyboardEvent): void {
   <div class="section-editor">
     <header class="section-editor-toolbar">
       <div class="section-editor-toolbar-title">
-        <span>{{ sectionName }}</span>
+        <span>{{ t('laputa.sections.' + sectionName) }}</span>
       </div>
       <div class="section-editor-toolbar-actions">
         <slot name="toolbar-actions" />
@@ -79,7 +82,7 @@ function onKeyDown(event: KeyboardEvent): void {
         aria-controls="section-editor-edit-pane"
         @click="activeTab = 'edit'"
       >
-        Edit
+        {{ t('laputa.edit') }}
       </button>
       <button
         type="button"
@@ -90,7 +93,7 @@ function onKeyDown(event: KeyboardEvent): void {
         aria-controls="section-editor-preview-pane"
         @click="activeTab = 'preview'"
       >
-        Preview
+        {{ t('laputa.preview') }}
       </button>
     </div>
 

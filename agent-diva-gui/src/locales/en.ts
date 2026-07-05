@@ -1241,6 +1241,8 @@ export default {
       title: 'Change history for {section}',
       empty: 'No change records yet',
     },
+    edit: 'Edit',
+    preview: 'Preview',
     groups: {
       persona: 'Persona',
       memory: 'Memory',

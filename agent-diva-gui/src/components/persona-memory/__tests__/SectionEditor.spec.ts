@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { createI18n } from 'vue-i18n';
 import SectionEditor from '../SectionEditor.vue';
+import en from '../../../locales/en';
+
+const i18n = createI18n({
+  legacy: false,
+  locale: 'en',
+  messages: { en },
+});
 
 function factory(props: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
   return mount(SectionEditor, {
@@ -10,6 +18,9 @@ function factory(props: Record<string, unknown> = {}, slots: Record<string, stri
       ...props,
     },
     slots,
+    global: {
+      plugins: [i18n],
+    },
   });
 }
 
@@ -62,9 +73,9 @@ describe('SectionEditor', () => {
     expect(wrapper.text()).toContain('Save');
   });
 
-  it('shows the section name in the toolbar', () => {
+  it('shows the localized section name in the toolbar', () => {
     const wrapper = factory({ sectionName: 'memory_md' });
-    expect(wrapper.text()).toContain('memory_md');
+    expect(wrapper.text()).toContain(en.laputa.sections.memory_md);
   });
 
   it('updates the textarea when modelValue prop changes', async () => {
