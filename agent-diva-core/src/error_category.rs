@@ -20,7 +20,10 @@ pub trait CategorizeError {
     fn category(&self) -> ErrorCategory;
 
     fn is_retryable(&self) -> bool {
-        matches!(self.category(), ErrorCategory::Retryable)
+        matches!(
+            self.category(),
+            ErrorCategory::Retryable | ErrorCategory::Timeout
+        )
     }
 }
 
@@ -32,7 +35,13 @@ impl CategorizeError for Error {
     fn category(&self) -> ErrorCategory {
         match self {
             Error::Config(_) => ErrorCategory::Config,
-            Error::Io(_) => ErrorCategory::Retryable,
+            Error::Io(err) => {
+                if matches!(err.kind(), std::io::ErrorKind::TimedOut) {
+                    ErrorCategory::Timeout
+                } else {
+                    ErrorCategory::Retryable
+                }
+            }
             Error::Unauthorized(_) => ErrorCategory::Auth,
             Error::Session(_) | Error::Channel(_) | Error::Provider(_) => ErrorCategory::Retryable,
             Error::NotFound(_) | Error::Validation(_) => ErrorCategory::Fatal,
@@ -46,20 +55,19 @@ use crate::security::error::SecurityError;
 impl CategorizeError for SecurityError {
     fn category(&self) -> ErrorCategory {
         match self {
-            SecurityError::InjectionDetected { .. } | SecurityError::PiiDetected { .. } => {
-                ErrorCategory::Auth
-            }
             SecurityError::RateLimitExceeded { .. } | SecurityError::ActionBudgetExhausted => {
                 ErrorCategory::Retryable
             }
-            SecurityError::ReadOnlyMode
+            SecurityError::InjectionDetected { .. }
+            | SecurityError::PiiDetected { .. }
+            | SecurityError::ReadOnlyMode
             | SecurityError::PathNotAllowed { .. }
             | SecurityError::PathEscapesWorkspace { .. }
             | SecurityError::ForbiddenComponent { .. }
             | SecurityError::SymlinkNotAllowed { .. }
             | SecurityError::InvalidPathFormat { .. }
             | SecurityError::FileTooLarge { .. }
-            | SecurityError::ForbiddenExtension { .. } => ErrorCategory::Auth,
+            | SecurityError::ForbiddenExtension { .. } => ErrorCategory::Fatal,
         }
     }
 }
@@ -78,7 +86,7 @@ mod tests {
 
     #[test]
     fn error_category_core_io() {
-        let err = Error::Io(std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout"));
+        let err = Error::Io(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe"));
         assert_eq!(err.category(), ErrorCategory::Retryable);
         assert!(err.is_retryable());
     }
@@ -119,7 +127,7 @@ mod tests {
             kind: InjectionKind::Jailbreak,
             confidence: 0.95,
         };
-        assert_eq!(err.category(), ErrorCategory::Auth);
+        assert_eq!(err.category(), ErrorCategory::Fatal);
         assert!(!err.is_retryable());
     }
 
@@ -129,7 +137,7 @@ mod tests {
             count: 3,
             severity: crate::audit::PiiSeverity::Error,
         };
-        assert_eq!(err.category(), ErrorCategory::Auth);
+        assert_eq!(err.category(), ErrorCategory::Fatal);
     }
 
     #[test]
@@ -144,12 +152,12 @@ mod tests {
         let err = SecurityError::PathNotAllowed {
             path: "/etc/passwd".into(),
         };
-        assert_eq!(err.category(), ErrorCategory::Auth);
+        assert_eq!(err.category(), ErrorCategory::Fatal);
     }
 
     #[test]
     fn error_category_security_read_only() {
-        assert_eq!(SecurityError::ReadOnlyMode.category(), ErrorCategory::Auth);
+        assert_eq!(SecurityError::ReadOnlyMode.category(), ErrorCategory::Fatal);
     }
 
     #[test]
@@ -165,5 +173,24 @@ mod tests {
 
         let err = Error::Config("x".into());
         assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn timeout_category_is_retryable() {
+        let err = Error::Io(std::io::Error::new(std::io::ErrorKind::TimedOut, "slow"));
+        assert_eq!(err.category(), ErrorCategory::Timeout);
+        assert!(err.is_retryable());
+    }
+
+    #[test]
+    fn security_policy_denials_are_fatal() {
+        assert_eq!(SecurityError::ReadOnlyMode.category(), ErrorCategory::Fatal);
+        assert_eq!(
+            SecurityError::PathNotAllowed {
+                path: "/etc/passwd".into()
+            }
+            .category(),
+            ErrorCategory::Fatal
+        );
     }
 }

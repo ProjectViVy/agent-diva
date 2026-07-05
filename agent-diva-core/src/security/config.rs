@@ -269,6 +269,9 @@ impl SecurityConfig {
         if other.max_actions_per_hour != SecurityLevel::default().default_max_actions_per_hour() {
             self.max_actions_per_hour = other.max_actions_per_hour;
         }
+        if other.global_tool_timeout_secs != default_global_tool_timeout() {
+            self.global_tool_timeout_secs = other.global_tool_timeout_secs;
+        }
         if other.token_budget_limit.is_some() {
             self.token_budget_limit = other.token_budget_limit;
         }
@@ -364,12 +367,14 @@ mod tests {
         let other = SecurityConfig {
             token_budget_limit: Some(1200),
             per_task_token_budget: Some(400),
+            global_tool_timeout_secs: 45,
             ..Default::default()
         };
 
         base.merge(other);
         assert_eq!(base.token_budget_limit, Some(1200));
         assert_eq!(base.per_task_token_budget, Some(400));
+        assert_eq!(base.global_tool_timeout_secs, 45);
     }
 
     #[test]
@@ -379,17 +384,15 @@ mod tests {
         std::fs::create_dir_all(workspace_security.parent().unwrap()).unwrap();
         std::fs::write(
             &workspace_security,
-            r#"{"token_budget_limit":321,"per_task_token_budget":123}"#,
+            r#"{"token_budget_limit":321,"per_task_token_budget":123,"global_tool_timeout_secs":17}"#,
         )
         .unwrap();
 
-        let loaded = SecurityConfig::load_budget_overrides_from_paths(
-            &workspace_security,
-            None,
-            None,
-        );
+        let loaded =
+            SecurityConfig::load_budget_overrides_from_paths(&workspace_security, None, None);
         assert_eq!(loaded.token_budget_limit, Some(321));
         assert_eq!(loaded.per_task_token_budget, Some(123));
+        assert_eq!(loaded.global_tool_timeout_secs, 17);
     }
 
     #[test]

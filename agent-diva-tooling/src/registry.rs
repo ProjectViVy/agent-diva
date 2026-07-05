@@ -121,8 +121,7 @@ impl ToolRegistry {
             }
             return Err(ToolError::InvalidParams(format!(
                 "Invalid parameters for tool '{}': {}",
-                name,
-                validation_message,
+                name, validation_message,
             )));
         }
 
@@ -179,6 +178,22 @@ impl ToolRegistry {
                     result_size: error_msg.len() as u32,
                     status: "error".to_string(),
                 });
+                let params_str = serde_json::to_string(&params).unwrap_or_default();
+                let problems = find_problematic_chars(&params_str);
+                let ctx = ErrorContext::new("tool_execution_timeout", error_msg)
+                    .with_content(&params_str)
+                    .with_metadata("tool_name", name.to_string())
+                    .with_metadata("timeout_secs", timeout_secs.to_string());
+                let ctx_str = ctx.to_detailed_string();
+                if problems.is_empty() {
+                    error!("{}", ctx_str);
+                } else {
+                    error!(
+                        "{}\n  Problematic characters found:\n    - {}",
+                        ctx_str,
+                        problems.join("\n    - ")
+                    );
+                }
                 Err(ToolError::Timeout { secs: timeout_secs })
             }
         }

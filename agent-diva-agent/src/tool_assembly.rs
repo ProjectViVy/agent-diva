@@ -34,6 +34,7 @@ pub struct ToolAssembly {
     builtin_config: BuiltInToolsConfig,
     network_config: NetworkToolConfig,
     exec_timeout: u64,
+    global_timeout_secs: u64,
     restrict_to_workspace: bool,
     mcp_servers: HashMap<String, MCPServerConfig>,
     cron_service: Option<Arc<CronService>>,
@@ -53,6 +54,7 @@ impl ToolAssembly {
             builtin_config: BuiltInToolsConfig::default(),
             network_config: NetworkToolConfig::default(),
             exec_timeout: 60,
+            global_timeout_secs: 120,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
             cron_service: None,
@@ -78,6 +80,11 @@ impl ToolAssembly {
 
     pub fn with_exec_timeout(mut self, timeout: u64) -> Self {
         self.exec_timeout = timeout;
+        self
+    }
+
+    pub fn with_global_timeout(mut self, timeout: u64) -> Self {
+        self.global_timeout_secs = timeout;
         self
     }
 
@@ -159,7 +166,7 @@ impl ToolAssembly {
             .as_ref()
             .is_some_and(ToolPolicy::is_read_only_mode);
         let action_restricted = read_only_mode || self.plan_mode;
-        let mut registry = ToolRegistry::new();
+        let mut registry = ToolRegistry::with_timeout(self.global_timeout_secs);
 
         if self.builtin_config.filesystem {
             let security_config = if self.restrict_to_workspace {
@@ -295,6 +302,8 @@ mod tests {
         name: &'static str,
     }
 
+    struct SlowTool;
+
     #[async_trait::async_trait]
     impl Tool for NamedTool {
         fn name(&self) -> &str {
@@ -315,6 +324,30 @@ mod tests {
 
         async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
             Ok("ok".to_string())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Tool for SlowTool {
+        fn name(&self) -> &str {
+            "slow_tool"
+        }
+
+        fn description(&self) -> &str {
+            "slow test tool"
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            })
+        }
+
+        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            Ok("late".to_string())
         }
     }
 
@@ -491,5 +524,20 @@ mod tests {
         assert!(!registry.has("exec"));
         assert!(!registry.has("spawn"));
         assert!(!registry.has("cron"));
+    }
+
+    #[tokio::test]
+    async fn test_tool_assembly_applies_global_timeout_to_registry() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::none())
+            .with_global_timeout(1)
+            .with_tool(Arc::new(SlowTool))
+            .build();
+
+        let result = registry.execute("slow_tool", serde_json::json!({})).await;
+        assert!(matches!(
+            result,
+            Err(agent_diva_tooling::ToolError::Timeout { secs: 1 })
+        ));
     }
 }

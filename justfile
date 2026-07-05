@@ -89,10 +89,10 @@ clean:
 
 # Verify each non-default feature gate compiles individually
 feature-gate-check:
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/feature-gate-check.ps1
+    python scripts/feature-gate-check.py
 
 # Run all checks (CI pipeline)
-ci: fmt-check check test health-benchmark-check
+ci: fmt-check check test health-benchmark-check feature-gate-check
     @echo "All checks passed!"
 
 # Run Sprint 5 local hardening checks

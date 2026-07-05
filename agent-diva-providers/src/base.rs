@@ -38,12 +38,32 @@ impl agent_diva_core::error_category::CategorizeError for ProviderError {
                 agent_diva_core::error_category::ErrorCategory::Retryable
             }
             Self::ConfigError(_) => agent_diva_core::error_category::ErrorCategory::Config,
-            Self::ApiError(_) | Self::InvalidResponse(_) => {
-                agent_diva_core::error_category::ErrorCategory::Fatal
-            }
+            Self::ApiError(message) => classify_api_error(message),
+            Self::InvalidResponse(_) => agent_diva_core::error_category::ErrorCategory::Fatal,
             Self::JsonError(_) => agent_diva_core::error_category::ErrorCategory::Unknown,
         }
     }
+}
+
+fn classify_api_error(message: &str) -> agent_diva_core::error_category::ErrorCategory {
+    let normalized = message.trim().to_ascii_lowercase();
+    if normalized.contains("timeout") || normalized.contains("timed out") {
+        return agent_diva_core::error_category::ErrorCategory::Timeout;
+    }
+
+    if let Some(status) = parse_http_status_code(message) {
+        if status == 429 || status == 408 || status == 425 || (500..=599).contains(&status) {
+            return agent_diva_core::error_category::ErrorCategory::Retryable;
+        }
+    }
+
+    agent_diva_core::error_category::ErrorCategory::Fatal
+}
+
+fn parse_http_status_code(message: &str) -> Option<u16> {
+    let rest = message.strip_prefix("HTTP ")?;
+    let code = rest.split(|c: char| !c.is_ascii_digit()).next()?;
+    code.parse().ok()
 }
 
 pub type ProviderEventStream = Pin<Box<dyn Stream<Item = ProviderResult<LLMStreamEvent>> + Send>>;
@@ -606,6 +626,22 @@ pub trait LLMProvider: Send + Sync {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn api_error_classification_preserves_retryable_server_failures() {
+        assert_eq!(
+            classify_api_error("HTTP 503: overloaded"),
+            agent_diva_core::error_category::ErrorCategory::Retryable
+        );
+        assert_eq!(
+            classify_api_error("request timed out upstream"),
+            agent_diva_core::error_category::ErrorCategory::Timeout
+        );
+        assert_eq!(
+            classify_api_error("HTTP 400: bad request"),
+            agent_diva_core::error_category::ErrorCategory::Fatal
+        );
+    }
 
     #[test]
     fn message_content_reads_legacy_string_content() {

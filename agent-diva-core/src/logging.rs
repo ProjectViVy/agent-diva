@@ -120,6 +120,10 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
         return Ok(());
     }
 
+    if days == 0 {
+        return Ok(());
+    }
+
     let now = std::time::SystemTime::now();
     let threshold = std::time::Duration::from_secs(days * 24 * 3600);
 
@@ -158,6 +162,11 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use filetime::{set_file_mtime, FileTime};
+
+    fn write_log_file(path: &std::path::Path) {
+        std::fs::write(path, "test log").unwrap();
+    }
 
     #[test]
     fn logging_retention_default_is_30() {
@@ -174,14 +183,15 @@ mod tests {
 
     #[test]
     fn logging_retention_zero_keeps_all() {
-        // With retention_days=0 the threshold duration is 0, meaning no file
-        // can be older than 0s so effectively nothing gets deleted.
-        // Actually: threshold = 0 * 24 * 3600 = 0 seconds.
-        // age > 0 is only true for files modified in the future, so no real
-        // file will be removed. This test verifies the logic with a non-existent
-        // dir (should succeed) and confirms the function accepts 0.
-        let result = cleanup_old_logs("/nonexistent/path", 0);
-        assert!(result.is_ok());
+        let temp = tempfile::tempdir().unwrap();
+        let old_log = temp.path().join("gateway.log.2026-07-01");
+        write_log_file(&old_log);
+        let old_mtime = FileTime::from_unix_time(946684800, 0);
+        set_file_mtime(&old_log, old_mtime).unwrap();
+
+        cleanup_old_logs(temp.path().to_str().unwrap(), 0).unwrap();
+
+        assert!(old_log.exists(), "retention_days=0 should keep all logs");
     }
 
     #[test]
@@ -196,5 +206,29 @@ mod tests {
         let days: u64 = 30;
         let expected_secs = days * 24 * 3600;
         assert_eq!(expected_secs, 2_592_000);
+    }
+
+    #[test]
+    fn logging_retention_removes_only_expired_gateway_logs() {
+        let temp = tempfile::tempdir().unwrap();
+        let old_log = temp.path().join("gateway.log.2026-06-01");
+        let fresh_log = temp.path().join("gateway.log.2026-07-05");
+        let unrelated = temp.path().join("notes.txt");
+        write_log_file(&old_log);
+        write_log_file(&fresh_log);
+        write_log_file(&unrelated);
+
+        let old_mtime = FileTime::from_system_time(
+            std::time::SystemTime::now() - std::time::Duration::from_secs(2 * 24 * 3600),
+        );
+        let fresh_mtime = FileTime::from_system_time(std::time::SystemTime::now());
+        set_file_mtime(&old_log, old_mtime).unwrap();
+        set_file_mtime(&fresh_log, fresh_mtime).unwrap();
+
+        cleanup_old_logs(temp.path().to_str().unwrap(), 1).unwrap();
+
+        assert!(!old_log.exists(), "expired gateway log should be removed");
+        assert!(fresh_log.exists(), "fresh gateway log should be retained");
+        assert!(unrelated.exists(), "non-gateway files should be ignored");
     }
 }

@@ -52,6 +52,8 @@ pub struct ToolConfig {
     pub planning: Option<PlanningConfig>,
     /// Shell execution timeout in seconds
     pub exec_timeout: u64,
+    /// Global wrapper timeout for tool registry execution in seconds.
+    pub global_timeout_secs: u64,
     /// Whether to restrict file access to workspace
     pub restrict_to_workspace: bool,
     /// Configured MCP servers
@@ -76,6 +78,7 @@ impl Default for ToolConfig {
             mentle: MentleToolRuntimeConfig::default(),
             planning: None,
             exec_timeout: 60,
+            global_timeout_secs: 120,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
             cron_service: None,
@@ -155,7 +158,7 @@ pub struct AgentLoopToolSetBuilder {
 impl AgentLoopToolSetBuilder {
     pub fn new(config: ToolConfig) -> Self {
         Self {
-            registry: ToolRegistry::new(),
+            registry: ToolRegistry::with_timeout(config.global_timeout_secs),
             config,
         }
     }
@@ -226,6 +229,7 @@ fn build_agent_tools(
         .with_network_config(tool_config.network.clone())
         .with_planning_config(tool_config.planning.clone())
         .with_exec_timeout(tool_config.exec_timeout)
+        .with_global_timeout(tool_config.global_timeout_secs)
         .restrict_to_workspace(tool_config.restrict_to_workspace)
         .mcp_servers(tool_config.mcp_servers.clone())
         .with_subagent_spawner(spawner)
@@ -286,10 +290,14 @@ impl AgentLoop {
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
+        let tool_config = ToolConfig {
+            global_timeout_secs: runtime_security.global_tool_timeout_secs,
+            ..ToolConfig::default()
+        };
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(SoulContextSettings::default());
         let sessions = SessionManager::new(workspace.clone());
-        let tools = ToolRegistry::new();
+        let tools = ToolRegistry::with_timeout(runtime_security.global_tool_timeout_secs);
         let memory_provider = default_memory_provider(&workspace);
         let token_ledger_data_root = workspace.join(".agent-diva");
 
@@ -323,7 +331,7 @@ impl AgentLoop {
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
             sessions,
-            tool_config: ToolConfig::default(),
+            tool_config,
             session_token_budget_limit: runtime_security.token_budget_limit,
             token_ledger_data_root,
             tools,
@@ -425,6 +433,10 @@ impl AgentLoop {
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
+        let tool_config = ToolConfig {
+            global_timeout_secs: runtime_security.global_tool_timeout_secs,
+            ..tool_config
+        };
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
         context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
@@ -2536,7 +2548,7 @@ mod tests {
         std::fs::create_dir_all(workspace.join(".agent-diva")).unwrap();
         std::fs::write(
             workspace.join(".agent-diva").join("security.json"),
-            r#"{"token_budget_limit":150,"per_task_token_budget":75}"#,
+            r#"{"token_budget_limit":150,"per_task_token_budget":75,"global_tool_timeout_secs":33}"#,
         )
         .unwrap();
 
@@ -2545,6 +2557,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(agent.session_token_budget_limit_for_test(), Some(150));
+        assert_eq!(agent.tool_config.global_timeout_secs, 33);
         assert_eq!(
             agent.subagent_manager.per_task_token_budget_for_test(),
             Some(75)

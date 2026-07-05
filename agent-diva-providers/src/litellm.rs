@@ -183,6 +183,44 @@ where
 }
 
 impl LiteLLMClient {
+    fn fallback_provider_name(&self) -> String {
+        self.selected_provider
+            .as_ref()
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| "litellm".to_string())
+    }
+
+    fn build_usage_map(&self, usage: Option<Usage>, model: &str) -> HashMap<String, i64> {
+        Self::usage_map_with_fallback(usage, &self.fallback_provider_name(), model)
+    }
+
+    fn usage_map_with_fallback(
+        usage: Option<Usage>,
+        provider: &str,
+        model: &str,
+    ) -> HashMap<String, i64> {
+        let Some(usage) = usage else {
+            tracing::warn!(
+                "Provider response missing usage field: provider={} model={}",
+                provider,
+                model
+            );
+            agent_diva_core::audit::emit(
+                agent_diva_core::audit::AuditEvent::UsageMissingFallback {
+                    provider: provider.to_string(),
+                    model: model.to_string(),
+                },
+            );
+            return HashMap::new();
+        };
+
+        let mut usage_map = HashMap::new();
+        usage_map.insert("prompt_tokens".to_string(), usage.prompt_tokens);
+        usage_map.insert("completion_tokens".to_string(), usage.completion_tokens);
+        usage_map.insert("total_tokens".to_string(), usage.total_tokens);
+        usage_map
+    }
+
     /// Create a new LiteLLM client
     pub fn new(
         api_key: Option<String>,
@@ -421,7 +459,11 @@ impl LiteLLMClient {
     }
 
     /// Parse LiteLLM response into our standard format
-    fn parse_response(&self, response: ChatCompletionResponse) -> ProviderResult<LLMResponse> {
+    fn parse_response(
+        &self,
+        response: ChatCompletionResponse,
+        model: &str,
+    ) -> ProviderResult<LLMResponse> {
         let choice = response
             .choices
             .first()
@@ -475,32 +517,7 @@ impl LiteLLMClient {
             });
         }
 
-        let usage_data = response.usage.clone().unwrap_or_default();
-        let mut usage = HashMap::new();
-        usage.insert("prompt_tokens".to_string(), usage_data.prompt_tokens);
-        usage.insert(
-            "completion_tokens".to_string(),
-            usage_data.completion_tokens,
-        );
-        usage.insert("total_tokens".to_string(), usage_data.total_tokens);
-
-        // Detect missing usage field and emit fallback warning + audit event
-        if response.usage.is_none() {
-            let provider = self
-                .selected_provider
-                .as_ref()
-                .map(|p| p.name.clone())
-                .unwrap_or_else(|| "litellm".to_string());
-            let model = self.default_model.clone();
-            tracing::warn!(
-                "Provider response missing usage field: provider={} model={}",
-                provider,
-                model
-            );
-            agent_diva_core::audit::emit(
-                agent_diva_core::audit::AuditEvent::UsageMissingFallback { provider, model },
-            );
-        }
+        let usage = self.build_usage_map(response.usage.clone(), model);
 
         Ok(LLMResponse {
             content: choice.message.content.clone(),
@@ -634,6 +651,8 @@ impl LiteLLMClient {
     }
 
     fn finalize_partial_response(
+        provider: &str,
+        model: &str,
         content: String,
         reasoning_content: String,
         partial_calls: &[PartialToolCall],
@@ -680,12 +699,7 @@ impl LiteLLMClient {
             });
         }
 
-        let mut usage_map = HashMap::new();
-        if let Some(usage) = usage {
-            usage_map.insert("prompt_tokens".to_string(), usage.prompt_tokens);
-            usage_map.insert("completion_tokens".to_string(), usage.completion_tokens);
-            usage_map.insert("total_tokens".to_string(), usage.total_tokens);
-        }
+        let usage_map = Self::usage_map_with_fallback(usage, provider, model);
 
         LLMResponse {
             content: if content.is_empty() {
@@ -836,7 +850,7 @@ impl LLMProvider for LiteLLMClient {
                 Self::log_json_error("parse_chat_completion_response", &error, &response_text);
                 ProviderError::JsonError(error)
             })?;
-        self.parse_response(response_data)
+        self.parse_response(response_data, &model)
     }
 
     async fn chat_stream(
@@ -912,6 +926,7 @@ impl LLMProvider for LiteLLMClient {
         })
         .await?;
 
+        let provider_name = self.fallback_provider_name();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         tokio::spawn(async move {
             let mut response = response;
@@ -946,6 +961,8 @@ impl LLMProvider for LiteLLMClient {
                     if payload == "[DONE]" {
                         tracing::debug!("Stream received [DONE]");
                         let final_response = Self::finalize_partial_response(
+                            &provider_name,
+                            &model,
                             content.clone(),
                             reasoning_content.clone(),
                             &partial_calls,
@@ -1020,6 +1037,8 @@ impl LLMProvider for LiteLLMClient {
             }
 
             let final_response = Self::finalize_partial_response(
+                &provider_name,
+                &model,
                 content,
                 reasoning_content,
                 &partial_calls,
@@ -1055,6 +1074,64 @@ impl Default for LiteLLMClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+
+    struct AuditCaptureLayer {
+        events: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl<S> Layer<S> for AuditCaptureLayer
+    where
+        S: tracing::Subscriber,
+    {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _ctx: tracing_subscriber::layer::Context<'_, S>,
+        ) {
+            if event.metadata().target() == "audit" {
+                let mut visitor = AuditEventVisitor::default();
+                event.record(&mut visitor);
+                if let Some(type_name) = visitor.type_name {
+                    self.events.lock().unwrap().push(type_name);
+                }
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct AuditEventVisitor {
+        type_name: Option<String>,
+    }
+
+    impl tracing::field::Visit for AuditEventVisitor {
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            if field.name() == "event" {
+                let rendered = format!("{:?}", value);
+                if let Some(end) = rendered.find(" {") {
+                    self.type_name = Some(rendered[..end].to_string());
+                } else if let Some(end) = rendered.find('(') {
+                    self.type_name = Some(rendered[..end].to_string());
+                } else {
+                    self.type_name = Some(rendered);
+                }
+            }
+        }
+    }
+
+    fn with_audit_capture<F: FnOnce()>(f: F) -> Vec<String> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let layer = AuditCaptureLayer {
+            events: events.clone(),
+        };
+        let subscriber = tracing_subscriber::registry().with(layer);
+        let _guard = subscriber.set_default();
+        f();
+        drop(_guard);
+        let captured = events.lock().unwrap().clone();
+        captured
+    }
 
     #[test]
     fn test_resolve_model() {
@@ -1151,7 +1228,9 @@ mod tests {
             }],
             usage: Some(Usage::default()),
         };
-        let result = client.parse_response(response).unwrap();
+        let result = client
+            .parse_response(response, "anthropic/claude-opus-4-5")
+            .unwrap();
         assert_eq!(result.tool_calls.len(), 1);
         assert_eq!(
             result.tool_calls[0].arguments.get("key").unwrap().as_str(),
@@ -1183,7 +1262,9 @@ mod tests {
             }],
             usage: Some(Usage::default()),
         };
-        let result = client.parse_response(response).unwrap();
+        let result = client
+            .parse_response(response, "anthropic/claude-opus-4-5")
+            .unwrap();
         assert_eq!(result.tool_calls.len(), 1);
         assert_eq!(
             result.tool_calls[0].arguments.get("key").unwrap().as_str(),
@@ -1212,7 +1293,9 @@ mod tests {
             }],
             usage: Some(Usage::default()),
         };
-        let result = client.parse_response(response).unwrap();
+        let result = client
+            .parse_response(response, "anthropic/claude-opus-4-5")
+            .unwrap();
         assert_eq!(result.tool_calls.len(), 1);
         assert!(result.tool_calls[0].arguments.contains_key("raw"));
     }
@@ -1258,6 +1341,8 @@ mod tests {
             arguments: double_encoded,
         };
         let response = LiteLLMClient::finalize_partial_response(
+            "litellm",
+            "anthropic/claude-opus-4-5",
             String::new(),
             String::new(),
             &[partial],
@@ -1561,15 +1646,11 @@ mod tests {
             }],
             usage: None,
         };
-        let result = client.parse_response(response).unwrap();
+        let result = client
+            .parse_response(response, "anthropic/claude-opus-4-5")
+            .unwrap();
         assert_eq!(result.content, Some("hello".to_string()));
-        assert!(result.usage.contains_key("prompt_tokens"));
-        assert!(result.usage.contains_key("completion_tokens"));
-        assert!(result.usage.contains_key("total_tokens"));
-        // All should be 0 since usage was missing
-        assert_eq!(result.usage.get("prompt_tokens"), Some(&0));
-        assert_eq!(result.usage.get("completion_tokens"), Some(&0));
-        assert_eq!(result.usage.get("total_tokens"), Some(&0));
+        assert!(result.usage.is_empty());
     }
 
     #[test]
@@ -1590,7 +1671,9 @@ mod tests {
                 total_tokens: 15,
             }),
         };
-        let result = client.parse_response(response).unwrap();
+        let result = client
+            .parse_response(response, "anthropic/claude-opus-4-5")
+            .unwrap();
         assert_eq!(result.content, Some("hello".to_string()));
         assert_eq!(result.usage.get("prompt_tokens"), Some(&10));
         assert_eq!(result.usage.get("completion_tokens"), Some(&5));
@@ -1614,5 +1697,31 @@ mod tests {
 
         let response: ChatCompletionResponse = serde_json::from_value(payload).unwrap();
         assert!(response.usage.is_none());
+    }
+
+    #[test]
+    fn test_finalize_partial_response_without_usage_keeps_usage_empty() {
+        let response = LiteLLMClient::finalize_partial_response(
+            "litellm",
+            "test-model",
+            "hello".to_string(),
+            String::new(),
+            &[],
+            Some("stop".to_string()),
+            None,
+        );
+
+        assert_eq!(response.content.as_deref(), Some("hello"));
+        assert!(response.usage.is_empty());
+    }
+
+    #[test]
+    fn test_usage_map_without_usage_emits_audit_fallback() {
+        let events = with_audit_capture(|| {
+            let usage = LiteLLMClient::usage_map_with_fallback(None, "litellm", "test-model");
+            assert!(usage.is_empty());
+        });
+
+        assert!(events.iter().any(|event| event == "UsageMissingFallback"));
     }
 }

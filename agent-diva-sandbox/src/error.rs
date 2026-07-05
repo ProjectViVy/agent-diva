@@ -76,16 +76,47 @@ impl agent_diva_core::error_category::CategorizeError for SandboxError {
             Self::Denied { .. } | Self::ApprovalRequired { .. } | Self::PermissionDenied { .. } => {
                 agent_diva_core::error_category::ErrorCategory::Auth
             }
-            Self::ExecutionFailed { .. } | Self::SpawnFailed(_) | Self::InvalidCommand(_) => {
-                agent_diva_core::error_category::ErrorCategory::Fatal
+            Self::ExecutionFailed { .. } | Self::SpawnFailed(_) => {
+                agent_diva_core::error_category::ErrorCategory::Retryable
             }
-            Self::PlatformNotSupported
-            | Self::PlatformError(_)
-            | Self::PlatformUnavailable { .. }
-            | Self::Disabled
-            | Self::Internal(_) => agent_diva_core::error_category::ErrorCategory::Unknown,
+            Self::InvalidCommand(_) => agent_diva_core::error_category::ErrorCategory::Fatal,
+            Self::PlatformUnavailable { .. } | Self::Disabled | Self::PlatformNotSupported => {
+                agent_diva_core::error_category::ErrorCategory::Config
+            }
+            Self::PlatformError(_) | Self::Internal(_) => {
+                agent_diva_core::error_category::ErrorCategory::Unknown
+            }
             #[cfg(windows)]
             Self::TokenCreation(_) => agent_diva_core::error_category::ErrorCategory::Fatal,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agent_diva_core::error_category::{CategorizeError, ErrorCategory};
+
+    #[test]
+    fn sandbox_timeout_is_retryable() {
+        let err = SandboxError::Timeout { secs: 2 };
+        assert_eq!(err.category(), ErrorCategory::Timeout);
+        assert!(err.is_retryable());
+    }
+
+    #[test]
+    fn sandbox_platform_unavailable_is_config() {
+        let err = SandboxError::PlatformUnavailable {
+            platform: "linux",
+            reason: "disabled".to_string(),
+        };
+        assert_eq!(err.category(), ErrorCategory::Config);
+    }
+
+    #[test]
+    fn sandbox_spawn_failure_is_retryable() {
+        let err = SandboxError::SpawnFailed("busy".to_string());
+        assert_eq!(err.category(), ErrorCategory::Retryable);
+        assert!(err.is_retryable());
     }
 }

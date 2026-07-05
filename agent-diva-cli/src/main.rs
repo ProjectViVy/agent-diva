@@ -1012,6 +1012,7 @@ async fn run_tui(
         mentle: MentleToolRuntimeConfig::from_config(&config),
         planning,
         exec_timeout: config.tools.exec.timeout,
+        global_timeout_secs: 120,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),

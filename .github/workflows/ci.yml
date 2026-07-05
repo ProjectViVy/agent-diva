@@ -23,6 +23,8 @@ on:
       - 'Cargo.lock'
       - 'justfile'
       - 'agent-diva-gui/**'
+      - 'scripts/feature-gate-check.py'
+      - 'scripts/feature-gate-check.ps1'
       - 'scripts/ci/**'
       - 'docs/app-building/**'
       - 'docs/dev/mentle-integration/**'
@@ -35,6 +37,8 @@ on:
       - 'Cargo.lock'
       - 'justfile'
       - 'agent-diva-gui/**'
+      - 'scripts/feature-gate-check.py'
+      - 'scripts/feature-gate-check.ps1'
       - 'scripts/ci/**'
       - 'docs/app-building/**'
       - 'docs/dev/mentle-integration/**'
@@ -92,6 +96,9 @@ jobs:
 
       - name: Run Sprint 5 default-lane regressions
         run: just sprint5-default-check
+
+      - name: Run feature gate check
+        run: just feature-gate-check
 
       - name: Run tests
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_tests == 'true'
