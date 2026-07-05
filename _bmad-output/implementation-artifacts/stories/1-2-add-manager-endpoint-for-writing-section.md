@@ -1,6 +1,11 @@
+---
+baseline_commit: 68f37ca16e91aac0cffe421b17d20820047dcd9b
+status: review
+---
+
 # Story 1.2: Add manager endpoint for writing a section
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -36,9 +41,9 @@ So that the GUI can request auditable section writes over HTTP.
 
 ## Tasks / Subtasks
 
-- [ ] **Add request DTO in `agent-diva-manager/src/handlers/laputa.rs`** (AC: #1)
-  - [ ] Open `agent-diva-manager/src/handlers/laputa.rs`
-  - [ ] Add a new payload struct:
+- [x] **Add request DTO in `agent-diva-manager/src/handlers/laputa.rs`** (AC: #1)
+  - [x] Open `agent-diva-manager/src/handlers/laputa.rs`
+  - [x] Add a new payload struct:
         ```rust
         #[derive(Debug, Deserialize)]
         pub struct WriteLaputaSectionPayload {
@@ -47,10 +52,10 @@ So that the GUI can request auditable section writes over HTTP.
             pub summary: Option<String>,
         }
         ```
-  - [ ] The `summary` field is accepted for forward compatibility; it may be ignored by the first implementation or included in proposal evidence if `LaputaService` supports it.
+  - [x] The `summary` field is accepted for forward compatibility; it may be ignored by the first implementation or included in proposal evidence if `LaputaService` supports it.
 
-- [ ] **Implement `write_laputa_section_handler`** (AC: #1, #2, #4)
-  - [ ] Add a new async handler function in `agent-diva-manager/src/handlers/laputa.rs`:
+- [x] **Implement `write_laputa_section_handler`** (AC: #1, #2, #4)
+  - [x] Add a new async handler function in `agent-diva-manager/src/handlers/laputa.rs`:
         ```rust
         pub async fn write_laputa_section_handler(
             State(state): State<AppState>,
@@ -82,50 +87,50 @@ So that the GUI can request auditable section writes over HTTP.
             }))
         }
         ```
-  - [ ] Reuse the existing `JsonResult`, `ok`, `error_response`, and `laputa_error_response` helpers already defined in the module.
-  - [ ] Use the same `LaputaSectionName::from_str` parsing and `404` mapping pattern as `get_laputa_section_handler`.
+  - [x] Reuse the existing `JsonResult`, `ok`, `error_response`, and `laputa_error_response` helpers already defined in the module.
+  - [x] Use the same `LaputaSectionName::from_str` parsing and `404` mapping pattern as `get_laputa_section_handler`.
 
-- [ ] **Register the route in `agent-diva-manager/src/server.rs`** (AC: #5)
-  - [ ] Open `agent-diva-manager/src/server.rs`
-  - [ ] Import the new handler at the top of the file:
+- [x] **Register the route in `agent-diva-manager/src/server.rs`** (AC: #5)
+  - [x] Open `agent-diva-manager/src/server.rs`
+  - [x] Import the new handler at the top of the file:
         ```rust
         use crate::handlers::{
             // ... existing imports ...
             write_laputa_section_handler,
         };
         ```
-  - [ ] In `laputa_routes()`, add:
+  - [x] In `laputa_routes()`, add:
         ```rust
         .route(
             "/api/laputa/section/:name/write",
             post(write_laputa_section_handler),
         )
         ```
-  - [ ] Place the new route immediately after the existing `GET /api/laputa/section/:name` line to keep section routes grouped.
+  - [x] Place the new route immediately after the existing `GET /api/laputa/section/:name` line to keep section routes grouped.
 
-- [ ] **Add manager-level integration tests** (AC: #1, #2, #3, #4, #6)
-  - [ ] Open `agent-diva-manager/src/server.rs` (existing `#[cfg(test)]` module at the bottom)
-  - [ ] Add tests using the existing `AppState::new(..., temp.path())` helper and `tower::ServiceExt::oneshot` pattern.
-  - [ ] Test successful write:
+- [x] **Add manager-level integration tests** (AC: #1, #2, #3, #4, #6)
+  - [x] Open `agent-diva-manager/src/server.rs` (existing `#[cfg(test)]` module at the bottom)
+  - [x] Add tests using the existing `AppState::new(..., temp.path())` helper and `tower::ServiceExt::oneshot` pattern.
+  - [x] Test successful write:
     - Build router with a temp workspace.
     - POST `{"content":"{\"note\":\"hello\"}"}` to `/api/laputa/section/memory_md/write`.
     - Assert status `200` and response contains non-empty `changelog_id` and `applied_at`.
     - Optionally verify the section content was updated via `state.laputa.read_section(...)`.
-  - [ ] Test unknown section:
+  - [x] Test unknown section:
     - POST to `/api/laputa/section/not_a_section/write`.
     - Assert status `404` and `code == "unknown_section"`.
-  - [ ] Test malformed JSON:
+  - [x] Test malformed JSON:
     - POST invalid JSON body.
     - Assert status `400`.
-  - [ ] Test schema-incompatible payload:
+  - [x] Test schema-incompatible payload:
     - POST non-JSON content to a JSON-only section like `memory_md`.
     - Assert status `422` and `code == "schema_incompatible"`.
 
-- [ ] **Run validation gates** (AC: #6)
-  - [ ] `cargo test -p agent-diva-manager`
-  - [ ] `just fmt-check`
-  - [ ] `just check`
-  - [ ] Optional manual smoke test: start the manager and `curl` the endpoint.
+- [x] **Run validation gates** (AC: #6)
+  - [x] `cargo test -p agent-diva-manager`
+  - [x] `just fmt-check`
+  - [x] `just check`
+  - [x] Optional manual smoke test: start the manager and `curl` the endpoint.
 
 ## Dev Notes
 
@@ -199,22 +204,29 @@ Response body (error):
 
 ### Agent Model Used
 
-(To be filled during implementation)
+kimi-for-coding
 
 ### Debug Log References
 
-(To be filled during implementation)
+- `cargo test -p agent-diva-manager`: 56 passed (including 4 new write-endpoint tests)
+- `just fmt-check`: clean
+- `just check`: clean
 
 ### Completion Notes List
 
-- [ ] `WriteLaputaSectionPayload` added to `agent-diva-manager/src/handlers/laputa.rs`
-- [ ] `write_laputa_section_handler` implemented and returns `{ changelog_id, applied_at }`
-- [ ] Route `POST /api/laputa/section/:name/write` registered in `agent-diva-manager/src/server.rs`
-- [ ] Manager integration tests added and passing
-- [ ] `cargo test -p agent-diva-manager` passes
-- [ ] `just fmt-check && just check` clean
+- [x] `WriteLaputaSectionPayload` added to `agent-diva-manager/src/handlers/laputa.rs`
+- [x] `write_laputa_section_handler` implemented and returns `{ changelog_id, applied_at }`
+- [x] Route `POST /api/laputa/section/:name/write` registered in `agent-diva-manager/src/server.rs`
+- [x] Manager integration tests added and passing
+- [x] `cargo test -p agent-diva-manager` passes
+- [x] `just fmt-check && just check` clean
 
 ### File List
 
 - `agent-diva-manager/src/handlers/laputa.rs`
+- `agent-diva-manager/src/handlers.rs`
 - `agent-diva-manager/src/server.rs`
+
+### Change Log
+
+- 2026-07-05: Implemented `POST /api/laputa/section/:name/write` handler, registered route, and added manager integration tests. Validation gates passed.

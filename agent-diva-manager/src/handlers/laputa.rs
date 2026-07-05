@@ -72,6 +72,13 @@ pub struct EventQuery {
     pub since: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct WriteLaputaSectionPayload {
+    pub content: String,
+    pub actor: Option<String>,
+    pub summary: Option<String>,
+}
+
 pub async fn list_laputa_proposals_handler(
     State(state): State<AppState>,
     Query(query): Query<ProposalQuery>,
@@ -196,6 +203,36 @@ pub async fn get_laputa_section_handler(
         .read_section(section)
         .map_err(laputa_error_response)?;
     ok(serde_json::json!({ "status": "ok", "section": section }))
+}
+
+pub async fn write_laputa_section_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(payload): Json<WriteLaputaSectionPayload>,
+) -> JsonResult {
+    let section = LaputaSectionName::from_str(&name).map_err(|_| {
+        error_response(
+            StatusCode::NOT_FOUND,
+            "unknown_section",
+            format!("unknown Laputa section: {name}"),
+        )
+    })?;
+
+    let outcome = state
+        .laputa
+        .create_and_apply_direct_edit(
+            section,
+            payload.content,
+            payload.actor.unwrap_or_else(|| "api".to_string()),
+            Utc::now(),
+        )
+        .map_err(laputa_error_response)?;
+
+    ok(serde_json::json!({
+        "status": "ok",
+        "changelog_id": outcome.changelog.id,
+        "applied_at": outcome.changelog.created_at,
+    }))
 }
 
 pub async fn list_laputa_changelog_handler(

@@ -28,7 +28,7 @@ use crate::handlers::{
     transition_laputa_proposal_handler, trigger_autodream_run_handler, update_channel_handler,
     update_config_handler, update_cron_job_handler, update_mcp_handler, update_provider_handler,
     update_self_evolution_config_handler, update_tools_handler, upload_file_handler,
-    upload_skill_handler,
+    upload_skill_handler, write_laputa_section_handler,
 };
 use crate::state::AppState;
 
@@ -129,6 +129,10 @@ fn laputa_routes() -> Router<AppState> {
         )
         .route("/api/laputa/snapshot", get(get_laputa_snapshot_handler))
         .route("/api/laputa/section/:name", get(get_laputa_section_handler))
+        .route(
+            "/api/laputa/section/:name/write",
+            post(write_laputa_section_handler),
+        )
         .route("/api/laputa/changelog", get(list_laputa_changelog_handler))
         .route(
             "/api/laputa/changelog/:id",
@@ -433,5 +437,123 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn write_laputa_section_success() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+
+        let app = build_router(state.clone());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/laputa/section/memory_md/write")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"{\"note\":\"hello\"}"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "ok");
+        assert!(
+            value["changelog_id"]
+                .as_str()
+                .unwrap()
+                .starts_with("changelog-"),
+            "expected changelog id, got {}",
+            value["changelog_id"]
+        );
+        assert!(value["applied_at"].as_str().is_some());
+
+        let section = state
+            .laputa
+            .read_section(LaputaSectionName::MemoryMd)
+            .unwrap();
+        assert_eq!(section.content, serde_json::json!({"note": "hello"}));
+    }
+
+    #[tokio::test]
+    async fn write_laputa_section_unknown() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+
+        let app = build_router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/laputa/section/not_a_section/write")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"{}"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "error");
+        assert_eq!(value["code"], "unknown_section");
+    }
+
+    #[tokio::test]
+    async fn write_laputa_section_malformed_json() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+
+        let app = build_router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/laputa/section/memory_md/write")
+                    .header("content-type", "application/json")
+                    .body(Body::from("not-json"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn write_laputa_section_schema_incompatible() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+
+        let app = build_router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/laputa/section/memory_md/write")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"plain text"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "error");
+        assert_eq!(value["code"], "schema_incompatible");
     }
 }

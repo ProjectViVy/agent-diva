@@ -22,7 +22,7 @@ pub use laputa::{
     get_laputa_changelog_handler, get_laputa_proposal_handler, get_laputa_section_handler,
     get_laputa_snapshot_handler, list_laputa_changelog_handler, list_laputa_proposals_handler,
     poll_laputa_events_handler, rollback_laputa_changelog_handler, stream_laputa_events_handler,
-    transition_laputa_proposal_handler,
+    transition_laputa_proposal_handler, write_laputa_section_handler,
 };
 
 pub use planning::{
