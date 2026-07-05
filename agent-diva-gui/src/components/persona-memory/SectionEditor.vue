@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { LaputaSection, LaputaSectionName } from '../../api/desktop';
+
+const { t } = useI18n();
 
 interface Props {
   sectionName: LaputaSectionName;
@@ -23,13 +26,14 @@ watch(() => props.sectionName, () => {
 
 <template>
   <div class="section-editor">
-    <div v-if="loading" class="section-editor-loading">Loading…</div>
+    <div v-if="loading" class="section-editor-loading">{{ t('laputa.loading') }}</div>
     <div v-else-if="error" class="section-editor-placeholder">
       {{ error }}
     </div>
     <div v-else class="section-editor-placeholder">
       <strong>{{ sectionName }}</strong>
-      <span>Section editor placeholder</span>
+      <span>{{ t('laputa.emptyTitle') }}</span>
+      <span>{{ t('laputa.emptyDesc') }}</span>
     </div>
   </div>
 </template>
@@ -52,6 +56,7 @@ watch(() => props.sectionName, () => {
   gap: 8px;
   color: var(--text-muted);
   font-size: 14px;
+  text-align: center;
 }
 
 .section-editor-placeholder strong {

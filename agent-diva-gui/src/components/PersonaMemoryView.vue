@@ -25,9 +25,18 @@ const error = ref('');
 const isDirty = ref(false);
 const sectionContent = ref<LaputaSection | null>(null);
 
+function hasMessage(err: unknown): err is { message: unknown } {
+  return (
+    err !== null &&
+    err !== undefined &&
+    typeof err === 'object' &&
+    'message' in err
+  );
+}
+
 function normalizeError(err: unknown): string {
-  if (err && typeof err === 'object' && 'message' in err) {
-    return String((err as { message: unknown }).message);
+  if (hasMessage(err)) {
+    return String(err.message);
   }
   return err instanceof Error ? err.message : String(err);
 }
@@ -129,7 +138,15 @@ onMounted(() => {
 
     <div class="persona-memory-body">
       <div class="persona-memory-list">
+        <template v-if="loading && !snapshot">
+          <div v-for="i in 6" :key="i" class="persona-memory-skeleton-item">
+            <div class="skeleton-line short" />
+            <div class="skeleton-line" />
+          </div>
+        </template>
+
         <SectionGroupList
+          v-else
           :snapshot="snapshot"
           :selected-section="selectedSection"
           @select="onSectionSelect"
@@ -137,25 +154,38 @@ onMounted(() => {
       </div>
 
       <div class="persona-memory-detail">
-        <div v-if="error" class="persona-memory-error" role="status">
-          <AlertCircle :size="17" />
-          <div>
-            <strong>{{ t('laputa.loadError') }}</strong>
-            <p>{{ error }}</p>
+        <template v-if="loading && !snapshot">
+          <div class="persona-memory-detail-skeleton">
+            <div class="skeleton-line title" />
+            <div class="skeleton-line" />
+            <div class="skeleton-line" />
+            <div class="skeleton-line short" />
+            <div class="skeleton-line" />
+            <div class="skeleton-line medium" />
           </div>
-          <button class="persona-memory-retry" type="button" @click="onRefresh">
-            {{ t('laputa.retry') }}
-          </button>
-        </div>
+        </template>
 
-        <SectionEditor
-          :section-name="selectedSection"
-          :section="sectionContent"
-          :loading="loading"
-          :error="error"
-          @update:dirty="isDirty = $event"
-          @refresh="loadSection(selectedSection)"
-        />
+        <template v-else>
+          <div v-if="error" class="persona-memory-error" role="status">
+            <AlertCircle :size="17" />
+            <div>
+              <strong>{{ t('laputa.loadError') }}</strong>
+              <p>{{ error }}</p>
+            </div>
+            <button class="persona-memory-retry" type="button" @click="onRefresh">
+              {{ t('laputa.retry') }}
+            </button>
+          </div>
+
+          <SectionEditor
+            :section-name="selectedSection"
+            :section="sectionContent"
+            :loading="loading"
+            :error="error"
+            @update:dirty="isDirty = $event"
+            @refresh="loadSection(selectedSection)"
+          />
+        </template>
       </div>
     </div>
   </div>
@@ -272,6 +302,33 @@ onMounted(() => {
 
 .persona-memory-retry:hover {
   background: var(--danger-bg);
+}
+
+.persona-memory-skeleton-item {
+  padding: 12px;
+  margin-bottom: 4px;
+}
+
+.persona-memory-detail-skeleton {
+  padding: 24px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--accent-bg-light);
+  margin-bottom: 10px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-line.short { width: 40%; }
+.skeleton-line.medium { width: 65%; }
+.skeleton-line.long { width: 85%; }
+.skeleton-line.title { width: 55%; height: 18px; margin-bottom: 16px; }
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
 }
 
 .spin {
