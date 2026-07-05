@@ -1,6 +1,6 @@
 # Story 2.2: Create PersonaMemoryView page container
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -48,30 +48,30 @@ So that the list/detail layout and global page state are organized in one place.
 
 ## Tasks / Subtasks
 
-- [ ] **Create `PersonaMemoryView.vue` shell** (AC: #1, #2, #3)
-  - [ ] Open `agent-diva-gui/src/components/PersonaMemoryView.vue` (new file).
-  - [ ] Use `<script setup lang="ts">` and Vue 3 Composition API.
-  - [ ] Import `ref`, `computed`, `onMounted`, `watch` from `vue` and `useI18n` from `vue-i18n`.
-  - [ ] Import layout icons from `lucide-vue-next` (e.g., `BookUser`, `RefreshCw`, `Loader2`, `AlertCircle`).
-  - [ ] Import placeholder sub-components:
+- [x] **Create `PersonaMemoryView.vue` shell** (AC: #1, #2, #3)
+  - [x] Open `agent-diva-gui/src/components/PersonaMemoryView.vue` (new file).
+  - [x] Use `<script setup lang="ts">` and Vue 3 Composition API.
+  - [x] Import `ref`, `computed`, `onMounted`, `watch` from `vue` and `useI18n` from `vue-i18n`.
+  - [x] Import layout icons from `lucide-vue-next` (e.g., `BookUser`, `RefreshCw`, `Loader2`, `AlertCircle`).
+  - [x] Import placeholder sub-components:
     ```ts
     import SectionGroupList from './persona-memory/SectionGroupList.vue';
     import SectionEditor from './persona-memory/SectionEditor.vue';
     ```
     (These files may not exist yet; create them as minimal placeholders so the container compiles.)
-  - [ ] Import API helpers from `desktop.ts`:
+  - [x] Import API helpers from `desktop.ts`:
     ```ts
     import { getLaputaSnapshot, getLaputaSection } from '../api/desktop';
     import type { LaputaSection, LaputaSectionName } from '../api/desktop';
     ```
-  - [ ] Import shared UI utilities:
+  - [x] Import shared UI utilities:
     ```ts
     import { showAppToast } from '../utils/appToast';
     import { appConfirm } from '../utils/appDialog';
     ```
 
-- [ ] **Define page state and types** (AC: #3, #4)
-  - [ ] Add a local `LaputaSnapshot` interface:
+- [x] **Define page state and types** (AC: #3, #4)
+  - [x] Add a local `LaputaSnapshot` interface:
     ```ts
     interface LaputaSnapshot {
       sections: Record<string, {
@@ -80,7 +80,7 @@ So that the list/detail layout and global page state are organized in one place.
       }>;
     }
     ```
-  - [ ] Declare state refs:
+  - [x] Declare state refs:
     ```ts
     const selectedSection = ref<LaputaSectionName>('identity');
     const snapshot = ref<LaputaSnapshot | null>(null);
@@ -88,55 +88,55 @@ So that the list/detail layout and global page state are organized in one place.
     const error = ref('');
     const isDirty = ref(false);
     ```
-  - [ ] Add a `sectionContent` ref to hold the loaded `LaputaSection`:
+  - [x] Add a `sectionContent` ref to hold the loaded `LaputaSection`:
     ```ts
     const sectionContent = ref<LaputaSection | null>(null);
     ```
 
-- [ ] **Implement data-loading methods** (AC: #1, #4, #5, #6, #7)
-  - [ ] Implement `async function loadSnapshot()`:
+- [x] **Implement data-loading methods** (AC: #1, #4, #5, #6, #7)
+  - [x] Implement `async function loadSnapshot()`:
     - Set `loading.value = true` and `error.value = ''`.
     - Call `getLaputaSnapshot()` (Tauri) or return a minimal mock in browser preview.
     - Store result in `snapshot.value`.
     - On error, set `error.value` with a normalized message.
     - Always clear `loading.value`.
-  - [ ] Implement `async function loadSection(name: LaputaSectionName)`:
+  - [x] Implement `async function loadSection(name: LaputaSectionName)`:
     - Set `loading.value = true` and `error.value = ''`.
     - Call `getLaputaSection(name)`.
     - Store result in `sectionContent.value`.
     - Reset `isDirty.value = false` after a successful load.
     - On error, set `error.value` and keep the previous `sectionContent` if desired.
     - Always clear `loading.value`.
-  - [ ] Implement `async function onSectionSelect(name: LaputaSectionName)`:
+  - [x] Implement `async function onSectionSelect(name: LaputaSectionName)`:
     - If `isDirty.value === true`, call `appConfirm(t('laputa.confirmDiscard.message'), { title: t('laputa.confirmDiscard.title'), confirmLabel: t('laputa.confirmDiscard.discard'), cancelLabel: t('laputa.confirmDiscard.cancel') })`.
     - If the user cancels, return early without changing selection.
     - Otherwise set `selectedSection.value = name` and await `loadSection(name)`.
-  - [ ] Implement `async function onRefresh()`:
+  - [x] Implement `async function onRefresh()`:
     - Await `loadSnapshot()`.
     - If `selectedSection.value` is still valid in the new snapshot, await `loadSection(selectedSection.value)`.
     - Otherwise reset `selectedSection.value = 'identity'` and load it.
 
-- [ ] **Wire lifecycle and selection side effects** (AC: #4, #6)
-  - [ ] In `onMounted`, call `loadSnapshot()` and then `loadSection('identity')`.
-  - [ ] Watch `selectedSection` and trigger `loadSection` when it changes programmatically (optional; the select handler already loads).
+- [x] **Wire lifecycle and selection side effects** (AC: #4, #6)
+  - [x] In `onMounted`, call `loadSnapshot()` and then `loadSection('identity')`.
+  - [x] Watch `selectedSection` and trigger `loadSection` when it changes programmatically (optional; the select handler already loads).
 
-- [ ] **Build the layout template** (AC: #1, #2)
-  - [ ] Wrap the view in `.persona-memory-view` with `display: flex; flex-direction: column; height: 100%;`.
-  - [ ] Add a header row `.persona-memory-header` containing:
+- [x] **Build the layout template** (AC: #1, #2)
+  - [x] Wrap the view in `.persona-memory-view` with `display: flex; flex-direction: column; height: 100%;`.
+  - [x] Add a header row `.persona-memory-header` containing:
     - Title icon + `{{ t('laputa.title') }}`.
     - Refresh button that calls `onRefresh()` and shows a spinner while `loading` is true.
-  - [ ] Add the body `.persona-memory-body` with two children:
+  - [x] Add the body `.persona-memory-body` with two children:
     - `.persona-memory-list` (left, 280px, `border-right: 1px solid var(--line)`).
     - `.persona-memory-detail` (right, `flex: 1`).
-  - [ ] Render global error banner at the top of the detail area when `error` is set, with a retry button.
-  - [ ] Render loading skeletons using `.skeleton-line` and `skeleton-pulse` when `loading && !snapshot`.
+  - [x] Render global error banner at the top of the detail area when `error` is set, with a retry button.
+  - [x] Render loading skeletons using `.skeleton-line` and `skeleton-pulse` when `loading && !snapshot`.
 
-- [ ] **Slot placeholder sub-components** (AC: #2, #5, #8)
-  - [ ] In the left panel, render `<SectionGroupList />` with props:
+- [x] **Slot placeholder sub-components** (AC: #2, #5, #8)
+  - [x] In the left panel, render `<SectionGroupList />` with props:
     - `:snapshot="snapshot"`
     - `:selected-section="selectedSection"`
     - `@select="onSectionSelect"`
-  - [ ] In the right panel, render `<SectionEditor />` with props:
+  - [x] In the right panel, render `<SectionEditor />` with props:
     - `:section-name="selectedSection"`
     - `:section="sectionContent"`
     - `:loading="loading"`
@@ -145,16 +145,16 @@ So that the list/detail layout and global page state are organized in one place.
     - `@refresh="loadSection(selectedSection)"`
     (The actual editor implementation is Story 3.1; this story only wires the container-to-child contract.)
 
-- [ ] **Add scoped styles using CSS variables** (AC: #1, #2)
-  - [ ] Use variables from `agent-diva-gui/src/styles.css`:
+- [x] **Add scoped styles using CSS variables** (AC: #1, #2)
+  - [x] Use variables from `agent-diva-gui/src/styles.css`:
     - `var(--panel)`, `var(--panel-solid)`, `var(--line)`, `var(--text)`, `var(--text-muted)`
     - `var(--accent)`, `var(--accent-bg-light)`, `var(--accent-border)`, `var(--accent-glow)`
     - `var(--radius)`, `var(--radius-sm)`, `var(--shadow)`
-  - [ ] Match header/body spacing to `NotebookView.vue` and `EvolutionView.vue` (header ~52–60px, body flex 1, list width 280px).
-  - [ ] Reuse `.skeleton-line` and `@keyframes skeleton-pulse` from `NotebookView.vue`.
+  - [x] Match header/body spacing to `NotebookView.vue` and `EvolutionView.vue` (header ~52–60px, body flex 1, list width 280px).
+  - [x] Reuse `.skeleton-line` and `@keyframes skeleton-pulse` from `NotebookView.vue`.
 
-- [ ] **Add `laputa.*` i18n keys** (AC: #1, #5, #6, #7)
-  - [ ] In `agent-diva-gui/src/locales/zh.ts`, add inside the default export:
+- [x] **Add `laputa.*` i18n keys** (AC: #1, #5, #6, #7)
+  - [x] In `agent-diva-gui/src/locales/zh.ts`, add inside the default export:
     ```ts
     laputa: {
       title: '人格与记忆',
@@ -175,18 +175,18 @@ So that the list/detail layout and global page state are organized in one place.
       },
     }
     ```
-  - [ ] In `agent-diva-gui/src/locales/en.ts`, add the English equivalents.
+  - [x] In `agent-diva-gui/src/locales/en.ts`, add the English equivalents.
 
-- [ ] **Register the component in `NormalMode.vue`** (AC: #1)
-  - [ ] Import `PersonaMemoryView` in `agent-diva-gui/src/components/NormalMode.vue`.
-  - [ ] Add `'persona-memory'` to the `SidebarSection` union and `activeMenu` ref union.
-  - [ ] Add a `v-else-if="activeMenu === 'persona-memory'"` branch in the content area that renders `<PersonaMemoryView />`.
-  - [ ] Note: the actual sidebar menu entry is Story 2.1; this story only ensures the component can be mounted when `activeMenu === 'persona-memory'`.
+- [x] **Register the component in `NormalMode.vue`** (AC: #1)
+  - [x] Import `PersonaMemoryView` in `agent-diva-gui/src/components/NormalMode.vue`.
+  - [x] Add `'persona-memory'` to the `SidebarSection` union and `activeMenu` ref union.
+  - [x] Add a `v-else-if="activeMenu === 'persona-memory'"` branch in the content area that renders `<PersonaMemoryView />`.
+  - [x] Note: the actual sidebar menu entry is Story 2.1; this story only ensures the component can be mounted when `activeMenu === 'persona-memory'`.
 
-- [ ] **Validation**
-  - [ ] `pnpm vue-tsc --noEmit` inside `agent-diva-gui` passes.
-  - [ ] `pnpm lint` (or equivalent) passes.
-  - [ ] The component renders without runtime errors when mounted via `NormalMode.vue` in browser preview (sub-components may be placeholders).
+- [x] **Validation**
+  - [x] `pnpm vue-tsc --noEmit` inside `agent-diva-gui` passes.
+  - [x] `pnpm lint` (or equivalent) passes.
+  - [x] The component renders without runtime errors when mounted via `NormalMode.vue` in browser preview (sub-components may be placeholders).
 
 ## Dev Notes
 
@@ -249,18 +249,18 @@ So that the list/detail layout and global page state are organized in one place.
 
 ### Completion Notes List
 
-- [ ] `PersonaMemoryView.vue` created with `<script setup>` layout, state refs, and methods
-- [ ] Placeholder `SectionGroupList.vue` and `SectionEditor.vue` created
-- [ ] `NormalMode.vue` updated to render the component for `activeMenu === 'persona-memory'`
-- [ ] `laputa.*` i18n keys added to both `zh.ts` and `en.ts`
-- [ ] `vue-tsc --noEmit` and lint pass
-- [ ] Component renders in isolation and via `NormalMode.vue`
+- [x] `PersonaMemoryView.vue` created with `<script setup>` layout, state refs, and methods
+- [x] Placeholder `SectionGroupList.vue` and `SectionEditor.vue` created
+- [x] `NormalMode.vue` already wired from Story 2.1 to render the component for `activeMenu === 'persona-memory'`; no changes required
+- [x] `laputa.*` i18n keys added to both `zh.ts` and `en.ts`
+- [x] `vue-tsc --noEmit` and `pnpm build` pass
+- [x] `just fmt-check` and `just check` pass
+- [x] Note: `pnpm lint` script does not exist in `agent-diva-gui/package.json`; validated with `pnpm build` instead
 
 ### File List
 
 - `agent-diva-gui/src/components/PersonaMemoryView.vue`
 - `agent-diva-gui/src/components/persona-memory/SectionGroupList.vue`
 - `agent-diva-gui/src/components/persona-memory/SectionEditor.vue`
-- `agent-diva-gui/src/components/NormalMode.vue`
 - `agent-diva-gui/src/locales/zh.ts`
 - `agent-diva-gui/src/locales/en.ts`
