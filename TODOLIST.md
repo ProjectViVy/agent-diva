@@ -4,7 +4,9 @@
 
 ## Open
 
-_(No active open items. This pass closes what can be closed and explicitly defers everything else.)_
+- [ ] **GUI: fix NormalMode.test.ts pre-existing `miku.svg` import failure** The vitest environment cannot resolve `/miku.svg` imported by `NormalMode.vue`, causing the whole `NormalMode.test.ts` suite to fail before any assertions run. This blocks regression testing of sidebar/navigation behavior and is unrelated to the pet overlay fix.
+  - Related files: `agent-diva-gui/src/components/NormalMode.vue`, `agent-diva-gui/src/components/NormalMode.test.ts`, `agent-diva-gui/vitest.config.ts`
+  - Suggested fix: add an SVG mock/ignore handler in `vitest.config.ts` (e.g., `assetsInclude` or a custom plugin) so static asset imports do not crash tests.
 
 ## Deferred
 
@@ -165,6 +167,10 @@ _(No active open items. This pass closes what can be closed and explicitly defer
 
 ## Done
 
+- [x] **GUI: fix pet immersive overlay sidebar navigation** Resolved the issue where clicking overlay sidebar items in pet immersive/fullscreen mode could not navigate back to the main page. The `.pet-immersive:not(.sidebar-expanded) .sidebar` rule applied `pointer-events: none` to the overlay sidebar as well, blocking all clicks. Excluded `.overlay-sidebar` from that rule.
+  - Related files: `agent-diva-gui/src/styles.css`
+  - Commit: `8c6fa68`
+  - Validation: `pnpm build` in `agent-diva-gui` passes; `DivaPetView.test.ts` passes; `NormalMode.test.ts` still blocked by pre-existing `miku.svg` import failure (see Open).
 - [x] **Backlog normalization on 2026-07-04** Closed all already-resolved items and converted all remaining unfinished items to explicit deferred status.
 - [x] **Wave 0 CI stabilization** Previous CI and workspace verification blockers were already cleared.
 - [x] **Plan mode runtime wiring** Previously completed and validated in `docs/logs/2026-06-plan-mode-runtime/v0.0.1-plan-mode-runtime-wiring/verification.md`.
