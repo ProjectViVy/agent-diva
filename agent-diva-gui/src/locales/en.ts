@@ -1216,6 +1216,11 @@ export default {
     retry: 'Retry',
     history: 'History',
     save: 'Save',
+    saved: 'Saved',
+    saveFailed: 'Save failed: {message}',
+    saving: 'Saving…',
+    copy: 'Copy content',
+    copied: 'Copied',
     emptyTitle: 'This section has no content yet',
     emptyDesc: 'Enter Markdown content in the editor on the right, then click save.',
     uninitializedTitle: 'Laputa is not initialized',
@@ -1225,6 +1230,16 @@ export default {
       message: 'The current section has unsaved changes. Switching will discard them. Discard?',
       cancel: 'Cancel',
       discard: 'Discard',
+    },
+    confirmSave: {
+      title: 'Confirm Save',
+      message: 'Overwrite current content for {section}? This will create an audit record.',
+      confirm: 'Overwrite',
+      cancel: 'Cancel',
+    },
+    historyModal: {
+      title: 'Change history for {section}',
+      empty: 'No change records yet',
     },
     groups: {
       persona: 'Persona',

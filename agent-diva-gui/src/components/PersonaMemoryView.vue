@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { BookUser, RefreshCw, Loader2 } from 'lucide-vue-next';
+import { BookUser, RefreshCw, Loader2, Inbox } from 'lucide-vue-next';
 import SectionGroupList from './persona-memory/SectionGroupList.vue';
 import SectionEditor from './persona-memory/SectionEditor.vue';
+import PersonaMemoryEmptyState from './persona-memory/PersonaMemoryEmptyState.vue';
+import PersonaMemoryErrorState from './persona-memory/PersonaMemoryErrorState.vue';
 import { getLaputaSnapshot, getLaputaSection, isTauriRuntime } from '../api/desktop';
 import type { LaputaSection, LaputaSectionName } from '../api/desktop';
 import { showAppToast } from '../utils/appToast';
@@ -20,10 +22,13 @@ interface LaputaSnapshot {
 
 const selectedSection = ref<LaputaSectionName>('identity');
 const snapshot = ref<LaputaSnapshot | null>(null);
-const loading = ref(false);
-const error = ref('');
+const loadingSnapshot = ref(false);
+const loadingSection = ref(false);
+const sectionError = ref('');
+const saveError = ref('');
 const isDirty = ref(false);
 const sectionContent = ref<LaputaSection | null>(null);
+const draftContent = ref('');
 
 const selectedSectionMeta = computed(() => {
   return snapshot.value?.sections[selectedSection.value] ?? null;
@@ -33,6 +38,10 @@ const sectionContentString = computed(() => {
   const raw = sectionContent.value?.content;
   if (raw === null || raw === undefined) return '';
   return String(raw);
+});
+
+const isUninitialized = computed(() => {
+  return snapshot.value !== null && Object.keys(snapshot.value.sections).length === 0;
 });
 
 function hasMessage(err: unknown): err is { message: unknown } {
@@ -52,8 +61,9 @@ function normalizeError(err: unknown): string {
 }
 
 async function loadSnapshot(): Promise<void> {
-  loading.value = true;
-  error.value = '';
+  loadingSnapshot.value = true;
+  sectionError.value = '';
+  saveError.value = '';
   try {
     if (isTauriRuntime()) {
       const raw = await getLaputaSnapshot();
@@ -72,28 +82,30 @@ async function loadSnapshot(): Promise<void> {
       snapshot.value = { sections: {} };
     }
   } catch (err: unknown) {
-    error.value = normalizeError(err);
+    sectionError.value = normalizeError(err);
     showAppToast(t('laputa.loadError'), 'error');
   } finally {
-    loading.value = false;
+    loadingSnapshot.value = false;
   }
 }
 
 async function loadSection(name: LaputaSectionName): Promise<void> {
-  loading.value = true;
-  error.value = '';
+  loadingSection.value = true;
+  sectionError.value = '';
+  saveError.value = '';
   try {
     if (isTauriRuntime()) {
       sectionContent.value = await getLaputaSection(name);
     } else {
       sectionContent.value = null;
     }
+    draftContent.value = sectionContentString.value;
     isDirty.value = false;
   } catch (err: unknown) {
-    error.value = normalizeError(err);
+    sectionError.value = normalizeError(err);
     showAppToast(t('laputa.loadError'), 'error');
   } finally {
-    loading.value = false;
+    loadingSection.value = false;
   }
 }
 
@@ -112,6 +124,7 @@ async function onSectionSelect(name: LaputaSectionName): Promise<void> {
 
 async function onRefresh(): Promise<void> {
   await loadSnapshot();
+  if (isUninitialized.value) return;
   const validSections = snapshot.value?.sections ?? {};
   if (selectedSection.value in validSections) {
     await loadSection(selectedSection.value);
@@ -137,10 +150,10 @@ onMounted(() => {
       <button
         class="persona-memory-refresh"
         type="button"
-        :disabled="loading"
+        :disabled="loadingSnapshot || loadingSection"
         @click="onRefresh"
       >
-        <Loader2 v-if="loading" :size="15" class="spin" />
+        <Loader2 v-if="loadingSnapshot || loadingSection" :size="15" class="spin" />
         <RefreshCw v-else :size="15" />
         <span>{{ t('laputa.refresh') }}</span>
       </button>
@@ -148,7 +161,7 @@ onMounted(() => {
 
     <div class="persona-memory-body">
       <div class="persona-memory-list">
-        <template v-if="loading && !snapshot">
+        <template v-if="loadingSnapshot">
           <div v-for="i in 6" :key="i" class="persona-memory-skeleton-item">
             <div class="skeleton-line short" />
             <div class="skeleton-line" />
@@ -156,7 +169,7 @@ onMounted(() => {
         </template>
 
         <SectionGroupList
-          v-else
+          v-else-if="snapshot && !isUninitialized"
           :snapshot="snapshot"
           :selected-section="selectedSection"
           @select="onSectionSelect"
@@ -164,7 +177,7 @@ onMounted(() => {
       </div>
 
       <div class="persona-memory-detail">
-        <template v-if="loading && !snapshot">
+        <template v-if="loadingSnapshot || loadingSection">
           <div class="persona-memory-detail-skeleton">
             <div class="skeleton-line title" />
             <div class="skeleton-line" />
@@ -175,14 +188,30 @@ onMounted(() => {
           </div>
         </template>
 
+        <PersonaMemoryErrorState
+          v-else-if="sectionError"
+          :title="t('laputa.loadError')"
+          :message="sectionError"
+          :on-retry="() => loadSection(selectedSection)"
+        />
+
+        <PersonaMemoryEmptyState
+          v-else-if="isUninitialized"
+          :icon="Inbox"
+          :title="t('laputa.uninitializedTitle')"
+          :description="t('laputa.uninitializedDesc')"
+        />
+
         <template v-else>
           <SectionEditor
             :section-name="selectedSection"
             :content="sectionContentString"
             :last-updated="selectedSectionMeta?.last_modified ?? ''"
             :status="selectedSectionMeta?.status ?? 'tbd'"
-            :loading="loading"
-            :error="error"
+            :loading="false"
+            :error="''"
+            :saving="false"
+            :save-error="saveError"
             @retry="onRefresh"
           />
         </template>

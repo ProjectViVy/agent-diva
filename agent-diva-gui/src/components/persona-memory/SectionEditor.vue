@@ -4,8 +4,10 @@ import { useI18n } from 'vue-i18n';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
-import { AlertCircle } from 'lucide-vue-next';
+import { BookOpen } from 'lucide-vue-next';
 import type { LaputaSectionName } from '../../api/desktop';
+import PersonaMemoryEmptyState from './PersonaMemoryEmptyState.vue';
+import PersonaMemoryErrorState from './PersonaMemoryErrorState.vue';
 
 const { t } = useI18n();
 
@@ -16,6 +18,8 @@ interface Props {
   status?: 'owned' | 'tbd' | string;
   loading?: boolean;
   error?: string;
+  saving?: boolean;
+  saveError?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -24,6 +28,8 @@ const props = withDefaults(defineProps<Props>(), {
   status: 'tbd',
   loading: false,
   error: '',
+  saving: false,
+  saveError: '',
 });
 
 const emit = defineEmits<{
@@ -106,12 +112,16 @@ function onRetry(): void {
         <button
           type="button"
           class="section-editor-btn section-editor-btn--primary"
-          disabled
+          :disabled="saving"
         >
-          {{ t('laputa.save') }}
+          {{ saving ? t('laputa.saving') : t('laputa.save') }}
         </button>
       </div>
     </header>
+
+    <div v-if="saveError" class="section-editor-save-error" role="alert">
+      <span>{{ t('laputa.saveFailed', { message: saveError }) }}</span>
+    </div>
 
     <div v-if="loading" class="section-editor-skeleton">
       <div class="skeleton-line title" />
@@ -121,40 +131,26 @@ function onRetry(): void {
       <div class="skeleton-line medium" />
     </div>
 
-    <div
+    <PersonaMemoryErrorState
       v-else-if="error"
-      class="section-editor-error"
-      role="status"
-    >
-      <AlertCircle :size="20" />
-      <div class="section-editor-error-body">
-        <strong>{{ t('laputa.loadError') }}</strong>
-        <p>{{ error }}</p>
-      </div>
-      <button
-        type="button"
-        class="section-editor-btn section-editor-btn--secondary"
-        @click="onRetry"
-      >
-        {{ t('laputa.retry') }}
-      </button>
-    </div>
+      :title="t('laputa.loadError')"
+      :message="error"
+      :on-retry="onRetry"
+    />
 
-    <div
+    <PersonaMemoryEmptyState
       v-else-if="isUninitialized"
-      class="section-editor-empty-state"
-    >
-      <strong>{{ t('laputa.uninitializedTitle') }}</strong>
-      <p>{{ t('laputa.uninitializedDesc') }}</p>
-    </div>
+      :icon="BookOpen"
+      :title="t('laputa.uninitializedTitle')"
+      :description="t('laputa.uninitializedDesc')"
+    />
 
-    <div
+    <PersonaMemoryEmptyState
       v-else-if="isEmpty"
-      class="section-editor-empty-state"
-    >
-      <strong>{{ t('laputa.emptyTitle') }}</strong>
-      <p>{{ t('laputa.emptyDesc') }}</p>
-    </div>
+      :icon="BookOpen"
+      :title="t('laputa.emptyTitle')"
+      :description="t('laputa.emptyDesc')"
+    />
 
     <div
       v-else
@@ -273,6 +269,19 @@ function onRetry(): void {
   color: var(--accent);
 }
 
+.section-editor-save-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 13px;
+}
+
 .section-editor-skeleton {
   flex: 1;
   padding: 24px;
@@ -295,39 +304,6 @@ function onRetry(): void {
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.8; }
-}
-
-.section-editor-error {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 16px;
-  padding: 12px 16px;
-  border: 1px solid var(--danger);
-  border-radius: var(--radius-sm);
-  background: var(--danger-bg);
-  color: var(--danger);
-  font-size: 13px;
-}
-
-.section-editor-error svg {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.section-editor-error-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.section-editor-error-body strong {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.section-editor-error-body p {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 
 .section-editor-empty-state {

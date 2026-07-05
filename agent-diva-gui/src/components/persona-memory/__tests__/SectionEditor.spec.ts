@@ -53,7 +53,7 @@ describe('SectionEditor', () => {
 
     expect(wrapper.find('.section-editor-skeleton').exists()).toBe(true);
     expect(wrapper.find('.section-editor-content').exists()).toBe(false);
-    expect(wrapper.find('.section-editor-empty-state').exists()).toBe(false);
+    expect(wrapper.find('.persona-memory-empty-state').exists()).toBe(false);
   });
 
   it('shows an error state and emits retry when the retry button is clicked', async () => {
@@ -62,7 +62,7 @@ describe('SectionEditor', () => {
     expect(wrapper.text()).toContain(en.laputa.loadError);
     expect(wrapper.text()).toContain('Backend unreachable');
 
-    await wrapper.find('.section-editor-error button').trigger('click');
+    await wrapper.find('.error-retry').trigger('click');
     expect(wrapper.emitted('retry')).toHaveLength(1);
   });
 
@@ -72,6 +72,7 @@ describe('SectionEditor', () => {
       lastUpdated: '2026-07-05T12:00:00Z',
     });
 
+    expect(wrapper.find('.persona-memory-empty-state').exists()).toBe(true);
     expect(wrapper.text()).toContain(en.laputa.emptyTitle);
     expect(wrapper.text()).toContain(en.laputa.emptyDesc);
   });
@@ -79,6 +80,7 @@ describe('SectionEditor', () => {
   it('shows the uninitialized state when no section metadata is provided', () => {
     const wrapper = factory();
 
+    expect(wrapper.find('.persona-memory-empty-state').exists()).toBe(true);
     expect(wrapper.text()).toContain(en.laputa.uninitializedTitle);
     expect(wrapper.text()).toContain(en.laputa.uninitializedDesc);
   });

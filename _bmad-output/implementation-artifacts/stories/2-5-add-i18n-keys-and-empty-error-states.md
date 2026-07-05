@@ -1,6 +1,6 @@
 # Story 2.5: Add i18n keys and empty/error states
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -36,9 +36,9 @@ So that I understand what is happening and what to do next.
 
 ## Tasks / Subtasks
 
-- [ ] **Add `laputa.*` namespace to `agent-diva-gui/src/locales/zh.ts`** (AC: #5)
-  - [ ] Open `agent-diva-gui/src/locales/zh.ts`
-  - [ ] Insert the following object after the `notebook` block (or next to other page-level namespaces):
+- [x] **Add `laputa.*` namespace to `agent-diva-gui/src/locales/zh.ts`** (AC: #5)
+  - [x] Open `agent-diva-gui/src/locales/zh.ts`
+  - [x] Insert the following object after the `notebook` block (or next to other page-level namespaces):
         ```ts
         laputa: {
           title: '人格与记忆',
@@ -102,9 +102,9 @@ So that I understand what is happening and what to do next.
         },
         ```
 
-- [ ] **Add `laputa.*` namespace to `agent-diva-gui/src/locales/en.ts`** (AC: #5)
-  - [ ] Open `agent-diva-gui/src/locales/en.ts`
-  - [ ] Insert the English equivalent after the `notebook` block:
+- [x] **Add `laputa.*` namespace to `agent-diva-gui/src/locales/en.ts`** (AC: #5)
+  - [x] Open `agent-diva-gui/src/locales/en.ts`
+  - [x] Insert the English equivalent after the `notebook` block:
         ```ts
         laputa: {
           title: 'Persona & Memory',
@@ -168,33 +168,33 @@ So that I understand what is happening and what to do next.
         },
         ```
 
-- [ ] **Add `nav.personaMemory` to both locale files** (AC: #6)
-  - [ ] In `zh.ts`, add `personaMemory: '人格与记忆'` inside `nav:`.
-  - [ ] In `en.ts`, add `personaMemory: 'Persona & Memory'` inside `nav:`.
+- [x] **Add `nav.personaMemory` to both locale files** (AC: #6)
+  - [x] In `zh.ts`, add `personaMemory: '人格与记忆'` inside `nav:`.
+  - [x] In `en.ts`, add `personaMemory: 'Persona & Memory'` inside `nav:`.
 
-- [ ] **Create `PersonaMemoryEmptyState.vue`** (AC: #2)
-  - [ ] Create `agent-diva-gui/src/components/persona-memory/PersonaMemoryEmptyState.vue`
-  - [ ] Accept props: `icon` (Lucide component), `title` (string), `description` (string).
-  - [ ] Render a centered flex column with:
+- [x] **Create `PersonaMemoryEmptyState.vue`** (AC: #2)
+  - [x] Create `agent-diva-gui/src/components/persona-memory/PersonaMemoryEmptyState.vue`
+  - [x] Accept props: `icon` (Lucide component), `title` (string), `description` (string).
+  - [x] Render a centered flex column with:
         - Icon sized `48px` and colored `var(--text-muted)` at `opacity: 0.5`.
         - Title using `text-base font-semibold` and `var(--text-muted)`.
         - Description using `text-sm` and `var(--text-muted)`.
-  - [ ] Use this component for both the uninitialized state and the section-empty state by varying the props.
+  - [x] Use this component for both the uninitialized state and the section-empty state by varying the props.
 
-- [ ] **Create `PersonaMemoryErrorState.vue`** (AC: #3)
-  - [ ] Create `agent-diva-gui/src/components/persona-memory/PersonaMemoryErrorState.vue`
-  - [ ] Accept props: `title` (string), `message` (string, optional), `onRetry` (function).
-  - [ ] Render a centered flex column with:
+- [x] **Create `PersonaMemoryErrorState.vue`** (AC: #3)
+  - [x] Create `agent-diva-gui/src/components/persona-memory/PersonaMemoryErrorState.vue`
+  - [x] Accept props: `title` (string), `message` (string, optional), `onRetry` (function).
+  - [x] Render a centered flex column with:
         - `AlertCircle` icon from `lucide-vue-next` sized `48px` and colored `var(--danger)`.
         - Title in `var(--text)`.
         - Optional message in `var(--text-muted)`.
         - Secondary-styled retry button with label `t('laputa.retry')`.
 
-- [ ] **Add skeleton loading pattern to `PersonaMemoryView.vue`** (AC: #1)
-  - [ ] In `agent-diva-gui/src/components/PersonaMemoryView.vue`:
+- [x] **Add skeleton loading pattern to `PersonaMemoryView.vue`** (AC: #1)
+  - [x] In `agent-diva-gui/src/components/PersonaMemoryView.vue`:
     - While `loadingSnapshot === true`, render placeholder rows in the left panel using `<div class="skeleton-line" />`.
     - While `loadingSection === true`, render placeholder lines in the right panel using `<div class="skeleton-line" />`.
-  - [ ] Ensure the `skeleton-line` class already exists in `agent-diva-gui/src/styles.css` (see DESIGN.md); if not, add it:
+  - [x] Ensure the `skeleton-line` class already exists in `agent-diva-gui/src/styles.css` (see DESIGN.md); if not, add it:
         ```css
         .skeleton-line {
           height: 12px;
@@ -208,23 +208,23 @@ So that I understand what is happening and what to do next.
         }
         ```
 
-- [ ] **Wire empty/error/skeleton states into `PersonaMemoryView.vue`** (AC: #1, #2, #3, #4)
-  - [ ] Track state: `loadingSnapshot`, `loadingSection`, `sectionError`, `saveError`.
-  - [ ] On initial load: show skeletons and a centered spinner (re-use `app.loading` or `laputa.loading`).
-  - [ ] On snapshot load error: render `PersonaMemoryErrorState` with `title = t('laputa.loadError')` and retry action `loadSnapshot()`.
-  - [ ] On uninitialized `.laputa/`: render `PersonaMemoryEmptyState` with `Inbox` or `BookOpen` icon, `title = t('laputa.uninitializedTitle')`, `description = t('laputa.uninitializedDesc')`.
-  - [ ] On section read error: render `PersonaMemoryErrorState` with retry action `loadSection(selectedSection)`.
-  - [ ] On save error: show inline banner or toast using `t('laputa.saveFailed', { message: errorMessage })`; do not clear `draftContent`.
+- [x] **Wire empty/error/skeleton states into `PersonaMemoryView.vue`** (AC: #1, #2, #3, #4)
+  - [x] Track state: `loadingSnapshot`, `loadingSection`, `sectionError`, `saveError`.
+  - [x] On initial load: show skeletons and a centered spinner (re-use `app.loading` or `laputa.loading`).
+  - [x] On snapshot load error: render `PersonaMemoryErrorState` with `title = t('laputa.loadError')` and retry action `loadSnapshot()`.
+  - [x] On uninitialized `.laputa/`: render `PersonaMemoryEmptyState` with `Inbox` or `BookOpen` icon, `title = t('laputa.uninitializedTitle')`, `description = t('laputa.uninitializedDesc')`.
+  - [x] On section read error: render `PersonaMemoryErrorState` with retry action `loadSection(selectedSection)`.
+  - [x] On save error: show inline banner or toast using `t('laputa.saveFailed', { message: errorMessage })`; do not clear `draftContent`.
 
-- [ ] **Add save/error feedback to `SectionEditor.vue`** (AC: #4)
-  - [ ] Display `saving` state on the Save button (label switches to `t('laputa.saving')`).
-  - [ ] On failure, surface `saveError` below the toolbar or via the page-level error slot.
+- [x] **Add save/error feedback to `SectionEditor.vue`** (AC: #4)
+  - [x] Display `saving` state on the Save button (label switches to `t('laputa.saving')`).
+  - [x] On failure, surface `saveError` below the toolbar or via the page-level error slot.
 
-- [ ] **Run validation gates**
-  - [ ] `cd agent-diva-gui && pnpm exec vue-tsc --noEmit`
-  - [ ] `cd agent-diva-gui && pnpm exec eslint src/locales src/components/PersonaMemoryView.vue src/components/persona-memory`
-  - [ ] `just fmt-check`
-  - [ ] `just check`
+- [x] **Run validation gates**
+  - [x] `cd agent-diva-gui && pnpm exec vue-tsc --noEmit`
+  - [x] `cd agent-diva-gui && pnpm exec eslint src/locales src/components/PersonaMemoryView.vue src/components/persona-memory`
+  - [x] `just fmt-check`
+  - [x] `just check`
   - [ ] Manual smoke test: launch GUI, switch language, open "人格与记忆", verify labels and empty states.
 
 ## Dev Notes
@@ -277,21 +277,25 @@ So that I understand what is happening and what to do next.
 
 ### Agent Model Used
 
-(To be filled during implementation)
+kimi-for-coding
 
 ### Debug Log References
 
-(To be filled during implementation)
+- `pnpm vue-tsc --noEmit`: passed
+- `pnpm build`: passed
+- `pnpm test src/components/persona-memory/__tests__/SectionEditor.spec.ts`: passed (7/7)
+- `just fmt-check`: passed
+- `just check`: passed
 
 ### Completion Notes List
 
-- [ ] `laputa.*` namespace added to both locale files with all requested keys
-- [ ] `nav.personaMemory` added to both locale files and used in `NormalMode.vue`
-- [ ] `PersonaMemoryEmptyState.vue` created and used for uninitialized / empty section states
-- [ ] `PersonaMemoryErrorState.vue` created with `AlertCircle` icon and retry action
-- [ ] `.skeleton-line` / `skeleton-pulse` pattern applied during loading
-- [ ] Save failure preserves draft content and surfaces `laputa.saveFailed`
-- [ ] `vue-tsc --noEmit` and lint pass inside `agent-diva-gui`
+- [x] `laputa.*` namespace added to both locale files with all requested keys
+- [x] `nav.personaMemory` added to both locale files and used in `NormalMode.vue`
+- [x] `PersonaMemoryEmptyState.vue` created and used for uninitialized / empty section states
+- [x] `PersonaMemoryErrorState.vue` created with `AlertCircle` icon and retry action
+- [x] `.skeleton-line` / `skeleton-pulse` pattern applied during loading
+- [x] Save failure preserves draft content and surfaces `laputa.saveFailed`
+- [x] `vue-tsc --noEmit` and lint pass inside `agent-diva-gui`
 - [ ] Manual smoke test passed for locale switching and empty/error states
 
 ### File List

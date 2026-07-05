@@ -1159,6 +1159,11 @@ export default {
     retry: '重试',
     history: '历史',
     save: '保存',
+    saved: '已保存',
+    saveFailed: '保存失败：{message}',
+    saving: '保存中…',
+    copy: '复制内容',
+    copied: '已复制',
     emptyTitle: '此 section 还没有内容',
     emptyDesc: '在右侧编辑器中输入 Markdown 内容，然后点击保存。',
     uninitializedTitle: 'Laputa 尚未初始化',
@@ -1168,6 +1173,16 @@ export default {
       message: '当前 section 有未保存的修改，切换后将丢失。是否放弃？',
       cancel: '取消',
       discard: '放弃',
+    },
+    confirmSave: {
+      title: '确认保存',
+      message: '确定要覆盖 {section} 的当前内容吗？此操作会生成一条审计记录。',
+      confirm: '确认覆盖',
+      cancel: '取消',
+    },
+    historyModal: {
+      title: '{section} 的变更历史',
+      empty: '暂无变更记录',
     },
     groups: {
       persona: '人格',
