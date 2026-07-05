@@ -1,6 +1,11 @@
+---
+baseline_commit: e3c21b633c2c027c7397e76bbfff57beb92e539f
+status: review
+---
+
 # Story 1.3: Add Tauri command for writing a section
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -32,9 +37,9 @@ So that the frontend can invoke the new manager endpoint `POST /api/laputa/secti
 
 ## Tasks / Subtasks
 
-- [ ] **Add `laputa_write_section` to `commands.rs`** (AC: #1, #3, #4)
-  - [ ] Open `agent-diva-gui/src-tauri/src/commands.rs`
-  - [ ] Add a new Tauri command immediately after the existing Laputa commands (e.g. after `laputa_get_section` or `laputa_rollback_changelog`) to keep the Laputa command cluster together:
+- [x] **Add `laputa_write_section` to `commands.rs`** (AC: #1, #3, #4)
+  - [x] Open `agent-diva-gui/src-tauri/src/commands.rs`
+  - [x] Add a new Tauri command immediately after the existing Laputa commands (e.g. after `laputa_get_section` or `laputa_rollback_changelog`) to keep the Laputa command cluster together:
         ```rust
         #[tauri::command]
         pub async fn laputa_write_section(
@@ -56,13 +61,13 @@ So that the frontend can invoke the new manager endpoint `POST /api/laputa/secti
             post_laputa_full_response(&state, &url, &payload).await
         }
         ```
-  - [ ] Use `post_laputa_full_response` (already defined in the same file) so that the entire manager response body is forwarded to the frontend. This preserves any extra fields the manager may add in the future and avoids hard-coding a single extraction field.
-  - [ ] Keep the command async, accept `State<'_, AgentState>`, and reuse `state.client` indirectly through the existing helper.
-  - [ ] Ensure no filesystem imports or direct file operations are introduced.
+  - [x] Use `post_laputa_full_response` (already defined in the same file) so that the entire manager response body is forwarded to the frontend. This preserves any extra fields the manager may add in the future and avoids hard-coding a single extraction field.
+  - [x] Keep the command async, accept `State<'_, AgentState>`, and reuse `state.client` indirectly through the existing helper.
+  - [x] Ensure no filesystem imports or direct file operations are introduced.
 
-- [ ] **Register the command in `lib.rs`** (AC: #2)
-  - [ ] Open `agent-diva-gui/src-tauri/src/lib.rs`
-  - [ ] Add `commands::laputa_write_section` to the `tauri::generate_handler!` macro, grouped with the other Laputa commands (for example, right after `commands::laputa_get_section`):
+- [x] **Register the command in `lib.rs`** (AC: #2)
+  - [x] Open `agent-diva-gui/src-tauri/src/lib.rs`
+  - [x] Add `commands::laputa_write_section` to the `tauri::generate_handler!` macro, grouped with the other Laputa commands (for example, right after `commands::laputa_get_section`):
         ```rust
         commands::laputa_get_snapshot,
         commands::laputa_get_section,
@@ -71,9 +76,9 @@ So that the frontend can invoke the new manager endpoint `POST /api/laputa/secti
         ...
         ```
 
-- [ ] **Add the frontend wrapper in `desktop.ts`** (AC: #5)
-  - [ ] Open `agent-diva-gui/src/api/desktop.ts`
-  - [ ] Add a `WriteLaputaSectionResult` interface and `writeLaputaSection` helper in the Laputa / Evolution Governance API section, alongside `getLaputaSection`:
+- [x] **Add the frontend wrapper in `desktop.ts`** (AC: #5)
+  - [x] Open `agent-diva-gui/src/api/desktop.ts`
+  - [x] Add a `WriteLaputaSectionResult` interface and `writeLaputaSection` helper in the Laputa / Evolution Governance API section, alongside `getLaputaSection`:
         ```ts
         export interface WriteLaputaSectionResult {
           changelog_id: string;
@@ -92,11 +97,11 @@ So that the frontend can invoke the new manager endpoint `POST /api/laputa/secti
             summary: summary ?? null,
           });
         ```
-  - [ ] Note: The return type mirrors the manager response from Story 1.2 (`{ status: "ok", changelog_id, applied_at }`). Coordinate with Story 1.4 if the interface is centralized there.
+  - [x] Note: The return type mirrors the manager response from Story 1.2 (`{ status: "ok", changelog_id, applied_at }`). Coordinate with Story 1.4 if the interface is centralized there.
 
-- [ ] **Run validation gates** (AC: #3, #5)
-  - [ ] `cargo check -p agent-diva-gui` (or `just check`)
-  - [ ] `just fmt-check`
+- [x] **Run validation gates** (AC: #3, #5)
+  - [x] `cargo check -p agent-diva-gui` (or `just check`)
+  - [x] `just fmt-check`
   - [ ] `cd agent-diva-gui && pnpm tauri dev`
   - [ ] From the browser/Tauri devtools console, test:
         ```js
@@ -165,24 +170,36 @@ So that the frontend can invoke the new manager endpoint `POST /api/laputa/secti
 
 ### Agent Model Used
 
-(To be filled during implementation)
+kimi-for-coding
 
 ### Debug Log References
 
-(To be filled during implementation)
+- `cargo check -p agent-diva-gui` passed.
+- `pnpm vue-tsc --noEmit` passed (no output).
+- `just fmt-check` passed.
+- `just check` passed.
 
 ### Completion Notes List
 
-- [ ] `laputa_write_section` added to `agent-diva-gui/src-tauri/src/commands.rs`
-- [ ] Command registered in `agent-diva-gui/src-tauri/src/lib.rs` `generate_handler!`
-- [ ] `writeLaputaSection` wrapper added to `agent-diva-gui/src/api/desktop.ts`
-- [ ] `cargo check -p agent-diva-gui` passes
-- [ ] `just fmt-check` passes
+- [x] `laputa_write_section` added to `agent-diva-gui/src-tauri/src/commands.rs`
+- [x] Command registered in `agent-diva-gui/src-tauri/src/lib.rs` `generate_handler!`
+- [x] `writeLaputaSection` wrapper added to `agent-diva-gui/src/api/desktop.ts`
+- [x] `cargo check -p agent-diva-gui` passes
+- [x] `just fmt-check` passes
+- [x] `just check` passes
+- [x] `pnpm vue-tsc --noEmit` passes
 - [ ] Smoke test in `pnpm tauri dev` succeeds for both happy path and error path
-- [ ] `agent-diva-laputa/tests/authority_boundary_guard.rs` still passes (no GUI-crate direct writes introduced)
+- [x] `agent-diva-laputa/tests/authority_boundary_guard.rs` still passes (no GUI-crate direct writes introduced)
 
 ### File List
 
 - `agent-diva-gui/src-tauri/src/commands.rs`
 - `agent-diva-gui/src-tauri/src/lib.rs`
 - `agent-diva-gui/src/api/desktop.ts`
+
+### Change Log
+
+- Added `laputa_write_section` Tauri command that proxies `POST {api_base_url}/laputa/section/{name}/write` with payload `{ content, actor: "gui-user", summary }` and returns the full manager response.
+- Registered `commands::laputa_write_section` in `generate_handler!` alongside existing Laputa commands.
+- Added `WriteLaputaSectionResult` interface and `writeLaputaSection(name, content, summary?)` wrapper in `desktop.ts`, using `null` for omitted optional `summary`.
+- Validated with `cargo check -p agent-diva-gui`, `just fmt-check`, `just check`, and `pnpm vue-tsc --noEmit`.

@@ -423,8 +423,25 @@ export const transitionLaputaProposal = (id: string, payload: ProposalTransition
 export const applyLaputaProposal = (id: string, payload: ApplyProposalPayload = {}) =>
   invoke<ProposalApplyResult>("laputa_apply_proposal", { id, payload });
 
+export interface WriteLaputaSectionResult {
+  changelog_id: string;
+  applied_at: string;
+  status?: string;
+}
+
 export const getLaputaSection = (name: LaputaSectionName) =>
   invoke<LaputaSection>("laputa_get_section", { name });
+
+export const writeLaputaSection = (
+  name: LaputaSectionName,
+  content: string,
+  summary?: string,
+) =>
+  invoke<WriteLaputaSectionResult>("laputa_write_section", {
+    name,
+    content,
+    summary: summary ?? null,
+  });
 
 export const pollLaputaEvents = (kind: LaputaEventKind, since?: string) =>
   invoke<LaputaEvent[]>("laputa_poll_events", { kind, since: since ?? null });

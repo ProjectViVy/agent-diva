@@ -417,6 +417,26 @@ pub async fn laputa_get_section(
 }
 
 #[tauri::command]
+pub async fn laputa_write_section(
+    name: String,
+    content: String,
+    #[allow(non_snake_case)] summary: Option<String>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/laputa/section/{}/write",
+        state.api_base_url(),
+        urlencoding::encode(name.trim())
+    );
+    let payload = serde_json::json!({
+        "content": content,
+        "actor": "gui-user",
+        "summary": summary,
+    });
+    post_laputa_full_response(&state, &url, &payload).await
+}
+
+#[tauri::command]
 pub async fn laputa_list_proposals(
     since: Option<String>,
     state: State<'_, AgentState>,
