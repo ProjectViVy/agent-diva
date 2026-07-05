@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { BookUser, Loader2, RefreshCw, Inbox, Clock, Save } from 'lucide-vue-next';
+import { BookUser, Loader2, RefreshCw, Inbox } from 'lucide-vue-next';
 import SectionGroupList from './persona-memory/SectionGroupList.vue';
 import SectionEditor from './persona-memory/SectionEditor.vue';
 import PersonaMemoryEmptyState from './persona-memory/PersonaMemoryEmptyState.vue';
@@ -9,7 +9,6 @@ import PersonaMemoryErrorState from './persona-memory/PersonaMemoryErrorState.vu
 import { getLaputaSnapshot, getLaputaSection, isTauriRuntime } from '../api/desktop';
 import type { LaputaSection, LaputaSectionName } from '../api/desktop';
 import { showAppToast } from '../utils/appToast';
-import { appConfirm } from '../utils/appDialog';
 
 const { t } = useI18n();
 
@@ -25,9 +24,10 @@ const snapshot = ref<LaputaSnapshot | null>(null);
 const loadingSnapshot = ref(false);
 const loadingSection = ref(false);
 const sectionError = ref('');
-const isDirty = ref(false);
 const sectionContent = ref<LaputaSection | null>(null);
 const draftContent = ref('');
+
+const displayName = computed(() => t('laputa.sections.' + selectedSection.value));
 
 const isUninitialized = computed(() => {
   return snapshot.value !== null && Object.keys(snapshot.value.sections).length === 0;
@@ -88,7 +88,6 @@ async function loadSection(name: LaputaSectionName): Promise<void> {
     }
     const raw = sectionContent.value?.content;
     draftContent.value = raw === null || raw === undefined ? '' : String(raw);
-    isDirty.value = false;
   } catch (err: unknown) {
     sectionError.value = normalizeError(err);
     showAppToast(t('laputa.loadError'), 'error');
@@ -98,14 +97,6 @@ async function loadSection(name: LaputaSectionName): Promise<void> {
 }
 
 async function onSectionSelect(name: LaputaSectionName): Promise<void> {
-  if (isDirty.value) {
-    const confirmed = await appConfirm(t('laputa.confirmDiscard.message'), {
-      title: t('laputa.confirmDiscard.title'),
-      confirmLabel: t('laputa.confirmDiscard.discard'),
-      cancelLabel: t('laputa.confirmDiscard.cancel'),
-    });
-    if (!confirmed) return;
-  }
   selectedSection.value = name;
   await loadSection(name);
 }
@@ -122,9 +113,8 @@ async function onRefresh(): Promise<void> {
   }
 }
 
-function onSave(): void {
-  // Story 3.2 will wire writeLaputaSection here.
-  showAppToast(t('laputa.saved'), 'success');
+async function onSaved(_name: LaputaSectionName): Promise<void> {
+  await loadSection(selectedSection.value);
 }
 
 onMounted(() => {
@@ -197,31 +187,11 @@ onMounted(() => {
 
         <template v-else>
           <SectionEditor
-            v-model="draftContent"
             :section-name="selectedSection"
-            @update:model-value="isDirty = true"
-            @save="onSave"
-          >
-            <template #toolbar-actions>
-              <button
-                type="button"
-                class="persona-memory-toolbar-btn"
-                :disabled="false"
-                @click="onSave"
-              >
-                <Save :size="14" />
-                <span>{{ t('laputa.save') }}</span>
-              </button>
-              <button
-                type="button"
-                class="persona-memory-toolbar-btn"
-                disabled
-              >
-                <Clock :size="14" />
-                <span>{{ t('laputa.history') }}</span>
-              </button>
-            </template>
-          </SectionEditor>
+            :display-name="displayName"
+            :initial-content="draftContent"
+            @saved="onSaved"
+          />
         </template>
       </div>
     </div>
@@ -335,33 +305,6 @@ onMounted(() => {
 
 .spin {
   animation: spin 1s linear infinite;
-}
-
-.persona-memory-toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  border: 1px solid var(--line);
-  background: var(--panel-solid);
-  color: var(--text);
-}
-
-.persona-memory-toolbar-btn:hover:not(:disabled) {
-  background: var(--accent-bg-light);
-  border-color: var(--accent-border);
-  color: var(--accent);
-}
-
-.persona-memory-toolbar-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 @keyframes spin {

@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Loader2 } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
+import { writeLaputaSection } from '../../api/desktop';
+import { appConfirm } from '../../utils/appDialog';
 import type { LaputaSectionName } from '../../api/desktop';
 
 const { t } = useI18n();
 
 const props = defineProps<{
-  modelValue: string;
   sectionName: LaputaSectionName;
+  displayName: string;
+  initialContent: string;
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void;
-  (e: 'save'): void;
+  (e: 'saved', sectionName: LaputaSectionName): void;
 }>();
 
 const md = new MarkdownIt({
@@ -37,26 +40,70 @@ const md = new MarkdownIt({
   },
 });
 
-const draft = ref(props.modelValue);
+const originalContent = ref<string>(props.initialContent ?? '');
+const draftContent = ref<string>(props.initialContent ?? '');
+const saving = ref(false);
+const saveError = ref<string | null>(null);
 const activeTab = ref<'edit' | 'preview'>('edit');
 
+const isDirty = computed(() => draftContent.value !== originalContent.value);
+
 watch(
-  () => props.modelValue,
-  (value) => {
-    draft.value = value;
+  () => props.initialContent,
+  (next) => {
+    originalContent.value = next ?? '';
+    draftContent.value = next ?? '';
+    saveError.value = null;
   },
 );
 
-const renderedHtml = computed(() => md.render(draft.value));
+const renderedHtml = computed(() => md.render(draftContent.value));
 
-function onInput(): void {
-  emit('update:modelValue', draft.value);
+function formatError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (
+    err !== null &&
+    typeof err === 'object' &&
+    'message' in err &&
+    typeof (err as { message: unknown }).message === 'string'
+  ) {
+    return (err as { message: string }).message;
+  }
+  return String(err);
+}
+
+async function handleSave(): Promise<void> {
+  if (!isDirty.value || saving.value) return;
+
+  if (originalContent.value.trim().length > 0) {
+    const confirmed = await appConfirm(
+      t('laputa.confirmSave.message', { section: props.displayName }),
+      {
+        title: t('laputa.confirmSave.title'),
+        confirmLabel: t('laputa.confirmSave.confirm'),
+        cancelLabel: t('laputa.confirmSave.cancel'),
+      },
+    );
+    if (!confirmed) return;
+  }
+
+  saving.value = true;
+  saveError.value = null;
+  try {
+    await writeLaputaSection(props.sectionName, draftContent.value);
+    originalContent.value = draftContent.value;
+    emit('saved', props.sectionName);
+  } catch (err: unknown) {
+    saveError.value = formatError(err);
+  } finally {
+    saving.value = false;
+  }
 }
 
 function onKeyDown(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key === 's') {
     event.preventDefault();
-    emit('save');
+    void handleSave();
   }
 }
 </script>
@@ -68,9 +115,21 @@ function onKeyDown(event: KeyboardEvent): void {
         <span>{{ t('laputa.sections.' + sectionName) }}</span>
       </div>
       <div class="section-editor-toolbar-actions">
-        <slot name="toolbar-actions" />
+        <button
+          type="button"
+          class="section-editor-save-btn"
+          :disabled="!isDirty || saving"
+          @click="handleSave"
+        >
+          <Loader2 v-if="saving" :size="14" class="spin" />
+          <span>{{ saving ? t('laputa.saving') : t('laputa.save') }}</span>
+        </button>
       </div>
     </header>
+
+    <div v-if="saveError" class="section-editor-save-error" role="alert">
+      <span>{{ t('laputa.saveFailed', { message: saveError }) }}</span>
+    </div>
 
     <div class="section-editor-tabs" role="tablist" aria-label="Editor view">
       <button
@@ -105,10 +164,9 @@ function onKeyDown(event: KeyboardEvent): void {
         :class="{ 'pane-hidden': activeTab !== 'edit' }"
       >
         <textarea
-          v-model="draft"
+          v-model="draftContent"
           class="section-editor-textarea"
           aria-label="Laputa section editor"
-          @input="onInput"
           @keydown="onKeyDown"
         />
       </div>
@@ -166,6 +224,44 @@ function onKeyDown(event: KeyboardEvent): void {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.section-editor-save-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: #fff;
+}
+
+.section-editor-save-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.section-editor-save-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.section-editor-save-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 16px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 13px;
 }
 
 .section-editor-tabs {
@@ -349,6 +445,15 @@ function onKeyDown(event: KeyboardEvent): void {
 .section-editor-preview :deep(th) {
   background: var(--accent-bg-light);
   font-weight: 600;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @media (min-width: 1024px) {

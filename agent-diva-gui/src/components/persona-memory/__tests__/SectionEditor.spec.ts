@@ -1,8 +1,18 @@
-import { describe, it, expect } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
 import { createI18n } from 'vue-i18n';
 import SectionEditor from '../SectionEditor.vue';
 import en from '../../../locales/en';
+import * as desktop from '../../../api/desktop';
+import * as appDialog from '../../../utils/appDialog';
+
+vi.mock('../../../api/desktop', () => ({
+  writeLaputaSection: vi.fn(),
+}));
+
+vi.mock('../../../utils/appDialog', () => ({
+  appConfirm: vi.fn(),
+}));
 
 const i18n = createI18n({
   legacy: false,
@@ -10,14 +20,14 @@ const i18n = createI18n({
   messages: { en },
 });
 
-function factory(props: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
+function factory(props: Record<string, unknown> = {}) {
   return mount(SectionEditor, {
     props: {
       sectionName: 'identity',
-      modelValue: '',
+      displayName: en.laputa.sections.identity,
+      initialContent: '',
       ...props,
     },
-    slots,
     global: {
       plugins: [i18n],
     },
@@ -25,63 +35,149 @@ function factory(props: Record<string, unknown> = {}, slots: Record<string, stri
 }
 
 describe('SectionEditor', () => {
-  it('renders a textarea with the correct aria-label', () => {
-    const wrapper = factory();
-    const textarea = wrapper.find('textarea');
-    expect(textarea.exists()).toBe(true);
-    expect(textarea.attributes('aria-label')).toBe('Laputa section editor');
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('initializes the textarea from modelValue', () => {
-    const wrapper = factory({ modelValue: '# Identity\n\nHello' });
+  it('initializes the textarea from initialContent', () => {
+    const wrapper = factory({ initialContent: '# Identity\n\nHello' });
     expect(wrapper.find('textarea').element.value).toBe('# Identity\n\nHello');
   });
 
-  it('emits update:modelValue on textarea input', async () => {
-    const wrapper = factory();
+  it('enables the Save button when content changes', async () => {
+    const wrapper = factory({ initialContent: 'original' });
+    const button = wrapper.find('.section-editor-save-btn');
+
+    expect(button.attributes('disabled')).toBeDefined();
+
+    await wrapper.find('textarea').setValue('changed');
+    await flushPromises();
+
+    expect(button.attributes('disabled')).toBeUndefined();
+  });
+
+  it('disables the Save button when content reverts to original', async () => {
+    const wrapper = factory({ initialContent: 'original' });
     const textarea = wrapper.find('textarea');
-    await textarea.setValue('# Updated');
-    expect(wrapper.emitted('update:modelValue')).toHaveLength(1);
-    expect(wrapper.emitted('update:modelValue')![0]).toEqual(['# Updated']);
+    await textarea.setValue('changed');
+    await textarea.setValue('original');
+    await flushPromises();
+
+    expect(wrapper.find('.section-editor-save-btn').attributes('disabled')).toBeDefined();
   });
 
-  it('renders the Markdown preview from modelValue', () => {
-    const wrapper = factory({ modelValue: '# Identity\n\n- Trait one\n- Trait two' });
-    const preview = wrapper.find('.section-editor-preview');
-    expect(preview.exists()).toBe(true);
-    expect(preview.html()).toContain('<h1>Identity</h1>');
-    expect(preview.html()).toContain('<li>Trait one</li>');
+  it('shows a confirmation dialog when saving non-empty existing content', async () => {
+    (appDialog.appConfirm as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue({ changelog_id: '1' });
+
+    const wrapper = factory({ initialContent: 'existing content' });
+    await wrapper.find('textarea').setValue('modified content');
+    await flushPromises();
+
+    await wrapper.find('.section-editor-save-btn').trigger('click');
+    await flushPromises();
+
+    expect(appDialog.appConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it('emits save on Ctrl+S keydown', async () => {
-    const wrapper = factory();
-    const textarea = wrapper.find('textarea');
-    await textarea.trigger('keydown', { key: 's', ctrlKey: true });
-    expect(wrapper.emitted('save')).toHaveLength(1);
+  it('skips confirmation and saves when original content is empty', async () => {
+    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue({ changelog_id: '1' });
+
+    const wrapper = factory({ initialContent: '' });
+    await wrapper.find('textarea').setValue('new content');
+    await flushPromises();
+
+    await wrapper.find('.section-editor-save-btn').trigger('click');
+    await flushPromises();
+
+    expect(appDialog.appConfirm).not.toHaveBeenCalled();
+    expect(desktop.writeLaputaSection).toHaveBeenCalledWith('identity', 'new content');
   });
 
-  it('emits save on Meta+S keydown', async () => {
-    const wrapper = factory();
-    const textarea = wrapper.find('textarea');
-    await textarea.trigger('keydown', { key: 's', metaKey: true });
-    expect(wrapper.emitted('save')).toHaveLength(1);
+  it('calls writeLaputaSection with the current draftContent after confirmation', async () => {
+    (appDialog.appConfirm as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue({ changelog_id: '2' });
+
+    const wrapper = factory({ initialContent: 'existing' });
+    await wrapper.find('textarea').setValue('final draft');
+    await flushPromises();
+
+    await wrapper.find('.section-editor-save-btn').trigger('click');
+    await flushPromises();
+
+    expect(desktop.writeLaputaSection).toHaveBeenCalledWith('identity', 'final draft');
   });
 
-  it('renders the toolbar-actions slot content', () => {
-    const wrapper = factory({}, { 'toolbar-actions': '<button type="button">Save</button>' });
-    expect(wrapper.find('button').exists()).toBe(true);
-    expect(wrapper.text()).toContain('Save');
+  it('does not save when the user cancels the confirmation', async () => {
+    (appDialog.appConfirm as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+    const wrapper = factory({ initialContent: 'existing' });
+    await wrapper.find('textarea').setValue('changed');
+    await flushPromises();
+
+    await wrapper.find('.section-editor-save-btn').trigger('click');
+    await flushPromises();
+
+    expect(desktop.writeLaputaSection).not.toHaveBeenCalled();
   });
 
-  it('shows the localized section name in the toolbar', () => {
-    const wrapper = factory({ sectionName: 'memory_md' });
-    expect(wrapper.text()).toContain(en.laputa.sections.memory_md);
+  it('resets dirty state and emits saved after a successful save', async () => {
+    (appDialog.appConfirm as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue({ changelog_id: '3' });
+
+    const wrapper = factory({ initialContent: 'existing' });
+    await wrapper.find('textarea').setValue('saved content');
+    await flushPromises();
+
+    await wrapper.find('.section-editor-save-btn').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.emitted('saved')).toHaveLength(1);
+    expect(wrapper.emitted('saved')![0]).toEqual(['identity']);
+    expect(wrapper.find('.section-editor-save-btn').attributes('disabled')).toBeDefined();
   });
 
-  it('updates the textarea when modelValue prop changes', async () => {
-    const wrapper = factory({ modelValue: 'initial' });
-    expect(wrapper.find('textarea').element.value).toBe('initial');
-    await wrapper.setProps({ modelValue: 'updated' });
-    expect(wrapper.find('textarea').element.value).toBe('updated');
+  it('preserves draftContent and shows an error when save fails', async () => {
+    (appDialog.appConfirm as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+
+    const wrapper = factory({ initialContent: 'existing' });
+    await wrapper.find('textarea').setValue('changed content');
+    await flushPromises();
+
+    await wrapper.find('.section-editor-save-btn').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('textarea').element.value).toBe('changed content');
+    expect(wrapper.find('.section-editor-save-error').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Network error');
+    expect(wrapper.find('.section-editor-save-btn').attributes('disabled')).toBeUndefined();
+  });
+
+  it('disables the Save button and shows saving label while saving', async () => {
+    let resolveSave: (value: unknown) => void = () => void 0;
+    const savePromise = new Promise((resolve) => {
+      resolveSave = resolve;
+    });
+    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockReturnValue(savePromise);
+    (appDialog.appConfirm as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+
+    const wrapper = factory({ initialContent: 'existing' });
+    await wrapper.find('textarea').setValue('saving test');
+    await flushPromises();
+
+    const clickPromise = wrapper.find('.section-editor-save-btn').trigger('click');
+    await flushPromises();
+
+    const button = wrapper.find('.section-editor-save-btn');
+    expect(button.attributes('disabled')).toBeDefined();
+    expect(button.text()).toContain(en.laputa.saving);
+    expect(wrapper.find('.spin').exists()).toBe(true);
+
+    resolveSave({ changelog_id: '4' });
+    await clickPromise;
+    await flushPromises();
+
+    expect(button.text()).toContain(en.laputa.save);
   });
 });
