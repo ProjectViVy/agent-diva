@@ -267,8 +267,8 @@
     transition: padding 0.2s ease;
   }
 
-  .pet-immersive:not(.sidebar-expanded) .sidebar,
-  .pet-focus-mode:not(.sidebar-expanded) .sidebar {
+  .pet-immersive:not(.sidebar-expanded) .sidebar:not(.overlay-sidebar),
+  .pet-focus-mode:not(.sidebar-expanded) .sidebar:not(.overlay-sidebar) {
     padding: 0;
     border-right: 0;
     pointer-events: none;
