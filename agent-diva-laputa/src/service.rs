@@ -8,8 +8,8 @@ use std::{
 };
 
 use agent_diva_core::evolution::{
-    AuditEvent, AuditEventKind, ChangelogAction, ChangelogRecord, EvolutionProposal,
-    LaputaSectionName, ProposalState,
+    AuditEvent, AuditEventKind, ChangelogAction, ChangelogRecord, EvidenceRef, EvidenceSource,
+    EvolutionProposal, LaputaSectionName, ProposalState, ProposalType, RiskLevel,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -122,6 +122,77 @@ impl LaputaService {
         self.record_proposal_event(&outcome.proposal)?;
         self.record_changelog_event(&outcome.changelog)?;
         Ok(outcome)
+    }
+
+    pub fn create_and_apply_direct_edit(
+        &self,
+        section: LaputaSectionName,
+        patch: impl Into<String>,
+        actor: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> Result<crate::ApplyOutcome> {
+        let actor = actor.into();
+        let patch = patch.into();
+        let id = format!(
+            "direct-edit-{}-{}",
+            section.as_str(),
+            now.timestamp_millis()
+        );
+
+        let proposal_type = match section {
+            LaputaSectionName::MemoryMd => ProposalType::MemoryPatch,
+            LaputaSectionName::JournalReflective => ProposalType::JournalNote,
+            LaputaSectionName::Preferences => ProposalType::LearningNote,
+            LaputaSectionName::Identity => ProposalType::IdentityPatch,
+            LaputaSectionName::Relationship => ProposalType::RelationshipUpdate,
+            LaputaSectionName::Commitment => ProposalType::CommitmentSet,
+            LaputaSectionName::Changelog => ProposalType::Deprecation,
+            LaputaSectionName::HistoryMd => ProposalType::HistoryPatch,
+            LaputaSectionName::Daily => ProposalType::DailyPatch,
+            LaputaSectionName::Weekly => ProposalType::WeeklyPatch,
+            LaputaSectionName::Monthly => ProposalType::MonthlyPatch,
+            _ => {
+                return Err(LaputaError::UnauthorizedTarget {
+                    id: id.clone(),
+                    proposal_type: ProposalType::MemoryPatch,
+                    target_section: section,
+                });
+            }
+        };
+
+        if section != LaputaSectionName::JournalReflective
+            && serde_json::from_str::<serde_json::Value>(&patch).is_err()
+        {
+            return Err(LaputaError::SchemaIncompatible {
+                id: id.clone(),
+                reason: "patch is not valid JSON".to_string(),
+            });
+        }
+
+        let proposal = EvolutionProposal {
+            id: id.clone(),
+            created_at: now,
+            updated_at: now,
+            created_by: actor.clone(),
+            proposal_type,
+            target_section: section.clone(),
+            evidence_refs: vec![EvidenceRef {
+                id: format!("evidence-{id}"),
+                source: EvidenceSource::UserInput,
+                uri: format!("user-input://{section}"),
+                excerpt: Some("direct user edit".to_string()),
+                hash: None,
+                created_at: now,
+            }],
+            proposed_patch: patch,
+            risk_level: RiskLevel::Low,
+            state: ProposalState::PendingReview,
+            source_run_id: None,
+        };
+
+        self.create_proposal(proposal)?;
+        self.transition_proposal(&id, ProposalState::Approved, now)?;
+        self.apply_proposal(&id, actor, now)
     }
 
     pub fn read_snapshot(&self, since: Option<DateTime<Utc>>) -> Result<LaputaSnapshot> {
