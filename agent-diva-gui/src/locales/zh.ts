@@ -1183,6 +1183,11 @@ export default {
     historyModal: {
       title: '{section} 的变更历史',
       empty: '暂无变更记录',
+      copy: '复制内容',
+      copied: '已复制',
+      close: '关闭',
+      loadError: '加载历史失败',
+      retry: '重试',
     },
     edit: '编辑',
     preview: '预览',

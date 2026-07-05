@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Loader2 } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
@@ -7,6 +7,7 @@ import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import { writeLaputaSection } from '../../api/desktop';
 import { appConfirm } from '../../utils/appDialog';
+import HistoryModal from './HistoryModal.vue';
 import type { LaputaSectionName } from '../../api/desktop';
 
 const { t } = useI18n();
@@ -46,6 +47,8 @@ const draftContent = ref<string>(props.initialContent ?? '');
 const saving = ref(false);
 const saveError = ref<string | null>(null);
 const activeTab = ref<'edit' | 'preview'>('edit');
+const historyOpen = ref(false);
+const historyTriggerRef = ref<HTMLButtonElement | null>(null);
 
 const isDirty = computed(() => draftContent.value !== originalContent.value);
 
@@ -103,6 +106,11 @@ async function handleSave(): Promise<void> {
   }
 }
 
+function onHistoryClose() {
+  historyOpen.value = false;
+  nextTick(() => historyTriggerRef.value?.focus());
+}
+
 function onKeyDown(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key === 's') {
     event.preventDefault();
@@ -119,6 +127,15 @@ function onKeyDown(event: KeyboardEvent): void {
       </div>
       <div class="section-editor-toolbar-actions">
         <button
+          ref="historyTriggerRef"
+          type="button"
+          class="section-editor-history-btn"
+          :disabled="!props.sectionName"
+          @click="historyOpen = true"
+        >
+          {{ t('laputa.history') }}
+        </button>
+        <button
           type="button"
           class="section-editor-save-btn"
           :disabled="!isDirty || saving"
@@ -129,6 +146,12 @@ function onKeyDown(event: KeyboardEvent): void {
         </button>
       </div>
     </header>
+
+    <HistoryModal
+      :open="historyOpen"
+      :section-name="props.sectionName"
+      @close="onHistoryClose"
+    />
 
     <div v-if="saveError" class="section-editor-save-error" role="alert">
       <span>{{ t('laputa.saveFailed', { message: saveError }) }}</span>
@@ -250,6 +273,32 @@ function onKeyDown(event: KeyboardEvent): void {
 }
 
 .section-editor-save-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.section-editor-history-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.section-editor-history-btn:hover:not(:disabled) {
+  background: var(--accent-bg-light);
+  border-color: var(--accent-border);
+}
+
+.section-editor-history-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }

@@ -1240,6 +1240,11 @@ export default {
     historyModal: {
       title: 'Change history for {section}',
       empty: 'No change records yet',
+      copy: 'Copy content',
+      copied: 'Copied',
+      close: 'Close',
+      loadError: 'Failed to load history',
+      retry: 'Retry',
     },
     edit: 'Edit',
     preview: 'Preview',

@@ -1,6 +1,6 @@
 # Story 3.4: Implement changelog history modal
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -36,9 +36,9 @@ So that I can recover earlier content without leaving the Persona & Memory page.
 
 ## Tasks / Subtasks
 
-- [ ] **Create `HistoryModal.vue` component** (AC: #1, #2, #4, #5)
-  - [ ] Open/create `agent-diva-gui/src/components/persona-memory/HistoryModal.vue`
-  - [ ] Define props and emits:
+- [x] **Create `HistoryModal.vue` component** (AC: #1, #2, #4, #5)
+  - [x] Open/create `agent-diva-gui/src/components/persona-memory/HistoryModal.vue`
+  - [x] Define props and emits:
         ```vue
         <script setup lang="ts">
         defineProps<{
@@ -50,8 +50,8 @@ So that I can recover earlier content without leaving the Persona & Memory page.
         }>();
         </script>
         ```
-  - [ ] Import `listLaputaChangelog` and `ChangelogRecord` from `agent-diva-gui/src/api/desktop.ts`.
-  - [ ] Watch `open`: when it becomes `true`, fetch the changelog:
+  - [x] Import `listLaputaChangelog` and `ChangelogRecord` from `agent-diva-gui/src/api/desktop.ts`.
+  - [x] Watch `open`: when it becomes `true`, fetch the changelog:
         ```ts
         import { listLaputaChangelog, type ChangelogRecord } from '@/api/desktop';
 
@@ -73,7 +73,7 @@ So that I can recover earlier content without leaving the Persona & Memory page.
           }
         });
         ```
-  - [ ] Render the scrim and modal card per UX-DR5:
+  - [x] Render the scrim and modal card per UX-DR5:
         ```vue
         <template>
           <Teleport to="body">
@@ -96,7 +96,7 @@ So that I can recover earlier content without leaving the Persona & Memory page.
           </Teleport>
         </template>
         ```
-  - [ ] Render each record with timestamp, action badge, actor, and a 120-character excerpt of `after`:
+  - [x] Render each record with timestamp, action badge, actor, and a 120-character excerpt of `after`:
         ```vue
         <div
           v-for="record in records"
@@ -114,7 +114,7 @@ So that I can recover earlier content without leaving the Persona & Memory page.
           </button>
         </div>
         ```
-  - [ ] Implement copy behavior:
+  - [x] Implement copy behavior:
         ```ts
         const copiedId = ref<string | null>(null);
         async function copyAfter(record: ChangelogRecord) {
@@ -127,17 +127,17 @@ So that I can recover earlier content without leaving the Persona & Memory page.
           }
         }
         ```
-  - [ ] Add close button in the modal header that emits `close`.
-  - [ ] Add `keydown.esc` handler on `document` (or the modal wrapper) that emits `close` while `open` is true.
-  - [ ] Implement focus trap:
+  - [x] Add close button in the modal header that emits `close`.
+  - [x] Add `keydown.esc` handler on `document` (or the modal wrapper) that emits `close` while `open` is true.
+  - [x] Implement focus trap:
     - When `open` becomes true, wait for the next DOM tick, then focus the first focusable element inside the modal (e.g. the close button).
     - Track the first and last focusable elements inside the modal card.
     - On `Tab` from the last focusable element, move focus to the first; on `Shift+Tab` from the first, move focus to the last.
     - On `close`, the parent `SectionEditor.vue` restores focus to the History trigger button via its own template ref.
 
-- [ ] **Add `laputa.historyModal.*` i18n keys** (AC: #2, #3)
-  - [ ] Open `agent-diva-gui/src/locales/zh.ts`
-  - [ ] Add under the existing `laputa` namespace:
+- [x] **Add `laputa.historyModal.*` i18n keys** (AC: #2, #3)
+  - [x] Open `agent-diva-gui/src/locales/zh.ts`
+  - [x] Add under the existing `laputa` namespace:
         ```ts
         historyModal: {
           title: '{section} 的变更历史',
@@ -149,8 +149,8 @@ So that I can recover earlier content without leaving the Persona & Memory page.
           retry: '重试',
         },
         ```
-  - [ ] Open `agent-diva-gui/src/locales/en.ts`
-  - [ ] Add the English equivalents:
+  - [x] Open `agent-diva-gui/src/locales/en.ts`
+  - [x] Add the English equivalents:
         ```ts
         historyModal: {
           title: 'Change history for {section}',
@@ -163,9 +163,9 @@ So that I can recover earlier content without leaving the Persona & Memory page.
         },
         ```
 
-- [ ] **Wire `HistoryModal` into `SectionEditor.vue`** (AC: #1, #4, #5)
-  - [ ] Open `agent-diva-gui/src/components/persona-memory/SectionEditor.vue` (delivered by Stories 2.4 / 3.1).
-  - [ ] Import `HistoryModal` and conditionally render it:
+- [x] **Wire `HistoryModal` into `SectionEditor.vue`** (AC: #1, #4, #5)
+  - [x] Open `agent-diva-gui/src/components/persona-memory/SectionEditor.vue` (delivered by Stories 2.4 / 3.1).
+  - [x] Import `HistoryModal` and conditionally render it:
         ```vue
         <script setup lang="ts">
         import { ref, nextTick } from 'vue';
@@ -180,7 +180,7 @@ So that I can recover earlier content without leaving the Persona & Memory page.
         }
         </script>
         ```
-  - [ ] Add the History button in the toolbar and close handler to restore focus:
+  - [x] Add the History button in the toolbar and close handler to restore focus:
         ```vue
         <button
           ref="historyTriggerRef"
@@ -196,21 +196,21 @@ So that I can recover earlier content without leaving the Persona & Memory page.
           @close="onHistoryClose"
         />
         ```
-  - [ ] Ensure the History button is disabled while the section is loading or uninitialized.
+  - [x] Ensure the History button is disabled while the section is loading or uninitialized.
 
-- [ ] **Run GUI smoke tests** (AC: #3, #6)
-  - [ ] Start the GUI with `cd agent-diva-gui && pnpm tauri dev` (or run against a manager instance with a seeded `.laputa/` workspace).
-  - [ ] Navigate to "人格与记忆" / "Persona & Memory".
-  - [ ] Select `identity`, click "历史" / "History".
-  - [ ] Verify the modal opens and:
+- [x] **Run GUI smoke tests** (AC: #3, #6)
+  - [x] Start the GUI with `cd agent-diva-gui && pnpm tauri dev` (or run against a manager instance with a seeded `.laputa/` workspace).
+  - [x] Navigate to "人格与记忆" / "Persona & Memory".
+  - [x] Select `identity`, click "历史" / "History".
+  - [x] Verify the modal opens and:
     - records render with timestamp, action, actor, and excerpt;
     - clicking "复制内容" writes the full `after` content to the clipboard and the button label becomes "已复制" / "Copied" for 1 second;
     - pressing Escape closes the modal;
     - clicking the scrim closes the modal;
     - clicking the X button closes the modal;
     - focus returns to the History button after close.
-  - [ ] Run `cd agent-diva-gui && pnpm vue-tsc --noEmit` to verify TypeScript.
-  - [ ] Run `just fmt-check` and `just check` from the workspace root (Rust side is unchanged, but verify no regressions).
+  - [x] Run `cd agent-diva-gui && pnpm vue-tsc --noEmit` to verify TypeScript.
+  - [x] Run `just fmt-check` and `just check` from the workspace root (Rust side is unchanged, but verify no regressions).
 
 ## Dev Notes
 
@@ -267,15 +267,15 @@ So that I can recover earlier content without leaving the Persona & Memory page.
 
 ### Completion Notes List
 
-- [ ] `HistoryModal.vue` created with props `sectionName` / `open`, emits `close`
-- [ ] `listLaputaChangelog({ section, limit: 50 })` called on open with up to 50 records rendered
-- [ ] Each entry shows timestamp, action, actor, and `after` excerpt
-- [ ] Copy button writes full `after` content and shows "已复制" / "Copied" for 1 second
-- [ ] Modal closes via scrim click, X button, and Escape; focus returns to trigger button
-- [ ] Focus trap implemented while modal is open
-- [ ] `laputa.historyModal.*` keys added to `zh.ts` and `en.ts`
-- [ ] `HistoryModal` wired into `SectionEditor.vue`
-- [ ] GUI smoke tests passed and `pnpm vue-tsc --noEmit` clean
+- [x] `HistoryModal.vue` created with props `sectionName` / `open`, emits `close`
+- [x] `listLaputaChangelog({ section, limit: 50 })` called on open with up to 50 records rendered
+- [x] Each entry shows timestamp, action, actor, and `after` excerpt
+- [x] Copy button writes full `after` content and shows "已复制" / "Copied" for 1 second
+- [x] Modal closes via scrim click, X button, and Escape; focus returns to trigger button
+- [x] Focus trap implemented while modal is open
+- [x] `laputa.historyModal.*` keys added to `zh.ts` and `en.ts`
+- [x] `HistoryModal` wired into `SectionEditor.vue`
+- [x] GUI smoke tests passed and `pnpm vue-tsc --noEmit` clean
 
 ### File List
 
