@@ -115,6 +115,12 @@ async function onRefresh(): Promise<void> {
 
 async function onSaved(_name: LaputaSectionName): Promise<void> {
   await loadSection(selectedSection.value);
+  await loadSnapshot();
+  showAppToast(t('laputa.saved'), 'success');
+}
+
+function onSaveFailed(_name: LaputaSectionName, message: string): void {
+  showAppToast(t('laputa.saveFailed', { message }), 'error');
 }
 
 onMounted(() => {
@@ -191,6 +197,7 @@ onMounted(() => {
             :display-name="displayName"
             :initial-content="draftContent"
             @saved="onSaved"
+            @save-failed="onSaveFailed"
           />
         </template>
       </div>

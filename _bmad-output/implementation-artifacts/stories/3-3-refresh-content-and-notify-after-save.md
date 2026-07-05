@@ -1,6 +1,6 @@
 # Story 3.3: Refresh content and notify after save
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -32,9 +32,9 @@ So that I know the change was persisted.
 
 ## Tasks / Subtasks
 
-- [ ] **Wire the save handler in `PersonaMemoryView.vue`** (AC: #1, #2, #3, #4, #5)
-  - [ ] Open `agent-diva-gui/src/components/PersonaMemoryView.vue`
-  - [ ] Ensure the component imports:
+- [x] **Wire the save handler in `PersonaMemoryView.vue`** (AC: #1, #2, #3, #4, #5)
+  - [x] Open `agent-diva-gui/src/components/PersonaMemoryView.vue`
+  - [x] Ensure the component imports:
     ```ts
     import { ref, computed } from 'vue';
     import { useI18n } from 'vue-i18n';
@@ -47,7 +47,7 @@ So that I know the change was persisted.
     } from '@/api/desktop';
     import { showAppToast } from '@/utils/appToast';
     ```
-  - [ ] Maintain reactive state:
+  - [x] Maintain reactive state:
     ```ts
     const selectedSection = ref<LaputaSectionName>('identity');
     const originalContent = ref('');
@@ -57,15 +57,15 @@ So that I know the change was persisted.
     const saveError = ref<string | null>(null);
     const snapshot = ref<unknown>(null);
     ```
-  - [ ] Implement an async `loadSection(name: LaputaSectionName)` helper:
+  - [x] Implement an async `loadSection(name: LaputaSectionName)` helper:
     - Call `const section: LaputaSection = await getLaputaSection(name);`
     - Convert content to a string: `const text = typeof section.content === 'string' ? section.content : JSON.stringify(section.content ?? '', null, 2);`
     - Set `originalContent.value = text;`
     - Set `draftContent.value = text;`
     - Clear `saveError.value = null;`
-  - [ ] Implement an async `loadSnapshot()` helper:
+  - [x] Implement an async `loadSnapshot()` helper:
     - Call `snapshot.value = await getLaputaSnapshot();`
-  - [ ] Implement an async `handleSave()` handler wired to the Save button from `SectionEditor.vue`:
+  - [x] Implement an async `handleSave()` handler wired to the Save button from `SectionEditor.vue`:
     ```ts
     async function handleSave() {
       if (!isDirty.value || saving.value) return;
@@ -86,20 +86,20 @@ So that I know the change was persisted.
       }
     }
     ```
-  - [ ] Ensure `isDirty` is reset to `false` implicitly by `loadSection` aligning `draftContent` with `originalContent`.
+  - [x] Ensure `isDirty` is reset to `false` implicitly by `loadSection` aligning `draftContent` with `originalContent`.
 
-- [ ] **Ensure the left list refreshes its last-updated time** (AC: #2)
-  - [ ] Pass the updated `snapshot` ref down to `SectionGroupList.vue`.
-  - [ ] Confirm that `SectionGroupList.vue` derives the last-updated time from `snapshot.sections[name].last_modified`.
-  - [ ] Verify that `await loadSnapshot()` after a successful save causes the left list to re-render the changed section's timestamp.
+- [x] **Ensure the left list refreshes its last-updated time** (AC: #2)
+  - [x] Pass the updated `snapshot` ref down to `SectionGroupList.vue`.
+  - [x] Confirm that `SectionGroupList.vue` derives the last-updated time from `snapshot.sections[name].last_modified`.
+  - [x] Verify that `await loadSnapshot()` after a successful save causes the left list to re-render the changed section's timestamp.
 
-- [ ] **Display inline save errors without discarding draft** (AC: #5)
-  - [ ] In `SectionEditor.vue` (or inside `PersonaMemoryView.vue`), render `saveError` as an inline error banner when it is non-null.
-  - [ ] Provide a retry action that calls `handleSave()` again.
-  - [ ] Do **not** mutate `draftContent` or `originalContent` in the error branch.
+- [x] **Display inline save errors without discarding draft** (AC: #5)
+  - [x] In `SectionEditor.vue` (or inside `PersonaMemoryView.vue`), render `saveError` as an inline error banner when it is non-null.
+  - [x] Provide a retry action that calls `handleSave()` again.
+  - [x] Do **not** mutate `draftContent` or `originalContent` in the error branch.
 
-- [ ] **Add required i18n keys** (AC: #3, #5)
-  - [ ] In `agent-diva-gui/src/locales/zh.ts`, add or confirm:
+- [x] **Add required i18n keys** (AC: #3, #5)
+  - [x] In `agent-diva-gui/src/locales/zh.ts`, add or confirm:
     ```ts
     laputa: {
       saved: '已保存',
@@ -107,7 +107,7 @@ So that I know the change was persisted.
       // ... other keys
     }
     ```
-  - [ ] In `agent-diva-gui/src/locales/en.ts`, add or confirm:
+  - [x] In `agent-diva-gui/src/locales/en.ts`, add or confirm:
     ```ts
     laputa: {
       saved: 'Saved',
@@ -116,15 +116,15 @@ So that I know the change was persisted.
     }
     ```
 
-- [ ] **Add frontend tests for the save-refresh-notify flow** (AC: #1, #2, #3, #4, #5)
-  - [ ] Create or update `agent-diva-gui/src/components/__tests__/PersonaMemoryView.spec.ts` (or equivalent).
-  - [ ] Mock `agent-diva-gui/src/api/desktop.ts`:
+- [x] **Add frontend tests for the save-refresh-notify flow** (AC: #1, #2, #3, #4, #5)
+  - [x] Create or update `agent-diva-gui/src/components/PersonaMemoryView.test.ts` (repo convention places tests next to components).
+  - [x] Mock `agent-diva-gui/src/api/desktop.ts`:
     - `getLaputaSection` returns a resolved `LaputaSection`.
     - `getLaputaSnapshot` returns a resolved snapshot object.
     - `writeLaputaSection` resolves to a changelog result.
-  - [ ] Mock `agent-diva-gui/src/utils/appToast.ts`:
+  - [x] Mock `agent-diva-gui/src/utils/appToast.ts`:
     - Spy on `showAppToast`.
-  - [ ] Test success path:
+  - [x] Test success path:
     - Mount `PersonaMemoryView.vue` with a selected section and a dirty draft.
     - Trigger the save action.
     - Assert `writeLaputaSection` is called with the selected section and draft content.
@@ -132,18 +132,18 @@ So that I know the change was persisted.
     - Assert `getLaputaSnapshot` is called again (list timestamp refresh).
     - Assert `showAppToast` is called with the saved message and `'success'` tone.
     - Assert `isDirty` is `false` after the refresh.
-  - [ ] Test failure path:
+  - [x] Test failure path:
     - Make `writeLaputaSection` reject with `new Error('disk full')`.
     - Trigger save.
     - Assert `showAppToast` is called with `t('laputa.saveFailed', { message: 'disk full' })` and `'error'` tone.
     - Assert the draft value is preserved.
     - Assert `isDirty` remains `true`.
 
-- [ ] **Run validation gates**
-  - [ ] `pnpm --prefix agent-diva-gui test:unit` (or the project's unit-test command) passes.
-  - [ ] `just fmt-check` passes.
-  - [ ] `just check` passes.
-  - [ ] If a GUI smoke test is feasible, run `pnpm tauri dev`, edit a section, save, and confirm the toast and timestamp update.
+- [x] **Run validation gates**
+  - [x] `pnpm --prefix agent-diva-gui test:unit` (or the project's unit-test command) passes.
+  - [x] `just fmt-check` passes.
+  - [x] `just check` passes.
+  - [x] If a GUI smoke test is feasible, run `pnpm tauri dev`, edit a section, save, and confirm the toast and timestamp update.
 
 ## Dev Notes
 
@@ -199,13 +199,13 @@ So that I know the change was persisted.
 
 ### Completion Notes List
 
-- [ ] `PersonaMemoryView.vue` save handler reloads section and snapshot in the correct order.
-- [ ] Success toast calls `showAppToast(t('laputa.saved'), 'success')`.
-- [ ] Failure branch preserves `draftContent` and calls `showAppToast(t('laputa.saveFailed', { message }), 'error')`.
-- [ ] Left list timestamp updates after save through snapshot refresh.
-- [ ] `isDirty` resets to `false` after a successful save.
-- [ ] Unit tests for success and failure paths pass.
-- [ ] `just fmt-check && just check` clean.
+- [x] `PersonaMemoryView.vue` save handler reloads section and snapshot in the correct order.
+- [x] Success toast calls `showAppToast(t('laputa.saved'), 'success')`.
+- [x] Failure branch preserves `draftContent` and calls `showAppToast(t('laputa.saveFailed', { message }), 'error')`.
+- [x] Left list timestamp updates after save through snapshot refresh.
+- [x] `isDirty` resets to `false` after a successful save.
+- [x] Unit tests for success and failure paths pass.
+- [x] `just fmt-check && just check` clean.
 
 ### File List
 
@@ -213,4 +213,4 @@ So that I know the change was persisted.
 - `agent-diva-gui/src/components/persona-memory/SectionEditor.vue`
 - `agent-diva-gui/src/locales/zh.ts`
 - `agent-diva-gui/src/locales/en.ts`
-- `agent-diva-gui/src/components/__tests__/PersonaMemoryView.spec.ts`
+- `agent-diva-gui/src/components/PersonaMemoryView.test.ts`

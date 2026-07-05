@@ -19,6 +19,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'saved', sectionName: LaputaSectionName): void;
+  (e: 'save-failed', sectionName: LaputaSectionName, message: string): void;
 }>();
 
 const md = new MarkdownIt({
@@ -94,7 +95,9 @@ async function handleSave(): Promise<void> {
     originalContent.value = draftContent.value;
     emit('saved', props.sectionName);
   } catch (err: unknown) {
-    saveError.value = formatError(err);
+    const message = formatError(err);
+    saveError.value = message;
+    emit('save-failed', props.sectionName, message);
   } finally {
     saving.value = false;
   }
