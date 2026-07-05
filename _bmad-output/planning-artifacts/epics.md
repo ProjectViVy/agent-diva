@@ -3,11 +3,13 @@ stepsCompleted:
   - step-01
   - step-02
   - step-03
+  - step-04
 inputDocuments:
   - docs/prds/prd-persona-memory-laputa-ui-2026-07-05.md
   - docs/architecture/architecture-persona-memory-laputa-ui-2026-07-05.md
   - docs/ux/persona-memory-laputa-2026-07-05/DESIGN.md
   - docs/ux/persona-memory-laputa-2026-07-05/EXPERIENCE.md
+status: ready-for-development
 ---
 
 # agent-diva-pro - Epic Breakdown: Persona & Memory
