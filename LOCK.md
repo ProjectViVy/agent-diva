@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro @ C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-07-05T09:15:00+08:00`
-- Last Heartbeat: `2026-07-05T15:20:00+08:00`
+- Last Heartbeat: `2026-07-05T15:45:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -56,3 +56,4 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-05`: Codex released the Wave C + Wave D remediation lock after closing the health benchmark CI gate, rate limiter retry-after edge cases, compaction ordering/retry-once coverage, and backlog/log updates in `docs/logs/2026-07-wavecd-remediation/v0.0.1-wavecd-review-closure/`.
 - `2026-07-05`: Codex released the Wave G parallel review lock after recording findings for commits `11728fa`, `9438b25`, `48dd875`, `e9336d9`, and `e2941a8` in `docs/logs/2026-07-waveg-review/v0.0.1-waveg-summary/` and updating `TODOLIST.md`.
 - `2026-07-05`: Codex released the Wave G remediation lock after landing the missing-usage fallback fix, timeout/error-category wiring, logging retention correction, feature-gate CI promotion, and `docs/logs/2026-07-waveg-remediation/v0.0.1-waveg-remediation/`.
+- `2026-07-05`: Codex released the manager skill-service clippy cleanup lock after clearing the remaining `just check` blocker and recording `docs/logs/2026-07-waveg-remediation/v0.0.2-manager-clippy-cleanup/`.

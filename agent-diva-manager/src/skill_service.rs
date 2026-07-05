@@ -82,9 +82,8 @@ impl SkillService {
         })?;
 
         let fallback_skill_name = fallback_skill_name(file_name);
-        let archive_paths = list_archive_entries(&bytes).map_err(|error| {
+        let archive_paths = list_archive_entries(&bytes).inspect_err(|error| {
             emit_skill_rejected(&fallback_skill_name, error.to_string());
-            error
         })?;
         let single_root = shared_archive_root(&archive_paths);
         let skill_name = derive_skill_name(file_name, &bytes, single_root.as_deref())
@@ -103,10 +102,9 @@ impl SkillService {
         fs::create_dir_all(&tmp_dir)
             .with_context(|| format!("failed to create temp directory {}", tmp_dir.display()))?;
 
-        extract_archive(&bytes, &tmp_dir, single_root.as_deref()).map_err(|error| {
+        extract_archive(&bytes, &tmp_dir, single_root.as_deref()).inspect_err(|error| {
             let _ = fs::remove_dir_all(&tmp_dir);
             emit_skill_rejected(&skill_name, error.to_string());
-            error
         })?;
 
         let skill_file = tmp_dir.join("SKILL.md");
