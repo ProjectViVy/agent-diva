@@ -1157,6 +1157,8 @@ export default {
     loading: '正在加载 Laputa 数据…',
     loadError: '无法加载记忆数据',
     retry: '重试',
+    history: '历史',
+    save: '保存',
     emptyTitle: '此 section 还没有内容',
     emptyDesc: '在右侧编辑器中输入 Markdown 内容，然后点击保存。',
     uninitializedTitle: 'Laputa 尚未初始化',

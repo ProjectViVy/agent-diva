@@ -25,6 +25,8 @@
 
 # Ignore all directories starting with _
 _*/
+!agent-diva-gui/src/components/persona-memory/__tests__/
+!agent-diva-gui/src/components/persona-memory/__tests__/**
 
 # JS/GUI
 **/node_modules/

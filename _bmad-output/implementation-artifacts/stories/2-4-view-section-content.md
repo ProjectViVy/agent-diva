@@ -1,6 +1,9 @@
+---
+baseline_commit: 119b05a06570170a47e51081acd7397d6e0c755c
+---
 # Story 2.4: View section content
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -36,9 +39,9 @@ So that I know what is stored before editing.
 
 ## Tasks / Subtasks
 
-- [ ] **Create `SectionEditor.vue` read-only shell** (AC: #1, #2)
-  - [ ] Create `agent-diva-gui/src/components/persona-memory/SectionEditor.vue`
-  - [ ] Define props:
+- [x] **Create `SectionEditor.vue` read-only shell** (AC: #1, #2)
+  - [x] Create `agent-diva-gui/src/components/persona-memory/SectionEditor.vue`
+  - [x] Define props:
         ```ts
         interface Props {
           sectionName: LaputaSectionName;
@@ -56,16 +59,16 @@ So that I know what is stored before editing.
           error: '',
         });
         ```
-  - [ ] Emit `retry` when the user clicks the retry button.
+  - [x] Emit `retry` when the user clicks the retry button.
 
-- [ ] **Add Markdown rendering with `markdown-it` + `highlight.js`** (AC: #1, #2)
-  - [ ] Import `MarkdownIt` and `hljs` the same way as `NotebookView.vue` and `ChatView.vue`:
+- [x] **Add Markdown rendering with `markdown-it` + `highlight.js`** (AC: #1, #2)
+  - [x] Import `MarkdownIt` and `hljs` the same way as `NotebookView.vue` and `ChatView.vue`:
         ```ts
         import MarkdownIt from 'markdown-it';
         import hljs from 'highlight.js';
         import 'highlight.js/styles/github-dark.css';
         ```
-  - [ ] Configure the renderer with fenced code highlighting:
+  - [x] Configure the renderer with fenced code highlighting:
         ```ts
         const md = new MarkdownIt({
           html: false,
@@ -82,40 +85,40 @@ So that I know what is stored before editing.
           },
         });
         ```
-  - [ ] Compute `renderedContent = computed(() => md.render(props.content ?? ''))`.
+  - [x] Compute `renderedContent = computed(() => md.render(props.content ?? ''))`.
 
-- [ ] **Build the toolbar** (AC: #1)
-  - [ ] Left side: localized section title, status badge (`owned`/`tbd`), and last updated time.
-  - [ ] Right side: placeholder Secondary Button for "History" (disabled or hidden in this story; wired in Story 3.4) and placeholder Primary Button for "Save" (disabled in this story; wired in Story 3.2).
-  - [ ] Use `t('laputa.status.owned')` / `t('laputa.status.tbd')` for badge text.
+- [x] **Build the toolbar** (AC: #1)
+  - [x] Left side: localized section title, status badge (`owned`/`tbd`), and last updated time.
+  - [x] Right side: placeholder Secondary Button for "History" (disabled or hidden in this story; wired in Story 3.4) and placeholder Primary Button for "Save" (disabled in this story; wired in Story 3.2).
+  - [x] Use `t('laputa.status.owned')` / `t('laputa.status.tbd')` for badge text.
 
-- [ ] **Implement loading, empty, error, and content states** (AC: #4, #5, #6)
-  - [ ] Loading state: render at least a title skeleton and several `.skeleton-line` elements with `skeleton-pulse` animation.
-  - [ ] Empty state (section exists but content is empty): show `laputa.emptyTitle` + `laputa.emptyDesc`.
-  - [ ] Uninitialized state (`.laputa/` missing or section not found): show `laputa.uninitializedTitle` + `laputa.uninitializedDesc`.
-  - [ ] Error state: show `laputa.loadError`, the backend message, and a "Retry" Secondary Button that emits `retry`.
-  - [ ] Content state: render the Markdown HTML inside a `.markdown-body` container.
+- [x] **Implement loading, empty, error, and content states** (AC: #4, #5, #6)
+  - [x] Loading state: render at least a title skeleton and several `.skeleton-line` elements with `skeleton-pulse` animation.
+  - [x] Empty state (section exists but content is empty): show `laputa.emptyTitle` + `laputa.emptyDesc`.
+  - [x] Uninitialized state (`.laputa/` missing or section not found): show `laputa.uninitializedTitle` + `laputa.uninitializedDesc`.
+  - [x] Error state: show `laputa.loadError`, the backend message, and a "Retry" Secondary Button that emits `retry`.
+  - [x] Content state: render the Markdown HTML inside a `.markdown-body` container.
 
-- [ ] **Style with project CSS variables** (AC: #1)
-  - [ ] Use `var(--panel)`, `var(--panel-solid)`, `var(--line)`, `var(--text)`, `var(--text-muted)`, `var(--accent)`, `var(--accent-bg-light)`, `var(--accent-border)`, `var(--radius)`, `var(--radius-sm)`, and `--danger`.
-  - [ ] Match spacing and typography tokens from `DESIGN.md`:
+- [x] **Style with project CSS variables** (AC: #1)
+  - [x] Use `var(--panel)`, `var(--panel-solid)`, `var(--line)`, `var(--text)`, `var(--text-muted)`, `var(--accent)`, `var(--accent-bg-light)`, `var(--accent-border)`, `var(--radius)`, `var(--radius-sm)`, and `--danger`.
+  - [x] Match spacing and typography tokens from `DESIGN.md`:
     - Toolbar padding: `12px 16px`
     - Content padding: `16px–24px`
     - Section title: `0.875rem` / 500
     - Last updated: `0.75rem` / 400 / `var(--text-muted)`
     - Badge: pill shape, uppercase, `0.625rem` / 600
-  - [ ] Reuse the same `.markdown-body` deep selectors used in `NotebookView.vue` for headings, lists, code blocks, blockquotes, and tables.
+  - [x] Reuse the same `.markdown-body` deep selectors used in `NotebookView.vue` for headings, lists, code blocks, blockquotes, and tables.
 
-- [ ] **Integrate `SectionEditor.vue` into `PersonaMemoryView.vue`** (AC: #1, #3)
-  - [ ] Open `agent-diva-gui/src/components/PersonaMemoryView.vue` (created in Story 2.2)
-  - [ ] Import `SectionEditor` and place it in the right panel.
-  - [ ] Pass `sectionName`, `content`, `lastUpdated`, `status`, `loading`, and `error` as props.
-  - [ ] Call `getLaputaSection(name)` from `desktop.ts` when the selected section changes.
-  - [ ] Call `getLaputaSnapshot()` from `desktop.ts` on mount to obtain `last_modified` / `status` metadata for the selected section.
-  - [ ] Measure section-switch time locally and ensure it stays under 200ms for local-file scenarios.
+- [x] **Integrate `SectionEditor.vue` into `PersonaMemoryView.vue`** (AC: #1, #3)
+  - [x] Open `agent-diva-gui/src/components/PersonaMemoryView.vue` (created in Story 2.2)
+  - [x] Import `SectionEditor` and place it in the right panel.
+  - [x] Pass `sectionName`, `content`, `lastUpdated`, `status`, `loading`, and `error` as props.
+  - [x] Call `getLaputaSection(name)` from `desktop.ts` when the selected section changes.
+  - [x] Call `getLaputaSnapshot()` from `desktop.ts` on mount to obtain `last_modified` / `status` metadata for the selected section.
+  - [x] Measure section-switch time locally and ensure it stays under 200ms for local-file scenarios.
 
-- [ ] **Add i18n keys** (AC: #4)
-  - [ ] Add to `agent-diva-gui/src/locales/zh.ts` under `laputa`:
+- [x] **Add i18n keys** (AC: #4)
+  - [x] Add to `agent-diva-gui/src/locales/zh.ts` under `laputa`:
         ```ts
         loading: '正在加载 Laputa 数据…',
         emptyTitle: '此 section 还没有内容',
@@ -131,22 +134,22 @@ So that I know what is stored before editing.
           tbd: '待定',
         },
         ```
-  - [ ] Add equivalent English keys to `agent-diva-gui/src/locales/en.ts`.
+  - [x] Add equivalent English keys to `agent-diva-gui/src/locales/en.ts`.
 
-- [ ] **Add component-level tests** (AC: #1, #3)
-  - [ ] Open or create `agent-diva-gui/src/components/persona-memory/__tests__/SectionEditor.spec.ts` (or equivalent Vitest test file)
-  - [ ] Test that selecting a section with content renders the Markdown body.
-  - [ ] Test that the toolbar shows the section title, status badge, and last updated time.
-  - [ ] Test that the loading skeleton appears when `loading === true`.
-  - [ ] Test that the error state appears when `error` is provided and emits `retry` on button click.
-  - [ ] Test that the empty and uninitialized states render the correct i18n keys.
+- [x] **Add component-level tests** (AC: #1, #3)
+  - [x] Open or create `agent-diva-gui/src/components/persona-memory/__tests__/SectionEditor.spec.ts` (or equivalent Vitest test file)
+  - [x] Test that selecting a section with content renders the Markdown body.
+  - [x] Test that the toolbar shows the section title, status badge, and last updated time.
+  - [x] Test that the loading skeleton appears when `loading === true`.
+  - [x] Test that the error state appears when `error` is provided and emits `retry` on button click.
+  - [x] Test that the empty and uninitialized states render the correct i18n keys.
 
-- [ ] **Run validation gates**
-  - [ ] `pnpm test:unit` (or `vitest run`) for the new component tests
-  - [ ] `pnpm type-check` (or `vue-tsc --noEmit`) for the GUI package
-  - [ ] `just fmt-check`
-  - [ ] `just check`
-  - [ ] Manual smoke test: open "Persona & Memory", select `identity`, verify content renders; switch sections and measure load time locally.
+- [x] **Run validation gates**
+  - [x] `pnpm test:unit` (or `vitest run`) for the new component tests
+  - [x] `pnpm type-check` (or `vue-tsc --noEmit`) for the GUI package
+  - [x] `just fmt-check`
+  - [x] `just check`
+  - [x] Manual smoke test: open "Persona & Memory", select `identity`, verify content renders; switch sections and measure load time locally.
 
 ## Dev Notes
 
@@ -195,21 +198,23 @@ So that I know what is stored before editing.
 
 ### Agent Model Used
 
-(To be filled during implementation)
+kimi-for-coding
 
 ### Debug Log References
 
-(To be filled during implementation)
+No debug issues encountered.
 
 ### Completion Notes List
 
-- [ ] `SectionEditor.vue` created with toolbar, Markdown rendering, loading/empty/error states
-- [ ] `SectionEditor.vue` integrated into `PersonaMemoryView.vue`
-- [ ] `getLaputaSection` and `getLaputaSnapshot` consumed from `desktop.ts`
-- [ ] Required i18n keys added to both `zh.ts` and `en.ts`
-- [ ] Component tests added and passing
-- [ ] Local section-switch time measured at under 200ms
-- [ ] `just fmt-check && just check` clean
+All acceptance criteria met. Read-only SectionEditor renders Markdown via `markdown-it` + `highlight.js`, exposes toolbar with disabled History/Save placeholders, and handles loading/empty/uninitialized/error states. `PersonaMemoryView.vue` now passes granular props and wires `@retry` to `onRefresh`. Component tests cover markdown rendering, toolbar, loading skeleton, error retry, empty and uninitialized states.
+
+- [x] `SectionEditor.vue` created with toolbar, Markdown rendering, loading/empty/error states
+- [x] `SectionEditor.vue` integrated into `PersonaMemoryView.vue`
+- [x] `getLaputaSection` and `getLaputaSnapshot` consumed from `desktop.ts`
+- [x] Required i18n keys added to both `zh.ts` and `en.ts`
+- [x] Component tests added and passing
+- [x] Local section-switch time measured at under 200ms
+- [x] `just fmt-check && just check` clean
 
 ### File List
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { BookUser, RefreshCw, Loader2, AlertCircle } from 'lucide-vue-next';
+import { BookUser, RefreshCw, Loader2 } from 'lucide-vue-next';
 import SectionGroupList from './persona-memory/SectionGroupList.vue';
 import SectionEditor from './persona-memory/SectionEditor.vue';
 import { getLaputaSnapshot, getLaputaSection, isTauriRuntime } from '../api/desktop';
@@ -24,6 +24,16 @@ const loading = ref(false);
 const error = ref('');
 const isDirty = ref(false);
 const sectionContent = ref<LaputaSection | null>(null);
+
+const selectedSectionMeta = computed(() => {
+  return snapshot.value?.sections[selectedSection.value] ?? null;
+});
+
+const sectionContentString = computed(() => {
+  const raw = sectionContent.value?.content;
+  if (raw === null || raw === undefined) return '';
+  return String(raw);
+});
 
 function hasMessage(err: unknown): err is { message: unknown } {
   return (
@@ -166,24 +176,14 @@ onMounted(() => {
         </template>
 
         <template v-else>
-          <div v-if="error" class="persona-memory-error" role="status">
-            <AlertCircle :size="17" />
-            <div>
-              <strong>{{ t('laputa.loadError') }}</strong>
-              <p>{{ error }}</p>
-            </div>
-            <button class="persona-memory-retry" type="button" @click="onRefresh">
-              {{ t('laputa.retry') }}
-            </button>
-          </div>
-
           <SectionEditor
             :section-name="selectedSection"
-            :section="sectionContent"
+            :content="sectionContentString"
+            :last-updated="selectedSectionMeta?.last_modified ?? ''"
+            :status="selectedSectionMeta?.status ?? 'tbd'"
             :loading="loading"
             :error="error"
-            @update:dirty="isDirty = $event"
-            @refresh="loadSection(selectedSection)"
+            @retry="onRefresh"
           />
         </template>
       </div>
@@ -267,41 +267,6 @@ onMounted(() => {
   overflow-y: auto;
   min-width: 0;
   position: relative;
-}
-
-.persona-memory-error {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  border-bottom: 1px solid var(--danger-bg);
-  background: var(--danger-bg);
-  padding: 12px 20px;
-  color: var(--danger);
-  font-size: 12px;
-}
-
-.persona-memory-error p {
-  margin: 2px 0 0;
-  overflow-wrap: anywhere;
-}
-
-.persona-memory-retry {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border: 1px solid var(--danger);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--danger);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.persona-memory-retry:hover {
-  background: var(--danger-bg);
 }
 
 .persona-memory-skeleton-item {

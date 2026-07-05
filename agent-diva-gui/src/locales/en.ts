@@ -1214,6 +1214,8 @@ export default {
     loading: 'Loading Laputa data…',
     loadError: 'Unable to load memory data',
     retry: 'Retry',
+    history: 'History',
+    save: 'Save',
     emptyTitle: 'This section has no content yet',
     emptyDesc: 'Enter Markdown content in the editor on the right, then click save.',
     uninitializedTitle: 'Laputa is not initialized',
