@@ -245,6 +245,7 @@ defineExpose({ closeContextMenu });
               <div class="conv-item-meta">
                 <span v-if="session.agent_name" class="conv-item-agent">{{ session.agent_name }}</span>
                 <span class="conv-item-time">{{ formatTimeAgo(session.timestamp) }}</span>
+                <span class="conv-item-id">{{ session.chat_id }}</span>
                 <component
                   :is="getStatusIcon(session.status).component"
                   :size="12"
@@ -300,6 +301,7 @@ defineExpose({ closeContextMenu });
               <div class="conv-item-meta">
                 <span v-if="session.agent_name" class="conv-item-agent">{{ session.agent_name }}</span>
                 <span class="conv-item-time">{{ formatTimeAgo(session.timestamp) }}</span>
+                <span class="conv-item-id">{{ session.chat_id }}</span>
                 <component
                   :is="getStatusIcon(session.status).component"
                   :size="12"
@@ -584,6 +586,16 @@ defineExpose({ closeContextMenu });
 
 .conv-item-time {
   flex: 1;
+}
+
+.conv-item-id {
+  opacity: 0.45;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  flex-shrink: 0;
 }
 
 /* Rename Input */

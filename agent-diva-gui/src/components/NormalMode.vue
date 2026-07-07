@@ -113,7 +113,7 @@ interface Props {
   toolsConfig?: ToolsConfigShape;
   currentSessionKey?: string;
   savedModels?: SavedModel[];
-  sessions?: { session_key: string; chat_id: string; snippet: string; timestamp: number }[];
+  sessions?: { session_key: string; chat_id: string; snippet: string; timestamp: number; title?: string }[];
   chatDisplayPrefs: ChatDisplayPrefs;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
   saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
@@ -177,6 +177,35 @@ const collapsedPopup = ref<{ type: 'capabilities' | 'tools' | null; x: number; y
 
 const handleClearSession = () => {
   emit('clear');
+};
+
+const handleRenameSession = async (sessionKey: string, title: string) => {
+  const session = props.sessions?.find((s) => s.session_key === sessionKey);
+  if (!session) return;
+
+  const originalTitle = session.title;
+  const id = sessionKey.replace(/^[^:]+:/, '');
+
+  try {
+    const response = await fetch(
+      `http://localhost:3000/api/sessions/${encodeURIComponent(id)}/title`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok || data.status !== 'ok') {
+      throw new Error(data.message || `Failed to rename session (${response.status})`);
+    }
+
+    session.title = typeof data.title === 'string' ? data.title : title;
+  } catch (e) {
+    console.error('Failed to rename session:', e);
+    session.title = originalTitle;
+  }
 };
 
 const activeSessionKey = computed(() => props.currentSessionKey || '');
@@ -1037,7 +1066,7 @@ defineExpose({
               @delete-session="(key) => emit('delete-session', key)"
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
-              @rename-session="(_key, _title) => {}"
+              @rename-session="handleRenameSession"
               @open-evolution="openEvolutionDeepLink"
             />
           </div>
