@@ -126,6 +126,7 @@ impl SessionManager {
             created_at: created_at.unwrap_or_else(chrono::Utc::now),
             updated_at: chrono::Utc::now(),
             metadata,
+            title: None,
             last_consolidated,
             last_compacted,
             compaction_history,
@@ -235,6 +236,7 @@ impl SessionManager {
                                                 .and_then(|v| v.as_str())
                                                 .map(|s| s.to_string()),
                                             path: entry.path().to_string_lossy().to_string(),
+                                            title: None,
                                         });
                                     }
                                 }
@@ -328,6 +330,9 @@ pub struct SessionInfo {
     pub updated_at: Option<String>,
     /// File path
     pub path: String,
+    /// Session title
+    #[serde(default)]
+    pub title: Option<String>,
 }
 
 #[cfg(test)]

@@ -246,6 +246,7 @@ fn parse_session_jsonl(session_id: &str, raw: &str) -> Result<Session, String> {
         created_at: created_at.unwrap_or_else(Utc::now),
         updated_at: Utc::now(),
         metadata,
+        title: None,
         last_consolidated,
         last_compacted,
         compaction_history,

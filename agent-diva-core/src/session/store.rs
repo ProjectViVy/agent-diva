@@ -75,6 +75,9 @@ pub struct Session {
     pub updated_at: DateTime<Utc>,
     /// Session metadata
     pub metadata: serde_json::Value,
+    /// Session title generated from first user message
+    #[serde(default)]
+    pub title: Option<String>,
     /// Index of last consolidated message (for memory consolidation)
     #[serde(default)]
     pub last_consolidated: usize,
@@ -103,6 +106,7 @@ impl Session {
             created_at: now,
             updated_at: now,
             metadata: serde_json::Value::Object(serde_json::Map::new()),
+            title: None,
             last_consolidated: 0,
             last_compacted: 0,
             compaction_history: Vec::new(),
