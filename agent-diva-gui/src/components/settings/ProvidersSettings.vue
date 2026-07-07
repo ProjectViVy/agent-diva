@@ -103,12 +103,13 @@ const isDeletingCustomProvider = ref<string | null>(null);
 // Providers shown under a "More Providers" fold by default
 const hiddenProviderNames = new Set([
   '302ai',
+  'aihubmix',
   'aionly',
   'baichuan',
-  'baidu-cloud',
   'burncloud',
   'cephalon',
   'cerebras',
+  'cherryin',
   'fireworks',
   'hyperbolic',
   'infini',
