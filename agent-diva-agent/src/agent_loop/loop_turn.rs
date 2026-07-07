@@ -9,11 +9,12 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage, PokeEven
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
-use agent_diva_core::session::{ChatMessage, CompactTrigger, TokenUsage};
+use agent_diva_core::session::{ChatMessage, CompactTrigger, Session, TokenUsage};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
 use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderError};
+use agent_diva_tools::BackgroundTaskContext;
 use anyhow;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
@@ -45,6 +46,15 @@ fn is_plan_mode_allowed_tool(tool_name: &str) -> bool {
             | "todo_show"
             | "todo_write"
     )
+}
+
+fn generate_session_title(session: &Session) -> Option<String> {
+    let first_user_msg = session.messages.iter().find(|msg| msg.role == "user")?;
+    let content = first_user_msg.content.trim();
+    if content.is_empty() {
+        return None;
+    }
+    Some(content.chars().take(20).collect())
 }
 
 impl AgentLoop {
@@ -97,7 +107,25 @@ impl AgentLoop {
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
         let plan_mode = is_plan_mode(&msg);
         let active_mask = self.load_active_mask();
-        self.rebuild_tools_for_turn(active_mask.as_ref(), plan_mode);
+        let session_key = format!("{}:{}", msg.channel, msg.chat_id);
+        let background_task_context = BackgroundTaskContext {
+            channel: Some(msg.channel.clone()),
+            chat_id: Some(msg.chat_id.clone()),
+            session_key: Some(session_key.clone()),
+            trace_id: Some(trace_id.clone()),
+            parent_run_id: msg
+                .metadata
+                .get("run_id")
+                .or_else(|| msg.metadata.get("parent_run_id"))
+                .and_then(|value| value.as_str())
+                .map(str::to_string),
+            token_budget_limit: self.session_token_budget_limit,
+        };
+        self.rebuild_tools_for_turn(
+            active_mask.as_ref(),
+            plan_mode,
+            Some(background_task_context),
+        );
 
         // Process attachments first, then run the combined user-visible payload through
         // the security gate before any session or provider work starts.
@@ -141,7 +169,6 @@ impl AgentLoop {
         let prefetch_user_message = message_content.clone();
 
         // Get or create session
-        let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         self.clear_session_cancellation(&session_key);
 
         // ── Build initial messages with budget-aware compaction ──
@@ -838,6 +865,16 @@ impl AgentLoop {
                 .await
                 {
                     error!("Memory consolidation failed: {}", e);
+                }
+            }
+        }
+
+        // Generate session title from first user message
+        {
+            let session = self.sessions.get_or_create(&session_key);
+            if session.title.is_none() {
+                if let Some(title) = generate_session_title(session) {
+                    session.title = Some(title);
                 }
             }
         }
