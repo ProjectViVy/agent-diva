@@ -1367,6 +1367,68 @@ mod tests {
     }
 
     #[test]
+    fn title_generation_english() {
+        let mut session = Session::new("test:1");
+        session.add_message("user", "Hello Agent Diva, this is my first message");
+        session.add_message("assistant", "Hi there! How can I help you?");
+
+        let title = generate_session_title(&session);
+        assert_eq!(title, Some("Hello Agent Diva, th".to_string()));
+    }
+
+    #[test]
+    fn title_generation_chinese() {
+        let mut session = Session::new("test:2");
+        session.add_message("user", "你好，这是我第一次使用Agent Diva，请多关照");
+        session.add_message("assistant", "你好！很高兴为你服务。");
+
+        let title = generate_session_title(&session);
+        assert_eq!(title, Some("你好，这是我第一次使用Agent Div".to_string()));
+    }
+
+    #[test]
+    fn title_generation_emoji() {
+        let mut session = Session::new("test:3");
+        session.add_message("user", "👋 Hello! 你好！😊");
+        session.add_message("assistant", "Hello! Welcome!");
+
+        let title = generate_session_title(&session);
+        assert_eq!(title, Some("👋 Hello! 你好！😊".to_string()));
+    }
+
+    #[test]
+    fn title_generation_empty_content() {
+        let mut session = Session::new("test:4");
+        session.add_message("user", "  ");
+        session.add_message("assistant", "Empty message response");
+
+        let title = generate_session_title(&session);
+        assert_eq!(title, None);
+    }
+
+    #[test]
+    fn title_generation_long_message() {
+        let mut session = Session::new("test:5");
+        session.add_message(
+            "user",
+            "This is a very long message that should be truncated to exactly twenty characters by the generate session title function",
+        );
+        session.add_message("assistant", "Indeed it is.");
+
+        let title = generate_session_title(&session);
+        assert_eq!(title, Some("This is a very long ".to_string()));
+    }
+
+    #[test]
+    fn title_generation_only_assistant() {
+        let mut session = Session::new("test:6");
+        session.add_message("assistant", "Hello, I'm an AI");
+
+        let title = generate_session_title(&session);
+        assert_eq!(title, None);
+    }
+
+    #[test]
     fn test_extract_token_usage_clamps_negative() {
         let mut usage = HashMap::new();
         usage.insert("prompt_tokens".to_string(), -10);
