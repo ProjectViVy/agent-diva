@@ -7,6 +7,9 @@
 - [ ] **GUI: fix NormalMode.test.ts pre-existing `miku.svg` import failure** The vitest environment cannot resolve `/miku.svg` imported by `NormalMode.vue`, causing the whole `NormalMode.test.ts` suite to fail before any assertions run. This blocks regression testing of sidebar/navigation behavior and is unrelated to the pet overlay fix.
   - Related files: `agent-diva-gui/src/components/NormalMode.vue`, `agent-diva-gui/src/components/NormalMode.test.ts`, `agent-diva-gui/vitest.config.ts`
   - Suggested fix: add an SVG mock/ignore handler in `vitest.config.ts` (e.g., `assetsInclude` or a custom plugin) so static asset imports do not crash tests.
+- [ ] **GUI: stabilize `embedded_gateway_serves_health_endpoint` test** `cargo test -p agent-diva-gui` currently fails in `embedded_server::tests::embedded_gateway_serves_health_endpoint` because the health probe returned HTTP 502 instead of the expected 200 during validation for the Tauri watcher fix. This blocks a clean GUI crate test pass and should be isolated from the watcher-only change.
+  - Related files: `agent-diva-gui/src-tauri/src/embedded_server.rs`, `agent-diva-gui/src-tauri/tests/gateway_process_management_bugfix.rs`, `docs/logs/2026-07-gui-tauri-dev-exit-watch-loop/v0.0.1-tauri-dev-exit-watch-loop/verification.md`
+  - Suggested fix: inspect the embedded gateway startup/readiness handshake in tests and make the health assertion wait for the backend to become ready before asserting `200`.
 
 ## Deferred
 
