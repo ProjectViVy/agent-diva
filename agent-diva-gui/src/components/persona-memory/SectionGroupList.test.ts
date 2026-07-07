@@ -22,9 +22,6 @@ const ALL_SECTIONS: Record<string, { status: 'owned' | 'tbd'; last_modified?: st
   preferences: { status: 'tbd' },
   memory_md: { status: 'owned' },
   history_md: { status: 'tbd' },
-  daily: { status: 'owned' },
-  weekly: { status: 'tbd' },
-  monthly: { status: 'tbd' },
   journal_reflective: { status: 'owned' },
   proposal_inbox: { status: 'tbd' },
   changelog: { status: 'owned' },
@@ -42,11 +39,11 @@ function mountList(selectedSection = 'identity' as const) {
 }
 
 describe('SectionGroupList', () => {
-  it('renders 4 group headers and 14 section items by default', () => {
+  it('renders 3 group headers and 11 section items by default', () => {
     const wrapper = mountList();
 
-    expect(wrapper.findAll('.group-header')).toHaveLength(4);
-    expect(wrapper.findAll('.section-item')).toHaveLength(14);
+    expect(wrapper.findAll('.group-header')).toHaveLength(3);
+    expect(wrapper.findAll('.section-item')).toHaveLength(11);
   });
 
   it('starts with all groups expanded', () => {
@@ -56,7 +53,7 @@ describe('SectionGroupList', () => {
     headers.forEach((header) => {
       expect(header.attributes('aria-expanded')).toBe('true');
     });
-    expect(wrapper.findAll('.chevron-down')).toHaveLength(4);
+    expect(wrapper.findAll('.chevron-down')).toHaveLength(3);
     expect(wrapper.findAll('.chevron-right')).toHaveLength(0);
   });
 
@@ -68,7 +65,7 @@ describe('SectionGroupList', () => {
     await nextTick();
 
     expect(firstHeader.attributes('aria-expanded')).toBe('false');
-    expect(wrapper.findAll('.chevron-down')).toHaveLength(3);
+    expect(wrapper.findAll('.chevron-down')).toHaveLength(2);
     expect(wrapper.findAll('.chevron-right')).toHaveLength(1);
 
     const firstGroupItems = wrapper.findAll('.group-items')[0];

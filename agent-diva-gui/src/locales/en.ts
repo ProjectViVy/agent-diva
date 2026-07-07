@@ -1260,7 +1260,6 @@ export default {
     groups: {
       persona: 'Persona',
       memory: 'Memory',
-      periodic: 'Periodic',
       indexes: 'Indexes',
     },
     sections: {
@@ -1270,9 +1269,6 @@ export default {
       preferences: 'Preferences',
       memory_md: 'Memory Doc',
       history_md: 'History Doc',
-      daily: 'Daily',
-      weekly: 'Weekly',
-      monthly: 'Monthly',
       journal_reflective: 'Reflective Journal',
       proposal_inbox: 'Proposal Inbox',
       changelog: 'Changelog',

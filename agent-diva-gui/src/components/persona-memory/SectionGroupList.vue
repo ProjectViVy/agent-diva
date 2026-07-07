@@ -28,14 +28,12 @@ const emit = defineEmits<{
 const GROUPS: { key: string; sections: LaputaSectionName[] }[] = [
   { key: 'persona', sections: ['identity', 'relationship', 'commitment', 'preferences'] },
   { key: 'memory', sections: ['memory_md', 'history_md'] },
-  { key: 'periodic', sections: ['daily', 'weekly', 'monthly'] },
   { key: 'indexes', sections: ['journal_reflective', 'proposal_inbox', 'changelog', 'report_indexes', 'aaak_summaries'] },
 ];
 
 const expanded = ref<Record<string, boolean>>({
   persona: true,
   memory: true,
-  periodic: true,
   indexes: true,
 });
 

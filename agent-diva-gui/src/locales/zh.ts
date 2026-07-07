@@ -1203,7 +1203,6 @@ export default {
     groups: {
       persona: '人格',
       memory: '记忆',
-      periodic: '周期',
       indexes: '索引',
     },
     sections: {
@@ -1213,9 +1212,6 @@ export default {
       preferences: '偏好',
       memory_md: '记忆文档',
       history_md: '历史文档',
-      daily: '日报',
-      weekly: '周报',
-      monthly: '月报',
       journal_reflective: '反思日志',
       proposal_inbox: '提案收件箱',
       changelog: '变更日志',
