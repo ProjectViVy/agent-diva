@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
-import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff } from 'lucide-vue-next';
+import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff, MoreHorizontal, ChevronDown, ChevronRight } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import {
   type ConfigStatusReport,
@@ -20,6 +20,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { appConfirm } from '../../utils/appDialog';
 import { showAppToast } from '../../utils/appToast';
 import ProviderWizardModal from './ProviderWizardModal.vue';
+import ProviderListItem from './ProviderListItem.vue';
 
 const { t } = useI18n();
 
@@ -98,6 +99,31 @@ const isManualModelDialogOpen = ref(false);
 const isCreateProviderDialogOpen = ref(false);
 const isSavingProvider = ref(false);
 const isDeletingCustomProvider = ref<string | null>(null);
+
+// Providers shown under a "More Providers" fold by default
+const hiddenProviderNames = new Set([
+  '302ai',
+  'aionly',
+  'baichuan',
+  'baidu-cloud',
+  'burncloud',
+  'cephalon',
+  'cerebras',
+  'fireworks',
+  'hyperbolic',
+  'infini',
+  'jina',
+  'lanyun',
+  'ocoolai',
+  'ph8',
+  'ppio',
+  'together',
+  'tokenflux',
+  'voyageai',
+  'yi',
+]);
+const isMoreProvidersExpanded = ref(false);
+
 const providerApiKeys = ref<Record<string, string>>({});
 const providerApiBases = ref<Record<string, string>>({});
 const providerApiKeyVisibility = ref<Record<string, boolean>>({});
@@ -249,12 +275,27 @@ const currentProviderLabel = computed(() => {
 });
 
 const filteredProviders = computed(() => {
-  if (!searchTerm.value) return providers.value;
-  const lower = searchTerm.value.toLowerCase();
-  return providers.value.filter(p => 
-    p.display_name.toLowerCase().includes(lower) || 
-    p.name.toLowerCase().includes(lower)
-  );
+  let items = providers.value;
+  if (searchTerm.value) {
+    const lower = searchTerm.value.toLowerCase();
+    items = items.filter(p => 
+      p.display_name.toLowerCase().includes(lower) || 
+      p.name.toLowerCase().includes(lower)
+    );
+  }
+  return items;
+});
+
+const isSearching = computed(() => searchTerm.value.trim().length > 0);
+
+const visibleProviders = computed(() => {
+  if (isSearching.value) return filteredProviders.value;
+  return filteredProviders.value.filter((p) => !hiddenProviderNames.has(p.name));
+});
+
+const moreProviders = computed(() => {
+  if (isSearching.value) return [];
+  return filteredProviders.value.filter((p) => hiddenProviderNames.has(p.name));
 });
 
 const currentConfigSnapshot = computed(() => JSON.stringify(localConfig.value));
@@ -791,6 +832,18 @@ watch(() => props.savedModels, (newVal) => {
   lastSavedModelsSnapshot.value = JSON.stringify(newVal || []);
   buildProviderStateFromDraft();
 }, { deep: true });
+
+watch(selectedProvider, (provider) => {
+  if (provider && hiddenProviderNames.has(provider.name)) {
+    isMoreProvidersExpanded.value = true;
+  }
+});
+
+watch(searchTerm, () => {
+  if (selectedProvider.value && hiddenProviderNames.has(selectedProvider.value.name)) {
+    isMoreProvidersExpanded.value = true;
+  }
+});
 </script>
 
 <template>
@@ -816,52 +869,60 @@ watch(() => props.savedModels, (newVal) => {
       </div>
 
       <div class="providers-list">
-          <div
-            v-for="provider in filteredProviders"
-            :key="provider.name"
-            class="providers-list-item"
-            :class="{ selected: selectedProvider?.name === provider.name }"
+        <ProviderListItem
+          v-for="provider in visibleProviders"
+          :key="provider.name"
+          :provider="provider"
+          :selected-provider="selectedProvider"
+          :status="providerStatusMap.get(provider.name)"
+          :is-deleting="isDeletingCustomProvider === provider.name"
+          @select="selectProvider(provider)"
+          @delete="requestDeleteCustomProvider(provider)"
+        />
+
+        <div
+          v-if="moreProviders.length > 0"
+          class="providers-list-item providers-more-toggle"
+          :class="{ selected: isMoreProvidersExpanded }"
+          @click="isMoreProvidersExpanded = !isMoreProvidersExpanded"
+        >
+          <button
+            type="button"
+            class="flex min-w-0 flex-1 items-center px-4 py-3 text-left"
           >
-            <button
-              type="button"
-              class="flex min-w-0 flex-1 items-center px-4 py-3 text-left"
-              @click="selectProvider(provider)"
-            >
-              <div class="flex min-w-0 flex-1 items-center">
-                <div class="providers-item-icon" :class="{ selected: selectedProvider?.name === provider.name }">
-                  <Server :size="16" />
-                </div>
-                <div class="min-w-0">
-                  <div class="font-medium flex items-center gap-2">
-                    <span class="truncate">{{ provider.display_name }}</span>
-                  </div>
-                  <div class="text-[10px] uppercase tracking-wider opacity-70 flex flex-wrap items-center gap-1 providers-tag api-type">
-                    <span>{{ provider.api_type || t('providers.standardApi') }}</span>
-                    <span v-if="providerStatusMap.get(provider.name)?.current" class="providers-tag current">{{ t('providers.currentTag') }}</span>
-                  </div>
+            <div class="flex min-w-0 flex-1 items-center">
+              <div
+                class="providers-item-icon"
+                :class="{ selected: isMoreProvidersExpanded }"
+              >
+                <MoreHorizontal :size="16" />
+              </div>
+              <div class="min-w-0">
+                <div class="font-medium flex items-center gap-2">
+                  <span class="truncate">{{ t('providers.moreProviders') }}</span>
+                  <span class="text-[10px] opacity-70">{{ moreProviders.length }}</span>
                 </div>
               </div>
-            </button>
-            <div
-              v-if="provider.source === 'custom'"
-              class="relative z-10 flex shrink-0 items-center pr-2"
-            >
-              <button
-                type="button"
-                class="providers-delete-btn"
-                :title="t('providers.deleteProvider')"
-                :disabled="isDeletingCustomProvider === provider.name"
-                @click.stop="requestDeleteCustomProvider(provider)"
-              >
-                <LoaderCircle
-                  v-if="isDeletingCustomProvider === provider.name"
-                  :size="14"
-                  class="animate-spin"
-                />
-                <Trash2 v-else :size="14" />
-              </button>
             </div>
-          </div>
+            <div class="flex shrink-0 items-center pl-2">
+              <ChevronDown v-if="isMoreProvidersExpanded" :size="16" />
+              <ChevronRight v-else :size="16" />
+            </div>
+          </button>
+        </div>
+
+        <template v-if="isMoreProvidersExpanded">
+          <ProviderListItem
+            v-for="provider in moreProviders"
+            :key="provider.name"
+            :provider="provider"
+            :selected-provider="selectedProvider"
+            :status="providerStatusMap.get(provider.name)"
+            :is-deleting="isDeletingCustomProvider === provider.name"
+            @select="selectProvider(provider)"
+            @delete="requestDeleteCustomProvider(provider)"
+          />
+        </template>
       </div>
     </div>
 

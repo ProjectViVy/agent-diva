@@ -736,6 +736,7 @@ export default {
   },
   providers: {
     search: 'Search Providers...',
+    moreProviders: 'More Providers',
     standardApi: 'Standard API',
     connectConfig: 'Connection Config',
     apiKey: 'API Key',

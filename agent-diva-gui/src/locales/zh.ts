@@ -560,6 +560,7 @@ export default {
   },
   providers: {
     search: '搜索供应商...',
+    moreProviders: '更多供应商',
     standardApi: '标准 API',
     connectConfig: '连接配置',
     apiKey: 'API Key',

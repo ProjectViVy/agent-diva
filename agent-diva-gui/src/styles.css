@@ -2907,6 +2907,18 @@
   border-left-color: var(--accent);
 }
 
+/* Providers 更多供应商折叠项 */
+.providers-more-toggle {
+  background: var(--panel-solid);
+  border: 1px dashed var(--line);
+  border-left: 4px solid transparent;
+}
+
+.providers-more-toggle:hover {
+  background: var(--accent-bg-light);
+  border-color: var(--accent-border);
+}
+
 /* Providers 项图标 */
 .providers-item-icon {
   width: 2rem;
