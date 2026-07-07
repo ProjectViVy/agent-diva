@@ -71,6 +71,7 @@ impl SessionManager {
         let mut messages = Vec::new();
         let mut metadata = serde_json::Value::Object(serde_json::Map::new());
         let mut created_at = None;
+        let mut title: Option<String> = None;
         let mut last_consolidated: usize = 0;
         let mut last_compacted: usize = 0;
         let mut compaction_history: Vec<super::store::CompactSummary> = Vec::new();
@@ -88,6 +89,13 @@ impl SessionManager {
                         .get("created_at")
                         .and_then(|v| v.as_str())
                         .and_then(|s| s.parse().ok());
+                    title = value.get("title").and_then(|v| {
+                        if v.is_null() {
+                            None
+                        } else {
+                            v.as_str().map(|s| s.to_string())
+                        }
+                    });
                     last_consolidated = value
                         .get("last_consolidated")
                         .and_then(|v| v.as_u64())
@@ -126,7 +134,7 @@ impl SessionManager {
             created_at: created_at.unwrap_or_else(chrono::Utc::now),
             updated_at: chrono::Utc::now(),
             metadata,
-            title: None,
+            title,
             last_consolidated,
             last_compacted,
             compaction_history,
@@ -153,6 +161,7 @@ impl SessionManager {
             "created_at": session.created_at.to_rfc3339(),
             "updated_at": session.updated_at.to_rfc3339(),
             "metadata": session.metadata,
+            "title": session.title,
             "last_consolidated": session.last_consolidated,
             "last_compacted": session.last_compacted,
             "compaction_history": session.compaction_history,
@@ -236,7 +245,13 @@ impl SessionManager {
                                                 .and_then(|v| v.as_str())
                                                 .map(|s| s.to_string()),
                                             path: entry.path().to_string_lossy().to_string(),
-                                            title: None,
+                                            title: value.get("title").and_then(|v| {
+                                                if v.is_null() {
+                                                    None
+                                                } else {
+                                                    v.as_str().map(|s| s.to_string())
+                                                }
+                                            }),
                                         });
                                     }
                                 }
@@ -536,5 +551,51 @@ mod tests {
             .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
             .collect();
         assert!(temp_entries.is_empty());
+    }
+
+    #[test]
+    fn test_session_title_persistence() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let session = manager.get_or_create("title:test");
+        session.title = Some("Hello World".to_string());
+        let key = session.key.clone();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
+
+        manager.cache.clear();
+        let loaded = manager.get_or_load("title:test").unwrap();
+        assert_eq!(loaded.title, Some("Hello World".to_string()));
+
+        let sessions = manager.list_sessions();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].title, Some("Hello World".to_string()));
+    }
+
+    #[test]
+    fn test_session_title_backwards_compat() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let path = manager.session_path("legacy:title");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let metadata_line = serde_json::json!({
+            "_type": "metadata",
+            "created_at": chrono::Utc::now().to_rfc3339(),
+            "updated_at": chrono::Utc::now().to_rfc3339(),
+            "metadata": {},
+            "last_consolidated": 0,
+            "last_compacted": 0,
+            "compaction_history": [],
+        });
+        fs::write(&path, format!("{}\n", metadata_line)).unwrap();
+
+        let loaded = manager.get_or_load("legacy:title");
+        assert!(loaded.is_some());
+        assert_eq!(loaded.unwrap().title, None);
+
+        let sessions = manager.list_sessions();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].title, None);
     }
 }

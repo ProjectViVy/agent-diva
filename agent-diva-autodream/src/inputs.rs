@@ -321,6 +321,7 @@ fn read_session_candidates(
                 created_at: None,
                 updated_at: None,
                 path: path.to_string_lossy().to_string(),
+                title: None,
             }
         })
         .collect())
