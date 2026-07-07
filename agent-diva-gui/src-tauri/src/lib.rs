@@ -17,7 +17,7 @@ use shutdown_manager::ShutdownManager;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tokio::sync::Mutex as AsyncMutex;
 
 static LOGGING_INITIALIZED: OnceLock<()> = OnceLock::new();
@@ -132,9 +132,24 @@ fn close_action(close_to_tray: bool, trigger: ExitTrigger) -> CloseAction {
     }
 }
 
+fn close_all_webview_windows_for_exit(app: &tauri::AppHandle) {
+    let _ = app.emit_to("desktop-pet", "desktop-pet-render-pause", true);
+
+    if let Some(window) = app.get_webview_window("desktop-pet") {
+        let _ = window.set_ignore_cursor_events(false);
+    }
+
+    for (label, window) in app.webview_windows() {
+        tracing::debug!("Closing webview window '{label}' before app exit");
+        let _ = window.hide();
+        let _ = window.close();
+    }
+}
+
 pub fn request_full_exit(app: tauri::AppHandle) {
     let Some(shutdown_manager) = app.try_state::<ShutdownManager>() else {
         tracing::warn!("Shutdown manager unavailable; exiting application directly");
+        close_all_webview_windows_for_exit(&app);
         app.exit(0);
         return;
     };
@@ -145,9 +160,7 @@ pub fn request_full_exit(app: tauri::AppHandle) {
     }
 
     tracing::info!("Starting full application shutdown");
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.hide();
-    }
+    close_all_webview_windows_for_exit(&app);
 
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
@@ -265,6 +278,19 @@ pub fn run() {
         .on_window_event(|window, event| {
             // Handle window close events based on tray setting
             if let tauri::WindowEvent::CloseRequested { api, .. } = &event {
+                if window
+                    .app_handle()
+                    .try_state::<ShutdownManager>()
+                    .map(|manager| manager.is_shutting_down())
+                    .unwrap_or(false)
+                {
+                    tracing::debug!(
+                        "Allowing window '{}' to close because shutdown is already in progress",
+                        window.label()
+                    );
+                    return;
+                }
+
                 let window_label = window.label();
                 if window_label == "main" {
                     let app_handle = window.app_handle().clone();
