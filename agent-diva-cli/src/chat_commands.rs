@@ -96,6 +96,7 @@ async fn build_local_cli_agent(
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
+        run_store: None,
         soul_context: SoulContextSettings {
             enabled: config.agents.soul.enabled,
             max_chars: config.agents.soul.max_chars,
@@ -345,6 +346,7 @@ pub async fn run_chat(
     println!("{}", style("Agent Diva Chat").bold().cyan());
     println!("  model: {}", selected_model);
     println!("  session: {}", current_session);
+    println!("  title: {}", "(untitled)");
     println!("  commands: /quit /clear /new /stop /mask /thinking auto|on|off /compact");
 
     loop {
@@ -367,6 +369,7 @@ pub async fn run_chat(
                 current_session =
                     format!("cli:chat:{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
                 println!("session -> {}", current_session);
+                println!("title -> {}", "(untitled)");
                 continue;
             }
             "/stop" => {
