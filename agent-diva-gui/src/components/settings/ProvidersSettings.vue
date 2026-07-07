@@ -824,7 +824,7 @@ watch(() => props.savedModels, (newVal) => {
           >
             <button
               type="button"
-              class="flex min-w-0 items-center px-4 py-3 text-left"
+              class="flex min-w-0 flex-1 items-center px-4 py-3 text-left"
               @click="selectProvider(provider)"
             >
               <div class="flex min-w-0 flex-1 items-center">
