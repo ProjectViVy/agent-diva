@@ -32,6 +32,7 @@ pub use discovery::{
 pub use factory::{build_llm_provider, LlmProviderBuildOptions};
 pub use ollama::OllamaProvider;
 pub use openai_compatible::OpenAiCompatibleClient;
+pub use openai_compatible::OpenAiCompatibleClient as LiteLLMClient;
 pub use registry::{ProviderRegistry, ProviderSpec};
 
 use async_trait::async_trait;

@@ -13,9 +13,13 @@ use agent_diva_core::session::{ChatMessage, CompactTrigger, Session, TokenUsage}
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
-use agent_diva_providers::{LLMResponse, LLMStreamEvent, Message, ProviderError};
+use agent_diva_providers::{
+    supports_vision_model, ImageUrl, LLMResponse, LLMStreamEvent, Message, MessageContent,
+    MessageContentPart, ProviderError,
+};
 use agent_diva_tools::BackgroundTaskContext;
 use anyhow;
+use base64::Engine;
 use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -25,6 +29,12 @@ use tracing::{debug, error, info, trace, warn};
 
 /// Max size for text attachments to inline (100KB)
 const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
+
+#[derive(Debug, Default, Clone)]
+struct ProcessedInboundMedia {
+    prompt_text: String,
+    image_parts: Vec<MessageContentPart>,
+}
 
 fn is_plan_mode(msg: &InboundMessage) -> bool {
     msg.metadata
@@ -81,6 +91,29 @@ fn should_generate_session_title(session: &Session) -> bool {
         .iter()
         .any(|message| message.role == "assistant" && !message.content.trim().is_empty());
     has_user && has_assistant
+}
+
+fn build_current_turn_message(text: &str, image_parts: &[MessageContentPart]) -> Message {
+    if image_parts.is_empty() {
+        return Message::user(text);
+    }
+
+    let mut parts = Vec::with_capacity(image_parts.len() + usize::from(!text.trim().is_empty()));
+    if !text.trim().is_empty() {
+        parts.push(MessageContentPart::Text {
+            text: text.to_string(),
+        });
+    }
+    parts.extend(image_parts.iter().cloned());
+    Message::user(MessageContent::Parts(parts))
+}
+
+fn replace_current_turn_message(messages: &mut Vec<Message>, current_turn_message: Message) {
+    if let Some(last) = messages.last_mut() {
+        *last = current_turn_message;
+    } else {
+        messages.push(current_turn_message);
+    }
 }
 
 impl AgentLoop {
@@ -160,8 +193,8 @@ impl AgentLoop {
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
         trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
 
-        // Use the default model from the current provider
-        let model_to_use = self.provider.get_default_model();
+        // Use the agent's active model selection for this turn.
+        let model_to_use = self.model.clone();
 
         let preview = if msg.content.chars().count() > 80 {
             format!("{}...", msg.content.chars().take(80).collect::<String>())
@@ -198,18 +231,18 @@ impl AgentLoop {
 
         // Process attachments first, then run the combined user-visible payload through
         // the security gate before any session or provider work starts.
-        let message_content = if !msg.media.is_empty() {
-            match self.load_attachment_contents(&msg.media).await {
-                Ok(attachment_text) if !attachment_text.is_empty() => {
-                    format!(
-                        "{}\n\n[Attachments]\n{}\n[/Attachments]",
-                        msg.content, attachment_text
-                    )
-                }
-                _ => msg.content.clone(),
-            }
+        let processed_media = if msg.media.is_empty() {
+            ProcessedInboundMedia::default()
         } else {
+            self.load_attachment_contents(&msg.media).await?
+        };
+        let message_content = if processed_media.prompt_text.is_empty() {
             msg.content.clone()
+        } else {
+            format!(
+                "{}\n\n[Attachments]\n{}\n[/Attachments]",
+                msg.content, processed_media.prompt_text
+            )
         };
         let security_context = SecurityContext {
             source_type: "channel".to_string(),
@@ -232,6 +265,15 @@ impl AgentLoop {
                 );
             }
         };
+        if !processed_media.image_parts.is_empty() && !supports_vision_model(&model_to_use) {
+            return Err(anyhow::anyhow!(
+                "Current model `{}` does not support vision input. Switch to a vision-capable model such as `gpt-4o` or `gpt-4.1`.",
+                model_to_use
+            )
+            .into());
+        }
+        let current_turn_message =
+            build_current_turn_message(&message_content, &processed_media.image_parts);
 
         // Derive prefetch intent from raw user message before it's consumed.
         let prefetch_intent = derive_prefetch_intent(&message_content);
@@ -380,6 +422,7 @@ impl AgentLoop {
                 messages.push(current_message);
             }
         }
+        replace_current_turn_message(&mut messages, current_turn_message.clone());
 
         // Agent loop
         let mut iteration = 0;
@@ -561,6 +604,10 @@ impl AgentLoop {
                                     messages.push(current_message);
                                 }
                             }
+                            replace_current_turn_message(
+                                &mut messages,
+                                current_turn_message.clone(),
+                            );
 
                             info!("Reactive compaction complete, retrying provider call...");
                             continue; // retry once
@@ -913,7 +960,7 @@ impl AgentLoop {
                 &messages,
                 history_len,
                 user_role,
-                &msg.content,
+                &message_content,
                 &final_content,
                 turn_token_usage,
             );
@@ -999,13 +1046,13 @@ impl AgentLoop {
     async fn load_attachment_contents(
         &self,
         file_ids: &[String],
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<ProcessedInboundMedia, Box<dyn std::error::Error>> {
         let storage_path = dirs::data_local_dir()
             .map(|p| p.join("agent-diva").join("files"))
             .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
         info!("Loading attachments from: {}", storage_path.display());
         info!("File IDs to load: {:?}", file_ids);
-        let mut parts = Vec::new();
+        let mut result = ProcessedInboundMedia::default();
 
         for file_id in file_ids {
             match self.file_manager.get(file_id).await {
@@ -1022,37 +1069,68 @@ impl AgentLoop {
                         || mime_type == "application/typescript"
                         || mime_type == "application/x-yaml"
                         || mime_type == "application/xml";
+                    let is_image = mime_type.starts_with("image/") || handle.is_image();
 
                     if is_text && size <= MAX_INLINE_ATTACHMENT_SIZE {
                         match self.file_manager.read(&handle).await {
                             Ok(bytes) => match String::from_utf8(bytes) {
                                 Ok(content) => {
-                                    parts.push(format!(
+                                    result.prompt_text.push_str(&format!(
                                         "--- {} ---\n{}\n---",
                                         handle.metadata.name, content
                                     ));
+                                    result.prompt_text.push_str("\n\n");
                                 }
                                 Err(_) => {
-                                    parts.push(format!(
+                                    result.prompt_text.push_str(&format!(
                                         "[File: {} ({} bytes, binary)]",
                                         handle.metadata.name, size
                                     ));
+                                    result.prompt_text.push_str("\n\n");
                                 }
                             },
                             Err(e) => {
                                 warn!("Failed to read file {}: {}", file_id, e);
-                                parts.push(format!(
+                                result.prompt_text.push_str(&format!(
                                     "[File: {} (error reading: {})]",
                                     handle.metadata.name, e
                                 ));
+                                result.prompt_text.push_str("\n\n");
+                            }
+                        }
+                    } else if is_image {
+                        match self.file_manager.read(&handle).await {
+                            Ok(bytes) => {
+                                let data_uri = format!(
+                                    "data:{};base64,{}",
+                                    mime_type,
+                                    base64::engine::general_purpose::STANDARD.encode(bytes)
+                                );
+                                result.image_parts.push(MessageContentPart::ImageUrl {
+                                    image_url: ImageUrl { url: data_uri },
+                                });
+                                result.prompt_text.push_str(&format!(
+                                    "[Image: {} ({} bytes, {})]",
+                                    handle.metadata.name, size, mime_type
+                                ));
+                                result.prompt_text.push_str("\n\n");
+                            }
+                            Err(e) => {
+                                warn!("Failed to read image file {}: {}", file_id, e);
+                                result.prompt_text.push_str(&format!(
+                                    "[Image: {} (error reading: {})]",
+                                    handle.metadata.name, e
+                                ));
+                                result.prompt_text.push_str("\n\n");
                             }
                         }
                     } else {
                         // Non-text or too large - tell AI to use tool
-                        parts.push(format!(
+                        result.prompt_text.push_str(&format!(
                             "[File: {} ({} bytes, {}) - Use read_file tool to access]",
                             handle.metadata.name, size, mime_type
                         ));
+                        result.prompt_text.push_str("\n\n");
                     }
                 }
                 Err(e) => {
@@ -1062,12 +1140,16 @@ impl AgentLoop {
                         e,
                         storage_path.display()
                     );
-                    parts.push(format!("[Attachment: {} (not found - {})]", file_id, e));
+                    result
+                        .prompt_text
+                        .push_str(&format!("[Attachment: {} (not found - {})]", file_id, e));
+                    result.prompt_text.push_str("\n\n");
                 }
             }
         }
 
-        Ok(parts.join("\n\n"))
+        result.prompt_text = result.prompt_text.trim().to_string();
+        Ok(result)
     }
 }
 
@@ -1304,6 +1386,37 @@ mod tests {
         assert!(!derive_prefetch_intent("recall all projects").is_empty());
         assert!(!derive_prefetch_intent("what is the provider boundary?").is_empty());
         assert!(!derive_prefetch_intent("summarize the last meeting").is_empty());
+    }
+
+    #[test]
+    fn build_current_turn_message_keeps_text_only_shape_without_images() {
+        let message = build_current_turn_message("hello", &[]);
+        assert_eq!(message.content, MessageContent::Text("hello".to_string()));
+    }
+
+    #[test]
+    fn build_current_turn_message_combines_text_and_image_parts() {
+        let images = vec![MessageContentPart::ImageUrl {
+            image_url: ImageUrl {
+                url: "data:image/png;base64,AAAA".to_string(),
+            },
+        }];
+
+        let message = build_current_turn_message("describe this", &images);
+
+        match message.content {
+            MessageContent::Parts(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert_eq!(
+                    parts[0],
+                    MessageContentPart::Text {
+                        text: "describe this".to_string()
+                    }
+                );
+                assert!(matches!(parts[1], MessageContentPart::ImageUrl { .. }));
+            }
+            other => panic!("expected structured parts, got {other:?}"),
+        }
     }
 
     #[test]

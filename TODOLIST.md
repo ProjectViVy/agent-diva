@@ -4,6 +4,9 @@
 
 ## Open
 
+- [ ] **Agent: repair stale `compaction_real_test` integration harness** Running `cargo test -p agent-diva-agent <test-name>` still compiles `agent-diva-agent/tests/compaction_real_test.rs`, which currently targets removed compaction APIs such as `ContextCompactor::new(...)`, `compact_session(...)`, and `CompactTrigger::ProactiveThreshold`. This is unrelated to the image multimodal change but blocks clean package-scoped targeted test commands.
+  - Related files: `agent-diva-agent/tests/compaction_real_test.rs`, `agent-diva-agent/src/compaction/compaction_exec.rs`, `agent-diva-core/src/session/`
+  - Suggested fix: update the integration test to the current compaction entrypoints/trigger variants or gate it behind an explicit ignored/manual path until it reflects the live API.
 - [ ] **Formatting: normalize pre-existing `agent-diva-e2e` rustfmt drift** `cargo fmt --check` is currently blocked by formatting diffs in `agent-diva-e2e/src/{collector,config,lib,report,runner,tracer,types}.rs`. This is outside the provider protocol split scope but prevents a clean workspace-wide fmt gate.
   - Related files: `agent-diva-e2e/src/collector.rs`, `agent-diva-e2e/src/config.rs`, `agent-diva-e2e/src/lib.rs`, `agent-diva-e2e/src/report.rs`, `agent-diva-e2e/src/runner.rs`, `agent-diva-e2e/src/tracer.rs`, `agent-diva-e2e/src/types.rs`
   - Suggested validation: run `cargo fmt -p agent-diva-e2e` in a focused formatting-only change, then rerun `cargo fmt --check`.
