@@ -49,7 +49,7 @@ curl -X POST http://localhost:3000/api/hook/message \
 
 ## 配置说明
 
-首次运行时，如果未设置环境变量 `LITELLM_API_KEY` 等，发送消息会提示配置。
+首次运行时，如果未配置 API key 等，发送消息会提示配置。
 点击右上角的设置图标（⚙️）即可配置：
 
 *   **API Base URL**: LLM 服务地址 (例如 `https://api.openai.com/v1` 或本地 `http://localhost:4000`)

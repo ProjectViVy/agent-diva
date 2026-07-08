@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Thinking Config**: Added `agents.defaults.reasoning_effort` (low/medium/high) and provider passthrough for thinking-capable models.
 
 ### Fixed
-- **Dependency**: Resolved duplicate import errors for `LiteLLMClient` and `ProviderRegistry`.
+- **Dependency**: Resolved duplicate import errors for `OpenAiCompatibleClient` and `ProviderRegistry`.
 - **Concurrency**: Fixed issue where the Manager would take ownership of the AgentLoop, preventing it from running.
 - **Manager**: Fixed "channel closed" error during configuration update by implementing **Hot Reloading** for LLM providers instead of restarting the gateway.
 - **Agent Loop**: Fixed stale model usage where the agent loop would continue using the initial model after a configuration update. Now it dynamically fetches the latest model from the provider on each request.

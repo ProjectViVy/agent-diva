@@ -27,7 +27,7 @@ use agent_diva_agent::{AgentLoop, ToolConfig};
 use agent_diva_core::bus::events::{AgentEvent, InboundMessage};
 use agent_diva_core::bus::MessageBus;
 use agent_diva_providers::LLMProvider;
-use agent_diva_providers::LiteLLMClient;
+use agent_diva_providers::OpenAiCompatibleClient;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -210,10 +210,15 @@ impl ScenarioRunner {
             .clone()
             .or(Some(self.config.default_model.clone()));
 
-        let mut agent_loop =
-            AgentLoop::new(bus, Arc::clone(&provider), workspace.clone(), model, Some(20))
-            .await
-            .map_err(|e| format!("[{scenario_name}] Failed to create AgentLoop: {e}"))?;
+        let mut agent_loop = AgentLoop::new(
+            bus,
+            Arc::clone(&provider),
+            workspace.clone(),
+            model,
+            Some(20),
+        )
+        .await
+        .map_err(|e| format!("[{scenario_name}] Failed to create AgentLoop: {e}"))?;
 
         agent_loop.register_default_tools(ToolConfig::default());
 
@@ -366,12 +371,12 @@ fn merge_collected_events(accumulated: &mut CollectedEvents, turn_events: Collec
     }
 }
 
-/// Build an [`LLMProvider`] (LiteLLM-backed) from the E2E configuration.
+/// Build an [`LLMProvider`] (OpenAI-compatible) from the E2E configuration.
 ///
-/// Constructs a [`LiteLLMClient`] using the configured API key, base URL,
+/// Constructs an [`OpenAiCompatibleClient`] using the configured API key, base URL,
 /// and default model, then wraps it in an `Arc<dyn LLMProvider>`.
 fn build_provider(config: &E2EConfig) -> Result<Arc<dyn LLMProvider>, Box<dyn std::error::Error>> {
-    let client = LiteLLMClient::new(
+    let client = OpenAiCompatibleClient::new(
         Some(config.api_key.clone()),
         Some(config.api_base.clone()),
         config.default_model.clone(),

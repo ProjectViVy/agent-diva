@@ -155,8 +155,8 @@ If commands are added or modified, update both the command index in `AGENTS.md` 
 When calling a provider's native OpenAI-compatible endpoint such as DeepSeek `https://api.deepseek.com/v1`:
 
 - send the raw provider model ID such as `deepseek-chat`
-- do not auto-rewrite it into LiteLLM form such as `deepseek/deepseek-chat`
-- only apply `provider/model` rewriting for a true LiteLLM-style gateway or aggregator
+    - do not auto-rewrite it into gateway form such as `deepseek/deepseek-chat`
+    - only apply `provider/model` rewriting for a true OpenAI-compatible gateway or aggregator
 
 Any provider-routing change should add or update tests that assert the final outbound `model` value.
 

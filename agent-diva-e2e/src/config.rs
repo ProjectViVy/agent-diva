@@ -24,7 +24,7 @@ pub struct E2EConfig {
     pub trace_dir: PathBuf,
     /// Directory containing YAML scenario files.
     pub scenarios_dir: PathBuf,
-    /// Provider name passed to LiteLLMClient (e.g. "deepseek", "openai", "azure").
+    /// Provider name passed to OpenAiCompatibleClient (e.g. "deepseek", "openai", "azure").
     /// Defaults to "deepseek" for backward compatibility.
     pub provider_name: String,
     /// Optional override model for the judge evaluation call.
@@ -44,8 +44,8 @@ impl E2EConfig {
         let api_base = std::env::var("E2E_API_BASE")
             .unwrap_or_else(|_| "https://api.deepseek.com/v1".to_string());
 
-        let default_model = std::env::var("E2E_MODEL")
-            .unwrap_or_else(|_| "deepseek-chat".to_string());
+        let default_model =
+            std::env::var("E2E_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string());
 
         let default_timeout_secs = std::env::var("E2E_TIMEOUT")
             .ok()
@@ -67,8 +67,8 @@ impl E2EConfig {
 
         let judge_model = std::env::var("E2E_JUDGE_MODEL").ok();
 
-        let provider_name = std::env::var("E2E_PROVIDER_NAME")
-            .unwrap_or_else(|_| "deepseek".to_string());
+        let provider_name =
+            std::env::var("E2E_PROVIDER_NAME").unwrap_or_else(|_| "deepseek".to_string());
 
         Ok(Self {
             api_key,

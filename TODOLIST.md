@@ -11,7 +11,7 @@
   - Related files: `agent-diva-e2e/src/collector.rs`, `agent-diva-e2e/src/config.rs`, `agent-diva-e2e/src/lib.rs`, `agent-diva-e2e/src/report.rs`, `agent-diva-e2e/src/runner.rs`, `agent-diva-e2e/src/tracer.rs`, `agent-diva-e2e/src/types.rs`
   - Suggested validation: run `cargo fmt -p agent-diva-e2e` in a focused formatting-only change, then rerun `cargo fmt --check`.
 - [ ] **Provider: run StepFun real endpoint E2E for model pass-through** The runtime now keeps model IDs opaque and unit coverage verifies `provider_name = stepfun`, `api_base = https://api.stepfun.com/step_plan/v1`, and `model = step-3.7-flash` pass through unchanged. Real StepFun E2E could not be run in this checkout because `keys.txt` is absent and no StepFun API key is available in the environment.
-  - Related files: `agent-diva-providers/src/litellm.rs`, `agent-diva-e2e/src/config.rs`, `docs/logs/2026-07-provider-model-pass-through/v0.0.1-provider-model-pass-through/verification.md`
+  - Related files: `agent-diva-providers/src/openai_compatible.rs`, `agent-diva-e2e/src/config.rs`, `docs/logs/2026-07-provider-model-pass-through/v0.0.1-provider-model-pass-through/verification.md`
   - Suggested validation: set `E2E_PROVIDER_NAME=stepfun`, `E2E_API_BASE=https://api.stepfun.com/step_plan/v1`, `E2E_MODEL=step-3.7-flash`, and `E2E_API_KEY`/`DEEPSEEK_API_KEY` to a StepFun key, then run `just e2e-test`.
 - [ ] **GUI: fix NormalMode.test.ts pre-existing `miku.svg` import failure** The vitest environment cannot resolve `/miku.svg` imported by `NormalMode.vue`, causing the whole `NormalMode.test.ts` suite to fail before any assertions run. This blocks regression testing of sidebar/navigation behavior and is unrelated to the pet overlay fix.
   - Related files: `agent-diva-gui/src/components/NormalMode.vue`, `agent-diva-gui/src/components/NormalMode.test.ts`, `agent-diva-gui/vitest.config.ts`
@@ -204,5 +204,5 @@
   - Related log: `docs/logs/2026-07-wavecd-remediation/v0.0.1-wavecd-review-closure/`
 - [x] **Wave G review on 2026-07-05** Completed the parallel review of usage fallback metrics, ErrorCategory adoption, global timeout wiring, feature-gate CI coverage, and the rustfmt-only catch-up commit; review blockers were recorded as deferred residuals instead of being fixed in this read-only pass.
   - Related log: `docs/logs/2026-07-waveg-review/v0.0.1-waveg-summary/`
-- [x] **Wave G remediation on 2026-07-05** Closed the LiteLLM missing-usage false-zero fallback, tightened retry categorization and timeout retryability, wired `global_tool_timeout_secs` into production `ToolRegistry` assembly, fixed `logging.retention_days = 0`, and promoted the feature-gate check into a real cross-platform CI gate.
+- [x] **Wave G remediation on 2026-07-05** Closed the OpenAI-compatible missing-usage false-zero fallback, tightened retry categorization and timeout retryability, wired `global_tool_timeout_secs` into production `ToolRegistry` assembly, fixed `logging.retention_days = 0`, and promoted the feature-gate check into a real cross-platform CI gate.
   - Related log: `docs/logs/2026-07-waveg-remediation/v0.0.1-waveg-remediation/`

@@ -16,7 +16,7 @@
 
 | 子项 | diva | alife | hermes |
 |---|---|---|---|
-| LLM token-level streaming | [~] 协议层支持(`agent-diva-providers/src/lib.rs` 导出 Stream 类型,`ollama.rs`/`litellm.rs` 实现),但 agent_loop 主链路未消费 stream 事件 | [ ] 未见显式 stream 消费(`ChatBot.RequestChatAsync` 走 SemanticKernel 一次性 invoke) | [x] 完整 / `run_agent.py:711` stream consumer + `KawaiiSpinner` + per-token UI render |
+| LLM token-level streaming | [~] 协议层支持(`agent-diva-providers/src/lib.rs` 导出 Stream 类型,`ollama.rs`/`openai_compatible.rs` 实现),但 agent_loop 主链路未消费 stream 事件 | [ ] 未见显式 stream 消费(`ChatBot.RequestChatAsync` 走 SemanticKernel 一次性 invoke) | [x] 完整 / `run_agent.py:711` stream consumer + `KawaiiSpinner` + per-token UI render |
 | 工具结果流式回灌 | [ ] 不支持(整段 tool result 一次性入 message) | [ ] 不支持(SemanticKernel 函数同步返回) | [x] 完整 / `agent/tool_executor.py:_emit_terminal_post_tool_call` + streaming deliverer |
 | Tool 调用并发 (parallel tool calls) | [ ] 不支持(`SubagentManager` 是任务级并发,非单 turn 内 tool 级别;见 `agent-diva-agent/src/subagent.rs:MAX_CONCURRENT_SUBAGENTS = 4`) | [ ] 不支持(SK 函数调用串行) | [x] 完整 / `agent/tool_executor.py:50` `_MAX_TOOL_WORKERS = 8` + `run_agent.py:5052` `_should_parallelize_tool_batch` + read-only 短路 |
 | 异步事件总线 | [x] `agent-diva-core/src/bus/` MessageBus (mpsc broadcast) | [~] `Poke` queue(`ConcurrentQueue` + 11 条循环,30s flush) | [x] `gateway/session_context.py` + `MessageBus` per-platform |

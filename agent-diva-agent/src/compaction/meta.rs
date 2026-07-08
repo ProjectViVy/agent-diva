@@ -665,7 +665,7 @@ mod tests {
         let gate = make_gate();
         let compactor = MetaCompactor::new(gate);
         let mut summaries = vec![
-            "Decision log: migrate the provider stack to DeepSeek native endpoint and keep raw model id deepseek-chat without LiteLLM prefix.".to_string(),
+            "Decision log: migrate the provider stack to DeepSeek native endpoint and keep raw model id deepseek-chat without gateway prefix.".to_string(),
             "Operational facts: rotate the staging API key on Monday, keep timeout=30s, and preserve workspace-write sandbox semantics for tool execution.".to_string(),
             "Delivery notes: compaction must stay best-effort, retry the provider once after overflow, and rebuild messages from the persisted post-compaction session snapshot.".to_string(),
         ];

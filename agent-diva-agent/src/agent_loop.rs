@@ -9,9 +9,11 @@ use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::SecurityConfig;
 use agent_diva_core::session::SessionManager;
+use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
+use agent_diva_tools::BackgroundTaskContext;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -60,6 +62,8 @@ pub struct ToolConfig {
     pub mcp_servers: HashMap<String, MCPServerConfig>,
     /// Optional cron service for scheduling tools
     pub cron_service: Option<Arc<CronService>>,
+    /// Optional supervised run store for background task tools.
+    pub run_store: Option<Arc<RunStore>>,
     /// Soul context settings
     pub soul_context: SoulContextSettings,
     /// Whether to append transparent notifications on soul updates
@@ -82,6 +86,7 @@ impl Default for ToolConfig {
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
             cron_service: None,
+            run_store: None,
             soul_context: SoulContextSettings::default(),
             notify_on_soul_change: true,
             soul_governance: SoulGovernanceSettings::default(),
@@ -209,10 +214,11 @@ impl SubagentSpawner for SubagentManagerSpawner {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 struct ToolTurnOptions<'a> {
     active_mask: Option<&'a MaskFile>,
     plan_mode: bool,
+    background_task_context: Option<BackgroundTaskContext>,
 }
 
 fn build_agent_tools(
@@ -246,6 +252,14 @@ fn build_agent_tools(
         assembly = assembly.with_cron_service(cron_service);
     }
 
+    if let Some(run_store) = tool_config.run_store.clone() {
+        assembly = assembly.with_run_store(run_store);
+    }
+
+    if let Some(context) = turn_options.background_task_context {
+        assembly = assembly.with_background_task_context(context);
+    }
+
     assembly.build()
 }
 
@@ -263,6 +277,7 @@ impl AgentLoop {
         &mut self,
         active_mask: Option<&MaskFile>,
         plan_mode: bool,
+        background_task_context: Option<BackgroundTaskContext>,
     ) {
         self.tools = build_agent_tools(
             self.workspace.clone(),
@@ -276,6 +291,7 @@ impl AgentLoop {
             ToolTurnOptions {
                 active_mask,
                 plan_mode,
+                background_task_context,
             },
         );
     }
@@ -307,20 +323,26 @@ impl AgentLoop {
             .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
         let file_config = FileConfig::with_path(&storage_path);
         let file_manager = Arc::new(FileManager::new(file_config).await?);
-        let subagent_manager = Arc::new(SubagentManager::new(
-            provider.clone(),
-            workspace.clone(),
-            bus.clone(),
-            Some(model.clone()),
-            BuiltInToolsConfig::default().for_subagent(),
-            NetworkToolConfig::default(),
-            None,
-            false,
-            HashMap::new(),
-            ToolLimits::default(),
-            memory_provider.clone(),
-            runtime_security.per_task_token_budget,
-        ));
+        let subagent_manager = Arc::new(
+            SubagentManager::new(
+                provider.clone(),
+                workspace.clone(),
+                bus.clone(),
+                Some(model.clone()),
+                BuiltInToolsConfig::default().for_subagent(),
+                NetworkToolConfig::default(),
+                None,
+                false,
+                HashMap::new(),
+                ToolLimits::default(),
+                memory_provider.clone(),
+                runtime_security.per_task_token_budget,
+            )
+            .with_token_ledger(
+                token_ledger_data_root.clone(),
+                runtime_security.token_budget_limit,
+            ),
+        );
 
         Ok(Self {
             bus,
@@ -492,20 +514,26 @@ impl AgentLoop {
 
         let memory_provider =
             active_memory_provider.unwrap_or_else(|| default_memory_provider(&workspace));
-        let subagent_manager = Arc::new(SubagentManager::new(
-            provider.clone(),
-            workspace.clone(),
-            bus.clone(),
-            Some(model.clone()),
-            tool_config.builtin.for_subagent(),
-            tool_config.network.clone(),
-            Some(tool_config.exec_timeout),
-            tool_config.restrict_to_workspace,
-            tool_config.mcp_servers.clone(),
-            ToolLimits::default(),
-            memory_provider.clone(),
-            runtime_security.per_task_token_budget,
-        ));
+        let subagent_manager = Arc::new(
+            SubagentManager::new(
+                provider.clone(),
+                workspace.clone(),
+                bus.clone(),
+                Some(model.clone()),
+                tool_config.builtin.for_subagent(),
+                tool_config.network.clone(),
+                Some(tool_config.exec_timeout),
+                tool_config.restrict_to_workspace,
+                tool_config.mcp_servers.clone(),
+                ToolLimits::default(),
+                memory_provider.clone(),
+                runtime_security.per_task_token_budget,
+            )
+            .with_token_ledger(
+                token_ledger_data_root.clone(),
+                runtime_security.token_budget_limit,
+            ),
+        );
         let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
             manager: subagent_manager.clone(),
         });
@@ -601,20 +629,26 @@ impl AgentLoop {
             .into_iter()
             .filter(|name| name.starts_with("memtle_"))
             .collect();
-        let subagent_manager = Arc::new(SubagentManager::new(
-            provider.clone(),
-            workspace.clone(),
-            bus.clone(),
-            Some(model.clone()),
-            toolset.config.builtin.for_subagent(),
-            toolset.config.network.clone(),
-            Some(toolset.config.exec_timeout),
-            toolset.config.restrict_to_workspace,
-            toolset.config.mcp_servers.clone(),
-            ToolLimits::default(),
-            memory_provider.clone(),
-            runtime_security.per_task_token_budget,
-        ));
+        let subagent_manager = Arc::new(
+            SubagentManager::new(
+                provider.clone(),
+                workspace.clone(),
+                bus.clone(),
+                Some(model.clone()),
+                toolset.config.builtin.for_subagent(),
+                toolset.config.network.clone(),
+                Some(toolset.config.exec_timeout),
+                toolset.config.restrict_to_workspace,
+                toolset.config.mcp_servers.clone(),
+                ToolLimits::default(),
+                memory_provider.clone(),
+                runtime_security.per_task_token_budget,
+            )
+            .with_token_ledger(
+                token_ledger_data_root.clone(),
+                runtime_security.token_budget_limit,
+            ),
+        );
         context = context
             .with_memory_provider(memory_provider.clone())
             .with_mentle(mentle_active)
@@ -652,6 +686,11 @@ impl AgentLoop {
     /// Whether Mentle prompt routing is active for this loop.
     pub fn mentle_active(&self) -> bool {
         self.mentle_active
+    }
+
+    /// Shared subagent manager used by spawn tools and supervised workers.
+    pub fn subagent_manager(&self) -> Arc<SubagentManager> {
+        self.subagent_manager.clone()
     }
 
     /// Build the current system prompt from the configured runtime context.
@@ -844,8 +883,8 @@ mod tests {
     #[cfg(feature = "mentle")]
     use crate::tool_config::mentle::{MentleToolMode, MentleToolRuntimeConfig};
     use agent_diva_providers::{
-        LLMResponse, LLMStreamEvent, LiteLLMClient, Message, ProviderError, ProviderEventStream,
-        ProviderResult, ToolCallRequest,
+        LLMResponse, LLMStreamEvent, Message, OpenAiCompatibleClient, ProviderError,
+        ProviderEventStream, ProviderResult, ToolCallRequest,
     };
     use async_trait::async_trait;
     use futures::stream;
@@ -1084,7 +1123,7 @@ mod tests {
     #[tokio::test]
     async fn test_agent_loop_creation() {
         let bus = MessageBus::new();
-        let provider = Arc::new(LiteLLMClient::default());
+        let provider = Arc::new(OpenAiCompatibleClient::default());
         let workspace = PathBuf::from("/tmp/test");
         let agent = AgentLoop::new(bus, provider, workspace, None, None)
             .await
@@ -1095,7 +1134,7 @@ mod tests {
     #[tokio::test]
     async fn test_process_direct() {
         let bus = MessageBus::new();
-        let provider = Arc::new(LiteLLMClient::default());
+        let provider = Arc::new(OpenAiCompatibleClient::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 

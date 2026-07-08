@@ -7,7 +7,7 @@ catalog services, and concrete OpenAI-compatible integrations for Agent Diva.
 
 - Provider traits and request/response types.
 - Registry and catalog helpers for resolving providers and models.
-- Native-provider and LiteLLM-compatible client implementations.
+- Native-provider and OpenAI-compatible gateway client implementations.
 - Model discovery and transcription-related support.
 
 The crate is publishable on its own, but its compatibility bar is defined by the

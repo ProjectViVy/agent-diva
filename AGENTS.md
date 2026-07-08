@@ -95,12 +95,12 @@ Keep public APIs documented with `///`; use `//!` for module overviews when help
 
 ## Provider Model-ID Safety Rule (Critical)
 
-When calling a provider's native OpenAI-compatible endpoint (e.g., DeepSeek `https://api.deepseek.com/v1`), always send the provider's raw model ID (e.g., `deepseek-chat`) — **do not auto-add LiteLLM prefixes** (e.g., do *not* rewrite to `deepseek/deepseek-chat`).  
-Only apply `provider/model` prefix rewriting when routing through a true LiteLLM-style gateway or aggregator.
+When calling a provider's native OpenAI-compatible endpoint (e.g., DeepSeek `https://api.deepseek.com/v1`), always send the provider's raw model ID (e.g., `deepseek-chat`) — **do not auto-add gateway prefixes** (e.g., do *not* rewrite to `deepseek/deepseek-chat`).  
+Only apply `provider/model` prefix rewriting when routing through a true OpenAI-compatible gateway or aggregator.
 
 **Implementation checklist for provider routing changes:**
 
-- Verify whether the endpoint is native-provider or LiteLLM-compatible gateway.
+- Verify whether the endpoint is native-provider or OpenAI-compatible gateway.
 - Add/adjust tests that assert final outbound `model` value.
 - Confirm config migration paths do not silently rewrite model IDs incorrectly.
 - Document behavior in crate-level docs or README when introducing new providers.
@@ -295,7 +295,7 @@ By default, all rules are mandatory; if exceptions are needed, they must be expl
   - Maintainer: Owner of the current deliverable.
 
 - **provider-model-id-safety**:
-  - Constraints/Range of applicability: When calling a provider's native OpenAI-compatible endpoint (e.g., DeepSeek `https://api.deepseek.com/v1`), use the provider's raw model ID — do not automatically add LiteLLM prefixes.
+  - Constraints/Range of applicability: When calling a provider's native OpenAI-compatible endpoint (e.g., DeepSeek `https://api.deepseek.com/v1`), use the provider's raw model ID — do not automatically add gateway prefixes.
   - Example: Direct connection to DeepSeek uses `deepseek-chat`, do not rewrite to `deepseek/deepseek-chat`.
   - Counterexample: Uniformly apply `provider/model` prefix rewriting to native endpoints.
   - Execution Method: Supplement test cases when modifying provider routing and assert the final `model` outbound field.

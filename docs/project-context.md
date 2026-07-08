@@ -74,7 +74,7 @@ agent-diva-pro/
 │   └── src/
 │       ├── base.rs         # LLMProvider trait + ProviderError
 │       ├── registry.rs     # ProviderRegistry
-│       ├── litellm.rs
+│       ├── openai_compatible.rs
 │       ├── ollama.rs
 │       └── http_util.rs    # 私有模块 (mod 不加 pub)
 │
@@ -593,7 +593,7 @@ type-complexity-threshold = 250
 7. **Lint**: 运行 `just check` 或 `cargo clippy --all -- -D warnings`
 8. **测试**: 在源文件底部添加 `#[cfg(test)] mod tests { ... }`
 9. **异步**: 用 `#[tokio::test]` 测试异步函数
-10. **Provider Model-ID**: 原生端点保持原始 model ID，不自动添加 LiteLLM 前缀
+10. **Provider Model-ID**: 原生端点保持原始 model ID，不自动添加 gateway 前缀
 
 ### 9.2 修改前端代码时
 
