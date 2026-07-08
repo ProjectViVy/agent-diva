@@ -2,12 +2,14 @@
 //!
 //! This crate provides abstractions and implementations for various LLM providers.
 
+pub mod anthropic;
 pub mod base;
 pub mod catalog;
 pub mod discovery;
+pub mod factory;
 mod http_util;
-pub mod litellm;
 pub mod ollama;
+pub mod openai_compatible;
 pub mod registry;
 pub mod retry;
 pub mod tap;
@@ -27,8 +29,9 @@ pub use catalog::{
 pub use discovery::{
     fetch_provider_model_catalog, ModelCatalogSource, ProviderAccess, ProviderModelCatalog,
 };
-pub use litellm::LiteLLMClient;
+pub use factory::{build_llm_provider, LlmProviderBuildOptions};
 pub use ollama::OllamaProvider;
+pub use openai_compatible::OpenAiCompatibleClient;
 pub use registry::{ProviderRegistry, ProviderSpec};
 
 use async_trait::async_trait;

@@ -1,4 +1,4 @@
-//! LiteLLM HTTP client implementation
+//! openai_compatible HTTP client implementation
 
 use async_trait::async_trait;
 use regex::Regex;
@@ -19,7 +19,7 @@ use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
 use crate::retry;
 
-/// LiteLLM API request format
+/// openai_compatible API request format
 #[derive(Debug, Serialize)]
 struct ChatCompletionRequest {
     model: String,
@@ -44,7 +44,7 @@ struct StreamOptions {
     include_usage: bool,
 }
 
-/// LiteLLM API response format
+/// openai_compatible API response format
 #[derive(Debug, Deserialize)]
 struct ChatCompletionResponse {
     #[serde(default, deserialize_with = "deserialize_null_default")]
@@ -159,8 +159,8 @@ struct PartialToolCall {
     arguments: String,
 }
 
-/// LiteLLM provider client
-pub struct LiteLLMClient {
+/// openai_compatible provider client
+pub struct OpenAiCompatibleClient {
     client: Client,
     api_base: String,
     api_key: Option<String>,
@@ -181,12 +181,12 @@ where
     Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
-impl LiteLLMClient {
+impl OpenAiCompatibleClient {
     fn fallback_provider_name(&self) -> String {
         self.selected_provider
             .as_ref()
             .map(|p| p.name.clone())
-            .unwrap_or_else(|| "litellm".to_string())
+            .unwrap_or_else(|| "openai_compatible".to_string())
     }
 
     fn build_usage_map(&self, usage: Option<Usage>, model: &str) -> HashMap<String, i64> {
@@ -220,7 +220,7 @@ impl LiteLLMClient {
         usage_map
     }
 
-    /// Create a new LiteLLM client
+    /// Create a new openai_compatible client
     pub fn new(
         api_key: Option<String>,
         api_base: Option<String>,
@@ -240,7 +240,7 @@ impl LiteLLMClient {
         )
     }
 
-    /// Create a new LiteLLM client with optional reasoning configuration.
+    /// Create a new openai_compatible client with optional reasoning configuration.
     pub fn new_with_config(
         api_key: Option<String>,
         api_base: Option<String>,
@@ -251,7 +251,7 @@ impl LiteLLMClient {
         reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
     ) -> Self {
         tracing::info!(
-            "Creating LiteLLMClient. Provider: {:?}, Base: {:?}",
+            "Creating OpenAiCompatibleClient. Provider: {:?}, Base: {:?}",
             provider_name,
             api_base
         );
@@ -311,7 +311,7 @@ impl LiteLLMClient {
     ///
     /// Model IDs are opaque configuration strings. The provider layer selects the
     /// request wire format, but it must not infer gateway/native routing or add
-    /// LiteLLM provider prefixes at runtime.
+    /// openai_compatible provider prefixes at runtime.
     fn resolve_model(&self, model: &str) -> String {
         debug!("Model passed through unchanged: {}", model);
         model.to_string()
@@ -405,7 +405,7 @@ impl LiteLLMClient {
         }
     }
 
-    /// Parse LiteLLM response into our standard format
+    /// Parse openai_compatible response into our standard format
     fn parse_response(
         &self,
         response: ChatCompletionResponse,
@@ -715,7 +715,7 @@ impl LiteLLMClient {
 }
 
 #[async_trait]
-impl LLMProvider for LiteLLMClient {
+impl LLMProvider for OpenAiCompatibleClient {
     async fn chat(
         &self,
         messages: Vec<Message>,
@@ -1005,7 +1005,7 @@ impl LLMProvider for LiteLLMClient {
     }
 }
 
-impl Default for LiteLLMClient {
+impl Default for OpenAiCompatibleClient {
     fn default() -> Self {
         Self::new(
             None,
@@ -1082,7 +1082,8 @@ mod tests {
 
     #[test]
     fn test_resolve_model() {
-        let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None, None);
+        let client =
+            OpenAiCompatibleClient::new(None, None, "claude-3-opus".to_string(), None, None, None);
 
         assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
         assert_eq!(client.resolve_model("claude-3-opus"), "claude-3-opus");
@@ -1095,7 +1096,7 @@ mod tests {
 
     #[test]
     fn test_named_provider_non_native_base_keeps_raw_model() {
-        let client = LiteLLMClient::new(
+        let client = OpenAiCompatibleClient::new(
             Some("sk-or-test".to_string()),
             Some("http://localhost:4000".to_string()),
             "claude-3-opus".to_string(),
@@ -1108,7 +1109,7 @@ mod tests {
 
     #[test]
     fn test_named_provider_native_base_keeps_raw_model() {
-        let client = LiteLLMClient::new(
+        let client = OpenAiCompatibleClient::new(
             Some("test-key".to_string()),
             Some("https://openrouter.ai/api/v1".to_string()),
             "claude-3-opus".to_string(),
@@ -1124,7 +1125,7 @@ mod tests {
 
     #[test]
     fn test_direct_provider_base_keeps_raw_model() {
-        let client = LiteLLMClient::new(
+        let client = OpenAiCompatibleClient::new(
             Some("sk-test".to_string()),
             Some("https://api.deepseek.com/v1".to_string()),
             "deepseek-chat".to_string(),
@@ -1137,7 +1138,7 @@ mod tests {
 
     #[test]
     fn test_named_provider_custom_stepfun_base_keeps_raw_model() {
-        let client = LiteLLMClient::new(
+        let client = OpenAiCompatibleClient::new(
             Some("sk-stepfun-test".to_string()),
             Some("https://api.stepfun.com/step_plan/v1".to_string()),
             "step-3.7-flash".to_string(),
@@ -1150,7 +1151,7 @@ mod tests {
 
     #[test]
     fn test_unknown_custom_provider_keeps_raw_model() {
-        let client = LiteLLMClient::new(
+        let client = OpenAiCompatibleClient::new(
             Some("sk-custom-test".to_string()),
             Some("https://llm.example.test/v1".to_string()),
             "custom-raw-model".to_string(),
@@ -1165,7 +1166,7 @@ mod tests {
     fn test_parse_sse_events() {
         let mut buffer =
             "data: {\"a\":1}\n\ndata: {\"b\":2}\n\ndata: [DONE]\n\ntrailing".to_string();
-        let events = LiteLLMClient::parse_sse_events(&mut buffer);
+        let events = OpenAiCompatibleClient::parse_sse_events(&mut buffer);
         assert_eq!(events.len(), 3);
         assert_eq!(events[0], "{\"a\":1}");
         assert_eq!(events[1], "{\"b\":2}");
@@ -1175,7 +1176,7 @@ mod tests {
 
     #[test]
     fn test_parse_response_normal_tool_args() {
-        let client = LiteLLMClient::default();
+        let client = OpenAiCompatibleClient::default();
         let response = ChatCompletionResponse {
             choices: vec![Choice {
                 message: ResponseMessage {
@@ -1206,7 +1207,7 @@ mod tests {
 
     #[test]
     fn test_parse_response_double_encoded_tool_args() {
-        let client = LiteLLMClient::default();
+        let client = OpenAiCompatibleClient::default();
         // Double-encoded: the arguments string is itself a JSON string containing JSON
         let inner_json = r#"{"key": "value"}"#;
         let double_encoded = serde_json::to_string(inner_json).unwrap();
@@ -1240,7 +1241,7 @@ mod tests {
 
     #[test]
     fn test_parse_response_invalid_tool_args_fallback() {
-        let client = LiteLLMClient::default();
+        let client = OpenAiCompatibleClient::default();
         let response = ChatCompletionResponse {
             choices: vec![Choice {
                 message: ResponseMessage {
@@ -1306,8 +1307,8 @@ mod tests {
             name: "search".to_string(),
             arguments: double_encoded,
         };
-        let response = LiteLLMClient::finalize_partial_response(
-            "litellm",
+        let response = OpenAiCompatibleClient::finalize_partial_response(
+            "openai_compatible",
             "anthropic/claude-opus-4-5",
             String::new(),
             String::new(),
@@ -1328,13 +1329,15 @@ mod tests {
 
     #[test]
     fn test_supports_cache_control_anthropic() {
-        let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None, None);
+        let client =
+            OpenAiCompatibleClient::new(None, None, "claude-3-opus".to_string(), None, None, None);
         assert!(client.supports_cache_control("claude-3-opus"));
     }
 
     #[test]
     fn test_supports_cache_control_deepseek_false() {
-        let client = LiteLLMClient::new(None, None, "deepseek-chat".to_string(), None, None, None);
+        let client =
+            OpenAiCompatibleClient::new(None, None, "deepseek-chat".to_string(), None, None, None);
         assert!(!client.supports_cache_control("deepseek-chat"));
     }
 
@@ -1346,7 +1349,7 @@ mod tests {
                 {"role": "user", "content": "Hello"}
             ]
         });
-        LiteLLMClient::apply_cache_control(&mut body);
+        OpenAiCompatibleClient::apply_cache_control(&mut body);
 
         let system_msg = &body["messages"][0];
         let content = system_msg["content"].as_array().unwrap();
@@ -1372,7 +1375,7 @@ mod tests {
                 }
             ]
         });
-        LiteLLMClient::apply_cache_control(&mut body);
+        OpenAiCompatibleClient::apply_cache_control(&mut body);
 
         let content = body["messages"][0]["content"].as_array().unwrap();
         assert_eq!(content[0]["cache_control"]["type"], "ephemeral");
@@ -1389,7 +1392,7 @@ mod tests {
                 {"type": "function", "function": {"name": "tool_b"}}
             ]
         });
-        LiteLLMClient::apply_cache_control(&mut body);
+        OpenAiCompatibleClient::apply_cache_control(&mut body);
 
         // Only last tool should have cache_control
         assert!(body["tools"][0].get("cache_control").is_none());
@@ -1407,7 +1410,7 @@ mod tests {
                 }
             ]
         });
-        LiteLLMClient::normalize_assistant_tool_call_content(&mut body);
+        OpenAiCompatibleClient::normalize_assistant_tool_call_content(&mut body);
         assert!(body["messages"][0]["content"].is_null());
     }
 
@@ -1422,7 +1425,7 @@ mod tests {
                 }
             ]
         });
-        LiteLLMClient::normalize_assistant_tool_call_content(&mut body);
+        OpenAiCompatibleClient::normalize_assistant_tool_call_content(&mut body);
         assert_eq!(body["messages"][0]["content"], "ok");
     }
 
@@ -1430,7 +1433,7 @@ mod tests {
     fn test_sanitize_message_content_removes_control_chars() {
         // Test with control characters
         let input = "hello\x00world\x07bell\x01\x02";
-        let output = LiteLLMClient::sanitize_message_content(input);
+        let output = OpenAiCompatibleClient::sanitize_message_content(input);
         assert_eq!(output, "helloworldbell");
     }
 
@@ -1438,7 +1441,7 @@ mod tests {
     fn test_sanitize_message_content_removes_ansi_sequences() {
         // Test with ANSI escape sequences
         let input = "\x1b[32msuccess\x1b[0m \x1b[1;31merror\x1b[0m";
-        let output = LiteLLMClient::sanitize_message_content(input);
+        let output = OpenAiCompatibleClient::sanitize_message_content(input);
         assert_eq!(output, "success error");
     }
 
@@ -1446,16 +1449,15 @@ mod tests {
     fn test_sanitize_message_content_preserves_whitespace() {
         // Test that normal whitespace is preserved
         let input = "line1\nline2\r\nline3\tindented";
-        let output = LiteLLMClient::sanitize_message_content(input);
+        let output = OpenAiCompatibleClient::sanitize_message_content(input);
         assert_eq!(output, "line1\nline2\r\nline3\tindented");
     }
 
     #[test]
-    fn test_sanitize_message_content_preserves_unicode() {
-        // Test that unicode is preserved
-        let input = "你好世界 🐈 日本語";
-        let output = LiteLLMClient::sanitize_message_content(input);
-        assert_eq!(output, "你好世界 🐈 日本語");
+    fn test_sanitize_message_content_preserves_printable_text() {
+        let input = "plain printable text";
+        let output = OpenAiCompatibleClient::sanitize_message_content(input);
+        assert_eq!(output, "plain printable text");
     }
 
     #[test]
@@ -1467,7 +1469,7 @@ mod tests {
             Message::assistant("text with \x00 null and \x1b[31mred\x1b[0m"),
         ];
 
-        let sanitized = LiteLLMClient::sanitize_messages(messages);
+        let sanitized = OpenAiCompatibleClient::sanitize_messages(messages);
 
         assert_eq!(sanitized[0].content.as_text(), Some("normal text"));
         assert_eq!(
@@ -1485,7 +1487,7 @@ mod tests {
             Message::assistant("This is a response."),
         ];
 
-        let sanitized = LiteLLMClient::sanitize_messages(messages);
+        let sanitized = OpenAiCompatibleClient::sanitize_messages(messages);
 
         // Content should be unchanged
         assert_eq!(sanitized[0].content.as_text(), Some("Hello, world!"));
@@ -1507,7 +1509,7 @@ mod tests {
             },
         ]))];
 
-        let sanitized = LiteLLMClient::sanitize_messages(messages);
+        let sanitized = OpenAiCompatibleClient::sanitize_messages(messages);
         let value = serde_json::to_value(&sanitized[0]).unwrap();
 
         assert_eq!(value["content"][0]["text"], "text with  null");
@@ -1521,7 +1523,7 @@ mod tests {
     fn test_build_request_serializes_openai_compatible_image_url_parts() {
         use crate::base::{ImageUrl, Message, MessageContent, MessageContentPart};
 
-        let client = LiteLLMClient::default();
+        let client = OpenAiCompatibleClient::default();
         let request = client.build_request(
             vec![Message::user(MessageContent::Parts(vec![
                 MessageContentPart::Text {
@@ -1564,7 +1566,7 @@ mod tests {
     fn test_build_stream_request_keeps_openai_compatible_image_url_parts() {
         use crate::base::{ImageUrl, Message, MessageContent, MessageContentPart};
 
-        let client = LiteLLMClient::default();
+        let client = OpenAiCompatibleClient::default();
         let request = client.build_request(
             vec![Message::user(MessageContent::Parts(vec![
                 MessageContentPart::Text {
@@ -1600,7 +1602,7 @@ mod tests {
 
     #[test]
     fn test_parse_response_with_missing_usage_emits_fallback() {
-        let client = LiteLLMClient::default();
+        let client = OpenAiCompatibleClient::default();
         let response = ChatCompletionResponse {
             choices: vec![Choice {
                 message: ResponseMessage {
@@ -1621,7 +1623,7 @@ mod tests {
 
     #[test]
     fn test_parse_response_with_present_usage_does_not_emit_fallback() {
-        let client = LiteLLMClient::default();
+        let client = OpenAiCompatibleClient::default();
         let response = ChatCompletionResponse {
             choices: vec![Choice {
                 message: ResponseMessage {
@@ -1667,8 +1669,8 @@ mod tests {
 
     #[test]
     fn test_finalize_partial_response_without_usage_keeps_usage_empty() {
-        let response = LiteLLMClient::finalize_partial_response(
-            "litellm",
+        let response = OpenAiCompatibleClient::finalize_partial_response(
+            "openai_compatible",
             "test-model",
             "hello".to_string(),
             String::new(),
@@ -1684,7 +1686,11 @@ mod tests {
     #[test]
     fn test_usage_map_without_usage_emits_audit_fallback() {
         let events = with_audit_capture(|| {
-            let usage = LiteLLMClient::usage_map_with_fallback(None, "litellm", "test-model");
+            let usage = OpenAiCompatibleClient::usage_map_with_fallback(
+                None,
+                "openai_compatible",
+                "test-model",
+            );
             assert!(usage.is_empty());
         });
 

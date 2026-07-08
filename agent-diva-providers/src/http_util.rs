@@ -32,7 +32,27 @@ pub(crate) fn build_api_http_client(
     if should_force_http1_only_for_api_base(api_base) {
         builder = builder.http1_only();
     }
+    if should_disable_proxy_for_api_base(api_base) {
+        builder = builder.no_proxy();
+    }
     builder.build()
+}
+
+fn should_disable_proxy_for_api_base(api_base: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(api_base.trim()) else {
+        return false;
+    };
+    match url.scheme() {
+        "http" => true,
+        "https" => url
+            .host_str()
+            .map(|host| {
+                let h = host.to_ascii_lowercase();
+                h == "localhost" || h == "127.0.0.1" || h == "::1" || h.ends_with(".local")
+            })
+            .unwrap_or(false),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -47,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn local_litellm_https_forces_http1() {
+    fn local_openai_compatible_https_forces_http1() {
         assert!(should_force_http1_only_for_api_base(
             "https://127.0.0.1:4000/v1"
         ));
@@ -57,6 +77,15 @@ mod tests {
     fn plain_http_forces_http1() {
         assert!(should_force_http1_only_for_api_base(
             "http://localhost:4000"
+        ));
+    }
+
+    #[test]
+    fn local_and_plain_http_disable_proxy() {
+        assert!(should_disable_proxy_for_api_base("http://127.0.0.1:4000"));
+        assert!(should_disable_proxy_for_api_base("https://localhost:4000"));
+        assert!(!should_disable_proxy_for_api_base(
+            "https://api.deepseek.com/v1"
         ));
     }
 }

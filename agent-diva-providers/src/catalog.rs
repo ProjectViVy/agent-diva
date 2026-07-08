@@ -296,7 +296,7 @@ impl ProviderCatalogService {
             || config.providers.get_custom(provider_id).is_some()
     }
 
-    fn provider_spec(
+    pub fn provider_spec(
         &self,
         provider_id: &str,
         providers: &ProvidersConfig,
@@ -525,7 +525,7 @@ fn custom_provider_spec(provider_id: &str, provider: &CustomProviderConfig) -> P
             provider.display_name.clone()
         },
         default_model: provider.default_model.clone(),
-        litellm_prefix: String::new(),
+        gateway_prefix: String::new(),
         skip_prefixes: vec![],
         env_extras: vec![],
         default_api_base: provider.api_base.clone().unwrap_or_default(),

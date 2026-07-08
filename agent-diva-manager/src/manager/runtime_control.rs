@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use agent_diva_agent::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::AgentEvent;
 use agent_diva_core::config::schema::{
@@ -8,7 +5,7 @@ use agent_diva_core::config::schema::{
     QQConfig, SelfEvolutionConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
 };
 use agent_diva_providers::{
-    tap::ProviderTap, LiteLLMClient, ProviderAccess, ProviderCatalogService,
+    build_llm_provider, LlmProviderBuildOptions, ProviderAccess, ProviderCatalogService,
 };
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, warn};
@@ -510,12 +507,6 @@ impl Manager {
         let access = catalog
             .get_provider_access(config, &provider_id)
             .unwrap_or_else(|| ProviderAccess::from_config(None));
-        let extra_headers = (!access.extra_headers.is_empty()).then(|| {
-            access
-                .extra_headers
-                .into_iter()
-                .collect::<HashMap<String, String>>()
-        });
         let resolved_api_base = access.api_base.clone().or_else(|| {
             catalog
                 .get_provider_view(config, &provider_id)
@@ -523,17 +514,33 @@ impl Manager {
         });
         self.current_api_key = access.api_key.clone();
         self.current_api_base = resolved_api_base.clone();
+        let spec = match catalog.provider_spec(&provider_id, &config.providers) {
+            Some(spec) => spec,
+            None => {
+                warn!(
+                    "Unknown provider: {}, skipping provider update",
+                    provider_id
+                );
+                return;
+            }
+        };
+        let mut access = access;
+        access.api_base = resolved_api_base;
+        let new_client = match build_llm_provider(LlmProviderBuildOptions {
+            spec,
+            access,
+            model: model_to_use,
+            reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
+            reasoning_config: None,
+        }) {
+            Ok(provider) => provider,
+            Err(error) => {
+                warn!("Failed to build provider '{}': {}", provider_id, error);
+                return;
+            }
+        };
 
-        let new_client = LiteLLMClient::new(
-            access.api_key,
-            resolved_api_base,
-            model_to_use,
-            extra_headers,
-            Some(provider_id),
-            config.agents.defaults.reasoning_effort.clone(),
-        );
-
-        self.provider.update(Arc::new(ProviderTap::new(new_client)));
+        self.provider.update(new_client);
         info!("Provider updated successfully");
     }
 
@@ -577,7 +584,7 @@ impl Manager {
         let _ = reply.send(response);
     }
 
-    async fn with_runtime_control<T, F, Fut>(
+    pub(super) async fn with_runtime_control<T, F, Fut>(
         &self,
         f: F,
         missing_message: &str,

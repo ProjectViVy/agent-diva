@@ -5,7 +5,7 @@
   env_key: OPENROUTER_API_KEY
   display_name: OpenRouter
   default_model: openrouter/anthropic/claude-sonnet-4
-  litellm_prefix: openrouter
+  gateway_prefix: openrouter
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -32,7 +32,7 @@
   env_key: OPENAI_API_KEY
   display_name: AiHubMix
   default_model: aihubmix/claude-sonnet-4
-  litellm_prefix: openai
+  gateway_prefix: openai
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -63,7 +63,7 @@
   env_key: CUSTOM_API_KEY
   display_name: Custom / Local
   default_model: custom/default
-  litellm_prefix: ""
+  gateway_prefix: ""
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -81,15 +81,15 @@
     - claude
   env_key: ANTHROPIC_API_KEY
   display_name: Anthropic
-  default_model: anthropic/claude-sonnet-4-5
-  litellm_prefix: "https://api.anthropic.com/v1"
+  default_model: claude-sonnet-4-5
+  gateway_prefix: ""
   skip_prefixes: []
   env_extras: []
   is_gateway: false
   is_local: false
   detect_by_key_prefix: ""
   detect_by_base_keyword: ""
-  default_api_base: ""
+  default_api_base: "https://api.anthropic.com"
   strip_model_prefix: false
   supports_prompt_caching: true
   models:
@@ -111,7 +111,7 @@
   env_key: OPENAI_API_KEY
   display_name: OpenAI
   default_model: openai/gpt-4o
-  litellm_prefix: ""
+  gateway_prefix: ""
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -144,7 +144,7 @@
   env_key: DEEPSEEK_API_KEY
   display_name: DeepSeek
   default_model: deepseek-chat
-  litellm_prefix: deepseek
+  gateway_prefix: deepseek
   skip_prefixes:
     - deepseek/
   env_extras: []
@@ -167,7 +167,7 @@
   env_key: GEMINI_API_KEY
   display_name: Gemini
   default_model: gemini/gemini-2.0-flash
-  litellm_prefix: gemini
+  gateway_prefix: gemini
   skip_prefixes:
     - gemini/
   env_extras: []
@@ -195,7 +195,7 @@
   env_key: ZAI_API_KEY
   display_name: Zhipu AI
   default_model: zhipu/glm-4-flash
-  litellm_prefix: zai
+  gateway_prefix: zai
   skip_prefixes:
     - zhipu/
     - zai/
@@ -229,7 +229,7 @@
   env_key: DASHSCOPE_API_KEY
   display_name: DashScope
   default_model: dashscope/qwen-max
-  litellm_prefix: dashscope
+  gateway_prefix: dashscope
   skip_prefixes:
     - dashscope/
     - openrouter/
@@ -259,7 +259,7 @@
   env_key: MOONSHOT_API_KEY
   display_name: Moonshot
   default_model: moonshot/moonshot-v1-8k
-  litellm_prefix: moonshot
+  gateway_prefix: moonshot
   skip_prefixes:
     - moonshot/
     - openrouter/
@@ -287,7 +287,7 @@
   env_key: MINIMAX_API_KEY
   display_name: MiniMax
   default_model: minimax/MiniMax-M2.1
-  litellm_prefix: minimax
+  gateway_prefix: minimax
   skip_prefixes:
     - minimax/
     - openrouter/
@@ -313,7 +313,7 @@
   env_key: HOSTED_VLLM_API_KEY
   display_name: vLLM/Local
   default_model: vllm/meta-llama/Llama-3.3-70B-Instruct
-  litellm_prefix: hosted_vllm
+  gateway_prefix: hosted_vllm
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -332,7 +332,7 @@
   env_key: GROQ_API_KEY
   display_name: Groq
   default_model: groq/llama-3.3-70b-versatile
-  litellm_prefix: groq
+  gateway_prefix: groq
   skip_prefixes:
     - groq/
   env_extras: []
@@ -358,7 +358,7 @@
     - grok
   env_key: XAI_API_KEY
   display_name: xAI
-  litellm_prefix: xai
+  gateway_prefix: xai
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -380,7 +380,7 @@
     - cherryin
   env_key: CHERRYIN_API_KEY
   display_name: CherryIN
-  litellm_prefix: cherryin
+  gateway_prefix: cherryin
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -399,7 +399,7 @@
 #     - azure
 #   env_key: AZURE_OPENAI_API_KEY
 #   display_name: Azure OpenAI
-#   litellm_prefix: azure
+#   gateway_prefix: azure
 #   skip_prefixes: []
 #   env_extras: []
 #   is_gateway: false
@@ -419,7 +419,7 @@
     - 302ai
   env_key: 302AI_API_KEY
   display_name: 302.AI
-  litellm_prefix: 302ai
+  gateway_prefix: 302ai
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -442,7 +442,7 @@
     - ph8
   env_key: PH8_API_KEY
   display_name: PH8
-  litellm_prefix: ph8
+  gateway_prefix: ph8
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -462,7 +462,7 @@
     - burncloud
   env_key: BURNCLOUD_API_KEY
   display_name: BurnCloud
-  litellm_prefix: burncloud
+  gateway_prefix: burncloud
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -485,7 +485,7 @@
     - siliconflow
   env_key: SILICON_API_KEY
   display_name: SiliconFlow
-  litellm_prefix: silicon
+  gateway_prefix: silicon
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -505,7 +505,7 @@
     - ppio
   env_key: PPIO_API_KEY
   display_name: PPIO
-  litellm_prefix: ppio
+  gateway_prefix: ppio
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -527,7 +527,7 @@
     - togetherai
   env_key: TOGETHER_API_KEY
   display_name: Together AI
-  litellm_prefix: together
+  gateway_prefix: together
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -547,7 +547,7 @@
     - ocoolai
   env_key: OCOOLAI_API_KEY
   display_name: OcoolAI
-  litellm_prefix: ocoolai
+  gateway_prefix: ocoolai
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -569,7 +569,7 @@
     - github
   env_key: GITHUB_API_KEY
   display_name: GitHub Models
-  litellm_prefix: github
+  gateway_prefix: github
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -589,7 +589,7 @@
 #     - copilot
 #   env_key: COPILOT_API_KEY
 #   display_name: Copilot
-#   litellm_prefix: copilot
+#   gateway_prefix: copilot
 #   skip_prefixes: []
 #   env_extras: []
 #   is_gateway: true
@@ -609,7 +609,7 @@
     - 01ai
   env_key: YI_API_KEY
   display_name: Yi (01.AI)
-  litellm_prefix: yi
+  gateway_prefix: yi
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -629,7 +629,7 @@
     - baichuan
   env_key: BAICHUAN_API_KEY
   display_name: Baichuan
-  litellm_prefix: baichuan
+  gateway_prefix: baichuan
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -650,7 +650,7 @@
     - modelscope
   env_key: MODELSCOPE_API_KEY
   display_name: ModelScope
-  litellm_prefix: modelscope
+  gateway_prefix: modelscope
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -670,7 +670,7 @@
     - stepfun
   env_key: STEPFUN_API_KEY
   display_name: StepFun
-  litellm_prefix: stepfun
+  gateway_prefix: stepfun
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -691,7 +691,7 @@
     - ark
   env_key: DOUBAO_API_KEY
   display_name: Doubao (Ark)
-  litellm_prefix: doubao
+  gateway_prefix: doubao
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -711,7 +711,7 @@
     - hyperbolic
   env_key: HYPERBOLIC_API_KEY
   display_name: Hyperbolic
-  litellm_prefix: hyperbolic
+  gateway_prefix: hyperbolic
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -732,7 +732,7 @@
     - mistralai
   env_key: MISTRAL_API_KEY
   display_name: Mistral AI
-  litellm_prefix: mistral
+  gateway_prefix: mistral
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -753,7 +753,7 @@
     - jina
   env_key: JINA_API_KEY
   display_name: Jina AI
-  litellm_prefix: jina
+  gateway_prefix: jina
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -773,7 +773,7 @@
     - fireworks
   env_key: FIREWORKS_API_KEY
   display_name: Fireworks AI
-  litellm_prefix: fireworks
+  gateway_prefix: fireworks
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -793,7 +793,7 @@
     - tencent
   env_key: HUNYUAN_API_KEY
   display_name: Hunyuan
-  litellm_prefix: hunyuan
+  gateway_prefix: hunyuan
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -815,7 +815,7 @@
     - nim
   env_key: NVIDIA_API_KEY
   display_name: NVIDIA NIM
-  litellm_prefix: nvidia
+  gateway_prefix: nvidia
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -836,7 +836,7 @@
     - ernie
   env_key: QIANFAN_API_KEY
   display_name: Baidu Qianfan
-  litellm_prefix: qianfan
+  gateway_prefix: qianfan
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -856,7 +856,7 @@
 #     - dmxapi
 #   env_key: DMXAPI_API_KEY
 #   display_name: DMXAPI
-#   litellm_prefix: dmxapi
+#   gateway_prefix: dmxapi
 #   skip_prefixes: []
 #   env_extras: []
 #   is_gateway: true
@@ -877,7 +877,7 @@
     - sonar
   env_key: PERPLEXITY_API_KEY
   display_name: Perplexity
-  litellm_prefix: perplexity
+  gateway_prefix: perplexity
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -898,7 +898,7 @@
     - maas
   env_key: INFINI_API_KEY
   display_name: Infini / Maas
-  litellm_prefix: infini
+  gateway_prefix: infini
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -920,7 +920,7 @@
     - voyageai
   env_key: VOYAGE_API_KEY
   display_name: Voyage AI
-  litellm_prefix: voyage
+  gateway_prefix: voyage
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -940,7 +940,7 @@
     - qiniu
   env_key: QINIU_API_KEY
   display_name: Qiniu
-  litellm_prefix: qiniu
+  gateway_prefix: qiniu
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -960,7 +960,7 @@
     - tokenflux
   env_key: TOKENFLUX_API_KEY
   display_name: TokenFlux
-  litellm_prefix: tokenflux
+  gateway_prefix: tokenflux
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -980,7 +980,7 @@
     - cephalon
   env_key: CEPHALON_API_KEY
   display_name: Cephalon
-  litellm_prefix: cephalon
+  gateway_prefix: cephalon
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -999,7 +999,7 @@
     - lanyun
   env_key: LANYUN_API_KEY
   display_name: Lanyun
-  litellm_prefix: lanyun
+  gateway_prefix: lanyun
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -1019,7 +1019,7 @@
     - poe
   env_key: POE_API_KEY
   display_name: Poe
-  litellm_prefix: poe
+  gateway_prefix: poe
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -1038,7 +1038,7 @@
     - aionly
   env_key: AIONLY_API_KEY
   display_name: AIOnly
-  litellm_prefix: aionly
+  gateway_prefix: aionly
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -1058,7 +1058,7 @@
     - longcat
   env_key: LONGCAT_API_KEY
   display_name: LongCat
-  litellm_prefix: longcat
+  gateway_prefix: longcat
   skip_prefixes: []
   env_extras: []
   is_gateway: true
@@ -1077,7 +1077,7 @@
     - cerebras
   env_key: CEREBRAS_API_KEY
   display_name: Cerebras
-  litellm_prefix: cerebras
+  gateway_prefix: cerebras
   skip_prefixes: []
   env_extras: []
   is_gateway: false
@@ -1097,7 +1097,7 @@
     - mimo
   env_key: MIMO_API_KEY
   display_name: Mimo
-  litellm_prefix: mimo
+  gateway_prefix: mimo
   skip_prefixes: []
   env_extras: []
   is_gateway: false

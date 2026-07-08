@@ -5,15 +5,15 @@
 //!
 //! Tests cover:
 //! - AC1: Exponential backoff (max 3 retries, base 1s, multiplier 2x)
-//! - AC2: HTTP 429 → ProviderError::RateLimited with Retry-After
+//! - AC2: HTTP 429 �?ProviderError::RateLimited with Retry-After
 //! - AC4: ProviderError::RateLimited variant with retry_after field
 
 use agent_diva_providers::{LLMProvider, LLMResponse, Message, ProviderError};
 use mockito::Server;
 
-/// Helper: build a LiteLLMClient for testing with a mock server URL.
-fn test_client(mock_url: &str) -> agent_diva_providers::LiteLLMClient {
-    agent_diva_providers::LiteLLMClient::new(
+/// Helper: build a OpenAiCompatibleClient for testing with a mock server URL.
+fn test_client(mock_url: &str) -> agent_diva_providers::OpenAiCompatibleClient {
+    agent_diva_providers::OpenAiCompatibleClient::new(
         Some("sk-test-key".to_string()),
         Some(mock_url.to_string()),
         "test-model".to_string(),

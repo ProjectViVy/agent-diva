@@ -27,8 +27,9 @@ pub struct ProviderSpec {
     #[serde(default)]
     pub default_model: Option<String>,
 
-    // Model prefixing
-    pub litellm_prefix: String,
+    // Gateway catalog prefix metadata. This is descriptive only; model ids are opaque.
+    #[serde(default, alias = "litellm_prefix")]
+    pub gateway_prefix: String,
     pub skip_prefixes: Vec<String>,
 
     // Extra env vars
@@ -147,5 +148,52 @@ mod tests {
         let spec = registry.find_by_name("anthropic");
         assert!(spec.is_some());
         assert_eq!(spec.unwrap().display_name, "Anthropic");
+    }
+
+    #[test]
+    fn provider_spec_accepts_gateway_prefix_and_legacy_alias() {
+        let current: ProviderSpec = serde_yaml::from_str(
+            r#"
+name: test
+api_type: openai
+keywords: [test]
+env_key: TEST_API_KEY
+display_name: Test
+gateway_prefix: gateway
+skip_prefixes: []
+env_extras: []
+default_api_base: https://example.test/v1
+model_overrides: []
+"#,
+        )
+        .unwrap();
+        assert_eq!(current.gateway_prefix, "gateway");
+
+        let legacy: ProviderSpec = serde_yaml::from_str(
+            r#"
+name: legacy
+api_type: openai
+keywords: [legacy]
+env_key: LEGACY_API_KEY
+display_name: Legacy
+litellm_prefix: legacy-gateway
+skip_prefixes: []
+env_extras: []
+default_api_base: https://legacy.example.test/v1
+model_overrides: []
+"#,
+        )
+        .unwrap();
+        assert_eq!(legacy.gateway_prefix, "legacy-gateway");
+    }
+
+    #[test]
+    fn anthropic_registry_uses_native_base_and_raw_default_model() {
+        let registry = ProviderRegistry::new();
+        let spec = registry.find_by_name("anthropic").unwrap();
+
+        assert_eq!(spec.api_type, ApiType::Anthropic);
+        assert_eq!(spec.default_api_base, "https://api.anthropic.com");
+        assert_eq!(spec.default_model(), Some("claude-sonnet-4-5"));
     }
 }

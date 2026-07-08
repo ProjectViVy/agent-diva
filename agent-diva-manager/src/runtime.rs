@@ -16,9 +16,10 @@ use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
-    tap::ProviderTap, DynamicProvider, LLMProvider, LiteLLMClient, ProviderAccess,
+    build_llm_provider, DynamicProvider, LLMProvider, LlmProviderBuildOptions, ProviderAccess,
     ProviderCatalogService, ProviderRegistry,
 };
 use anyhow::Result;
@@ -80,6 +81,7 @@ struct GatewayBootstrap {
     provider_api_base: Option<String>,
     agent: AgentLoop,
     file_manager: Arc<FileManager>,
+    run_store: Arc<RunStore>,
 }
 
 struct ChannelBootstrap {
@@ -97,6 +99,8 @@ struct GatewayTasks {
     outbound_dispatch_handle: JoinHandle<()>,
     channel_handle: JoinHandle<()>,
     agent_handle: JoinHandle<()>,
+    supervised_executor_cancel: tokio_util::sync::CancellationToken,
+    supervised_executor_handle: JoinHandle<()>,
     manager_handle: JoinHandle<Result<()>>,
     server_handle: JoinHandle<()>,
     _api_tx_keepalive: mpsc::Sender<ManagerCommand>,
@@ -167,21 +171,17 @@ fn build_provider(config: &Config, model: &str) -> Result<Arc<dyn LLMProvider>> 
     let access = catalog
         .get_provider_access(config, &provider_name)
         .unwrap_or_else(|| ProviderAccess::from_config(None));
-    let extra_headers = (!access.extra_headers.is_empty()).then(|| {
-        access
-            .extra_headers
-            .into_iter()
-            .collect::<std::collections::HashMap<String, String>>()
-    });
+    let spec = catalog
+        .provider_spec(&provider_name, &config.providers)
+        .ok_or_else(|| anyhow::anyhow!("Unknown provider '{}'", provider_name))?;
 
-    Ok(Arc::new(ProviderTap::new(LiteLLMClient::new(
-        access.api_key,
-        access.api_base,
-        model.to_string(),
-        extra_headers,
-        Some(provider_name),
-        config.agents.defaults.reasoning_effort.clone(),
-    ))))
+    Ok(build_llm_provider(LlmProviderBuildOptions {
+        spec,
+        access,
+        model: model.to_string(),
+        reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
+        reasoning_config: None,
+    })?)
 }
 
 fn build_network_tool_config(config: &Config) -> NetworkToolConfig {
@@ -385,6 +385,7 @@ mod tests {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn build_agent_loop(
     config: &Config,
     bus: MessageBus,
@@ -393,6 +394,7 @@ async fn build_agent_loop(
     runtime_control_rx: mpsc::UnboundedReceiver<RuntimeControlCommand>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
+    run_store: Arc<RunStore>,
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
@@ -406,6 +408,7 @@ async fn build_agent_loop(
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(cron_service),
+        run_store: Some(run_store),
         soul_context: SoulContextSettings {
             enabled: config.agents.soul.enabled,
             max_chars: config.agents.soul.max_chars,

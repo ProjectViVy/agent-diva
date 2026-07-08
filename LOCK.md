@@ -40,7 +40,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `none`
+- `2026-07-08`: Codex claimed provider protocol split scope for OpenAI-compatible rename, Anthropic native client, factory wiring, provider schema cleanup, tests, logs, and focused commit.
+- `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
 

@@ -13,8 +13,9 @@ use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
-    CustomProviderUpsert, LiteLLMClient, Message, ProviderAccess, ProviderCatalogService,
-    ProviderModelCatalogView as SharedProviderModelCatalog, ProviderView as SharedProviderView,
+    build_llm_provider, CustomProviderUpsert, LlmProviderBuildOptions, Message, ProviderAccess,
+    ProviderCatalogService, ProviderModelCatalogView as SharedProviderModelCatalog,
+    ProviderView as SharedProviderView,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use eventsource_stream::Eventsource;
@@ -25,7 +26,6 @@ use serde::{Deserialize, Serialize};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, Window};
@@ -1843,23 +1843,18 @@ pub async fn test_provider_model(
     let config = loader.load().unwrap_or_default();
     let access = provider_access_for_test(&config, &provider, api_base, api_key);
 
-    let client = LiteLLMClient::new(
-        access.api_key,
-        access.api_base,
-        model.clone(),
-        (!access.extra_headers.is_empty()).then(|| {
-            access
-                .extra_headers
-                .into_iter()
-                .collect::<std::collections::HashMap<_, _>>()
-        }),
-        Some(provider.clone()),
-        config.agents.defaults.reasoning_effort.clone(),
-    );
-    let neuron = LlmNeuron::with_id(
-        Arc::new(client),
-        format!("provider-test:{provider}:{model}"),
-    );
+    let spec = ProviderCatalogService::new()
+        .provider_spec(&provider, &config.providers)
+        .ok_or_else(|| format!("Unknown provider '{provider}'"))?;
+    let client = build_llm_provider(LlmProviderBuildOptions {
+        spec,
+        access,
+        model: model.clone(),
+        reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
+        reasoning_config: None,
+    })
+    .map_err(|error| error.to_string())?;
+    let neuron = LlmNeuron::with_id(client, format!("provider-test:{provider}:{model}"));
     let request = NeuronRequest::new(
         vec![Message::user(
             "Reply with a short connectivity confirmation for this model test.",
@@ -4260,7 +4255,7 @@ pub async fn pet_siliconflow_synthesize(
         "stream": false
     });
 
-    // voice 和 references 互斥：有 references 时必须移除 voice 字段
+    // voice �?references 互斥：有 references 时必须移�?voice 字段
     if let Some(refs) = &payload.references {
         if !refs.is_empty() {
             body.as_object_mut().and_then(|obj| obj.remove("voice"));
@@ -5135,7 +5130,7 @@ fn resolve_audit_log_path(date: &str) -> Result<std::path::PathBuf, String> {
     let config = loader.load().unwrap_or_default();
 
     // The logging dir is resolved relative to config dir (see lib.rs resolve_logging_config).
-    // Default config.logging.dir = "logs" → ~/.agent-diva/logs
+    // Default config.logging.dir = "logs" �?~/.agent-diva/logs
     let log_dir = resolve_configured_path(&config.logging.dir, loader.config_dir());
 
     // tracing_appender::rolling::daily(dir, "gateway.log") produces gateway.log.YYYY-MM-DD

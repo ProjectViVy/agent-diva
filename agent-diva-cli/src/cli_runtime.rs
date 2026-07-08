@@ -3,8 +3,8 @@ use agent_diva_core::config::{Config, ConfigLoader, ProviderConfig, ProvidersCon
 use agent_diva_core::cron::CronService;
 use agent_diva_core::utils::sync_workspace_templates;
 use agent_diva_providers::{
-    fetch_provider_model_catalog, tap::ProviderTap, LLMProvider, LiteLLMClient, ProviderAccess,
-    ProviderCatalogService, ProviderModelCatalog, ProviderRegistry, ProviderSpec,
+    build_llm_provider, fetch_provider_model_catalog, LLMProvider, LlmProviderBuildOptions,
+    ProviderAccess, ProviderCatalogService, ProviderModelCatalog, ProviderRegistry, ProviderSpec,
 };
 use anyhow::Result;
 use serde::Serialize;
@@ -328,23 +328,17 @@ pub fn build_provider(config: &Config, model: &str) -> Result<Arc<dyn LLMProvide
     let access = catalog
         .get_provider_access(config, &provider_name)
         .unwrap_or_else(|| ProviderAccess::from_config(None));
-    let api_key = access.api_key;
-    let api_base = access.api_base;
-    let extra_headers = (!access.extra_headers.is_empty()).then(|| {
-        access
-            .extra_headers
-            .into_iter()
-            .collect::<std::collections::HashMap<String, String>>()
-    });
+    let spec = catalog
+        .provider_spec(&provider_name, &config.providers)
+        .ok_or_else(|| anyhow::anyhow!("Unknown provider '{}'", provider_name))?;
 
-    Ok(Arc::new(ProviderTap::new(LiteLLMClient::new(
-        api_key,
-        api_base,
-        model.to_string(),
-        extra_headers,
-        Some(provider_name),
-        config.agents.defaults.reasoning_effort.clone(),
-    ))))
+    Ok(build_llm_provider(LlmProviderBuildOptions {
+        spec,
+        access,
+        model: model.to_string(),
+        reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
+        reasoning_config: None,
+    })?)
 }
 
 pub fn set_provider_credentials(
