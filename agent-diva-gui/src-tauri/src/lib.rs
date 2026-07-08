@@ -322,6 +322,8 @@ pub fn run() {
             commands::get_sessions,
             commands::get_session_history,
             commands::delete_session,
+            commands::update_session_title,
+            commands::generate_session_title,
             commands::get_cron_jobs,
             commands::get_cron_job,
             commands::get_plans,

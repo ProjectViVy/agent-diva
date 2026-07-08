@@ -27,6 +27,7 @@ const { t } = useI18n();
 type ExecMode = 'agent' | 'plan' | 'ask';
 
 interface Message {
+  id: string;
   role: 'user' | 'agent' | 'system' | 'tool';
   content: string;
   reasoning?: string;
@@ -84,6 +85,12 @@ interface SessionInfo {
   chat_id: string;
   snippet: string;
   timestamp: number;
+  title?: string;
+  last_message?: string;
+  message_count: number;
+  title_generated: boolean;
+  title_manually_set: boolean;
+  pinned?: boolean;
 }
 interface ChatDisplayPrefs {
   autoExpandReasoning: boolean;
@@ -96,6 +103,12 @@ interface BackendSessionInfo {
   created_at?: string | null;
   updated_at?: string | null;
   path?: string;
+  title?: string;
+  last_message?: string | null;
+  message_count?: number;
+  title_generated?: boolean;
+  title_manually_set?: boolean;
+  pinned?: boolean;
 }
 
 interface BackendChatMessage {
@@ -150,6 +163,7 @@ const defaultChatDisplayPrefs: ChatDisplayPrefs = {
 
 const messages = ref<Message[]>([
   {
+    id: generateChatId(),
     role: 'agent',
     content: t('app.welcome'),
     timestamp: Date.now(),
@@ -165,6 +179,7 @@ const currentChatId = ref(generateChatId());
 const currentSessionKey = ref(`gui:${currentChatId.value}`);
 const activeStreamRequestId = ref<string | null>(null);
 const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
+const titleGenerationInFlight = ref<Set<string>>(new Set());
 
 // Config state
 const config = ref({
@@ -386,6 +401,113 @@ function parseMessageTimestamp(rawTimestamp?: string): number {
   return Number.isFinite(parsed) ? parsed : Date.now();
 }
 
+function compactPreview(content: string, maxChars = 120): string {
+  const normalized = content.trim().replace(/\s+/g, ' ');
+  if (!normalized) return '';
+  const preview = normalized.slice(0, maxChars);
+  return normalized.length > maxChars ? `${preview}...` : preview;
+}
+
+function fallbackSessionTitle(content?: string): string {
+  const normalized = compactPreview(content || '', 20);
+  return normalized || '新会话';
+}
+
+function sortSessionsByTimestamp() {
+  sessions.value = [...sessions.value].sort((a, b) => b.timestamp - a.timestamp);
+}
+
+function upsertSession(session: SessionInfo) {
+  const index = sessions.value.findIndex((item) => item.session_key === session.session_key);
+  if (index === -1) {
+    sessions.value = [session, ...sessions.value];
+  } else {
+    const next = [...sessions.value];
+    next[index] = {
+      ...next[index],
+      ...session,
+    };
+    sessions.value = next;
+  }
+  sortSessionsByTimestamp();
+}
+
+function currentVisibleMessages(): Message[] {
+  return messages.value.filter((message) => {
+    if (!['user', 'agent', 'tool'].includes(message.role)) return false;
+    return Boolean(message.content?.trim());
+  });
+}
+
+function syncCurrentSessionListEntry(seedContent?: string) {
+  const visibleMessages = currentVisibleMessages();
+  const lastVisible = [...visibleMessages].reverse().find((message) => message.content?.trim());
+  const existing = sessions.value.find((session) => session.session_key === currentSessionKey.value);
+  const fallbackTitle = existing?.title || fallbackSessionTitle(seedContent || visibleMessages[0]?.content);
+  upsertSession({
+    session_key: currentSessionKey.value,
+    chat_id: currentChatId.value,
+    snippet: compactPreview(lastVisible?.content || seedContent || currentChatId.value, 120),
+    last_message: compactPreview(lastVisible?.content || seedContent || '', 120) || undefined,
+    timestamp: lastVisible?.timestamp || Date.now(),
+    title: existing?.title || fallbackTitle,
+    message_count: visibleMessages.length,
+    title_generated: existing?.title_generated || false,
+    title_manually_set: existing?.title_manually_set || false,
+    pinned: existing?.pinned || false,
+  });
+}
+
+async function maybeGenerateCurrentSessionTitle() {
+  const sessionKey = currentSessionKey.value;
+  const session = sessions.value.find((item) => item.session_key === sessionKey);
+  if (!session || session.title_manually_set || session.title_generated) {
+    return;
+  }
+  if (titleGenerationInFlight.value.has(sessionKey)) {
+    return;
+  }
+  const firstUser = messages.value.find((message) => message.role === 'user' && message.content.trim());
+  const firstAssistant = messages.value.find((message) => message.role === 'agent' && message.content.trim());
+  if (!firstUser || !firstAssistant) {
+    return;
+  }
+
+  titleGenerationInFlight.value.add(sessionKey);
+  try {
+    const response = await invoke<{
+      title?: string;
+      title_generated?: boolean;
+      title_manually_set?: boolean;
+    }>('generate_session_title', {
+      sessionKey,
+      payload: {
+        firstUserMessage: firstUser.content,
+        firstAssistantMessage: firstAssistant.content,
+      },
+    });
+    upsertSession({
+      ...session,
+      title: typeof response?.title === 'string' && response.title.trim()
+        ? response.title.trim()
+        : session.title || fallbackSessionTitle(firstUser.content),
+      title_generated: response?.title_generated === true,
+      title_manually_set: response?.title_manually_set === true,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.warn('Failed to generate session title:', error);
+    upsertSession({
+      ...session,
+      title: session.title || fallbackSessionTitle(firstUser.content),
+      title_generated: false,
+      title_manually_set: false,
+    });
+  } finally {
+    titleGenerationInFlight.value.delete(sessionKey);
+  }
+}
+
 function mapSessionRole(
   role: string
 ): Message['role'] | null {
@@ -454,6 +576,7 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
     : undefined;
 
   return {
+    id: generateMessageId(),
     role: mappedRole,
     content: msg.content || '',
     reasoning: msg.reasoning_content || undefined,
@@ -512,6 +635,13 @@ function writeSessionToCache(session: BackendSessionHistory) {
   } catch (e) {
     console.warn('Failed to write session cache:', e);
   }
+}
+
+function generateMessageId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `msg-${crypto.randomUUID()}`;
+  }
+  return `msg-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 }
 
 function generateChatId(): string {
@@ -608,12 +738,14 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[], m
 
   const attachmentFileIds = attachments?.map(a => a.file_id);
   const userMsg: Message = {
+    id: generateMessageId(),
     role: 'user',
     content: content,
     timestamp: Date.now(),
     attachments: attachmentFileIds,
   };
   messages.value.push(userMsg);
+  syncCurrentSessionListEntry(content);
   
   isTyping.value = true;
   suppressNextStopError.value = false;
@@ -623,6 +755,7 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[], m
   
   // Create a placeholder for the agent response
   messages.value.push({ 
+    id: generateMessageId(),
     role: 'agent', 
     content: '', 
     isStreaming: true, 
@@ -640,6 +773,7 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[], m
                 lastMsg.isStreaming = false;
                 isTyping.value = false;
                 activeStreamRequestId.value = null;
+                syncCurrentSessionListEntry(content);
             }
         }, 1000);
         return;
@@ -666,11 +800,87 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[], m
     }
 
     messages.value.push({ 
+      id: generateMessageId(),
       role: 'system', 
       content: `${t('app.errorPrefix')}${error}`, 
       timestamp: Date.now() 
     });
     
+    isTyping.value = false;
+  }
+}
+
+async function regenerateMessage(messageId: string) {
+  if (isTyping.value) return;
+
+  // 1. 定位要覆盖的 agent 消息
+  const targetIndex = messages.value.findIndex(
+    (m) => m.id === messageId && m.role === 'agent'
+  );
+  if (targetIndex === -1) return;
+
+  // 2. 找到它前面最近一条 user 消息（作为重试 prompt）
+  let userIndex = -1;
+  for (let i = targetIndex - 1; i >= 0; i--) {
+    if (messages.value[i].role === 'user') {
+      userIndex = i;
+      break;
+    }
+  }
+  if (userIndex === -1) return;
+
+  const userMsg = messages.value[userIndex];
+
+  // 3. 生成新的流式请求 ID
+  const streamRequestId = generateStreamRequestId();
+  activeStreamRequestId.value = streamRequestId;
+  isTyping.value = true;
+  suppressNextStopError.value = false;
+
+  // 4. 就地清空目标 agent 消息，标记为 streaming（覆盖而非新增）
+  const target = messages.value[targetIndex];
+  target.content = '';
+  target.reasoning = '';
+  target.isThinking = false;
+  target.isStreaming = true;
+  target.timestamp = Date.now();
+
+  // 5. 截断目标 agent 之后的所有消息，确保现有流式监听器写入正确位置
+  messages.value.splice(targetIndex + 1);
+
+  try {
+    if (!isTauri()) {
+      console.warn('Running in browser, mocking regenerateMessage');
+      setTimeout(() => {
+        if (activeStreamRequestId.value !== streamRequestId) return;
+        target.content = t('app.mockResponse', { content: userMsg.content });
+        target.isStreaming = false;
+        target.isThinking = false;
+        isTyping.value = false;
+        activeStreamRequestId.value = null;
+      }, 1000);
+      return;
+    }
+
+    await invoke("send_message", {
+      message: userMsg.content,
+      channel: currentChannel.value,
+      chatId: currentChatId.value,
+      attachments: userMsg.attachments,
+      mode: 'agent',
+      streamRequestId,
+    });
+  } catch (error) {
+    console.error("Failed to regenerate message:", error);
+    activeStreamRequestId.value = null;
+    target.isStreaming = false;
+    target.isThinking = false;
+    messages.value.push({
+      id: generateMessageId(),
+      role: 'system',
+      content: `${t('app.errorPrefix')}${error}`,
+      timestamp: Date.now()
+    });
     isTyping.value = false;
   }
 }
@@ -687,6 +897,7 @@ async function stopMessage() {
       }
       isTyping.value = false;
       messages.value.push({
+        id: generateMessageId(),
         role: 'system',
         content: `[Mock] ${t('app.stopped')}`,
         timestamp: Date.now()
@@ -706,12 +917,14 @@ async function stopMessage() {
     }
     isTyping.value = false;
     messages.value.push({
+      id: generateMessageId(),
       role: 'system',
       content: t('app.stopRequested'),
       timestamp: Date.now()
     });
   } catch (error) {
     messages.value.push({
+      id: generateMessageId(),
       role: 'system',
       content: t('app.stopFailed', { error }),
       timestamp: Date.now()
@@ -726,17 +939,25 @@ const clearMessages = () => {
   isTyping.value = false;
   messages.value = [
     {
+      id: generateMessageId(),
       role: 'agent',
       content: t('app.cleared'),
       timestamp: Date.now(),
       emotion: 'happy'
     }
   ];
-  
-  // Refresh sessions list quietly when cleared because it produces a new session file
-  if (isTauri()) {
-    setTimeout(refreshSessions, 1000);
-  }
+  upsertSession({
+    session_key: currentSessionKey.value,
+    chat_id: currentChatId.value,
+    snippet: '新会话',
+    last_message: undefined,
+    timestamp: Date.now(),
+    title: '新会话',
+    message_count: 0,
+    title_generated: false,
+    title_manually_set: false,
+    pinned: false,
+  });
 };
 
 async function refreshSessions() {
@@ -753,9 +974,15 @@ async function refreshSessions() {
         return {
           session_key: session.key,
           chat_id: chatId,
-          snippet: chatId || session.key || '...',
+          snippet: compactPreview(session.last_message || session.title || chatId || session.key || '...', 120),
+          last_message: session.last_message || undefined,
           timestamp: parseSessionTimestamp(session.updated_at, session.created_at),
-        };
+          title: session.title || undefined,
+          message_count: session.message_count || 0,
+          title_generated: session.title_generated === true,
+          title_manually_set: session.title_manually_set === true,
+          pinned: session.pinned === true,
+        } satisfies SessionInfo;
       });
       sessions.value = mapped
         .filter((session) => !locallyDeletedSessionKeys.value.has(session.session_key))
@@ -790,6 +1017,7 @@ async function restoreLatestGuiChatOnStartup() {
   currentSessionKey.value = `gui:${currentChatId.value}`;
   messages.value = [
     {
+      id: generateMessageId(),
       role: 'agent',
       content: t('app.welcome'),
       timestamp: Date.now(),
@@ -821,6 +1049,7 @@ async function loadSession(sessionKey: string): Promise<boolean> {
 
     if (!sessionHistory || !Array.isArray(sessionHistory.messages)) {
       messages.value.push({
+        id: generateMessageId(),
         role: 'system',
         content: `${t('app.errorPrefix')}Session not found`,
         timestamp: Date.now()
@@ -839,6 +1068,7 @@ async function loadSession(sessionKey: string): Promise<boolean> {
       messages.value = newMessages;
     } else {
       messages.value.push({
+        id: generateMessageId(),
         role: 'system',
         content: `${t('app.errorPrefix')}Session has no displayable messages`,
         timestamp: Date.now()
@@ -848,20 +1078,32 @@ async function loadSession(sessionKey: string): Promise<boolean> {
 
     const selectedSession = sessions.value.find((session) => session.session_key === currentSessionKey.value);
     if (!selectedSession) {
-      sessions.value.unshift({
+      upsertSession({
         session_key: currentSessionKey.value,
         chat_id: currentChatId.value,
-        snippet: currentChatId.value,
+        snippet: compactPreview(newMessages[newMessages.length - 1]?.content || currentChatId.value, 120),
+        last_message: compactPreview(newMessages[newMessages.length - 1]?.content || '', 120) || undefined,
         timestamp: Date.now(),
+        title: fallbackSessionTitle(newMessages.find((msg) => msg.role === 'user')?.content),
+        message_count: newMessages.filter((msg) => ['user', 'agent', 'tool'].includes(msg.role) && msg.content.trim()).length,
+        title_generated: false,
+        title_manually_set: false,
+        pinned: false,
       });
     } else {
-      selectedSession.timestamp = Date.now();
-      sessions.value = [...sessions.value].sort((a, b) => b.timestamp - a.timestamp);
+      upsertSession({
+        ...selectedSession,
+        snippet: compactPreview(newMessages[newMessages.length - 1]?.content || selectedSession.snippet, 120),
+        last_message: compactPreview(newMessages[newMessages.length - 1]?.content || selectedSession.last_message || '', 120) || undefined,
+        timestamp: Date.now(),
+        message_count: newMessages.filter((msg) => ['user', 'agent', 'tool'].includes(msg.role) && msg.content.trim()).length,
+      });
     }
     return true;
   } catch (e) {
     console.error("Failed to load session history:", e);
     messages.value.push({ 
+      id: generateMessageId(),
       role: 'system', 
       content: t('app.errorPrefix') + e, 
       timestamp: Date.now() 
@@ -882,6 +1124,7 @@ async function deleteSession(sessionKey: string) {
     deleteFailed = true;
     console.error('Failed to delete session:', e);
     messages.value.push({
+      id: generateMessageId(),
       role: 'system',
       content: `${t('app.errorPrefix')}${e}`,
       timestamp: Date.now(),
@@ -904,6 +1147,7 @@ async function deleteSession(sessionKey: string) {
   }
   if (deleteFailed) {
     messages.value.push({
+      id: generateMessageId(),
       role: 'system',
       content: 'Delete failed on backend; removed locally for this run.',
       timestamp: Date.now(),
@@ -1186,6 +1430,10 @@ onMounted(async () => {
       lastMsg.isThinking = false;
       isTyping.value = false;
       activeStreamRequestId.value = null;
+      syncCurrentSessionListEntry();
+      if (isTauri()) {
+        void maybeGenerateCurrentSessionTitle();
+      }
     }
   }));
 
@@ -1213,6 +1461,7 @@ onMounted(async () => {
     const toolArgs = payload.args_preview || '';
 
     messages.value.push({ 
+      id: generateMessageId(),
       role: 'tool', 
       content: t('app.toolRunning'), 
       timestamp: Date.now(),
@@ -1223,13 +1472,15 @@ onMounted(async () => {
     });
     
     // Add placeholder for next agent response
-    messages.value.push({ 
-      role: 'agent', 
-      content: '', 
+    messages.value.push({
+      id: generateMessageId(),
+      role: 'agent',
+      content: '',
       isStreaming: true, 
       timestamp: Date.now(),
       emotion: currentEmotion.value
     });
+    syncCurrentSessionListEntry();
   }));
 
   unlisteners.push(await listen<StreamToolFinishPayload>("agent-tool-end", (event) => {
@@ -1270,6 +1521,7 @@ onMounted(async () => {
     } else {
         // If no matching start message found, add a new entry.
         messages.value.push({
+          id: generateMessageId(),
           role: 'tool',
           content: payload.is_error ? t('app.toolError') : t('app.toolSuccess'),
           timestamp: Date.now(),
@@ -1281,6 +1533,7 @@ onMounted(async () => {
     }
 
     messages.value.push({
+      id: generateMessageId(),
       role: 'agent',
       content: '',
       isStreaming: true,
@@ -1332,7 +1585,8 @@ onMounted(async () => {
         }
     }
 
-    messages.value.push({ 
+    messages.value.push({
+      id: generateMessageId(),
       role: 'system', 
       content: `${t('app.errorPrefix')}${errorMessage}`, 
       timestamp: Date.now() 
@@ -1341,11 +1595,13 @@ onMounted(async () => {
       isTyping.value = false;
       activeStreamRequestId.value = null;
     }
+    syncCurrentSessionListEntry();
   }));
 
   // Listen for external hook messages
   unlisteners.push(await listen<string>("external-message", (event) => {
     messages.value.push({ 
+      id: generateMessageId(),
       role: 'system', 
       content: t('app.hookMessage', { message: event.payload }), 
       timestamp: Date.now() 
@@ -1355,6 +1611,7 @@ onMounted(async () => {
   // Listen for background responses (e.g. scheduled cron executions)
   unlisteners.push(await listen<string>("agent-background-response", (event) => {
     messages.value.push({
+      id: generateMessageId(),
       role: 'agent',
       content: event.payload,
       timestamp: Date.now(),
@@ -1400,6 +1657,7 @@ onUnmounted(() => {
       @send="sendMessage"
       @clear="clearMessages"
       @stop="stopMessage"
+      @regenerate="regenerateMessage"
       @update-saved-models="updateSavedModels"
       @save-chat-display-prefs="updateChatDisplayPrefs"
       @load-session="loadSession"

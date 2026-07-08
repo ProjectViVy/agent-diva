@@ -59,6 +59,7 @@ const md = new MarkdownIt({
 });
 
 interface Message {
+  id: string;
   role: 'user' | 'agent' | 'system' | 'tool';
   content: string;
   reasoning?: string;
@@ -73,11 +74,12 @@ interface Message {
   toolCallId?: string;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
+  attachments?: string[];
 }
 
-const expandedTools = ref<Record<number, boolean>>({});
-const expandedReasoning = ref<Record<number, boolean>>({});
-const expandedRawMeta = ref<Record<number, boolean>>({});
+const expandedTools = ref<Record<string, boolean>>({});
+const expandedReasoning = ref<Record<string, boolean>>({});
+const expandedRawMeta = ref<Record<string, boolean>>({});
 
 interface HistoryPrefs {
   autoExpandReasoning: boolean;
@@ -91,12 +93,12 @@ const defaultHistoryPrefs: HistoryPrefs = {
   showRawMetaByDefault: false,
 };
 
-const toggleTool = (index: number) => {
-  expandedTools.value[index] = !expandedTools.value[index];
+const toggleTool = (messageId: string) => {
+  expandedTools.value[messageId] = !expandedTools.value[messageId];
 };
 
-const toggleRawMeta = (index: number) => {
-  expandedRawMeta.value[index] = !expandedRawMeta.value[index];
+const toggleRawMeta = (messageId: string) => {
+  expandedRawMeta.value[messageId] = !expandedRawMeta.value[messageId];
 };
 
 const hasRawMeta = (msg: Message) => {
@@ -118,6 +120,10 @@ interface Session {
   snippet: string;
   timestamp: number;
   title?: string;
+  last_message?: string;
+  message_count: number;
+  title_generated: boolean;
+  title_manually_set: boolean;
   pinned?: boolean;
   status?: 'idle' | 'running' | 'completed' | 'error';
   agent_icon?: string;
@@ -144,6 +150,7 @@ const emit = defineEmits<{
   (e: 'toggle-pin', sessionKey: string): void;
   (e: 'rename-session', sessionKey: string, title: string): void;
   (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
+  (e: 'regenerate', messageId: string): void;
 }>();
 
 const input = ref('');
@@ -226,15 +233,15 @@ watch(() => props.messages, (newMessages, oldMessages) => {
   }
 
   // Auto-expand structured sections based on local preferences
-  newMessages.forEach((msg, index) => {
-    if (expandedReasoning.value[index] === undefined && msg.reasoning) {
-      expandedReasoning.value[index] = effectiveHistoryPrefs.value.autoExpandReasoning || !!msg.isThinking;
+  newMessages.forEach((msg) => {
+    if (expandedReasoning.value[msg.id] === undefined && msg.reasoning) {
+      expandedReasoning.value[msg.id] = effectiveHistoryPrefs.value.autoExpandReasoning || !!msg.isThinking;
     }
-    if (expandedTools.value[index] === undefined && msg.role === 'tool') {
-      expandedTools.value[index] = effectiveHistoryPrefs.value.autoExpandToolDetails;
+    if (expandedTools.value[msg.id] === undefined && msg.role === 'tool') {
+      expandedTools.value[msg.id] = effectiveHistoryPrefs.value.autoExpandToolDetails;
     }
-    if (expandedRawMeta.value[index] === undefined && hasRawMeta(msg)) {
-      expandedRawMeta.value[index] = effectiveHistoryPrefs.value.showRawMetaByDefault;
+    if (expandedRawMeta.value[msg.id] === undefined && hasRawMeta(msg)) {
+      expandedRawMeta.value[msg.id] = effectiveHistoryPrefs.value.showRawMetaByDefault;
     }
   });
   scrollToBottom();
@@ -548,14 +555,14 @@ const emitOpenEvolution = (payload: ChatGovernanceDeepLink) => {
   emit('open-evolution', payload);
 };
 
-/** Cache for parseCard results, keyed by message index. Cleared on message reset. */
-const cardCache = new Map<number, Record<string, unknown> | null>();
+/** Cache for parseCard results, keyed by message id. Cleared on message reset. */
+const cardCache = new Map<string, Record<string, unknown> | null>();
 
 /** Cached parseCard — avoids double-parse per card render. */
-const getCachedCard = (index: number, content: string): Record<string, unknown> | null => {
-  if (cardCache.has(index)) return cardCache.get(index)!;
+const getCachedCard = (messageId: string, content: string): Record<string, unknown> | null => {
+  if (cardCache.has(messageId)) return cardCache.get(messageId)!;
   const result = parseCard(content);
-  cardCache.set(index, result);
+  cardCache.set(messageId, result);
   return result;
 };
 
@@ -616,8 +623,8 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       </div>
 
       <div
-        v-for="(msg, index) in messages"
-        :key="index"
+        v-for="msg in messages"
+        :key="msg.id"
         class="flex mb-4"
         :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
       >
@@ -647,34 +654,34 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
             <!-- Tool Message -->
             <template v-if="msg.role === 'tool'">
               <!-- Card rendering: plan_create / todo_write / approval_request -->
-              <template v-if="isGovernanceCard(getCachedCard(index, msg.content))">
+              <template v-if="isGovernanceCard(getCachedCard(msg.id, msg.content))">
                 <div class="min-w-0">
                   <ChatGovernanceCard
-                    :card="asGovernanceCard(getCachedCard(index, msg.content))!"
+                    :card="asGovernanceCard(getCachedCard(msg.id, msg.content))!"
                     @open-evolution="emitOpenEvolution"
                   />
                 </div>
               </template>
-              <template v-else-if="msg.toolName === 'plan_create' && getCachedCard(index, msg.content)">
+              <template v-else-if="msg.toolName === 'plan_create' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
                   <DecisionCard
-                    :card="(getCachedCard(index, msg.content) as unknown as UiCard)"
+                    :card="(getCachedCard(msg.id, msg.content) as unknown as UiCard)"
                     @action="onCardAction"
                   />
                 </div>
               </template>
-              <template v-else-if="msg.toolName === 'todo_write' && getCachedCard(index, msg.content)">
+              <template v-else-if="msg.toolName === 'todo_write' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
                   <TodoCard
-                    :card="(getCachedCard(index, msg.content) as unknown as UiCard)"
+                    :card="(getCachedCard(msg.id, msg.content) as unknown as UiCard)"
                     @check="onCardCheck"
                   />
                 </div>
               </template>
-              <template v-else-if="msg.toolName === 'approval_request' && getCachedCard(index, msg.content)">
+              <template v-else-if="msg.toolName === 'approval_request' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
                   <ApprovalBanner
-                    :request="(getCachedCard(index, msg.content) as unknown as ApprovalRequest)"
+                    :request="(getCachedCard(msg.id, msg.content) as unknown as ApprovalRequest)"
                     @respond="onApprovalRespond"
                   />
                 </div>
@@ -723,16 +730,16 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
                 </div>
                 <div v-if="msg.toolStatus !== 'running'" class="px-3 pb-2 flex justify-end">
                   <button
-                    @click="toggleTool(index)"
+                    @click="toggleTool(msg.id)"
                     class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    <span>{{ expandedTools[index] ? t('chat.hideDetails') : t('chat.viewDetails') }}</span>
-                    <component :is="expandedTools[index] ? ChevronDown : ChevronRight" :size="12" />
+                    <span>{{ expandedTools[msg.id] ? t('chat.hideDetails') : t('chat.viewDetails') }}</span>
+                    <component :is="expandedTools[msg.id] ? ChevronDown : ChevronRight" :size="12" />
                   </button>
                 </div>
 
                 <!-- Tool Details Content -->
-                <div v-if="expandedTools[index]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
+                <div v-if="expandedTools[msg.id]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
                   <div v-if="msg.toolCallId">
                     <div class="font-semibold text-gray-500 mb-1">tool_call_id</div>
                     <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolCallId }}</div>
@@ -749,14 +756,14 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 
                 <div v-if="hasRawMeta(msg)" class="border-t border-gray-100 bg-white/70 px-3 py-2">
                   <button
-                    @click="toggleRawMeta(index)"
+                    @click="toggleRawMeta(msg.id)"
                     class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    <span>{{ expandedRawMeta[index] ? t('chat.hideRawMeta') : t('chat.viewRawMeta') }}</span>
-                    <component :is="expandedRawMeta[index] ? ChevronDown : ChevronRight" :size="12" />
+                    <span>{{ expandedRawMeta[msg.id] ? t('chat.hideRawMeta') : t('chat.viewRawMeta') }}</span>
+                    <component :is="expandedRawMeta[msg.id] ? ChevronDown : ChevronRight" :size="12" />
                   </button>
                   <div
-                    v-if="expandedRawMeta[index]"
+                    v-if="expandedRawMeta[msg.id]"
                     class="mt-2 bg-gray-50 border border-gray-200 rounded p-2 font-mono text-[11px] text-gray-600 max-h-52 overflow-y-auto whitespace-pre-wrap break-all"
                   >
                     {{ renderRawMeta(msg) }}
@@ -780,13 +787,13 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 
               <div v-if="hasRawMeta(msg)" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
                 <div
-                  @click="toggleRawMeta(index)"
+                  @click="toggleRawMeta(msg.id)"
                   class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-black/5 transition-colors select-none"
                 >
                   <span class="text-xs text-gray-500">{{ t('chat.rawMeta') }}</span>
-                  <component :is="expandedRawMeta[index] ? ChevronDown : ChevronRight" :size="14" class="text-gray-400" />
+                  <component :is="expandedRawMeta[msg.id] ? ChevronDown : ChevronRight" :size="14" class="text-gray-400" />
                 </div>
-                <div v-if="expandedRawMeta[index]" class="px-3 py-2 border-t border-gray-100/50 bg-gray-50/30 text-xs text-gray-600">
+                <div v-if="expandedRawMeta[msg.id]" class="px-3 py-2 border-t border-gray-100/50 bg-gray-50/30 text-xs text-gray-600">
                   <div class="font-mono whitespace-pre-wrap break-all">{{ renderRawMeta(msg) }}</div>
                 </div>
               </div>
@@ -828,12 +835,13 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
               >
                 <Edit :size="12" />
               </button>
-              <!-- 重生成按钮（助手消息，disabled占位） -->
+              <!-- 重生成按钮（助手消息） -->
               <button
                 v-if="msg.role === 'agent'"
                 class="msg-action-btn"
-                disabled
-                :title="t('chat.regenerate') + ' (' + t('chat.pending') + ')'"
+                :disabled="isTyping"
+                :title="t('chat.regenerate')"
+                @click="emit('regenerate', msg.id)"
               >
                 <RefreshCw :size="12" />
               </button>

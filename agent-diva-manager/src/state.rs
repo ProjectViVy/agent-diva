@@ -156,6 +156,16 @@ pub enum ManagerCommand {
         oneshot::Sender<Result<Option<agent_diva_core::session::store::Session>, String>>,
     ),
     DeleteSession(String, oneshot::Sender<Result<bool, String>>),
+    UpdateSessionTitle(
+        String,                                          // session_key
+        Option<String>,                                  // new title
+        oneshot::Sender<Result<Option<String>, String>>, // returns updated title or None
+    ),
+    GenerateSessionTitle(
+        String,
+        GenerateSessionTitleRequest,
+        oneshot::Sender<Result<GenerateSessionTitleResponse, String>>,
+    ),
     ListCronJobs(oneshot::Sender<Result<Vec<CronJobDto>, String>>),
     GetCronJob(String, oneshot::Sender<Result<Option<CronJobDto>, String>>),
     CreateCronJob(
@@ -210,6 +220,19 @@ pub struct StopChatRequest {
 pub struct ResetSessionRequest {
     pub channel: Option<String>,
     pub chat_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateSessionTitleRequest {
+    pub first_user_message: String,
+    pub first_assistant_message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateSessionTitleResponse {
+    pub title: String,
+    pub title_generated: bool,
+    pub title_manually_set: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

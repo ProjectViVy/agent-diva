@@ -11,6 +11,10 @@ interface Session {
   snippet: string;
   timestamp: number;
   title?: string;
+  last_message?: string;
+  message_count: number;
+  title_generated: boolean;
+  title_manually_set: boolean;
   pinned?: boolean;
   status?: 'idle' | 'running' | 'completed' | 'error';
   agent_icon?: string;
@@ -48,8 +52,8 @@ const filteredSessions = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return props.sessions;
   return props.sessions.filter((s) => {
-    const title = (s.title || s.snippet || '').toLowerCase();
-    return title.includes(q);
+    const haystack = `${s.title || ''} ${s.last_message || s.snippet || ''}`.toLowerCase();
+    return haystack.includes(q);
   });
 });
 
@@ -126,7 +130,7 @@ const closeContextMenu = () => {
 // Start renaming
 const startRename = (session: Session) => {
   renamingId.value = session.session_key;
-  renameInput.value = session.title || session.snippet || '';
+  renameInput.value = session.title || session.last_message || session.snippet || '';
   closeContextMenu();
 };
 
@@ -189,7 +193,8 @@ defineExpose({ closeContextMenu });
         </button>
       </div>
       <div class="conv-header-actions">
-        <button
+        <!-- TODO: 仅显示置顶按钮目前意义不明确，暂时注释掉 -->
+        <!-- <button
           @click="showPinnedOnly = !showPinnedOnly"
           class="conv-action-btn"
           :class="{ active: showPinnedOnly }"
@@ -197,7 +202,7 @@ defineExpose({ closeContextMenu });
         >
           <Pin v-if="showPinnedOnly" :size="14" />
           <PinOff v-else :size="14" />
-        </button>
+        </button> -->
       </div>
     </div>
 
@@ -241,11 +246,11 @@ defineExpose({ closeContextMenu });
             </template>
             <!-- Normal Mode -->
             <template v-else>
-              <div class="conv-item-title">{{ session.title || session.snippet || t('convSidebar.untitled') }}</div>
+              <div class="conv-item-title">{{ session.title || t('convSidebar.untitled') }}</div>
               <div class="conv-item-meta">
-                <span v-if="session.agent_name" class="conv-item-agent">{{ session.agent_name }}</span>
+                <span class="conv-item-preview">{{ session.last_message || session.snippet || t('convSidebar.untitled') }}</span>
                 <span class="conv-item-time">{{ formatTimeAgo(session.timestamp) }}</span>
-                <span class="conv-item-id">{{ session.chat_id }}</span>
+                <span class="conv-item-count">{{ session.message_count }}</span>
                 <component
                   :is="getStatusIcon(session.status).component"
                   :size="12"
@@ -297,11 +302,11 @@ defineExpose({ closeContextMenu });
             </template>
             <!-- Normal Mode -->
             <template v-else>
-              <div class="conv-item-title">{{ session.title || session.snippet || t('convSidebar.untitled') }}</div>
+              <div class="conv-item-title">{{ session.title || t('convSidebar.untitled') }}</div>
               <div class="conv-item-meta">
-                <span v-if="session.agent_name" class="conv-item-agent">{{ session.agent_name }}</span>
+                <span class="conv-item-preview">{{ session.last_message || session.snippet || t('convSidebar.untitled') }}</span>
                 <span class="conv-item-time">{{ formatTimeAgo(session.timestamp) }}</span>
-                <span class="conv-item-id">{{ session.chat_id }}</span>
+                <span class="conv-item-count">{{ session.message_count }}</span>
                 <component
                   :is="getStatusIcon(session.status).component"
                   :size="12"
@@ -579,21 +584,20 @@ defineExpose({ closeContextMenu });
   color: var(--text-muted, #9ca3af);
 }
 
-.conv-item-agent {
-  font-weight: 500;
-  opacity: 0.8;
-}
-
-.conv-item-time {
+.conv-item-preview {
   flex: 1;
-}
-
-.conv-item-id {
-  opacity: 0.45;
-  max-width: 80px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.conv-item-time {
+  flex-shrink: 0;
+}
+
+.conv-item-count {
+  opacity: 0.6;
   font-size: 10px;
   flex-shrink: 0;
 }

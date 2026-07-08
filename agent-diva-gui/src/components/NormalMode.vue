@@ -21,6 +21,7 @@ import {
   X,
   Zap,
 } from 'lucide-vue-next';
+import { invoke } from '@tauri-apps/api/core';
 import ChatView from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
 import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
@@ -113,7 +114,18 @@ interface Props {
   toolsConfig?: ToolsConfigShape;
   currentSessionKey?: string;
   savedModels?: SavedModel[];
-  sessions?: { session_key: string; chat_id: string; snippet: string; timestamp: number; title?: string }[];
+  sessions?: {
+    session_key: string;
+    chat_id: string;
+    snippet: string;
+    timestamp: number;
+    title?: string;
+    last_message?: string;
+    message_count: number;
+    title_generated: boolean;
+    title_manually_set: boolean;
+    pinned?: boolean;
+  }[];
   chatDisplayPrefs: ChatDisplayPrefs;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
   saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
@@ -187,21 +199,13 @@ const handleRenameSession = async (sessionKey: string, title: string) => {
   const id = sessionKey.replace(/^[^:]+:/, '');
 
   try {
-    const response = await fetch(
-      `http://localhost:3000/api/sessions/${encodeURIComponent(id)}/title`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-      }
-    );
-
-    const data = await response.json();
-    if (!response.ok || data.status !== 'ok') {
-      throw new Error(data.message || `Failed to rename session (${response.status})`);
-    }
-
+    const data = await invoke<{ title?: string }>('update_session_title', {
+      sessionKey,
+      title,
+    });
     session.title = typeof data.title === 'string' ? data.title : title;
+    session.title_generated = false;
+    session.title_manually_set = true;
   } catch (e) {
     console.error('Failed to rename session:', e);
     session.title = originalTitle;

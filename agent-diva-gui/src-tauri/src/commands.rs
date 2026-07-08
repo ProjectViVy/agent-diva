@@ -105,6 +105,13 @@ pub struct RuntimeConfigSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateSessionTitlePayload {
+    pub first_user_message: String,
+    pub first_assistant_message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillDto {
     pub name: String,
     pub description: String,
@@ -1272,6 +1279,76 @@ pub async fn get_session_history(
         .get("session")
         .cloned()
         .unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn update_session_title(
+    session_key: String,
+    title: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/sessions/{}/title",
+        state.api_base_url(),
+        urlencoding::encode(session_key.trim())
+    );
+    let response = state
+        .client
+        .patch(&url)
+        .json(&serde_json::json!({ "title": title }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to update session title: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid update session title response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    Ok(value)
+}
+
+#[tauri::command]
+pub async fn generate_session_title(
+    session_key: String,
+    payload: GenerateSessionTitlePayload,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/sessions/{}/generate-title",
+        state.api_base_url(),
+        urlencoding::encode(session_key.trim())
+    );
+    let response = state
+        .client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to generate session title: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid generate session title response: {}", e))?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error")
+            .to_string());
+    }
+    Ok(value)
 }
 
 #[tauri::command]

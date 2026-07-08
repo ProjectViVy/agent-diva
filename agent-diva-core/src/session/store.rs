@@ -4,6 +4,11 @@ use crate::config::schema::TokenUsage;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub const SESSION_META_CONVERSATION_TITLE: &str = "conversation_title";
+pub const SESSION_META_TITLE_GENERATED: &str = "title_generated";
+pub const SESSION_META_TITLE_MANUALLY_SET: &str = "title_manually_set";
+pub const SESSION_META_PINNED: &str = "pinned";
+
 // ---------------------------------------------------------------------------
 // Compaction types
 // ---------------------------------------------------------------------------
@@ -166,6 +171,82 @@ impl Session {
         self.last_compacted = 0;
         self.compaction_history.clear();
         self.updated_at = Utc::now();
+    }
+
+    pub fn conversation_title(&self) -> Option<String> {
+        self.metadata
+            .get(SESSION_META_CONVERSATION_TITLE)
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                self.title
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+            })
+    }
+
+    pub fn set_conversation_title(&mut self, title: Option<String>) {
+        let title = title
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
+        self.title = title.clone();
+        self.set_metadata_string(SESSION_META_CONVERSATION_TITLE, title);
+    }
+
+    pub fn title_generated(&self) -> bool {
+        self.metadata
+            .get(SESSION_META_TITLE_GENERATED)
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+    }
+
+    pub fn set_title_generated(&mut self, value: bool) {
+        self.set_metadata_bool(SESSION_META_TITLE_GENERATED, value);
+    }
+
+    pub fn title_manually_set(&self) -> bool {
+        self.metadata
+            .get(SESSION_META_TITLE_MANUALLY_SET)
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+    }
+
+    pub fn set_title_manually_set(&mut self, value: bool) {
+        self.set_metadata_bool(SESSION_META_TITLE_MANUALLY_SET, value);
+    }
+
+    pub fn pinned(&self) -> bool {
+        self.metadata
+            .get(SESSION_META_PINNED)
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+    }
+
+    pub fn set_pinned(&mut self, value: bool) {
+        self.set_metadata_bool(SESSION_META_PINNED, value);
+    }
+
+    fn set_metadata_string(&mut self, key: &str, value: Option<String>) {
+        let metadata = ensure_object(&mut self.metadata);
+        match value {
+            Some(value) => {
+                metadata.insert(key.to_string(), serde_json::Value::String(value));
+            }
+            None => {
+                metadata.remove(key);
+            }
+        }
+    }
+
+    fn set_metadata_bool(&mut self, key: &str, value: bool) {
+        let metadata = ensure_object(&mut self.metadata);
+        metadata.insert(key.to_string(), serde_json::Value::Bool(value));
     }
 
     /// Get the most recent compaction summary, if any.
@@ -442,4 +523,11 @@ mod tests {
             CompactTrigger::Reactive
         ));
     }
+}
+
+fn ensure_object(value: &mut serde_json::Value) -> &mut serde_json::Map<String, serde_json::Value> {
+    if !value.is_object() {
+        *value = serde_json::Value::Object(serde_json::Map::new());
+    }
+    value.as_object_mut().expect("metadata should be an object")
 }

@@ -1,6 +1,6 @@
 use axum::{
     extract::DefaultBodyLimit,
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use std::net::SocketAddr;
@@ -13,22 +13,23 @@ use crate::handlers::{
     chat_handler, create_cron_job_handler, create_laputa_proposal_handler, create_mcp_handler,
     create_provider_handler, delete_cron_job_handler, delete_mcp_handler, delete_provider_handler,
     delete_provider_model_handler, delete_session_handler, delete_skill_handler,
-    edit_laputa_proposal_handler, events_handler, get_audit_events_handler, get_audit_log_handler,
-    get_autodream_run_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
-    get_laputa_changelog_handler, get_laputa_proposal_handler, get_laputa_section_handler,
-    get_laputa_snapshot_handler, get_mcps_handler, get_provider_handler,
-    get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
-    get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
-    health_handler, heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
-    list_laputa_changelog_handler, list_laputa_proposals_handler, list_mentle_tools_handler,
-    logs_routes, poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
+    edit_laputa_proposal_handler, events_handler, generate_session_title_handler,
+    get_audit_events_handler, get_audit_log_handler, get_autodream_run_handler,
+    get_channels_handler, get_config_handler, get_cron_job_handler, get_laputa_changelog_handler,
+    get_laputa_proposal_handler, get_laputa_section_handler, get_laputa_snapshot_handler,
+    get_mcps_handler, get_provider_handler, get_provider_models_handler, get_providers_handler,
+    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
+    get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
+    list_autodream_runs_handler, list_cron_jobs_handler, list_laputa_changelog_handler,
+    list_laputa_proposals_handler, list_mentle_tools_handler, logs_routes,
+    poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
     resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, todo_routes,
     transition_laputa_proposal_handler, trigger_autodream_run_handler, update_channel_handler,
     update_config_handler, update_cron_job_handler, update_mcp_handler, update_provider_handler,
-    update_self_evolution_config_handler, update_tools_handler, upload_file_handler,
-    upload_skill_handler, write_laputa_section_handler,
+    update_self_evolution_config_handler, update_session_title_handler, update_tools_handler,
+    upload_file_handler, upload_skill_handler, write_laputa_section_handler,
 };
 use crate::state::AppState;
 
@@ -163,6 +164,14 @@ fn runtime_routes() -> Router<AppState> {
             get(get_session_history_handler)
                 .delete(delete_session_handler)
                 .post(delete_session_handler),
+        )
+        .route(
+            "/api/sessions/:id/title",
+            patch(update_session_title_handler),
+        )
+        .route(
+            "/api/sessions/:id/generate-title",
+            post(generate_session_title_handler),
         )
         .route("/api/sessions/reset", post(reset_session_handler))
         .route(

@@ -13,7 +13,7 @@ use agent_diva_core::session::{ChatMessage, CompactTrigger, Session, TokenUsage}
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
-use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderError};
+use agent_diva_providers::{LLMResponse, LLMStreamEvent, Message, ProviderError};
 use agent_diva_tools::BackgroundTaskContext;
 use anyhow;
 use futures::StreamExt;
@@ -48,7 +48,7 @@ fn is_plan_mode_allowed_tool(tool_name: &str) -> bool {
     )
 }
 
-fn generate_session_title(session: &Session) -> Option<String> {
+fn fallback_session_title(session: &Session) -> Option<String> {
     let first_user_msg = session.messages.iter().find(|msg| msg.role == "user")?;
     let content = first_user_msg.content.trim();
     if content.is_empty() {
@@ -57,7 +57,76 @@ fn generate_session_title(session: &Session) -> Option<String> {
     Some(content.chars().take(20).collect())
 }
 
+fn normalize_generated_title(raw: &str) -> Option<String> {
+    let first_line = raw.lines().next()?.trim().trim_matches('"').trim();
+    if first_line.is_empty() {
+        return None;
+    }
+    Some(first_line.chars().take(60).collect())
+}
+
+fn should_generate_session_title(session: &Session) -> bool {
+    if session.title_manually_set()
+        || session.title_generated()
+        || session.conversation_title().is_some()
+    {
+        return false;
+    }
+    let has_user = session
+        .messages
+        .iter()
+        .any(|message| message.role == "user" && !message.content.trim().is_empty());
+    let has_assistant = session
+        .messages
+        .iter()
+        .any(|message| message.role == "assistant" && !message.content.trim().is_empty());
+    has_user && has_assistant
+}
+
 impl AgentLoop {
+    async fn generate_session_title_with_llm(
+        &self,
+        session: &Session,
+        model: &str,
+    ) -> Option<String> {
+        let first_user_message = session
+            .messages
+            .iter()
+            .find(|message| message.role == "user")
+            .map(|message| message.content.trim().to_string())?;
+        let first_assistant_message = session
+            .messages
+            .iter()
+            .find(|message| message.role == "assistant")
+            .map(|message| message.content.trim().to_string())?;
+        if first_user_message.is_empty() || first_assistant_message.is_empty() {
+            return None;
+        }
+
+        let prompt = format!(
+            "Generate a concise conversation title.\nReturn only the title with no quotes, no markdown, and no explanation.\nKeep it under 12 words.\n\nFirst user message:\n{}\n\nFirst assistant message:\n{}",
+            first_user_message,
+            first_assistant_message
+        );
+        let response = self
+            .provider
+            .chat(
+                vec![
+                    Message::system(
+                        "You write short chat titles. Output only a short title with no punctuation wrapper.",
+                    ),
+                    Message::user(prompt),
+                ],
+                None,
+                Some(model.to_string()),
+                64,
+                0.2,
+            )
+            .await
+            .ok()?;
+        normalize_generated_title(response.content.as_deref().unwrap_or_default())
+    }
+
     fn enforce_session_token_budget(
         &self,
         session_key: &str,
@@ -869,13 +938,29 @@ impl AgentLoop {
             }
         }
 
-        // Generate session title from first user message
-        {
+        let title_update = if let Some(session) = self.sessions.get(&session_key) {
+            if should_generate_session_title(session) {
+                let fallback = fallback_session_title(session);
+                let generated = self
+                    .generate_session_title_with_llm(session, &model_to_use)
+                    .await;
+                generated
+                    .clone()
+                    .or(fallback)
+                    .map(|title| (title, generated.is_some()))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some((title, generated)) = title_update {
             let session = self.sessions.get_or_create(&session_key);
-            if session.title.is_none() {
-                if let Some(title) = generate_session_title(session) {
-                    session.title = Some(title);
-                }
+            session.set_conversation_title(Some(title));
+            session.set_title_generated(generated);
+            if !session.title_manually_set() {
+                session.set_title_manually_set(false);
             }
         }
 
@@ -1372,7 +1457,7 @@ mod tests {
         session.add_message("user", "Hello Agent Diva, this is my first message");
         session.add_message("assistant", "Hi there! How can I help you?");
 
-        let title = generate_session_title(&session);
+        let title = fallback_session_title(&session);
         assert_eq!(title, Some("Hello Agent Diva, th".to_string()));
     }
 
@@ -1382,7 +1467,7 @@ mod tests {
         session.add_message("user", "你好，这是我第一次使用Agent Diva，请多关照");
         session.add_message("assistant", "你好！很高兴为你服务。");
 
-        let title = generate_session_title(&session);
+        let title = fallback_session_title(&session);
         assert_eq!(title, Some("你好，这是我第一次使用Agent Div".to_string()));
     }
 
@@ -1392,7 +1477,7 @@ mod tests {
         session.add_message("user", "👋 Hello! 你好！😊");
         session.add_message("assistant", "Hello! Welcome!");
 
-        let title = generate_session_title(&session);
+        let title = fallback_session_title(&session);
         assert_eq!(title, Some("👋 Hello! 你好！😊".to_string()));
     }
 
@@ -1402,7 +1487,7 @@ mod tests {
         session.add_message("user", "  ");
         session.add_message("assistant", "Empty message response");
 
-        let title = generate_session_title(&session);
+        let title = fallback_session_title(&session);
         assert_eq!(title, None);
     }
 
@@ -1415,7 +1500,7 @@ mod tests {
         );
         session.add_message("assistant", "Indeed it is.");
 
-        let title = generate_session_title(&session);
+        let title = fallback_session_title(&session);
         assert_eq!(title, Some("This is a very long ".to_string()));
     }
 
@@ -1424,8 +1509,20 @@ mod tests {
         let mut session = Session::new("test:6");
         session.add_message("assistant", "Hello, I'm an AI");
 
-        let title = generate_session_title(&session);
+        let title = fallback_session_title(&session);
         assert_eq!(title, None);
+    }
+
+    #[test]
+    fn should_not_generate_title_again_once_fallback_title_exists() {
+        let mut session = Session::new("test:7");
+        session.add_message("user", "Need help with release automation");
+        session.add_message("assistant", "I can help with release automation.");
+        session.set_conversation_title(Some("Need help with rele".to_string()));
+        session.set_title_generated(false);
+        session.set_title_manually_set(false);
+
+        assert!(!should_generate_session_title(&session));
     }
 
     #[test]

@@ -51,9 +51,9 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::state::{
     ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, FileUploadRequest,
-    ManagerCommand, McpRefreshRequest, MentleToolsListResponse, RunCronJobRequest,
-    SetCronJobEnabledRequest, SetMcpEnabledRequest, SkillUploadRequest, StopChatRequest,
-    ToolsConfigResponse, ToolsConfigUpdate,
+    GenerateSessionTitleRequest, ManagerCommand, McpRefreshRequest, MentleToolsListResponse,
+    RunCronJobRequest, SetCronJobEnabledRequest, SetMcpEnabledRequest, SkillUploadRequest,
+    StopChatRequest, ToolsConfigResponse, ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -323,6 +323,87 @@ async fn do_delete_session(state: AppState, id: String) -> Json<serde_json::Valu
         Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
         Err(e) => {
             tracing::error!("Failed to receive DeleteSession response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
+}
+
+pub async fn update_session_title_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let session_key = if !id.contains(':') {
+        format!("gui:{}", id)
+    } else {
+        id
+    };
+
+    let new_title = body
+        .get("title")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::UpdateSessionTitle(
+            session_key.clone(),
+            new_title,
+            tx,
+        ))
+        .await
+    {
+        tracing::error!("Failed to send UpdateSessionTitle request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+
+    match rx.await {
+        Ok(Ok(Some(title))) => Json(serde_json::json!({ "status": "ok", "title": title })),
+        Ok(Ok(None)) => Json(serde_json::json!({ "status": "ok", "title": null })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => {
+            tracing::error!("Failed to receive UpdateSessionTitle response: {}", e);
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+        }
+    }
+}
+
+pub async fn generate_session_title_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<GenerateSessionTitleRequest>,
+) -> Json<serde_json::Value> {
+    let session_key = if !id.contains(':') {
+        format!("gui:{}", id)
+    } else {
+        id
+    };
+
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::GenerateSessionTitle(
+            session_key,
+            payload,
+            tx,
+        ))
+        .await
+    {
+        tracing::error!("Failed to send GenerateSessionTitle request: {}", e);
+        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
+    }
+
+    match rx.await {
+        Ok(Ok(response)) => Json(serde_json::json!({
+            "status": "ok",
+            "title": response.title,
+            "title_generated": response.title_generated,
+            "title_manually_set": response.title_manually_set,
+        })),
+        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
+        Err(e) => {
+            tracing::error!("Failed to receive GenerateSessionTitle response: {}", e);
             Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
         }
     }
@@ -1006,7 +1087,20 @@ pub async fn delete_cron_job_handler(
 
 #[cfg(test)]
 mod tests {
-    use super::normalized_exec_mode;
+    use super::{
+        generate_session_title_handler, get_session_history_handler, get_sessions_handler,
+        normalized_exec_mode, update_session_title_handler,
+    };
+    use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
+    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::session::store::{ChatMessage, Session};
+    use agent_diva_core::session::SessionInfo;
+    use axum::{
+        extract::{Path, State},
+        Json,
+    };
+    use chrono::Utc;
+    use tokio::sync::mpsc;
 
     #[test]
     fn normalized_exec_mode_accepts_known_modes_only() {
@@ -1015,5 +1109,158 @@ mod tests {
         assert_eq!(normalized_exec_mode(Some("agent")), Some("agent"));
         assert_eq!(normalized_exec_mode(Some("execute")), None);
         assert_eq!(normalized_exec_mode(None), None);
+    }
+
+    #[tokio::test]
+    async fn get_sessions_response_includes_title() {
+        let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(10);
+        let bus = MessageBus::new();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
+
+        tokio::spawn(async move {
+            while let Some(cmd) = api_rx.recv().await {
+                match cmd {
+                    ManagerCommand::GetSessions(tx) => {
+                        let sessions = vec![
+                            SessionInfo {
+                                key: "gui:with-title".to_string(),
+                                created_at: None,
+                                updated_at: None,
+                                path: "/tmp/a.json".to_string(),
+                                title: Some("Test Session".to_string()),
+                                last_message: Some("Latest reply".to_string()),
+                                message_count: 2,
+                                title_generated: true,
+                                title_manually_set: false,
+                                pinned: false,
+                            },
+                            SessionInfo {
+                                key: "gui:no-title".to_string(),
+                                created_at: None,
+                                updated_at: None,
+                                path: "/tmp/b.json".to_string(),
+                                title: None,
+                                last_message: None,
+                                message_count: 0,
+                                title_generated: false,
+                                title_manually_set: false,
+                                pinned: false,
+                            },
+                        ];
+                        let _ = tx.send(Ok(sessions));
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let axum::Json(response) = get_sessions_handler(State(state)).await;
+        assert_eq!(response["status"], "ok");
+        let sessions = response["sessions"].as_array().unwrap();
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0]["title"], "Test Session");
+        assert_eq!(sessions[0]["last_message"], "Latest reply");
+        assert_eq!(sessions[0]["message_count"], 2);
+        assert_eq!(sessions[0]["title_generated"], true);
+        assert!(sessions[1]["title"].is_null());
+    }
+
+    #[tokio::test]
+    async fn get_session_history_response_includes_title() {
+        let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(10);
+        let bus = MessageBus::new();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
+
+        tokio::spawn(async move {
+            while let Some(cmd) = api_rx.recv().await {
+                match cmd {
+                    ManagerCommand::GetSessionHistory(key, tx) => {
+                        assert_eq!(key, "gui:test-id");
+                        let session = Session {
+                            key: key.clone(),
+                            messages: vec![ChatMessage::new("user", "Hello")],
+                            created_at: Utc::now(),
+                            updated_at: Utc::now(),
+                            metadata: serde_json::Value::Object(serde_json::Map::new()),
+                            title: Some("History Title".to_string()),
+                            last_consolidated: 0,
+                            last_compacted: 0,
+                            compaction_history: Vec::new(),
+                        };
+                        let _ = tx.send(Ok(Some(session)));
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let axum::Json(response) =
+            get_session_history_handler(State(state), Path("test-id".to_string())).await;
+        assert_eq!(response["status"], "ok");
+        assert_eq!(response["session"]["title"], "History Title");
+    }
+
+    #[tokio::test]
+    async fn generate_session_title_response_includes_flags() {
+        let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(10);
+        let bus = MessageBus::new();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
+
+        tokio::spawn(async move {
+            while let Some(cmd) = api_rx.recv().await {
+                if let ManagerCommand::GenerateSessionTitle(key, _payload, tx) = cmd {
+                    assert_eq!(key, "gui:test-id");
+                    let _ = tx.send(Ok(GenerateSessionTitleResponse {
+                        title: "Generated Title".to_string(),
+                        title_generated: true,
+                        title_manually_set: false,
+                    }));
+                }
+            }
+        });
+
+        let axum::Json(response) = generate_session_title_handler(
+            State(state),
+            Path("test-id".to_string()),
+            Json(crate::state::GenerateSessionTitleRequest {
+                first_user_message: "hello".to_string(),
+                first_assistant_message: "world".to_string(),
+            }),
+        )
+        .await;
+        assert_eq!(response["status"], "ok");
+        assert_eq!(response["title"], "Generated Title");
+        assert_eq!(response["title_generated"], true);
+        assert_eq!(response["title_manually_set"], false);
+    }
+
+    #[tokio::test]
+    async fn update_session_title_returns_title_field() {
+        let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(10);
+        let bus = MessageBus::new();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
+
+        tokio::spawn(async move {
+            while let Some(cmd) = api_rx.recv().await {
+                if let ManagerCommand::UpdateSessionTitle(key, title, tx) = cmd {
+                    assert_eq!(key, "gui:test-id");
+                    assert_eq!(title.as_deref(), Some("Manual Title"));
+                    let _ = tx.send(Ok(title));
+                }
+            }
+        });
+
+        let axum::Json(response) = update_session_title_handler(
+            State(state),
+            Path("test-id".to_string()),
+            Json(serde_json::json!({ "title": "Manual Title" })),
+        )
+        .await;
+        assert_eq!(response["status"], "ok");
+        assert_eq!(response["title"], "Manual Title");
     }
 }

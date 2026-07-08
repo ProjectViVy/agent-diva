@@ -17,7 +17,9 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
-use crate::state::{ManagerCommand, ProviderCommand};
+use crate::state::{
+    GenerateSessionTitleRequest, GenerateSessionTitleResponse, ManagerCommand, ProviderCommand,
+};
 
 use tokio::sync::oneshot;
 
@@ -273,6 +275,16 @@ impl Manager {
                         ManagerCommand::DeleteSession(session_key, reply) => {
                             self.handle_delete_session(session_key, reply).await;
                         }
+                        ManagerCommand::UpdateSessionTitle(session_key, new_title, tx) => {
+                            let result = self.handle_update_session_title(&session_key, new_title).await;
+                            let _ = tx.send(result);
+                        }
+                        ManagerCommand::GenerateSessionTitle(session_key, request, tx) => {
+                            let result = self
+                                .handle_generate_session_title(&session_key, request)
+                                .await;
+                            let _ = tx.send(result);
+                        }
                         ManagerCommand::ListCronJobs(reply) => {
                             self.handle_list_cron_jobs(reply).await;
                         }
@@ -404,6 +416,77 @@ impl Manager {
                 self.handle_delete_provider(name, reply).await;
             }
         }
+    }
+}
+
+// --- Session title command handler ---
+impl Manager {
+    async fn handle_update_session_title(
+        &self,
+        session_key: &str,
+        new_title: Option<String>,
+    ) -> Result<Option<String>, String> {
+        let session_key = session_key.to_string();
+        self.with_runtime_control(
+            |tx| async move {
+                let (reply_tx, reply_rx) = oneshot::channel();
+                tx.send(RuntimeControlCommand::UpdateSessionTitle {
+                    session_key,
+                    title: new_title,
+                    reply_tx,
+                })
+                .map_err(|e| format!("failed to send UpdateSessionTitle command: {}", e))?;
+                reply_rx
+                    .await
+                    .map_err(|e| format!("failed to receive title update result: {}", e))?
+            },
+            "runtime control channel is not initialized",
+        )
+        .await
+    }
+
+    async fn handle_generate_session_title(
+        &self,
+        session_key: &str,
+        request: GenerateSessionTitleRequest,
+    ) -> Result<GenerateSessionTitleResponse, String> {
+        let session_key = session_key.to_string();
+        let fallback = request
+            .first_user_message
+            .trim()
+            .chars()
+            .take(20)
+            .collect::<String>();
+        let fallback = if fallback.is_empty() {
+            "New Conversation".to_string()
+        } else {
+            fallback
+        };
+        self.with_runtime_control(
+            move |tx| async move {
+                let (reply_tx, reply_rx) = oneshot::channel();
+                tx.send(RuntimeControlCommand::GenerateSessionTitle {
+                    session_key,
+                    first_user_message: request.first_user_message,
+                    first_assistant_message: request.first_assistant_message,
+                    fallback_title: fallback,
+                    reply_tx,
+                })
+                .map_err(|e| format!("failed to send GenerateSessionTitle command: {}", e))?;
+                reply_rx
+                    .await
+                    .map_err(|e| format!("failed to receive title generation result: {}", e))?
+                    .map(|(title, title_generated, title_manually_set)| {
+                        GenerateSessionTitleResponse {
+                            title,
+                            title_generated,
+                            title_manually_set,
+                        }
+                    })
+            },
+            "runtime control channel is not initialized",
+        )
+        .await
     }
 }
 

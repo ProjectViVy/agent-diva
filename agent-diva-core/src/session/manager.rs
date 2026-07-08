@@ -1,6 +1,10 @@
 //! Session manager for handling multiple sessions
 
 use super::store::Session;
+use super::store::{
+    SESSION_META_CONVERSATION_TITLE, SESSION_META_PINNED, SESSION_META_TITLE_GENERATED,
+    SESSION_META_TITLE_MANUALLY_SET,
+};
 use super::{search::search_sessions_in_dir, SessionSearchQuery, SessionSearchResponse};
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -128,7 +132,7 @@ impl SessionManager {
             }
         }
 
-        Some(Session {
+        let mut session = Session {
             key: key.to_string(),
             messages,
             created_at: created_at.unwrap_or_else(chrono::Utc::now),
@@ -138,7 +142,11 @@ impl SessionManager {
             last_consolidated,
             last_compacted,
             compaction_history,
-        })
+        };
+        if let Some(title) = session.conversation_title() {
+            session.title = Some(title);
+        }
+        Some(session)
     }
 
     /// Save a session to disk
@@ -156,12 +164,38 @@ impl SessionManager {
         let mut lines = Vec::new();
 
         // Write metadata
+        let mut metadata_map = session.metadata.as_object().cloned().unwrap_or_default();
+        match session.conversation_title() {
+            Some(title) => {
+                metadata_map.insert(
+                    SESSION_META_CONVERSATION_TITLE.to_string(),
+                    serde_json::Value::String(title),
+                );
+            }
+            None => {
+                metadata_map.remove(SESSION_META_CONVERSATION_TITLE);
+            }
+        }
+        metadata_map.insert(
+            SESSION_META_TITLE_GENERATED.to_string(),
+            serde_json::Value::Bool(session.title_generated()),
+        );
+        metadata_map.insert(
+            SESSION_META_TITLE_MANUALLY_SET.to_string(),
+            serde_json::Value::Bool(session.title_manually_set()),
+        );
+        metadata_map.insert(
+            SESSION_META_PINNED.to_string(),
+            serde_json::Value::Bool(session.pinned()),
+        );
+
         let metadata = serde_json::json!({
             "_type": "metadata",
+            "key": session.key,
             "created_at": session.created_at.to_rfc3339(),
             "updated_at": session.updated_at.to_rfc3339(),
-            "metadata": session.metadata,
-            "title": session.title,
+            "metadata": metadata_map,
+            "title": session.conversation_title(),
             "last_consolidated": session.last_consolidated,
             "last_compacted": session.last_compacted,
             "compaction_history": session.compaction_history,
@@ -223,41 +257,12 @@ impl SessionManager {
 
         if let Ok(entries) = std::fs::read_dir(&self.sessions_dir) {
             for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    if name.ends_with(".jsonl") {
-                        let key = name.trim_end_matches(".jsonl").replace('_', ":");
-                        if let Ok(content) = std::fs::read_to_string(entry.path()) {
-                            if let Some(first_line) = content.lines().next() {
-                                if let Ok(value) =
-                                    serde_json::from_str::<serde_json::Value>(first_line)
-                                {
-                                    if value.get("_type").and_then(|v| v.as_str())
-                                        == Some("metadata")
-                                    {
-                                        sessions.push(SessionInfo {
-                                            key,
-                                            created_at: value
-                                                .get("created_at")
-                                                .and_then(|v| v.as_str())
-                                                .map(|s| s.to_string()),
-                                            updated_at: value
-                                                .get("updated_at")
-                                                .and_then(|v| v.as_str())
-                                                .map(|s| s.to_string()),
-                                            path: entry.path().to_string_lossy().to_string(),
-                                            title: value.get("title").and_then(|v| {
-                                                if v.is_null() {
-                                                    None
-                                                } else {
-                                                    v.as_str().map(|s| s.to_string())
-                                                }
-                                            }),
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
+                if entry.path().extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+                    continue;
+                }
+
+                if let Some(session) = session_summary_from_file(&entry.path()) {
+                    sessions.push(session);
                 }
             }
         }
@@ -348,6 +353,132 @@ pub struct SessionInfo {
     /// Session title
     #[serde(default)]
     pub title: Option<String>,
+    /// Last visible message preview
+    #[serde(default)]
+    pub last_message: Option<String>,
+    /// Total visible message count
+    #[serde(default)]
+    pub message_count: usize,
+    /// Whether the current title was generated automatically
+    #[serde(default)]
+    pub title_generated: bool,
+    /// Whether the title was set manually
+    #[serde(default)]
+    pub title_manually_set: bool,
+    /// Whether the session is pinned
+    #[serde(default)]
+    pub pinned: bool,
+}
+
+fn session_summary_from_file(path: &Path) -> Option<SessionInfo> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let mut metadata = serde_json::Map::new();
+    let mut created_at = None;
+    let mut updated_at = None;
+    let mut legacy_title = None;
+    let mut key = None;
+    let mut last_message = None;
+    let mut message_count = 0usize;
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let value = serde_json::from_str::<serde_json::Value>(line).ok()?;
+        if value.get("_type").and_then(|v| v.as_str()) == Some("metadata") {
+            key = value
+                .get("key")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or(key);
+            created_at = value
+                .get("created_at")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or(created_at);
+            updated_at = value
+                .get("updated_at")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or(updated_at);
+            legacy_title = value
+                .get("title")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or(legacy_title);
+            metadata = value
+                .get("metadata")
+                .and_then(|v| v.as_object())
+                .cloned()
+                .unwrap_or_default();
+            continue;
+        }
+
+        let role = value
+            .get("role")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let content = value
+            .get("content")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .unwrap_or_default();
+        if !matches!(role, "user" | "assistant" | "tool") || content.is_empty() {
+            continue;
+        }
+        message_count += 1;
+        last_message = Some(compact_preview(content, 120));
+    }
+
+    let key = key.or_else(|| {
+        path.file_stem()
+            .and_then(|name| name.to_str())
+            .map(|name| name.replace('_', ":"))
+    })?;
+    let title = metadata
+        .get(SESSION_META_CONVERSATION_TITLE)
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            legacy_title
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        });
+
+    Some(SessionInfo {
+        key,
+        created_at,
+        updated_at,
+        path: path.to_string_lossy().to_string(),
+        title,
+        last_message,
+        message_count,
+        title_generated: metadata
+            .get(SESSION_META_TITLE_GENERATED)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        title_manually_set: metadata
+            .get(SESSION_META_TITLE_MANUALLY_SET)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        pinned: metadata
+            .get(SESSION_META_PINNED)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+    })
+}
+
+fn compact_preview(content: &str, max_chars: usize) -> String {
+    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut preview = normalized.chars().take(max_chars).collect::<String>();
+    if normalized.chars().count() > max_chars {
+        preview.push_str("...");
+    }
+    preview
 }
 
 #[cfg(test)]
@@ -559,7 +690,8 @@ mod tests {
         let mut manager = SessionManager::new(temp_dir.path());
 
         let session = manager.get_or_create("title:test");
-        session.title = Some("Hello World".to_string());
+        session.set_conversation_title(Some("Hello World".to_string()));
+        session.set_title_generated(true);
         let key = session.key.clone();
         manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
@@ -570,6 +702,7 @@ mod tests {
         let sessions = manager.list_sessions();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].title, Some("Hello World".to_string()));
+        assert!(sessions[0].title_generated);
     }
 
     #[test]
@@ -597,5 +730,50 @@ mod tests {
         let sessions = manager.list_sessions();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].title, None);
+    }
+
+    #[test]
+    fn list_sessions_includes_last_message_and_flags() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let session = manager.get_or_create("gui:rich");
+        session.add_message("user", "First user message");
+        session.add_message("assistant", "Assistant reply");
+        session.set_conversation_title(Some("Rich Session".to_string()));
+        session.set_title_generated(true);
+        session.set_title_manually_set(false);
+        session.set_pinned(true);
+        let key = session.key.clone();
+        let snapshot = manager.cache.get(&key).unwrap().clone();
+        manager.save(&snapshot).unwrap();
+
+        let sessions = manager.list_sessions();
+        assert_eq!(sessions.len(), 1);
+        let info = &sessions[0];
+        assert_eq!(info.title.as_deref(), Some("Rich Session"));
+        assert_eq!(info.last_message.as_deref(), Some("Assistant reply"));
+        assert_eq!(info.message_count, 2);
+        assert!(info.title_generated);
+        assert!(!info.title_manually_set);
+        assert!(info.pinned);
+    }
+
+    #[test]
+    fn list_sessions_handles_empty_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let session = manager.get_or_create("gui:empty");
+        let key = session.key.clone();
+        let snapshot = manager.cache.get(&key).unwrap().clone();
+        manager.save(&snapshot).unwrap();
+
+        let sessions = manager.list_sessions();
+        assert_eq!(sessions.len(), 1);
+        let info = &sessions[0];
+        assert_eq!(info.message_count, 0);
+        assert_eq!(info.last_message, None);
+        assert_eq!(info.title, None);
     }
 }

@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro @ C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-07-05T09:15:00+08:00`
-- Last Heartbeat: `2026-07-05T15:45:00+08:00`
+- Started At: `none`
+- Last Heartbeat: `none`
 - Expires At: `none`
 
 ## Lock Rules
@@ -57,3 +57,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-05`: Codex released the Wave G parallel review lock after recording findings for commits `11728fa`, `9438b25`, `48dd875`, `e9336d9`, and `e2941a8` in `docs/logs/2026-07-waveg-review/v0.0.1-waveg-summary/` and updating `TODOLIST.md`.
 - `2026-07-05`: Codex released the Wave G remediation lock after landing the missing-usage fallback fix, timeout/error-category wiring, logging retention correction, feature-gate CI promotion, and `docs/logs/2026-07-waveg-remediation/v0.0.1-waveg-remediation/`.
 - `2026-07-05`: Codex released the manager skill-service clippy cleanup lock after clearing the remaining `just check` blocker and recording `docs/logs/2026-07-waveg-remediation/v0.0.2-manager-clippy-cleanup/`.
+- `2026-07-05`: Cursor GPT-5.5 released the Wave 3 residual fixes lock after implementing todo reliability/API contract fixes, supervised background subagent production wiring/lifecycle/context inheritance, and managed workspace CLI contract clarification. Validation: `just fmt-check` and `just check` passed; `just test` reached an unrelated `agent-diva-autodream` monthly report failure in `scheduled_monthly_report_runs_on_first_monday`.
+- `2026-07-05`: Cursor GPT-5.5 updated `TODOLIST.md` to move the completed Wave 3 residual fixes from Deferred to Done and released the `TODOLIST.md` lock.
+- `2026-07-07`: Codex replaced the mistaken isolated memory worktree `agent-diva-memory-branch` from `origin/codex/feature-oauth-memory-foundation` with `origin/vrm-memory-test` at commit `7cc365c`, without modifying the `agent-diva-pro` worktree.
+- `2026-07-07`: Codex released the `vrm-memory-test` audit lock after recording `docs/logs/2026-07-vrm-memory-audit/v0.0.1-vrm-memory-test-audit/`, confirming the branch has no `agent-diva-memory` crate, and adding the follow-up memory interfaces-spec backlog item.
+- `2026-07-08`: Codex released the GUI Tauri watcher lock after landing `5cbce33`, adding `agent-diva-gui/.taurignore` for `src-tauri/gen/**`, recording `docs/logs/2026-07-gui-tauri-dev-exit-watch-loop/v0.0.1-tauri-dev-exit-watch-loop/`, and logging the pre-existing `embedded_gateway_serves_health_endpoint` test failure in `TODOLIST.md`.
+- `2026-07-08`: Codex released the GUI Windows exit cleanup lock after landing `7f6d266`, closing all webview windows before `app.exit(0)`, allowing shutdown-initiated closes to pass through, and recording `docs/logs/2026-07-gui-window-class-unregister/v0.0.1-windows-exit-webview-cleanup/`.
+- `2026-07-08`: Codex released the GUI session list/title lock after extending session metadata, adding `/api/sessions/:id/generate-title`, wiring Tauri session title commands, landing optimistic GUI session-list updates, and recording `docs/logs/2026-07-gui-session-list-title/v0.0.1-session-list-title/`.

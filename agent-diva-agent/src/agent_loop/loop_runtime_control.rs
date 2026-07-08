@@ -3,6 +3,7 @@ use crate::compaction::ContextCompactor;
 use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{AgentEvent, InboundMessage};
 use agent_diva_core::session::CompactTrigger;
+use agent_diva_providers::Message;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{info, warn};
@@ -67,6 +68,31 @@ impl AgentLoop {
                         );
                     }
                 }
+                let _ = reply_tx.send(result);
+            }
+            RuntimeControlCommand::UpdateSessionTitle {
+                session_key,
+                title,
+                reply_tx,
+            } => {
+                let result = self.handle_update_session_title(&session_key, title).await;
+                let _ = reply_tx.send(result);
+            }
+            RuntimeControlCommand::GenerateSessionTitle {
+                session_key,
+                first_user_message,
+                first_assistant_message,
+                fallback_title,
+                reply_tx,
+            } => {
+                let result = self
+                    .handle_generate_session_title(
+                        &session_key,
+                        &first_user_message,
+                        &first_assistant_message,
+                        &fallback_title,
+                    )
+                    .await;
                 let _ = reply_tx.send(result);
             }
             RuntimeControlCommand::SetThinking { mode } => {
@@ -200,5 +226,107 @@ impl AgentLoop {
             }
             Err(e) => Err(format!("compaction failed: {}", e)),
         }
+    }
+
+    async fn handle_update_session_title(
+        &mut self,
+        session_key: &str,
+        title: Option<String>,
+    ) -> Result<Option<String>, String> {
+        let clean_title = title
+            .as_ref()
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty());
+        let session_key = session_key.to_string();
+
+        let exists = self.sessions.get_or_load(&session_key).is_some();
+        if !exists {
+            return Err("session not found".to_string());
+        }
+
+        let session_to_save = {
+            let session = self.sessions.get_or_create(session_key.clone());
+            session.set_conversation_title(clean_title.clone());
+            session.set_title_generated(false);
+            session.set_title_manually_set(clean_title.is_some());
+            session.clone()
+        };
+
+        self.sessions
+            .save(&session_to_save)
+            .map_err(|e| e.to_string())?;
+
+        Ok(clean_title)
+    }
+
+    async fn handle_generate_session_title(
+        &mut self,
+        session_key: &str,
+        first_user_message: &str,
+        first_assistant_message: &str,
+        fallback_title: &str,
+    ) -> Result<(String, bool, bool), String> {
+        let Some(existing) = self.sessions.get_or_load(session_key).cloned() else {
+            return Err("session not found".to_string());
+        };
+        if existing.title_manually_set() {
+            let title = existing
+                .conversation_title()
+                .unwrap_or_else(|| fallback_title.to_string());
+            return Ok((title, existing.title_generated(), true));
+        }
+        if existing.title_generated() {
+            let title = existing
+                .conversation_title()
+                .unwrap_or_else(|| fallback_title.to_string());
+            return Ok((title, true, existing.title_manually_set()));
+        }
+
+        let generated = self
+            .provider
+            .chat(
+                vec![
+                    Message::system(
+                        "You write short chat titles. Output only a short title with no quotes, no markdown, and no explanation.",
+                    ),
+                    Message::user(format!(
+                        "Generate a concise conversation title under 12 words.\n\nFirst user message:\n{}\n\nFirst assistant message:\n{}",
+                        first_user_message.trim(),
+                        first_assistant_message.trim()
+                    )),
+                ],
+                None,
+                Some(self.provider.get_default_model()),
+                64,
+                0.2,
+            )
+            .await
+            .ok()
+            .and_then(|response| {
+                response
+                    .content
+                    .as_deref()
+                    .and_then(|content| content.lines().next())
+                    .map(str::trim)
+                    .map(|title| title.trim_matches('"').trim())
+                    .filter(|title| !title.is_empty())
+                    .map(|title| title.chars().take(60).collect::<String>())
+            });
+        let title = generated
+            .clone()
+            .unwrap_or_else(|| fallback_title.trim().to_string());
+        let session_to_save = {
+            let session = self.sessions.get_or_create(session_key.to_string());
+            session.set_conversation_title(Some(title.clone()));
+            session.set_title_generated(generated.is_some());
+            session.set_title_manually_set(false);
+            session.clone()
+        };
+
+        self.sessions
+            .save(&session_to_save)
+            .map_err(|e| e.to_string())?;
+
+        Ok((title, generated.is_some(), false))
     }
 }

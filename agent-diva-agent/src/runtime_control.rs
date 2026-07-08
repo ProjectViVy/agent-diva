@@ -30,6 +30,18 @@ pub enum RuntimeControlCommand {
         session_key: String,
         reply_tx: tokio::sync::oneshot::Sender<Result<bool, String>>,
     },
+    UpdateSessionTitle {
+        session_key: String,
+        title: Option<String>,
+        reply_tx: tokio::sync::oneshot::Sender<Result<Option<String>, String>>,
+    },
+    GenerateSessionTitle {
+        session_key: String,
+        first_user_message: String,
+        first_assistant_message: String,
+        fallback_title: String,
+        reply_tx: tokio::sync::oneshot::Sender<Result<(String, bool, bool), String>>,
+    },
     SetThinking {
         mode: agent_diva_core::reasoning::ThinkingMode,
     },

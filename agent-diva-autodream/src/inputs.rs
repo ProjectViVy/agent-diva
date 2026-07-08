@@ -322,6 +322,11 @@ fn read_session_candidates(
                 updated_at: None,
                 path: path.to_string_lossy().to_string(),
                 title: None,
+                last_message: None,
+                message_count: 0,
+                title_generated: false,
+                title_manually_set: false,
+                pinned: false,
             }
         })
         .collect())
