@@ -4,6 +4,9 @@
 
 ## Open
 
+- [ ] **Provider: run StepFun real endpoint E2E for model pass-through** The runtime now keeps model IDs opaque and unit coverage verifies `provider_name = stepfun`, `api_base = https://api.stepfun.com/step_plan/v1`, and `model = step-3.7-flash` pass through unchanged. Real StepFun E2E could not be run in this checkout because `keys.txt` is absent and no StepFun API key is available in the environment.
+  - Related files: `agent-diva-providers/src/litellm.rs`, `agent-diva-e2e/src/config.rs`, `docs/logs/2026-07-provider-model-pass-through/v0.0.1-provider-model-pass-through/verification.md`
+  - Suggested validation: set `E2E_PROVIDER_NAME=stepfun`, `E2E_API_BASE=https://api.stepfun.com/step_plan/v1`, `E2E_MODEL=step-3.7-flash`, and `E2E_API_KEY`/`DEEPSEEK_API_KEY` to a StepFun key, then run `just e2e-test`.
 - [ ] **GUI: fix NormalMode.test.ts pre-existing `miku.svg` import failure** The vitest environment cannot resolve `/miku.svg` imported by `NormalMode.vue`, causing the whole `NormalMode.test.ts` suite to fail before any assertions run. This blocks regression testing of sidebar/navigation behavior and is unrelated to the pet overlay fix.
   - Related files: `agent-diva-gui/src/components/NormalMode.vue`, `agent-diva-gui/src/components/NormalMode.test.ts`, `agent-diva-gui/vitest.config.ts`
   - Suggested fix: add an SVG mock/ignore handler in `vitest.config.ts` (e.g., `assetsInclude` or a custom plugin) so static asset imports do not crash tests.

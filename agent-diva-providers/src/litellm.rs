@@ -168,7 +168,6 @@ pub struct LiteLLMClient {
     extra_headers: HashMap<String, String>,
     registry: ProviderRegistry,
     selected_provider: Option<ProviderSpec>,
-    direct_openai_compatible: bool,
     default_reasoning_effort: Option<String>,
     /// Per-provider reasoning configuration for dynamic capability detection
     reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
@@ -282,9 +281,6 @@ impl LiteLLMClient {
                 })
             })
             .unwrap_or_else(|| "http://localhost:4000".to_string());
-        let direct_openai_compatible =
-            provider_name.is_some() && selected_provider.is_none() && !api_base.trim().is_empty();
-
         // Derive default_reasoning_effort from reasoning_config if not explicitly provided
         let derived_reasoning_effort = default_reasoning_effort
             .map(|s| s.trim().to_lowercase())
@@ -306,68 +302,19 @@ impl LiteLLMClient {
             extra_headers: extra_headers.unwrap_or_default(),
             registry,
             selected_provider,
-            direct_openai_compatible,
             default_reasoning_effort: derived_reasoning_effort,
             reasoning_config,
         }
     }
 
-    /// Resolve model name for either native provider endpoints or LiteLLM-style gateways.
+    /// Resolve model name for outbound requests.
+    ///
+    /// Model IDs are opaque configuration strings. The provider layer selects the
+    /// request wire format, but it must not infer gateway/native routing or add
+    /// LiteLLM provider prefixes at runtime.
     fn resolve_model(&self, model: &str) -> String {
-        if let Some(provider) = &self.selected_provider {
-            if !provider.default_api_base.is_empty()
-                && Self::normalize_api_base(&self.api_base)
-                    == Self::normalize_api_base(&provider.default_api_base)
-            {
-                debug!(
-                    "Model unchanged (native provider base): {} -> {}",
-                    model, model
-                );
-                return model.to_string();
-            }
-
-            if !provider.litellm_prefix.is_empty()
-                && !provider.litellm_prefix.contains("://")
-                && !model.starts_with(&format!("{}/", provider.litellm_prefix))
-            {
-                let resolved = format!("{}/{}", provider.litellm_prefix, model);
-                debug!(
-                    "Resolved model (named provider through non-native base): {} -> {}",
-                    model, resolved
-                );
-                return resolved;
-            }
-        }
-
-        if self.direct_openai_compatible {
-            debug!(
-                "Model unchanged (custom openai-compatible base): {} -> {}",
-                model, model
-            );
-            return model.to_string();
-        }
-
-        // Standard mode: auto-prefix for known providers
-        if let Some(spec) = self.registry.find_by_model(model) {
-            if !spec.litellm_prefix.is_empty() && !spec.litellm_prefix.contains("://") {
-                let has_skip_prefix = spec
-                    .skip_prefixes
-                    .iter()
-                    .any(|prefix| model.starts_with(prefix));
-                if !has_skip_prefix {
-                    let resolved = format!("{}/{}", spec.litellm_prefix, model);
-                    debug!("Resolved model (standard): {} -> {}", model, resolved);
-                    return resolved;
-                }
-            }
-        }
-
-        debug!("Model unchanged: {}", model);
+        debug!("Model passed through unchanged: {}", model);
         model.to_string()
-    }
-
-    fn normalize_api_base(base: &str) -> String {
-        base.trim_end_matches('/').to_lowercase()
     }
 
     /// Apply model-specific parameter overrides from the registry
@@ -1137,21 +1084,17 @@ mod tests {
     fn test_resolve_model() {
         let client = LiteLLMClient::new(None, None, "claude-3-opus".to_string(), None, None, None);
 
-        // DeepSeek should get prefixed
-        assert_eq!(
-            client.resolve_model("deepseek-chat"),
-            "deepseek/deepseek-chat"
-        );
-
-        // Claude should not get prefixed (LiteLLM knows it)
+        assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
         assert_eq!(client.resolve_model("claude-3-opus"), "claude-3-opus");
-
-        // Qwen should get prefixed
-        assert_eq!(client.resolve_model("qwen-max"), "dashscope/qwen-max");
+        assert_eq!(client.resolve_model("qwen-max"), "qwen-max");
+        assert_eq!(
+            client.resolve_model("openrouter/deepseek/deepseek-chat"),
+            "openrouter/deepseek/deepseek-chat"
+        );
     }
 
     #[test]
-    fn test_named_provider_non_native_base_adds_litellm_prefix() {
+    fn test_named_provider_non_native_base_keeps_raw_model() {
         let client = LiteLLMClient::new(
             Some("sk-or-test".to_string()),
             Some("http://localhost:4000".to_string()),
@@ -1160,10 +1103,7 @@ mod tests {
             Some("openrouter".to_string()),
             None,
         );
-        assert_eq!(
-            client.resolve_model("claude-3-opus"),
-            "openrouter/claude-3-opus"
-        );
+        assert_eq!(client.resolve_model("claude-3-opus"), "claude-3-opus");
     }
 
     #[test]
@@ -1193,6 +1133,32 @@ mod tests {
             None,
         );
         assert_eq!(client.resolve_model("deepseek-chat"), "deepseek-chat");
+    }
+
+    #[test]
+    fn test_named_provider_custom_stepfun_base_keeps_raw_model() {
+        let client = LiteLLMClient::new(
+            Some("sk-stepfun-test".to_string()),
+            Some("https://api.stepfun.com/step_plan/v1".to_string()),
+            "step-3.7-flash".to_string(),
+            None,
+            Some("stepfun".to_string()),
+            None,
+        );
+        assert_eq!(client.resolve_model("step-3.7-flash"), "step-3.7-flash");
+    }
+
+    #[test]
+    fn test_unknown_custom_provider_keeps_raw_model() {
+        let client = LiteLLMClient::new(
+            Some("sk-custom-test".to_string()),
+            Some("https://llm.example.test/v1".to_string()),
+            "custom-raw-model".to_string(),
+            None,
+            Some("custom-provider".to_string()),
+            None,
+        );
+        assert_eq!(client.resolve_model("custom-raw-model"), "custom-raw-model");
     }
 
     #[test]
