@@ -182,6 +182,7 @@ dependencies = [
  "cron",
  "dirs 5.0.1",
  "filetime",
+ "fs2",
  "futures",
  "memtle",
  "once_cell",
@@ -200,6 +201,30 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "urlencoding",
+ "uuid",
+]
+
+[[package]]
+name = "agent-diva-e2e"
+version = "0.1.0"
+dependencies = [
+ "agent-diva-agent",
+ "agent-diva-core",
+ "agent-diva-providers",
+ "agent-diva-tooling",
+ "agent-diva-tools",
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "tracing",
  "uuid",
 ]
 
@@ -302,6 +327,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tower",
  "tower-http 0.5.2",
  "tracing",

@@ -4,6 +4,7 @@ members = [
     "agent-diva-core",
     "agent-diva-agent",
     "agent-diva-autodream",
+    "agent-diva-e2e",
     "agent-diva-tooling",
     "agent-diva-neuron",
     "agent-diva-providers",

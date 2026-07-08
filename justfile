@@ -29,6 +29,10 @@ build-release:
 test:
     cargo test --all
 
+# Run real-provider E2E tests explicitly from the root workspace
+e2e-test:
+    cargo test -p agent-diva-e2e -- --nocapture
+
 # Verify the frozen Mentle package source policy
 mentle-package-policy:
     python scripts/ci/verify_mentle_package_policy.py

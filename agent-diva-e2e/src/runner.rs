@@ -210,7 +210,8 @@ impl ScenarioRunner {
             .clone()
             .or(Some(self.config.default_model.clone()));
 
-        let mut agent_loop = AgentLoop::new(bus, provider, workspace.clone(), model, Some(20))
+        let mut agent_loop =
+            AgentLoop::new(bus, Arc::clone(&provider), workspace.clone(), model, Some(20))
             .await
             .map_err(|e| format!("[{scenario_name}] Failed to create AgentLoop: {e}"))?;
 
