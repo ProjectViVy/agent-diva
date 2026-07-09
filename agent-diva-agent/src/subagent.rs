@@ -17,7 +17,10 @@ use agent_diva_core::config::schema::{
     BatchSpawnRequest, MaskConfig, SubAgentResult, SubAgentStatus, TokenUsage, ToolLimits,
 };
 use agent_diva_core::memory::{MemoryProvider, SystemPromptRequest};
+use agent_diva_core::session::TokenUsage as SessionTokenUsage;
+use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::BudgetExceeded;
+use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
 use agent_diva_providers::base::{LLMProvider, Message};
 use agent_diva_tooling::ToolRegistry;
 
@@ -48,6 +51,19 @@ pub struct SubagentManager {
     memory_provider: Arc<dyn MemoryProvider>,
     running_tasks: Arc<tokio::sync::Mutex<HashMap<String, JoinHandle<()>>>>,
     per_task_token_budget: Option<u64>,
+    token_ledger_data_root: Option<PathBuf>,
+    session_token_budget_limit: Option<u64>,
+    /// Mask currently active on the parent agent; subagents inherit model and defaults.
+    current_mask: Arc<RwLock<Option<MaskConfig>>>,
+}
+
+/// Parent-turn context for supervised subagent runs.
+#[derive(Debug, Clone, Default)]
+pub struct SupervisedSubagentContext {
+    pub session_key: Option<String>,
+    pub trace_id: Option<String>,
+    pub parent_run_id: Option<String>,
+    pub token_budget_limit: Option<u64>,
 }
 
 impl SubagentManager {
@@ -84,7 +100,28 @@ impl SubagentManager {
             memory_provider,
             running_tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             per_task_token_budget,
+            token_ledger_data_root: None,
+            session_token_budget_limit: None,
+            current_mask: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Set the mask currently active on the parent agent so subagents can inherit
+    /// its model and subagent defaults.
+    pub async fn set_current_mask(&self, mask: Option<MaskConfig>) {
+        let mut guard = self.current_mask.write().await;
+        *guard = mask;
+    }
+
+    /// Configure parent-session token ledger inheritance for supervised runs.
+    pub fn with_token_ledger(
+        mut self,
+        data_root: PathBuf,
+        session_budget_limit: Option<u64>,
+    ) -> Self {
+        self.token_ledger_data_root = Some(data_root);
+        self.session_token_budget_limit = session_budget_limit;
+        self
     }
 
     pub async fn update_network_config(&self, network_config: NetworkToolConfig) {
@@ -179,22 +216,11 @@ impl SubagentManager {
         origin_chat_id: String,
     ) -> Result<String> {
         let task_id = Uuid::new_v4().to_string()[..8].to_string();
-        let display_label = label.unwrap_or_else(|| {
-            if task.len() > 30 {
-                let mut end = 30;
-                while !task.is_char_boundary(end) {
-                    end -= 1;
-                }
-                format!("{}...", &task[..end])
-            } else {
-                task.clone()
-            }
-        });
+        let display_label = Self::display_label(&task, label);
 
         let provider = Arc::clone(&self.provider);
         let workspace = self.workspace.clone();
         let bus = self.bus.clone();
-        let model = self.model.clone();
         let builtin_tools = self.builtin_tools.clone();
         let network_config = self.network_config.read().await.clone();
         let exec_timeout = self.exec_timeout;
@@ -202,13 +228,14 @@ impl SubagentManager {
         let mcp_servers = self.mcp_servers.read().await.clone();
         let memory_provider = Arc::clone(&self.memory_provider);
 
+        let mask = self.current_mask.read().await.clone();
+        let model = Self::resolve_model(None, mask.as_ref(), &self.model);
+        let max_iterations = Self::resolve_max_iterations(None, mask.as_ref());
+
         let task_id_clone = task_id.clone();
         let display_label_clone = display_label.clone();
         let running_tasks = Arc::clone(&self.running_tasks);
         let per_task_token_budget = self.per_task_token_budget;
-
-        // Resolve max_iterations for this subagent
-        let max_iterations = SubagentManager::resolve_max_iterations(None, None);
 
         // Create background task
         let bg_task = tokio::spawn(async move {
@@ -250,6 +277,131 @@ impl SubagentManager {
         ))
     }
 
+    /// Execute a subagent as a supervised foreground run.
+    ///
+    /// Unlike [`Self::spawn`], this waits for the real subagent work to finish
+    /// so the supervised run store reflects the true success or failure.
+    pub async fn run_supervised(
+        &self,
+        task: String,
+        label: Option<String>,
+        origin_channel: String,
+        origin_chat_id: String,
+        context: SupervisedSubagentContext,
+    ) -> Result<String> {
+        let task_id = Uuid::new_v4().to_string()[..8].to_string();
+        let display_label = Self::display_label(&task, label);
+        let network_config = self.network_config.read().await.clone();
+        let mcp_servers = self.mcp_servers.read().await.clone();
+
+        let mask = self.current_mask.read().await.clone();
+        let model = Self::resolve_model(None, mask.as_ref(), &self.model);
+        let max_iterations = Self::resolve_max_iterations(None, mask.as_ref());
+
+        info!(
+            "Supervised subagent [{}] starting task: {}",
+            task_id, display_label
+        );
+
+        self.enforce_parent_session_budget(&context)?;
+
+        let result = Self::execute_subagent_task(
+            &task_id,
+            &task,
+            &self.provider,
+            &self.workspace,
+            &model,
+            &self.builtin_tools,
+            &network_config,
+            self.exec_timeout,
+            self.restrict_to_workspace,
+            &mcp_servers,
+            Arc::clone(&self.memory_provider),
+            max_iterations,
+            self.per_task_token_budget,
+        )
+        .await;
+
+        match result {
+            Ok((content, usage)) => {
+                info!("Supervised subagent [{}] completed successfully", task_id);
+                if !usage.is_empty() {
+                    debug!("Supervised subagent [{}] token usage: {:?}", task_id, usage);
+                }
+                self.append_parent_session_usage(&context, &usage)?;
+                Self::announce_result(
+                    &task_id,
+                    &display_label,
+                    &task,
+                    &content,
+                    &origin_channel,
+                    &origin_chat_id,
+                    "ok",
+                    &self.bus,
+                )
+                .await;
+                Ok(content)
+            }
+            Err(error) => {
+                let error_msg = format!("Error: {}", error);
+                error!("Supervised subagent [{}] failed: {}", task_id, error);
+                Self::announce_result(
+                    &task_id,
+                    &display_label,
+                    &task,
+                    &error_msg,
+                    &origin_channel,
+                    &origin_chat_id,
+                    "error",
+                    &self.bus,
+                )
+                .await;
+                Err(error)
+            }
+        }
+    }
+
+    fn enforce_parent_session_budget(&self, context: &SupervisedSubagentContext) -> Result<()> {
+        let Some(session_key) = context.session_key.as_deref() else {
+            return Ok(());
+        };
+        let limit = context
+            .token_budget_limit
+            .or(self.session_token_budget_limit);
+        if let (Some(data_root), Some(limit)) = (&self.token_ledger_data_root, limit) {
+            check_budget_at_path(data_root, session_key, limit)?;
+        }
+        Ok(())
+    }
+
+    fn append_parent_session_usage(
+        &self,
+        context: &SupervisedSubagentContext,
+        usage: &HashMap<String, i64>,
+    ) -> Result<()> {
+        let Some(session_key) = context.session_key.as_deref() else {
+            return Ok(());
+        };
+        let Some(data_root) = &self.token_ledger_data_root else {
+            return Ok(());
+        };
+        let token_usage = SessionTokenUsage {
+            prompt_tokens: usage.get("prompt_tokens").copied().unwrap_or(0).max(0) as u32,
+            completion_tokens: usage.get("completion_tokens").copied().unwrap_or(0).max(0) as u32,
+            total_tokens: usage.get("total_tokens").copied().unwrap_or(0).max(0) as u32,
+        };
+        if token_usage.total_tokens == 0 {
+            return Ok(());
+        }
+        let ledger = JsonlTokenLedger::new(data_root)?;
+        ledger.append(TokenLedgerEntry::from_usage(
+            session_key,
+            self.model.clone(),
+            &token_usage,
+        ))?;
+        Ok(())
+    }
+
     /// Spawn a batch of isolated subagent tasks in parallel.
     ///
     /// Each task runs in its own context with no personality/soul injection
@@ -264,7 +416,6 @@ impl SubagentManager {
     pub async fn spawn_batch(&self, request: BatchSpawnRequest) -> Vec<SubAgentResult> {
         let provider = Arc::clone(&self.provider);
         let workspace = self.workspace.clone();
-        let model = self.model.clone();
         let builtin_tools = self.builtin_tools.clone();
         let network_config = self.network_config.read().await.clone();
         let exec_timeout = self.exec_timeout;
@@ -274,10 +425,12 @@ impl SubagentManager {
         let running_tasks = Arc::clone(&self.running_tasks);
         let per_task_token_budget = self.per_task_token_budget;
 
+        let mask = self.current_mask.read().await.clone();
+        let model = Self::resolve_model(None, mask.as_ref(), &self.model);
+        let resolved_max_iterations = Self::resolve_max_iterations(None, mask.as_ref());
+
         // Resolve max_iterations once for the entire batch
-        let max_iterations = request
-            .max_iterations
-            .unwrap_or_else(|| SubagentManager::resolve_max_iterations(None, None));
+        let max_iterations = request.max_iterations.unwrap_or(resolved_max_iterations);
 
         let mut join_set = JoinSet::new();
         let mut tasks = VecDeque::from(request.tasks);
@@ -833,6 +986,20 @@ When you have completed the task, provide a clear summary of your findings or ac
             ),
             Err(_) => "Applied Laputa authority context could not be read. Continue with the assigned task and do not treat legacy authority files as inherited identity.".to_string(),
         }
+    }
+
+    fn display_label(task: &str, label: Option<String>) -> String {
+        label.unwrap_or_else(|| {
+            if task.len() > 30 {
+                let mut end = 30;
+                while !task.is_char_boundary(end) {
+                    end -= 1;
+                }
+                format!("{}...", &task[..end])
+            } else {
+                task.to_string()
+            }
+        })
     }
 
     /// Execute the subagent task and announce the result

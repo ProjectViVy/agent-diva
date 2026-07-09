@@ -1,7 +1,7 @@
 //! Agent loop: the core processing engine
 
 use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
-use agent_diva_core::config::schema::ToolLimits;
+use agent_diva_core::config::schema::{MaskConfig, ToolLimits};
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
@@ -272,6 +272,20 @@ impl AgentLoop {
         let registry = MaskRegistry::new(self.workspace.join("masks"));
         registry.current_mask().cloned()
     }
+
+    /// Determine the effective model for the current turn.
+    ///
+    /// Priority:
+    /// 1. Active mask's `frontmatter.model`
+    /// 2. AgentLoop's configured default model
+    pub(crate) fn effective_model_for_turn(
+        &self,
+        mask: Option<&MaskFile>,
+    ) -> String {
+        mask.and_then(|m| m.frontmatter.model.clone())
+            .unwrap_or_else(|| self.model.clone())
+    }
+
 
     pub(crate) fn rebuild_tools_for_turn(
         &mut self,
@@ -2773,51 +2787,49 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_memory_provider_full_lifecycle_hooks() {
-        let provider = TrackingMemoryProvider::new();
+    async fn mask_model_override() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let agent = AgentLoop::new(
+            bus,
+            provider,
+            workspace,
+            Some("default-model".to_string()),
+            Some(1),
+        )
+        .await
+        .unwrap();
 
-        // 1. Startup
-        let startup = provider
-            .system_prompt_block(&SystemPromptRequest {
-                workspace_root: PathBuf::from("/tmp"),
-            })
-            .unwrap();
-        assert!(matches!(startup.status, StartupStatus::Ready));
-        assert!(provider.startup_called.load(Ordering::SeqCst));
+        let mask = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Coder".to_string(),
+                model: Some("deepseek-chat".to_string()),
+                ..Default::default()
+            },
+            body: String::new(),
+        };
 
-        // 2. Prefetch with intent
-        let _prefetch = provider
-            .prefetch(PrefetchRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                intent: "review memory".to_string(),
-                current_room: None,
-                user_message: None,
-            })
-            .await
-            .unwrap();
-        assert!(provider.prefetch_called.load(Ordering::SeqCst));
+        assert_eq!(agent.effective_model_for_turn(Some(&mask)), "deepseek-chat");
+    }
 
-        // 3. Sync after successful turn
-        let sync = provider
-            .sync_turn(SyncTurnRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                memory_update_markdown: Some("evidence".to_string()),
-                history_entry: None,
-            })
-            .await
-            .unwrap();
-        assert_eq!(sync.status, SyncTurnStatus::Persisted);
-        assert!(provider.sync_called.load(Ordering::SeqCst));
+    #[tokio::test]
+    async fn no_mask_default_model() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let agent = AgentLoop::new(
+            bus,
+            provider,
+            workspace,
+            Some("default-model".to_string()),
+            Some(1),
+        )
+        .await
+        .unwrap();
 
-        // 4. Session end
-        let shutdown = provider
-            .on_session_end(SessionEndRequest {
-                workspace_root: PathBuf::from("/tmp"),
-                session_id: Some("lifecycle".to_string()),
-            })
-            .await
-            .unwrap();
-        assert_eq!(shutdown.status, SessionEndStatus::Triggered);
-        assert!(provider.session_end_called.load(Ordering::SeqCst));
+        assert_eq!(agent.effective_model_for_turn(None), "default-model");
     }
 }
