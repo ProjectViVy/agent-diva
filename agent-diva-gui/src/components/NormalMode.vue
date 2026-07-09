@@ -39,6 +39,7 @@ import PersonaMemoryView from './PersonaMemoryView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
+import MaskSelectorButton from './MaskSelectorButton.vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -179,6 +180,7 @@ const evolutionBadge = ref({
   tooltip: '',
 });
 const evolutionDeepLink = ref<ChatGovernanceDeepLink | null>(null);
+const mikuAvatarSrc = '/miku.svg';
 
 // 收缩状态下的弹出菜单
 const collapsedPopup = ref<{ type: 'capabilities' | 'tools' | null; x: number; y: number }>({
@@ -196,7 +198,6 @@ const handleRenameSession = async (sessionKey: string, title: string) => {
   if (!session) return;
 
   const originalTitle = session.title;
-  const id = sessionKey.replace(/^[^:]+:/, '');
 
   try {
     const data = await invoke<{ title?: string }>('update_session_title', {
@@ -265,6 +266,8 @@ const currentProviderLabel = computed(() => {
   if (!props.config?.provider) return 'DeepSeek';
   return props.config.provider;
 });
+
+// const showBackendDisconnectedIndicator = computed(() => props.connectionStatus === 'error');
 
 const closeSidebar = () => {
   sidebarOpen.value = false;
@@ -625,7 +628,7 @@ defineExpose({
           animationDelay: `${m.delay}s`,
         }"
       >
-        <img src="/miku.svg" alt="Miku" />
+        <img :src="mikuAvatarSrc" alt="Miku" />
       </div>
     </div>
     <aside
@@ -880,8 +883,10 @@ defineExpose({
         </div>
 
         <div class="topbar-right no-drag">
+          <!-- Mask selector -->
+          <MaskSelectorButton @navigate-settings="navigateTo('settings', 'dashboard')" />
           <!-- Model下拉 -->
-          <div class="relative">
+          <div class="relative flex items-center gap-2">
             <button
               v-if="config"
               @click="isModelDropdownOpen = !isModelDropdownOpen"
@@ -893,6 +898,17 @@ defineExpose({
                 <span class="max-w-[100px] truncate text-[10px] text-gray-400">{{ currentProviderLabel }}</span>
               </div>
             </button>
+            <!--
+            <div
+              v-if="showBackendDisconnectedIndicator"
+              data-testid="backend-disconnected-indicator"
+              class="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-200/80 bg-amber-50 text-amber-600 shadow-sm"
+              :title="t('app.backendDisconnected')"
+              :aria-label="t('app.backendDisconnected')"
+            >
+              <TriangleAlert :size="13" />
+            </div>
+            -->
 
             <!-- Model下拉菜单内容 -->
             <div v-if="isModelDropdownOpen" class="absolute top-full right-0 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-[100]">
