@@ -673,3 +673,59 @@ export const setGuiPrefs = (prefs: GuiPrefs) =>
 
 export const listMentleTools = () =>
   invoke<MentleToolsListResponse>("list_mentle_tools");
+
+// ============================================================
+// Mask API
+// ============================================================
+
+/** Default settings for subagents spawned under a mask. */
+export interface SubagentDefaults {
+  model?: string | null;
+  max_iterations?: number | null;
+}
+
+/** Tool allow/deny limits for a mask. */
+export interface ToolLimits {
+  allow: string[];
+  deny: string[];
+}
+
+/** Mask operating mode. */
+export type MaskMode = 'normal' | 'assist';
+
+/** Mask entry returned from backend (maps to Rust MaskEntryDto). */
+export interface MaskEntryDto {
+  name: string;
+  icon: string;
+  description: string;
+  mode: string;
+  readOnly: boolean;
+}
+
+/** Payload for creating or updating a mask (maps to Rust MaskPayload). */
+export interface MaskPayload {
+  id?: string | null;
+  name: string;
+  icon?: string | null;
+  description?: string | null;
+  mode?: string | null;
+  model?: string | null;
+  subagentDefaults: SubagentDefaults;
+  toolLimits: ToolLimits;
+  body?: string | null;
+}
+
+export const listMasks = () =>
+  invoke<MaskEntryDto[]>('list_masks');
+
+export const getActiveMask = () =>
+  invoke<MaskEntryDto | null>('get_active_mask');
+
+export const switchMask = (name: string) =>
+  invoke<MaskEntryDto>('switch_mask', { name });
+
+export const createOrUpdateMask = (payload: MaskPayload) =>
+  invoke<MaskEntryDto>('create_or_update_mask', { payload });
+
+export const deleteMask = (name: string) =>
+  invoke<void>('delete_mask', { name });
