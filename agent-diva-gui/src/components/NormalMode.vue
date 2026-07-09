@@ -81,7 +81,8 @@ type SettingsSubview =
   | 'theme'
   | 'self-evolution'
   | 'sandbox'
-  | 'compaction';
+  | 'compaction'
+  | 'masks';
 
 interface SavedModel {
   id: string;
@@ -884,7 +885,7 @@ defineExpose({
 
         <div class="topbar-right no-drag">
           <!-- Mask selector -->
-          <MaskSelectorButton @navigate-settings="navigateTo('settings', 'dashboard')" />
+          <MaskSelectorButton @navigate-settings="navigateTo('settings', 'masks')" />
           <!-- Model下拉 -->
           <div class="relative flex items-center gap-2">
             <button
