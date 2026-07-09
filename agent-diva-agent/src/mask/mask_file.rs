@@ -89,6 +89,24 @@ impl MaskFile {
 
         Ok(Self { frontmatter, body })
     }
+
+    /// Serialize this mask file to YAML frontmatter + markdown body.
+    pub fn serialize(&self) -> String {
+        let yaml = serde_yaml::to_string(&self.frontmatter).unwrap_or_default();
+        // serde_yaml ends with a trailing newline; avoid a double blank line before the body.
+        let yaml = yaml.trim_end();
+        if self.body.is_empty() {
+            format!("---\n{yaml}\n---\n")
+        } else {
+            format!("---\n{yaml}\n---\n\n{}\n", self.body)
+        }
+    }
+
+    /// Return a new [`MaskFile`] with the given `id` set in its frontmatter.
+    pub fn with_id(mut self, id: String) -> Self {
+        self.frontmatter.id = Some(id);
+        self
+    }
 }
 
 #[cfg(test)]
@@ -216,5 +234,43 @@ body"#;
         let mask = MaskFile::parse(content).unwrap();
         assert_eq!(mask.frontmatter.name, "win");
         assert_eq!(mask.body, "Windows body");
+    }
+
+    #[test]
+    fn serialize_round_trip() {
+        let original = MaskFile {
+            frontmatter: MaskConfig {
+                name: "研究员".to_string(),
+                icon: Some("🔍".to_string()),
+                description: Some("专注调研".to_string()),
+                model: Some("deepseek-chat".to_string()),
+                ..Default::default()
+            },
+            body: "你是一个研究员。".to_string(),
+        };
+
+        let serialized = original.serialize();
+        let parsed = MaskFile::parse(&serialized).expect("serialized mask should parse back");
+        assert_eq!(parsed.frontmatter.name, original.frontmatter.name);
+        assert_eq!(parsed.frontmatter.icon, original.frontmatter.icon);
+        assert_eq!(parsed.frontmatter.description, original.frontmatter.description);
+        assert_eq!(parsed.frontmatter.model, original.frontmatter.model);
+        assert_eq!(parsed.body.trim(), original.body);
+    }
+
+    #[test]
+    fn serialize_empty_body() {
+        let mask = MaskFile::default_mask();
+        let serialized = mask.serialize();
+        assert!(serialized.starts_with("---\n"));
+        assert!(serialized.ends_with("---\n"));
+        let parsed = MaskFile::parse(&serialized).unwrap();
+        assert_eq!(parsed.body, "");
+    }
+
+    #[test]
+    fn with_id_sets_id() {
+        let mask = MaskFile::default_mask().with_id("custom-id".to_string());
+        assert_eq!(mask.frontmatter.id, Some("custom-id".to_string()));
     }
 }

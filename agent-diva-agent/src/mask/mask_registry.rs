@@ -65,6 +65,16 @@ impl MaskRegistry {
         self.cache.values().find(|m| m.frontmatter.name == name)
     }
 
+    /// Look up a mask by its stable `id` (file slug).
+    pub fn get_by_id(&self, id: &str) -> Option<&MaskFile> {
+        self.cache.get(id)
+    }
+
+    /// Return the path that a mask with the given `id` would be written to.
+    pub fn mask_file_path(&self, id: &str) -> PathBuf {
+        self.masks_dir.join(format!("{id}.md"))
+    }
+
     /// Re-scan the masks directory, replacing the in-memory cache.
     pub fn reload(&mut self) {
         self.cache = scan_masks(&self.masks_dir);
@@ -75,22 +85,142 @@ impl MaskRegistry {
     ///
     /// Returns a reference to the activated [`MaskFile`], or
     /// [`MaskError::MaskNotFound`] if no mask with that name exists.
+    /// If multiple masks share the same name, [`MaskError::DuplicateName`] is
+    /// returned so the caller can switch by `id` instead.
     pub fn switch_to(&mut self, name: &str) -> Result<&MaskFile, MaskError> {
         if name == MaskFile::DEFAULT_NAME {
             self.switch_off();
             return Ok(&DEFAULT_MASK);
         }
 
-        // Verify the mask exists (immutable borrow — ends after this block).
-        if !self.cache.values().any(|m| m.frontmatter.name == name) {
+        let matches: Vec<&MaskFile> = self
+            .cache
+            .values()
+            .filter(|m| m.frontmatter.name == name)
+            .collect();
+
+        match matches.len() {
+            0 => Err(MaskError::MaskNotFound {
+                name: name.to_string(),
+            }),
+            1 => {
+                self.current_mask_name = Some(name.to_string());
+                persist_active_mask_name(&self.masks_dir, Some(name));
+                Ok(self.get(name).unwrap())
+            }
+            _ => Err(MaskError::DuplicateName {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    /// Switch to a mask by its stable `id` (file slug).
+    ///
+    /// The active-mask file stores the `id` so the selection survives renames.
+    pub fn switch_to_by_id(&mut self, id: &str) -> Result<&MaskFile, MaskError> {
+        let mask = self.cache.get(id).ok_or_else(|| MaskError::MaskNotFound {
+            name: id.to_string(),
+        })?;
+        let name = mask.frontmatter.name.clone();
+        self.current_mask_name = Some(name);
+        persist_active_mask_name(&self.masks_dir, Some(id));
+        Ok(self.cache.get(id).unwrap())
+    }
+
+    /// Create or update a mask file on disk and refresh the cache.
+    ///
+    /// The file path is derived from `mask.frontmatter.id_or_slug()`. If the
+    /// file already exists and belongs to a different mask, a
+    /// [`MaskError::FileCollision`] is returned.
+    pub fn create_or_update(&mut self, mask: MaskFile) -> Result<&MaskFile, MaskError> {
+        let id = mask.frontmatter.id_or_slug();
+        let target_path = self.mask_file_path(&id);
+
+        // If the target file already exists, ensure it belongs to the same mask.
+        if target_path.exists() {
+            match std::fs::read_to_string(&target_path) {
+                Ok(content) => {
+                    let existing =
+                        MaskFile::parse_with_path(&content, &target_path.to_string_lossy())
+                            .map_err(|e| MaskError::InvalidFile {
+                                path: target_path.to_string_lossy().to_string(),
+                                reason: e.to_string(),
+                            })?;
+                    let same_id = existing.frontmatter.id_or_slug() == id;
+                    let same_name = existing.frontmatter.name == mask.frontmatter.name;
+                    if !same_id && !same_name {
+                        return Err(MaskError::FileCollision {
+                            path: target_path.to_string_lossy().to_string(),
+                            existing: existing.frontmatter.name.clone(),
+                        });
+                    }
+                }
+                Err(e) => {
+                    return Err(MaskError::InvalidFile {
+                        path: target_path.to_string_lossy().to_string(),
+                        reason: e.to_string(),
+                    });
+                }
+            }
+        }
+
+        std::fs::create_dir_all(&self.masks_dir).map_err(|e| MaskError::InvalidFile {
+            path: self.masks_dir.to_string_lossy().to_string(),
+            reason: e.to_string(),
+        })?;
+        std::fs::write(&target_path, mask.serialize()).map_err(|e| MaskError::InvalidFile {
+            path: target_path.to_string_lossy().to_string(),
+            reason: e.to_string(),
+        })?;
+
+        self.reload();
+        self.get(&mask.frontmatter.name)
+            .ok_or_else(|| MaskError::MaskNotFound {
+                name: mask.frontmatter.name.clone(),
+            })
+    }
+
+    /// Delete a mask by its display name.
+    ///
+    /// The default mask cannot be deleted. If multiple masks share the name,
+    /// [`MaskError::DuplicateName`] is returned so the caller can delete by id.
+    pub fn delete(&mut self, name: &str) -> Result<(), MaskError> {
+        if name == MaskFile::DEFAULT_NAME {
             return Err(MaskError::MaskNotFound {
                 name: name.to_string(),
             });
         }
-        self.current_mask_name = Some(name.to_string());
-        persist_active_mask_name(&self.masks_dir, Some(name));
-        // Borrow of current_mask_name is done; get() borrows &self only.
-        Ok(self.get(name).unwrap())
+
+        let matches: Vec<&MaskFile> = self
+            .cache
+            .values()
+            .filter(|m| m.frontmatter.name == name)
+            .collect();
+
+        match matches.len() {
+            0 => Err(MaskError::MaskNotFound {
+                name: name.to_string(),
+            }),
+            1 => {
+                let mask = matches[0];
+                let id = mask.frontmatter.id_or_slug();
+                let path = self.mask_file_path(&id);
+                if path.exists() {
+                    std::fs::remove_file(&path).map_err(|e| MaskError::InvalidFile {
+                        path: path.to_string_lossy().to_string(),
+                        reason: e.to_string(),
+                    })?;
+                }
+                if self.current_mask_name.as_deref() == Some(name) {
+                    self.switch_off();
+                }
+                self.cache.remove(&id);
+                Ok(())
+            }
+            _ => Err(MaskError::DuplicateName {
+                name: name.to_string(),
+            }),
+        }
     }
 
     /// Switch off the current mask, returning to the default identity.
@@ -205,13 +335,13 @@ fn active_mask_file_path(masks_dir: &Path) -> PathBuf {
 fn load_active_mask_name(masks_dir: &Path, cache: &HashMap<String, MaskFile>) -> Option<String> {
     let path = active_mask_file_path(masks_dir);
     let raw = std::fs::read_to_string(path).ok()?;
-    let name = raw.trim();
-    if name.is_empty() || name == MaskFile::DEFAULT_NAME {
+    let token = raw.trim();
+    if token.is_empty() || token == MaskFile::DEFAULT_NAME {
         return None;
     }
     cache
         .values()
-        .find(|mask| mask.frontmatter.name == name)
+        .find(|mask| mask.frontmatter.name == token || mask.frontmatter.id_or_slug() == token)
         .map(|mask| mask.frontmatter.name.clone())
 }
 
@@ -252,6 +382,7 @@ fn persist_active_mask_name(masks_dir: &Path, name: Option<&str>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::config::schema::MaskConfig;
     use std::fs;
 
     /// Helper: create a temp directory with mask files and return the path.
@@ -469,5 +600,129 @@ mod tests {
         registry.switch_off();
 
         assert!(!dir.path().join(ACTIVE_MASK_FILE).exists());
+    }
+
+    #[test]
+    fn create_serialize_reload() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut registry = MaskRegistry::new(dir.path());
+
+        let mask = MaskFile {
+            frontmatter: MaskConfig {
+                name: "代码助手".to_string(),
+                icon: Some("👨‍💻".to_string()),
+                description: Some("专注代码".to_string()),
+                ..Default::default()
+            },
+            body: "你是一个代码助手。".to_string(),
+        };
+
+        let id = mask.frontmatter.id_or_slug();
+        registry
+            .create_or_update(mask)
+            .expect("create should succeed");
+
+        let path = registry.mask_file_path(&id);
+        assert!(path.exists());
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("代码助手"));
+
+        let reloaded = MaskRegistry::new(dir.path());
+        assert!(reloaded.get("代码助手").is_some());
+    }
+
+    #[test]
+    fn delete_active_resets_default() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut registry = MaskRegistry::new(dir.path());
+
+        let mask = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Coder".to_string(),
+                id: Some("coder".to_string()),
+                ..Default::default()
+            },
+            body: "You code.".to_string(),
+        };
+        registry.create_or_update(mask).expect("create coder");
+        registry.switch_to("Coder").expect("switch to coder");
+        assert_eq!(registry.current_mask_name(), Some("Coder"));
+
+        registry.delete("Coder").expect("delete coder");
+
+        assert!(registry.current_mask_name().is_none());
+        assert!(!dir.path().join(ACTIVE_MASK_FILE).exists());
+        assert!(registry.get("Coder").is_none());
+    }
+
+    #[test]
+    fn delete_default_mask_is_rejected() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut registry = MaskRegistry::new(dir.path());
+        let result = registry.delete(MaskFile::DEFAULT_NAME);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn switch_to_duplicate_name_returns_error() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut registry = MaskRegistry::new(dir.path());
+
+        let a = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Coder".to_string(),
+                id: Some("coder-a".to_string()),
+                ..Default::default()
+            },
+            body: "A".to_string(),
+        };
+        let b = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Coder".to_string(),
+                id: Some("coder-b".to_string()),
+                ..Default::default()
+            },
+            body: "B".to_string(),
+        };
+
+        registry.create_or_update(a).expect("create a");
+        registry.create_or_update(b).expect("create b");
+
+        let result = registry.switch_to("Coder");
+        assert!(matches!(
+            result.unwrap_err(),
+            MaskError::DuplicateName { .. }
+        ));
+    }
+
+    #[test]
+    fn switch_to_by_id_disambiguates_duplicates() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut registry = MaskRegistry::new(dir.path());
+
+        let a = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Coder".to_string(),
+                id: Some("coder-a".to_string()),
+                ..Default::default()
+            },
+            body: "A".to_string(),
+        };
+        let b = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Coder".to_string(),
+                id: Some("coder-b".to_string()),
+                ..Default::default()
+            },
+            body: "B".to_string(),
+        };
+
+        registry.create_or_update(a).expect("create a");
+        registry.create_or_update(b).expect("create b");
+
+        let mask = registry.switch_to_by_id("coder-b").expect("switch by id");
+        assert_eq!(mask.frontmatter.id, Some("coder-b".to_string()));
+        assert_eq!(registry.current_mask_name(), Some("Coder"));
     }
 }
