@@ -7,9 +7,9 @@
 
 use crate::assertions::AssertionResult;
 use crate::collector::CollectedEvents;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
-use serde::{Deserialize, Serialize};
 
 /// A single trace entry for one scenario run.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,20 +114,28 @@ mod tests {
         let tracer = E2ETracer::new(dir.path().to_path_buf());
 
         let events = make_events(0, 2);
-        let assertions = vec![
-            AssertionResult {
-                passed: true,
-                description: "check output".into(),
-                detail: "Found expected text".into(),
-            },
-        ];
+        let assertions = vec![AssertionResult {
+            passed: true,
+            description: "check output".into(),
+            detail: "Found expected text".into(),
+        }];
 
         let path = tracer
-            .write_trace("test_scenario", true, &assertions, &events, Duration::from_secs(1))
+            .write_trace(
+                "test_scenario",
+                true,
+                &assertions,
+                &events,
+                Duration::from_secs(1),
+            )
             .expect("write_trace should succeed");
 
         assert!(path.exists(), "trace file should exist");
-        assert_eq!(path.extension().unwrap(), "json", "trace should be a .json file");
+        assert_eq!(
+            path.extension().unwrap(),
+            "json",
+            "trace should be a .json file"
+        );
 
         // Read back and validate content
         let content = std::fs::read_to_string(&path).expect("read trace file");
@@ -140,7 +148,10 @@ mod tests {
         assert!(parsed.assertions[0].passed);
         assert_eq!(parsed.event_count, 0); // no timeline events
         assert_eq!(parsed.tool_call_count, 2);
-        assert!(parsed.timestamp.contains('T'), "timestamp should be RFC 3339");
+        assert!(
+            parsed.timestamp.contains('T'),
+            "timestamp should be RFC 3339"
+        );
     }
 
     #[test]
@@ -149,16 +160,20 @@ mod tests {
         let tracer = E2ETracer::new(dir.path().to_path_buf());
 
         let events = make_events(1, 0);
-        let assertions = vec![
-            AssertionResult {
-                passed: false,
-                description: "check no errors".into(),
-                detail: "Found error: something went wrong".into(),
-            },
-        ];
+        let assertions = vec![AssertionResult {
+            passed: false,
+            description: "check no errors".into(),
+            detail: "Found error: something went wrong".into(),
+        }];
 
         let path = tracer
-            .write_trace("failing_test", false, &assertions, &events, Duration::from_millis(500))
+            .write_trace(
+                "failing_test",
+                false,
+                &assertions,
+                &events,
+                Duration::from_millis(500),
+            )
             .expect("write_trace should succeed for failed scenarios too");
 
         let content = std::fs::read_to_string(&path).expect("read trace file");
@@ -186,7 +201,10 @@ mod tests {
             .write_trace("dir_creation", true, &[], &events, Duration::ZERO)
             .expect("write_trace should create directory");
 
-        assert!(path.exists(), "trace file should exist in newly created dir");
+        assert!(
+            path.exists(),
+            "trace file should exist in newly created dir"
+        );
         assert!(nested.is_dir(), "nested dir should have been created");
     }
 
@@ -198,7 +216,13 @@ mod tests {
         let events = make_events(0, 0);
         let assertions = vec![];
         let path = tracer
-            .write_trace("format_check", true, &assertions, &events, Duration::from_millis(123))
+            .write_trace(
+                "format_check",
+                true,
+                &assertions,
+                &events,
+                Duration::from_millis(123),
+            )
             .expect("write_trace should succeed");
 
         let content = std::fs::read_to_string(&path).expect("read trace file");
@@ -212,7 +236,10 @@ mod tests {
         assert!(value.get("assertions").is_some(), "missing 'assertions'");
         assert!(value.get("errors").is_some(), "missing 'errors'");
         assert!(value.get("event_count").is_some(), "missing 'event_count'");
-        assert!(value.get("tool_call_count").is_some(), "missing 'tool_call_count'");
+        assert!(
+            value.get("tool_call_count").is_some(),
+            "missing 'tool_call_count'"
+        );
 
         // Verify types
         assert_eq!(value["scenario"].as_str(), Some("format_check"));

@@ -215,6 +215,38 @@ fn workspace_list_does_not_create_workspaces_dir() {
 }
 
 #[test]
+fn workspace_list_only_shows_managed_config_dir_entries() {
+    let temp = tempdir().unwrap();
+    let config_path = write_config(temp.path());
+    let config_dir = config_path.parent().unwrap();
+    let configured_workspace = temp.path().join("workspace");
+    assert!(configured_workspace.exists());
+
+    let list_output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config-dir",
+            config_dir.to_str().unwrap(),
+            "workspace",
+            "list",
+        ])
+        .output()
+        .expect("failed to run workspace list");
+
+    assert!(list_output.status.success(), "{:?}", list_output);
+    let list_stdout = String::from_utf8(list_output.stdout).unwrap();
+    assert!(
+        list_stdout.contains("No managed workspaces found."),
+        "list should only inspect config-dir/workspaces: {}",
+        list_stdout
+    );
+    assert!(
+        !list_stdout.contains(configured_workspace.to_str().unwrap()),
+        "configured arbitrary workspace should not appear as managed: {}",
+        list_stdout
+    );
+}
+
+#[test]
 fn workspace_create_rejects_traversal_name() {
     let temp = tempdir().unwrap();
     let config_path = write_config(temp.path());

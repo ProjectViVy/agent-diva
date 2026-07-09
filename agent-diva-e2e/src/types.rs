@@ -154,10 +154,14 @@ assertions:
   - type: no_errors
 "#;
 
-        let scenario: E2EScenario = serde_yaml::from_str(yaml).expect("Failed to parse YAML scenario");
+        let scenario: E2EScenario =
+            serde_yaml::from_str(yaml).expect("Failed to parse YAML scenario");
 
         assert_eq!(scenario.scenario, "test_basic_chat");
-        assert_eq!(scenario.description.as_deref(), Some("A simple hello-world scenario"));
+        assert_eq!(
+            scenario.description.as_deref(),
+            Some("A simple hello-world scenario")
+        );
         assert_eq!(scenario.setup.timeout_secs, 45);
         assert_eq!(scenario.setup.create_file.len(), 0);
         assert!(scenario.setup.working_dir.is_none());
@@ -178,13 +182,19 @@ assertions:
             value: "hello".into(),
             description: Some("greeting present".into()),
         };
-        assert!(matches!(response_contains, E2EAssertion::ResponseContains { .. }));
+        assert!(matches!(
+            response_contains,
+            E2EAssertion::ResponseContains { .. }
+        ));
 
         let response_matches = E2EAssertion::ResponseMatches {
             pattern: r"hello\s+world".into(),
             description: None,
         };
-        assert!(matches!(response_matches, E2EAssertion::ResponseMatches { .. }));
+        assert!(matches!(
+            response_matches,
+            E2EAssertion::ResponseMatches { .. }
+        ));
 
         let tool_called = E2EAssertion::ToolCalled {
             name: "bash".into(),
@@ -199,9 +209,7 @@ assertions:
         };
         assert!(matches!(file_exists, E2EAssertion::FileExists { .. }));
 
-        let no_errors = E2EAssertion::NoErrors {
-            description: None,
-        };
+        let no_errors = E2EAssertion::NoErrors { description: None };
         assert!(matches!(no_errors, E2EAssertion::NoErrors { .. }));
 
         let judge = E2EAssertion::Judge {
@@ -217,9 +225,14 @@ type: tool_called
 name: bash
 min_times: 3
 "#;
-        let assertion: E2EAssertion = serde_yaml::from_str(yaml).expect("Failed to parse tool_called assertion");
+        let assertion: E2EAssertion =
+            serde_yaml::from_str(yaml).expect("Failed to parse tool_called assertion");
         match assertion {
-            E2EAssertion::ToolCalled { name, min_times, description } => {
+            E2EAssertion::ToolCalled {
+                name,
+                min_times,
+                description,
+            } => {
                 assert_eq!(name, "bash");
                 assert_eq!(min_times, 3);
                 assert!(description.is_none());
@@ -246,7 +259,8 @@ messages:
     content: hi
 assertions: []
 "#;
-        let scenario: E2EScenario = serde_yaml::from_str(yaml).expect("Failed to parse minimal scenario");
+        let scenario: E2EScenario =
+            serde_yaml::from_str(yaml).expect("Failed to parse minimal scenario");
         assert_eq!(scenario.setup.timeout_secs, 30);
         assert!(scenario.setup.create_file.is_empty());
     }
@@ -257,7 +271,8 @@ assertions: []
 path: /tmp/test.txt
 content: hello world
 "#;
-        let entry: CreateFileEntry = serde_yaml::from_str(yaml).expect("Failed to parse CreateFileEntry");
+        let entry: CreateFileEntry =
+            serde_yaml::from_str(yaml).expect("Failed to parse CreateFileEntry");
         assert_eq!(entry.path, "/tmp/test.txt");
         assert_eq!(entry.content, "hello world");
     }
@@ -268,7 +283,8 @@ content: hello world
 type: file_exists
 path: output.txt
 "#;
-        let assertion: E2EAssertion = serde_yaml::from_str(yaml).expect("Failed to parse file_exists");
+        let assertion: E2EAssertion =
+            serde_yaml::from_str(yaml).expect("Failed to parse file_exists");
         match assertion {
             E2EAssertion::FileExists { path, description } => {
                 assert_eq!(path, "output.txt");

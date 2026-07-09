@@ -17,7 +17,7 @@ pub enum TodoCommands {
     Update {
         /// Todo ID
         id: String,
-        /// New status (open|done|cancelled)
+        /// New status (open|pending|active|done|completed|cancelled)
         #[arg(long)]
         status: String,
     },
@@ -99,13 +99,10 @@ pub async fn run(command: TodoCommands, data_root: &Path) -> Result<()> {
 }
 
 fn parse_status(s: &str) -> Result<TodoStatus> {
-    match s.to_lowercase().as_str() {
-        "open" | "pending" => Ok(TodoStatus::Pending),
-        "active" => Ok(TodoStatus::Active),
-        "done" | "completed" => Ok(TodoStatus::Completed),
-        "cancelled" => Ok(TodoStatus::Cancelled),
-        _ => anyhow::bail!(
-            "Invalid status: {}. Use: open, active, done, or cancelled",
+    match TodoStatus::parse_update(s) {
+        Some(status) => Ok(status),
+        None => anyhow::bail!(
+            "Invalid status: {}. Use: open, pending, active, done, completed, or cancelled",
             s
         ),
     }

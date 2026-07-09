@@ -94,16 +94,17 @@ mod tests {
     use std::time::Duration;
 
     /// Helper: write a trace to a directory via E2ETracer.
-    fn write_trace(
-        dir: &Path,
-        scenario: &str,
-        passed: bool,
-        duration_ms: u64,
-    ) {
+    fn write_trace(dir: &Path, scenario: &str, passed: bool, duration_ms: u64) {
         let tracer = E2ETracer::new(dir.to_path_buf());
         let events = crate::collector::CollectedEvents::default();
         tracer
-            .write_trace(scenario, passed, &[], &events, Duration::from_millis(duration_ms))
+            .write_trace(
+                scenario,
+                passed,
+                &[],
+                &events,
+                Duration::from_millis(duration_ms),
+            )
             .expect("write test trace");
     }
 
@@ -236,7 +237,10 @@ mod tests {
         std::fs::write(dir.path().join("readme.txt"), b"not a trace").expect("write text file");
 
         let report = generate_report(dir.path()).expect("report");
-        assert_eq!(report.total_scenarios, 1, "non-JSON files should be ignored");
+        assert_eq!(
+            report.total_scenarios, 1,
+            "non-JSON files should be ignored"
+        );
     }
 
     #[test]

@@ -121,6 +121,13 @@ impl EventCollector {
                     AgentEvent::Error { message } => {
                         collected.errors.push(message);
                     }
+                    // Planning/Todo events are preserved in the timeline but do
+                    // not belong to the collector's tool/response aggregates.
+                    AgentEvent::TodoCreated { .. }
+                    | AgentEvent::TodoStepUpdated { .. }
+                    | AgentEvent::TodoCompleted { .. }
+                    | AgentEvent::TodoCancelled { .. }
+                    | AgentEvent::PlanReadyForApproval { .. } => {}
                 }
             }
         })
@@ -147,7 +154,10 @@ mod tests {
     use tokio::sync::mpsc;
 
     /// Build a (tx, rx) pair for testing
-    fn make_channel() -> (mpsc::UnboundedSender<AgentEvent>, mpsc::UnboundedReceiver<AgentEvent>) {
+    fn make_channel() -> (
+        mpsc::UnboundedSender<AgentEvent>,
+        mpsc::UnboundedReceiver<AgentEvent>,
+    ) {
         mpsc::unbounded_channel()
     }
 
@@ -279,9 +289,7 @@ mod tests {
         .expect("send IterationStarted");
 
         // Do NOT drop tx – collect should time out
-        let result = collector
-            .collect(&mut rx, Duration::from_millis(50))
-            .await;
+        let result = collector.collect(&mut rx, Duration::from_millis(50)).await;
 
         assert!(result.is_err(), "expected timeout error");
         let err = result.unwrap_err();

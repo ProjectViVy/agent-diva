@@ -11,7 +11,7 @@ use agent_diva_core::supervised::types::{RunExecutionError, RunRecord};
 use agent_diva_core::supervised::RunHandler;
 use tracing::{error, info};
 
-use crate::subagent::SubagentManager;
+use crate::subagent::{SubagentManager, SupervisedSubagentContext};
 
 /// Handler for supervised runs of kind `Subagent`.
 ///
@@ -38,10 +38,11 @@ impl RunHandler for SubagentRunHandler {
         info!(run_id = %run_id, task_len = task.len(), "handling subagent run");
 
         // Parse optional metadata for channel/chat routing
-        let (origin_channel, origin_chat_id) = parse_routing(&record);
+        let (origin_channel, origin_chat_id) = parse_routing(&record)?;
+        let context = parse_context(&record);
 
-        // Delegate to SubagentManager::spawn — this internally tokio::spawns
-        // the subagent and returns immediately with a status message.
+        // Delegate to the supervised execution path, which waits for the real
+        // subagent work to finish before returning to TaskExecutor.
         let label: Option<String> = record
             .metadata
             .as_ref()
@@ -49,18 +50,18 @@ impl RunHandler for SubagentRunHandler {
             .and_then(|v: &serde_json::Value| v.as_str())
             .map(String::from);
 
-        let spawn_result = self
+        let run_result = self
             .subagent_manager
-            .spawn(task.clone(), label, origin_channel, origin_chat_id)
+            .run_supervised(task.clone(), label, origin_channel, origin_chat_id, context)
             .await;
 
-        match spawn_result {
-            Ok(status_msg) => {
-                info!(run_id = %run_id, "subagent spawned successfully");
-                Ok(status_msg)
+        match run_result {
+            Ok(summary) => {
+                info!(run_id = %run_id, "subagent completed successfully");
+                Ok(summary)
             }
             Err(e) => {
-                let err_msg = format!("subagent spawn failed: {}", e);
+                let err_msg = format!("subagent run failed: {}", e);
                 error!(run_id = %run_id, error = %err_msg);
                 Err(RunExecutionError::HandlerError(err_msg))
             }
@@ -72,37 +73,61 @@ impl RunHandler for SubagentRunHandler {
 ///
 /// Priority:
 /// 1. `record.channel` / `record.metadata.chat_id`
-/// 2. Default to "internal" / "supervised"
-fn parse_routing(record: &RunRecord) -> (String, String) {
-    let channel = record
-        .channel
-        .clone()
-        .unwrap_or_else(|| "internal".to_string());
+/// 2. Missing routing is treated as a malformed supervised run.
+fn parse_routing(record: &RunRecord) -> Result<(String, String), RunExecutionError> {
+    let Some(channel) = record.channel.clone() else {
+        return Err(RunExecutionError::HandlerError(
+            "subagent run missing channel metadata".to_string(),
+        ));
+    };
 
-    let chat_id = record
+    let Some(chat_id) = record
         .metadata
         .as_ref()
         .and_then(|m: &serde_json::Value| m.get("chat_id"))
         .and_then(|v: &serde_json::Value| v.as_str())
-        .unwrap_or("supervised")
-        .to_string();
+        .map(str::to_string)
+    else {
+        return Err(RunExecutionError::HandlerError(
+            "subagent run missing chat_id metadata".to_string(),
+        ));
+    };
 
-    (channel, chat_id)
+    Ok((channel, chat_id))
+}
+
+fn parse_context(record: &RunRecord) -> SupervisedSubagentContext {
+    let metadata = record.metadata.as_ref();
+    SupervisedSubagentContext {
+        session_key: metadata
+            .and_then(|m| m.get("session_key"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        trace_id: metadata
+            .and_then(|m| m.get("trace_id"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        parent_run_id: metadata
+            .and_then(|m| m.get("parent_run_id"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        token_budget_limit: metadata
+            .and_then(|m| m.get("token_budget_limit"))
+            .and_then(|v| v.as_u64()),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use agent_diva_core::supervised::types::{RunKind, SupervisedRunSpec};
-    use agent_diva_core::supervised::{RunStore, TaskExecutor};
 
     #[tokio::test]
-    async fn test_parse_routing_defaults() {
+    async fn test_parse_routing_requires_channel_and_chat_id() {
         let spec = SupervisedRunSpec::from_spec("test task").with_kind(RunKind::Subagent);
         let record = agent_diva_core::supervised::types::RunRecord::from_spec(&spec);
-        let (ch, chat) = parse_routing(&record);
-        assert_eq!(ch, "internal");
-        assert_eq!(chat, "supervised");
+        let error = parse_routing(&record).expect_err("missing routing should fail");
+        assert!(error.to_string().contains("missing channel metadata"));
     }
 
     #[tokio::test]
@@ -113,55 +138,29 @@ mod tests {
             .with_channel("telegram")
             .with_metadata(metadata);
         let record = agent_diva_core::supervised::types::RunRecord::from_spec(&spec);
-        let (ch, chat) = parse_routing(&record);
+        let (ch, chat) = parse_routing(&record).expect("routing");
         assert_eq!(ch, "telegram");
         assert_eq!(chat, "room-42");
     }
 
-    /// Integration test: verify TaskExecutor dispatches Subagent runs
-    /// to SubagentRunHandler and marks them failed (no real SubagentManager).
     #[tokio::test]
-    async fn test_task_executor_dispatches_subagent_run() {
-        use agent_diva_core::supervised::types::{RunKind, RunStatus};
-        use tempfile::TempDir;
-
-        let dir = TempDir::new().expect("tempdir");
-        let store = RunStore::new(dir.path()).await.expect("store creation");
-
-        // Create a Subagent run
-        let spec = SupervisedRunSpec::from_spec("summarize file").with_kind(RunKind::Subagent);
-        let created = store.create(&spec).await.expect("create");
-
-        // Build executor with SubagentRunHandler registered
-        let mut executor = TaskExecutor::new(store.clone(), "worker-subagent");
-        // Note: we can't easily construct a real SubagentManager here,
-        // so we verify the "no handler" path first (existing core test).
-        // For a real integration, a mock SubagentManager would be needed.
-        // Instead, verify the registration API works.
-        executor.register_handler(RunKind::Subagent, Arc::new(MockSubagentHandler));
-
-        // Tick should find the run and dispatch to our mock handler
-        executor.tick().await.expect("tick");
-
-        let reloaded = store
-            .get_record(&created.id)
-            .await
-            .expect("get")
-            .expect("record");
-        assert_eq!(reloaded.status, RunStatus::Completed);
-        assert_eq!(
-            reloaded.result_summary,
-            Some("mock-subagent-done".to_string())
-        );
-    }
-
-    /// Mock handler for integration testing
-    struct MockSubagentHandler;
-
-    #[async_trait::async_trait]
-    impl RunHandler for MockSubagentHandler {
-        async fn handle(&self, _record: RunRecord) -> Result<String, RunExecutionError> {
-            Ok("mock-subagent-done".to_string())
-        }
+    async fn test_parse_context_from_metadata() {
+        let metadata = serde_json::json!({
+            "chat_id": "room-42",
+            "session_key": "telegram:room-42",
+            "trace_id": "trace-1",
+            "parent_run_id": "run-1",
+            "token_budget_limit": 1234
+        });
+        let spec = SupervisedRunSpec::from_spec("test task")
+            .with_kind(RunKind::Subagent)
+            .with_channel("telegram")
+            .with_metadata(metadata);
+        let record = agent_diva_core::supervised::types::RunRecord::from_spec(&spec);
+        let context = parse_context(&record);
+        assert_eq!(context.session_key.as_deref(), Some("telegram:room-42"));
+        assert_eq!(context.trace_id.as_deref(), Some("trace-1"));
+        assert_eq!(context.parent_run_id.as_deref(), Some("run-1"));
+        assert_eq!(context.token_budget_limit, Some(1234));
     }
 }

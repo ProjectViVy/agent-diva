@@ -8,9 +8,9 @@ use agent_diva_core::config::Config;
 #[derive(Subcommand)]
 #[command(rename_all = "kebab-case")]
 pub enum WorkspaceCommands {
-    /// List all workspaces
+    /// List managed workspaces under config-dir/workspaces
     List,
-    /// Create a new workspace
+    /// Create a new managed workspace under config-dir/workspaces
     Create {
         /// Workspace name
         name: String,
@@ -18,12 +18,12 @@ pub enum WorkspaceCommands {
         #[arg(long)]
         path: Option<PathBuf>,
     },
-    /// Switch to a different workspace
+    /// Switch config.json to a managed workspace by name
     Switch {
         /// Workspace name
         name: String,
     },
-    /// Delete a workspace
+    /// Delete a managed workspace by name
     Delete {
         /// Workspace name
         name: String,
@@ -39,7 +39,7 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
     match command {
         WorkspaceCommands::List => {
             if !workspaces_root.exists() {
-                println!("No workspaces found.");
+                println!("No managed workspaces found.");
                 return Ok(());
             }
 
@@ -61,10 +61,10 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
             }
 
             if names.is_empty() {
-                println!("No workspaces found.");
+                println!("No managed workspaces found.");
             } else {
                 names.sort();
-                println!("Workspaces:");
+                println!("Managed workspaces:");
                 for name in names {
                     println!("  {}", name);
                 }
@@ -80,10 +80,18 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
             if let Some(src) = path {
                 // Copy directory contents from source
                 copy_dir_all(&src, &target)?;
-                println!("Created workspace '{}' from {}", name, src.display());
+                println!(
+                    "Created workspace '{}' from {} (managed under config-dir/workspaces)",
+                    name,
+                    src.display()
+                );
             } else {
                 std::fs::create_dir_all(&target)?;
-                println!("Created workspace '{}' at {}", name, target.display());
+                println!(
+                    "Created workspace '{}' at {} (managed under config-dir/workspaces)",
+                    name,
+                    target.display()
+                );
             }
         }
         WorkspaceCommands::Switch { name } => {
@@ -97,7 +105,10 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
             config.agents.defaults.workspace = workspace_path;
             runtime.loader().save(&config)?;
 
-            println!("Switched to workspace '{}'.", name);
+            println!(
+                "Switched to workspace '{}' (managed under config-dir/workspaces).",
+                name
+            );
             println!("Restart gateway for changes to take effect.");
         }
         WorkspaceCommands::Delete { name, force } => {
@@ -130,7 +141,10 @@ pub async fn run(command: WorkspaceCommands, runtime: &CliRuntime) -> Result<()>
             }
 
             std::fs::remove_dir_all(&target)?;
-            println!("Deleted workspace '{}'.", name);
+            println!(
+                "Deleted workspace '{}' (managed under config-dir/workspaces).",
+                name
+            );
         }
     }
 
