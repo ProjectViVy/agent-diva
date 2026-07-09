@@ -381,6 +381,9 @@ impl Manager {
                         ManagerCommand::DeletePlan(plan_id, reply) => {
                             self.handle_delete_plan(plan_id, reply).await;
                         }
+                        ManagerCommand::ApproveActivePlan(reply) => {
+                            self.handle_approve_active_plan(reply).await;
+                        }
                     }
                 }
             }
@@ -596,6 +599,26 @@ impl Manager {
             return;
         };
         let result = svc.delete_plan(&plan_id).await.map_err(|e| e.to_string());
+        let _ = reply.send(result);
+    }
+
+    async fn handle_approve_active_plan(
+        &self,
+        reply: oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
+    ) {
+        let result = self
+            .with_runtime_control(
+                |tx| async move {
+                    let (reply_tx, reply_rx) = oneshot::channel();
+                    tx.send(RuntimeControlCommand::ApproveActivePlan { reply_tx })
+                        .map_err(|e| format!("failed to send ApproveActivePlan command: {}", e))?;
+                    reply_rx.await.map_err(|e| {
+                        format!("failed to receive ApproveActivePlan response: {}", e)
+                    })?
+                },
+                "runtime control channel is not initialized",
+            )
+            .await;
         let _ = reply.send(result);
     }
 }

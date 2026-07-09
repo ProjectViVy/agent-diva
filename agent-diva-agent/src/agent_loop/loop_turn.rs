@@ -5,8 +5,11 @@ use crate::context_budget::check_budget;
 use crate::mask::ToolPolicy;
 use crate::planning::inject_plan_context;
 use agent_diva_core::audit::{self, AuditEvent};
-use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage, PokeEvent};
+use agent_diva_core::bus::{
+    AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
+};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
+use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
 use agent_diva_core::session::{ChatMessage, CompactTrigger, Session, TokenUsage};
@@ -93,6 +96,10 @@ fn should_generate_session_title(session: &Session) -> bool {
     has_user && has_assistant
 }
 
+fn todo_key(todo: &PlanRuntimeTodo) -> String {
+    todo.title.trim().to_ascii_lowercase()
+}
+
 fn build_current_turn_message(text: &str, image_parts: &[MessageContentPart]) -> Message {
     if image_parts.is_empty() {
         return Message::user(text);
@@ -117,6 +124,82 @@ fn replace_current_turn_message(messages: &mut Vec<Message>, current_turn_messag
 }
 
 impl AgentLoop {
+    fn emit_agent_event(
+        &self,
+        msg: &InboundMessage,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+        event: AgentEvent,
+    ) {
+        if let Some(tx) = event_tx {
+            let _ = tx.send(event.clone());
+        }
+        let _ = self
+            .bus
+            .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+    }
+
+    async fn emit_planning_runtime_events(
+        &self,
+        msg: &InboundMessage,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+        tool_name: &str,
+        before: Option<PlanRuntimeState>,
+        after: Option<PlanRuntimeState>,
+    ) {
+        let Some(after_plan) = after else {
+            return;
+        };
+
+        match tool_name {
+            "todo_write" => {
+                let before_by_title = before
+                    .as_ref()
+                    .map(|plan| {
+                        plan.todos
+                            .iter()
+                            .map(|todo| (todo_key(todo), todo.clone()))
+                            .collect::<HashMap<_, _>>()
+                    })
+                    .unwrap_or_default();
+
+                for todo in &after_plan.todos {
+                    let event = match before_by_title.get(&todo_key(todo)) {
+                        None => AgentEvent::TodoCreated {
+                            plan: after_plan.clone(),
+                            todo: todo.clone(),
+                        },
+                        Some(previous) if previous.status != todo.status => match todo.status {
+                            TodoStatus::Completed => AgentEvent::TodoCompleted {
+                                plan: after_plan.clone(),
+                                todo: todo.clone(),
+                            },
+                            TodoStatus::Canceled => AgentEvent::TodoCancelled {
+                                plan: after_plan.clone(),
+                                todo: todo.clone(),
+                            },
+                            _ => AgentEvent::TodoStepUpdated {
+                                plan: after_plan.clone(),
+                                todo: todo.clone(),
+                            },
+                        },
+                        _ => continue,
+                    };
+                    self.emit_agent_event(msg, event_tx, event);
+                }
+            }
+            "plan_transition" if after_plan.phase == PlanPhase::AwaitingApproval => {
+                self.emit_agent_event(
+                    msg,
+                    event_tx,
+                    AgentEvent::PlanReadyForApproval {
+                        plan: after_plan.clone(),
+                    },
+                );
+            }
+            _ => {}
+        }
+    }
+
     async fn generate_session_title_with_llm(
         &self,
         session: &Session,
@@ -788,6 +871,12 @@ impl AgentLoop {
                         args_str.clone()
                     };
                     info!("Tool call: {}({})", tool_call.name, preview);
+                    let planning_before =
+                        if matches!(tool_call.name.as_str(), "todo_write" | "plan_transition") {
+                            self.snapshot_active_plan_runtime().await
+                        } else {
+                            None
+                        };
                     let event = AgentEvent::ToolCallStarted {
                         name: tool_call.name.clone(),
                         args_preview: preview.clone(),
@@ -880,6 +969,14 @@ impl AgentLoop {
 
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
 
+                    let planning_after = if !is_error
+                        && matches!(tool_call.name.as_str(), "todo_write" | "plan_transition")
+                    {
+                        self.snapshot_active_plan_runtime().await
+                    } else {
+                        None
+                    };
+
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),
                         is_error,
@@ -892,6 +989,16 @@ impl AgentLoop {
                     let _ = self
                         .bus
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                    if !is_error {
+                        self.emit_planning_runtime_events(
+                            &msg,
+                            event_tx,
+                            &tool_call.name,
+                            planning_before,
+                            planning_after,
+                        )
+                        .await;
+                    }
                     self.context.add_tool_result(
                         &mut messages,
                         tool_call.id.clone(),

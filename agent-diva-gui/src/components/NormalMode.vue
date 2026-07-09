@@ -25,6 +25,7 @@ import { invoke } from '@tauri-apps/api/core';
 import ChatView from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
 import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
+import type { PlanRuntimeState } from '../api/planning';
 import type { ToolsConfigShape } from '../types/toolsConfig';
 import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
@@ -114,6 +115,10 @@ interface Props {
   config?: AppConfigShape;
   providerConfigs?: Record<string, ProviderConfigEntry>;
   toolsConfig?: ToolsConfigShape;
+  activePlanRuntime?: PlanRuntimeState | null;
+  pendingApprovalPlan?: PlanRuntimeState | null;
+  executingPlan?: PlanRuntimeState | null;
+  approvingPlan?: boolean;
   currentSessionKey?: string;
   savedModels?: SavedModel[];
   sessions?: {
@@ -138,6 +143,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
+  (e: 'approve-plan'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'regenerate', messageId: string): void;
@@ -1079,7 +1085,12 @@ defineExpose({
               :sessions="sessions"
               :tools-config="toolsConfig"
               :active-session-key="activeSessionKey"
+              :active-plan-runtime="activePlanRuntime"
+              :pending-approval-plan="pendingApprovalPlan"
+              :executing-plan="executingPlan"
+              :approving-plan="approvingPlan"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
+              @approve-plan="emit('approve-plan')"
               @clear="handleClearSession"
               @stop="emit('stop')"
               @regenerate="(id) => emit('regenerate', id)"

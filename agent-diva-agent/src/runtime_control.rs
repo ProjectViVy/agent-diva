@@ -50,4 +50,8 @@ pub enum RuntimeControlCommand {
         session_key: String,
         reply_tx: tokio::sync::oneshot::Sender<Result<String, String>>,
     },
+    ApproveActivePlan {
+        reply_tx:
+            tokio::sync::oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
+    },
 }

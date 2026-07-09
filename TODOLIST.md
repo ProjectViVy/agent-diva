@@ -19,6 +19,9 @@
 - [ ] **GUI: stabilize `embedded_gateway_serves_health_endpoint` test** `cargo test -p agent-diva-gui` currently fails in `embedded_server::tests::embedded_gateway_serves_health_endpoint` because the health probe returned HTTP 502 instead of the expected 200 during validation for the Tauri watcher fix. This blocks a clean GUI crate test pass and should be isolated from the watcher-only change.
   - Related files: `agent-diva-gui/src-tauri/src/embedded_server.rs`, `agent-diva-gui/src-tauri/tests/gateway_process_management_bugfix.rs`, `docs/logs/2026-07-gui-tauri-dev-exit-watch-loop/v0.0.1-tauri-dev-exit-watch-loop/verification.md`
   - Suggested fix: inspect the embedded gateway startup/readiness handshake in tests and make the health assertion wait for the backend to become ready before asserting `200`.
+- [ ] **Plan GUI: remove the temporary visible approval-followup message after inline plan approval** The inline plan approval flow now calls the runtime approval API and then auto-sends a follow-up chat message (`"Plan approved. Execute the approved plan now..."`) to resume execution. This unblocks end-to-end behavior in the current session, but it is still a UX mismatch from the OpenAkita target, where approval continues execution without surfacing an extra synthetic user message.
+  - Related files: `agent-diva-gui/src/App.vue`, `agent-diva-manager/src/handlers/planning.rs`, `agent-diva-agent/src/agent_loop/loop_runtime_control.rs`
+  - Suggested fix: add a dedicated runtime continuation command that resumes the approved plan in-session without injecting a visible chat turn from the GUI.
 
 ## Deferred
 

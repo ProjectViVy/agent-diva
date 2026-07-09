@@ -24,6 +24,7 @@ import {
   type UiCard,
   type ApprovalRequest,
 } from '../api/desktop';
+import type { PlanRuntimeState } from '../api/planning';
 import type {
   ChatGovernanceCard as ChatGovernanceCardModel,
   ChatGovernanceDeepLink,
@@ -138,10 +139,15 @@ const props = defineProps<{
   sessions?: Session[];
   toolsConfig?: ToolsConfigShape;
   activeSessionKey?: string;
+  activePlanRuntime?: PlanRuntimeState | null;
+  pendingApprovalPlan?: PlanRuntimeState | null;
+  executingPlan?: PlanRuntimeState | null;
+  approvingPlan?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
+  (e: 'approve-plan'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'select-session', sessionKey: string): void;
@@ -485,6 +491,20 @@ const getPlaceholder = computed(() => {
   }
   return t('chat.placeholder');
 });
+
+const planProgressText = computed(() => {
+  const plan = props.executingPlan ?? props.activePlanRuntime;
+  if (!plan) return '';
+  const completed = plan.todos.filter((todo) => todo.status === 'Completed').length;
+  return `${completed}/${plan.todos.length}`;
+});
+
+const focusPlanInput = () => {
+  execMode.value = 'plan';
+  nextTick(() => {
+    inputRef.value?.focus();
+  });
+};
 
 // 模式菜单选项
 const modeOptions = [
@@ -890,10 +910,103 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         </div>
       </div>
 
+      <div v-if="activePlanRuntime" class="flex mb-4 justify-start">
+        <div class="flex max-w-[85%] items-start space-x-2">
+          <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-amber-50 text-amber-700 border border-amber-100">
+            <ClipboardList :size="16" />
+          </div>
+          <div class="rounded-2xl border border-amber-200/80 bg-white/95 shadow-sm px-4 py-3 min-w-[320px] max-w-full">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold text-gray-900">{{ activePlanRuntime.title }}</div>
+                <div class="text-xs text-gray-500 mt-1">{{ activePlanRuntime.goal }}</div>
+              </div>
+              <div class="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                {{ activePlanRuntime.phase }}
+              </div>
+            </div>
+            <div v-if="activePlanRuntime.steps.length > 0" class="mt-3 space-y-2">
+              <div
+                v-for="step in activePlanRuntime.steps"
+                :key="step.id"
+                class="flex items-center gap-2 text-xs text-gray-700"
+              >
+                <CheckCircle2 v-if="step.status === 'Completed'" :size="14" class="text-emerald-500" />
+                <Loader2 v-else-if="step.status === 'InProgress'" :size="14" class="text-amber-500 animate-spin" />
+                <Clock v-else :size="14" class="text-gray-400" />
+                <span>{{ step.ordinal + 1 }}. {{ step.title }}</span>
+              </div>
+            </div>
+            <div v-else-if="activePlanRuntime.todos.length > 0" class="mt-3 space-y-2">
+              <div
+                v-for="todo in activePlanRuntime.todos"
+                :key="todo.id"
+                class="flex items-center gap-2 text-xs text-gray-700"
+              >
+                <CheckCircle2 v-if="todo.status === 'Completed'" :size="14" class="text-emerald-500" />
+                <Loader2 v-else-if="todo.status === 'InProgress'" :size="14" class="text-amber-500 animate-spin" />
+                <Clock v-else :size="14" class="text-gray-400" />
+                <span>{{ todo.title }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Typing Indicator -->
       <!-- Removed separate Typing Indicator as it is now integrated into the message bubble -->
       
       <div ref="messagesEndRef" />
+    </div>
+
+    <div
+      v-if="pendingApprovalPlan"
+      class="mx-4 mb-3 rounded-2xl border border-amber-200 bg-white/95 shadow-lg px-4 py-4"
+    >
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-sm font-semibold text-gray-900">{{ pendingApprovalPlan.title }}</div>
+          <div class="text-xs text-gray-500 mt-1">{{ pendingApprovalPlan.goal }}</div>
+        </div>
+        <div class="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+          {{ pendingApprovalPlan.phase }}
+        </div>
+      </div>
+      <div class="mt-3 flex items-center gap-2">
+        <button
+          class="px-3 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 disabled:opacity-60"
+          :disabled="approvingPlan"
+          @click="emit('approve-plan')"
+        >
+          <Loader2 v-if="approvingPlan" :size="14" class="inline-block mr-1 animate-spin" />
+          <span>{{ approvingPlan ? 'Starting...' : 'Approve and Execute' }}</span>
+        </button>
+        <button
+          class="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+          @click="focusPlanInput"
+        >
+          Modify Plan
+        </button>
+      </div>
+    </div>
+
+    <div
+      v-else-if="executingPlan"
+      class="mx-4 mb-3 rounded-2xl border border-sky-200 bg-white/95 shadow-lg px-4 py-3"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm font-semibold text-gray-900">{{ executingPlan.title }}</div>
+          <div class="text-xs text-sky-700 mt-1">Running · {{ planProgressText }}</div>
+        </div>
+        <Loader2 :size="16" class="text-sky-600 animate-spin" />
+      </div>
+      <div class="mt-3 h-2 rounded-full bg-sky-100 overflow-hidden">
+        <div
+          class="h-full bg-sky-500 transition-all duration-300"
+          :style="{ width: `${executingPlan.todos.length === 0 ? 0 : (executingPlan.todos.filter((todo) => todo.status === 'Completed').length / executingPlan.todos.length) * 100}%` }"
+        />
+      </div>
     </div>
 
     <!-- Input Area - Cursor/OpenAkita 风格 -->

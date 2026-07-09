@@ -175,3 +175,32 @@ pub async fn delete_plan_handler(
         )),
     }
 }
+
+/// POST /api/plans/active/approve-execute
+pub async fn approve_active_plan_handler(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let (tx, rx) = oneshot::channel();
+    if let Err(e) = state
+        .api_tx
+        .send(ManagerCommand::ApproveActivePlan(tx))
+        .await
+    {
+        tracing::error!("Failed to send ApproveActivePlan request: {}", e);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+        ));
+    }
+    match rx.await {
+        Ok(Ok(plan)) => Ok(Json(serde_json::json!({ "status": "ok", "plan": plan }))),
+        Ok(Err(e)) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "status": "error", "message": e })),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+        )),
+    }
+}

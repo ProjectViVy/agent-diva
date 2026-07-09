@@ -54,3 +54,43 @@ export interface TodoDetail {
   block_reason: string | null;
   updated_at: string;
 }
+
+export interface PlanRuntimeStep {
+  id: string;
+  ordinal: number;
+  title: string;
+  rationale: string | null;
+  expected_output: string | null;
+  status: string;
+}
+
+export interface PlanRuntimeTodo {
+  id: string;
+  plan_step_id: string | null;
+  title: string;
+  detail: string | null;
+  status: string;
+  priority: string;
+  evidence_ref: string | null;
+  block_reason: string | null;
+  updated_at: string;
+}
+
+export interface PlanRuntimeState {
+  plan_id: string;
+  title: string;
+  goal: string;
+  phase: string;
+  status: string;
+  strategy: string | null;
+  summary: string;
+  steps: PlanRuntimeStep[];
+  todos: PlanRuntimeTodo[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlanStreamEvent {
+  plan: PlanRuntimeState;
+  todo?: PlanRuntimeTodo | null;
+}

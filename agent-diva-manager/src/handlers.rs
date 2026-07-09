@@ -177,6 +177,21 @@ pub async fn chat_handler(
                     });
                     Event::default().event("tool_finish").data(data.to_string())
                 }
+                AgentEvent::TodoCreated { plan, todo } => Event::default()
+                    .event("todo_created")
+                    .data(serde_json::json!({ "plan": plan, "todo": todo }).to_string()),
+                AgentEvent::TodoStepUpdated { plan, todo } => Event::default()
+                    .event("todo_step_updated")
+                    .data(serde_json::json!({ "plan": plan, "todo": todo }).to_string()),
+                AgentEvent::TodoCompleted { plan, todo } => Event::default()
+                    .event("todo_completed")
+                    .data(serde_json::json!({ "plan": plan, "todo": todo }).to_string()),
+                AgentEvent::TodoCancelled { plan, todo } => Event::default()
+                    .event("todo_cancelled")
+                    .data(serde_json::json!({ "plan": plan, "todo": todo }).to_string()),
+                AgentEvent::PlanReadyForApproval { plan } => Event::default()
+                    .event("plan_ready_for_approval")
+                    .data(serde_json::json!({ "plan": plan }).to_string()),
                 AgentEvent::Error { message } => Event::default().event("error").data(message),
                 _ => Event::default().comment("keep-alive"),
             };

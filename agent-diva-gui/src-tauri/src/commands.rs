@@ -9,6 +9,7 @@ use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
 use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
+use agent_diva_core::bus::PlanRuntimeState;
 use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
@@ -932,6 +933,18 @@ struct StreamToolFinishPayload {
     call_id: Option<String>,
 }
 
+#[derive(Deserialize, Serialize, Clone)]
+struct PlanStreamEvent {
+    plan: PlanRuntimeState,
+    todo: Option<agent_diva_core::bus::PlanRuntimeTodo>,
+}
+
+#[derive(Serialize, Clone)]
+struct StreamPlanPayload {
+    request_id: String,
+    data: PlanStreamEvent,
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn send_message(
@@ -1072,6 +1085,61 @@ pub async fn send_message(
                             },
                         );
                     }
+                    "todo_created" => {
+                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
+                            let _ = window.emit(
+                                "agent-plan-todo-created",
+                                StreamPlanPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
+                                },
+                            );
+                        }
+                    }
+                    "todo_step_updated" => {
+                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
+                            let _ = window.emit(
+                                "agent-plan-todo-updated",
+                                StreamPlanPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
+                                },
+                            );
+                        }
+                    }
+                    "todo_completed" => {
+                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
+                            let _ = window.emit(
+                                "agent-plan-todo-completed",
+                                StreamPlanPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
+                                },
+                            );
+                        }
+                    }
+                    "todo_cancelled" => {
+                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
+                            let _ = window.emit(
+                                "agent-plan-todo-cancelled",
+                                StreamPlanPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
+                                },
+                            );
+                        }
+                    }
+                    "plan_ready_for_approval" => {
+                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
+                            let _ = window.emit(
+                                "agent-plan-ready",
+                                StreamPlanPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
+                                },
+                            );
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -1089,6 +1157,37 @@ pub async fn send_message(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn approve_active_plan_execution(
+    state: State<'_, AgentState>,
+) -> Result<PlanRuntimeState, String> {
+    let url = format!("{}/plans/active/approve-execute", state.api_base_url());
+    let response = state
+        .client
+        .post(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to approve active plan: {}", e))?;
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid approve plan response: {}", e))?;
+    if value.get("status").and_then(|status| status.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|message| message.as_str())
+            .unwrap_or("Failed to approve active plan")
+            .to_string());
+    }
+    serde_json::from_value(
+        value
+            .get("plan")
+            .cloned()
+            .ok_or_else(|| "Missing plan payload".to_string())?,
+    )
+    .map_err(|e| format!("Invalid plan payload: {}", e))
 }
 
 #[tauri::command]
@@ -1987,9 +2086,7 @@ pub fn delete_mask(name: String) -> Result<(), String> {
     if trimmed.is_empty() || trimmed == agent_diva_agent::mask::MaskFile::DEFAULT_NAME {
         return Err("cannot delete the default mask".to_string());
     }
-    registry
-        .delete(trimmed)
-        .map_err(|error| error.to_string())
+    registry.delete(trimmed).map_err(|error| error.to_string())
 }
 
 #[tauri::command]

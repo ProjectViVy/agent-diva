@@ -1,8 +1,47 @@
 //! Event types for the message bus
 
+use crate::planning::model::{PlanPhase, PlanStatus, TodoPriority, TodoStatus};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanRuntimeStep {
+    pub id: String,
+    pub ordinal: i32,
+    pub title: String,
+    pub rationale: Option<String>,
+    pub expected_output: Option<String>,
+    pub status: PlanStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanRuntimeTodo {
+    pub id: String,
+    pub plan_step_id: Option<String>,
+    pub title: String,
+    pub detail: Option<String>,
+    pub status: TodoStatus,
+    pub priority: TodoPriority,
+    pub evidence_ref: Option<String>,
+    pub block_reason: Option<String>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanRuntimeState {
+    pub plan_id: String,
+    pub title: String,
+    pub goal: String,
+    pub phase: PlanPhase,
+    pub status: PlanStatus,
+    pub strategy: Option<String>,
+    pub summary: String,
+    pub steps: Vec<PlanRuntimeStep>,
+    pub todos: Vec<PlanRuntimeTodo>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
 
 /// Streaming events emitted by the agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +70,25 @@ pub enum AgentEvent {
         result: String,
         is_error: bool,
         call_id: String,
+    },
+    TodoCreated {
+        plan: PlanRuntimeState,
+        todo: PlanRuntimeTodo,
+    },
+    TodoStepUpdated {
+        plan: PlanRuntimeState,
+        todo: PlanRuntimeTodo,
+    },
+    TodoCompleted {
+        plan: PlanRuntimeState,
+        todo: PlanRuntimeTodo,
+    },
+    TodoCancelled {
+        plan: PlanRuntimeState,
+        todo: PlanRuntimeTodo,
+    },
+    PlanReadyForApproval {
+        plan: PlanRuntimeState,
     },
     FinalResponse {
         content: String,

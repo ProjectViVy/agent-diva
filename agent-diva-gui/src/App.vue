@@ -7,7 +7,13 @@ import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
-import { getConfigStatus, getRuntimeConfig, FileAttachmentDto } from "./api/desktop";
+import {
+  approveActivePlanExecution,
+  getConfigStatus,
+  getRuntimeConfig,
+  FileAttachmentDto,
+} from "./api/desktop";
+import type { PlanRuntimeState, PlanStreamEvent } from "./api/planning";
 import type { ToolsConfigShape } from "./types/toolsConfig";
 import {
   HISTORY_PREFS_KEY,
@@ -69,6 +75,11 @@ interface StreamToolStartPayload extends ToolStartPayload {
 
 interface StreamToolFinishPayload extends ToolFinishPayload {
   request_id: string;
+}
+
+interface StreamPlanPayload {
+  request_id: string;
+  data: PlanStreamEvent;
 }
 
 interface SavedModel {
@@ -178,6 +189,10 @@ const currentChannel = ref('gui');
 const currentChatId = ref(generateChatId());
 const currentSessionKey = ref(`gui:${currentChatId.value}`);
 const activeStreamRequestId = ref<string | null>(null);
+const activePlanRuntime = ref<PlanRuntimeState | null>(null);
+const pendingApprovalPlan = ref<PlanRuntimeState | null>(null);
+const executingPlan = ref<PlanRuntimeState | null>(null);
+const approvingPlan = ref(false);
 const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
 const titleGenerationInFlight = ref<Set<string>>(new Set());
 
@@ -723,6 +738,52 @@ function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
   };
 }
 
+function syncPlanRuntime(plan: PlanRuntimeState | null) {
+  activePlanRuntime.value = plan;
+  if (!plan) {
+    pendingApprovalPlan.value = null;
+    executingPlan.value = null;
+    return;
+  }
+  if (plan.phase === 'AwaitingApproval') {
+    pendingApprovalPlan.value = plan;
+    executingPlan.value = null;
+    return;
+  }
+  if (plan.phase === 'Execute' || plan.phase === 'Verify') {
+    executingPlan.value = plan;
+    pendingApprovalPlan.value = null;
+    return;
+  }
+  if (plan.phase === 'Completed' || plan.phase === 'Failed' || plan.phase === 'Partial') {
+    pendingApprovalPlan.value = null;
+    executingPlan.value = null;
+  }
+}
+
+async function approvePlanExecution() {
+  if (approvingPlan.value) return;
+  approvingPlan.value = true;
+  try {
+    const plan = await approveActivePlanExecution();
+    syncPlanRuntime(plan);
+    await sendMessage(
+      "Plan approved. Execute the approved plan now and keep the todo list updated as you progress.",
+      undefined,
+      'agent',
+    );
+  } catch (error) {
+    messages.value.push({
+      id: generateMessageId(),
+      role: 'system',
+      content: `${t('app.errorPrefix')}${error}`,
+      timestamp: Date.now(),
+    });
+  } finally {
+    approvingPlan.value = false;
+  }
+}
+
 async function sendMessage(content: string, attachments?: FileAttachmentDto[], mode: ExecMode = 'agent') {
   if (!content.trim() && (!attachments || attachments.length === 0)) return;
   if (isTyping.value) return;
@@ -937,6 +998,7 @@ const clearMessages = () => {
   currentSessionKey.value = `gui:${currentChatId.value}`;
   activeStreamRequestId.value = null;
   isTyping.value = false;
+  syncPlanRuntime(null);
   messages.value = [
     {
       id: generateMessageId(),
@@ -1059,6 +1121,7 @@ async function loadSession(sessionKey: string): Promise<boolean> {
 
     currentChatId.value = extractChatId(sessionHistory.key) || chatId;
     currentSessionKey.value = sessionHistory.key || sessionKey;
+    syncPlanRuntime(null);
 
     const newMessages: Message[] = sessionHistory.messages
       .map(mapBackendMessageToUi)
@@ -1542,6 +1605,31 @@ onMounted(async () => {
     });
   }));
 
+  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-todo-created", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) return;
+    syncPlanRuntime(event.payload.data.plan);
+  }));
+
+  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-todo-updated", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) return;
+    syncPlanRuntime(event.payload.data.plan);
+  }));
+
+  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-todo-completed", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) return;
+    syncPlanRuntime(event.payload.data.plan);
+  }));
+
+  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-todo-cancelled", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) return;
+    syncPlanRuntime(event.payload.data.plan);
+  }));
+
+  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-ready", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) return;
+    syncPlanRuntime(event.payload.data.plan);
+  }));
+
   // Listen for errors
   unlisteners.push(await listen<unknown>("agent-error", (event) => {
     const payload = event.payload;
@@ -1651,10 +1739,15 @@ onUnmounted(() => {
       :sessions="sessions"
       :chat-display-prefs="chatDisplayPrefs"
       :current-session-key="currentSessionKey"
+      :active-plan-runtime="activePlanRuntime"
+      :pending-approval-plan="pendingApprovalPlan"
+      :executing-plan="executingPlan"
+      :approving-plan="approvingPlan"
       :save-config-action="saveConfig"
       :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
+      @approve-plan="approvePlanExecution"
       @clear="clearMessages"
       @stop="stopMessage"
       @regenerate="regenerateMessage"

@@ -1,7 +1,10 @@
 use super::AgentLoop;
 use crate::compaction::ContextCompactor;
 use crate::runtime_control::RuntimeControlCommand;
-use agent_diva_core::bus::{AgentEvent, InboundMessage};
+use agent_diva_core::bus::{
+    AgentEvent, InboundMessage, PlanRuntimeState, PlanRuntimeStep, PlanRuntimeTodo,
+};
+use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::session::CompactTrigger;
 use agent_diva_providers::Message;
 use tokio::sync::mpsc;
@@ -104,6 +107,10 @@ impl AgentLoop {
                 reply_tx,
             } => {
                 let result = self.handle_compact_session(&session_key).await;
+                let _ = reply_tx.send(result);
+            }
+            RuntimeControlCommand::ApproveActivePlan { reply_tx } => {
+                let result = self.handle_approve_active_plan().await;
                 let _ = reply_tx.send(result);
             }
         }
@@ -328,5 +335,84 @@ impl AgentLoop {
             .map_err(|e| e.to_string())?;
 
         Ok((title, generated.is_some(), false))
+    }
+
+    async fn handle_approve_active_plan(&mut self) -> Result<PlanRuntimeState, String> {
+        let Some(planning) = self.tool_config.planning.as_ref() else {
+            return Err("planning runtime is unavailable".to_string());
+        };
+
+        let plan_id = planning
+            .store
+            .get_active_plan()
+            .await
+            .map_err(|error| error.to_string())?;
+
+        {
+            let mut orchestrator = planning.orchestrator.lock().await;
+            orchestrator.approve(&plan_id);
+            orchestrator
+                .transition_to(planning.store.as_ref(), &plan_id, PlanPhase::Execute)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+
+        self.snapshot_plan_runtime(&plan_id)
+            .await
+            .ok_or_else(|| "failed to load plan after approval".to_string())
+    }
+
+    pub(super) async fn snapshot_active_plan_runtime(&self) -> Option<PlanRuntimeState> {
+        let planning = self.tool_config.planning.as_ref()?;
+        let plan_id = planning.store.get_active_plan().await.ok()?;
+        self.snapshot_plan_runtime(&plan_id).await
+    }
+
+    pub(super) async fn snapshot_plan_runtime(
+        &self,
+        plan_id: &agent_diva_core::planning::ids::PlanId,
+    ) -> Option<PlanRuntimeState> {
+        let planning = self.tool_config.planning.as_ref()?;
+        let plan = planning.store.get_plan(plan_id).await.ok()?;
+        let steps = planning.store.get_steps(plan_id).await.ok()?;
+        let todos = planning.store.get_todos(plan_id).await.ok()?;
+
+        Some(PlanRuntimeState {
+            plan_id: plan.id.0.clone(),
+            title: plan.title.clone(),
+            goal: plan.goal.clone(),
+            phase: plan.phase,
+            status: plan.status,
+            strategy: plan.strategy.clone(),
+            summary: format!("{}: {}", plan.title, plan.goal),
+            steps: steps
+                .into_iter()
+                .map(|step| PlanRuntimeStep {
+                    id: step.id,
+                    ordinal: step.ordinal,
+                    title: step.title,
+                    rationale: step.rationale,
+                    expected_output: step.expected_output,
+                    status: step.status,
+                })
+                .collect(),
+            todos: todos
+                .items
+                .into_iter()
+                .map(|todo| PlanRuntimeTodo {
+                    id: todo.id.0,
+                    plan_step_id: todo.plan_step_id,
+                    title: todo.title,
+                    detail: todo.detail,
+                    status: todo.status,
+                    priority: todo.priority,
+                    evidence_ref: todo.evidence_ref,
+                    block_reason: todo.block_reason,
+                    updated_at: todo.updated_at,
+                })
+                .collect(),
+            created_at: plan.created_at,
+            updated_at: plan.updated_at,
+        })
     }
 }
