@@ -2,7 +2,9 @@
 import { onMounted, ref } from 'vue';
 import { useMasks } from '../composables/useMasks';
 import { Settings } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n();
 const { masks, activeMask, switchTo, refresh } = useMasks();
 
 const isOpen = ref(false);
@@ -42,7 +44,7 @@ const activeName = () => activeMask.value?.name || '';
     <!-- Trigger button -->
     <button
       class="flex items-center justify-center w-8 h-8 rounded-full border border-gray-200/50 bg-white hover:border-pink-200 hover:shadow-sm transition-all text-lg cursor-pointer flex-shrink-0"
-      :title="activeName() || 'Select mask'"
+      :title="activeName() || t('mask.selectMask')"
       @click.stop="togglePopover"
     >
       <span>{{ activeIcon() }}</span>
@@ -62,7 +64,7 @@ const activeName = () => activeMask.value?.name || '';
         class="absolute top-full right-0 mt-1 w-56 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-[200]"
       >
         <div class="px-3 py-2 border-b border-gray-100">
-          <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Masks</span>
+          <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{{ t('mask.title') }}</span>
         </div>
 
         <div class="py-1 max-h-64 overflow-y-auto">
@@ -82,7 +84,7 @@ const activeName = () => activeMask.value?.name || '';
           </button>
 
           <div v-if="masks.length === 0" class="px-3 py-6 text-center text-gray-400 text-[10px]">
-            No masks available
+            {{ t('mask.noMasks') }}
           </div>
         </div>
 
@@ -92,7 +94,7 @@ const activeName = () => activeMask.value?.name || '';
             @click="handleManageMasks"
           >
             <Settings :size="12" />
-            <span>Manage masks</span>
+            <span>{{ t('mask.manageMasks') }}</span>
           </button>
         </div>
       </div>

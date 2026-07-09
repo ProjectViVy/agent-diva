@@ -13,9 +13,11 @@ vi.mock('lucide-vue-next', () => ({
   AlarmClock: { name: 'AlarmClock', template: '<span class="AlarmClock" />' },
   BookOpen: { name: 'BookOpen', template: '<span class="BookOpen" />' },
   Bot: { name: 'Bot', template: '<span class="Bot" />' },
+  Brain: { name: 'Brain', template: '<span class="Brain" />' },
   Cat: { name: 'Cat', template: '<span class="Cat" />' },
   Check: { name: 'Check', template: '<span class="Check" />' },
   ChevronDown: { name: 'ChevronDown', template: '<span class="ChevronDown" />' },
+  ClipboardList: { name: 'ClipboardList', template: '<span class="ClipboardList" />' },
   GitBranch: { name: 'GitBranch', template: '<span class="GitBranch" />' },
   Heart: { name: 'Heart', template: '<span class="Heart" />' },
   Menu: { name: 'Menu', template: '<span class="Menu" />' },
@@ -38,6 +40,7 @@ vi.mock('../api/desktop', () => ({
     ])
   ),
   pollLaputaEvents: vi.fn(() => Promise.resolve([])),
+  isTauriRuntime: () => false,
 }));
 
 vi.mock('./ChatView.vue', () => ({
@@ -99,7 +102,7 @@ vi.mock('./AppToastLayer.vue', () => ({
   default: { name: 'AppToastLayer', template: '<div class="toast-layer-stub" />' },
 }));
 
-function mountNormalMode() {
+function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
   return mount(NormalMode, {
     props: {
       messages: [],
@@ -141,21 +144,24 @@ function mountNormalMode() {
       saveConfigAction: vi.fn(() => Promise.resolve()),
       saveToolsConfigAction: vi.fn(() => Promise.resolve()),
       saveChannelConfigAction: vi.fn(() => Promise.resolve()),
+      ...propOverrides,
     },
   });
 }
 
 async function clickNav(wrapper: ReturnType<typeof mountNormalMode>, label: string) {
-  const navIndexes: Record<string, number> = {
-    'nav.chat': 0,
-    'nav.evolution': 1,
-    'nav.notebook': 2,
-    'nav.pet': 3,
-    'nav.console': 4,
-  };
-  const button = wrapper.findAll('.sidebar-nav > button.nav-item')[navIndexes[label]];
-  expect(button, `nav item ${label}`).toBeTruthy();
-  await button!.trigger('click');
+  const sidebar = wrapper.find('.sidebar');
+  if (sidebar.classes().includes('sidebar-collapsed')) {
+    const toggle = wrapper.find('.menu-toggle');
+    expect(toggle.exists(), 'menu toggle').toBe(true);
+    await toggle.trigger('click');
+    await nextTick();
+  }
+
+  const buttons = wrapper.findAll('.sidebar-nav button');
+  const target = buttons.find((button) => button.text().includes(label));
+  expect(target, `nav item ${label}`).toBeTruthy();
+  await target!.trigger('click');
   await nextTick();
 }
 
@@ -187,7 +193,7 @@ describe('NormalMode pet focus layout', () => {
     wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
     await nextTick();
 
-    expect(wrapper.find('aside.fixed').exists()).toBe(true);
+    expect(wrapper.find('.overlay-sidebar').exists()).toBe(true);
     expect(wrapper.find('.topbar').exists()).toBe(false);
 
     wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
@@ -203,7 +209,7 @@ describe('NormalMode pet focus layout', () => {
     await clickNav(wrapper, 'nav.pet');
     wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
     await nextTick();
-    const chatOverlayItem = wrapper.findAll('aside.fixed button').find((button) => button.text() === 'nav.chat');
+    const chatOverlayItem = wrapper.findAll('.overlay-sidebar button.nav-item').find((button) => button.text() === 'nav.chat');
     expect(chatOverlayItem, 'overlay chat item').toBeTruthy();
     await chatOverlayItem!.trigger('click');
     await nextTick();
@@ -230,7 +236,47 @@ describe('NormalMode pet focus layout', () => {
     wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
     await nextTick();
 
-    const overlayItems = wrapper.findAll('aside.fixed button');
+    const overlayItems = wrapper.findAll('.overlay-sidebar button.nav-item');
     expect(overlayItems.some((button) => button.text() === 'nav.evolution')).toBe(true);
   });
 });
+
+// describe('NormalMode backend disconnected indicator', () => {
+//   it('hides the disconnected indicator when the backend is connected', () => {
+//     const wrapper = mountNormalMode({ connectionStatus: 'connected' });
+//
+//     expect(wrapper.find('[data-testid="backend-disconnected-indicator"]').exists()).toBe(false);
+//   });
+//
+//   it('shows the disconnected indicator with tooltip when the backend is unavailable', () => {
+//     const wrapper = mountNormalMode({ connectionStatus: 'error' });
+//     const indicator = wrapper.get('[data-testid="backend-disconnected-indicator"]');
+//
+//     expect(indicator.attributes('title')).toBe('app.backendDisconnected');
+//     expect(indicator.attributes('aria-label')).toBe('app.backendDisconnected');
+//     expect(indicator.find('.TriangleAlert').exists()).toBe(true);
+//   });
+//
+//   it('keeps the model dropdown working while the disconnected indicator is visible', async () => {
+//     const wrapper = mountNormalMode({
+//       connectionStatus: 'error',
+//       savedModels: [
+//         {
+//           id: 'deepseek:deepseek-chat',
+//           provider: 'deepseek',
+//           model: 'deepseek-chat',
+//           apiBase: 'https://api.deepseek.com/v1',
+//           apiKey: '',
+//           displayName: 'DeepSeek - deepseek-chat',
+//         },
+//       ],
+//     });
+//
+//     const modelButton = wrapper.get('.topbar-right button');
+//     await modelButton.trigger('click');
+//     await nextTick();
+//
+//     expect(wrapper.find('[data-testid="backend-disconnected-indicator"]').exists()).toBe(true);
+//     expect(wrapper.text()).toContain('DeepSeek - deepseek-chat');
+//   });
+// });

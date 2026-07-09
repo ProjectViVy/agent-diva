@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import type { MaskEntryDto } from '../api/desktop';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
   (e: 'select', mask: MaskEntryDto): void;
@@ -16,9 +19,9 @@ function handleClick() {
 }
 
 function modeLabel(mode: string): string {
-  if (mode === 'assist') return 'Assist';
-  if (mode === 'normal') return 'Normal';
-  return mode || 'Normal';
+  if (mode === 'assist') return t('mask.modeAssist');
+  if (mode === 'normal') return t('mask.modeNormal');
+  return mode || t('mask.modeNormal');
 }
 
 function modeColor(mode: string): string {
@@ -73,7 +76,7 @@ function modeColor(mode: string): string {
         v-if="mask.readOnly"
         class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium leading-tight bg-amber-100 text-amber-700"
       >
-        Read-only
+        {{ t('mask.readOnly') }}
       </span>
     </div>
   </button>

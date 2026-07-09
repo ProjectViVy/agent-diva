@@ -4,6 +4,9 @@ import { useMasks } from '../composables/useMasks';
 import MaskCard from './MaskCard.vue';
 import type { MaskEntryDto } from '../api/desktop';
 import { Search, Plus, Pencil, Trash2, Settings } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 withDefaults(defineProps<{
   mode?: 'selector' | 'manager';
@@ -105,8 +108,8 @@ function isActive(mask: MaskEntryDto): boolean {
 }
 
 function modeLabel(mode: string): string {
-  if (mode === 'assist') return 'Assist';
-  return 'Normal';
+  if (mode === 'assist') return t('mask.modeAssist');
+  return t('mask.modeNormal');
 }
 
 function modeColor(mode: string): string {
@@ -123,7 +126,7 @@ function modeColor(mode: string): string {
     <!-- Header -->
     <div class="flex items-center justify-between px-1 pb-2">
       <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-        🎭 Masks
+        🎭 {{ t('mask.title') }}
       </span>
     </div>
 
@@ -159,7 +162,7 @@ function modeColor(mode: string): string {
         @click="handleManageClick"
       >
         <Settings :size="12" />
-        Manage masks
+        {{ t('mask.manageMasks') }}
       </button>
     </div>
   </div>
@@ -170,14 +173,14 @@ function modeColor(mode: string): string {
   <div v-else class="mask-manager-panel">
     <!-- Header -->
     <div class="flex items-center justify-between mb-3">
-      <h3 class="text-base font-semibold text-gray-800">🎭 Mask System</h3>
+      <h3 class="text-base font-semibold text-gray-800">🎭 {{ t('mask.maskSystem') }}</h3>
       <button
         type="button"
         class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-pink-500 hover:bg-pink-600 rounded-lg transition-colors"
         @click="handleCreateClick"
       >
         <Plus :size="14" />
-        Create
+        {{ t('mask.createButton') }}
       </button>
     </div>
 
@@ -190,7 +193,7 @@ function modeColor(mode: string): string {
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="Search masks..."
+        :placeholder="t('mask.search')"
         class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-400 transition-shadow"
       />
     </div>
@@ -214,12 +217,12 @@ function modeColor(mode: string): string {
       class="flex flex-col items-center justify-center py-8 text-gray-400"
     >
       <span class="text-4xl mb-2">🎭</span>
-      <p class="text-sm font-medium">No masks found</p>
+      <p class="text-sm font-medium">{{ t('mask.noMasksFound') }}</p>
       <p
         v-if="searchQuery.trim()"
         class="text-xs mt-1"
       >
-        No masks match your search.
+        {{ t('mask.noSearchResults') }}
       </p>
       <button
         v-else
@@ -227,7 +230,7 @@ function modeColor(mode: string): string {
         class="mt-3 px-4 py-1.5 text-sm font-medium text-pink-600 border border-pink-300 rounded-lg hover:bg-pink-50 transition-colors"
         @click="handleCreateClick"
       >
-        Create first mask
+        {{ t('mask.createFirst') }}
       </button>
     </div>
 
@@ -272,7 +275,7 @@ function modeColor(mode: string): string {
             v-if="mask.readOnly"
             class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700"
           >
-            Read-only
+            {{ t('mask.readOnly') }}
           </span>
         </div>
 
@@ -284,7 +287,7 @@ function modeColor(mode: string): string {
             @click.stop="handleEditClick(mask)"
           >
             <Pencil :size="12" />
-            Edit
+            {{ t('mask.edit') }}
           </button>
           <button
             type="button"
@@ -292,7 +295,7 @@ function modeColor(mode: string): string {
             @click.stop="handleDeleteClick(mask)"
           >
             <Trash2 :size="12" />
-            Delete
+            {{ t('mask.delete') }}
           </button>
         </div>
       </div>
@@ -307,7 +310,7 @@ function modeColor(mode: string): string {
         <span class="text-3xl">{{ selectedMask.icon }}</span>
         <div class="flex-1 min-w-0">
           <h4 class="text-base font-semibold text-gray-800">{{ selectedMask.name }}</h4>
-          <p class="text-sm text-gray-500 mt-0.5">{{ selectedMask.description || 'No description' }}</p>
+          <p class="text-sm text-gray-500 mt-0.5">{{ selectedMask.description || t('mask.noDescription') }}</p>
         </div>
         <span
           class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
@@ -319,26 +322,26 @@ function modeColor(mode: string): string {
 
       <div class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
         <div>
-          <span class="text-gray-400">Mode:</span>
+          <span class="text-gray-400">{{ t('mask.mode') }}:</span>
           <span class="ml-1 text-gray-700">{{ modeLabel(selectedMask.mode) }}</span>
         </div>
         <div>
-          <span class="text-gray-400">Read-only:</span>
-          <span class="ml-1 text-gray-700">{{ selectedMask.readOnly ? 'Yes' : 'No' }}</span>
+          <span class="text-gray-400">{{ t('mask.readOnlyLabel') }}:</span>
+          <span class="ml-1 text-gray-700">{{ selectedMask.readOnly ? t('mask.yes') : t('mask.no') }}</span>
         </div>
         <div>
-          <span class="text-gray-400">Model:</span>
+          <span class="text-gray-400">{{ t('mask.model') }}:</span>
           <span class="ml-1 text-gray-700">--</span>
         </div>
         <div>
-          <span class="text-gray-400">Tool limits:</span>
+          <span class="text-gray-400">{{ t('mask.toolLimits') }}:</span>
           <span class="ml-1 text-gray-700">--</span>
         </div>
       </div>
 
       <div class="mt-2 text-sm">
-        <span class="text-gray-400">Body:</span>
-        <span class="ml-1 text-gray-500 italic">(requires backend API)</span>
+        <span class="text-gray-400">{{ t('mask.bodyLabel') }}:</span>
+        <span class="ml-1 text-gray-500 italic">{{ t('mask.bodyRequiresApi') }}</span>
       </div>
 
       <div class="mt-3 flex items-center gap-2">
@@ -347,14 +350,14 @@ function modeColor(mode: string): string {
           class="px-3 py-1.5 text-sm font-medium text-white bg-pink-500 hover:bg-pink-600 rounded-lg transition-colors"
           @click="handleCardSelect(selectedMask)"
         >
-          Switch to this mask
+          {{ t('mask.switchToThis') }}
         </button>
         <button
           type="button"
           class="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
           @click="handleEditClick(selectedMask)"
         >
-          Edit
+          {{ t('mask.edit') }}
         </button>
       </div>
     </div>
@@ -367,9 +370,9 @@ function modeColor(mode: string): string {
         @click.self="cancelDelete"
       >
         <div class="bg-white rounded-xl shadow-xl p-6 max-w-sm mx-4">
-          <h4 class="text-base font-semibold text-gray-800">Delete mask</h4>
+          <h4 class="text-base font-semibold text-gray-800">{{ t('mask.deleteTitle') }}</h4>
           <p class="text-sm text-gray-500 mt-2">
-            Are you sure you want to delete <strong>{{ deleteConfirmName }}</strong>? This action cannot be undone.
+            {{ t('mask.deleteConfirmMessage', { name: deleteConfirmName }) }}
           </p>
           <div class="flex items-center justify-end gap-2 mt-4">
             <button
@@ -377,14 +380,14 @@ function modeColor(mode: string): string {
               class="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
               @click="cancelDelete"
             >
-              Cancel
+              {{ t('mask.cancel') }}
             </button>
             <button
               type="button"
               class="px-3 py-1.5 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
               @click="confirmDelete"
             >
-              Delete
+              {{ t('mask.delete') }}
             </button>
           </div>
         </div>

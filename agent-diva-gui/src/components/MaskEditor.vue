@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { MaskEntryDto, MaskPayload } from '../api/desktop'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   mask?: MaskEntryDto
@@ -100,7 +103,7 @@ function handleDenyKeydown(e: KeyboardEvent): void {
 
 function validate(): boolean {
   if (!name.value.trim()) {
-    nameError.value = '名称不能为空'
+    nameError.value = t('mask.nameRequired')
     return false
   }
   nameError.value = ''
@@ -142,50 +145,50 @@ function handleCancel(): void {
 <template>
   <div class="bg-white border border-gray-200 rounded-lg p-6 max-w-2xl">
     <h2 class="text-lg font-semibold text-gray-800 mb-4">
-      {{ isEdit ? '编辑面具' : '新建面具' }}
+      {{ isEdit ? t('mask.editorTitleEdit') : t('mask.editorTitleCreate') }}
     </h2>
 
     <!-- Name (required) -->
     <div class="mb-4">
       <label class="block text-sm font-medium text-gray-700 mb-1">
-        名称 <span class="text-red-500">*</span>
+        {{ t('mask.name') }} <span class="text-red-500">*</span>
       </label>
       <input
         v-model.trim="name"
         type="text"
         class="w-full border rounded-lg px-3 py-2 text-sm outline-none transition-colors"
         :class="nameError ? 'border-red-400' : 'border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500'"
-        placeholder="面具名称"
+        :placeholder="t('mask.namePlaceholder')"
       />
       <p v-if="nameError" class="text-red-500 text-xs mt-1">{{ nameError }}</p>
     </div>
 
     <!-- Icon (optional) -->
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">图标</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('mask.icon') }}</label>
       <input
         v-model="icon"
         type="text"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-pink-500 focus:ring-2 focus:ring-pink-500"
-        placeholder="😊"
+        :placeholder="t('mask.iconPlaceholder')"
         maxlength="10"
       />
     </div>
 
     <!-- Description (optional) -->
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('mask.description') }}</label>
       <input
         v-model="description"
         type="text"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-pink-500 focus:ring-2 focus:ring-pink-500"
-        placeholder="一句话描述这个面具的用途"
+        :placeholder="t('mask.descPlaceholder')"
       />
     </div>
 
     <!-- Mode (radio: Normal / Assist) -->
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-2">模式</label>
+      <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('mask.mode') }}</label>
       <div class="flex gap-6">
         <label class="inline-flex items-center gap-2 cursor-pointer">
           <input
@@ -194,7 +197,7 @@ function handleCancel(): void {
             value="normal"
             class="text-pink-500 focus:ring-pink-500"
           />
-          <span class="text-sm text-gray-700">Normal</span>
+          <span class="text-sm text-gray-700">{{ t('mask.modeNormal') }}</span>
         </label>
         <label class="inline-flex items-center gap-2 cursor-pointer">
           <input
@@ -203,43 +206,43 @@ function handleCancel(): void {
             value="assist"
             class="text-pink-500 focus:ring-pink-500"
           />
-          <span class="text-sm text-gray-700">Assist</span>
+          <span class="text-sm text-gray-700">{{ t('mask.modeAssist') }}</span>
         </label>
       </div>
     </div>
 
     <!-- Model override (optional) -->
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">模型覆盖</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('mask.modelOverride') }}</label>
       <input
         v-model="modelOverride"
         type="text"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-pink-500 focus:ring-2 focus:ring-pink-500"
-        placeholder="e.g. openai/gpt-4o"
+        :placeholder="t('mask.modelOverridePlaceholder')"
       />
     </div>
 
     <!-- Subagent settings -->
     <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-      <h3 class="text-sm font-medium text-gray-700 mb-2">子代理设置</h3>
+      <h3 class="text-sm font-medium text-gray-700 mb-2">{{ t('mask.subagentSettings') }}</h3>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">子代理模型</label>
+          <label class="block text-xs text-gray-500 mb-1">{{ t('mask.subagentModel') }}</label>
           <input
             v-model="subagentModel"
             type="text"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-pink-500 focus:ring-2 focus:ring-pink-500"
-            placeholder="可选"
+            :placeholder="t('mask.optional')"
           />
         </div>
         <div>
-          <label class="block text-xs text-gray-500 mb-1">最大迭代次数</label>
+          <label class="block text-xs text-gray-500 mb-1">{{ t('mask.subagentMaxIterations') }}</label>
           <input
             v-model="subagentMaxIterations"
             type="number"
             min="1"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-pink-500 focus:ring-2 focus:ring-pink-500"
-            placeholder="可选"
+            :placeholder="t('mask.optional')"
           />
         </div>
       </div>
@@ -247,7 +250,7 @@ function handleCancel(): void {
 
     <!-- Tool allow tags -->
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">工具允许列表</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('mask.toolAllow') }}</label>
       <div v-if="allowTags.length" class="flex flex-wrap gap-1.5 mb-1.5">
         <span
           v-for="tag in allowTags"
@@ -268,14 +271,14 @@ function handleCancel(): void {
         v-model="allowInput"
         type="text"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-pink-500 focus:ring-2 focus:ring-pink-500"
-        placeholder="输入工具名称后按 Enter 添加"
+        :placeholder="t('mask.toolPlaceholder')"
         @keydown="handleAllowKeydown"
       />
     </div>
 
     <!-- Tool deny tags -->
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">工具禁止列表</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('mask.toolDeny') }}</label>
       <div v-if="denyTags.length" class="flex flex-wrap gap-1.5 mb-1.5">
         <span
           v-for="tag in denyTags"
@@ -296,7 +299,7 @@ function handleCancel(): void {
         v-model="denyInput"
         type="text"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-pink-500 focus:ring-2 focus:ring-pink-500"
-        placeholder="输入工具名称后按 Enter 添加"
+        :placeholder="t('mask.toolPlaceholder')"
         @keydown="handleDenyKeydown"
       />
     </div>
@@ -304,13 +307,13 @@ function handleCancel(): void {
     <!-- Body (textarea with preview toggle) -->
     <div class="mb-6">
       <div class="flex items-center justify-between mb-1">
-        <label class="block text-sm font-medium text-gray-700">系统提示</label>
+        <label class="block text-sm font-medium text-gray-700">{{ t('mask.body') }}</label>
         <button
           type="button"
           class="text-xs text-pink-600 hover:text-pink-700 transition-colors"
           @click="showBodyPreview = !showBodyPreview"
         >
-          {{ showBodyPreview ? '编辑' : '预览' }}
+          {{ showBodyPreview ? t('mask.edit') : t('mask.preview') }}
         </button>
       </div>
       <textarea
@@ -318,13 +321,13 @@ function handleCancel(): void {
         v-model="body"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-pink-500 focus:ring-2 focus:ring-pink-500"
         rows="6"
-        placeholder="Markdown 格式的系统提示内容"
+        :placeholder="t('mask.bodyPlaceholder')"
       ></textarea>
       <div
         v-else
         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 min-h-[120px] whitespace-pre-wrap text-gray-700"
       >
-        {{ body || '(空)' }}
+        {{ body || t('mask.emptyPreview') }}
       </div>
     </div>
 
@@ -335,14 +338,14 @@ function handleCancel(): void {
         class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         @click="handleCancel"
       >
-        取消
+        {{ t('mask.cancel') }}
       </button>
       <button
         type="button"
         class="px-4 py-2 text-sm text-white bg-pink-500 hover:bg-pink-600 rounded-lg transition-colors"
         @click="handleSave"
       >
-        {{ isEdit ? '保存修改' : '创建面具' }}
+        {{ isEdit ? t('mask.saveChanges') : t('mask.create') }}
       </button>
     </div>
   </div>
