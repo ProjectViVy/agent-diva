@@ -1,6 +1,7 @@
 use agent_diva_agent::mask::{MaskError, MaskFile, MaskRegistry};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Subcommand;
+use std::path::PathBuf;
 
 use crate::cli_runtime::CliRuntime;
 
@@ -27,6 +28,33 @@ pub enum MaskCommands {
         #[arg(short, long)]
         id: Option<String>,
     },
+    /// Create a new mask from a markdown file
+    Create {
+        /// Path to the markdown mask file
+        #[arg(short, long)]
+        file: PathBuf,
+    },
+    /// Replace an existing mask from a markdown file
+    Edit {
+        /// Mask display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Stable mask id (file slug)
+        #[arg(short, long)]
+        id: Option<String>,
+        /// Path to the new markdown mask file
+        #[arg(short, long)]
+        file: PathBuf,
+    },
+    /// Delete a mask by name or id
+    Delete {
+        /// Mask display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Stable mask id (file slug)
+        #[arg(short, long)]
+        id: Option<String>,
+    },
 }
 
 pub async fn run(command: MaskCommands, runtime: &CliRuntime) -> Result<()> {
@@ -38,6 +66,9 @@ pub async fn run(command: MaskCommands, runtime: &CliRuntime) -> Result<()> {
         MaskCommands::List => list_masks(&masks_dir),
         MaskCommands::Switch { name, id } => switch_mask(&masks_dir, name, id),
         MaskCommands::Show { name, id } => show_mask(&masks_dir, name, id),
+        MaskCommands::Create { file } => create_mask(&masks_dir, &file),
+        MaskCommands::Edit { name, id, file } => edit_mask(&masks_dir, name, id, &file),
+        MaskCommands::Delete { name, id } => delete_mask(&masks_dir, name, id),
     }
 }
 
@@ -73,11 +104,7 @@ fn switch_mask(
 ) -> Result<()> {
     let mut registry = MaskRegistry::new(masks_dir);
 
-    let mask = resolve_for_mutation(
-        &mut registry,
-        name.as_deref(),
-        id.as_deref()
-    )?;
+    let mask = resolve_for_mutation(&mut registry, name.as_deref(), id.as_deref())?;
     let target_name = mask.frontmatter.name.clone();
     let target_id = mask.frontmatter.id_or_slug();
 
@@ -93,16 +120,75 @@ fn switch_mask(
     Ok(())
 }
 
-fn show_mask(
-    masks_dir: &std::path::Path,
-    name: Option<String>,
-    id: Option<String>,
-) -> Result<()> {
+fn show_mask(masks_dir: &std::path::Path, name: Option<String>, id: Option<String>) -> Result<()> {
     let registry = MaskRegistry::new(masks_dir);
     let mask = resolve_for_read(&registry, name.as_deref(), id.as_deref())?;
 
     println!("---");
     println!("{}", mask.serialize().trim_end());
+    Ok(())
+}
+
+fn create_mask(masks_dir: &std::path::Path, file: &std::path::Path) -> Result<()> {
+    let content = std::fs::read_to_string(file)
+        .with_context(|| format!("Failed to read mask file: {}", file.display()))?;
+    let mut mask =
+        MaskFile::parse_with_path(&content, &file.display().to_string()).map_err(into_anyhow)?;
+
+    // Ensure a stable id exists before persisting.
+    let id = mask.frontmatter.id_or_slug();
+    if mask.frontmatter.id.is_none() {
+        mask = mask.with_id(id.clone());
+    }
+
+    let mut registry = MaskRegistry::new(masks_dir);
+    let path = registry.mask_file_path(&id);
+    let created = registry.create_or_update(mask).map_err(into_anyhow)?;
+    println!(
+        "Created mask '{}' at {}",
+        created.frontmatter.name,
+        path.display()
+    );
+    Ok(())
+}
+
+fn edit_mask(
+    masks_dir: &std::path::Path,
+    name: Option<String>,
+    id: Option<String>,
+    file: &std::path::Path,
+) -> Result<()> {
+    let content = std::fs::read_to_string(file)
+        .with_context(|| format!("Failed to read mask file: {}", file.display()))?;
+    let mut new_mask =
+        MaskFile::parse_with_path(&content, &file.display().to_string()).map_err(into_anyhow)?;
+
+    let mut registry = MaskRegistry::new(masks_dir);
+    let existing = resolve_for_mutation(&mut registry, name.as_deref(), id.as_deref())?;
+    let existing_id = existing.frontmatter.id_or_slug();
+
+    // Preserve the existing mask's id so the file path stays stable even if the new
+    // file omitted an id or used a different one.
+    if new_mask.frontmatter.id != Some(existing_id.clone()) {
+        new_mask = new_mask.with_id(existing_id.clone());
+    }
+
+    let updated = registry.create_or_update(new_mask).map_err(into_anyhow)?;
+    println!("Updated mask '{}'", updated.frontmatter.name);
+    Ok(())
+}
+
+fn delete_mask(
+    masks_dir: &std::path::Path,
+    name: Option<String>,
+    id: Option<String>,
+) -> Result<()> {
+    let mut registry = MaskRegistry::new(masks_dir);
+    let target = resolve_for_mutation(&mut registry, name.as_deref(), id.as_deref())?;
+    let target_name = target.frontmatter.name.clone();
+
+    registry.delete(&target_name).map_err(into_anyhow)?;
+    println!("Deleted mask: {}", target_name);
     Ok(())
 }
 
