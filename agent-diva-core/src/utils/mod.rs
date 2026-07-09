@@ -83,6 +83,26 @@ You just came online. Use this first conversation to shape your identity.
 - Mark bootstrap as completed in soul state or remove this file.
 - If this workspace has `docs/dev/archive/architecture-reports/soul-mechanism-analysis.md`, treat it as the primary soul-architecture reference when implementing related development tasks.
 "#;
+const DEFAULT_CODER_MASK_MD: &str = r#"---
+id: coder
+name: 代码专家
+icon: "👨‍💻"
+description: "专注代码实现"
+mode: normal
+---
+
+You are a concise coding assistant. Focus on implementation, clean code, and practical solutions.
+"#;
+const DEFAULT_RESEARCHER_MASK_MD: &str = r#"---
+id: researcher
+name: 研究专家
+icon: "🔍"
+description: "专注调研分析"
+mode: normal
+---
+
+You are a research-focused assistant. Gather information, compare options, and summarize findings clearly.
+"#;
 
 /// Sync workspace templates. Missing files are created; existing files are never overwritten.
 pub fn sync_workspace_templates<P: AsRef<Path>>(workspace: P) -> std::io::Result<Vec<String>> {
@@ -90,9 +110,10 @@ pub fn sync_workspace_templates<P: AsRef<Path>>(workspace: P) -> std::io::Result
     std::fs::create_dir_all(workspace)?;
     std::fs::create_dir_all(workspace.join("memory"))?;
     std::fs::create_dir_all(workspace.join("skills"))?;
+    std::fs::create_dir_all(workspace.join("masks"))?;
 
     let mut added = Vec::new();
-    let templates: [(&str, Option<&str>); 8] = [
+    let templates: [(&str, Option<&str>); 10] = [
         ("memory/MEMORY.md", Some(DEFAULT_MEMORY_MD)),
         ("memory/HISTORY.md", None),
         ("PROFILE.md", Some(DEFAULT_PROFILE_MD)),
@@ -101,6 +122,8 @@ pub fn sync_workspace_templates<P: AsRef<Path>>(workspace: P) -> std::io::Result
         ("USER.md", Some(DEFAULT_USER_MD)),
         ("BOOTSTRAP.md", Some(DEFAULT_BOOTSTRAP_MD)),
         ("TASK.md", Some("# Tasks\n\n")),
+        ("masks/coder.md", Some(DEFAULT_CODER_MASK_MD)),
+        ("masks/researcher.md", Some(DEFAULT_RESEARCHER_MASK_MD)),
     ];
 
     for (rel, content) in templates {
@@ -148,6 +171,45 @@ mod tests {
         assert!(temp.path().join("USER.md").exists());
         assert!(temp.path().join("BOOTSTRAP.md").exists());
         assert!(temp.path().join("skills").exists());
+        assert!(temp.path().join("masks").exists());
+        assert!(temp.path().join("masks").join("coder.md").exists());
+        assert!(temp.path().join("masks").join("researcher.md").exists());
+    }
+
+    #[test]
+    fn test_sync_workspace_templates_creates_masks() {
+        let temp = tempfile::tempdir().unwrap();
+        let added = sync_workspace_templates(temp.path()).unwrap();
+        assert!(added.contains(&"masks/coder.md".to_string()));
+        assert!(added.contains(&"masks/researcher.md".to_string()));
+
+        let coder = std::fs::read_to_string(temp.path().join("masks/coder.md")).unwrap();
+        assert!(coder.contains("id: coder"));
+        assert!(coder.contains("👨‍💻"));
+        assert!(coder.contains("专注代码实现"));
+        assert!(coder.contains("mode: normal"));
+
+        let researcher = std::fs::read_to_string(temp.path().join("masks/researcher.md")).unwrap();
+        assert!(researcher.contains("id: researcher"));
+        assert!(researcher.contains("🔍"));
+        assert!(researcher.contains("专注调研分析"));
+        assert!(researcher.contains("mode: normal"));
+    }
+
+    #[test]
+    fn test_sync_workspace_templates_preserves_existing_masks() {
+        let temp = tempfile::tempdir().unwrap();
+        let masks_dir = temp.path().join("masks");
+        std::fs::create_dir_all(&masks_dir).unwrap();
+        let coder_path = masks_dir.join("coder.md");
+        std::fs::write(&coder_path, "custom coder mask").unwrap();
+
+        let added = sync_workspace_templates(temp.path()).unwrap();
+        assert!(!added.contains(&"masks/coder.md".to_string()));
+        assert!(added.contains(&"masks/researcher.md".to_string()));
+
+        let current = std::fs::read_to_string(&coder_path).unwrap();
+        assert_eq!(current, "custom coder mask");
     }
 
     #[test]
