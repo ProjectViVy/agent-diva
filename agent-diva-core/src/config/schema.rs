@@ -135,6 +135,9 @@ pub enum AgentMode {
 /// Configuration for a single mask (loaded from a .md file with YAML frontmatter)
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct MaskConfig {
+    /// Optional stable identifier used for file naming and unambiguous switching.
+    #[serde(default)]
+    pub id: Option<String>,
     /// Display name (required)
     pub name: String,
     /// Emoji icon
@@ -155,6 +158,47 @@ pub struct MaskConfig {
     /// Tool access limits
     #[serde(default)]
     pub tool_limits: ToolLimits,
+}
+
+impl MaskConfig {
+    /// Return the explicit `id` if present, otherwise a URL-safe slug derived from `name`.
+    ///
+    /// For names containing only non-ASCII characters, the slug is a deterministic
+    /// short hash so that different names do not collapse to the same value.
+    pub fn id_or_slug(&self) -> String {
+        self.id
+            .clone()
+            .unwrap_or_else(|| slug_from_name(&self.name))
+    }
+}
+
+/// Build a URL-safe slug from a mask display name.
+fn slug_from_name(name: &str) -> String {
+    let mut slug = String::new();
+    let mut prev_dash = false;
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            slug.push(c.to_ascii_lowercase());
+            prev_dash = false;
+        } else if !prev_dash {
+            slug.push('-');
+            prev_dash = true;
+        }
+    }
+    let slug = slug.trim_matches('-').to_string();
+    if slug.is_empty() {
+        format!("h{:016x}", deterministic_hash(name))
+    } else {
+        slug
+    }
+}
+
+fn deterministic_hash(s: &str) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
 }
 
 // ── Subagent batch-spawn contracts ────────────────────────────────────────
@@ -1744,5 +1788,61 @@ mod tests {
 
         let value = serde_json::to_value(mentle).expect("config should serialize");
         assert_eq!(value["mode"], "custom");
+    }
+
+    // ── MaskConfig tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn mask_config_parses_without_id() {
+        let yaml = r#"
+name: "我就是我"
+icon: "😊"
+"#;
+        let config: MaskConfig =
+            serde_yaml::from_str(yaml).expect("valid mask config should deserialize");
+        assert_eq!(config.id, None);
+        assert_eq!(config.name, "我就是我");
+    }
+
+    #[test]
+    fn mask_config_uses_explicit_id() {
+        let config = MaskConfig {
+            id: Some("custom-id".to_string()),
+            name: "Code Reviewer".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.id_or_slug(), "custom-id");
+    }
+
+    #[test]
+    fn mask_config_slug_for_ascii_name() {
+        let config = MaskConfig {
+            name: "My Coding Mask".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.id_or_slug(), "my-coding-mask");
+    }
+
+    #[test]
+    fn mask_config_slug_for_chinese_names() {
+        let a = MaskConfig {
+            name: "代码助手".to_string(),
+            ..Default::default()
+        };
+        let b = MaskConfig {
+            name: "研究专家".to_string(),
+            ..Default::default()
+        };
+        let slug_a = a.id_or_slug();
+        let slug_b = b.id_or_slug();
+
+        assert!(!slug_a.contains('_'), "slug should not use underscores");
+        assert!(!slug_b.contains('_'), "slug should not use underscores");
+        assert_ne!(
+            slug_a, slug_b,
+            "different Chinese names should produce different slugs"
+        );
+        assert_ne!(slug_a, "____", "slug should not collapse to underscores");
+        assert_ne!(slug_b, "____", "slug should not collapse to underscores");
     }
 }
