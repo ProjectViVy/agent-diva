@@ -9,6 +9,7 @@ use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
 use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
+use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
@@ -130,6 +131,20 @@ pub struct MaskEntryDto {
     pub description: String,
     pub mode: String,
     pub read_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MaskPayload {
+    pub id: Option<String>,
+    pub name: String,
+    pub icon: Option<String>,
+    pub description: Option<String>,
+    pub mode: Option<String>,
+    pub model: Option<String>,
+    pub subagent_defaults: SubagentDefaults,
+    pub tool_limits: ToolLimits,
+    pub body: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1898,6 +1913,12 @@ pub fn list_masks() -> Result<Vec<MaskEntryDto>, String> {
 }
 
 #[tauri::command]
+pub fn get_active_mask() -> Result<Option<MaskEntryDto>, String> {
+    let registry = load_mask_registry();
+    Ok(registry.current_mask().map(mask_entry_from_file))
+}
+
+#[tauri::command]
 pub fn get_current_mask() -> Result<MaskEntryDto, String> {
     let registry = load_mask_registry();
     let mask = registry
@@ -1923,6 +1944,52 @@ pub fn switch_mask(name: String) -> Result<MaskEntryDto, String> {
         .map_err(|error| error.to_string())?
         .clone();
     Ok(mask_entry_from_file(&mask))
+}
+
+fn parse_agent_mode(mode: Option<String>) -> Option<AgentMode> {
+    match mode? {
+        value if value.eq_ignore_ascii_case("normal") => Some(AgentMode::Normal),
+        value if value.eq_ignore_ascii_case("assist") => Some(AgentMode::Assist),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+pub fn create_or_update_mask(payload: MaskPayload) -> Result<MaskEntryDto, String> {
+    let mut registry = load_mask_registry();
+    let name = payload.name.trim();
+    if name.is_empty() {
+        return Err("mask name cannot be empty".to_string());
+    }
+    let frontmatter = agent_diva_core::config::schema::MaskConfig {
+        id: payload.id,
+        name: name.to_string(),
+        icon: payload.icon,
+        description: payload.description,
+        mode: parse_agent_mode(payload.mode),
+        model: payload.model,
+        subagent_defaults: payload.subagent_defaults,
+        tool_limits: payload.tool_limits,
+    };
+    let body = payload.body.unwrap_or_default().trim().to_string();
+    let mask = agent_diva_agent::mask::MaskFile { frontmatter, body };
+    let mask = registry
+        .create_or_update(mask)
+        .map_err(|error| error.to_string())?
+        .clone();
+    Ok(mask_entry_from_file(&mask))
+}
+
+#[tauri::command]
+pub fn delete_mask(name: String) -> Result<(), String> {
+    let mut registry = load_mask_registry();
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed == agent_diva_agent::mask::MaskFile::DEFAULT_NAME {
+        return Err("cannot delete the default mask".to_string());
+    }
+    registry
+        .delete(trimmed)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
