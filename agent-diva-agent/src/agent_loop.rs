@@ -1,7 +1,7 @@
 //! Agent loop: the core processing engine
 
 use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
-use agent_diva_core::config::schema::{MaskConfig, ToolLimits};
+use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;

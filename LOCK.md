@@ -45,6 +45,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-10`: Restored the background-task context implementation from `stash@{0}` into the two tools files only; `cargo check -p agent-diva-agent` passed and `cargo test -p agent-diva-tools --lib` passed with 78 tests.
+
 - `2026-07-08`: Codex released the image multimodal chat lock after converting image attachments into structured multimodal current-turn content, adding pre-provider vision gating, validating `cargo test -p agent-diva-agent --lib` and `cargo test -p agent-diva-agent --test image_multimodal -- --nocapture`, recording `docs/logs/2026-07-agent-multimodal-image-chat/v0.0.1-image-chat-multimodal/`, and logging the pre-existing `compaction_real_test` package-target failure mode in `TODOLIST.md`.
 - `2026-07-08`: Codex released the Mentle default feature lock after enabling the `agent-diva-agent` `mentle` feature on the default CLI/manager binary path, validating `cargo check -p agent-diva-cli`, recording `docs/logs/2026-07-mentle-default-feature/v0.0.1-default-enable-mentle-feature/`, and committing `bd7abf9`.
 - `2026-07-08`: Codex released the GUI backend disconnect indicator lock after adding a topbar warning icon beside the model selector, localized tooltip text, targeted `NormalMode` coverage, and `docs/logs/2026-07-gui-backend-disconnect-indicator/v0.0.1-model-selector-backend-disconnect-indicator/`.

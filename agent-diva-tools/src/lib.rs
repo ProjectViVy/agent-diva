@@ -20,7 +20,7 @@ pub mod wtf;
 pub use agent_diva_tooling::{Result, Tool, ToolError, ToolRegistry};
 pub use attachment::ReadAttachmentTool;
 pub use cron::CronTool;
-pub use enqueue_background_task::EnqueueBackgroundTaskTool;
+pub use enqueue_background_task::{BackgroundTaskContext, EnqueueBackgroundTaskTool};
 pub use filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 pub use message::MessageTool;
 pub use sanitize::sanitize_for_json;
