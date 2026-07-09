@@ -953,8 +953,8 @@ onMounted(async () => {
   min-height: 100%;
   min-width: 0;
   flex-direction: column;
-  background: #f8fafc;
-  color: #111827;
+  background: var(--panel);
+  color: var(--text);
 }
 
 .evolution-header {
@@ -963,8 +963,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-solid);
   padding: 18px 22px;
 }
 
@@ -981,10 +981,10 @@ onMounted(async () => {
   width: 34px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: #f9fafb;
-  color: #4b5563;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text-muted);
 }
 
 .evolution-title {
@@ -998,7 +998,7 @@ onMounted(async () => {
 .evolution-subtitle {
   margin: 4px 0 0;
   overflow-wrap: anywhere;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -1010,10 +1010,10 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border: 1px solid #d1d5db;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #374151;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
@@ -1025,16 +1025,16 @@ onMounted(async () => {
 
 .evolution-refresh:hover,
 .evolution-tab:hover {
-  border-color: #9ca3af;
-  background: #f9fafb;
+  border-color: var(--text-muted);
+  background: var(--panel);
 }
 
 .evolution-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-solid);
   padding: 10px 22px;
 }
 
@@ -1043,19 +1043,19 @@ onMounted(async () => {
 }
 
 .evolution-tab.active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: var(--accent);
+  background: var(--accent-bg-light);
+  color: var(--accent);
 }
 
 .evolution-error {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  border-bottom: 1px solid #fecaca;
-  background: #fff1f2;
+  border-bottom: 1px solid var(--danger-bg);
+  background: var(--danger-bg);
   padding: 12px 22px;
-  color: #991b1b;
+  color: var(--danger);
   font-size: 12px;
 }
 
@@ -1066,8 +1066,8 @@ onMounted(async () => {
 
 .evolution-error-inline {
   margin: 12px;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
+  border: 1px solid var(--danger-bg);
+  border-radius: var(--radius-sm);
 }
 
 .evolution-panel {
@@ -1083,11 +1083,11 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 12px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg-light);
   padding: 10px 12px;
-  color: #1e3a8a;
+  color: var(--accent);
   font-size: 12px;
   font-weight: 700;
 }
@@ -1099,11 +1099,11 @@ onMounted(async () => {
 
 .evolution-source-filter button {
   min-height: 28px;
-  border: 1px solid #93c5fd;
-  border-radius: 7px;
-  background: #ffffff;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
   padding: 0 10px;
-  color: #1d4ed8;
+  color: var(--accent);
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -1124,9 +1124,9 @@ onMounted(async () => {
 .evolution-placeholder-panel {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
 }
 
 .evolution-list-pane,
@@ -1141,7 +1141,7 @@ onMounted(async () => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--line);
   padding: 14px;
 }
 
@@ -1155,7 +1155,7 @@ onMounted(async () => {
 .evolution-pane-header p {
   margin: 4px 0 0;
   overflow-wrap: anywhere;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -1166,8 +1166,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--panel);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -1189,14 +1189,14 @@ onMounted(async () => {
 
 .evolution-detail-loading {
   padding: 18px;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .evolution-skeleton-row {
   height: 58px;
   border-radius: 7px;
-  background: linear-gradient(90deg, #f3f4f6, #e5e7eb, #f3f4f6);
+  background: linear-gradient(90deg, var(--panel), var(--line), var(--panel));
 }
 
 .evolution-empty-state,
@@ -1210,14 +1210,14 @@ onMounted(async () => {
   gap: 8px;
   padding: 20px;
   text-align: center;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .evolution-empty-state strong,
 .evolution-placeholder-panel strong {
   max-width: 100%;
   overflow-wrap: anywhere;
-  color: #111827;
+  color: var(--text);
   font-size: 14px;
 }
 
@@ -1236,17 +1236,17 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 7px;
-  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
   padding: 10px 12px;
   text-align: left;
 }
 
 .evolution-proposal-row:hover,
 .evolution-proposal-row.active {
-  border-color: #bfdbfe;
-  background: #f8fafc;
+  border-color: var(--accent-border);
+  background: var(--panel);
 }
 
 .evolution-proposal-main,
@@ -1260,22 +1260,22 @@ onMounted(async () => {
 }
 
 .evolution-proposal-main strong {
-  color: #111827;
+  color: var(--text);
   font-size: 13px;
 }
 
 .evolution-proposal-meta {
   flex: 0 0 auto;
   align-items: flex-end;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .evolution-record-card,
 .evolution-audit-row {
   min-width: 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
   padding: 14px;
 }
 
@@ -1286,16 +1286,16 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: #111827;
+  color: var(--text);
   font-size: 13px;
 }
 
 .evolution-record-card__header span,
 .evolution-audit-row__title span {
   border-radius: 999px;
-  background: #f3f4f6;
+  background: var(--panel);
   padding: 3px 8px;
-  color: #4b5563;
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1319,7 +1319,7 @@ onMounted(async () => {
 .evolution-audit-meta dt,
 .evolution-policy-grid dt {
   margin: 0 0 3px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1329,7 +1329,7 @@ onMounted(async () => {
 .evolution-policy-grid dd {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #111827;
+  color: var(--text);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -1337,7 +1337,7 @@ onMounted(async () => {
 .evolution-audit-row__main p {
   margin: 8px 0 0;
   overflow-wrap: anywhere;
-  color: #4b5563;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -1346,17 +1346,17 @@ onMounted(async () => {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg-light);
   padding: 12px;
-  color: #1d4ed8;
+  color: var(--accent);
 }
 
 .evolution-policy-copy p {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #1e3a8a;
+  color: var(--accent);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.45;
@@ -1367,11 +1367,11 @@ onMounted(async () => {
   width: fit-content;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d1d5db;
-  border-radius: 7px;
-  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
   padding: 8px 11px;
-  color: #374151;
+  color: var(--text);
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -1379,8 +1379,8 @@ onMounted(async () => {
 }
 
 .evolution-settings-link:hover {
-  border-color: #9ca3af;
-  background: #f9fafb;
+  border-color: var(--text-muted);
+  background: var(--panel);
 }
 
 @media (max-width: 1180px) {

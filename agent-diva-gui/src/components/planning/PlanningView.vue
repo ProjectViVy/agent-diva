@@ -111,19 +111,19 @@ onUnmounted(() => {
 
       <!-- Loading state -->
       <div v-if="loading && plans.length === 0" class="plan-list-empty">
-        <Loader2 :size="20" class="animate-spin text-pink-400" />
+        <Loader2 :size="20" class="animate-spin" style="color: var(--accent)" />
       </div>
 
       <!-- Error state -->
       <div v-else-if="error && plans.length === 0" class="plan-list-empty">
-        <AlertCircle :size="20" class="text-red-400" />
-        <span class="text-sm text-red-400">{{ error }}</span>
+        <AlertCircle :size="20" style="color: var(--danger)" />
+        <span class="text-sm" style="color: var(--danger)">{{ error }}</span>
       </div>
 
       <!-- Empty state -->
       <div v-else-if="plans.length === 0" class="plan-list-empty">
-        <Inbox :size="24" class="text-gray-500" />
-        <span class="text-sm text-gray-500">{{ t('planning.noActivePlan') }}</span>
+        <Inbox :size="24" style="color: var(--text-muted)" />
+        <span class="text-sm" style="color: var(--text-muted)">{{ t('planning.noActivePlan') }}</span>
       </div>
 
       <!-- Plan list -->
@@ -154,13 +154,13 @@ onUnmounted(() => {
     <div class="plan-detail-pane">
       <!-- No selection -->
       <div v-if="!selectedPlanId" class="plan-detail-empty">
-        <Inbox :size="32" class="text-gray-600" />
-        <p class="text-gray-500 mt-2">{{ t('planning.selectPlan') }}</p>
+        <Inbox :size="32" style="color: var(--text-muted)" />
+        <p class="mt-2" style="color: var(--text-muted)">{{ t('planning.selectPlan') }}</p>
       </div>
 
       <!-- Loading detail -->
       <div v-else-if="detailLoading && !selectedPlan" class="plan-detail-empty">
-        <Loader2 :size="24" class="animate-spin text-pink-400" />
+        <Loader2 :size="24" class="animate-spin" style="color: var(--accent)" />
       </div>
 
       <!-- Plan detail content -->
@@ -185,23 +185,23 @@ onUnmounted(() => {
   width: 280px;
   min-width: 240px;
   max-width: 320px;
-  border-right: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  background: var(--bg-panel, rgba(30, 20, 28, 0.95));
+  background: var(--panel);
   overflow-y: auto;
 }
 
 .plan-list-header {
   padding: 1rem;
-  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
 .plan-list-title {
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--text, #f0e6ef);
+  color: var(--text);
   margin: 0;
 }
 
@@ -229,24 +229,24 @@ onUnmounted(() => {
   padding: 0.75rem 1rem;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.05));
+  border-bottom: 1px solid var(--line);
   cursor: pointer;
   text-align: left;
   transition: all 0.15s ease;
-  color: var(--text, #f0e6ef);
+  color: var(--text);
 }
 
 .plan-list-item:hover {
-  background: rgba(236, 64, 122, 0.08);
+  background: var(--accent-bg-light);
 }
 
 .plan-list-item--selected {
-  background: rgba(236, 64, 122, 0.12);
-  border-left: 3px solid var(--accent, #ec407a);
+  background: var(--accent-bg-hover);
+  border-left: 3px solid var(--accent);
 }
 
 .plan-list-item--active .plan-item-title {
-  color: var(--accent, #ec407a);
+  color: var(--accent);
 }
 
 .plan-item-header {
@@ -266,7 +266,7 @@ onUnmounted(() => {
 }
 
 .plan-item-badge {
-  color: var(--accent, #ec407a);
+  color: var(--accent);
   font-size: 0.75rem;
   animation: pulse-dot 2s ease-in-out infinite;
 }
@@ -285,15 +285,15 @@ onUnmounted(() => {
 
 .plan-item-phase {
   font-size: 0.75rem;
-  color: var(--text-muted, rgba(240, 230, 239, 0.55));
+  color: var(--text-muted);
   text-transform: capitalize;
 }
 
 .plan-item-progress {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--accent, #ec407a);
-  background: var(--accent-bg-light, rgba(236, 64, 122, 0.12));
+  color: var(--accent);
+  background: var(--accent-bg-light);
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
 }
@@ -306,7 +306,7 @@ onUnmounted(() => {
   gap: 1rem;
   padding: 1rem;
   overflow-y: auto;
-  background: var(--bg-main, rgba(20, 14, 18, 0.6));
+  background: var(--panel);
 }
 
 .plan-detail-empty {

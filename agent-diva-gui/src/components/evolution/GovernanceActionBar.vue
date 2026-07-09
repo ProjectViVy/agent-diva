@@ -118,19 +118,19 @@ const rollbackHint = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
   font-size: 13px;
 }
 
 .governance-risk-banner {
-  background: #fff3c4;
-  color: #854d0e;
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
 }
 
 .governance-warning-banner {
-  background: #fee2e2;
-  color: #991b1b;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
 }
 
 .governance-grid {
@@ -145,25 +145,39 @@ const rollbackHint = computed(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #0f172a;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  color: var(--text);
   min-height: 40px;
   padding: 0 12px;
   font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.governance-btn:hover:not(:disabled) {
+  background: var(--accent-bg-light);
 }
 
 .governance-btn--primary {
-  background: #0f766e;
-  border-color: #0f766e;
-  color: #f8fafc;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--panel-solid);
+}
+
+.governance-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.1);
 }
 
 .governance-btn--danger {
-  border-color: #dc2626;
-  color: #b91c1c;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.governance-btn--danger:hover:not(:disabled) {
+  background: var(--danger-bg);
 }
 
 .governance-btn:disabled {

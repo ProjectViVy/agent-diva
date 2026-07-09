@@ -191,7 +191,7 @@ const safetyChecks = computed(() => {
   align-content: center;
   min-height: 360px;
   text-align: center;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .proposal-detail__header,
@@ -205,7 +205,7 @@ const safetyChecks = computed(() => {
 
 .proposal-detail__eyebrow {
   margin: 0 0 4px;
-  color: #475569;
+  color: var(--text-muted);
   font-size: 12px;
   text-transform: uppercase;
 }
@@ -224,18 +224,27 @@ const safetyChecks = computed(() => {
   text-transform: uppercase;
 }
 
-.proposal-detail__risk[data-risk='low'] { background: #dcfce7; color: #166534; }
-.proposal-detail__risk[data-risk='medium'] { background: #fef3c7; color: #92400e; }
+.proposal-detail__risk[data-risk='low'] {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+}
+.proposal-detail__risk[data-risk='medium'] {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+}
 .proposal-detail__risk[data-risk='high'],
-.proposal-detail__risk[data-risk='critical'] { background: #fee2e2; color: #991b1b; }
+.proposal-detail__risk[data-risk='critical'] {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
 
 .proposal-detail__error {
   display: flex;
   align-items: center;
   gap: 8px;
   border-radius: 8px;
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-bg);
+  color: var(--danger);
   padding: 10px 12px;
 }
 
@@ -247,15 +256,15 @@ const safetyChecks = computed(() => {
 
 .proposal-detail__meta div,
 .proposal-detail__block {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel);
   padding: 12px;
 }
 
 .proposal-detail__meta span {
   display: block;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 4px;
 }
@@ -265,7 +274,7 @@ const safetyChecks = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #0f766e;
+  color: var(--accent);
   background: transparent;
   border: 0;
   padding: 0;
@@ -282,16 +291,16 @@ const safetyChecks = computed(() => {
   align-items: center;
   gap: 8px;
   border-radius: 8px;
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--danger-bg);
+  color: var(--danger);
   padding: 10px 12px;
 }
 
 .proposal-detail__evidence-item {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
-  background: #f8fafc;
+  background: var(--panel);
 }
 
 .proposal-detail__checks {
@@ -300,7 +309,7 @@ const safetyChecks = computed(() => {
 }
 
 .proposal-detail__checks .bad {
-  color: #b91c1c;
+  color: var(--danger);
 }
 
 .proposal-detail__compare {
@@ -310,9 +319,9 @@ const safetyChecks = computed(() => {
 }
 
 .proposal-detail__column {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel);
   padding: 12px;
 }
 
@@ -322,8 +331,8 @@ const safetyChecks = computed(() => {
   word-break: break-word;
   font-size: 12px;
   line-height: 1.55;
-  color: #0f172a;
-  background: #f8fafc;
+  color: var(--text);
+  background: var(--panel-solid);
   border-radius: 6px;
   padding: 12px;
   max-height: 260px;

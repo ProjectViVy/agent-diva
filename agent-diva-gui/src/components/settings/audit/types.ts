@@ -42,6 +42,9 @@ export const EVENT_LABELS: Record<AuditEventType, string> = {
   presenceChanged: 'Presence Changed',
 };
 
+/** Fallback icon for unknown event types */
+export const EVENT_ICON_FALLBACK = '🍵';
+
 /** Event type icon mapping */
 export const EVENT_ICONS: Record<AuditEventType, string> = {
   heartbeatTriggered: '💓',

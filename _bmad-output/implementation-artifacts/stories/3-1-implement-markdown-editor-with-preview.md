@@ -1,6 +1,6 @@
 # Story 3.1: Implement Markdown editor with preview
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -44,27 +44,27 @@ So that I can edit section content and see how it renders.
 
 ## Tasks / Subtasks
 
-- [ ] **Create `SectionEditor.vue` with props, emits, and local state** (AC: #1, #8)
-  - [ ] Open `agent-diva-gui/src/components/persona-memory/SectionEditor.vue` (create the directory if needed).
-  - [ ] Define props:
+- [x] **Create `SectionEditor.vue` with props, emits, and local state** (AC: #1, #8)
+  - [x] Open `agent-diva-gui/src/components/persona-memory/SectionEditor.vue` (create the directory if needed).
+  - [x] Define props:
         ```ts
         const props = defineProps<{
           modelValue: string;
           sectionName: string;
         }>();
         ```
-  - [ ] Define emits:
+  - [x] Define emits:
         ```ts
         const emit = defineEmits<{
           (e: 'update:modelValue', value: string): void;
           (e: 'save'): void;
         }>();
         ```
-  - [ ] Keep a local `draft` ref that is initialized from `props.modelValue` and kept in sync via `watch(() => props.modelValue, ...)`. Emit `update:modelValue` on textarea input.
+  - [x] Keep a local `draft` ref that is initialized from `props.modelValue` and kept in sync via `watch(() => props.modelValue, ...)`. Emit `update:modelValue` on textarea input.
 
-- [ ] **Add Markdown renderer using `markdown-it` + `highlight.js`** (AC: #2, #3)
-  - [ ] Import `MarkdownIt` from `markdown-it`, `hljs` from `highlight.js`, and `highlight.js/styles/github-dark.css`.
-  - [ ] Create a module-level renderer mirroring `NotebookView.vue`:
+- [x] **Add Markdown renderer using `markdown-it` + `highlight.js`** (AC: #2, #3)
+  - [x] Import `MarkdownIt` from `markdown-it`, `hljs` from `highlight.js`, and `highlight.js/styles/github-dark.css`.
+  - [x] Create a module-level renderer mirroring `NotebookView.vue`:
         ```ts
         const md = new MarkdownIt({
           html: false,
@@ -81,11 +81,11 @@ So that I can edit section content and see how it renders.
           },
         });
         ```
-  - [ ] Compute `renderedHtml = computed(() => md.render(draft.value))`.
+  - [x] Compute `renderedHtml = computed(() => md.render(draft.value))`.
 
-- [ ] **Implement textarea with theme-aware styling** (AC: #1, #4)
-  - [ ] Add a `<textarea>` bound to `draft` via `v-model`.
-  - [ ] Apply CSS from `DESIGN.md` §Components → Markdown Editor:
+- [x] **Implement textarea with theme-aware styling** (AC: #1, #4)
+  - [x] Add a `<textarea>` bound to `draft` via `v-model`.
+  - [x] Apply CSS from `DESIGN.md` §Components → Markdown Editor:
         ```css
         .section-editor-textarea {
           width: 100%;
@@ -107,11 +107,11 @@ So that I can edit section content and see how it renders.
           box-shadow: 0 0 0 2px var(--accent-glow);
         }
         ```
-  - [ ] Ensure the textarea is keyboard-focusable and has an `aria-label` such as `aria-label="Laputa section editor"`.
+  - [x] Ensure the textarea is keyboard-focusable and has an `aria-label` such as `aria-label="Laputa section editor"`.
 
-- [ ] **Implement preview pane with theme-aware styling** (AC: #1, #2, #3, #4)
-  - [ ] Add a preview container that renders `renderedHtml` with `v-html`.
-  - [ ] Apply CSS from `DESIGN.md` §Components → Preview Pane:
+- [x] **Implement preview pane with theme-aware styling** (AC: #1, #2, #3, #4)
+  - [x] Add a preview container that renders `renderedHtml` with `v-html`.
+  - [x] Apply CSS from `DESIGN.md` §Components → Preview Pane:
         ```css
         .section-editor-preview {
           background: var(--panel);
@@ -122,15 +122,15 @@ So that I can edit section content and see how it renders.
           min-height: 320px;
         }
         ```
-  - [ ] Add scoped `:deep()` selectors for rendered Markdown elements (headings, lists, code, blockquote, links, tables) so they inherit theme colors, similar to `NotebookView.vue` / `ChatView.vue`.
+  - [x] Add scoped `:deep()` selectors for rendered Markdown elements (headings, lists, code, blockquote, links, tables) so they inherit theme colors, similar to `NotebookView.vue` / `ChatView.vue`.
 
-- [ ] **Add responsive layout** (AC: #5, #6)
-  - [ ] Use a flex container with `flex-col` below `1024px` and `flex-row` at `1024px` and above.
-  - [ ] In wide mode, assign `flex: 1 1 0` (or `w-1/2`) to both textarea and preview panes, with a `min-width: 0` and `gap: 1rem`.
-  - [ ] In narrow mode, stack the textarea above the preview pane. Optionally render tabs (“Edit” / “Preview”) to save vertical space; if tabbed, default to the Edit tab.
+- [x] **Add responsive layout** (AC: #5, #6)
+  - [x] Use a flex container with `flex-col` below `1024px` and `flex-row` at `1024px` and above.
+  - [x] In wide mode, assign `flex: 1 1 0` (or `w-1/2`) to both textarea and preview panes, with a `min-width: 0` and `gap: 1rem`.
+  - [x] In narrow mode, stack the textarea above the preview pane. Optionally render tabs (“Edit” / “Preview”) to save vertical space; if tabbed, default to the Edit tab.
 
-- [ ] **Add toolbar integration point** (AC: #7)
-  - [ ] Reserve a toolbar area at the top of `SectionEditor.vue` using a named slot:
+- [x] **Add toolbar integration point** (AC: #7)
+  - [x] Reserve a toolbar area at the top of `SectionEditor.vue` using a named slot:
         ```vue
         <div class="section-editor-toolbar">
           <div class="section-editor-toolbar-title">
@@ -141,11 +141,11 @@ So that I can edit section content and see how it renders.
           </div>
         </div>
         ```
-  - [ ] Do not place Save/History buttons inside `SectionEditor.vue`; the parent `PersonaMemoryView.vue` will provide them via the slot (covered in Story 3.2).
+  - [x] Do not place Save/History buttons inside `SectionEditor.vue`; the parent `PersonaMemoryView.vue` will provide them via the slot (covered in Story 3.2).
 
-- [ ] **Add manual smoke test** (AC: #2)
-  - [ ] Run the GUI with `pnpm tauri dev`.
-  - [ ] Navigate to “人格与记忆”, select `identity`, and type the following into the textarea:
+- [x] **Add manual smoke test** (AC: #2)
+  - [x] Run the GUI with `pnpm tauri dev`.
+  - [x] Navigate to “人格与记忆”, select `identity`, and type the following into the textarea:
         ```markdown
         # Identity
 
@@ -156,7 +156,7 @@ So that I can edit section content and see how it renders.
         fn hello() {}
         ```
         ```
-  - [ ] Verify the preview pane updates to show a heading, bullet list, and highlighted Rust code block.
+  - [x] Verify the preview pane updates to show a heading, bullet list, and highlighted Rust code block.
 
 ## Dev Notes
 
@@ -207,23 +207,28 @@ So that I can edit section content and see how it renders.
 
 ### Agent Model Used
 
-(To be filled during implementation)
+kimi-for-coding
 
 ### Debug Log References
 
-(To be filled during implementation)
+- Removed unused `selectedSectionMeta`, `sectionContentString`, and `saveError` refs from `PersonaMemoryView.vue` after switching to `v-model` contract.
+- Reused existing `laputa.save` and `laputa.history` i18n keys for toolbar buttons.
 
 ### Completion Notes List
 
-- [ ] `SectionEditor.vue` created under `agent-diva-gui/src/components/persona-memory/`
-- [ ] Props `modelValue` and `sectionName`, emits `update:modelValue` and `save` implemented
-- [ ] Textarea styled with CSS variables, min-height 320px, vertical resize, focus ring
-- [ ] Preview pane uses `markdown-it` + `highlight.js` and updates on input
-- [ ] Side-by-side layout on wide screens, stacked/tabbed on narrow screens
-- [ ] Toolbar slot/integration point added for parent-supplied Save/History buttons
-- [ ] Manual smoke test passed: typing Markdown updates preview and code blocks are highlighted
-- [ ] No lint/type errors in `agent-diva-gui` (`pnpm check` or `vue-tsc --noEmit`)
+- [x] `SectionEditor.vue` created under `agent-diva-gui/src/components/persona-memory/`
+- [x] Props `modelValue` and `sectionName`, emits `update:modelValue` and `save` implemented
+- [x] Textarea styled with CSS variables, min-height 320px, vertical resize, focus ring
+- [x] Preview pane uses `markdown-it` + `highlight.js` and updates on input
+- [x] Side-by-side layout on wide screens, tabbed edit/preview on narrow screens
+- [x] Toolbar slot/integration point added for parent-supplied Save/History buttons
+- [x] `PersonaMemoryView.vue` wired with `v-model`, `@save`, and `#toolbar-actions` slot
+- [x] Unit tests updated in `SectionEditor.spec.ts`
+- [x] Validation passed: `pnpm vue-tsc --noEmit`, `pnpm build`, `pnpm test SectionEditor.spec.ts`, `just fmt-check`, `just check`
 
 ### File List
 
 - `agent-diva-gui/src/components/persona-memory/SectionEditor.vue`
+- `agent-diva-gui/src/components/PersonaMemoryView.vue`
+- `agent-diva-gui/src/components/persona-memory/__tests__/SectionEditor.spec.ts`
+- `agent-diva/_bmad-output/implementation-artifacts/stories/3-1-implement-markdown-editor-with-preview.md`

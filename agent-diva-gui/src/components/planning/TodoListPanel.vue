@@ -56,25 +56,25 @@ const groups = computed<TodoGroup[]>(() => [
     key: 'in_progress',
     label: t('planning.inProgress'),
     todos: inProgressTodos.value,
-    color: 'var(--warning, #ffa726)',
+    color: 'var(--warning)',
   },
   {
     key: 'pending',
     label: t('planning.pending'),
     todos: pendingTodos.value,
-    color: 'var(--text-muted, rgba(240, 230, 239, 0.55))',
+    color: 'var(--text-muted)',
   },
   {
     key: 'blocked',
     label: t('planning.blocked'),
     todos: blockedTodos.value,
-    color: 'var(--danger, #ef5350)',
+    color: 'var(--danger)',
   },
   {
     key: 'completed',
     label: t('planning.completed'),
     todos: completedTodos.value,
-    color: 'var(--success, #66bb6a)',
+    color: 'var(--success)',
   },
 ]);
 
@@ -129,15 +129,15 @@ function toggleGroup(key: string) {
 
     <!-- Empty state -->
     <div v-if="todos.length === 0" class="panel-empty">
-      <span class="text-sm text-gray-500">—</span>
+      <span class="text-sm" style="color: var(--text-muted)">—</span>
     </div>
   </div>
 </template>
 
 <style scoped>
 .todo-list-panel {
-  background: var(--bg-panel, rgba(30, 20, 28, 0.95));
-  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 1rem;
   display: flex;
@@ -147,7 +147,7 @@ function toggleGroup(key: string) {
 }
 
 .todo-list-panel:hover {
-  border-color: var(--accent-border, rgba(236, 64, 122, 0.3));
+  border-color: var(--accent-border);
 }
 
 /* Progress bar */
@@ -156,7 +156,7 @@ function toggleGroup(key: string) {
   flex-direction: column;
   gap: 0.375rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.06));
+  border-bottom: 1px solid var(--line);
 }
 
 .panel-progress-header {
@@ -168,25 +168,25 @@ function toggleGroup(key: string) {
 .panel-progress-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--text-muted, rgba(240, 230, 239, 0.55));
+  color: var(--text-muted);
 }
 
 .panel-progress-count {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--accent, #ec407a);
+  color: var(--accent);
 }
 
 .panel-progress-bar {
   height: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--line) 15%, transparent);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .panel-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent, #ec407a), var(--accent-light, #f48fb1));
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
   border-radius: 3px;
   transition: width 0.4s ease;
 }
@@ -208,11 +208,11 @@ function toggleGroup(key: string) {
   cursor: pointer;
   border-radius: 6px;
   transition: background 0.15s ease;
-  color: var(--text, #f0e6ef);
+  color: var(--text);
 }
 
 .group-header:hover {
-  background: rgba(236, 64, 122, 0.06);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .group-header-left {
@@ -222,7 +222,7 @@ function toggleGroup(key: string) {
 }
 
 .group-toggle {
-  color: var(--text-muted, rgba(240, 230, 239, 0.4));
+  color: var(--text-muted);
   display: flex;
   align-items: center;
 }
@@ -237,8 +237,8 @@ function toggleGroup(key: string) {
 .group-count {
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--text-muted, rgba(240, 230, 239, 0.4));
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--line) 12%, transparent);
   padding: 0.1rem 0.4rem;
   border-radius: 9999px;
 }

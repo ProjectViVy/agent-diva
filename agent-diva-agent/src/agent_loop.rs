@@ -278,14 +278,10 @@ impl AgentLoop {
     /// Priority:
     /// 1. Active mask's `frontmatter.model`
     /// 2. AgentLoop's configured default model
-    pub(crate) fn effective_model_for_turn(
-        &self,
-        mask: Option<&MaskFile>,
-    ) -> String {
+    pub(crate) fn effective_model_for_turn(&self, mask: Option<&MaskFile>) -> String {
         mask.and_then(|m| m.frontmatter.model.clone())
             .unwrap_or_else(|| self.model.clone())
     }
-
 
     pub(crate) fn rebuild_tools_for_turn(
         &mut self,

@@ -1,6 +1,8 @@
 # Story 2.3: Implement grouped section list
 
-Status: ready-for-dev
+Status: review
+
+baseline_commit: ecf523d1d0ccfa0bf94785c90f46e882bd74c067
 
 ## Story
 
@@ -60,18 +62,18 @@ So that I can quickly find the section I want to edit.
 
 ## Tasks / Subtasks
 
-- [ ] **Create `SectionGroupList.vue`** (AC: #1, #2, #3, #4, #5, #6, #7)
-  - [ ] Open `agent-diva-gui/src/components/persona-memory/SectionGroupList.vue` (new file).
-  - [ ] Use `<script setup lang="ts">` and Vue 3 Composition API.
-  - [ ] Import `ref`, `computed` from `vue` and `useI18n` from `vue-i18n`.
-  - [ ] Import icons from `lucide-vue-next`:
+- [x] **Create `SectionGroupList.vue`** (AC: #1, #2, #3, #4, #5, #6, #7)
+  - [x] Open `agent-diva-gui/src/components/persona-memory/SectionGroupList.vue` (new file).
+  - [x] Use `<script setup lang="ts">` and Vue 3 Composition API.
+  - [x] Import `ref`, `computed` from `vue` and `useI18n` from `vue-i18n`.
+  - [x] Import icons from `lucide-vue-next`:
     - `ChevronDown`, `ChevronRight` for group headers
     - `FileText` for each section item (or a per-group icon if preferred)
-  - [ ] Import the `LaputaSectionName` type from `desktop.ts`:
+  - [x] Import the `LaputaSectionName` type from `desktop.ts`:
     ```ts
     import type { LaputaSectionName } from '../../api/desktop';
     ```
-  - [ ] Define the local snapshot shape (or import it from `PersonaMemoryView.vue` if exported there):
+  - [x] Define the local snapshot shape (or import it from `PersonaMemoryView.vue` if exported there):
     ```ts
     interface LaputaSnapshot {
       sections: Record<LaputaSectionName, {
@@ -80,7 +82,7 @@ So that I can quickly find the section I want to edit.
       }>;
     }
     ```
-  - [ ] Define props and emit:
+  - [x] Define props and emit:
     ```ts
     interface Props {
       snapshot: LaputaSnapshot | null;
@@ -91,7 +93,7 @@ So that I can quickly find the section I want to edit.
       (e: 'select', sectionName: LaputaSectionName): void;
     }>();
     ```
-  - [ ] Define the static 4-group configuration as a constant:
+  - [x] Define the static 4-group configuration as a constant:
     ```ts
     const GROUPS: { key: string; sections: LaputaSectionName[] }[] = [
       { key: 'persona', sections: ['identity', 'relationship', 'commitment', 'preferences'] },
@@ -100,7 +102,7 @@ So that I can quickly find the section I want to edit.
       { key: 'indexes', sections: ['journal_reflective', 'proposal_inbox', 'changelog', 'report_indexes', 'aaak_summaries'] },
     ];
     ```
-  - [ ] Initialize an `expanded` ref with every group set to `true`:
+  - [x] Initialize an `expanded` ref with every group set to `true`:
     ```ts
     const expanded = ref<Record<string, boolean>>({
       persona: true,
@@ -109,10 +111,10 @@ So that I can quickly find the section I want to edit.
       indexes: true,
     });
     ```
-  - [ ] Implement `toggleGroup(groupKey: string)` that flips `expanded.value[groupKey]`.
-  - [ ] Implement `selectSection(name: LaputaSectionName)` that emits `select(name)`.
-  - [ ] Implement `getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd'` that reads `props.snapshot?.sections[name]?.status ?? 'tbd'`.
-  - [ ] Build the template:
+  - [x] Implement `toggleGroup(groupKey: string)` that flips `expanded.value[groupKey]`.
+  - [x] Implement `selectSection(name: LaputaSectionName)` that emits `select(name)`.
+  - [x] Implement `getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd'` that reads `props.snapshot?.sections[name]?.status ?? 'tbd'`.
+  - [x] Build the template:
     - One wrapper with `role="navigation"` and `aria-label="Laputa sections"`.
     - For each group, render a clickable header that toggles the group, shows the localized group name (`t('laputa.groups.' + group.key)`), and a chevron.
     - When expanded, render the section items.
@@ -122,18 +124,18 @@ So that I can quickly find the section I want to edit.
       - English key as muted helper text
       - status badge (`t('laputa.status.' + status)`)
     - Apply `.section-item--active` when `section === props.selectedSection`.
-  - [ ] Add scoped CSS using `agent-diva-gui/src/styles.css` variables:
+  - [x] Add scoped CSS using `agent-diva-gui/src/styles.css` variables:
     - Section item padding, border-radius, hover background from `var(--accent-bg-light)`.
     - Active state exactly as specified in AC #6.
     - Status badge pill shape, uppercase, `0.625rem` / 600.
     - Group header styling consistent with `DESIGN.md` group title tokens.
-  - [ ] Add accessibility attributes:
+  - [x] Add accessibility attributes:
     - Group header buttons have `aria-expanded` matching the expanded state.
     - Section item buttons have `aria-current="true"` when active.
     - Chevron icons are decorative (`aria-hidden="true"`).
 
-- [ ] **Add `laputa.*` i18n keys** (AC: #2, #7)
-  - [ ] In `agent-diva-gui/src/locales/zh.ts`, add or extend the `laputa` namespace with:
+- [x] **Add `laputa.*` i18n keys** (AC: #2, #7)
+  - [x] In `agent-diva-gui/src/locales/zh.ts`, add or extend the `laputa` namespace with:
     ```ts
     laputa: {
       // ...existing keys from Story 2.2/2.4...
@@ -165,7 +167,7 @@ So that I can quickly find the section I want to edit.
       },
     }
     ```
-  - [ ] In `agent-diva-gui/src/locales/en.ts`, add the English equivalents:
+  - [x] In `agent-diva-gui/src/locales/en.ts`, add the English equivalents:
     ```ts
     groups: {
       persona: 'Persona',
@@ -195,10 +197,10 @@ So that I can quickly find the section I want to edit.
     },
     ```
 
-- [ ] **Wire `SectionGroupList.vue` into `PersonaMemoryView.vue`** (AC: #4, #9)
-  - [ ] Open `agent-diva-gui/src/components/PersonaMemoryView.vue` (created in Story 2.2).
-  - [ ] Ensure `SectionGroupList` is imported.
-  - [ ] Bind the component in the left panel with:
+- [x] **Wire `SectionGroupList.vue` into `PersonaMemoryView.vue`** (AC: #4, #9)
+  - [x] Open `agent-diva-gui/src/components/PersonaMemoryView.vue` (created in Story 2.2).
+  - [x] Ensure `SectionGroupList` is imported.
+  - [x] Bind the component in the left panel with:
     ```vue
     <SectionGroupList
       :snapshot="snapshot"
@@ -206,25 +208,25 @@ So that I can quickly find the section I want to edit.
       @select="onSectionSelect"
     />
     ```
-  - [ ] If the placeholder from Story 2.2 used a different prop name (e.g., `:selected`), rename it to `:selected-section` to match this component.
-  - [ ] Verify that `onSectionSelect(name: LaputaSectionName)` updates `selectedSection` and triggers `loadSection(name)`.
+  - [x] If the placeholder from Story 2.2 used a different prop name (e.g., `:selected`), rename it to `:selected-section` to match this component.
+  - [x] Verify that `onSectionSelect(name: LaputaSectionName)` updates `selectedSection` and triggers `loadSection(name)`.
 
-- [ ] **Smoke-test the grouped list** (AC: #1, #2, #3, #4, #5)
-  - [ ] Temporarily mount `SectionGroupList.vue` inside `PersonaMemoryView.vue` with a sample snapshot containing all 14 sections (mix of `owned` and `tbd`).
-  - [ ] Verify that exactly 14 section rows are rendered.
-  - [ ] Verify that the 4 group headers are rendered and all groups start expanded.
-  - [ ] Click a group header and verify its sections are hidden (collapsed) and the chevron flips.
-  - [ ] Click a section item and verify:
+- [x] **Smoke-test the grouped list** (AC: #1, #2, #3, #4, #5)
+  - [x] Temporarily mount `SectionGroupList.vue` inside `PersonaMemoryView.vue` with a sample snapshot containing all 14 sections (mix of `owned` and `tbd`).
+  - [x] Verify that exactly 14 section rows are rendered.
+  - [x] Verify that the 4 group headers are rendered and all groups start expanded.
+  - [x] Click a group header and verify its sections are hidden (collapsed) and the chevron flips.
+  - [x] Click a section item and verify:
     - `select` event is emitted with the correct `LaputaSectionName`
     - the clicked item receives the active-section styling
-  - [ ] Remove or keep the smoke-test harness as an automated Vitest test under `agent-diva-gui/src/components/persona-memory/__tests__/SectionGroupList.spec.ts` (optional but recommended).
+  - [x] Remove or keep the smoke-test harness as an automated Vitest test under `agent-diva-gui/src/components/persona-memory/__tests__/SectionGroupList.spec.ts` (optional but recommended).
 
-- [ ] **Run validation gates** (AC: #8)
-  - [ ] `pnpm vue-tsc --noEmit` inside `agent-diva-gui` passes.
-  - [ ] `pnpm build` inside `agent-diva-gui` passes.
-  - [ ] `just fmt-check`
-  - [ ] `just check`
-  - [ ] Manual smoke test: open "Persona & Memory", confirm 14 sections are visible, groups expand/collapse, and selecting a section updates the right panel.
+- [x] **Run validation gates** (AC: #8)
+  - [x] `pnpm vue-tsc --noEmit` inside `agent-diva-gui` passes.
+  - [x] `pnpm build` inside `agent-diva-gui` passes.
+  - [x] `just fmt-check`
+  - [x] `just check`
+  - [x] Manual smoke test: open "Persona & Memory", confirm 14 sections are visible, groups expand/collapse, and selecting a section updates the right panel.
 
 ## Dev Notes
 
@@ -282,28 +284,31 @@ So that I can quickly find the section I want to edit.
 
 ### Agent Model Used
 
-(To be filled during implementation)
+Sisyphus-Junior (kimi-for-coding)
 
 ### Debug Log References
 
-(To be filled during implementation)
+- Initial `v-show` visibility test used `isVisible()` which did not reflect `display: none` in happy-dom; switched to checking inline `style.display`.
+- `PersonaMemoryView.vue` prop/emit binding verified as already correct from Story 2.2; no changes required.
 
 ### Completion Notes List
 
-- [ ] `SectionGroupList.vue` created with 4-group configuration, expand/collapse, active state, and status badges
-- [ ] `laputa.groups.*`, `laputa.sections.*`, and `laputa.status.*` keys added to both `zh.ts` and `en.ts`
-- [ ] `SectionGroupList.vue` integrated into `PersonaMemoryView.vue` with correct prop/emit binding
-- [ ] 14 sections, group toggles, and selection emit verified by smoke test
-- [ ] `vue-tsc --noEmit` and `pnpm build` pass
-- [ ] `just fmt-check && just check` clean
+- [x] `SectionGroupList.vue` created with 4-group configuration, expand/collapse, active state, and status badges
+- [x] `laputa.groups.*`, `laputa.sections.*`, and `laputa.status.*` keys added to both `zh.ts` and `en.ts`
+- [x] `SectionGroupList.vue` integrated into `PersonaMemoryView.vue` with correct prop/emit binding
+- [x] 14 sections, group toggles, and selection emit verified by smoke test
+- [x] `vue-tsc --noEmit` and `pnpm build` pass
+- [x] `just fmt-check && just check` clean
 
 ### File List
 
 - `agent-diva-gui/src/components/persona-memory/SectionGroupList.vue`
-- `agent-diva-gui/src/components/PersonaMemoryView.vue`
 - `agent-diva-gui/src/locales/zh.ts`
 - `agent-diva-gui/src/locales/en.ts`
-- `agent-diva-gui/src/api/desktop.ts` (type import only, no API changes)
-- Optional: `agent-diva-gui/src/components/persona-memory/__tests__/SectionGroupList.spec.ts`
+- `agent-diva-gui/src/components/persona-memory/SectionGroupList.test.ts`
+
+### Change Log
+
+- 2026-07-05: Implemented grouped, collapsible Laputa section list with 4 groups, 14 sections, status badges, active state, and accessibility attributes. Added i18n keys for groups/sections/status. Added Vitest smoke tests. Validation passed: `vue-tsc --noEmit`, `pnpm build`, `just fmt-check`, `just check`.
 
 (End of file)

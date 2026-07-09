@@ -259,7 +259,10 @@ body"#;
         let parsed = MaskFile::parse(&serialized).expect("serialized mask should parse back");
         assert_eq!(parsed.frontmatter.name, original.frontmatter.name);
         assert_eq!(parsed.frontmatter.icon, original.frontmatter.icon);
-        assert_eq!(parsed.frontmatter.description, original.frontmatter.description);
+        assert_eq!(
+            parsed.frontmatter.description,
+            original.frontmatter.description
+        );
         assert_eq!(parsed.frontmatter.model, original.frontmatter.model);
         assert_eq!(parsed.body.trim(), original.body);
     }

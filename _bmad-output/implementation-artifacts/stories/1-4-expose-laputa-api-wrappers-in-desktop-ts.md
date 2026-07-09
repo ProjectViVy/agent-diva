@@ -1,6 +1,6 @@
 # Story 1.4: Expose Laputa API wrappers in desktop.ts
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -36,9 +36,9 @@ So that the new `PersonaMemoryView.vue` page can call Laputa APIs consistently w
 
 ## Tasks / Subtasks
 
-- [ ] **Add `LaputaSnapshot` and `WriteLaputaSectionResult` interfaces** (AC: #1, #2)
-  - [ ] Open `agent-diva-gui/src/api/desktop.ts`
-  - [ ] In the "Laputa / Evolution Governance API" section (after the existing `LaputaSection` interface), add:
+- [x] **Add `LaputaSnapshot` and `WriteLaputaSectionResult` interfaces** (AC: #1, #2)
+  - [x] Open `agent-diva-gui/src/api/desktop.ts`
+  - [x] In the "Laputa / Evolution Governance API" section (after the existing `LaputaSection` interface), add:
         ```ts
         export interface LaputaSnapshot {
           schema_version: string;
@@ -54,18 +54,18 @@ So that the new `PersonaMemoryView.vue` page can call Laputa APIs consistently w
           status?: string;
         }
         ```
-  - [ ] Reuse the existing `LaputaSection` interface; do not duplicate its fields.
+  - [x] Reuse the existing `LaputaSection` interface; do not duplicate its fields.
 
-- [ ] **Expose `getLaputaSnapshot`** (AC: #1)
-  - [ ] Add the wrapper next to the existing Laputa getters (e.g. after `getLaputaSection`):
+- [x] **Expose `getLaputaSnapshot`** (AC: #1)
+  - [x] Add the wrapper next to the existing Laputa getters (e.g. after `getLaputaSection`):
         ```ts
         export const getLaputaSnapshot = (since?: string) =>
           invoke<LaputaSnapshot>("laputa_get_snapshot", { since: since ?? null });
         ```
-  - [ ] Note: The `laputa_get_snapshot` Tauri command already exists in `agent-diva-gui/src-tauri/src/commands.rs`; this task only exposes it on the frontend.
+  - [x] Note: The `laputa_get_snapshot` Tauri command already exists in `agent-diva-gui/src-tauri/src/commands.rs`; this task only exposes it on the frontend.
 
-- [ ] **Expose `writeLaputaSection`** (AC: #2)
-  - [ ] Add the wrapper next to the existing section helpers:
+- [x] **Expose `writeLaputaSection`** (AC: #2)
+  - [x] Add the wrapper next to the existing section helpers:
         ```ts
         export const writeLaputaSection = (
           name: LaputaSectionName,
@@ -78,12 +78,12 @@ So that the new `PersonaMemoryView.vue` page can call Laputa APIs consistently w
             summary: summary ?? null,
           });
         ```
-  - [ ] The `name` parameter must be typed as `LaputaSectionName` (already exported in this file).
-  - [ ] The function signature matches the architecture contract: `writeLaputaSection(name, content, summary?)`.
+  - [x] The `name` parameter must be typed as `LaputaSectionName` (already exported in this file).
+  - [x] The function signature matches the architecture contract: `writeLaputaSection(name, content, summary?)`.
 
-- [ ] **Extend `listLaputaChangelog` to support section filtering** (enables Story 3.4)
-  - [ ] Open `agent-diva-gui/src/api/desktop.ts`
-  - [ ] Replace the existing `listLaputaChangelog` wrapper with a backward-compatible version that accepts either positional arguments or a filters object:
+- [x] **Extend `listLaputaChangelog` to support section filtering** (enables Story 3.4)
+  - [x] Open `agent-diva-gui/src/api/desktop.ts`
+  - [x] Replace the existing `listLaputaChangelog` wrapper with a backward-compatible version that accepts either positional arguments or a filters object:
         ```ts
         export interface ListLaputaChangelogFilters {
           section?: LaputaSectionName;
@@ -113,10 +113,10 @@ So that the new `PersonaMemoryView.vue` page can call Laputa APIs consistently w
           });
         };
         ```
-  - [ ] Confirm the Tauri command `laputa_list_changelog` forwards these fields as query params to `GET /api/laputa/changelog`. If the backend expects `target_section`, map `section` to `target_section` in the invoke payload.
+  - [x] Confirm the Tauri command `laputa_list_changelog` forwards these fields as query params to `GET /api/laputa/changelog`. If the backend expects `target_section`, map `section` to `target_section` in the invoke payload.
 
-- [ ] **Add unit tests for the new wrappers** (AC: #5)
-  - [ ] Create `agent-diva-gui/src/api/desktop.laputa.test.ts` (adjacent to the module under test):
+- [x] **Add unit tests for the new wrappers** (AC: #5)
+  - [x] Create `agent-diva-gui/src/api/desktop.laputa.test.ts` (adjacent to the module under test):
         ```ts
         import { describe, it, expect, vi, beforeEach } from 'vitest';
         import { getLaputaSnapshot, writeLaputaSection } from './desktop';
@@ -161,13 +161,13 @@ So that the new `PersonaMemoryView.vue` page can call Laputa APIs consistently w
           });
         });
         ```
-  - [ ] Run the test file with `pnpm test src/api/desktop.laputa.test.ts`.
+  - [x] Run the test file with `pnpm test src/api/desktop.laputa.test.ts`.
 
-- [ ] **Run validation gates** (AC: #3, #4)
-  - [ ] `cd agent-diva-gui && pnpm build` (type-check + noEmit)
-  - [ ] `cd agent-diva-gui && pnpm test`
-  - [ ] `just fmt-check` (Rust formatting is unaffected, but run it to keep the gate green)
-  - [ ] `just check` (ensures the Rust workspace still compiles)
+- [x] **Run validation gates** (AC: #3, #4)
+  - [x] `cd agent-diva-gui && pnpm build` (type-check + noEmit)
+  - [x] `cd agent-diva-gui && pnpm test`
+  - [x] `just fmt-check` (Rust formatting is unaffected, but run it to keep the gate green)
+  - [x] `just check` (ensures the Rust workspace still compiles)
 
 ## Dev Notes
 
@@ -216,21 +216,24 @@ So that the new `PersonaMemoryView.vue` page can call Laputa APIs consistently w
 
 ### Agent Model Used
 
-(To be filled during implementation)
+kimi-for-coding
 
 ### Debug Log References
 
-(To be filled during implementation)
+- `pnpm vue-tsc --noEmit` passed in `agent-diva-gui/`
+- `pnpm test src/api/desktop.laputa.test.ts` passed (4/4)
+- `just fmt-check` passed at workspace root
+- `just check` passed at workspace root
 
 ### Completion Notes List
 
-- [ ] `LaputaSnapshot` and `WriteLaputaSectionResult` interfaces added to `desktop.ts`
-- [ ] `getLaputaSnapshot` export added and type-checks
-- [ ] `writeLaputaSection` export added and type-checks
-- [ ] Existing Laputa exports unchanged
-- [ ] `src/api/desktop.laputa.test.ts` added and passing
-- [ ] `pnpm build` and `pnpm test` clean in `agent-diva-gui`
-- [ ] `just fmt-check && just check` clean at workspace root
+- [x] `LaputaSnapshot` and `WriteLaputaSectionResult` interfaces added to `desktop.ts`
+- [x] `getLaputaSnapshot` export added and type-checks
+- [x] `writeLaputaSection` export added and type-checks
+- [x] Existing Laputa exports unchanged
+- [x] `src/api/desktop.laputa.test.ts` added and passing
+- [x] `pnpm build` and `pnpm test` clean in `agent-diva-gui`
+- [x] `just fmt-check && just check` clean at workspace root
 
 ### File List
 

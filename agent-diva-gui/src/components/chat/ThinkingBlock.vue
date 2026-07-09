@@ -106,37 +106,16 @@ function onLeave(el: Element) {
 <style scoped>
 .thinking-card {
   margin: 8px 0;
-  border-radius: 12px;
-  border: 1px solid var(--color-border, #e5e7eb);
-  background: var(--color-bg-card, #ffffff);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.05),
-    0 1px 2px rgba(0, 0, 0, 0.03);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
   overflow: hidden;
   transition: box-shadow 0.2s ease;
 }
 
 .thinking-card:hover {
-  box-shadow:
-    0 4px 6px rgba(0, 0, 0, 0.05),
-    0 2px 4px rgba(0, 0, 0, 0.03);
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .thinking-card {
-    border-color: var(--color-border, #374151);
-    background: var(--color-bg-card, #1f2937);
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.2),
-      0 1px 2px rgba(0, 0, 0, 0.15);
-  }
-
-  .thinking-card:hover {
-    box-shadow:
-      0 4px 6px rgba(0, 0, 0, 0.25),
-      0 2px 4px rgba(0, 0, 0, 0.2);
-  }
+  box-shadow: 0 4px 16px var(--accent-glow);
 }
 
 .thinking-header {
@@ -146,22 +125,16 @@ function onLeave(el: Element) {
   padding: 10px 14px;
   cursor: pointer;
   user-select: none;
-  border-radius: 12px;
+  border-radius: var(--radius);
   transition: background-color 0.2s ease, border-radius 0.2s ease;
 }
 
 .thinking-header:hover {
-  background: var(--color-bg-hover, #f3f4f6);
+  background: var(--accent-bg-light);
 }
 
 .thinking-header-expanded {
-  border-radius: 12px 12px 0 0;
-}
-
-@media (prefers-color-scheme: dark) {
-  .thinking-header:hover {
-    background: var(--color-bg-hover, #374151);
-  }
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .thinking-header-left {
@@ -180,26 +153,20 @@ function onLeave(el: Element) {
 }
 
 .thinking-icon {
-  color: var(--color-accent, #8b5cf6);
+  color: var(--brand);
   flex-shrink: 0;
 }
 
 .thinking-label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-text-primary, #374151);
+  color: var(--text);
   white-space: nowrap;
-}
-
-@media (prefers-color-scheme: dark) {
-  .thinking-label {
-    color: var(--color-text-primary, #d1d5db);
-  }
 }
 
 .thinking-duration {
   font-size: 12px;
-  color: var(--color-text-muted, #9ca3af);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -209,10 +176,10 @@ function onLeave(el: Element) {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: none;
   background: transparent;
-  color: var(--color-text-muted, #9ca3af);
+  color: var(--text-muted);
   cursor: pointer;
   transition:
     background-color 0.15s ease,
@@ -221,8 +188,8 @@ function onLeave(el: Element) {
 }
 
 .thinking-copy-btn:hover {
-  background: var(--color-bg-hover, #e5e7eb);
-  color: var(--color-text-primary, #374151);
+  background: var(--accent-bg-light);
+  color: var(--text);
 }
 
 .thinking-copy-btn:active {
@@ -230,18 +197,11 @@ function onLeave(el: Element) {
 }
 
 .thinking-copy-success {
-  color: var(--color-success, #10b981);
-}
-
-@media (prefers-color-scheme: dark) {
-  .thinking-copy-btn:hover {
-    background: var(--color-bg-hover, #4b5563);
-    color: var(--color-text-primary, #d1d5db);
-  }
+  color: var(--success);
 }
 
 .thinking-chevron {
-  color: var(--color-text-muted, #9ca3af);
+  color: var(--text-muted);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
@@ -258,17 +218,10 @@ function onLeave(el: Element) {
 
 .thinking-content {
   padding: 12px 14px;
-  border-top: 1px solid var(--color-border, #e5e7eb);
-  background: var(--color-bg-secondary, #f9fafb);
+  border-top: 1px solid var(--line);
+  background: var(--panel-solid);
   max-height: 400px;
   overflow-y: auto;
-}
-
-@media (prefers-color-scheme: dark) {
-  .thinking-content {
-    border-top-color: var(--color-border, #374151);
-    background: var(--color-bg-secondary, #111827);
-  }
 }
 
 .thinking-pre {
@@ -277,7 +230,7 @@ function onLeave(el: Element) {
   word-break: break-word;
   font-size: 12px;
   line-height: 1.6;
-  color: var(--color-text-secondary, #4b5563);
+  color: var(--text-muted);
   font-family:
     'SF Mono',
     'Fira Code',
@@ -288,12 +241,6 @@ function onLeave(el: Element) {
     Menlo,
     Courier,
     monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  .thinking-pre {
-    color: var(--color-text-secondary, #9ca3af);
-  }
 }
 
 /* Vue transition classes */

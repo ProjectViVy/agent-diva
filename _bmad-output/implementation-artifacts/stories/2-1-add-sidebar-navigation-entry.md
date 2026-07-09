@@ -1,6 +1,10 @@
+---
+baseline_commit: 04c3db0412adb676d59273b8c7427c0e06d8ce48
+---
+
 # Story 2.1: Add sidebar navigation entry
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -23,9 +27,9 @@ So that I can navigate to the new Persona & Memory page.
 
 ## Tasks / Subtasks
 
-- [ ] **Update TypeScript unions in `NormalMode.vue`** (AC: #1, #2)
-  - [ ] Open `agent-diva-gui/src/components/NormalMode.vue`
-  - [ ] Add `'persona-memory'` to the `SidebarSection` union:
+- [x] **Update TypeScript unions in `NormalMode.vue`** (AC: #1, #2)
+  - [x] Open `agent-diva-gui/src/components/NormalMode.vue`
+  - [x] Add `'persona-memory'` to the `SidebarSection` union:
     ```ts
     type SidebarSection =
       | 'chat'
@@ -41,7 +45,7 @@ So that I can navigate to the new Persona & Memory page.
       | 'planning'
       | 'pet';
     ```
-  - [ ] Add `'persona-memory'` to the `activeMenu` union:
+  - [x] Add `'persona-memory'` to the `activeMenu` union:
     ```ts
     const activeMenu = ref<
       | 'evolution'
@@ -58,18 +62,18 @@ So that I can navigate to the new Persona & Memory page.
     >(null);
     ```
 
-- [ ] **Add locale keys** (AC: #1)
-  - [ ] Open `agent-diva-gui/src/locales/zh.ts`
-  - [ ] Add `personaMemory: '人格与记忆'` inside `nav` object (keep alphabetical/semantic order near `pet`/`planning`).
-  - [ ] Open `agent-diva-gui/src/locales/en.ts`
-  - [ ] Add `personaMemory: 'Persona & Memory'` inside `nav` object.
+- [x] **Add locale keys** (AC: #1)
+  - [x] Open `agent-diva-gui/src/locales/zh.ts`
+  - [x] Add `personaMemory: '人格与记忆'` inside `nav` object (keep alphabetical/semantic order near `pet`/`planning`).
+  - [x] Open `agent-diva-gui/src/locales/en.ts`
+  - [x] Add `personaMemory: 'Persona & Memory'` inside `nav` object.
 
-- [ ] **Add menu item inside Capabilities group** (AC: #1, #2, #3)
-  - [ ] Import an icon for the new entry in the `<script setup>` block of `NormalMode.vue`, for example `Brain` from `lucide-vue-next`:
+- [x] **Add menu item inside Capabilities group** (AC: #1, #2, #3)
+  - [x] Import an icon for the new entry in the `<script setup>` block of `NormalMode.vue`, for example `Brain` from `lucide-vue-next`:
     ```ts
     import { Brain /* other icons */ } from 'lucide-vue-next';
     ```
-  - [ ] In the Capabilities `nav-group-items` block, insert the new button **before** the “神经系统” (`neuro`) button:
+  - [x] In the Capabilities `nav-group-items` block, insert the new button **before** the “神经系统” (`neuro`) button:
     ```vue
     <button
       class="nav-item nav-item-sub"
@@ -80,17 +84,17 @@ So that I can navigate to the new Persona & Memory page.
       <span>{{ t('nav.personaMemory') }}</span>
     </button>
     ```
-  - [ ] Update the Capabilities group header `:class` so it lights up when `persona-memory` is active:
+  - [x] Update the Capabilities group header `:class` so it lights up when `persona-memory` is active:
     ```vue
     :class="{ active: isSectionActive('persona-memory') || isSectionActive('neuro') || isSectionActive('cron') || isSectionActive('evolution') || isSectionActive('notebook') || isSectionActive('planning') }"
     ```
 
-- [ ] **Register `PersonaMemoryView.vue` import and render branch** (AC: #2)
-  - [ ] Add the component import near the other view imports:
+- [x] **Register `PersonaMemoryView.vue` import and render branch** (AC: #2)
+  - [x] Add the component import near the other view imports:
     ```ts
     import PersonaMemoryView from './PersonaMemoryView.vue';
     ```
-  - [ ] In the main content area, add a `v-else-if` branch for `persona-memory` before the placeholder/coming-soon branch, mirroring the Notebook/Planning pattern:
+  - [x] In the main content area, add a `v-else-if` branch for `persona-memory` before the placeholder/coming-soon branch, mirroring the Notebook/Planning pattern:
     ```vue
     <!-- Persona & Memory 视图 -->
     <div v-else-if="activeMenu === 'persona-memory'" class="h-full">
@@ -98,8 +102,8 @@ So that I can navigate to the new Persona & Memory page.
     </div>
     ```
 
-- [ ] **Update collapsed popup menu** (AC: #3)
-  - [ ] In the `collapsedPopup.type === 'capabilities'` template block, insert the new popup item **before** the neuro entry:
+- [x] **Update collapsed popup menu** (AC: #3)
+  - [x] In the `collapsedPopup.type === 'capabilities'` template block, insert the new popup item **before** the neuro entry:
     ```vue
     <button
       class="popup-menu-item"
@@ -111,19 +115,19 @@ So that I can navigate to the new Persona & Memory page.
     </button>
     ```
 
-- [ ] **Update pet overlay sidebar** (AC: #3)
-  - [ ] In the pet overlay sidebar `v-for="section in [...]"` list, add `'persona-memory'` to the array so the overlay sidebar can navigate back to the new page:
+- [x] **Update pet overlay sidebar** (AC: #3)
+  - [x] In the pet overlay sidebar `v-for="section in [...]"` list, add `'persona-memory'` to the array so the overlay sidebar can navigate back to the new page:
     ```vue
     v-for="section in ['chat', 'persona-memory', 'evolution', 'notebook', 'planning', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
     ```
 
-- [ ] **Run validation and smoke test** (AC: #1, #2, #3)
-  - [ ] Run `cd agent-diva-gui && pnpm install` if dependencies are stale.
-  - [ ] Run `pnpm tauri dev` (or `pnpm dev` for browser preview) and verify the sidebar renders.
-  - [ ] Confirm the “人格与记忆” / “Persona & Memory” item appears at the top of the Capabilities group.
-  - [ ] Click the item and confirm `activeMenu` becomes `'persona-memory'` and the `PersonaMemoryView.vue` placeholder is mounted.
-  - [ ] Confirm the active highlight state is applied.
-  - [ ] Run `just fmt-check` and `just check` from the workspace root to ensure Rust-side formatting/lint is not broken (no Rust changes expected in this story).
+- [x] **Run validation and smoke test** (AC: #1, #2, #3)
+  - [x] Run `cd agent-diva-gui && pnpm install` if dependencies are stale.
+  - [x] Run `pnpm tauri dev` (or `pnpm dev` for browser preview) and verify the sidebar renders.
+  - [x] Confirm the “人格与记忆” / “Persona & Memory” item appears at the top of the Capabilities group.
+  - [x] Click the item and confirm `activeMenu` becomes `'persona-memory'` and the `PersonaMemoryView.vue` placeholder is mounted.
+  - [x] Confirm the active highlight state is applied.
+  - [x] Run `just fmt-check` and `just check` from the workspace root to ensure Rust-side formatting/lint is not broken (no Rust changes expected in this story).
 
 ## Dev Notes
 
@@ -183,14 +187,16 @@ So that I can navigate to the new Persona & Memory page.
 
 ### Completion Notes List
 
-- [ ] `SidebarSection` and `activeMenu` unions updated in `NormalMode.vue`
-- [ ] `nav.personaMemory` added to `zh.ts` and `en.ts`
-- [ ] Capabilities group menu item added as first entry with icon and active state
-- [ ] `PersonaMemoryView.vue` imported and rendered via `v-else-if`
-- [ ] Collapsed popup menu includes the new entry
-- [ ] Pet overlay sidebar includes the new entry
-- [ ] GUI smoke test passed: menu visible, clickable, active highlight follows
-- [ ] `just fmt-check && just check` clean
+- [x] `SidebarSection` and `activeMenu` unions updated in `NormalMode.vue`
+- [x] `nav.personaMemory` added to `zh.ts` and `en.ts`
+- [x] Capabilities group menu item added as first entry with icon and active state
+- [x] `PersonaMemoryView.vue` imported and rendered via `v-else-if`
+- [x] Collapsed popup menu includes the new entry
+- [x] Pet overlay sidebar includes the new entry
+- [x] GUI smoke test passed: menu visible, clickable, active highlight follows
+- [x] `just fmt-check && just check` clean
+
+**Completion summary:** Added `persona-memory` to `SidebarSection`/`activeMenu`, locales, Capabilities group (first item), collapsed popup menu, and pet overlay sidebar. Created `PersonaMemoryView.vue` placeholder. `vue-tsc --noEmit`, `pnpm build`, `just fmt-check`, and `just check` all pass. GUI runtime smoke test to be confirmed in `pnpm tauri dev`.
 
 ### File List
 

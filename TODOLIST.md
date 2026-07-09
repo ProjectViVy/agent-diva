@@ -4,6 +4,8 @@
 
 ## Open
 
+- [ ] **GUI: duplicate `mode` locale keys** Vite reports duplicate `mode` keys in `agent-diva-gui/src/locales/zh.ts` and `agent-diva-gui/src/locales/en.ts`; remove the duplicate definitions so locale builds are warning-free.
+
 - [ ] **Agent: repair stale `compaction_real_test` integration harness** Running `cargo test -p agent-diva-agent <test-name>` still compiles `agent-diva-agent/tests/compaction_real_test.rs`, which currently targets removed compaction APIs such as `ContextCompactor::new(...)`, `compact_session(...)`, and `CompactTrigger::ProactiveThreshold`. This is unrelated to the image multimodal change but blocks clean package-scoped targeted test commands.
   - Related files: `agent-diva-agent/tests/compaction_real_test.rs`, `agent-diva-agent/src/compaction/compaction_exec.rs`, `agent-diva-core/src/session/`
   - Suggested fix: update the integration test to the current compaction entrypoints/trigger variants or gate it behind an explicit ignored/manual path until it reflects the live API.

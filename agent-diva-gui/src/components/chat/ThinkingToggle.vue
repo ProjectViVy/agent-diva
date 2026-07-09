@@ -104,14 +104,14 @@ onBeforeUnmount(() => {
   border: none;
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
-  color: var(--color-text-muted, #6b7280);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
   transition: background 0.15s, color 0.15s;
 }
 
 .thinking-toggle-btn:hover:not(:disabled) {
-  background: var(--color-bg-hover, #f3f4f6);
-  color: var(--color-text, #1f2937);
+  background: var(--accent-bg-light);
+  color: var(--text);
 }
 
 .thinking-toggle-btn:disabled {
@@ -120,7 +120,8 @@ onBeforeUnmount(() => {
 }
 
 .thinking-toggle-btn.active {
-  background: var(--color-bg-hover, #f3f4f6);
+  background: var(--accent-bg-hover);
+  color: var(--accent);
 }
 
 .thinking-toggle-icon {
@@ -135,10 +136,10 @@ onBeforeUnmount(() => {
   left: 50%;
   transform: translateX(-50%);
   margin-top: 4px;
-  background: var(--color-bg-primary, #ffffff);
-  border: 1px solid var(--color-border, #e5e7eb);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   min-width: 140px;
   z-index: 100;
   padding: 4px;
@@ -154,19 +155,19 @@ onBeforeUnmount(() => {
   border: none;
   background: none;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  color: var(--color-text, #1f2937);
+  color: var(--text);
   transition: background 0.15s;
 }
 
 .thinking-toggle-option:hover {
-  background: var(--color-bg-hover, #f3f4f6);
+  background: var(--accent-bg-light);
 }
 
 .thinking-toggle-option.selected {
-  background: var(--color-bg-active, #eff6ff);
-  color: var(--color-primary, #3b82f6);
+  background: var(--accent-bg-hover);
+  color: var(--accent);
 }
 
 .thinking-toggle-option-icon {
@@ -182,7 +183,7 @@ onBeforeUnmount(() => {
 
 .thinking-toggle-check {
   font-size: 12px;
-  color: var(--color-primary, #3b82f6);
+  color: var(--accent);
 }
 
 .dropdown-enter-active,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { AuditEvent, AuditEventType } from './types';
-import { EVENT_LABELS, EVENT_ICONS } from './types';
+import { EVENT_LABELS, EVENT_ICONS, EVENT_ICON_FALLBACK } from './types';
 
 const { t } = useI18n();
 
@@ -25,7 +25,7 @@ function getEventLabel(type: AuditEventType): string {
 }
 
 function getEventIcon(type: AuditEventType): string {
-  return EVENT_ICONS[type] || '馃搵';
+  return EVENT_ICONS[type] || EVENT_ICON_FALLBACK;
 }
 
 function getEventDataPreview(data: Record<string, unknown>): string {
@@ -62,7 +62,7 @@ function getEventDataPreview(data: Record<string, unknown>): string {
       class="empty-state"
       role="status"
     >
-      <span class="empty-icon" aria-hidden="true">馃搵</span>
+      <span class="empty-icon" aria-hidden="true">{{ EVENT_ICON_FALLBACK }}</span>
       <p class="empty-title">{{ t('auditPage.structured.emptyTitle') }}</p>
       <p class="empty-hint">{{ t('auditPage.structured.emptyHint') }}</p>
     </div>

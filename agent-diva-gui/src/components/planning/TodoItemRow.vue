@@ -38,22 +38,22 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
         v-if="isInProgress"
         :size="14"
         class="animate-spin"
-        style="color: var(--warning, #ffa726)"
+        style="color: var(--warning)"
       />
       <Circle
         v-else-if="isPending"
         :size="14"
-        style="color: var(--text-muted, rgba(240, 230, 239, 0.4))"
+        style="color: var(--text-muted)"
       />
       <Lock
         v-else-if="isBlocked"
         :size="14"
-        style="color: var(--danger, #ef5350)"
+        style="color: var(--danger)"
       />
       <CheckCircle2
         v-else-if="isCompleted"
         :size="14"
-        style="color: var(--success, #66bb6a)"
+        style="color: var(--success)"
       />
     </div>
 
@@ -113,7 +113,7 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 }
 
 .todo-row:hover {
-  background: rgba(236, 64, 122, 0.06);
+  background: var(--accent-bg-light);
 }
 
 .todo-row--completed {
@@ -137,7 +137,7 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 .todo-title {
   flex: 1;
   font-size: 0.85rem;
-  color: var(--text, #f0e6ef);
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -145,7 +145,7 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 
 .todo-title--done {
   text-decoration: line-through;
-  color: var(--text-muted, rgba(240, 230, 239, 0.4));
+  color: var(--text-muted);
 }
 
 /* Priority badges */
@@ -160,20 +160,20 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 }
 
 .todo-priority-badge--high {
-  color: var(--accent, #ec407a);
-  background: rgba(236, 64, 122, 0.15);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .todo-priority-badge--low {
-  color: var(--text-muted, rgba(240, 230, 239, 0.5));
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--line) 10%, transparent);
 }
 
 /* Evidence link */
 .todo-evidence {
   display: flex;
   align-items: center;
-  color: var(--accent, #ec407a);
+  color: var(--accent);
   opacity: 0.7;
   transition: opacity 0.15s ease;
   flex-shrink: 0;
@@ -186,7 +186,7 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 /* Block reason */
 .todo-block-reason {
   font-size: 0.7rem;
-  color: var(--danger, #ef5350);
+  color: var(--danger);
   opacity: 0.8;
   overflow: hidden;
   text-overflow: ellipsis;
