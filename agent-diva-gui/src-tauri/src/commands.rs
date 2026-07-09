@@ -5204,3 +5204,166 @@ fn resolve_audit_log_path(date: &str) -> Result<std::path::PathBuf, String> {
     let log_path = log_dir.join(format!("gateway.log.{}", date));
     Ok(log_path)
 }
+
+#[cfg(test)]
+mod mask_tests {
+    use super::*;
+    use agent_diva_agent::mask::MaskFile;
+    use std::fs;
+    use std::sync::Mutex;
+    use tempfile::TempDir;
+
+    /// Global mutex to prevent parallel tests from clobbering `AGENT_DIVA_CONFIG_DIR`.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// RAII guard that removes the env var on drop.
+    struct EnvGuard(String);
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            std::env::remove_var(&self.0);
+        }
+    }
+
+    /// Test context that creates a temp directory with a minimal config and a
+    /// `masks/` directory containing a `coder.md` test mask.
+    struct TestContext {
+        _dir: TempDir,
+        _guard: EnvGuard,
+    }
+
+    fn setup() -> TestContext {
+        let dir = TempDir::new().expect("temp dir");
+        let workspace = dir.path().join("workspace");
+        fs::create_dir_all(&workspace).expect("create workspace");
+
+        let masks_dir = workspace.join("masks");
+        fs::create_dir_all(&masks_dir).expect("create masks dir");
+
+        // One user mask file so list_masks returns > 1 entry.
+        fs::write(
+            masks_dir.join("coder.md"),
+            "---\nname: \"coder\"\nicon: \"💻\"\ndescription: \"Coding mode\"\n---\n\nYou are a coder.\n",
+        )
+        .expect("write coder.md");
+
+        // Minimal config — Config::default() fills everything else.
+        let config = serde_json::json!({
+            "agents": {
+                "defaults": {
+                    "workspace": workspace.to_string_lossy()
+                }
+            }
+        });
+        fs::write(
+            dir.path().join("config.json"),
+            serde_json::to_string_pretty(&config).unwrap(),
+        )
+        .expect("write config.json");
+
+        std::env::set_var("AGENT_DIVA_CONFIG_DIR", dir.path());
+
+        TestContext {
+            _dir: dir,
+            _guard: EnvGuard("AGENT_DIVA_CONFIG_DIR".to_string()),
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tests
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_list_masks_default() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _ctx = setup();
+
+        let masks = list_masks().expect("list_masks should succeed");
+        assert!(
+            masks.iter().any(|m| m.name == MaskFile::DEFAULT_NAME),
+            "default mask should be in the list"
+        );
+        assert!(
+            masks.iter().any(|m| m.name == "coder"),
+            "coder mask should be in the list"
+        );
+    }
+
+    #[test]
+    fn test_get_active_mask_none() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _ctx = setup();
+
+        let active = get_active_mask().expect("get_active_mask should succeed");
+        assert!(active.is_none(), "active mask should be None initially");
+    }
+
+    #[test]
+    fn test_switch_mask() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _ctx = setup();
+
+        let switched = switch_mask("coder".to_string()).expect("switch to coder");
+        assert_eq!(switched.name, "coder");
+
+        let active = get_active_mask()
+            .expect("get_active_mask should succeed")
+            .expect("active mask should be Some after switch");
+        assert_eq!(active.name, "coder");
+    }
+
+    #[test]
+    fn test_create_mask() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _ctx = setup();
+
+        let payload = MaskPayload {
+            id: None,
+            name: "custom".to_string(),
+            icon: Some("🛠️".to_string()),
+            description: Some("Custom mask".to_string()),
+            mode: None,
+            model: None,
+            subagent_defaults: Default::default(),
+            tool_limits: Default::default(),
+            body: Some("You are a custom assistant.".to_string()),
+        };
+
+        let created = create_or_update_mask(payload).expect("create mask");
+        assert_eq!(created.name, "custom");
+
+        let masks = list_masks().expect("list_masks should succeed");
+        assert!(
+            masks.iter().any(|m| m.name == "custom"),
+            "new mask should appear in list"
+        );
+    }
+
+    #[test]
+    fn test_delete_mask() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _ctx = setup();
+
+        // Switch to the coder mask first.
+        switch_mask("coder".to_string()).expect("switch to coder");
+
+        // Verify it's active.
+        assert_eq!(
+            get_active_mask()
+                .expect("get_active_mask")
+                .expect("coder should be active")
+                .name,
+            "coder"
+        );
+
+        // Delete the coder mask.
+        delete_mask("coder".to_string()).expect("delete coder");
+
+        // Active mask should now be cleared (back to default).
+        let active = get_active_mask().expect("get_active_mask should succeed");
+        assert!(
+            active.is_none(),
+            "active mask should be None after deleting the active mask"
+        );
+    }
+}
