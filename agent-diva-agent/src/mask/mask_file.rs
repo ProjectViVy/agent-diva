@@ -109,6 +109,12 @@ impl MaskFile {
     }
 }
 
+impl std::fmt::Display for MaskFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.serialize())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,5 +278,23 @@ body"#;
     fn with_id_sets_id() {
         let mask = MaskFile::default_mask().with_id("custom-id".to_string());
         assert_eq!(mask.frontmatter.id, Some("custom-id".to_string()));
+    }
+
+    #[test]
+    fn serialize_preserves_id() {
+        let original = MaskFile::default_mask().with_id("my-id".to_string());
+        let serialized = original.serialize();
+        assert!(
+            serialized.contains("id: my-id"),
+            "serialized frontmatter should contain explicit id: {serialized}"
+        );
+        let parsed = MaskFile::parse(&serialized).expect("serialized mask should parse back");
+        assert_eq!(parsed.frontmatter.id, Some("my-id".to_string()));
+    }
+
+    #[test]
+    fn to_string_matches_serialize() {
+        let mask = MaskFile::default_mask().with_id("x".to_string());
+        assert_eq!(mask.to_string(), mask.serialize());
     }
 }

@@ -16,8 +16,12 @@ import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
 import CompactionSettings from './settings/CompactionSettings.vue'
 import AuditPage from './settings/audit/AuditPage.vue';
+import MaskSelectorPanel from './MaskSelectorPanel.vue';
+import MaskEditor from './MaskEditor.vue';
+import { useMasks } from '../composables/useMasks';
 import { useI18n } from 'vue-i18n';
 import type { ToolsConfigShape } from '../types/toolsConfig';
+import type { MaskEntryDto, MaskPayload } from '../api/desktop';
 
 const { t } = useI18n();
 
@@ -71,7 +75,8 @@ type SettingsSubview =
   | 'self-evolution'
   | 'sandbox'
   | 'compaction'
-  | 'audit';
+  | 'audit'
+  | 'masks';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -112,7 +117,8 @@ const pageTitle = computed(() => {
     'self-evolution': t('dashboard.selfEvolution'),
     sandbox: t('dashboard.sandbox'),
     compaction: t('dashboard.compaction'),
-    audit: t('dashboard.audit')
+    audit: t('dashboard.audit'),
+    masks: '🎭 Masks'
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -125,6 +131,35 @@ const goBack = () => {
   currentView.value = 'dashboard';
 };
 
+// ---------------------------------------------------------------------------
+// Mask editor state
+// ---------------------------------------------------------------------------
+
+const showMaskEditor = ref(false);
+const editingMaskData = ref<MaskEntryDto | null>(null);
+const { create: createOrUpdateMask } = useMasks();
+
+function handleEditMask(mask: MaskEntryDto) {
+  editingMaskData.value = mask;
+  showMaskEditor.value = true;
+}
+
+function handleCreateMask() {
+  editingMaskData.value = null;
+  showMaskEditor.value = true;
+}
+
+async function handleSaveMask(payload: MaskPayload) {
+  await createOrUpdateMask(payload);
+  showMaskEditor.value = false;
+  editingMaskData.value = null;
+}
+
+function closeMaskEditor() {
+  showMaskEditor.value = false;
+  editingMaskData.value = null;
+}
+
 watch(
   () => props.initialView,
   (newView) => {
@@ -136,28 +171,25 @@ watch(
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col bg-white rounded-xl overflow-hidden min-w-[320px]">
-    <!-- Top Bar -->
-    <div class="p-6 border-b border-gray-100 flex justify-between items-center h-20">
-      <div class="flex items-center space-x-2">
+  <div class="settings-shell">
+    <div class="settings-subheader">
+      <div class="settings-subheader-inner">
         <button 
           v-if="currentView !== 'dashboard'"
           @click="goBack"
-          class="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
+          class="settings-back-btn"
         >
           <ChevronLeft :size="24" />
         </button>
-        <h2 class="text-xl font-bold text-gray-800 flex items-center animate-in fade-in slide-in-from-left-2 duration-200" :key="pageTitle">
-          <span v-if="currentView === 'dashboard'" class="mr-2">⚙️</span>
+        <h2 class="settings-page-title animate-in fade-in slide-in-from-left-2 duration-200" :key="pageTitle">
           {{ pageTitle }}
         </h2>
       </div>
     </div>
     
-    <!-- Content Area -->
-    <div class="flex-1 min-h-0 overflow-hidden relative bg-gray-50/30">
+    <div class="settings-body">
        <Transition name="page" mode="out-in">
-          <div :key="currentView" class="h-full min-h-0 w-full overflow-y-auto">
+          <div :key="currentView" class="settings-view-panel">
             <SettingsDashboard 
               v-if="currentView === 'dashboard'"
               @navigate="handleNavigate"
@@ -231,13 +263,96 @@ watch(
             <div v-else-if="currentView === 'audit'" class="h-full min-h-0 overflow-y-auto">
               <AuditPage />
             </div>
+            <div v-else-if="currentView === 'masks'" class="h-full min-h-0 overflow-y-auto p-6">
+              <MaskSelectorPanel
+                mode="manager"
+                @edit="handleEditMask"
+                @create="handleCreateMask"
+              />
+            </div>
           </div>
        </Transition>
     </div>
+
+    <!-- MaskEditor modal overlay -->
+    <Teleport to="body">
+      <div
+        v-if="showMaskEditor"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="closeMaskEditor"
+      >
+        <MaskEditor
+          :mask="editingMaskData ?? undefined"
+          @save="handleSaveMask"
+          @cancel="closeMaskEditor"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
+.settings-shell {
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  min-height: 0;
+  height: 100%;
+}
+
+.settings-subheader {
+  padding: 12px 24px 6px;
+  background: transparent;
+}
+
+.settings-subheader-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+}
+
+.settings-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.settings-back-btn:hover {
+  background: var(--nav-hover);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.settings-page-title {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.settings-view-panel {
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+}
+
 .page-enter-active,
 .page-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;

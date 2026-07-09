@@ -15,6 +15,7 @@ use agent_diva_cli::cli_runtime::{
     current_provider_name, default_model_from_registry, doctor_report, ensure_workspace_templates,
     fetch_provider_models, print_json, redacted_config_value, set_provider_credentials, CliRuntime,
 };
+use agent_diva_cli::commands::mask::MaskCommands;
 use agent_diva_cli::commands::todo::TodoCommands;
 use agent_diva_cli::commands::workspace::WorkspaceCommands;
 use agent_diva_cli::provider_commands::{
@@ -175,7 +176,7 @@ enum Commands {
         #[command(subcommand)]
         command: CronCommands,
     },
-    /// Manage workspaces
+    /// Manage named workspaces under config-dir/workspaces; --workspace can still target any path
     Workspace {
         #[command(subcommand)]
         command: WorkspaceCommands,
@@ -184,6 +185,11 @@ enum Commands {
     Todo {
         #[command(subcommand)]
         command: TodoCommands,
+    },
+    /// Manage masks
+    Mask {
+        #[command(subcommand)]
+        command: MaskCommands,
     },
 }
 
@@ -588,6 +594,12 @@ async fn main() -> Result<()> {
             let data_root = workspace.join("todos");
             agent_diva_cli::commands::todo::run(command, &data_root).await?;
         }
+        Commands::Mask { command } => {
+            if !structured_output {
+                info!("Processing mask command");
+            }
+            agent_diva_cli::commands::mask::run(command, &runtime).await?;
+        }
     }
 
     Ok(())
@@ -873,6 +885,7 @@ struct TuiApp {
     scroll: u16,
     assistant_line: Option<usize>,
     session_key: String,
+    session_title: String,
     model: String,
 }
 
@@ -893,6 +906,7 @@ impl TuiApp {
             scroll: 0,
             assistant_line: None,
             session_key,
+            session_title: "(untitled)".to_string(),
             model,
         }
     }
@@ -1016,6 +1030,7 @@ async fn run_tui(
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
+        run_store: None,
         soul_context: SoulContextSettings {
             enabled: config.agents.soul.enabled,
             max_chars: config.agents.soul.max_chars,
@@ -1089,8 +1104,8 @@ async fn run_tui(
 
             let status = if app.pending { "processing" } else { "idle" };
             let status_line = format!(
-                "model: {} | session: {} | status: {}",
-                app.model, app.session_key, status
+                "model: {} | title: {} | session: {} | status: {}",
+                app.model, app.session_title, app.session_key, status
             );
             frame.render_widget(
                 Paragraph::new(status_line).block(
@@ -1169,6 +1184,7 @@ async fn run_tui(
                         } else if content == "/new" {
                             app.session_key =
                                 format!("cli:tui:{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+                            app.session_title = "(untitled)".to_string();
                             app.assistant_line = None;
                             app.add_line(
                                 TimelineKind::System,
@@ -1855,8 +1871,8 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
 
             let status = if app.pending { "processing" } else { "idle" };
             let status_line = format!(
-                "model: {} | session: {} | status: {}",
-                app.model, app.session_key, status
+                "model: {} | title: {} | session: {} | status: {}",
+                app.model, app.session_title, app.session_key, status
             );
             frame.render_widget(
                 Paragraph::new(status_line).block(
@@ -1935,6 +1951,7 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
                         } else if content == "/new" {
                             app.session_key =
                                 format!("cli:tui:{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+                            app.session_title = "(untitled)".to_string();
                             app.assistant_line = None;
                             app.add_line(
                                 TimelineKind::System,

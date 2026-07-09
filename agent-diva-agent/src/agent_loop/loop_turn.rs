@@ -193,8 +193,13 @@ impl AgentLoop {
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
         trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
 
-        // Use the agent's active model selection for this turn.
-        let model_to_use = self.model.clone();
+        // Load the active mask first so it can influence model selection and
+        // subagent defaults for this turn.
+        let active_mask = self.load_active_mask();
+        let model_to_use = self.effective_model_for_turn(active_mask.as_ref());
+        self.subagent_manager
+            .set_current_mask(active_mask.as_ref().map(|m| m.frontmatter.clone()))
+            .await;
 
         let preview = if msg.content.chars().count() > 80 {
             format!("{}...", msg.content.chars().take(80).collect::<String>())
@@ -208,7 +213,6 @@ impl AgentLoop {
 
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
         let plan_mode = is_plan_mode(&msg);
-        let active_mask = self.load_active_mask();
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         let background_task_context = BackgroundTaskContext {
             channel: Some(msg.channel.clone()),
