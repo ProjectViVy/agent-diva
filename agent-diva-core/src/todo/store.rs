@@ -2,6 +2,7 @@
 
 use super::types::{TodoItem, TodoStatus};
 use chrono::{Datelike, Duration, Utc};
+use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -9,6 +10,7 @@ use std::path::{Path, PathBuf};
 /// Append-only JSONL store for todo items
 pub struct JsonlTodoStore {
     path: PathBuf,
+    lock_path: PathBuf,
 }
 
 impl JsonlTodoStore {
@@ -18,14 +20,20 @@ impl JsonlTodoStore {
     pub fn new(data_root: &Path) -> std::io::Result<Self> {
         std::fs::create_dir_all(data_root)?;
         let path = data_root.join("todos.jsonl");
+        let lock_path = data_root.join("todos.lock");
         // Ensure the file exists
         OpenOptions::new().create(true).append(true).open(&path)?;
-        Ok(Self { path })
+        OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&lock_path)?;
+        Ok(Self { path, lock_path })
     }
 
     /// Append a new todo item to the store.
     /// Returns the item as stored (unchanged).
     pub async fn create(&self, item: TodoItem) -> std::io::Result<TodoItem> {
+        let _lock = self.exclusive_lock()?;
         let mut line = serde_json::to_string(&item)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         line.push('\n');
@@ -39,13 +47,15 @@ impl JsonlTodoStore {
     /// Get a todo item by id.
     /// Returns None if not found.
     pub async fn get(&self, id: &str) -> std::io::Result<Option<TodoItem>> {
-        let items = self.read_all()?;
+        let _lock = self.shared_lock()?;
+        let items = self.read_all_unlocked()?;
         Ok(items.into_iter().find(|item| item.id == id))
     }
 
     /// List all todo items.
     pub async fn list(&self) -> std::io::Result<Vec<TodoItem>> {
-        self.read_all()
+        let _lock = self.shared_lock()?;
+        self.read_all_unlocked()
     }
 
     /// Update the status of a todo item by id.
@@ -57,7 +67,8 @@ impl JsonlTodoStore {
         id: &str,
         new_status: TodoStatus,
     ) -> std::io::Result<Option<TodoItem>> {
-        let mut items = self.read_all()?;
+        let _lock = self.exclusive_lock()?;
+        let mut items = self.read_all_unlocked()?;
         let Some(item) = items.iter_mut().find(|i| i.id == id) else {
             return Ok(None);
         };
@@ -71,14 +82,15 @@ impl JsonlTodoStore {
         item.status = new_status;
         item.updated_at = Utc::now();
         let updated = item.clone();
-        self.rewrite_all(&items)?;
+        self.rewrite_all_unlocked(&items)?;
         Ok(Some(updated))
     }
 
     /// Archive completed todos whose `updated_at` is older than `days_old` days.
     /// Returns the number of items archived.
     pub async fn archive_completed(&self, days_old: u64) -> std::io::Result<usize> {
-        let items = self.read_all()?;
+        let _lock = self.exclusive_lock()?;
+        let items = self.read_all_unlocked()?;
         let cutoff = Utc::now() - Duration::days(days_old as i64);
 
         let (to_archive, to_keep): (Vec<TodoItem>, Vec<TodoItem>) = items
@@ -105,7 +117,7 @@ impl JsonlTodoStore {
         archive_file.flush()?;
 
         // Rewrite main file without archived items
-        self.rewrite_all(&to_keep)?;
+        self.rewrite_all_unlocked(&to_keep)?;
 
         Ok(to_archive.len())
     }
@@ -153,8 +165,31 @@ impl JsonlTodoStore {
 
     // -- private helpers --
 
+    fn lock_file(&self) -> std::io::Result<File> {
+        OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&self.lock_path)
+    }
+
+    fn shared_lock(&self) -> std::io::Result<TodoStoreLock> {
+        let file = self.lock_file()?;
+        fs2::FileExt::lock_shared(&file)?;
+        Ok(TodoStoreLock { file })
+    }
+
+    fn exclusive_lock(&self) -> std::io::Result<TodoStoreLock> {
+        let file = self.lock_file()?;
+        fs2::FileExt::lock_exclusive(&file)?;
+        Ok(TodoStoreLock { file })
+    }
+
     /// Read all items from the JSONL file, skipping malformed lines.
-    fn read_all(&self) -> std::io::Result<Vec<TodoItem>> {
+    ///
+    /// The caller must hold either a shared or exclusive todo store lock.
+    fn read_all_unlocked(&self) -> std::io::Result<Vec<TodoItem>> {
         let file = std::fs::File::open(&self.path)?;
         let reader = std::io::BufReader::new(file);
         let mut items = Vec::new();
@@ -173,11 +208,15 @@ impl JsonlTodoStore {
     }
 
     /// Rewrite the entire JSONL file with the given items.
-    fn rewrite_all(&self, items: &[TodoItem]) -> std::io::Result<()> {
+    ///
+    /// The caller must hold the exclusive todo store lock.
+    fn rewrite_all_unlocked(&self, items: &[TodoItem]) -> std::io::Result<()> {
+        let temp_path = self.path.with_extension("jsonl.tmp");
         let mut file = OpenOptions::new()
+            .create(true)
             .write(true)
             .truncate(true)
-            .open(&self.path)?;
+            .open(&temp_path)?;
         for item in items {
             let mut line = serde_json::to_string(item)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
@@ -185,8 +224,33 @@ impl JsonlTodoStore {
             file.write_all(line.as_bytes())?;
         }
         file.flush()?;
+        file.sync_all()?;
+        drop(file);
+
+        replace_file(&temp_path, &self.path)?;
         Ok(())
     }
+}
+
+struct TodoStoreLock {
+    file: File,
+}
+
+impl Drop for TodoStoreLock {
+    fn drop(&mut self) {
+        let _ = fs2::FileExt::unlock(&self.file);
+    }
+}
+
+fn replace_file(temp_path: &Path, target_path: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        if target_path.exists() {
+            std::fs::remove_file(target_path)?;
+        }
+    }
+
+    std::fs::rename(temp_path, target_path)
 }
 
 #[cfg(test)]
@@ -400,6 +464,85 @@ mod tests {
         // Main file should still have the item
         let remaining = store.list().await.expect("list");
         assert_eq!(remaining.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_create_and_update_do_not_drop_items() {
+        let dir = TempDir::new().expect("tempdir");
+        let store = std::sync::Arc::new(JsonlTodoStore::new(dir.path()).expect("store"));
+        let created = store
+            .create(sample_item("Update target", "user"))
+            .await
+            .expect("create target");
+
+        let update_store = store.clone();
+        let update_id = created.id.clone();
+        let update = tokio::spawn(async move {
+            update_store
+                .update_status(&update_id, TodoStatus::Active)
+                .await
+                .expect("update target")
+        });
+
+        let creates = (0..50).map(|idx| {
+            let store = store.clone();
+            tokio::spawn(async move {
+                store
+                    .create(sample_item(&format!("Concurrent {idx}"), "agent"))
+                    .await
+                    .expect("create concurrent")
+            })
+        });
+
+        let updated = update.await.expect("join update").expect("updated item");
+        assert_eq!(updated.status, TodoStatus::Active);
+        for create in creates {
+            create.await.expect("join create");
+        }
+
+        let items = store.list().await.expect("list");
+        assert_eq!(items.len(), 51);
+        assert!(items
+            .iter()
+            .any(|item| item.id == created.id && item.status == TodoStatus::Active));
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_create_and_archive_do_not_drop_items() {
+        let dir = TempDir::new().expect("tempdir");
+        let store = std::sync::Arc::new(JsonlTodoStore::new(dir.path()).expect("store"));
+        let mut old_item = sample_item("Old done task", "user");
+        old_item.status = TodoStatus::Completed;
+        old_item.updated_at = Utc::now() - Duration::days(60);
+        store.create(old_item.clone()).await.expect("create old");
+
+        let archive_store = store.clone();
+        let archive = tokio::spawn(async move {
+            archive_store
+                .archive_completed(30)
+                .await
+                .expect("archive completed")
+        });
+
+        let creates = (0..50).map(|idx| {
+            let store = store.clone();
+            tokio::spawn(async move {
+                store
+                    .create(sample_item(&format!("Archive concurrent {idx}"), "agent"))
+                    .await
+                    .expect("create concurrent")
+            })
+        });
+
+        let archived = archive.await.expect("join archive");
+        assert_eq!(archived, 1);
+        for create in creates {
+            create.await.expect("join create");
+        }
+
+        let remaining = store.list().await.expect("list");
+        assert_eq!(remaining.len(), 50);
+        assert!(!remaining.iter().any(|item| item.id == old_item.id));
     }
 
     #[tokio::test]

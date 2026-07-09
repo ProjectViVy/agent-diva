@@ -1,8 +1,10 @@
 use super::*;
 use crate::{run_server, AppState, Manager};
+use agent_diva_agent::subagent_run_handler::SubagentRunHandler;
 use agent_diva_channels::neuro_link::OLV_AVATAR_CHAT_ID;
 use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::{AgentEvent, OutboundMessage};
+use agent_diva_core::supervised::{RunKind, TaskExecutor};
 
 pub(super) async fn start_runtime_tasks(
     bootstrap: GatewayBootstrap,
@@ -54,6 +56,7 @@ async fn start_runtime_tasks_inner(
         provider_api_base,
         agent,
         file_manager,
+        run_store,
     } = bootstrap;
     let ChannelBootstrap {
         channel_manager,
@@ -95,6 +98,12 @@ async fn start_runtime_tasks_inner(
 
     let outbound_dispatch_handle = spawn_outbound_dispatch(bus.clone());
     let channel_handle = spawn_channel_runtime(channel_manager.clone());
+    let supervised_executor_cancel = tokio_util::sync::CancellationToken::new();
+    let supervised_executor_handle = spawn_supervised_executor(
+        run_store,
+        agent.subagent_manager(),
+        supervised_executor_cancel.clone(),
+    );
     let agent_handle = spawn_agent_runtime(agent);
     let manager_handle = spawn_manager_runtime(manager);
     let app_state = AppState::new(api_tx, bus.clone(), workspace)
@@ -118,6 +127,8 @@ async fn start_runtime_tasks_inner(
         outbound_dispatch_handle,
         channel_handle,
         agent_handle,
+        supervised_executor_cancel,
+        supervised_executor_handle,
         manager_handle,
         server_handle,
         _api_tx_keepalive: api_tx_keepalive,
@@ -214,6 +225,21 @@ fn spawn_agent_runtime(agent: AgentLoop) -> JoinHandle<()> {
         if let Err(e) = agent.run().await {
             tracing::error!("Agent loop error: {}", e);
         }
+    })
+}
+
+fn spawn_supervised_executor(
+    run_store: Arc<RunStore>,
+    subagent_manager: Arc<agent_diva_agent::subagent::SubagentManager>,
+    cancel: tokio_util::sync::CancellationToken,
+) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut executor = TaskExecutor::new((*run_store).clone(), "manager-subagent-worker");
+        executor.register_handler(
+            RunKind::Subagent,
+            Arc::new(SubagentRunHandler::new(subagent_manager)),
+        );
+        executor.run(cancel).await;
     })
 }
 

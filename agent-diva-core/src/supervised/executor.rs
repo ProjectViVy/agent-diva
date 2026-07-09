@@ -201,7 +201,8 @@ impl TaskExecutor {
             }
             ExecutionOutcome::TimedOut => {
                 warn!(run_id = %run_id, "run timed out during execution");
-                self.fail_if_running(&run_id, RunExecutionError::Timeout).await;
+                self.fail_if_running(&run_id, RunExecutionError::Timeout)
+                    .await;
             }
             ExecutionOutcome::ExecutorShutdown => {
                 warn!(run_id = %run_id, "executor shutdown interrupted run");

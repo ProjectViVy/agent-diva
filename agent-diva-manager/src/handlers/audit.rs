@@ -116,7 +116,12 @@ fn read_lines_from_file(path: &PathBuf, max_lines: u64) -> Result<Vec<String>, S
 fn is_audit_line(line: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(line)
         .ok()
-        .and_then(|value| value.get("target").and_then(|target| target.as_str()).map(str::to_string))
+        .and_then(|value| {
+            value
+                .get("target")
+                .and_then(|target| target.as_str())
+                .map(str::to_string)
+        })
         .map(|target| target == "audit")
         .unwrap_or(false)
 }

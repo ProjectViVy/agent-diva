@@ -55,6 +55,20 @@ pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_complet
     tasks.agent_handle.abort();
     let _ = tasks.agent_handle.await;
 
+    tasks.supervised_executor_cancel.cancel();
+    let mut supervised_executor_handle = tasks.supervised_executor_handle;
+    if tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        &mut supervised_executor_handle,
+    )
+    .await
+    .is_err()
+    {
+        tracing::warn!("Supervised executor did not stop within timeout");
+        supervised_executor_handle.abort();
+        let _ = supervised_executor_handle.await;
+    }
+
     tasks.channel_handle.abort();
     let _ = tasks.channel_handle.await;
 

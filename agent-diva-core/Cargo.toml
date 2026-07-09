@@ -50,6 +50,7 @@ agent-diva-files = { workspace = true }
 
 # Database
 sqlx = { workspace = true }
+fs2 = "0.4.3"
 
 
 [dependencies.memtle]

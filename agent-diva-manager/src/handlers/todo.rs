@@ -10,7 +10,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use agent_diva_core::todo::{JsonlTodoStore, TodoItem, TodoStatus};
+use agent_diva_core::todo::{JsonlTodoStore, TodoItem, TodoStatus, TodoStatusFilter};
 
 use crate::state::AppState;
 
@@ -44,10 +44,7 @@ impl From<TodoItem> for TodoResponse {
         Self {
             id: item.id,
             title: item.title,
-            status: serde_json::to_string(&item.status)
-                .unwrap_or_default()
-                .trim_matches('"')
-                .to_string(),
+            status: item.status.as_str().to_string(),
             source: item.source,
             created_at: item.created_at.to_rfc3339(),
             updated_at: item.updated_at.to_rfc3339(),
@@ -70,16 +67,6 @@ fn todo_store(state: &AppState) -> JsonlTodoStore {
     JsonlTodoStore::new(&data_root).expect("todo store creation")
 }
 
-/// Parse a status filter string into a predicate.
-fn matches_status_filter(item: &TodoItem, filter: &str) -> bool {
-    match filter {
-        "open" => matches!(item.status, TodoStatus::Pending | TodoStatus::Active),
-        "done" => matches!(item.status, TodoStatus::Completed),
-        "cancelled" => matches!(item.status, TodoStatus::Cancelled),
-        _ => true,
-    }
-}
-
 // ── Handlers ──────────────────────────────────────────────────────────
 
 /// GET /api/todos
@@ -88,33 +75,56 @@ fn matches_status_filter(item: &TodoItem, filter: &str) -> bool {
 pub async fn query_todos_handler(
     State(state): State<AppState>,
     Query(params): Query<TodoQuery>,
-) -> Json<serde_json::Value> {
+) -> (StatusCode, Json<serde_json::Value>) {
     let store = todo_store(&state);
+
+    let filter = match params.status.as_deref().map(TodoStatusFilter::parse) {
+        Some(Some(filter)) => Some(filter),
+        Some(None) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "status": "error",
+                    "message": format!(
+                        "invalid status filter: {}",
+                        params.status.as_deref().unwrap_or_default()
+                    ),
+                })),
+            );
+        }
+        None => None,
+    };
 
     let items = match store.list().await {
         Ok(items) => items,
         Err(e) => {
-            return Json(serde_json::json!({
-                "status": "error",
-                "message": e.to_string(),
-            }));
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "status": "error",
+                    "message": e.to_string(),
+                })),
+            );
         }
     };
 
-    let filtered: Vec<TodoResponse> = if let Some(filter) = params.status.as_deref() {
+    let filtered: Vec<TodoResponse> = if let Some(filter) = filter {
         items
             .into_iter()
-            .filter(|item| matches_status_filter(item, filter))
+            .filter(|item| filter.matches(item.status))
             .map(TodoResponse::from)
             .collect()
     } else {
         items.into_iter().map(TodoResponse::from).collect()
     };
 
-    Json(serde_json::json!({
-        "status": "ok",
-        "todos": filtered,
-    }))
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "ok",
+            "todos": filtered,
+        })),
+    )
 }
 
 /// POST /api/todos
@@ -158,11 +168,8 @@ pub async fn update_todo_handler(
 ) -> (StatusCode, Json<serde_json::Value>) {
     let store = todo_store(&state);
 
-    let new_status = match payload.status.as_str() {
-        "pending" => TodoStatus::Pending,
-        "active" => TodoStatus::Active,
-        "completed" | "done" => TodoStatus::Completed,
-        "cancelled" => TodoStatus::Cancelled,
+    let new_status = match TodoStatus::parse_update(&payload.status) {
+        Some(status) => status,
         _ => {
             return (
                 StatusCode::BAD_REQUEST,
@@ -352,6 +359,31 @@ mod tests {
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
         let todos = value["todos"].as_array().unwrap();
         assert_eq!(todos.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn invalid_status_filter_returns_400() {
+        let temp = tempfile::tempdir().unwrap();
+        let app = test_app_with_dir(temp.path());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/todos?status=garbage")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "error");
+        assert!(value["message"]
+            .as_str()
+            .unwrap()
+            .contains("invalid status filter"));
     }
 
     #[tokio::test]

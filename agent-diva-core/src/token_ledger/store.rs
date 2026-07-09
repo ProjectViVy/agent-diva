@@ -1,7 +1,7 @@
 //! JSONL append-only store for token usage ledger entries
 
-use chrono::{DateTime, Utc};
 use crate::session::TokenUsage;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::{BufRead, Write};
