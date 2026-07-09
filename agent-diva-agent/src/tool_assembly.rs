@@ -11,8 +11,9 @@ use agent_diva_files::FileManager;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::planning::{PlanCreateTool, TodoShowTool, TodoWriteTool};
 use agent_diva_tools::{
-    load_mcp_tools_sync, CronTool, EditFileTool, EnqueueBackgroundTaskTool, ExecTool, ListDirTool,
-    ReadAttachmentTool, ReadFileTool, SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
+    load_mcp_tools_sync, BackgroundTaskContext, CronTool, EditFileTool, EnqueueBackgroundTaskTool,
+    ExecTool, ListDirTool, ReadAttachmentTool, ReadFileTool, SpawnTool, WebFetchTool,
+    WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -42,6 +43,7 @@ pub struct ToolAssembly {
     subagent_spawner: Option<Arc<dyn SubagentSpawner>>,
     file_manager: Option<Arc<FileManager>>,
     run_store: Option<Arc<RunStore>>,
+    background_task_context: BackgroundTaskContext,
     mask_config: Option<MaskConfig>,
     planning_config: Option<PlanningConfig>,
     plan_mode: bool,
@@ -62,6 +64,7 @@ impl ToolAssembly {
             subagent_spawner: None,
             file_manager: None,
             run_store: None,
+            background_task_context: BackgroundTaskContext::default(),
             mask_config: None,
             planning_config: None,
             plan_mode: false,
@@ -118,6 +121,11 @@ impl ToolAssembly {
         self
     }
 
+    pub fn with_background_task_context(mut self, context: BackgroundTaskContext) -> Self {
+        self.background_task_context = context;
+        self
+    }
+
     pub fn with_tool(mut self, tool: Arc<dyn Tool>) -> Self {
         self.custom_tools.push(tool);
         self
@@ -153,6 +161,7 @@ impl ToolAssembly {
         self.cron_service = None;
         self.file_manager = None;
         self.run_store = None;
+        self.background_task_context = BackgroundTaskContext::default();
         self.custom_tools.clear();
         self.build_internal(true)
     }
@@ -255,8 +264,9 @@ impl ToolAssembly {
 
         if self.builtin_config.enqueue_background_task && !subagent_mode && !action_restricted {
             if let Some(run_store) = self.run_store {
-                registry.register(Arc::new(EnqueueBackgroundTaskTool::new(
+                registry.register(Arc::new(EnqueueBackgroundTaskTool::with_context(
                     (*run_store).clone(),
+                    self.background_task_context,
                 )));
             }
         }
@@ -286,6 +296,21 @@ impl ToolAssembly {
             for tool_name in registry.tool_names() {
                 if !ToolPolicy::is_read_only_tool(&tool_name) {
                     registry.unregister(&tool_name);
+                }
+            }
+        }
+
+        // Apply mask-level tool_limits (allow/deny) regardless of mode.
+        // This is intentionally done after the Assist-mode read-only filter so
+        // explicit allow/deny lists act as an additional guard.
+        if let Some(mask_cfg) = &self.mask_config {
+            let tool_names: Vec<String> = registry.tool_names();
+            let effective = ToolPolicy::resolve(&tool_names, &mask_cfg.tool_limits);
+            let effective_set: std::collections::BTreeSet<&str> =
+                effective.iter().map(|s| s.as_str()).collect();
+            for name in &tool_names {
+                if !effective_set.contains(name.as_str()) {
+                    registry.unregister(name);
                 }
             }
         }
@@ -539,5 +564,71 @@ mod tests {
             result,
             Err(agent_diva_tooling::ToolError::Timeout { secs: 1 })
         ));
+    }
+
+    #[test]
+    fn tool_assembly_mask_limits_deny_hides_tool() {
+        use agent_diva_core::config::schema::ToolLimits;
+
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .with_mask_config(Some(MaskConfig {
+                name: "DenyWrite".to_string(),
+                tool_limits: ToolLimits {
+                    allow: vec![],
+                    deny: vec!["write_file".to_string()],
+                },
+                ..Default::default()
+            }))
+            .build();
+
+        assert!(registry.has("read_file"));
+        assert!(!registry.has("write_file"));
+        assert!(registry.has("list_dir"));
+    }
+
+    #[test]
+    fn tool_assembly_mask_limits_allow_restricts_tools() {
+        use agent_diva_core::config::schema::ToolLimits;
+
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .with_mask_config(Some(MaskConfig {
+                name: "AllowReadOnly".to_string(),
+                tool_limits: ToolLimits {
+                    allow: vec!["read_file".to_string(), "list_dir".to_string()],
+                    deny: vec![],
+                },
+                ..Default::default()
+            }))
+            .build();
+
+        assert!(registry.has("read_file"));
+        assert!(registry.has("list_dir"));
+        assert!(!registry.has("write_file"));
+        assert!(!registry.has("exec"));
+    }
+
+    #[test]
+    fn tool_assembly_assist_mode_plus_explicit_deny() {
+        use agent_diva_core::config::schema::{AgentMode, ToolLimits};
+
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .with_mask_config(Some(MaskConfig {
+                name: "AssistNoRead".to_string(),
+                mode: Some(AgentMode::Assist),
+                tool_limits: ToolLimits {
+                    allow: vec![],
+                    deny: vec!["read_file".to_string()],
+                },
+                ..Default::default()
+            }))
+            .build();
+
+        // Assist mode already restricts to read-only tools; explicit deny removes read_file.
+        assert!(!registry.has("read_file"));
+        assert!(!registry.has("write_file"));
+        assert!(registry.has("list_dir"));
     }
 }
