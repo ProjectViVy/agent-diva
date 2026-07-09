@@ -198,9 +198,7 @@ impl MaskRegistry {
             .collect();
 
         match matches.len() {
-            0 => Err(MaskError::MaskNotFound {
-                name: name.to_string(),
-            }),
+            0 => Ok(()), // idempotent: mask already absent
             1 => {
                 let mask = matches[0];
                 let id = mask.frontmatter.id_or_slug();
@@ -662,6 +660,93 @@ mod tests {
         let mut registry = MaskRegistry::new(dir.path());
         let result = registry.delete(MaskFile::DEFAULT_NAME);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn delete_idempotent_on_already_deleted_mask() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut registry = MaskRegistry::new(dir.path());
+
+        let mask = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Ephemeral".to_string(),
+                id: Some("ephemeral".to_string()),
+                ..Default::default()
+            },
+            body: "Gone.".to_string(),
+        };
+        registry.create_or_update(mask).expect("create");
+        registry.delete("Ephemeral").expect("first delete");
+        registry
+            .delete("Ephemeral")
+            .expect("second delete should be idempotent");
+        assert!(!registry.mask_file_path("ephemeral").exists());
+    }
+
+    #[test]
+    fn create_or_update_refuses_collision() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut registry = MaskRegistry::new(dir.path());
+
+        // Pre-create a file whose id and name differ from the incoming mask,
+        // but whose path matches the incoming id_or_slug.
+        std::fs::create_dir_all(dir.path()).unwrap();
+        std::fs::write(
+            dir.path().join("shared.md"),
+            "---\nid: existing\nname: Existing\n---\n\nBody.\n",
+        )
+        .unwrap();
+        registry.reload();
+
+        let incoming = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Second".to_string(),
+                id: Some("shared".to_string()),
+                ..Default::default()
+            },
+            body: "B".to_string(),
+        };
+
+        let result = registry.create_or_update(incoming);
+        assert!(
+            matches!(result.unwrap_err(), MaskError::FileCollision { .. }),
+            "should refuse to overwrite an existing file with a different mask"
+        );
+    }
+
+    #[test]
+    fn update_existing_mask_preserves_id() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut registry = MaskRegistry::new(dir.path());
+
+        let original = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Original".to_string(),
+                id: Some("stable".to_string()),
+                icon: Some("⭐".to_string()),
+                ..Default::default()
+            },
+            body: "Original body.".to_string(),
+        };
+        registry.create_or_update(original).expect("create");
+
+        let updated = MaskFile {
+            frontmatter: MaskConfig {
+                name: "Renamed".to_string(),
+                id: Some("stable".to_string()),
+                icon: Some("🌟".to_string()),
+                ..Default::default()
+            },
+            body: "Updated body.".to_string(),
+        };
+        registry
+            .create_or_update(updated)
+            .expect("update with same id should succeed");
+
+        assert!(registry.mask_file_path("stable").exists());
+        assert!(registry.get("Renamed").is_some());
+        assert!(registry.get_by_id("stable").is_some());
+        assert!(registry.get("Original").is_none());
     }
 
     #[test]
