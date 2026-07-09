@@ -244,7 +244,7 @@ fn resolve_by_name<'a>(registry: &'a MaskRegistry, name: &str) -> Result<&'a Mas
     let matches: Vec<&MaskFile> = registry
         .list()
         .into_iter()
-        .filter(|m| m.frontmatter.name == name)
+        .filter(|m| m.frontmatter.name == name || m.frontmatter.id_or_slug() == name)
         .collect();
 
     match matches.len() {
