@@ -365,11 +365,11 @@
   }
 
   .nav-item svg {
-    flex: 0 0 18px;
-    width: 18px !important;
-    height: 18px !important;
-    min-width: 18px;
-    min-height: 18px;
+    flex: 0 0 24px;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px;
+    min-height: 24px;
     display: block;
     color: var(--nav-icon) !important;
     transition: color 0.15s ease;
@@ -491,11 +491,11 @@
   }
 
   .nav-group-header svg {
-    flex: 0 0 18px;
-    width: 18px !important;
-    height: 18px !important;
-    min-width: 18px;
-    min-height: 18px;
+    flex: 0 0 24px;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px;
+    min-height: 24px;
     display: block;
   }
 
@@ -507,9 +507,9 @@
 
   .nav-group-chevron {
     display: flex;
-    flex: 0 0 18px;
-    width: 18px;
-    height: 18px;
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
     margin-left: auto;
     align-items: center;
     justify-content: center;
