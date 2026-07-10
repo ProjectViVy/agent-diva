@@ -511,6 +511,8 @@ const activePlanTodo = computed(() => {
   return todos.find((todo) => todo.status === 'InProgress') ?? todos.find((todo) => todo.status !== 'Completed') ?? null;
 });
 
+const activePlanTodoExpanded = ref(false);
+
 // 模式菜单选项
 const modeOptions = [
   { value: 'agent', label: 'chat.agentMode', icon: Zap, desc: 'chat.agentModeDesc' },
@@ -940,16 +942,47 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 
     <div
       v-if="activePlanRuntime && !pendingApprovalPlan"
-      class="active-plan-todo-bar"
+      class="active-plan-todo-panel"
     >
-      <ClipboardList :size="16" class="active-plan-todo-icon" />
-      <div class="active-plan-todo-content">
-        <span class="active-plan-todo-plan">{{ activePlanRuntime.title }}</span>
-        <span v-if="activePlanTodo" class="active-plan-todo-title">{{ activePlanTodo.title }}</span>
-        <span v-else class="active-plan-todo-title">{{ activePlanRuntime.phase }}</span>
+      <div class="active-plan-todo-bar">
+        <ClipboardList :size="16" class="active-plan-todo-icon" />
+        <div class="active-plan-todo-content">
+          <span class="active-plan-todo-plan">{{ activePlanRuntime.title }}</span>
+          <span v-if="activePlanTodo" class="active-plan-todo-title">{{ activePlanTodo.title }}</span>
+          <span v-else class="active-plan-todo-title">{{ activePlanRuntime.phase }}</span>
+        </div>
+        <span class="active-plan-todo-progress">{{ planProgressText }}</span>
+        <Loader2 v-if="activePlanTodo?.status === 'InProgress'" :size="15" class="text-amber-500 animate-spin" />
+        <button
+          type="button"
+          class="active-plan-todo-toggle"
+          :title="activePlanTodoExpanded ? '收起 TODO 详情' : '展开 TODO 详情'"
+          :aria-label="activePlanTodoExpanded ? '收起 TODO 详情' : '展开 TODO 详情'"
+          @click="activePlanTodoExpanded = !activePlanTodoExpanded"
+        >
+          <ChevronDown v-if="activePlanTodoExpanded" :size="15" />
+          <ChevronRight v-else :size="15" />
+        </button>
       </div>
-      <span class="active-plan-todo-progress">{{ planProgressText }}</span>
-      <Loader2 v-if="activePlanTodo?.status === 'InProgress'" :size="15" class="text-amber-500 animate-spin" />
+      <div v-if="activePlanTodoExpanded" class="active-plan-todo-details">
+        <div class="active-plan-todo-details-title">{{ activePlanRuntime.title }}</div>
+        <div v-if="activePlanRuntime.steps.length > 0" class="active-plan-todo-details-list">
+          <div v-for="step in activePlanRuntime.steps" :key="step.id" class="active-plan-todo-detail-item">
+            <CheckCircle2 v-if="step.status === 'Completed'" :size="13" class="text-emerald-500" />
+            <Loader2 v-else-if="step.status === 'InProgress'" :size="13" class="text-amber-500 animate-spin" />
+            <Clock v-else :size="13" class="text-gray-400" />
+            <span>{{ step.ordinal + 1 }}. {{ step.title }}</span>
+          </div>
+        </div>
+        <div v-else class="active-plan-todo-details-list">
+          <div v-for="todo in activePlanRuntime.todos" :key="todo.id" class="active-plan-todo-detail-item">
+            <CheckCircle2 v-if="todo.status === 'Completed'" :size="13" class="text-emerald-500" />
+            <Loader2 v-else-if="todo.status === 'InProgress'" :size="13" class="text-amber-500 animate-spin" />
+            <Clock v-else :size="13" class="text-gray-400" />
+            <span>{{ todo.title }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div
@@ -1264,11 +1297,20 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
   background: rgba(255, 251, 235, .96);
   box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
 }
+.active-plan-todo-panel { flex-shrink: 0; min-width: 0; margin: 0 16px 8px; }
+.active-plan-todo-panel .active-plan-todo-bar { margin: 0; }
 .active-plan-todo-icon { flex: 0 0 auto; color: #b45309; }
 .active-plan-todo-content { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; }
 .active-plan-todo-plan { flex: 0 0 auto; max-width: 30%; overflow: hidden; color: #92400e; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .active-plan-todo-title { min-width: 0; overflow: hidden; color: #374151; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .active-plan-todo-progress { flex: 0 0 auto; color: #b45309; font-size: 11px; font-variant-numeric: tabular-nums; }
+.active-plan-todo-toggle { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; padding: 3px; border: 0; border-radius: 5px; color: #92400e; background: transparent; cursor: pointer; }
+.active-plan-todo-toggle:hover { background: rgba(245, 158, 11, .14); }
+.active-plan-todo-details { padding: 9px 12px 10px; border: 1px solid rgba(245, 158, 11, .24); border-top: 0; border-radius: 0 0 10px 10px; background: rgba(255, 251, 235, .96); }
+.active-plan-todo-details-title { margin-bottom: 6px; color: #92400e; font-size: 11px; font-weight: 700; }
+.active-plan-todo-details-list { display: grid; gap: 5px; }
+.active-plan-todo-detail-item { display: flex; align-items: center; gap: 6px; min-width: 0; color: #374151; font-size: 11px; }
+.active-plan-todo-detail-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Conversation Sidebar Wrapper */
 .conv-sidebar-wrapper {
