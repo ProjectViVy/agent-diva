@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
-import { Loader2, AlertCircle, Inbox } from 'lucide-vue-next';
+import { Loader2, AlertCircle, Inbox, Trash2 } from 'lucide-vue-next';
 import PlanStatusCard from './PlanStatusCard.vue';
 import TodoListPanel from './TodoListPanel.vue';
 import type { PlanSummary, PlanDetail } from '../../api/planning';
@@ -20,6 +20,7 @@ const selectedPlan = ref<PlanDetail | null>(null);
 const loading = ref(false);
 const detailLoading = ref(false);
 const error = ref('');
+const deletingPlanId = ref<string | null>(null);
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -83,6 +84,23 @@ async function loadInitialPlan() {
 function selectPlan(planId: string) {
   selectedPlanId.value = planId;
   loadPlanDetail(planId);
+}
+
+async function deletePlan(planId: string) {
+  if (deletingPlanId.value) return;
+  deletingPlanId.value = planId;
+  try {
+    await invoke('delete_plan', { planId });
+    plans.value = plans.value.filter((plan) => plan.id !== planId);
+    if (selectedPlanId.value === planId) {
+      selectedPlanId.value = null;
+      selectedPlan.value = null;
+    }
+  } catch (err) {
+    error.value = String(err);
+  } finally {
+    deletingPlanId.value = null;
+  }
 }
 
 // --- Polling ---
@@ -158,6 +176,10 @@ onUnmounted(() => {
           <div class="plan-item-meta">
             <span class="plan-item-phase">{{ plan.phase }}</span>
             <span class="plan-item-progress">{{ plan.todo_completed }}/{{ plan.todo_count }}</span>
+            <button type="button" class="plan-delete-button" title="删除整个规划" aria-label="删除整个规划" @click.stop="deletePlan(plan.id)">
+              <Loader2 v-if="deletingPlanId === plan.id" :size="13" class="animate-spin" />
+              <Trash2 v-else :size="13" />
+            </button>
           </div>
         </button>
       </div>
@@ -181,10 +203,8 @@ onUnmounted(() => {
         <PlanStatusCard :plan="selectedPlan" />
         <TodoListPanel
           :todos="selectedPlan.todos"
-          :plan-id="selectedPlan.id"
           :plan-title="selectedPlan.title"
           :plan-phase="selectedPlan.phase"
-          @changed="loadPlanDetail(selectedPlan.id)"
         />
       </template>
     </div>
@@ -316,6 +336,9 @@ onUnmounted(() => {
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
 }
+
+.plan-delete-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; padding: 3px; border: 0; border-radius: 5px; color: var(--text-muted); background: transparent; cursor: pointer; }
+.plan-delete-button:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 
 /* Right pane */
 .plan-detail-pane {

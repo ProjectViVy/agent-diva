@@ -7,9 +7,6 @@ import {
   Lock,
   CheckCircle2,
   ExternalLink,
-  RotateCcw,
-  Trash2,
-  Loader2 as ActionLoader,
 } from 'lucide-vue-next';
 import type { TodoDetail } from '../../api/planning';
 
@@ -18,19 +15,13 @@ const { t } = useI18n();
 const props = defineProps<{
   todo: TodoDetail;
   detailed?: boolean;
-  canDelete?: boolean;
-  canRestore?: boolean;
-  busy?: boolean;
 }>();
-
-const emit = defineEmits<{ (event: 'delete'): void; (event: 'restore'): void }>();
 
 const todoStatus = computed(() => props.todo.status.toLowerCase());
 const isInProgress = computed(() => todoStatus.value === 'in_progress' || todoStatus.value === 'inprogress');
 const isPending = computed(() => todoStatus.value === 'pending');
 const isBlocked = computed(() => todoStatus.value === 'blocked');
 const isCompleted = computed(() => todoStatus.value === 'completed');
-const isCanceled = computed(() => todoStatus.value === 'canceled');
 
 const isHighPriority = computed(() => props.todo.priority === 'high');
 </script>
@@ -41,7 +32,6 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
     :class="{
       'todo-row--completed': isCompleted,
       'todo-row--blocked': isBlocked,
-      'todo-row--canceled': isCanceled,
     }"
   >
     <!-- Status icon -->
@@ -61,11 +51,6 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
         v-else-if="isBlocked"
         :size="14"
         style="color: var(--danger)"
-      />
-      <Trash2
-        v-else-if="isCanceled"
-        :size="14"
-        style="color: var(--text-muted)"
       />
       <CheckCircle2
         v-else-if="isCompleted"
@@ -121,13 +106,6 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 
     <span v-if="detailed && todo.plan_step_id" class="todo-step-ref">{{ todo.plan_step_id }}</span>
 
-    <ActionLoader v-if="busy" :size="13" class="todo-action animate-spin" />
-    <button v-else-if="canRestore" type="button" class="todo-action" title="复原任务" aria-label="复原任务" @click="emit('restore')">
-      <RotateCcw :size="13" />
-    </button>
-    <button v-else-if="canDelete" type="button" class="todo-action todo-action-danger" title="删除任务" aria-label="删除任务" @click="emit('delete')">
-      <Trash2 :size="13" />
-    </button>
   </div>
 </template>
 
@@ -238,7 +216,4 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
   max-width: 160px;
   flex-shrink: 0;
 }
-.todo-action { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; padding: 3px; border: 0; border-radius: 5px; color: var(--text-muted); background: transparent; cursor: pointer; }
-.todo-action:hover { color: var(--accent); background: var(--accent-bg-light); }
-.todo-action-danger:hover { color: var(--danger); }
 </style>
