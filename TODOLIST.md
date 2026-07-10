@@ -4,8 +4,10 @@
 
 ## Open
 
-- [ ] **Mentle: repair runtime prompt activation regressions** `cargo test -p agent-diva-agent --features mentle mentle --lib` currently has two failures in `test_with_tools_active_runtime_enables_registry_and_prompt` and `test_register_default_tools_rebuild_keeps_active_mentle_prompt`; the runtime is marked active but the expected `L2 Palace Memory` prompt block is absent. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
-  - Related files: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`
+- [ ] **Mentle: repair runtime prompt activation regressions** After Windows native-open isolation, `cargo test -p agent-diva-agent --features mentle --lib mentle` is mostly green (31 pass). Remaining failure: `test_register_default_tools_rebuild_keeps_active_mentle_prompt` — runtime is active / tools register, but system prompt still lacks `L2 Palace Memory` after tool rebuild. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
+  - Related files: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`
+
+- [x] **Mentle: Windows STATUS_STACK_OVERFLOW on gateway startup** Fixed in `docs/logs/2026-07-10-mentle-windows-stack-overflow/v0.0.2-windows-native-open-isolation/`. Root cause was turso/simsimd stack pressure on default Windows stacks; fixed by process defaults (`LIMBO_DISABLE_FILE_LOCK`), large-stack assemble thread, CLI PE/worker stack 16 MiB. Gateway smoke reaches `Gateway ready` with `tool_count=32`.
 
 - [ ] **Core: stabilize supervised executor no-handler failure test** `cargo test -p agent-diva-core --lib` intermittently/factually failed in `supervised::executor::tests::test_executor_fails_when_no_handler`: the run remained `Running` instead of becoming `Failed`. This is unrelated to the 30-day planning cleanup and leaves the full core library gate red.
   - Related files: `agent-diva-core/src/supervised/executor.rs`

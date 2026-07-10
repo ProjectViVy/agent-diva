@@ -20,6 +20,7 @@ agent-diva-channels = { path = "../agent-diva-channels", version = "0.5.0" }
 agent-diva-tools = { path = "../agent-diva-tools", version = "0.5.0" }
 agent-diva-manager = { path = "../agent-diva-manager", version = "0.5.0" }
 agent-diva-files = { path = "../agent-diva-files", version = "0.5.0" }
+memtle = { workspace = true }
 
 # Async runtime
 tokio = { workspace = true }

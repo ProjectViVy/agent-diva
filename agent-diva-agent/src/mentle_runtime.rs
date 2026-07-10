@@ -2,12 +2,20 @@
 
 use agent_diva_core::memory::MemoryProvider;
 use agent_diva_tooling::{Tool, ToolError};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::tool_config::mentle::MentleToolRuntimeConfig;
+
+/// Stack reserved for the dedicated Mentle open thread.
+///
+/// Windows default stacks are too small for turso/simsimd capability probes
+/// (`simsimd_wsum_u8` has been observed to `STATUS_STACK_OVERFLOW` on the
+/// main/Tokio worker stack). Opening on a large dedicated stack keeps the
+/// native path available instead of permanently disabling Mentle on Windows.
+const MENTLE_OPEN_STACK_BYTES: usize = 16 * 1024 * 1024;
 
 /// Runtime state shared by Mentle-backed memory and dynamic Mentle tools.
 pub(super) struct MentleRuntime {
@@ -28,13 +36,10 @@ impl MentleRuntime {
             return None;
         }
 
-        if !mentle_supported_on_platform() {
-            warn!(
-                fallback_action = "disable_mentle",
-                "Mentle disabled: the native turso/simsimd startup path is not stable on Windows"
-            );
-            return None;
-        }
+        // Must be applied before the embedded turso connection is opened. The
+        // CLI applies this before creating Tokio; this call also covers
+        // embedded Manager users that already own a runtime.
+        memtle::init_process_defaults();
 
         let db_path = workspace.join("memory").join("palace.db");
         if let Some(parent) = db_path.parent() {
@@ -56,8 +61,19 @@ impl MentleRuntime {
             }
         }
 
-        let toolkit = match memtle::toolkit::MemtleToolkit::open(&db_path).await {
-            Ok(toolkit) => toolkit,
+        // Open the palace, warm HybridMemoryProvider, and collect tool defs on a
+        // dedicated large-stack thread. Post-open status/graph queries also hit
+        // turso/simsimd and have overflowed the main Tokio stack on Windows.
+        let workspace = workspace.to_path_buf();
+        let assembled = match assemble_mentle_runtime_isolated(db_path.clone(), workspace).await {
+            Ok(parts) => {
+                info!(
+                    db_path = %db_path.display(),
+                    tool_count = parts.tool_defs.len(),
+                    "Mentle runtime assembled on isolated large-stack thread"
+                );
+                parts
+            }
             Err(err) => {
                 let mapped = map_mentle_transport_error(
                     MentleErrorPhase::StartupOpen,
@@ -70,25 +86,22 @@ impl MentleRuntime {
                     fallback_action = mapped.fallback_action.as_str(),
                     db_path = %db_path.display(),
                     error = %mapped.message,
-                    "Mentle disabled: failed to open palace database"
+                    "Mentle disabled: failed to assemble palace runtime"
                 );
                 return None;
             }
         };
 
-        let toolkit = Arc::new(Mutex::new(toolkit));
-        let file_manager = Arc::new(agent_diva_core::memory::MemoryManager::new(workspace));
-        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(
-            agent_diva_core::memory::HybridMemoryProvider::new(file_manager, toolkit.clone()).await,
-        );
-
-        let tool_defs = toolkit.lock().await.tool_definitions();
         let custom_tools = filter_mentle_tools(
-            mentle_tools_from_definitions(tool_defs, toolkit.clone()),
+            mentle_tools_from_definitions(assembled.tool_defs, assembled.toolkit.clone()),
             tool_config,
         );
 
-        Some(Self::from_parts(toolkit, memory_provider, custom_tools))
+        Some(Self::from_parts(
+            assembled.toolkit,
+            assembled.memory_provider,
+            custom_tools,
+        ))
     }
 
     #[must_use]
@@ -131,16 +144,6 @@ impl MentleRuntime {
     ) -> Self {
         Self::from_parts(toolkit, memory_provider, custom_tools)
     }
-}
-
-#[cfg(windows)]
-fn mentle_supported_on_platform() -> bool {
-    false
-}
-
-#[cfg(not(windows))]
-fn mentle_supported_on_platform() -> bool {
-    true
 }
 
 pub(super) struct MentleToolkitTool {
@@ -437,6 +440,95 @@ pub(super) fn filter_mentle_tools(
         .collect()
 }
 
+struct AssembledMentleRuntime {
+    toolkit: Arc<Mutex<memtle::toolkit::MemtleToolkit>>,
+    memory_provider: Arc<dyn MemoryProvider>,
+    tool_defs: Vec<serde_json::Value>,
+}
+
+/// Run a Mentle startup future on a dedicated large-stack thread.
+///
+/// `MemtleToolkit::open` and early palace queries pull in turso + simsimd. On
+/// Windows those native libraries have overflowed the default main/Tokio worker
+/// stack (`simsimd_wsum_u8` → `STATUS_STACK_OVERFLOW`). Isolating startup keeps
+/// the native Mentle path available instead of permanently disabling it.
+async fn run_on_mentle_large_stack<T, F, Fut>(label: &'static str, work: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<T, String>> + Send + 'static,
+{
+    memtle::init_process_defaults();
+
+    let join = tokio::task::spawn_blocking(move || {
+        let builder = std::thread::Builder::new()
+            .name(label.to_string())
+            .stack_size(MENTLE_OPEN_STACK_BYTES);
+
+        let handle = builder
+            .spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|err| format!("failed to build {label} runtime: {err}"))?;
+                runtime.block_on(work())
+            })
+            .map_err(|err| format!("failed to spawn {label} thread: {err}"))?;
+
+        match handle.join() {
+            Ok(result) => result,
+            Err(panic_payload) => {
+                let message = panic_payload
+                    .downcast_ref::<&str>()
+                    .map(|s| (*s).to_string())
+                    .or_else(|| panic_payload.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| format!("{label} thread panicked"));
+                Err(message)
+            }
+        }
+    })
+    .await
+    .map_err(|err| format!("{label} blocking task failed: {err}"))?;
+
+    join
+}
+
+/// Open a Mentle palace database on a dedicated large-stack thread.
+async fn open_memtle_toolkit_isolated(
+    db_path: PathBuf,
+) -> Result<memtle::toolkit::MemtleToolkit, String> {
+    run_on_mentle_large_stack("mentle-open", move || async move {
+        memtle::toolkit::MemtleToolkit::open(&db_path)
+            .await
+            .map_err(|err| err.to_string())
+    })
+    .await
+}
+
+/// Open the palace and warm HybridMemoryProvider on a dedicated large-stack thread.
+async fn assemble_mentle_runtime_isolated(
+    db_path: PathBuf,
+    workspace: PathBuf,
+) -> Result<AssembledMentleRuntime, String> {
+    run_on_mentle_large_stack("mentle-assemble", move || async move {
+        let toolkit = memtle::toolkit::MemtleToolkit::open(&db_path)
+            .await
+            .map_err(|err| err.to_string())?;
+        let tool_defs = toolkit.tool_definitions();
+        let toolkit = Arc::new(Mutex::new(toolkit));
+        let file_manager = Arc::new(agent_diva_core::memory::MemoryManager::new(&workspace));
+        let memory_provider: Arc<dyn MemoryProvider> = Arc::new(
+            agent_diva_core::memory::HybridMemoryProvider::new(file_manager, toolkit.clone()).await,
+        );
+        Ok(AssembledMentleRuntime {
+            toolkit,
+            memory_provider,
+            tool_defs,
+        })
+    })
+    .await
+}
+
 /// Discover `memtle_*` tool names from the workspace toolkit metadata.
 pub async fn discover_mentle_tool_names(workspace: &Path) -> Vec<String> {
     #[cfg(feature = "mentle")]
@@ -448,7 +540,7 @@ pub async fn discover_mentle_tool_names(workspace: &Path) -> Vec<String> {
             }
         }
 
-        let toolkit = match memtle::toolkit::MemtleToolkit::open(&db_path).await {
+        let toolkit = match open_memtle_toolkit_isolated(db_path).await {
             Ok(toolkit) => toolkit,
             Err(_) => return Vec::new(),
         };
@@ -470,5 +562,85 @@ pub async fn discover_mentle_tool_names(workspace: &Path) -> Vec<String> {
     {
         let _ = workspace;
         Vec::new()
+    }
+}
+
+#[cfg(test)]
+mod open_isolation_tests {
+    use super::{assemble_mentle_runtime_isolated, open_memtle_toolkit_isolated, MentleRuntime};
+    use crate::tool_config::mentle::{MentleToolMode, MentleToolRuntimeConfig};
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn try_build_returns_none_when_inactive() {
+        let temp = tempdir().expect("tempdir");
+        let config = MentleToolRuntimeConfig {
+            enabled: false,
+            mode: MentleToolMode::Off,
+            allowed_tools: Vec::new(),
+        };
+        assert!(MentleRuntime::try_build(temp.path(), &config)
+            .await
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn isolated_open_creates_palace_database() {
+        let temp = tempdir().expect("tempdir");
+        let db_path = temp.path().join("memory").join("palace.db");
+        std::fs::create_dir_all(db_path.parent().expect("parent")).expect("mkdir");
+
+        let toolkit = open_memtle_toolkit_isolated(db_path.clone())
+            .await
+            .expect("open palace on isolated stack");
+        let defs = toolkit.tool_definitions();
+        assert!(
+            defs.iter().any(|def| {
+                def.get("name")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|name| name == "memtle_status")
+            }),
+            "expected memtle_status in toolkit definitions"
+        );
+        assert!(db_path.exists(), "palace.db should exist after open");
+    }
+
+    #[tokio::test]
+    async fn isolated_assemble_warms_hybrid_provider() {
+        let temp = tempdir().expect("tempdir");
+        let workspace = temp.path().to_path_buf();
+        let db_path = workspace.join("memory").join("palace.db");
+        std::fs::create_dir_all(db_path.parent().expect("parent")).expect("mkdir");
+
+        let assembled = assemble_mentle_runtime_isolated(db_path, workspace)
+            .await
+            .expect("assemble palace runtime on isolated stack");
+        assert!(
+            assembled
+                .tool_defs
+                .iter()
+                .any(|def| def.get("name").and_then(|v| v.as_str()) == Some("memtle_status")),
+            "expected memtle_status after assemble"
+        );
+        // Hybrid provider must be usable without panicking.
+        let _ = assembled.memory_provider.as_ref();
+    }
+
+    #[tokio::test]
+    async fn try_build_activates_full_runtime() {
+        let temp = tempdir().expect("tempdir");
+        let config = MentleToolRuntimeConfig {
+            enabled: true,
+            mode: MentleToolMode::Full,
+            allowed_tools: Vec::new(),
+        };
+        let runtime = MentleRuntime::try_build(temp.path(), &config)
+            .await
+            .expect("active mentle runtime");
+        assert!(runtime.active());
+        assert!(runtime
+            .custom_tools()
+            .iter()
+            .any(|tool| tool.name() == "memtle_status"));
     }
 }

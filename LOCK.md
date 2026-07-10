@@ -9,10 +9,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Scope: `none`
 - Owner: `none`
 - Session/Task: `none`
-- Branch/Worktree: `agent-diva-pro @ C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-07-10`
-- Last Heartbeat: `2026-07-10`
-- Expires At: `2026-07-10`
+- Branch/Worktree: `none`
+- Started At: `none`
+- Last Heartbeat: `none`
+- Expires At: `none`
 
 ## Lock Rules
 
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-10`: Released Windows Mentle native-open isolation lock after large-stack assemble, CLI process defaults + 16 MiB stacks, gateway smoke to `Gateway ready` with `tool_count=32`, and `docs/logs/2026-07-10-mentle-windows-stack-overflow/v0.0.2-windows-native-open-isolation/`. Residual prompt-rebuild test remains in `TODOLIST.md`.
 
 - `2026-07-10`: Released Mentle default startup lock after enabling new-config defaults and the current user config in Full mode, adding default runtime coverage, and recording `docs/logs/2026-07-10-mentle-default-startup/v0.0.1-default-full-mode/`. Workspace clippy is blocked by an unrelated Anthropic provider lint; workspace tests are blocked by unrelated missing `ChatMessage.metadata` initializers in AutoDream and two existing Mentle prompt fixture failures.
 
