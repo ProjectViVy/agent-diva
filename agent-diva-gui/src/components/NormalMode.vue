@@ -1171,11 +1171,15 @@ defineExpose({
 </template>
 
 <style scoped>
- .chat-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 0.75rem; }
- .todo-rail { min-width: 0; min-height: 0; padding: 0.75rem 0.75rem 0.75rem 0; overflow-y: auto; }
+ .chat-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 0.75rem; height: 100%; min-height: 0; overflow: hidden; }
+ .chat-workspace-grid > .min-w-0 { min-height: 0; height: 100%; overflow: hidden; }
+ .todo-rail { min-width: 0; min-height: 0; height: 100%; padding: 0.75rem 0.75rem 0.75rem 0; overflow-y: auto; }
+ :deep(.chat-shell) { height: 100%; min-height: 0; }
+ :deep(.chat-main) { min-height: 0; }
  @media (max-width: 1100px) {
-   .chat-workspace-grid { display: block; overflow-y: auto; }
-   .todo-rail { padding: 0 0.75rem 0.75rem; }
+   .chat-workspace-grid { display: block; overflow: hidden; }
+   .chat-workspace-grid > .min-w-0 { height: 100%; }
+   .todo-rail { height: auto; max-height: 38%; padding: 0 0.75rem 0.75rem; overflow-y: auto; }
  }
 
 /* Overlay sidebar: fixed slide-out panel that reuses global sidebar tokens */
