@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch, Pencil } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch, ClipboardList } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -15,7 +15,6 @@ import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
 import PlanHistoryCard from './planning/PlanHistoryCard.vue';
-import PlanSidebarPanel from './PlanSidebarPanel.vue';
 import {
   triggerAutoDream,
   getAutoDreamRunStatus,
@@ -160,7 +159,6 @@ const emit = defineEmits<{
   (e: 'new-session'): void;
   (e: 'toggle-pin', sessionKey: string): void;
   (e: 'rename-session', sessionKey: string, title: string): void;
-  (e: 'select-plan', planId: string): void;
   (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
   (e: 'regenerate', messageId: string): void;
 }>();
@@ -176,7 +174,6 @@ const inputHeight = ref(24); // 动态输入框高度
 
 // 右侧会话侧边栏状态
 const convSidebarOpen = ref(false);
-const planSidebarOpen = ref(false);
 const convSidebarRef = ref<InstanceType<typeof ConversationSidebar> | null>(null);
 
 // 输入区域状态
@@ -512,6 +509,25 @@ const activePlanTodo = computed(() => {
 });
 
 const activePlanTodoExpanded = ref(false);
+const planTasksOpen = ref(false);
+const selectedTodoId = ref<string | null>(null);
+
+const selectedPlanTodo = computed(() =>
+  props.activePlanRuntime?.todos.find((todo) => todo.id === selectedTodoId.value) ?? null,
+);
+
+const openPlanTasks = () => {
+  if (props.activePlanRuntime) planTasksOpen.value = !planTasksOpen.value;
+};
+
+const openTodoStatus = (todoId: string) => {
+  selectedTodoId.value = todoId;
+  planTasksOpen.value = false;
+};
+
+const closeTodoStatus = () => {
+  selectedTodoId.value = null;
+};
 
 // 模式菜单选项
 const modeOptions = [
@@ -610,7 +626,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 </script>
 
 <template>
-  <div class="chat-shell flex flex-row h-full relative overflow-hidden" :class="[`theme-${themeMode || 'love'}`, { 'conv-sidebar-open': convSidebarOpen, 'plan-sidebar-open': planSidebarOpen }]">
+  <div class="chat-shell flex flex-row h-full relative overflow-hidden" :class="[`theme-${themeMode || 'love'}`, { 'conv-sidebar-open': convSidebarOpen }]">
     <!-- Main Chat Area -->
     <div class="chat-main flex flex-col flex-1 min-w-0">
       <!-- Sidebar Toggle Button (top-right of chat area) -->
@@ -622,15 +638,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         <Clock v-if="convSidebarOpen" :size="18" />
         <Clock v-else :size="18" />
       </button>
-      <button
-        @click="planSidebarOpen = !planSidebarOpen"
-        class="plan-sidebar-toggle"
-        :title="planSidebarOpen ? '收起计划栏' : '打开计划栏'"
-        :aria-label="planSidebarOpen ? '收起计划栏' : '打开计划栏'"
-      >
-        <Pencil :size="18" />
-      </button>
-
       <!-- Sakura Effect -->
       <div v-if="themeMode === 'love'" class="chat-sakura">
         <span
@@ -944,7 +951,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       v-if="activePlanRuntime && !pendingApprovalPlan"
       class="active-plan-todo-panel"
     >
-      <div class="active-plan-todo-bar">
+      <div class="active-plan-todo-bar" role="button" tabindex="0" @click="openPlanTasks" @keydown.enter="openPlanTasks">
         <ClipboardList :size="16" class="active-plan-todo-icon" />
         <div class="active-plan-todo-content">
           <span class="active-plan-todo-plan">{{ activePlanRuntime.title }}</span>
@@ -962,6 +969,22 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         >
           <ChevronDown v-if="activePlanTodoExpanded" :size="15" />
           <ChevronRight v-else :size="15" />
+        </button>
+      </div>
+      <div v-if="planTasksOpen" class="active-plan-task-list">
+        <div class="active-plan-task-list-title">{{ activePlanRuntime.title }} · 任务</div>
+        <button
+          v-for="todo in activePlanRuntime.todos"
+          :key="todo.id"
+          type="button"
+          class="active-plan-task-item"
+          @click.stop="openTodoStatus(todo.id)"
+        >
+          <CheckCircle2 v-if="todo.status === 'Completed'" :size="14" class="text-emerald-500" />
+          <Loader2 v-else-if="todo.status === 'InProgress'" :size="14" class="text-amber-500 animate-spin" />
+          <Clock v-else :size="14" class="text-gray-400" />
+          <span>{{ todo.title }}</span>
+          <ChevronRight :size="14" class="active-plan-task-chevron" />
         </button>
       </div>
       <div v-if="activePlanTodoExpanded" class="active-plan-todo-details">
@@ -983,6 +1006,27 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-if="selectedPlanTodo" class="todo-status-overlay" @click.self="closeTodoStatus">
+      <section class="todo-status-dialog" role="dialog" aria-modal="true" aria-label="任务状态">
+        <header class="todo-status-header">
+          <div>
+            <div class="todo-status-eyebrow">{{ activePlanRuntime?.title }}</div>
+            <h2>{{ selectedPlanTodo.title }}</h2>
+          </div>
+          <button type="button" class="todo-status-close" title="关闭" aria-label="关闭" @click="closeTodoStatus">
+            <X :size="18" />
+          </button>
+        </header>
+        <div class="todo-status-body">
+          <div class="todo-status-row"><span>状态</span><strong>{{ selectedPlanTodo.status }}</strong></div>
+          <div class="todo-status-row"><span>优先级</span><strong>{{ selectedPlanTodo.priority }}</strong></div>
+          <div v-if="selectedPlanTodo.detail" class="todo-status-section"><span>任务说明</span><p>{{ selectedPlanTodo.detail }}</p></div>
+          <div v-if="selectedPlanTodo.block_reason" class="todo-status-section todo-status-blocked"><span>阻塞原因</span><p>{{ selectedPlanTodo.block_reason }}</p></div>
+          <div v-if="selectedPlanTodo.evidence_ref" class="todo-status-section"><span>验证证据</span><p>{{ selectedPlanTodo.evidence_ref }}</p></div>
+        </div>
+      </section>
     </div>
 
     <div
@@ -1216,13 +1260,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       @close="convSidebarOpen = false"
       class="conv-sidebar-wrapper"
     />
-    <PlanSidebarPanel
-      v-if="planSidebarOpen"
-      :active-plan="activePlanRuntime"
-      class="plan-sidebar-wrapper"
-      @select-plan="(planId) => emit('select-plan', planId)"
-      @close="planSidebarOpen = false"
-    />
   </div>
 </template>
 
@@ -1257,33 +1294,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
   border-color: var(--brand, #ec4899);
 }
 
-.plan-sidebar-toggle {
-  position: absolute;
-  top: 54px;
-  right: 12px;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border: 1px solid var(--line, #e5e7eb);
-  border-radius: 8px;
-  color: var(--text-muted, #9ca3af);
-  background: var(--panel-solid, #fff);
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
-}
-
-.plan-sidebar-toggle:hover, .plan-sidebar-open .plan-sidebar-toggle {
-  color: var(--brand, #ec4899);
-  border-color: var(--brand, #ec4899);
-  background: var(--nav-hover, rgba(0, 0, 0, .04));
-}
-
-.conv-sidebar-open .plan-sidebar-toggle { right: 292px; }
-.plan-sidebar-wrapper { --plan-sidebar-right: 12px; }
-.conv-sidebar-open .plan-sidebar-wrapper { --plan-sidebar-right: 292px; }
-
 .active-plan-todo-bar {
   display: flex;
   align-items: center;
@@ -1311,6 +1321,25 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 .active-plan-todo-details-list { display: grid; gap: 5px; }
 .active-plan-todo-detail-item { display: flex; align-items: center; gap: 6px; min-width: 0; color: #374151; font-size: 11px; }
 .active-plan-todo-detail-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.active-plan-task-list { display: grid; gap: 4px; margin-top: -1px; padding: 8px; border: 1px solid rgba(245, 158, 11, .24); border-top: 0; border-radius: 0 0 10px 10px; background: rgba(255, 251, 235, .96); }
+.active-plan-task-list-title { padding: 2px 4px 5px; color: #92400e; font-size: 11px; font-weight: 700; }
+.active-plan-task-item { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 7px 6px; border: 0; border-radius: 7px; color: #374151; background: transparent; font-size: 11px; text-align: left; cursor: pointer; }
+.active-plan-task-item:hover { background: rgba(245, 158, 11, .14); }
+.active-plan-task-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.active-plan-task-chevron { margin-left: auto; flex: 0 0 auto; color: #b45309; }
+.todo-status-overlay { position: absolute; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15, 23, 42, .42); backdrop-filter: blur(3px); }
+.todo-status-dialog { width: min(520px, 100%); max-height: min(80vh, 620px); overflow: auto; border: 1px solid var(--line, #e5e7eb); border-radius: 16px; background: var(--panel-solid, #fff); box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
+.todo-status-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line, #e5e7eb); }
+.todo-status-eyebrow { margin-bottom: 5px; color: var(--text-muted, #9ca3af); font-size: 11px; }
+.todo-status-header h2 { margin: 0; color: var(--text, #111827); font-size: 17px; font-weight: 700; }
+.todo-status-close { display: flex; align-items: center; justify-content: center; padding: 5px; border: 0; border-radius: 7px; color: var(--text-muted, #9ca3af); background: transparent; cursor: pointer; }
+.todo-status-close:hover { color: var(--text, #111827); background: var(--nav-hover, rgba(0, 0, 0, .06)); }
+.todo-status-body { display: grid; gap: 14px; padding: 18px 20px 22px; color: var(--text, #111827); }
+.todo-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line, #f1f5f9); font-size: 13px; }
+.todo-status-row span, .todo-status-section > span { color: var(--text-muted, #6b7280); font-size: 12px; }
+.todo-status-row strong { font-size: 13px; }
+.todo-status-section p { margin: 5px 0 0; color: var(--text, #374151); font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.todo-status-blocked { padding: 10px 12px; border-radius: 9px; background: #fff7ed; }
 
 /* Conversation Sidebar Wrapper */
 .conv-sidebar-wrapper {

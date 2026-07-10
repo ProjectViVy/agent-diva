@@ -142,11 +142,6 @@ interface Props {
 
 const props = defineProps<Props>();
 
-function openPlanFromSidebar(planId: string) {
-  planningSelection.value = planId;
-  navigateTo('planning');
-}
-
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'approve-plan'): void;
@@ -159,7 +154,6 @@ const emit = defineEmits<{
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
   (e: 'load-session', sessionKey: string): void;
   (e: 'delete-session', sessionKey: string): void;
-  (e: 'select-plan', planId: string): void;
 }>();
 
 type SidebarSection =
@@ -1109,7 +1103,6 @@ defineExpose({
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"
-              @select-plan="openPlanFromSidebar"
               @open-evolution="openEvolutionDeepLink"
             />
           </div>
