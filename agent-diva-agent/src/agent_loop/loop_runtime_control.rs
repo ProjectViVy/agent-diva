@@ -1,8 +1,9 @@
-use super::AgentLoop;
+use super::{policy_phase_for, AgentLoop};
 use crate::compaction::ContextCompactor;
 use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{
-    AgentEvent, InboundMessage, PlanRuntimeState, PlanRuntimeStep, PlanRuntimeTodo,
+    AgentEvent, InboundMessage, PlanApprovalResult, PlanRuntimeState, PlanRuntimeStep,
+    PlanRuntimeTodo,
 };
 use agent_diva_core::session::CompactTrigger;
 use agent_diva_providers::Message;
@@ -15,15 +16,18 @@ impl AgentLoop {
         match cmd {
             RuntimeControlCommand::UpdateNetwork(network) => {
                 self.apply_network_config(network).await;
+                self.rebuild_tools_for_active_phase().await;
             }
             RuntimeControlCommand::UpdateMentle {
                 mentle,
                 builtin_mentle,
             } => {
                 self.apply_mentle_config(mentle, builtin_mentle).await;
+                self.rebuild_tools_for_active_phase().await;
             }
             RuntimeControlCommand::UpdateMcp { servers } => {
                 self.apply_mcp_config(servers).await;
+                self.rebuild_tools_for_active_phase().await;
             }
             RuntimeControlCommand::StopSession { session_key } => {
                 self.cancelled_sessions.insert(session_key);
@@ -339,7 +343,7 @@ impl AgentLoop {
     async fn handle_approve_active_plan(
         &mut self,
         request: agent_diva_core::planning::ApprovalRequest,
-    ) -> Result<PlanRuntimeState, String> {
+    ) -> Result<PlanApprovalResult, String> {
         let Some(planning) = self.tool_config.planning.as_ref() else {
             return Err("planning runtime is unavailable".to_string());
         };
@@ -350,15 +354,31 @@ impl AgentLoop {
             .await
             .map_err(|error| error.to_string())?;
 
-        planning
+        let receipt = planning
             .store
             .approve_plan(&plan_id, &request)
             .await
             .map_err(|error| error.to_string())?;
 
-        self.snapshot_plan_runtime(&plan_id)
+        let plan = self
+            .snapshot_plan_runtime(&plan_id)
             .await
-            .ok_or_else(|| "failed to load plan after approval".to_string())
+            .ok_or_else(|| "failed to load plan after approval".to_string())?;
+        self.rebuild_tools_for_active_phase().await;
+
+        Ok(PlanApprovalResult { plan, receipt })
+    }
+
+    /// Re-assemble after runtime mutations so registration remains a phase
+    /// boundary even before a subsequent tool call can re-snapshot state.
+    async fn rebuild_tools_for_active_phase(&mut self) {
+        let active_mask = self.load_active_mask();
+        let active_plan = self.snapshot_active_plan_runtime().await;
+        self.rebuild_tools_for_turn(
+            active_mask.as_ref(),
+            policy_phase_for(active_plan.as_ref(), false),
+            None,
+        );
     }
 
     pub(super) async fn snapshot_active_plan_runtime(&self) -> Option<PlanRuntimeState> {

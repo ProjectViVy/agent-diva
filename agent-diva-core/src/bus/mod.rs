@@ -7,7 +7,7 @@ pub mod events;
 pub mod queue;
 
 pub use events::{
-    AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeStep,
-    PlanRuntimeTodo, PokeEvent,
+    AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage, PlanApprovalResult,
+    PlanRuntimeState, PlanRuntimeStep, PlanRuntimeTodo, PokeEvent,
 };
 pub use queue::MessageBus;

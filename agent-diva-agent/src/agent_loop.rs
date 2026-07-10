@@ -1,11 +1,14 @@
 //! Agent loop: the core processing engine
 
-use agent_diva_core::bus::{AgentEvent, InboundMessage, MessageBus, OutboundMessage};
+use agent_diva_core::bus::{
+    AgentEvent, InboundMessage, MessageBus, OutboundMessage, PlanRuntimeState,
+};
 use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
+use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::SecurityConfig;
 use agent_diva_core::session::SessionManager;
@@ -217,8 +220,27 @@ impl SubagentSpawner for SubagentManagerSpawner {
 #[derive(Clone, Default)]
 struct ToolTurnOptions<'a> {
     active_mask: Option<&'a MaskFile>,
-    plan_mode: bool,
+    plan_phase: Option<PlanPhase>,
     background_task_context: Option<BackgroundTaskContext>,
+}
+
+/// Resolve the phase that constrains the current tool surface.
+///
+/// Terminal plans remain available for history and audit, but they do not keep
+/// an ordinary conversation in a closed capability state. An explicit plan
+/// request is deliberately stricter than a persisted Execute/Verify phase.
+pub(crate) fn policy_phase_for(
+    active_plan: Option<&PlanRuntimeState>,
+    plan_mode: bool,
+) -> Option<PlanPhase> {
+    if plan_mode {
+        return Some(PlanPhase::Plan);
+    }
+
+    active_plan.and_then(|plan| match plan.phase {
+        PlanPhase::Completed | PlanPhase::Failed | PlanPhase::Partial => None,
+        _ => Some(plan.phase.clone()),
+    })
 }
 
 fn build_agent_tools(
@@ -246,7 +268,7 @@ fn build_agent_tools(
                 .active_mask
                 .map(|mask| mask.frontmatter.clone()),
         )
-        .plan_mode(turn_options.plan_mode);
+        .with_plan_phase(turn_options.plan_phase);
 
     if let Some(cron_service) = cron_service {
         assembly = assembly.with_cron_service(cron_service);
@@ -286,7 +308,7 @@ impl AgentLoop {
     pub(crate) fn rebuild_tools_for_turn(
         &mut self,
         active_mask: Option<&MaskFile>,
-        plan_mode: bool,
+        plan_phase: Option<PlanPhase>,
         background_task_context: Option<BackgroundTaskContext>,
     ) {
         self.tools = build_agent_tools(
@@ -300,7 +322,7 @@ impl AgentLoop {
             self.tool_config.cron_service.clone(),
             ToolTurnOptions {
                 active_mask,
-                plan_mode,
+                plan_phase,
                 background_task_context,
             },
         );
@@ -885,6 +907,36 @@ impl AgentLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn policy_phase_prioritizes_explicit_plan_mode_and_releases_terminal_plans() {
+        let mut plan = PlanRuntimeState {
+            plan_id: "plan-1".to_string(),
+            revision: Some(7),
+            title: "Plan".to_string(),
+            goal: "Goal".to_string(),
+            phase: PlanPhase::Execute,
+            status: agent_diva_core::planning::model::PlanStatus::InProgress,
+            strategy: None,
+            summary: "Plan: Goal".to_string(),
+            steps: Vec::new(),
+            todos: Vec::new(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        assert_eq!(
+            policy_phase_for(Some(&plan), false),
+            Some(PlanPhase::Execute)
+        );
+        assert_eq!(policy_phase_for(Some(&plan), true), Some(PlanPhase::Plan));
+        assert_eq!(policy_phase_for(None, true), Some(PlanPhase::Plan));
+
+        for terminal in [PlanPhase::Completed, PlanPhase::Failed, PlanPhase::Partial] {
+            plan.phase = terminal;
+            assert_eq!(policy_phase_for(Some(&plan), false), None);
+        }
+    }
     #[cfg(feature = "mentle")]
     use crate::mentle_runtime::{
         mentle_tool_from_definition, mentle_tool_metadata_from_definition,

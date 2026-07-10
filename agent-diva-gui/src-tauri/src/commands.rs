@@ -9,9 +9,10 @@ use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
 use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
-use agent_diva_core::bus::PlanRuntimeState;
+use agent_diva_core::bus::{PlanApprovalResult, PlanRuntimeState};
 use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
+use agent_diva_core::planning::ApprovalRequest;
 use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
@@ -1235,12 +1236,14 @@ pub async fn send_message(
 
 #[tauri::command]
 pub async fn approve_active_plan_execution(
+    request: ApprovalRequest,
     state: State<'_, AgentState>,
-) -> Result<PlanRuntimeState, String> {
+) -> Result<PlanApprovalResult, String> {
     let url = format!("{}/plans/active/approve-execute", state.api_base_url());
     let response = state
         .client
         .post(&url)
+        .json(&request)
         .send()
         .await
         .map_err(|e| format!("Failed to approve active plan: {}", e))?;
@@ -1255,13 +1258,11 @@ pub async fn approve_active_plan_execution(
             .unwrap_or("Failed to approve active plan")
             .to_string());
     }
-    serde_json::from_value(
-        value
-            .get("plan")
-            .cloned()
-            .ok_or_else(|| "Missing plan payload".to_string())?,
-    )
-    .map_err(|e| format!("Invalid plan payload: {}", e))
+    serde_json::from_value(serde_json::json!({
+        "plan": value.get("plan").cloned().ok_or_else(|| "Missing plan payload".to_string())?,
+        "receipt": value.get("receipt").cloned().ok_or_else(|| "Missing approval receipt".to_string())?,
+    }))
+    .map_err(|e| format!("Invalid approval payload: {}", e))
 }
 
 #[tauri::command]

@@ -51,7 +51,7 @@ impl PlanOrchestrator {
         let current_phase = plan.phase.clone();
 
         // 2. Validate transition
-        if !agent_diva_core::planning::policy::is_valid_transition(&current_phase, &new_phase) {
+        if !Self::is_valid_transition(&current_phase, &new_phase) {
             return Err(Error::Validation(format!(
                 "Invalid transition: {} → {}",
                 current_phase, new_phase
@@ -115,7 +115,8 @@ impl PlanOrchestrator {
 
     /// Check whether a phase transition is valid.
     pub fn is_valid_transition(from: &PlanPhase, to: &PlanPhase) -> bool {
-        agent_diva_core::planning::policy::is_valid_transition(from, to) && {
+        agent_diva_core::planning::policy::is_valid_transition(from, to)
+        /*
             // Any phase → Failed is always valid (emergency bail-out)
             if *to == PlanPhase::Failed {
                 return true;
@@ -133,6 +134,7 @@ impl PlanOrchestrator {
                     | (PlanPhase::Verify, PlanPhase::Partial)
             )
         }
+        */
     }
 
     /// Gate: transitioning to Execute requires prior approval.
@@ -494,6 +496,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn verify_reaches_every_terminal_outcome_without_materialized_todos() {
+        for terminal in [PlanPhase::Completed, PlanPhase::Partial, PlanPhase::Failed] {
+            let store = make_store().await;
+            let plan_id = PlanId::new();
+            let plan = make_plan(&plan_id, "No Todo Verification");
+            create_plan_in_store(&store, &plan).await;
+
+            let mut orch = PlanOrchestrator::new();
+            orch.transition_to(&store, &plan_id, PlanPhase::Plan)
+                .await
+                .unwrap();
+            orch.transition_to(&store, &plan_id, PlanPhase::AwaitingApproval)
+                .await
+                .unwrap();
+            orch.approve(&plan_id);
+            orch.transition_to(&store, &plan_id, PlanPhase::Execute)
+                .await
+                .unwrap();
+            orch.transition_to(&store, &plan_id, PlanPhase::Verify)
+                .await
+                .unwrap();
+
+            let finalized = orch
+                .transition_to(&store, &plan_id, terminal.clone())
+                .await
+                .unwrap();
+            assert_eq!(finalized.phase, terminal);
+        }
+    }
+
+    #[tokio::test]
     async fn test_emergency_fail_from_any_phase() {
         let store = make_store().await;
         let plan_id = PlanId::new();
@@ -542,5 +575,29 @@ mod tests {
         // Try transitioning from Completed → anything
         let result = orch.transition_to(&store, &plan_id, PlanPhase::Plan).await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn transition_validation_matches_core_for_every_phase_pair() {
+        let phases = [
+            PlanPhase::Explore,
+            PlanPhase::Plan,
+            PlanPhase::AwaitingApproval,
+            PlanPhase::Execute,
+            PlanPhase::Verify,
+            PlanPhase::Completed,
+            PlanPhase::Failed,
+            PlanPhase::Partial,
+        ];
+
+        for from in &phases {
+            for to in &phases {
+                assert_eq!(
+                    PlanOrchestrator::is_valid_transition(from, to),
+                    agent_diva_core::planning::policy::is_valid_transition(from, to),
+                    "{from} -> {to}"
+                );
+            }
+        }
     }
 }

@@ -3,6 +3,8 @@
 use crate::planning::model::{PlanPhase, PlanStatus, TodoPriority, TodoStatus};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+use crate::planning::ApprovalReceipt;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +45,13 @@ pub struct PlanRuntimeState {
     pub todos: Vec<PlanRuntimeTodo>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// The persisted plan state and immutable receipt returned after approval.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanApprovalResult {
+    pub plan: PlanRuntimeState,
+    pub receipt: ApprovalReceipt,
 }
 
 /// Streaming events emitted by the agent

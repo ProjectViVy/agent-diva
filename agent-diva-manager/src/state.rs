@@ -205,7 +205,7 @@ pub enum ManagerCommand {
     RestorePlanTodo(String, String, oneshot::Sender<Result<(), String>>),
     ApproveActivePlan(
         agent_diva_core::planning::ApprovalRequest,
-        oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
+        oneshot::Sender<Result<agent_diva_core::bus::PlanApprovalResult, String>>,
     ),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),

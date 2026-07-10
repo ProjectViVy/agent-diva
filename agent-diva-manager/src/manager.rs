@@ -645,7 +645,7 @@ impl Manager {
     async fn handle_approve_active_plan(
         &self,
         request: agent_diva_core::planning::ApprovalRequest,
-        reply: oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
+        reply: oneshot::Sender<Result<agent_diva_core::bus::PlanApprovalResult, String>>,
     ) {
         let result = self
             .with_runtime_control(

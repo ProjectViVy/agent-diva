@@ -1,9 +1,9 @@
-use super::AgentLoop;
+use super::{policy_phase_for, AgentLoop};
 use crate::compaction::ContextCompactor;
 use crate::consolidation;
 use crate::context_budget::check_budget;
 use crate::mask::ToolPolicy;
-use crate::planning::inject_plan_context;
+use crate::planning::{builtin_tool_capability, inject_plan_context};
 use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::bus::{
     AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
@@ -45,22 +45,6 @@ fn is_plan_mode(msg: &InboundMessage) -> bool {
         .get("exec_mode")
         .and_then(|value| value.as_str())
         .is_some_and(|mode| mode.eq_ignore_ascii_case("plan"))
-}
-
-fn tool_capability(tool_name: &str) -> ToolCapability {
-    match tool_name {
-        "read_file" | "list_dir" | "read_attachment" | "plan_show" | "todo_show" => {
-            ToolCapability::Inspect
-        }
-        "plan_create" | "plan_transition" | "plan_submit" => ToolCapability::PlanningRecord,
-        "todo_write" => ToolCapability::WorkItem,
-        "write_file" | "edit_file" => ToolCapability::WorkspaceWrite,
-        "exec" => ToolCapability::Execute,
-        "cron" | "spawn" | "enqueue_background_task" | "web_search" | "web_fetch" => {
-            ToolCapability::External
-        }
-        _ => ToolCapability::Unknown,
-    }
 }
 
 fn fallback_session_title(session: &Session) -> Option<String> {
@@ -189,7 +173,9 @@ impl AgentLoop {
                     self.emit_agent_event(msg, event_tx, event);
                 }
             }
-            "plan_transition" if after_plan.phase == PlanPhase::AwaitingApproval => {
+            "plan_submit" | "plan_transition"
+                if after_plan.phase == PlanPhase::AwaitingApproval =>
+            {
                 self.emit_agent_event(
                     msg,
                     event_tx,
@@ -301,11 +287,9 @@ impl AgentLoop {
         // Plan safety is a runtime lifecycle property, not only a UI/request mode.
         // Once a plan is waiting for approval, an agent-mode follow-up must not
         // re-enable mutation tools before the explicit approval transition.
-        let awaiting_plan_approval = self
-            .snapshot_active_plan_runtime()
-            .await
-            .is_some_and(|plan| plan.phase == PlanPhase::AwaitingApproval);
-        let plan_guard_active = plan_mode || awaiting_plan_approval;
+        let active_plan = self.snapshot_active_plan_runtime().await;
+        let policy_phase = policy_phase_for(active_plan.as_ref(), plan_mode);
+        let plan_guard_active = policy_phase.is_some();
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         let background_task_context = BackgroundTaskContext {
             channel: Some(msg.channel.clone()),
@@ -322,8 +306,8 @@ impl AgentLoop {
         };
         self.rebuild_tools_for_turn(
             active_mask.as_ref(),
-            plan_guard_active,
-            Some(background_task_context),
+            policy_phase.clone(),
+            Some(background_task_context.clone()),
         );
 
         // Process attachments first, then run the combined user-visible payload through
@@ -488,7 +472,7 @@ impl AgentLoop {
                 }
                 Ok(None) if plan_guard_active => {
                     messages.insert(1, agent_diva_providers::Message::system(
-                        "You are in Plan mode. Create or update a plan and TodoList only. Use planning tools such as plan_create, todo_write, plan_show, and todo_show. Do not perform implementation, file modification, shell execution, spawning, scheduling, MCP actions, or other external actions. Stop after presenting the plan and wait for user approval.",
+                        "You are in Plan mode. Create or update a plan record only. Use Inspect and planning-record tools such as plan_create, plan_show, todo_show, and plan_submit. Do not use todo_write or perform implementation, file modification, shell execution, spawning, scheduling, MCP actions, or other external actions. Stop after presenting the plan and wait for user approval.",
                     ));
                 }
                 Ok(None) => {}
@@ -886,12 +870,7 @@ impl AgentLoop {
                         args_str.clone()
                     };
                     info!("Tool call: {}({})", tool_call.name, preview);
-                    let planning_before =
-                        if matches!(tool_call.name.as_str(), "todo_write" | "plan_transition") {
-                            self.snapshot_active_plan_runtime().await
-                        } else {
-                            None
-                        };
+                    let planning_before = self.snapshot_active_plan_runtime().await;
                     let event = AgentEvent::ToolCallStarted {
                         name: tool_call.name.clone(),
                         args_preview: preview.clone(),
@@ -910,21 +889,14 @@ impl AgentLoop {
                                 .as_ref()
                                 .is_some_and(ToolPolicy::is_read_only_mode)
                                 && !ToolPolicy::is_read_only_tool(&tool_call.name);
-                            let active_plan_phase = self
-                                .snapshot_active_plan_runtime()
-                                .await
-                                .map(|plan| plan.phase);
-                            let policy_phase = if plan_mode {
-                                Some(PlanPhase::Plan)
-                            } else {
-                                active_plan_phase.clone()
-                            };
-                            let capability = tool_capability(&tool_call.name);
+                            let policy_phase =
+                                policy_phase_for(planning_before.as_ref(), plan_mode);
+                            let capability = builtin_tool_capability(&tool_call.name);
                             let plan_mode_rejected = policy_phase
                                 .as_ref()
                                 .is_some_and(|phase| !allows_for_phase(phase, capability))
                                 || (plan_guard_active
-                                    && active_plan_phase.is_none()
+                                    && planning_before.is_none()
                                     && !matches!(
                                         capability,
                                         ToolCapability::Inspect | ToolCapability::PlanningRecord
@@ -1001,9 +973,7 @@ impl AgentLoop {
 
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
 
-                    let planning_after = if !is_error
-                        && matches!(tool_call.name.as_str(), "todo_write" | "plan_transition")
-                    {
+                    let planning_after = if !is_error {
                         self.snapshot_active_plan_runtime().await
                     } else {
                         None
@@ -1029,11 +999,24 @@ impl AgentLoop {
                             &msg,
                             event_tx,
                             &tool_call.name,
-                            planning_before,
+                            planning_before.clone(),
                             planning_after.clone(),
                         )
                         .await;
-                        if tool_call.name == "plan_transition"
+                        if planning_before
+                            .as_ref()
+                            .map(|plan| (plan.phase.clone(), plan.revision))
+                            != planning_after
+                                .as_ref()
+                                .map(|plan| (plan.phase.clone(), plan.revision))
+                        {
+                            self.rebuild_tools_for_turn(
+                                active_mask.as_ref(),
+                                policy_phase_for(planning_after.as_ref(), plan_mode),
+                                Some(background_task_context.clone()),
+                            );
+                        }
+                        if matches!(tool_call.name.as_str(), "plan_submit" | "plan_transition")
                             && planning_after
                                 .as_ref()
                                 .is_some_and(|plan| plan.phase == PlanPhase::AwaitingApproval)

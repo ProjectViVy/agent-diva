@@ -238,7 +238,11 @@ pub async fn approve_active_plan_handler(
         ));
     }
     match rx.await {
-        Ok(Ok(plan)) => Ok(Json(serde_json::json!({ "status": "ok", "plan": plan }))),
+        Ok(Ok(result)) => Ok(Json(serde_json::json!({
+            "status": "ok",
+            "plan": result.plan,
+            "receipt": result.receipt,
+        }))),
         Ok(Err(e)) => Err((
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "status": "error", "message": e })),

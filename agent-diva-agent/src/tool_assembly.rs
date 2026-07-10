@@ -1,10 +1,12 @@
 use crate::mask::{MaskFile, ToolPolicy};
-use crate::planning::{PlanShowTool, PlanTransitionTool};
+use crate::planning::{builtin_tool_capability, PlanShowTool, PlanTransitionTool};
 use crate::tool_config::PlanningConfig;
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
 use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::planning::model::PlanPhase;
+use agent_diva_core::planning::policy::allows_for_phase;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::FileManager;
@@ -46,7 +48,7 @@ pub struct ToolAssembly {
     background_task_context: BackgroundTaskContext,
     mask_config: Option<MaskConfig>,
     planning_config: Option<PlanningConfig>,
-    plan_mode: bool,
+    plan_phase: Option<PlanPhase>,
 }
 
 impl ToolAssembly {
@@ -67,7 +69,7 @@ impl ToolAssembly {
             background_task_context: BackgroundTaskContext::default(),
             mask_config: None,
             planning_config: None,
-            plan_mode: false,
+            plan_phase: None,
         }
     }
 
@@ -146,8 +148,9 @@ impl ToolAssembly {
         self
     }
 
-    pub fn plan_mode(mut self, plan_mode: bool) -> Self {
-        self.plan_mode = plan_mode;
+    /// Constrain this registry to the persisted phase active for the turn.
+    pub fn with_plan_phase(mut self, phase: Option<PlanPhase>) -> Self {
+        self.plan_phase = phase;
         self
     }
 
@@ -174,7 +177,7 @@ impl ToolAssembly {
         let read_only_mode = mask_file
             .as_ref()
             .is_some_and(ToolPolicy::is_read_only_mode);
-        let action_restricted = read_only_mode || self.plan_mode;
+        let action_restricted = read_only_mode;
         let mut registry = ToolRegistry::with_timeout(self.global_timeout_secs);
 
         if self.builtin_config.filesystem {
@@ -225,7 +228,10 @@ impl ToolAssembly {
 
         if self.builtin_config.web_search
             && self.network_config.web.search.enabled
-            && !self.plan_mode
+            && self
+                .plan_phase
+                .as_ref()
+                .is_none_or(|phase| allows_for_phase(phase, builtin_tool_capability("web_search")))
         {
             registry.register(Arc::new(WebSearchTool::with_provider_and_max_results(
                 self.network_config.web.search.provider.clone(),
@@ -234,7 +240,12 @@ impl ToolAssembly {
             )));
         }
 
-        if self.builtin_config.web_fetch && self.network_config.web.fetch.enabled && !self.plan_mode
+        if self.builtin_config.web_fetch
+            && self.network_config.web.fetch.enabled
+            && self
+                .plan_phase
+                .as_ref()
+                .is_none_or(|phase| allows_for_phase(phase, builtin_tool_capability("web_fetch")))
         {
             registry.register(Arc::new(WebFetchTool::new()));
         }
@@ -250,7 +261,11 @@ impl ToolAssembly {
             }
         }
 
-        if self.builtin_config.mcp && !self.mcp_servers.is_empty() && !action_restricted {
+        if self.builtin_config.mcp
+            && !self.mcp_servers.is_empty()
+            && !action_restricted
+            && self.plan_phase.is_none()
+        {
             for tool in load_mcp_tools_sync(&self.mcp_servers) {
                 registry.register(tool);
             }
@@ -271,7 +286,7 @@ impl ToolAssembly {
             }
         }
 
-        if !self.plan_mode {
+        if self.plan_phase.is_none() {
             for tool in self.custom_tools {
                 registry.register(tool);
             }
@@ -280,9 +295,7 @@ impl ToolAssembly {
         if let Some(planning) = self.planning_config {
             registry.register(Arc::new(PlanCreateTool::new(planning.store.clone())));
             registry.register(Arc::new(TodoShowTool::new(planning.store.clone())));
-            if !self.plan_mode {
-                registry.register(Arc::new(TodoWriteTool::new(planning.store.clone())));
-            }
+            registry.register(Arc::new(TodoWriteTool::new(planning.store.clone())));
             registry.register(Arc::new(PlanShowTool::new(planning.store.clone())));
             registry.register(Arc::new(PlanSubmitTool::new(planning.store.clone())));
             registry.register(Arc::new(PlanTransitionTool::new(
@@ -294,6 +307,18 @@ impl ToolAssembly {
         if read_only_mode {
             for tool_name in registry.tool_names() {
                 if !ToolPolicy::is_read_only_tool(&tool_name) {
+                    registry.unregister(&tool_name);
+                }
+            }
+        }
+
+        // Planning is a capability boundary, not a UI hint. Apply the same
+        // closed mapping used by invocation checks after every registration
+        // path so built-ins, custom tools, and future registrations cannot
+        // bypass a persisted phase.
+        if let Some(phase) = self.plan_phase.as_ref() {
+            for tool_name in registry.tool_names() {
+                if !allows_for_phase(phase, builtin_tool_capability(&tool_name)) {
                     registry.unregister(&tool_name);
                 }
             }
@@ -461,7 +486,7 @@ mod tests {
             .with_tool(Arc::new(NamedTool {
                 name: "memtle_status",
             }))
-            .plan_mode(true)
+            .with_plan_phase(Some(PlanPhase::Plan))
             .build();
 
         assert!(registry.has("read_file"));
@@ -479,6 +504,62 @@ mod tests {
         assert!(!registry.has("web_search"));
         assert!(!registry.has("web_fetch"));
         assert!(!registry.has("memtle_status"));
+    }
+
+    #[tokio::test]
+    async fn planning_phase_filters_registry_with_the_core_capability_policy() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let planning = PlanningConfig::open_workspace(temp_dir.path())
+            .await
+            .unwrap();
+
+        for (phase, inspect, write, execute, external, planning_record, todo_write) in [
+            (PlanPhase::Explore, true, false, false, false, true, false),
+            (PlanPhase::Plan, true, false, false, false, true, false),
+            (
+                PlanPhase::AwaitingApproval,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+            ),
+            (PlanPhase::Execute, true, true, true, true, true, true),
+            (PlanPhase::Verify, true, false, true, false, true, false),
+            (
+                PlanPhase::Completed,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+            ),
+            (PlanPhase::Failed, false, false, false, false, false, false),
+            (PlanPhase::Partial, false, false, false, false, false, false),
+        ] {
+            let registry = ToolAssembly::new(temp_dir.path().to_path_buf())
+                .builtin(BuiltInToolsConfig::all())
+                .with_planning_config(Some(planning.clone()))
+                .with_tool(Arc::new(NamedTool {
+                    name: "custom_tool",
+                }))
+                .with_plan_phase(Some(phase.clone()))
+                .build();
+
+            assert_eq!(registry.has("read_file"), inspect, "{phase}");
+            assert_eq!(registry.has("list_dir"), inspect, "{phase}");
+            assert_eq!(registry.has("plan_create"), planning_record, "{phase}");
+            assert_eq!(registry.has("plan_transition"), planning_record, "{phase}");
+            assert_eq!(registry.has("write_file"), write, "{phase}");
+            assert_eq!(registry.has("edit_file"), write, "{phase}");
+            assert_eq!(registry.has("exec"), execute, "{phase}");
+            assert_eq!(registry.has("plan_submit"), planning_record, "{phase}");
+            assert_eq!(registry.has("todo_write"), todo_write, "{phase}");
+            assert_eq!(registry.has("web_search"), external, "{phase}");
+            assert!(!registry.has("custom_tool"), "{phase}");
+        }
     }
 
     #[test]
