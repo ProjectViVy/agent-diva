@@ -396,6 +396,31 @@ pub async fn get_plan(
 }
 
 #[tauri::command]
+pub async fn delete_plan(
+    #[allow(non_snake_case)] planId: String,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    let url = format!(
+        "{}/plans/{}",
+        state.api_base_url(),
+        urlencoding::encode(planId.trim())
+    );
+    let response = state
+        .client
+        .delete(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to delete plan: {}", e))?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        Err(format!("Failed to delete plan ({}): {}", status, body))
+    }
+}
+
+#[tauri::command]
 pub async fn get_active_plan(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
     let plans = get_plans(state.clone()).await?;
     let Some(active_id) = plans

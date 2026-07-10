@@ -69,6 +69,7 @@ pub trait PlanningStore: Send + Sync {
     async fn get_events(&self, plan_id: &PlanId) -> crate::Result<Vec<PlanEvent>>;
 
     async fn set_active_plan(&self, plan_id: &PlanId) -> crate::Result<()>;
+    async fn clear_active_plan(&self, plan_id: &PlanId) -> crate::Result<()>;
     async fn get_active_plan(&self) -> crate::Result<PlanId>;
 }
 
@@ -525,6 +526,14 @@ impl PlanningStore for SqlitePlanningStore {
         .execute(&self.pool)
         .await?;
 
+        Ok(())
+    }
+
+    async fn clear_active_plan(&self, plan_id: &PlanId) -> crate::Result<()> {
+        sqlx::query("DELETE FROM active_plan WHERE singleton = 1 AND plan_id = ?")
+            .bind(&plan_id.0)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -1163,6 +1172,29 @@ mod tests {
             .unwrap();
         let active = store.get_active_plan().await.unwrap();
         assert_eq!(active.0, "p2");
+    }
+
+    #[tokio::test]
+    async fn test_clear_active_plan_only_clears_matching_plan() {
+        let store = test_store().await;
+        store.create_plan(&make_plan("p1", "First")).await.unwrap();
+        store.create_plan(&make_plan("p2", "Second")).await.unwrap();
+
+        store
+            .set_active_plan(&PlanId("p1".to_string()))
+            .await
+            .unwrap();
+        store
+            .clear_active_plan(&PlanId("p2".to_string()))
+            .await
+            .unwrap();
+        assert_eq!(store.get_active_plan().await.unwrap().0, "p1");
+
+        store
+            .clear_active_plan(&PlanId("p1".to_string()))
+            .await
+            .unwrap();
+        assert!(store.get_active_plan().await.is_err());
     }
 
     #[tokio::test]

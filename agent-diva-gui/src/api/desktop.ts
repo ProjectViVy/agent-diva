@@ -157,6 +157,9 @@ export const getRuntimeConfig = () =>
 export const approveActivePlanExecution = () =>
   invoke<PlanRuntimeState>("approve_active_plan_execution");
 
+export const deletePlan = (planId: string) =>
+  invoke<void>("delete_plan", { planId });
+
 export const saveRawConfig = (raw: string) =>
   invoke<void>("save_config", { raw });
 

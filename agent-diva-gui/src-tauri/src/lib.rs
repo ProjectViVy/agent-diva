@@ -328,6 +328,7 @@ pub fn run() {
             commands::get_cron_job,
             commands::get_plans,
             commands::get_plan,
+            commands::delete_plan,
             commands::get_active_plan,
             commands::approve_active_plan_execution,
             commands::create_cron_job,

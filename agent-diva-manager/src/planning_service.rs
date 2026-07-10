@@ -255,6 +255,10 @@ impl PlanningService {
             .delete_plan(&plan_id)
             .await
             .context("failed to delete plan")?;
+        self.store
+            .clear_active_plan(&plan_id)
+            .await
+            .context("failed to clear deleted active plan")?;
         Ok(())
     }
 

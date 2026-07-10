@@ -13,6 +13,7 @@ import ApprovalBanner from './ApprovalBanner.vue';
 import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
+import PlanApprovalCard from './planning/PlanApprovalCard.vue';
 import {
   triggerAutoDream,
   getAutoDreamRunStatus,
@@ -148,6 +149,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'approve-plan'): void;
+  (e: 'revoke-plan'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'select-session', sessionKey: string): void;
@@ -498,13 +500,6 @@ const planProgressText = computed(() => {
   const completed = plan.todos.filter((todo) => todo.status === 'Completed').length;
   return `${completed}/${plan.todos.length}`;
 });
-
-const focusPlanInput = () => {
-  execMode.value = 'plan';
-  nextTick(() => {
-    inputRef.value?.focus();
-  });
-};
 
 // 模式菜单选项
 const modeOptions = [
@@ -910,7 +905,15 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         </div>
       </div>
 
-      <div v-if="activePlanRuntime" class="flex mb-4 justify-start">
+      <PlanApprovalCard
+        v-if="pendingApprovalPlan"
+        :plan="pendingApprovalPlan"
+        :approving="approvingPlan"
+        @approve="emit('approve-plan')"
+        @revoke="emit('revoke-plan')"
+      />
+
+      <div v-if="activePlanRuntime && !pendingApprovalPlan" class="flex mb-4 justify-start">
         <div class="flex max-w-[85%] items-start space-x-2">
           <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-amber-50 text-amber-700 border border-amber-100">
             <ClipboardList :size="16" />
@@ -960,38 +963,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
     </div>
 
     <div
-      v-if="pendingApprovalPlan"
-      class="mx-4 mb-3 rounded-2xl border border-amber-200 bg-white/95 shadow-lg px-4 py-4"
-    >
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <div class="text-sm font-semibold text-gray-900">{{ pendingApprovalPlan.title }}</div>
-          <div class="text-xs text-gray-500 mt-1">{{ pendingApprovalPlan.goal }}</div>
-        </div>
-        <div class="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-          {{ pendingApprovalPlan.phase }}
-        </div>
-      </div>
-      <div class="mt-3 flex items-center gap-2">
-        <button
-          class="px-3 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 disabled:opacity-60"
-          :disabled="approvingPlan"
-          @click="emit('approve-plan')"
-        >
-          <Loader2 v-if="approvingPlan" :size="14" class="inline-block mr-1 animate-spin" />
-          <span>{{ approvingPlan ? 'Starting...' : 'Approve and Execute' }}</span>
-        </button>
-        <button
-          class="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
-          @click="focusPlanInput"
-        >
-          Modify Plan
-        </button>
-      </div>
-    </div>
-
-    <div
-      v-else-if="executingPlan"
+      v-if="executingPlan"
       class="mx-4 mb-3 rounded-2xl border border-sky-200 bg-white/95 shadow-lg px-4 py-3"
     >
       <div class="flex items-center justify-between gap-4">

@@ -9,6 +9,7 @@ import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
 import {
   approveActivePlanExecution,
+  deletePlan,
   getConfigStatus,
   getRuntimeConfig,
   FileAttachmentDto,
@@ -781,6 +782,22 @@ async function approvePlanExecution() {
     });
   } finally {
     approvingPlan.value = false;
+  }
+}
+
+async function revokePlanExecution() {
+  const plan = pendingApprovalPlan.value;
+  if (!plan) return;
+  try {
+    await deletePlan(plan.plan_id);
+    syncPlanRuntime(null);
+  } catch (error) {
+    messages.value.push({
+      id: generateMessageId(),
+      role: 'system',
+      content: `${t('app.errorPrefix')}${error}`,
+      timestamp: Date.now(),
+    });
   }
 }
 
@@ -1748,6 +1765,7 @@ onUnmounted(() => {
       :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
       @approve-plan="approvePlanExecution"
+      @revoke-plan="revokePlanExecution"
       @clear="clearMessages"
       @stop="stopMessage"
       @regenerate="regenerateMessage"
