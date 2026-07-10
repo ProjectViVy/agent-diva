@@ -1134,15 +1134,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
           <input type="file" ref="fileInputRef" @change="handleFileSelect" class="hidden" multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.zip,.tar.gz" />
 
           <!-- 语音按钮 -->
-          <button 
-            class="toolbar-btn" 
-            :class="{ recording: isRecording }"
-            :title="t('chat.voice')"
-            @click="isRecording = !isRecording"
-          >
-            <Mic :size="14" />
-          </button>
-
           <!-- 思考模式选择 -->
           <ThinkingToggle v-model="thinkingMode" />
 
@@ -1240,6 +1231,15 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
               :title="t('chat.newSession')"
             >
               <Plus :size="18" />
+            </button>
+
+            <button
+              class="input-action-btn"
+              :class="{ recording: isRecording }"
+              :title="t('chat.voice')"
+              @click="isRecording = !isRecording"
+            >
+              <Mic :size="18" />
             </button>
 
             <!-- 发送/停止按钮 -->
