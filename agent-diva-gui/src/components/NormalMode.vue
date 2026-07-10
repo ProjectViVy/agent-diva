@@ -25,7 +25,7 @@ import { invoke } from '@tauri-apps/api/core';
 import ChatView from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
 import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
-import type { PlanRuntimeState } from '../api/planning';
+import type { PlanRuntimeState, TodoDetail } from '../api/planning';
 import type { ToolsConfigShape } from '../types/toolsConfig';
 import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
@@ -35,6 +35,7 @@ import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
 import NotebookView from './NotebookView.vue';
 import PlanningView from './planning/PlanningView.vue';
+import TodoListPanel from './planning/TodoListPanel.vue';
 import EvolutionView from './EvolutionView.vue';
 import PersonaMemoryView from './PersonaMemoryView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
@@ -60,6 +61,7 @@ interface Message {
   timestamp?: number;
   emotion?: string;
   attachments?: string[];
+  planSnapshot?: PlanRuntimeState;
 }
 
 interface ChatDisplayPrefs {
@@ -140,6 +142,21 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+const currentTodoPlan = computed(() => props.executingPlan ?? props.activePlanRuntime ?? null);
+const currentTodoItems = computed<TodoDetail[]>(() =>
+  (currentTodoPlan.value?.todos ?? []).map((todo) => ({
+    id: todo.id,
+    plan_step_id: todo.plan_step_id,
+    title: todo.title,
+    detail: todo.detail,
+    status: todo.status.toLowerCase() === 'inprogress' ? 'in_progress' : todo.status.toLowerCase(),
+    priority: todo.priority.toLowerCase(),
+    evidence_ref: todo.evidence_ref,
+    block_reason: todo.block_reason,
+    updated_at: todo.updated_at,
+  })),
+);
 
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
@@ -1077,8 +1094,9 @@ defineExpose({
 
         <!-- 聊天/设置视图 -->
         <template v-else>
-          <div v-if="activeTab === 'chat'" class="h-full">
-            <ChatView
+          <div v-if="activeTab === 'chat'" class="h-full min-h-0 chat-workspace-grid">
+            <div class="min-w-0 min-h-0">
+              <ChatView
               :messages="messages"
               :is-typing="isTyping"
               :theme-mode="themeMode"
@@ -1102,7 +1120,15 @@ defineExpose({
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"
               @open-evolution="openEvolutionDeepLink"
-            />
+              />
+            </div>
+            <aside v-if="currentTodoPlan" class="todo-rail">
+              <TodoListPanel
+                :todos="currentTodoItems"
+                :plan-title="currentTodoPlan.title"
+                :plan-phase="currentTodoPlan.phase"
+              />
+            </aside>
           </div>
           <div v-else class="h-full min-h-0">
             <SettingsView
@@ -1137,6 +1163,13 @@ defineExpose({
 </template>
 
 <style scoped>
+ .chat-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 0.75rem; }
+ .todo-rail { min-width: 0; min-height: 0; padding: 0.75rem 0.75rem 0.75rem 0; overflow-y: auto; }
+ @media (max-width: 1100px) {
+   .chat-workspace-grid { display: block; overflow-y: auto; }
+   .todo-rail { padding: 0 0.75rem 0.75rem; }
+ }
+
 /* Overlay sidebar: fixed slide-out panel that reuses global sidebar tokens */
 .overlay-sidebar {
   position: fixed;

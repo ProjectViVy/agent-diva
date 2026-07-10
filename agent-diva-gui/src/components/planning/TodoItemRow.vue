@@ -14,6 +14,7 @@ const { t } = useI18n();
 
 const props = defineProps<{
   todo: TodoDetail;
+  detailed?: boolean;
 }>();
 
 const isInProgress = computed(() => props.todo.status === 'in_progress');
@@ -65,6 +66,8 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
       {{ todo.title }}
     </span>
 
+    <span v-if="detailed && todo.detail" class="todo-detail">{{ todo.detail }}</span>
+
     <!-- Priority badge -->
     <span
       v-if="isHighPriority"
@@ -99,6 +102,8 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
     >
       🔒 {{ todo.block_reason }}
     </span>
+
+    <span v-if="detailed && todo.plan_step_id" class="todo-step-ref">{{ todo.plan_step_id }}</span>
   </div>
 </template>
 
@@ -146,6 +151,21 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 .todo-title--done {
   text-decoration: line-through;
   color: var(--text-muted);
+}
+
+.todo-detail {
+  flex: 1 1 100%;
+  min-width: 0;
+  margin-left: 26px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.todo-step-ref {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  white-space: nowrap;
 }
 
 /* Priority badges */

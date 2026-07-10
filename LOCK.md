@@ -45,6 +45,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-10`: Released plan history/Todo GUI lock after adding structured plan snapshots to session messages, historical plan cards, active-plan Todo rail with concise/detail toggle, and passing Rust/GUI validation; recorded `docs/logs/2026-07-plan-gui/v0.0.1-plan-history-todo/`.
+
 - `2026-07-10`: Released plan-mode harness lock after making pending-approval state a runtime mutation guard, stopping the turn at `AwaitingApproval`, passing `cargo check -p agent-diva-agent`, `cargo fmt --all -- --check`, and all 335 `agent-diva-agent` library tests; recorded `docs/logs/2026-07-plan-harness/v0.0.1-plan-approval-guard/`.
 
 - `2026-07-10`: Restored remaining normal files from `stash@{0}` through batched stash application; preserved existing Cargo.lock changes and excluded unrelated乱码/untracked artifacts. Validation passed for core/manager, agent/CLI/E2E, GUI Rust, and 385 GUI tests.

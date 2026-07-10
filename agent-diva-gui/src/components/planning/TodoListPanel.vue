@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, List, ListChecks } from 'lucide-vue-next';
 import TodoItemRow from './TodoItemRow.vue';
 import type { TodoDetail } from '../../api/planning';
 
@@ -9,7 +9,11 @@ const { t } = useI18n();
 
 const props = defineProps<{
   todos: TodoDetail[];
+  planTitle?: string;
+  planPhase?: string;
 }>();
+
+const detailedMode = ref(false);
 
 // --- Group by status ---
 const inProgressTodos = computed(() =>
@@ -85,6 +89,20 @@ function toggleGroup(key: string) {
 
 <template>
   <div class="todo-list-panel">
+    <div v-if="planTitle" class="panel-title-row">
+      <div class="panel-title-wrap">
+        <ListChecks :size="16" class="panel-title-icon" />
+        <div>
+          <div class="panel-title">{{ planTitle }}</div>
+          <div v-if="planPhase" class="panel-phase">{{ planPhase }}</div>
+        </div>
+      </div>
+      <button class="detail-toggle" type="button" @click="detailedMode = !detailedMode">
+        <List v-if="!detailedMode" :size="14" />
+        <ListChecks v-else :size="14" />
+        {{ detailedMode ? '简洁' : '详细' }}
+      </button>
+    </div>
     <!-- Progress bar -->
     <div class="panel-progress">
       <div class="panel-progress-header">
@@ -122,6 +140,7 @@ function toggleGroup(key: string) {
             v-for="todo in group.todos"
             :key="todo.id"
             :todo="todo"
+            :detailed="detailedMode"
           />
         </div>
       </div>
@@ -149,6 +168,22 @@ function toggleGroup(key: string) {
 .todo-list-panel:hover {
   border-color: var(--accent-border);
 }
+
+.panel-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-title-wrap { display: flex; align-items: flex-start; gap: 0.5rem; min-width: 0; }
+.panel-title-icon { flex: 0 0 auto; color: var(--accent); }
+.panel-title { overflow: hidden; color: var(--text); font-size: 0.9rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.panel-phase { margin-top: 0.15rem; color: var(--text-muted); font-size: 0.7rem; }
+.detail-toggle { display: inline-flex; align-items: center; gap: 0.25rem; flex: 0 0 auto; padding: 0.25rem 0.45rem; border: 1px solid var(--line); border-radius: 6px; color: var(--accent); background: var(--panel); font-size: 0.7rem; cursor: pointer; }
+.detail-toggle:hover { background: var(--accent-bg-light); }
 
 /* Progress bar */
 .panel-progress {

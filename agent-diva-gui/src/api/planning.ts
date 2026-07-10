@@ -90,6 +90,12 @@ export interface PlanRuntimeState {
   updated_at: string;
 }
 
+export interface PlanSnapshotMetadata {
+  kind: 'plan_snapshot';
+  version: number;
+  plan: PlanRuntimeState;
+}
+
 export interface PlanStreamEvent {
   plan: PlanRuntimeState;
   todo?: PlanRuntimeTodo | null;

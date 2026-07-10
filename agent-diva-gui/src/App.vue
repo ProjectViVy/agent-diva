@@ -14,7 +14,7 @@ import {
   getRuntimeConfig,
   FileAttachmentDto,
 } from "./api/desktop";
-import type { PlanRuntimeState, PlanStreamEvent } from "./api/planning";
+import type { PlanDetail, PlanRuntimeState, PlanSnapshotMetadata, PlanStreamEvent } from "./api/planning";
 import type { ToolsConfigShape } from "./types/toolsConfig";
 import {
   HISTORY_PREFS_KEY,
@@ -50,6 +50,7 @@ interface Message {
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
   attachments?: string[];
+  planSnapshot?: PlanRuntimeState;
 }
 
 interface ToolStartPayload {
@@ -132,6 +133,7 @@ interface BackendChatMessage {
   tool_calls?: serdeJsonValue[] | null;
   name?: string | null;
   thinking_blocks?: serdeJsonValue[] | null;
+  metadata?: serdeJsonValue | null;
 }
 
 interface BackendSessionHistory {
@@ -573,6 +575,7 @@ function buildRawMeta(msg: BackendChatMessage): Record<string, unknown> | undefi
   if (hasValue(msg.tool_calls)) rawMeta.tool_calls = msg.tool_calls;
   if (hasValue(msg.name)) rawMeta.name = msg.name;
   if (hasValue(msg.thinking_blocks)) rawMeta.thinking_blocks = msg.thinking_blocks;
+  if (hasValue(msg.metadata)) rawMeta.metadata = msg.metadata;
   if (Object.keys(rawMeta).length === 0) return undefined;
   return rawMeta;
 }
@@ -586,6 +589,10 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
   const toolName = extractToolName(msg.role, msg.name, msg.tool_calls);
   const toolArgs = extractToolArgs(msg.tool_calls);
   const rawMeta = buildRawMeta(msg);
+  const planMetadata = msg.metadata as Partial<PlanSnapshotMetadata> | null | undefined;
+  const planSnapshot = planMetadata?.kind === 'plan_snapshot' && planMetadata.plan
+    ? planMetadata.plan
+    : undefined;
   const toolResult = mappedRole === 'tool' ? (msg.content || '') : undefined;
   const toolStatus = mappedRole === 'tool'
     ? (/^error\b/i.test(msg.content || '') ? 'error' : 'success')
@@ -605,6 +612,7 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
     toolCallId: msg.tool_call_id || undefined,
     rawMeta,
     fromHistory: true,
+    planSnapshot,
   };
 }
 
@@ -782,6 +790,49 @@ async function approvePlanExecution() {
     });
   } finally {
     approvingPlan.value = false;
+  }
+}
+
+async function restoreActivePlanRuntime() {
+  if (!isTauri()) return;
+  try {
+    const plan = await invoke<PlanDetail | null>('get_active_plan');
+    if (!plan) {
+      syncPlanRuntime(null);
+      return;
+    }
+    syncPlanRuntime({
+      plan_id: plan.id,
+      title: plan.title,
+      goal: plan.goal,
+      phase: plan.phase,
+      status: plan.status,
+      strategy: plan.strategy,
+      summary: `${plan.title}: ${plan.goal}`,
+      steps: plan.steps.map((step) => ({
+        id: step.id,
+        ordinal: step.ordinal,
+        title: step.title,
+        rationale: step.rationale,
+        expected_output: step.expected_output,
+        status: step.status,
+      })),
+      todos: plan.todos.map((todo) => ({
+        id: todo.id,
+        plan_step_id: todo.plan_step_id,
+        title: todo.title,
+        detail: todo.detail,
+        status: todo.status,
+        priority: todo.priority,
+        evidence_ref: todo.evidence_ref,
+        block_reason: todo.block_reason,
+        updated_at: todo.updated_at,
+      })),
+      created_at: plan.created_at,
+      updated_at: plan.updated_at,
+    });
+  } catch (error) {
+    console.warn('Failed to restore active plan runtime:', error);
   }
 }
 
@@ -1179,6 +1230,7 @@ async function loadSession(sessionKey: string): Promise<boolean> {
         message_count: newMessages.filter((msg) => ['user', 'agent', 'tool'].includes(msg.role) && msg.content.trim()).length,
       });
     }
+    await restoreActivePlanRuntime();
     return true;
   } catch (e) {
     console.error("Failed to load session history:", e);
@@ -1463,6 +1515,7 @@ onMounted(async () => {
     // Fetch sessions and reopen the latest GUI chat (not a fresh random chat id)
     await refreshSessions();
     await restoreLatestGuiChatOnStartup();
+    await restoreActivePlanRuntime();
 
     // Register cleanup
     onUnmounted(() => {

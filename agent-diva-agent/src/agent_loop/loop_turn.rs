@@ -525,6 +525,7 @@ impl AgentLoop {
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
         let mut turn_token_usage: Option<TokenUsage> = None;
+        let mut plan_history_snapshot: Option<PlanRuntimeState> = None;
 
         // Intent-aware prefetch: run recall search before the first LLM call
         // when the user message provides a workable intent string.
@@ -988,6 +989,9 @@ impl AgentLoop {
                     } else {
                         None
                     };
+                    if let Some(plan) = planning_after.as_ref() {
+                        plan_history_snapshot = Some(plan.clone());
+                    }
 
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),
@@ -1099,6 +1103,7 @@ impl AgentLoop {
                 &message_content,
                 &final_content,
                 turn_token_usage,
+                plan_history_snapshot.as_ref(),
             );
         }
 
@@ -1342,6 +1347,7 @@ fn save_turn(
     user_content: &str,
     final_content: &str,
     turn_token_usage: Option<TokenUsage>,
+    plan_history_snapshot: Option<&PlanRuntimeState>,
 ) {
     // Save trigger message; cron-triggered turns are not real-time user input.
     session.add_message(user_role, user_content);
@@ -1422,6 +1428,19 @@ fn save_turn(
                 last.token_usage = turn_token_usage;
             }
         }
+    }
+
+    if let Some(plan) = plan_history_snapshot {
+        let mut plan_message = ChatMessage::new(
+            "system",
+            format!("Plan snapshot: {} ({})", plan.title, plan.phase),
+        );
+        plan_message.metadata = Some(serde_json::json!({
+            "kind": "plan_snapshot",
+            "version": 1,
+            "plan": plan,
+        }));
+        session.add_full_message(plan_message);
     }
 }
 

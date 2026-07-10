@@ -320,6 +320,7 @@ mod tests {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            metadata: None,
             token_usage: None,
         }
     }

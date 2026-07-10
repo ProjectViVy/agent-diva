@@ -129,6 +129,7 @@ impl Session {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            metadata: None,
             token_usage: None,
         });
         self.updated_at = Utc::now();
@@ -292,6 +293,9 @@ pub struct ChatMessage {
     /// Optional structured thinking blocks (provider-specific)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub thinking_blocks: Option<Vec<serde_json::Value>>,
+    /// Structured UI/runtime metadata, such as a persisted plan snapshot.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub metadata: Option<serde_json::Value>,
     /// Token usage from the LLM response for this turn (assistant messages only)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub token_usage: Option<TokenUsage>,
@@ -309,6 +313,7 @@ impl ChatMessage {
             name: None,
             reasoning_content: None,
             thinking_blocks: None,
+            metadata: None,
             token_usage: None,
         }
     }
@@ -330,6 +335,7 @@ impl ChatMessage {
             name,
             reasoning_content: None,
             thinking_blocks: None,
+            metadata: None,
             token_usage: None,
         }
     }
@@ -444,6 +450,27 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         // When token_usage is None, skip_serializing_if should omit it
         assert!(!json.contains("token_usage"));
+    }
+
+    #[test]
+    fn test_chat_message_plan_metadata_roundtrips_and_is_optional() {
+        let mut msg = ChatMessage::new("assistant", "Plan snapshot");
+        msg.metadata = Some(serde_json::json!({
+            "kind": "plan_snapshot",
+            "version": 1,
+            "plan": { "plan_id": "plan-1", "phase": "Execute" }
+        }));
+
+        let json = serde_json::to_string(&msg).unwrap();
+        let restored: ChatMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            restored
+                .metadata
+                .as_ref()
+                .and_then(|value| value.get("kind"))
+                .and_then(|value| value.as_str()),
+            Some("plan_snapshot")
+        );
     }
 
     #[test]

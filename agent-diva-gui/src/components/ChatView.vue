@@ -14,6 +14,7 @@ import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
+import PlanHistoryCard from './planning/PlanHistoryCard.vue';
 import {
   triggerAutoDream,
   getAutoDreamRunStatus,
@@ -77,6 +78,7 @@ interface Message {
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
   attachments?: string[];
+  planSnapshot?: PlanRuntimeState;
 }
 
 const expandedTools = ref<Record<string, boolean>>({});
@@ -666,6 +668,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 
           <!-- Bubble -->
           <div class="flex flex-col min-w-0 max-w-full">
+            <PlanHistoryCard v-if="msg.planSnapshot" :plan="msg.planSnapshot" />
             <!-- Tool Message -->
             <template v-if="msg.role === 'tool'">
               <!-- Card rendering: plan_create / todo_write / approval_request -->
@@ -789,7 +792,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 
             <!-- Normal Message -->
             <div
-              v-else
+              v-else-if="!msg.planSnapshot"
               class="chat-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words"
               :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
             >

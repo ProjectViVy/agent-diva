@@ -33,6 +33,7 @@ fn make_msg(role: &str, content: &str) -> ChatMessage {
         name: None,
         reasoning_content: None,
         thinking_blocks: None,
+        metadata: None,
         token_usage: None,
     }
 }
