@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 
-- Lock State: `FREE`
-- Scope: `none`
-- Owner: `none`
-- Session/Task: `none`
-- Branch/Worktree: `none`
-- Started At: `none`
-- Last Heartbeat: `none`
-- Expires At: `none`
+- Lock State: `HELD`
+- Scope: `agent-diva-gui/src/components/NormalMode.vue`
+- Owner: `Grok`
+- Session/Task: `Comment out chat right-side AppToastLayer (accumulating tips)`
+- Branch/Worktree: `agent-diva-pro @ C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Started At: `2026-07-10`
+- Last Heartbeat: `2026-07-10`
+- Expires At: `2026-07-11`
 
 ## Lock Rules
 

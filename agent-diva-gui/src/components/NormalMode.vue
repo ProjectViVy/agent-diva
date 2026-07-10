@@ -37,7 +37,8 @@ import EvolutionView from './EvolutionView.vue';
 import PersonaMemoryView from './PersonaMemoryView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
-import AppToastLayer from './AppToastLayer.vue';
+// Temporarily disabled with the toast layer below (accumulating right-side tips).
+// import AppToastLayer from './AppToastLayer.vue';
 import MaskSelectorButton from './MaskSelectorButton.vue';
 import { useI18n } from 'vue-i18n';
 
@@ -1115,7 +1116,9 @@ defineExpose({
     </main>
 
     <AppDialogLayer :theme-mode="themeMode" />
+    <!-- Temporarily disabled: right-side toast keeps reappearing/stacking during chat/config flows.
     <AppToastLayer />
+    -->
   </div>
 </template>
 
