@@ -765,6 +765,8 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
     return;
   }
   if (plan.phase === 'Completed' || plan.phase === 'Failed' || plan.phase === 'Partial') {
+    // Terminal plans must not keep occupying the chat's active-plan bar.
+    activePlanRuntime.value = null;
     pendingApprovalPlan.value = null;
     executingPlan.value = null;
   }
