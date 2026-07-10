@@ -331,8 +331,29 @@
     flex-direction: column;
     gap: 4px;
     flex: 1;
+    min-width: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    /* 展开态预留细滚动条宽度，避免滑块显隐时挤压图标 */
+    scrollbar-gutter: stable;
+  }
+
+  /*
+   * 折叠态内容区本身只有 ~40px（56 栏宽 - 两侧 padding）。
+   * 经典滚动条再占 6px 会把固定 40px 的 nav-item 裁掉一半图标。
+   * 折叠时隐藏滑块（仍可用滚轮滚动），并让图标格居中、不超出容器。
+   */
+  .sidebar-collapsed .sidebar-nav {
+    align-items: center;
+    scrollbar-gutter: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .sidebar-collapsed .sidebar-nav::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none;
   }
 
   /* 侧边栏底部区域 */
@@ -342,6 +363,19 @@
     gap: 4px;
     padding-top: 8px;
     margin-top: auto;
+  }
+
+  .sidebar-collapsed .sidebar-footer {
+    align-items: center;
+  }
+
+  .sidebar-collapsed .sidebar-header {
+    justify-content: center;
+  }
+
+  .sidebar-collapsed.sidebar,
+  .sidebar.sidebar-collapsed {
+    align-items: center;
   }
 
   /* 导航项 */
@@ -379,7 +413,11 @@
     height: var(--nav-icon-size) !important;
     min-width: var(--nav-icon-size);
     min-height: var(--nav-icon-size);
+    max-width: var(--nav-icon-size);
+    max-height: var(--nav-icon-size);
     display: block;
+    overflow: visible;
+    flex-shrink: 0;
     color: var(--nav-icon) !important;
     opacity: var(--nav-icon-opacity);
     stroke-width: var(--nav-icon-stroke);
@@ -448,11 +486,15 @@
 
   .sidebar-collapsed .nav-item {
     justify-content: center;
+    align-items: center;
     width: 40px;
+    max-width: 100%;
     height: 40px;
     min-height: 40px;
-    flex: 0 0 40px;
+    flex: 0 0 auto;
     padding: 0;
+    box-sizing: border-box;
+    overflow: visible;
   }
 
   .sidebar-collapsed .nav-item svg,
@@ -463,6 +505,9 @@
     height: var(--nav-icon-size) !important;
     min-width: var(--nav-icon-size);
     min-height: var(--nav-icon-size);
+    max-width: var(--nav-icon-size);
+    max-height: var(--nav-icon-size);
+    overflow: visible;
   }
 
   /* 弹出菜单项 */
@@ -536,10 +581,14 @@
 
   .sidebar-collapsed .menu-toggle {
     width: 40px;
+    max-width: 100%;
     height: 40px;
     min-height: 40px;
-    flex: 0 0 40px;
+    flex: 0 0 auto;
+    align-self: center;
     padding: 0;
+    box-sizing: border-box;
+    overflow: visible;
   }
 
   .menu-toggle:hover {
@@ -620,15 +669,23 @@
 
   .sidebar-collapsed .nav-group-header {
     justify-content: center;
+    align-items: center;
     width: 40px;
+    max-width: 100%;
     height: 40px;
     min-height: 40px;
-    flex: 0 0 40px;
+    flex: 0 0 auto;
     padding: 0;
+    box-sizing: border-box;
+    overflow: visible;
   }
 
   .sidebar-collapsed .nav-group {
     margin-top: 4px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   .sidebar-collapsed .nav-group-header span,
