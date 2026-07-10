@@ -102,9 +102,20 @@ impl From<CoreMentleToolMode> for MentleToolMode {
 #[cfg(test)]
 mod tests {
     use super::{MentleToolMode, MentleToolRuntimeConfig};
+    use agent_diva_core::config::Config;
 
     #[test]
-    fn default_disables_mentle_tools() {
+    fn config_defaults_activate_full_runtime() {
+        let config = MentleToolRuntimeConfig::from_config(&Config::default());
+
+        assert!(config.is_active_request());
+        assert_eq!(config.mode, MentleToolMode::Full);
+        assert!(config.allows_tool("memtle_status"));
+        assert!(config.allows_tool("memtle_diary_write"));
+    }
+
+    #[test]
+    fn default_runtime_config_remains_explicitly_disabled() {
         let config = MentleToolRuntimeConfig::default();
 
         assert!(!config.is_active_request());

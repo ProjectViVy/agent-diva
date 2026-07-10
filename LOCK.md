@@ -45,7 +45,11 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-10`: Released Mentle default startup lock after enabling new-config defaults and the current user config in Full mode, adding default runtime coverage, and recording `docs/logs/2026-07-10-mentle-default-startup/v0.0.1-default-full-mode/`. Workspace clippy is blocked by an unrelated Anthropic provider lint; workspace tests are blocked by unrelated missing `ChatMessage.metadata` initializers in AutoDream and two existing Mentle prompt fixture failures.
+
 - `2026-07-10`: Released 30-day planning retention cleanup after adding startup/list-triggered hard deletion, cascade coverage, Manager coverage, and iteration logs. Full core library validation retains an unrelated supervised executor failure recorded in `TODOLIST.md`.
+- `2026-07-10`: Released collapsed sidebar icon layout fix after removing scrollbar gutter reservation that narrowed navigation items; GUI typecheck and focused NormalMode tests passed; recorded `docs/logs/2026-07-sidebar-icon-layout/v0.0.1-remove-scrollbar-gutter-reservation/`.
+- `2026-07-10`: Released collapsed sidebar icon grid fix after making controls square and icon slots uniform; GUI typecheck and focused NormalMode tests passed; recorded `docs/logs/2026-07-sidebar-icon-grid/v0.0.1-square-even-collapsed-icons/`.
 
 - `2026-07-10`: Released Bootstrap one-shot guard after using `bootstrap_seeded_at`, adding fail-closed handling for corrupt soul state, adding prompt boundaries against autonomous `BOOTSTRAP.md` reads, and passing focused context/soul tests; recorded `docs/logs/2026-07-bootstrap-guard/v0.0.1-one-shot-bootstrap/`.
 

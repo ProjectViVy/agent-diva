@@ -376,8 +376,8 @@ pub enum MentleToolMode {
 impl Default for MentleToolConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            mode: MentleToolMode::Off,
+            enabled: true,
+            mode: MentleToolMode::Full,
             allowed_tools: Vec::new(),
         }
     }
@@ -1381,7 +1381,7 @@ impl Default for BuiltInToolsConfig {
             mcp: true,
             attachment: true,
             planning: false,
-            mentle: false,
+            mentle: true,
             enqueue_background_task: true,
         }
     }
@@ -1764,13 +1764,13 @@ mod tests {
     // ── Legacy tests (kept from original) ──────────────────────────────────
 
     #[test]
-    fn mentle_config_defaults_to_off() {
+    fn mentle_config_defaults_to_full() {
         let config = Config::default();
 
-        assert!(!config.mentle.enabled);
-        assert_eq!(config.mentle.mode, MentleToolMode::Off);
+        assert!(config.mentle.enabled);
+        assert_eq!(config.mentle.mode, MentleToolMode::Full);
         assert!(config.mentle.allowed_tools.is_empty());
-        assert!(!config.tools.builtin.mentle);
+        assert!(config.tools.builtin.mentle);
     }
 
     #[test]
