@@ -8,7 +8,6 @@ import {
   Cat,
   Check,
   ChevronDown,
-  ClipboardList,
   GitBranch,
   Heart,
   Menu,
@@ -34,7 +33,6 @@ import ConsoleView from './ConsoleView.vue';
 import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
 import NotebookView from './NotebookView.vue';
-import PlanningView from './planning/PlanningView.vue';
 import EvolutionView from './EvolutionView.vue';
 import PersonaMemoryView from './PersonaMemoryView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
@@ -167,13 +165,11 @@ type SidebarSection =
   | 'mcp'
   | 'skills'
   | 'notebook'
-  | 'planning'
   | 'pet';
 type EvolutionBadgeTone = 'none' | 'accent' | 'warning' | 'danger';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
 const activeMenu = ref<'evolution' | 'console' | 'persona-memory' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
-const planningSelection = ref<string | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -684,7 +680,7 @@ defineExpose({
         <div class="nav-group">
           <div
             class="nav-group-header"
-            :class="{ active: isSectionActive('persona-memory') || isSectionActive('neuro') || isSectionActive('cron') || isSectionActive('evolution') || isSectionActive('notebook') || isSectionActive('planning') }"
+            :class="{ active: isSectionActive('persona-memory') || isSectionActive('neuro') || isSectionActive('cron') || isSectionActive('evolution') || isSectionActive('notebook') }"
             @click.stop="handleCollapsedGroupClick('capabilities', $event)"
           >
             <Zap />
@@ -733,10 +729,6 @@ defineExpose({
             <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('notebook') }" @click="handleNavigateAndClose('notebook')">
               <BookOpen />
               <span>{{ t('nav.notebook') }}</span>
-            </button>
-            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('planning') }" @click="handleNavigateAndClose('planning')">
-              <ClipboardList />
-              <span>{{ t('nav.planning') }}</span>
             </button>
           </div>
         </div>
@@ -826,14 +818,6 @@ defineExpose({
           >
             <BookOpen class="popup-menu-icon" />
             <span>{{ t('nav.notebook') }}</span>
-          </button>
-          <button
-            class="popup-menu-item"
-            :class="{ active: isSectionActive('planning') }"
-            @click="handleNavigateAndClose('planning')"
-          >
-            <ClipboardList class="popup-menu-icon" />
-            <span>{{ t('nav.planning') }}</span>
           </button>
         </template>
         <!-- Tools 菜单 -->
@@ -1018,9 +1002,6 @@ defineExpose({
           </div>
         </div>
         <!-- Planning视图 -->
-        <div v-else-if="activeMenu === 'planning'" class="h-full">
-          <PlanningView :initial-plan-id="planningSelection" />
-        </div>
         <!-- Pet视图 -->
         <div v-else-if="activeMenu === 'pet'" class="h-full relative">
           <DivaPetView
