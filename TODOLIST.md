@@ -64,6 +64,83 @@ Related implementation: `agent-diva-core/src/planning/policy.rs`, `agent-diva-co
 - [ ] **P1 policy: simplify Executing match arms** Blind nit. Dedicated `(Executing, Unknown) => false` is redundant once allowlist/fail-closed rewrite lands.
   - Related: `policy.rs` (~65-66)
 
+### Plan/TODO P2 approval materialization — triple-review follow-ups (2026-07-11)
+
+Source reviews (independent sessions; forced packet process):
+
+- `_bmad-output/implementation-artifacts/review-result-todo-p2-blind-hunter.md` (verdict: request-changes; 8 bug / 3 suggestion / 2 nit)
+- `_bmad-output/implementation-artifacts/review-result-todo-p2-edge-case-hunter.md` (verdict: not ready; 9 bug / 3 suggestion / 2 nit)
+- `_bmad-output/implementation-artifacts/review-result-todo-p2-acceptance-auditor.md` (verdict: fails-spec; 8 bug / 2 suggestion / 2 nit)
+
+Baseline: `4f3168e`. Related implementation (working tree at review time): `agent-diva-core/src/planning/{approval,store,policy,mod}.rs`, `agent-diva-agent/src/planning/{orchestrator,tools}.rs`, `agent-diva-agent/src/{runtime_control,agent_loop/loop_runtime_control}.rs`, `agent-diva-tools/src/planning/mod.rs`, `agent-diva-manager/src/{handlers/planning,manager,state}.rs`. Spec: `_bmad-output/implementation-artifacts/spec-plan-todo-p2-approval-materialization.md`.
+
+**P0 — merge blockers / fails-spec**
+
+- [ ] **P2: register `plan_submit` and allow it in plan mode** Blind + edge + acceptance. `PlanSubmitTool` exists but is not registered in `tool_assembly.rs`; `is_plan_mode_allowed_tool` also omits `plan_submit`. Completeness + revision freeze never run on the live agent path.
+  - Related: `agent-diva-agent/src/tool_assembly.rs` (~280-292), `agent-diva-agent/src/agent_loop/loop_turn.rs` (~49-60), `agent-diva-tools/src/planning/mod.rs`
+  - Suggested fix: register `PlanSubmitTool`; add `"plan_submit"` to plan-mode allowlist; optionally expose manager submit API for GUI parity.
+
+- [ ] **P2: close dual lifecycle path into AwaitingApproval/Execute** Blind + edge + acceptance. `plan_transition` can still move `Plan → AwaitingApproval` without `submit_plan` (no completeness, no `plan_submissions` revision) while emitting ready-for-approval; `store.approve_plan` is a second authority vs orchestrator memory gate.
+  - Related: `agent-diva-agent/src/planning/tools.rs` (~126-139), `orchestrator.rs`, `store.rs` approve/submit, `loop_runtime_control.rs`
+  - Suggested fix: only `submit_plan`/`approve_plan` write AwaitingApproval/Execute; narrow or block agent transitions into those phases; single source of truth for approval (store CAS).
+
+- [ ] **P2: freeze content or reopen-on-edit (revision++ → Plan)** Acceptance AC failed; blind + edge. After submit, `update_plan`/steps can change body without bumping revision; `approve_plan` only CASes revision number + phase. Edit-after-submit/approve (revision++, back to Plan, old rev dead) is not implemented; re-submit from AwaitingApproval is blocked.
+  - Related: `agent-diva-core/src/planning/store.rs` (submit/approve/update_plan/steps), AC “Scope edit” / frozen revision
+  - Suggested fix: reject mutations under AwaitingApproval (or auto-reopen: revision++, phase→Plan); allow controlled re-submit/withdraw; ensure old `expected_revision` cannot authorize.
+
+- [ ] **P2: enforce AwaitingApproval inspect-only at store/tool dispatch** Edge + acceptance. Policy matrix is inspect-only but nothing calls `allows_for_phase` on the hot path; agents can still mutate plans/todos while awaiting approval.
+  - Related: `policy.rs`, tool dispatch / mutating store methods
+  - Suggested fix: gate mutating planning tools and store writes by phase; freeze or reopen as above.
+
+- [ ] **P2: approve API compatibility + surface revision** Blind. `POST .../approve-execute` now requires `Json<ApprovalRequest>`; GUI still empty-POST; `PlanRuntimeState` has no revision field for clients to supply `expected_revision`.
+  - Related: `agent-diva-manager/src/handlers/planning.rs` (~224-227), GUI approve client, `PlanRuntimeState` / snapshot APIs
+  - Suggested fix: temporary body-less compat or update GUI+snapshot together; return revision (and ideally receipt) on approve/list.
+
+**P1 — correctness / audit / materialization**
+
+- [ ] **P2: Always/Optional materialize vs pre-existing TODOs** Blind + edge. Non-empty `todo_items` + materialize aborts with `TodoAlreadyMaterialized` forever; draft `todo_write` is still allowed pre-approve. No silent overwrite (good) but Always path can be permanently stuck.
+  - Related: `store.rs` approve materialize (~736-747), `todo_write` / `replace_todos`
+  - Suggested fix: treat pre-existing as already-materialized success under explicit policy, or forbid work-item writes until Execute, or clear API for pre-approve cleanup.
+
+- [ ] **P2: approval/submit audit events visible and typed** Blind + edge + acceptance. `event_type = 'PlanApproval'` is filtered out by `get_events` (`LIKE 'PlanEvent::%'`); submit/approve omit `PhaseTransition`/`StatusChanged`/`TodoGenerated`.
+  - Related: `store.rs` get_events / approve_plan / submit_plan, `events.rs`
+  - Suggested fix: emit first-class `PlanEvent` variants; include phase + receipt in event stream or document `plan_approvals` as sole audit API and stop orphan rows.
+
+- [ ] **P2: collapse dual transition authority (orchestrator vs policy)** Acceptance + blind nit/edge. `PlanOrchestrator::is_valid_transition` still diverges (any→Failed including terminals) while `transition_to` uses policy; public dead/divergent API.
+  - Related: `orchestrator.rs` (~116-134), `policy.rs`
+  - Suggested fix: delete or thin-wrap to `policy::is_valid_transition` only.
+
+- [ ] **P2: submit_plan phase CAS must not skip Plan phase** Blind. Conditional update allows Explore|Plan → AwaitingApproval; shared policy only documents Plan → AwaitingApproval.
+  - Related: `store.rs` submit_plan (~671-679), `policy.rs` transitions
+  - Suggested fix: restrict to `phase = Plan` (or validate_transition first).
+
+- [ ] **P2: AC matrix tests incomplete** Acceptance. Missing tests for incomplete multi-field submit, Always/Optional+true one-TODO-per-step, stale approve snapshot equality, edit-after-submit, existing-TODO materialize reject without side effects.
+  - Related: `agent-diva-core` planning tests; manager/agent transport tests
+  - Suggested fix: table-drive frozen I/O matrix from `spec-plan-todo-p2-approval-materialization.md`.
+
+- [ ] **P2: stop silent full-replace of TODOs while materialization invariants apply** Acceptance. `todo_write`/`replace_todos` can still wipe lists; contradicts Always “never silently delete/overwrite” for execution lists.
+  - Related: `agent-diva-tools/src/planning/mod.rs`, store replace path
+  - Suggested fix: refuse full-delete when materialized execution list exists; prefer revision-bearing patch APIs.
+
+- [ ] **P2: empty TODO Execute→Verify/Completed gate** Edge. Never/Optional without materialize leaves zero todos; verify gate passes on empty lists.
+  - Related: orchestrator verify gate, todo policy product intent
+  - Suggested fix: force materialize when steps exist, or explicit plan-only execution policy in gates.
+
+**P2 — nits / ergonomics**
+
+- [ ] **P2: wrong-phase submit surfaces as `ApprovalConflict { expected_revision: 0 }`** Mislabels phase/state errors as revision conflicts.
+  - Related: `store.rs` (~681-687)
+  - Suggested fix: dedicated `InvalidPhase` / `NotSubmittable` with current phase.
+
+- [ ] **P2: persist `todo_policy` with stable string/serde, not `Debug`**
+  - Related: `store.rs` (~769)
+
+- [ ] **P2: unregister or reword dead `plan_approve` tool** Still registered with approve description but hard-fails (Never self-approve).
+  - Related: `tools.rs`, `tool_assembly.rs`
+
+- [ ] **P2: return ApprovalReceipt on approve-execute transport** Tasks say snapshot/receipt; response is still `{ status, plan }` only.
+  - Related: `loop_runtime_control.rs`, manager planning handler
+
 ## Deferred (previously Open)
 
 - [ ] **Mentle: repair runtime prompt activation regressions** After Windows native-open isolation, `cargo test -p agent-diva-agent --features mentle --lib mentle` is mostly green (31 pass). Remaining failure: `test_register_default_tools_rebuild_keeps_active_mentle_prompt` — runtime is active / tools register, but system prompt still lacks `L2 Palace Memory` after tool rebuild. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
