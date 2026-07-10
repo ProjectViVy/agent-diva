@@ -1563,6 +1563,10 @@ onMounted(async () => {
       lastMsg.isThinking = false;
       isTyping.value = false;
       activeStreamRequestId.value = null;
+      // The final plan_transition snapshot is not emitted as a dedicated
+      // stream event. Refresh it after the turn so the UI cannot retain a
+      // stale TODO list when the agent finishes the plan.
+      void restoreActivePlanRuntime();
       syncCurrentSessionListEntry();
       if (isTauri()) {
         void maybeGenerateCurrentSessionTitle();
