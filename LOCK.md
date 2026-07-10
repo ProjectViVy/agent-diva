@@ -59,6 +59,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 - `2026-07-10`: Released terminal plan bar cleanup after clearing active runtime state for completed, failed, and partial plans; GUI typecheck/tests passed; recorded `docs/logs/2026-07-plan-gui/v0.0.15-hide-terminal-plan-bar/`.
 
+- `2026-07-10`: Released direct Execute-to-Completed lifecycle lock after allowing the shortcut with the existing terminal-TODO gate and passing 11 orchestrator tests; recorded `docs/logs/2026-07-plan-lifecycle/v0.0.2-direct-execute-complete/`.
+
 - `2026-07-10`: Released active TODO detail toggle lock after adding expandable steps/TODO details to the chat bottom bar, passing GUI typecheck and all 388 tests; recorded `docs/logs/2026-07-plan-gui/v0.0.9-chat-todo-details-toggle/`.
 - `2026-07-10`: Released plan approval transition lock after making `plan_approve` atomically advance `AwaitingApproval` to `Execute`, removing it from Plan mode, and passing 335 agent library tests; recorded `docs/logs/2026-07-plan-lifecycle/v0.0.1-approval-transition-fix/`.
 

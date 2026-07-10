@@ -62,7 +62,9 @@ impl PlanOrchestrator {
         if new_phase == PlanPhase::Execute {
             self.check_execute_gate(plan_id).await?;
         }
-        if new_phase == PlanPhase::Verify {
+        if new_phase == PlanPhase::Verify
+            || (new_phase == PlanPhase::Completed && current_phase == PlanPhase::Execute)
+        {
             self.check_verify_gate(store, plan_id).await?;
         }
 
@@ -124,6 +126,7 @@ impl PlanOrchestrator {
                 | (PlanPhase::Plan, PlanPhase::AwaitingApproval)
                 | (PlanPhase::AwaitingApproval, PlanPhase::Execute)
                 | (PlanPhase::Execute, PlanPhase::Verify)
+                | (PlanPhase::Execute, PlanPhase::Completed)
                 | (PlanPhase::Verify, PlanPhase::Completed)
                 | (PlanPhase::Verify, PlanPhase::Failed)
                 | (PlanPhase::Verify, PlanPhase::Partial)
@@ -403,6 +406,60 @@ mod tests {
             .transition_to(&store, &plan_id, PlanPhase::Verify)
             .await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_execute_can_complete_directly_when_todos_are_terminal() {
+        let store = make_store().await;
+        let plan_id = PlanId::new();
+        let plan = make_plan(&plan_id, "Direct Complete");
+        create_plan_in_store(&store, &plan).await;
+
+        let mut orch = PlanOrchestrator::new();
+        orch.transition_to(&store, &plan_id, PlanPhase::Plan)
+            .await
+            .unwrap();
+        orch.transition_to(&store, &plan_id, PlanPhase::AwaitingApproval)
+            .await
+            .unwrap();
+        orch.approve(&plan_id);
+        orch.transition_to(&store, &plan_id, PlanPhase::Execute)
+            .await
+            .unwrap();
+        add_todo(&store, &plan_id, TodoStatus::Completed).await;
+
+        let completed = orch
+            .transition_to(&store, &plan_id, PlanPhase::Completed)
+            .await
+            .unwrap();
+        assert_eq!(completed.phase, PlanPhase::Completed);
+        assert_eq!(completed.status, PlanStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_direct_complete_still_rejects_pending_todos() {
+        let store = make_store().await;
+        let plan_id = PlanId::new();
+        let plan = make_plan(&plan_id, "Direct Complete Pending");
+        create_plan_in_store(&store, &plan).await;
+
+        let mut orch = PlanOrchestrator::new();
+        orch.transition_to(&store, &plan_id, PlanPhase::Plan)
+            .await
+            .unwrap();
+        orch.transition_to(&store, &plan_id, PlanPhase::AwaitingApproval)
+            .await
+            .unwrap();
+        orch.approve(&plan_id);
+        orch.transition_to(&store, &plan_id, PlanPhase::Execute)
+            .await
+            .unwrap();
+        add_todo(&store, &plan_id, TodoStatus::Pending).await;
+
+        let result = orch
+            .transition_to(&store, &plan_id, PlanPhase::Completed)
+            .await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]
