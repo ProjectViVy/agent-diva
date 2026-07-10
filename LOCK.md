@@ -45,6 +45,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-10`: Released plan-mode harness lock after making pending-approval state a runtime mutation guard, stopping the turn at `AwaitingApproval`, passing `cargo check -p agent-diva-agent`, `cargo fmt --all -- --check`, and all 335 `agent-diva-agent` library tests; recorded `docs/logs/2026-07-plan-harness/v0.0.1-plan-approval-guard/`.
+
 - `2026-07-10`: Restored remaining normal files from `stash@{0}` through batched stash application; preserved existing Cargo.lock changes and excluded unrelated乱码/untracked artifacts. Validation passed for core/manager, agent/CLI/E2E, GUI Rust, and 385 GUI tests.
 
 - `2026-07-10`: Restored the background-task context implementation from `stash@{0}` into the two tools files only; `cargo check -p agent-diva-agent` passed and `cargo test -p agent-diva-tools --lib` passed with 78 tests.

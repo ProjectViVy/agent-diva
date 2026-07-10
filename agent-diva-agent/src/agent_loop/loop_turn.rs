@@ -296,6 +296,14 @@ impl AgentLoop {
 
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
         let plan_mode = is_plan_mode(&msg);
+        // Plan safety is a runtime lifecycle property, not only a UI/request mode.
+        // Once a plan is waiting for approval, an agent-mode follow-up must not
+        // re-enable mutation tools before the explicit approval transition.
+        let awaiting_plan_approval = self
+            .snapshot_active_plan_runtime()
+            .await
+            .is_some_and(|plan| plan.phase == PlanPhase::AwaitingApproval);
+        let plan_guard_active = plan_mode || awaiting_plan_approval;
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         let background_task_context = BackgroundTaskContext {
             channel: Some(msg.channel.clone()),
@@ -312,7 +320,7 @@ impl AgentLoop {
         };
         self.rebuild_tools_for_turn(
             active_mask.as_ref(),
-            plan_mode,
+            plan_guard_active,
             Some(background_task_context),
         );
 
@@ -476,7 +484,7 @@ impl AgentLoop {
                 Ok(Some(block)) => {
                     messages.insert(1, agent_diva_providers::Message::system(block));
                 }
-                Ok(None) if plan_mode => {
+                Ok(None) if plan_guard_active => {
                     messages.insert(1, agent_diva_providers::Message::system(
                         "You are in Plan mode. Create or update a plan and TodoList only. Use planning tools such as plan_create, todo_write, plan_show, and todo_show. Do not perform implementation, file modification, shell execution, spawning, scheduling, MCP actions, or other external actions. Stop after presenting the plan and wait for user approval.",
                     ));
@@ -486,7 +494,7 @@ impl AgentLoop {
                     warn!("Planning context injection failed (non-fatal): {}", e);
                 }
             }
-        } else if plan_mode {
+        } else if plan_guard_active {
             warn!("Plan mode requested but planning runtime is not configured");
             messages.insert(1, agent_diva_providers::Message::system(
                 "You are in Plan mode, but the planning runtime is unavailable. Do not perform implementation or external actions; respond with a plan and wait for user approval.",
@@ -854,7 +862,11 @@ impl AgentLoop {
                     None,
                 );
 
-                // Execute tools
+                // Execute tools. A transition into AwaitingApproval is a
+                // lifecycle barrier: do not ask the model for another tool
+                // call in the same turn, otherwise it can immediately retry a
+                // mutation after receiving a rejected tool result.
+                let mut stop_after_tool_call = false;
                 for tool_call in &response.tool_calls {
                     self.drain_runtime_control_commands().await;
                     if self.is_session_cancelled(&session_key) {
@@ -896,7 +908,7 @@ impl AgentLoop {
                                 .is_some_and(ToolPolicy::is_read_only_mode)
                                 && !ToolPolicy::is_read_only_tool(&tool_call.name);
                             let plan_mode_rejected =
-                                plan_mode && !is_plan_mode_allowed_tool(&tool_call.name);
+                                plan_guard_active && !is_plan_mode_allowed_tool(&tool_call.name);
 
                             if read_only_rejected {
                                 (
@@ -995,9 +1007,16 @@ impl AgentLoop {
                             event_tx,
                             &tool_call.name,
                             planning_before,
-                            planning_after,
+                            planning_after.clone(),
                         )
                         .await;
+                        if tool_call.name == "plan_transition"
+                            && planning_after
+                                .as_ref()
+                                .is_some_and(|plan| plan.phase == PlanPhase::AwaitingApproval)
+                        {
+                            stop_after_tool_call = true;
+                        }
                     }
                     self.context.add_tool_result(
                         &mut messages,
@@ -1005,6 +1024,12 @@ impl AgentLoop {
                         tool_call.name.clone(),
                         result,
                     );
+                    if stop_after_tool_call {
+                        break;
+                    }
+                }
+                if stop_after_tool_call {
+                    break;
                 }
             } else {
                 // No tool calls, we're done

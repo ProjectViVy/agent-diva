@@ -892,6 +892,7 @@ mod tests {
     };
     #[cfg(feature = "mentle")]
     use crate::tool_config::mentle::{MentleToolMode, MentleToolRuntimeConfig};
+    use agent_diva_core::config::MaskConfig;
     use agent_diva_providers::{
         LLMResponse, LLMStreamEvent, Message, OpenAiCompatibleClient, ProviderError,
         ProviderEventStream, ProviderResult, ToolCallRequest,
@@ -2255,8 +2256,8 @@ mod tests {
 
     use agent_diva_core::memory::{
         PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
-        SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus,
-        SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
+        SessionEndStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus, SystemPromptBlock,
+        SystemPromptRequest, SystemPromptResponse,
     };
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
