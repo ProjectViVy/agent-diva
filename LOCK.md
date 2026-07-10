@@ -11,8 +11,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro @ C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-07-10`
-- Last Heartbeat: `none`
-- Expires At: `none`
+- Last Heartbeat: `2026-07-10`
+- Expires At: `2026-07-10`
 
 ## Lock Rules
 
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-10`: Released chat TODO bottom-bar lock after moving active plan state out of the message stream into a compact input-adjacent bar, passing GUI typecheck and all 388 tests; recorded `docs/logs/2026-07-plan-gui/v0.0.8-chat-todo-bottom-bar/`.
 
 - `2026-07-10`: Released plan GUI lock after adding automatic bottom compaction for active TODOs, pencil-only plan toggle presentation, GUI typecheck, and all 388 GUI tests; recorded `docs/logs/2026-07-plan-gui/v0.0.7-plan-compact-todo/`.
 

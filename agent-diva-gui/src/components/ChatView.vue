@@ -506,6 +506,11 @@ const planProgressText = computed(() => {
   return `${completed}/${plan.todos.length}`;
 });
 
+const activePlanTodo = computed(() => {
+  const todos = props.activePlanRuntime?.todos ?? [];
+  return todos.find((todo) => todo.status === 'InProgress') ?? todos.find((todo) => todo.status !== 'Completed') ?? null;
+});
+
 // 模式菜单选项
 const modeOptions = [
   { value: 'agent', label: 'chat.agentMode', icon: Zap, desc: 'chat.agentModeDesc' },
@@ -927,53 +932,24 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         @revoke="emit('revoke-plan')"
       />
 
-      <div v-if="activePlanRuntime && !pendingApprovalPlan" class="flex mb-4 justify-start">
-        <div class="flex max-w-[85%] items-start space-x-2">
-          <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-amber-50 text-amber-700 border border-amber-100">
-            <ClipboardList :size="16" />
-          </div>
-          <div class="rounded-2xl border border-amber-200/80 bg-white/95 shadow-sm px-4 py-3 min-w-[320px] max-w-full">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <div class="text-sm font-semibold text-gray-900">{{ activePlanRuntime.title }}</div>
-                <div class="text-xs text-gray-500 mt-1">{{ activePlanRuntime.goal }}</div>
-              </div>
-              <div class="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                {{ activePlanRuntime.phase }}
-              </div>
-            </div>
-            <div v-if="activePlanRuntime.steps.length > 0" class="mt-3 space-y-2">
-              <div
-                v-for="step in activePlanRuntime.steps"
-                :key="step.id"
-                class="flex items-center gap-2 text-xs text-gray-700"
-              >
-                <CheckCircle2 v-if="step.status === 'Completed'" :size="14" class="text-emerald-500" />
-                <Loader2 v-else-if="step.status === 'InProgress'" :size="14" class="text-amber-500 animate-spin" />
-                <Clock v-else :size="14" class="text-gray-400" />
-                <span>{{ step.ordinal + 1 }}. {{ step.title }}</span>
-              </div>
-            </div>
-            <div v-else-if="activePlanRuntime.todos.length > 0" class="mt-3 space-y-2">
-              <div
-                v-for="todo in activePlanRuntime.todos"
-                :key="todo.id"
-                class="flex items-center gap-2 text-xs text-gray-700"
-              >
-                <CheckCircle2 v-if="todo.status === 'Completed'" :size="14" class="text-emerald-500" />
-                <Loader2 v-else-if="todo.status === 'InProgress'" :size="14" class="text-amber-500 animate-spin" />
-                <Clock v-else :size="14" class="text-gray-400" />
-                <span>{{ todo.title }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Typing Indicator -->
       <!-- Removed separate Typing Indicator as it is now integrated into the message bubble -->
       
       <div ref="messagesEndRef" />
+    </div>
+
+    <div
+      v-if="activePlanRuntime && !pendingApprovalPlan"
+      class="active-plan-todo-bar"
+    >
+      <ClipboardList :size="16" class="active-plan-todo-icon" />
+      <div class="active-plan-todo-content">
+        <span class="active-plan-todo-plan">{{ activePlanRuntime.title }}</span>
+        <span v-if="activePlanTodo" class="active-plan-todo-title">{{ activePlanTodo.title }}</span>
+        <span v-else class="active-plan-todo-title">{{ activePlanRuntime.phase }}</span>
+      </div>
+      <span class="active-plan-todo-progress">{{ planProgressText }}</span>
+      <Loader2 v-if="activePlanTodo?.status === 'InProgress'" :size="15" class="text-amber-500 animate-spin" />
     </div>
 
     <div
@@ -1274,6 +1250,25 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 .conv-sidebar-open .plan-sidebar-toggle { right: 292px; }
 .plan-sidebar-wrapper { --plan-sidebar-right: 12px; }
 .conv-sidebar-open .plan-sidebar-wrapper { --plan-sidebar-right: 292px; }
+
+.active-plan-todo-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+  margin: 0 16px 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(245, 158, 11, .28);
+  border-radius: 10px;
+  background: rgba(255, 251, 235, .96);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
+}
+.active-plan-todo-icon { flex: 0 0 auto; color: #b45309; }
+.active-plan-todo-content { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; }
+.active-plan-todo-plan { flex: 0 0 auto; max-width: 30%; overflow: hidden; color: #92400e; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.active-plan-todo-title { min-width: 0; overflow: hidden; color: #374151; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.active-plan-todo-progress { flex: 0 0 auto; color: #b45309; font-size: 11px; font-variant-numeric: tabular-nums; }
 
 /* Conversation Sidebar Wrapper */
 .conv-sidebar-wrapper {
