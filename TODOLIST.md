@@ -2,7 +2,15 @@
 
 项目级待办、延期项、评审计划与已完成事项记录。
 
-## Open
+## Active Plan
+
+- [ ] **Plan/TODO architecture implementation** Execute the project-management plan in [09-project-management.md](docs/architecture/plan-todo/09-project-management.md), with the detailed architecture anchors in `docs/architecture/plan-todo/01-architecture-exploration.md` through `13-acceptance-criteria.md`. This is the only active stream.
+  - Scope: P1 core state/capability policy → P2 revision-bound approval and optional TODO materialization → P3 agent-loop enforcement → P4 GUI projection → P5 regression and release validation.
+  - Rule: before approval, file writes, shell execution, MCP, spawning, scheduling, and other external mutations remain denied by runtime policy.
+  - Rule: TODO is optional and is materialized only after approval when selected by the user or plan.
+  - Validation: `just fmt-check && just check && just test`, focused crate/GUI tests, and end-to-end denial/approval scenarios.
+
+## Deferred (previously Open)
 
 - [ ] **Mentle: repair runtime prompt activation regressions** After Windows native-open isolation, `cargo test -p agent-diva-agent --features mentle --lib mentle` is mostly green (31 pass). Remaining failure: `test_register_default_tools_rebuild_keeps_active_mentle_prompt` — runtime is active / tools register, but system prompt still lacks `L2 Palace Memory` after tool rebuild. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
   - Related files: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`
@@ -34,7 +42,9 @@
   - Related files: `agent-diva-gui/src/App.vue`, `agent-diva-manager/src/handlers/planning.rs`, `agent-diva-agent/src/agent_loop/loop_runtime_control.rs`
   - Suggested fix: add a dedicated runtime continuation command that resumes the approved plan in-session without injecting a visible chat turn from the GUI.
 
-## Deferred
+## Deferred (existing backlog)
+
+- [ ] **Mask feature plan acceptance** Deferred while the Plan/TODO architecture is the sole active stream. The remaining acceptance items in `.sisyphus/plans/mask-feature-implementation.md` are preserved for later reactivation.
 
 - [ ] **Memory: publish a current-baseline interfaces spec after the `vrm-memory-test` audit** Deferred. The `origin/vrm-memory-test` branch does not contain an `agent-diva-memory` crate, but it does contain still-useful design intent around diary domain boundaries, future recall slots, and diary tool contracts. The current mainline preserves that intent only indirectly across legacy docs and evolved runtime code, so a fresh spec is needed to map those ideas onto today's `MemoryProvider` / `MemoryManager` / `memory_boundary` / Laputa-Mentle architecture without reviving a nonexistent crate.
   - Related files: `agent-diva-core/src/memory/`, `agent-diva-agent/src/memory_boundary.rs`, `docs/dev/past/legacy-docs/dev/archive/memory-evolution/`, `docs/logs/2026-07-vrm-memory-audit/v0.0.1-vrm-memory-test-audit/summary.md`
@@ -60,7 +70,7 @@
 - [ ] **UX-DR-3/4/7** Deferred. UX gaps from sprint review remain postponed until a dedicated design pass.
   - Context: Sprint closure review items 3, 4, and 7
 
-## Review Program
+## Deferred Review Program
 
 ### Scope
 
@@ -187,7 +197,7 @@
 - [ ] **Cross-wave matrix** Aggregate findings by security, observability, persistence, concurrency, CLI/API consistency, and test gaps.
 - [ ] **Priority pool** Classify review findings into `P0`/`P1`/`P2`/`P3`.
 
-### Timebox
+### Timebox (Deferred)
 
 - [ ] **Day 1** `Wave B` + `Wave C`
 - [ ] **Day 2** `Wave F` + `Wave E`
