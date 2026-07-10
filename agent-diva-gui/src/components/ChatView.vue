@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch, Pencil } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -619,8 +619,9 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         @click="planSidebarOpen = !planSidebarOpen"
         class="plan-sidebar-toggle"
         :title="planSidebarOpen ? '收起计划栏' : '打开计划栏'"
+        :aria-label="planSidebarOpen ? '收起计划栏' : '打开计划栏'"
       >
-        <ClipboardList :size="18" />
+        <Pencil :size="18" />
       </button>
 
       <!-- Sakura Effect -->

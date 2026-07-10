@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { CheckCircle2, ClipboardList, Loader2, X } from 'lucide-vue-next';
+import { CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Loader2, X } from 'lucide-vue-next';
 import type { PlanRuntimeState, PlanSummary } from '../api/planning';
 import { isTauriRuntime } from '../api/desktop';
 
@@ -16,6 +16,17 @@ const emit = defineEmits<{
 
 const plans = ref<PlanSummary[]>([]);
 const loading = ref(false);
+const collapsed = ref(false);
+
+const activeTodo = computed(() => {
+  const todos = props.activePlan?.todos ?? [];
+  return todos.find((todo) => ['inprogress', 'in_progress'].includes(todo.status.toLowerCase())) ?? null;
+});
+
+const activeTodoKey = computed(() => {
+  const todo = activeTodo.value;
+  return todo ? `${todo.id}:${todo.status}` : '';
+});
 
 const visiblePlans = computed(() => {
   const merged = [...plans.value];
@@ -49,17 +60,39 @@ async function loadPlans() {
 
 onMounted(loadPlans);
 watch(() => props.activePlan?.updated_at, loadPlans);
+watch(activeTodoKey, (key) => {
+  if (key) collapsed.value = true;
+}, { immediate: true });
 </script>
 
 <template>
-  <aside class="plan-sidebar-panel" aria-label="计划列表">
-    <header class="plan-panel-header">
-      <div class="plan-panel-title"><ClipboardList :size="16" /> <span>计划</span></div>
-      <button type="button" class="plan-panel-close" title="收起计划栏" @click="emit('close')">
-        <X :size="16" />
-      </button>
+  <aside class="plan-sidebar-panel" :class="{ 'plan-sidebar-panel-compact': collapsed }" aria-label="计划列表">
+    <header v-if="collapsed" class="plan-panel-header plan-panel-compact-header">
+      <div class="plan-panel-title plan-panel-compact-title">
+        <ClipboardList :size="16" />
+        <span>{{ activeTodo?.title ?? '计划' }}</span>
+      </div>
+      <div class="plan-panel-actions">
+        <button type="button" class="plan-panel-close" title="展开计划栏" @click="collapsed = false">
+          <ChevronUp :size="16" />
+        </button>
+        <button type="button" class="plan-panel-close" title="关闭计划栏" @click="emit('close')">
+          <X :size="16" />
+        </button>
+      </div>
     </header>
-    <div class="plan-panel-list">
+    <header v-else class="plan-panel-header">
+      <div class="plan-panel-title"><ClipboardList :size="16" /> <span>计划</span></div>
+      <div class="plan-panel-actions">
+        <button type="button" class="plan-panel-close" title="收缩计划栏" @click="collapsed = true">
+          <ChevronDown :size="16" />
+        </button>
+        <button type="button" class="plan-panel-close" title="关闭计划栏" @click="emit('close')">
+          <X :size="16" />
+        </button>
+      </div>
+    </header>
+    <div v-if="!collapsed" class="plan-panel-list">
       <button
         v-for="plan in visiblePlans"
         :key="plan.id"
@@ -86,10 +119,15 @@ watch(() => props.activePlan?.updated_at, loadPlans);
 </template>
 
 <style scoped>
-.plan-sidebar-panel { position: absolute; top: 56px; right: var(--plan-sidebar-right, 12px); z-index: 45; display: flex; flex-direction: column; width: 280px; max-height: calc(100% - 68px); border: 1px solid var(--line, #e5e7eb); border-radius: 12px; background: var(--panel-solid, #fff); box-shadow: 0 10px 30px rgba(15, 23, 42, .14); overflow: hidden; }
+.plan-sidebar-panel { position: absolute; top: 98px; right: var(--plan-sidebar-right, 12px); z-index: 45; display: flex; flex-direction: column; width: 280px; max-height: calc(100% - 110px); border: 1px solid var(--line, #e5e7eb); border-radius: 12px; background: var(--panel-solid, #fff); box-shadow: 0 10px 30px rgba(15, 23, 42, .14); overflow: hidden; }
+.plan-sidebar-panel-compact { top: auto; bottom: 12px; max-height: none; }
 .plan-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; border-bottom: 1px solid var(--line, #e5e7eb); color: var(--text, #111827); background: color-mix(in srgb, var(--panel, #fff) 94%, var(--brand, #ec4899)); }
+.plan-panel-compact-header { border-bottom: 0; }
 .plan-panel-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
 .plan-panel-title svg { color: var(--brand, #ec4899); }
+.plan-panel-compact-title { min-width: 0; }
+.plan-panel-compact-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-panel-actions { display: flex; align-items: center; gap: 2px; }
 .plan-panel-close { display: flex; align-items: center; justify-content: center; padding: 4px; border: 0; border-radius: 6px; color: var(--text-muted, #9ca3af); background: transparent; cursor: pointer; }
 .plan-panel-close:hover { color: var(--text, #111827); background: var(--nav-hover, rgba(0, 0, 0, .05)); }
 .plan-panel-list { padding: 8px; overflow-y: auto; }

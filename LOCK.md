@@ -10,7 +10,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro @ C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `none`
+- Started At: `2026-07-10`
 - Last Heartbeat: `none`
 - Expires At: `none`
 
@@ -44,6 +44,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-10`: Released plan GUI lock after adding automatic bottom compaction for active TODOs, pencil-only plan toggle presentation, GUI typecheck, and all 388 GUI tests; recorded `docs/logs/2026-07-plan-gui/v0.0.7-plan-compact-todo/`.
+
+- `2026-07-10`: Released plan toggle visibility lock after adding the visible ClipboardList icon, “计划” label, and aria-label; GUI typecheck and targeted tests passed; recorded `docs/logs/2026-07-plan-gui/v0.0.6-plan-toggle-icon/`.
 
 - `2026-07-10`: Released independent plan panel lock after moving plans out of ConversationSidebar into a separate panel below the history toggle, passing GUI typecheck and all 388 tests, and recording `docs/logs/2026-07-plan-gui/v0.0.5-independent-plan-panel/`.
 
