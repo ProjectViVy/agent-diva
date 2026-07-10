@@ -10,6 +10,60 @@
   - Rule: TODO is optional and is materialized only after approval when selected by the user or plan.
   - Validation: `just fmt-check && just check && just test`, focused crate/GUI tests, and end-to-end denial/approval scenarios.
 
+### Plan/TODO P1 core policy — triple-review follow-ups (2026-07-11)
+
+Source reviews (forced packet process):
+
+- `_bmad-output/implementation-artifacts/review-result-todo-p1-blind-hunter.md` (verdict: approve-with-nits; 0 bug / 3 suggestion / 1 nit)
+- `_bmad-output/implementation-artifacts/review-result-todo-p1-edge-case-hunter.md` (verdict: conditional / request-changes; 2 bug / 5 suggestion / 1 nit)
+- `_bmad-output/implementation-artifacts/review-result-todo-p1-acceptance-auditor.md` (verdict: partial; 1 bug / 0 suggestion / 0 nit)
+
+Related implementation: `agent-diva-core/src/planning/policy.rs`, `agent-diva-core/src/planning/mod.rs`, compatibility target `agent-diva-agent/src/planning/orchestrator.rs`, frozen spec `_bmad-output/implementation-artifacts/spec-plan-todo-p1-core-policy.md`.
+
+**P0 — merge blockers / AC deviations**
+
+- [ ] **P1 policy: Executing must fail-closed for future ToolCapability variants (AC5)** Acceptance auditor bug. `(PlanModeState::Executing, _) => true` open-by-default permits any new enum arm that is not yet matrix-listed. Expected: explicit operational allowlist + unified `_ => false` so “no matrix entry ⇒ denied”.
+  - Related: `agent-diva-core/src/planning/policy.rs` (~65-66), AC5 / I/O matrix “unknown capability denied”
+  - Suggested fix: allow only Inspect|PlanningRecord|WorkItem|WorkspaceWrite|Execute|External under Executing; keep Unknown denied; optionally assert exhaustiveness in tests.
+
+- [ ] **P1 policy: Verifying capability set vs legal Verify exits (lifecycle trap)** Edge-case hunter bug. Legal edges include `Verify → Completed|Partial|Failed`, but `allows(Verifying, …)` only permits Inspect|Execute; PlanningRecord/WorkItem are denied. If P3 gates `plan_transition` / todo tools solely via `allows`, plans can stick in Verify.
+  - Related: `agent-diva-core/src/planning/policy.rs` (~67-87), `agent-diva-agent/src/planning/tools.rs` (PlanTransitionTool)
+  - Suggested fix: either extend Verifying allows with PlanningRecord (and WorkItem if todos update during verify), or document/enforce that phase exits use a privileged path not subject to the capability matrix; add a test that every legal edge has a capability path for the tool that performs it.
+
+**P1 — correctness / single source of truth**
+
+- [ ] **P1 policy: dual transition matrix vs PlanOrchestrator not cross-checked** Edge-case hunter bug. Core `is_valid_transition` duplicates orchestrator edges but is not delegated from `PlanOrchestrator::is_valid_transition`; unit tests hardcode a local allow-list only. Later one-sided edits will desync pure policy from runtime.
+  - Related: `agent-diva-core/src/planning/policy.rs` (~73-87), `agent-diva-agent/src/planning/orchestrator.rs` (~117-133)
+  - Suggested fix: orchestrator calls core (or share one table); add full `PlanPhase` cartesian equality test between both functions.
+
+- [ ] **P1 policy: expand invalid-transition / terminal-reentry test coverage** Blind + edge suggestion. Happy-path + any→Failed + single invalid pair leave reverse edges, self-transitions, skips, and terminal re-entry unenforced.
+  - Related: `agent-diva-core/src/planning/policy.rs` tests (~169-210)
+  - Suggested fix: table-drive full 8×8 product (or all illegal edges); assert `!is_valid_transition` and typed `InvalidTransition` errors.
+
+- [ ] **P1 policy: document or tighten Failed bailout / identity edges** Blind + edge suggestion. `to == Failed` accepts `Completed|Partial|Failed → Failed` (including self-loop) while other identity edges are rejected; capability side maps terminals to Closed and denies all caps—lifecycle vs capability disagree on “closed means done”.
+  - Related: `agent-diva-core/src/planning/policy.rs` (~73-76, ~30, ~68)
+  - Suggested fix: either restrict Failed bailout to non-terminal `from`, or keep emergency semantics with explicit docs + tests for terminal×targets.
+
+**P2 — product policy / API ergonomics (confirm before P2/P3 contracts freeze)**
+
+- [ ] **P1 policy: decide AwaitingApproval freeze for PlanningRecord** Blind + edge suggestion. Exploring/Drafting/AwaitingApproval all allow PlanningRecord; if approval freezes submitted revision, plan content can still change pre-`plan_approve`.
+  - Related: `policy.rs` (~61-64), architecture acceptance/revision freeze language
+  - Suggested fix: deny PlanningRecord under AwaitingApproval (Inspect only), or document revision-bound invalidation of approval on edit; lock with matrix tests.
+
+- [ ] **P1 policy: Closed projection collapses Completed|Failed|Partial** Edge suggestion. Single `Closed` mode cannot authorize “Partial may Inspect residual work” without re-reading raw `PlanPhase`.
+  - Related: `policy.rs` (~30), `From<&PlanPhase> for PlanModeState`
+  - Suggested fix: authorize from `PlanPhase` overload, split terminal variants, or allow Inspect on Closed if product needs it.
+
+- [ ] **P1 policy: Unknown-during-Execute vs architecture edge table** Edge suggestion. Module fail-closed denies Unknown even in Executing; `docs/architecture/plan-todo/06-error-handling-edge-cases.md` may describe unknown tools as Execute-class during Execute. Align docs and mapping-completeness tests.
+  - Related: `policy.rs` (~65-66), `docs/architecture/plan-todo/06-error-handling-edge-cases.md`
+
+- [ ] **P1 policy: API usability helpers** Edge nit. Only `From<&PlanPhase>`; no `allows_for_phase`; easy stale mode cache after transition.
+  - Related: `policy.rs` (~22-32, ~59)
+  - Suggested fix: `impl From<PlanPhase>`, `allows_for_phase(phase, cap)`.
+
+- [ ] **P1 policy: simplify Executing match arms** Blind nit. Dedicated `(Executing, Unknown) => false` is redundant once allowlist/fail-closed rewrite lands.
+  - Related: `policy.rs` (~65-66)
+
 ## Deferred (previously Open)
 
 - [ ] **Mentle: repair runtime prompt activation regressions** After Windows native-open isolation, `cargo test -p agent-diva-agent --features mentle --lib mentle` is mostly green (31 pass). Remaining failure: `test_register_default_tools_rebuild_keeps_active_mentle_prompt` — runtime is active / tools register, but system prompt still lacks `L2 Palace Memory` after tool rebuild. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
