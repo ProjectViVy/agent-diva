@@ -1708,7 +1708,6 @@
 
   /* 滚动条样式 */
   .scrollbar-thin {
-    scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: var(--accent-border) transparent;
   }
