@@ -37,8 +37,7 @@ import EvolutionView from './EvolutionView.vue';
 import PersonaMemoryView from './PersonaMemoryView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
-// Temporarily disabled with the toast layer below (accumulating right-side tips).
-// import AppToastLayer from './AppToastLayer.vue';
+import AppToastLayer from './AppToastLayer.vue';
 import MaskSelectorButton from './MaskSelectorButton.vue';
 import { useI18n } from 'vue-i18n';
 
@@ -568,17 +567,18 @@ const _currentConfig = computed(() => {
   return emotionConfig.value.normal;
 });
 
-const chatBadgeSizeClass = computed(() =>
-  props.messages.length < 10 ? 'w-4 h-4 px-0' : 'min-w-[20px] h-4 px-2'
-);
-
-const chatBadgeValue = computed(() => {
-  const count = props.messages.length;
-  if (count > 99) {
-    return '99+';
-  }
-  return String(count);
-});
+// Temporarily disabled with the chat nav red badge (message count keeps growing).
+// const chatBadgeSizeClass = computed(() =>
+//   props.messages.length < 10 ? 'w-4 h-4 px-0' : 'min-w-[20px] h-4 px-2'
+// );
+//
+// const chatBadgeValue = computed(() => {
+//   const count = props.messages.length;
+//   if (count > 99) {
+//     return '99+';
+//   }
+//   return String(count);
+// });
 
 // Reserved for future use
 defineExpose({
@@ -660,6 +660,7 @@ defineExpose({
         <button class="nav-item" :class="{ active: isSectionActive('chat') }" @click="navigateTo('chat')">
           <MessageSquare />
           <span v-if="!sidebarCollapsed">{{ t('nav.chat') }}</span>
+          <!-- Temporarily disabled: red message-count badge keeps accumulating with every chat turn.
           <span
             v-if="!sidebarCollapsed && messages.length > 0"
             class="ml-auto bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center leading-none"
@@ -667,6 +668,7 @@ defineExpose({
           >
             {{ chatBadgeValue }}
           </span>
+          -->
         </button>
         <button class="nav-item" :class="{ active: isSectionActive('pet') }" @click="navigateTo('pet')">
           <Cat />
@@ -1116,9 +1118,7 @@ defineExpose({
     </main>
 
     <AppDialogLayer :theme-mode="themeMode" />
-    <!-- Temporarily disabled: right-side toast keeps reappearing/stacking during chat/config flows.
     <AppToastLayer />
-    -->
   </div>
 </template>
 
