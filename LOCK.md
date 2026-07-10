@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 
-- Lock State: `HELD`
-- Scope: `agent-diva-gui/src/components/NormalMode.vue`
-- Owner: `Grok`
-- Session/Task: `Comment out chat right-side AppToastLayer (accumulating tips)`
-- Branch/Worktree: `agent-diva-pro @ C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-07-10`
-- Last Heartbeat: `2026-07-10`
-- Expires At: `2026-07-11`
+- Lock State: `FREE`
+- Scope: `none`
+- Owner: `none`
+- Session/Task: `none`
+- Branch/Worktree: `none`
+- Started At: `none`
+- Last Heartbeat: `none`
+- Expires At: `none`
 
 ## Lock Rules
 
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-10`: Released GUI toast disable lock after commenting out `AppToastLayer` in `NormalMode.vue` (right-side tips were reappearing/stacking). Commit `7a621c3`.
 
 - `2026-07-10`: Released Windows Mentle native-open isolation lock after large-stack assemble, CLI process defaults + 16 MiB stacks, gateway smoke to `Gateway ready` with `tool_count=32`, and `docs/logs/2026-07-10-mentle-windows-stack-overflow/v0.0.2-windows-native-open-isolation/`. Residual prompt-rebuild test remains in `TODOLIST.md`.
 
