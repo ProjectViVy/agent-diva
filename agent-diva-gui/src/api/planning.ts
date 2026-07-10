@@ -78,6 +78,7 @@ export interface PlanRuntimeTodo {
 
 export interface PlanRuntimeState {
   plan_id: string;
+  revision?: number | null;
   title: string;
   goal: string;
   phase: string;
@@ -88,6 +89,20 @@ export interface PlanRuntimeState {
   todos: PlanRuntimeTodo[];
   created_at: string;
   updated_at: string;
+}
+
+export interface PlanApprovalReceipt {
+  plan_id: string;
+  revision: number;
+  approved_by: string;
+  approved_at: string;
+  todo_policy: 'Never' | 'Optional' | 'Always';
+  todos_materialized: boolean;
+}
+
+export interface PlanApprovalResult {
+  plan: PlanRuntimeState;
+  receipt: PlanApprovalReceipt;
 }
 
 export interface PlanSnapshotMetadata {

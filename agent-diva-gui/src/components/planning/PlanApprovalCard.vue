@@ -9,11 +9,12 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: 'approve'): void;
+  (event: 'approve', materializeTodos: boolean): void;
   (event: 'revoke'): void;
 }>();
 
 const detailsOpen = ref(false);
+const materializeTodos = ref(false);
 </script>
 
 <template>
@@ -77,11 +78,15 @@ const detailsOpen = ref(false);
     </div>
 
     <div class="plan-approval-actions">
+      <label class="plan-approval-todo-choice">
+        <input v-model="materializeTodos" type="checkbox" :disabled="approving" />
+        生成执行 TODO
+      </label>
       <button
         type="button"
         class="plan-approval-approve"
         :disabled="approving"
-        @click="emit('approve')"
+        @click="emit('approve', materializeTodos)"
       >
         <Loader2 v-if="approving" :size="15" class="plan-approval-spinner" />
         <Check v-else :size="15" />

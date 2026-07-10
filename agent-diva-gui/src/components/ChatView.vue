@@ -151,7 +151,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
-  (e: 'approve-plan'): void;
+  (e: 'approve-plan', materializeTodos: boolean): void;
   (e: 'revoke-plan'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
@@ -939,7 +939,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         v-if="pendingApprovalPlan"
         :plan="pendingApprovalPlan"
         :approving="approvingPlan"
-        @approve="emit('approve-plan')"
+        @approve="emit('approve-plan', $event)"
         @revoke="emit('revoke-plan')"
       />
 

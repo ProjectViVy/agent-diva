@@ -772,17 +772,19 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
   }
 }
 
-async function approvePlanExecution() {
+async function approvePlanExecution(materializeTodos = false) {
   if (approvingPlan.value) return;
   approvingPlan.value = true;
   try {
-    const plan = await approveActivePlanExecution();
-    syncPlanRuntime(plan);
-    await sendMessage(
-      "Plan approved. Execute the approved plan now and keep the todo list updated as you progress.",
-      undefined,
-      'agent',
-    );
+    const pending = pendingApprovalPlan.value;
+    if (pending?.revision == null) throw new Error('Plan revision is unavailable; refresh before approving.');
+    const result = await approveActivePlanExecution({
+      expected_revision: pending.revision,
+      approved_by: 'desktop-user',
+      todo_policy: 'Optional',
+      materialize_todos: materializeTodos,
+    });
+    syncPlanRuntime(result.plan);
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),

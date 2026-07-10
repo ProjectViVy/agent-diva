@@ -142,7 +142,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
-  (e: 'approve-plan'): void;
+  (e: 'approve-plan', materializeTodos: boolean): void;
   (e: 'revoke-plan'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
@@ -1077,7 +1077,7 @@ defineExpose({
               :executing-plan="executingPlan"
               :approving-plan="approvingPlan"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
-              @approve-plan="emit('approve-plan')"
+              @approve-plan="emit('approve-plan', $event)"
               @revoke-plan="emit('revoke-plan')"
               @clear="handleClearSession"
               @stop="emit('stop')"
