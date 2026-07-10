@@ -253,3 +253,30 @@ pub async fn approve_active_plan_handler(
         )),
     }
 }
+
+pub async fn return_active_plan_to_draft_handler(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let (tx, rx) = oneshot::channel();
+    state
+        .api_tx
+        .send(ManagerCommand::ReturnActivePlanToDraft(tx))
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"status":"error","message":e.to_string()})),
+            )
+        })?;
+    match rx.await {
+        Ok(Ok(plan)) => Ok(Json(serde_json::json!({"status":"ok","plan":plan}))),
+        Ok(Err(e)) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"status":"error","message":e})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"status":"error","message":e.to_string()})),
+        )),
+    }
+}

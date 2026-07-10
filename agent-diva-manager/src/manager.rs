@@ -390,6 +390,7 @@ impl Manager {
                         ManagerCommand::ApproveActivePlan(request, reply) => {
                             self.handle_approve_active_plan(request, reply).await;
                         }
+                        ManagerCommand::ReturnActivePlanToDraft(reply) => self.handle_return_active_plan_to_draft(reply).await,
                     }
                 }
             }
@@ -656,6 +657,24 @@ impl Manager {
                     reply_rx.await.map_err(|e| {
                         format!("failed to receive ApproveActivePlan response: {}", e)
                     })?
+                },
+                "runtime control channel is not initialized",
+            )
+            .await;
+        let _ = reply.send(result);
+    }
+
+    async fn handle_return_active_plan_to_draft(
+        &self,
+        reply: oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
+    ) {
+        let result = self
+            .with_runtime_control(
+                |tx| async move {
+                    let (reply_tx, reply_rx) = oneshot::channel();
+                    tx.send(RuntimeControlCommand::ReturnActivePlanToDraft { reply_tx })
+                        .map_err(|e| e.to_string())?;
+                    reply_rx.await.map_err(|e| e.to_string())?
                 },
                 "runtime control channel is not initialized",
             )

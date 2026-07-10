@@ -55,4 +55,8 @@ pub enum RuntimeControlCommand {
         reply_tx:
             tokio::sync::oneshot::Sender<Result<agent_diva_core::bus::PlanApprovalResult, String>>,
     },
+    ReturnActivePlanToDraft {
+        reply_tx:
+            tokio::sync::oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
+    },
 }

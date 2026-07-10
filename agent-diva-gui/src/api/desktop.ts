@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { PlanApprovalResult } from "./planning";
+import type { PlanApprovalResult, PlanRuntimeState } from "./planning";
 
 export interface GatewayProcessStatus {
   running: boolean;
@@ -166,6 +166,9 @@ export const approveActivePlanExecution = (request: PlanApprovalRequest) =>
 
 export const deletePlan = (planId: string) =>
   invoke<void>("delete_plan", { planId });
+
+export const returnActivePlanToDraft = () =>
+  invoke<PlanRuntimeState>("return_active_plan_to_draft");
 
 export const saveRawConfig = (raw: string) =>
   invoke<void>("save_config", { raw });

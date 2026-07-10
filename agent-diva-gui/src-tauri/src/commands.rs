@@ -1266,6 +1266,29 @@ pub async fn approve_active_plan_execution(
 }
 
 #[tauri::command]
+pub async fn return_active_plan_to_draft(
+    state: State<'_, AgentState>,
+) -> Result<PlanRuntimeState, String> {
+    let url = format!("{}/plans/active/return-to-draft", state.api_base_url());
+    let value: serde_json::Value = state
+        .client
+        .post(&url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::from_value(
+        value
+            .get("plan")
+            .cloned()
+            .ok_or_else(|| "Missing plan payload".to_string())?,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn stop_generation(
     channel: Option<String>,
     chat_id: Option<String>,

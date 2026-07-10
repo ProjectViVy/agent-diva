@@ -63,6 +63,8 @@ pub trait PlanningStore: Send + Sync {
     async fn create_plan(&self, plan: &Plan) -> crate::Result<()>;
     async fn get_plan(&self, id: &PlanId) -> crate::Result<Plan>;
     async fn update_plan(&self, plan: &Plan) -> crate::Result<()>;
+    /// Return a submitted plan to the editable draft phase and invalidate its approval revision.
+    async fn reopen_plan(&self, id: &PlanId) -> crate::Result<()>;
     async fn delete_plan(&self, id: &PlanId) -> crate::Result<()>;
     /// Delete plans that have not changed in the last 30 days.
     async fn delete_expired_plans(&self) -> crate::Result<u64>;
@@ -338,6 +340,32 @@ impl PlanningStore for SqlitePlanningStore {
                 .execute(&self.pool)
                 .await?;
         }
+        Ok(())
+    }
+
+    async fn reopen_plan(&self, id: &PlanId) -> crate::Result<()> {
+        let now = Utc::now();
+        let result = sqlx::query(
+            "UPDATE plans SET phase = ?, status = ?, updated_at = ? WHERE id = ? AND phase = ?",
+        )
+        .bind(PlanPhase::Plan.to_string())
+        .bind(PlanStatus::Pending.to_string())
+        .bind(now.to_rfc3339())
+        .bind(&id.0)
+        .bind(PlanPhase::AwaitingApproval.to_string())
+        .execute(&self.pool)
+        .await?;
+        if result.rows_affected() != 1 {
+            return Err(PlanningError::ApprovalConflict {
+                plan_id: id.0.clone(),
+                expected_revision: 0,
+            }
+            .into());
+        }
+        sqlx::query("DELETE FROM plan_revisions WHERE plan_id = ?")
+            .bind(&id.0)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 

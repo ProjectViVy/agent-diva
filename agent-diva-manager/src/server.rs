@@ -255,7 +255,7 @@ fn planning_routes() -> Router<AppState> {
     use crate::handlers::planning::{
         approve_active_plan_handler, create_plan_handler, delete_plan_handler,
         delete_plan_todo_handler, get_plan_handler, list_plans_handler, restore_plan_todo_handler,
-        update_plan_handler,
+        return_active_plan_to_draft_handler, update_plan_handler,
     };
     Router::new()
         .route(
@@ -265,6 +265,10 @@ fn planning_routes() -> Router<AppState> {
         .route(
             "/api/plans/active/approve-execute",
             post(approve_active_plan_handler),
+        )
+        .route(
+            "/api/plans/active/return-to-draft",
+            post(return_active_plan_to_draft_handler),
         )
         .route(
             "/api/plans/:plan_id",

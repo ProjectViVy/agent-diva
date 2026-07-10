@@ -9,9 +9,9 @@ import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
 import {
   approveActivePlanExecution,
-  deletePlan,
   getConfigStatus,
   getRuntimeConfig,
+  returnActivePlanToDraft,
   FileAttachmentDto,
 } from "./api/desktop";
 import type { PlanDetail, PlanRuntimeState, PlanSnapshotMetadata, PlanStreamEvent } from "./api/planning";
@@ -844,8 +844,8 @@ async function revokePlanExecution() {
   const plan = pendingApprovalPlan.value;
   if (!plan) return;
   try {
-    await deletePlan(plan.plan_id);
-    syncPlanRuntime(null);
+    const reopened = await returnActivePlanToDraft();
+    syncPlanRuntime(reopened);
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),

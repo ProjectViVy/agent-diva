@@ -116,6 +116,10 @@ impl AgentLoop {
                 let result = self.handle_approve_active_plan(request).await;
                 let _ = reply_tx.send(result);
             }
+            RuntimeControlCommand::ReturnActivePlanToDraft { reply_tx } => {
+                let result = self.handle_return_active_plan_to_draft().await;
+                let _ = reply_tx.send(result);
+            }
         }
     }
 
@@ -367,6 +371,28 @@ impl AgentLoop {
         self.rebuild_tools_for_active_phase().await;
 
         Ok(PlanApprovalResult { plan, receipt })
+    }
+
+    async fn handle_return_active_plan_to_draft(&mut self) -> Result<PlanRuntimeState, String> {
+        let Some(planning) = self.tool_config.planning.as_ref() else {
+            return Err("planning runtime is unavailable".to_string());
+        };
+        let plan_id = planning
+            .store
+            .get_active_plan()
+            .await
+            .map_err(|error| error.to_string())?;
+        planning
+            .store
+            .reopen_plan(&plan_id)
+            .await
+            .map_err(|error| error.to_string())?;
+        let plan = self
+            .snapshot_plan_runtime(&plan_id)
+            .await
+            .ok_or_else(|| "failed to load reopened plan".to_string())?;
+        self.rebuild_tools_for_active_phase().await;
+        Ok(plan)
     }
 
     /// Re-assemble after runtime mutations so registration remains a phase

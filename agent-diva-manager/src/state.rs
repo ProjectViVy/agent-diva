@@ -207,6 +207,9 @@ pub enum ManagerCommand {
         agent_diva_core::planning::ApprovalRequest,
         oneshot::Sender<Result<agent_diva_core::bus::PlanApprovalResult, String>>,
     ),
+    ReturnActivePlanToDraft(
+        oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
+    ),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),
 }
