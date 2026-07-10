@@ -322,7 +322,7 @@ function modeColor(mode: string): string {
 
       <div class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
         <div>
-          <span class="text-gray-400">{{ t('mask.mode') }}:</span>
+          <span class="text-gray-400">{{ t('mask.mode.label') }}:</span>
           <span class="ml-1 text-gray-700">{{ modeLabel(selectedMask.mode) }}</span>
         </div>
         <div>

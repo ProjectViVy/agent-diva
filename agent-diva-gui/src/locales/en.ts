@@ -1132,6 +1132,7 @@ export default {
   },
   mask: {
     mode: {
+      label: 'Mode',
       normal: 'Standard',
       readOnly: 'Read-Only Review',
     },
@@ -1167,7 +1168,6 @@ export default {
     description: 'Description',
     descPlaceholder: 'A brief description of this mask',
     noDescription: 'No description',
-    mode: 'Mode',
     modeNormal: 'Normal',
     modeAssist: 'Assist',
     model: 'Model',

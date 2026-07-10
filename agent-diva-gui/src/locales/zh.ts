@@ -1075,6 +1075,7 @@ export default {
   },
   mask: {
     mode: {
+      label: '模式',
       normal: '标准模式',
       readOnly: '只读审查',
     },
@@ -1110,7 +1111,6 @@ export default {
     description: '描述',
     descPlaceholder: '一句话描述这个面具的用途',
     noDescription: '暂无描述',
-    mode: '模式',
     modeNormal: '普通',
     modeAssist: '辅助',
     model: '模型',

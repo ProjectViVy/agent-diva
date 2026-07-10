@@ -188,7 +188,7 @@ function handleCancel(): void {
 
     <!-- Mode (radio: Normal / Assist) -->
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('mask.mode') }}</label>
+      <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('mask.mode.label') }}</label>
       <div class="flex gap-6">
         <label class="inline-flex items-center gap-2 cursor-pointer">
           <input
