@@ -4,7 +4,7 @@
 //! ([`SqlitePlanningStore`]) that auto-creates the required schema.
 
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use sqlx::SqlitePool;
 
 use super::events::{PlanEvent, TodoEvent};
@@ -47,6 +47,8 @@ pub trait PlanningStore: Send + Sync {
     async fn get_plan(&self, id: &PlanId) -> crate::Result<Plan>;
     async fn update_plan(&self, plan: &Plan) -> crate::Result<()>;
     async fn delete_plan(&self, id: &PlanId) -> crate::Result<()>;
+    /// Delete plans that have not changed in the last 30 days.
+    async fn delete_expired_plans(&self) -> crate::Result<u64>;
     async fn list_plans(&self) -> crate::Result<Vec<Plan>>;
 
     async fn create_step(&self, step: &PlanStep) -> crate::Result<()>;
@@ -165,7 +167,12 @@ impl SqlitePlanningStore {
 
         tx.commit().await?;
 
-        Ok(Self { pool })
+        let store = Self { pool };
+        if let Err(error) = store.delete_expired_plans().await {
+            tracing::warn!(%error, "failed to clean up expired plans during planning store startup");
+        }
+
+        Ok(store)
     }
 }
 
@@ -259,6 +266,19 @@ impl PlanningStore for SqlitePlanningStore {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    async fn delete_expired_plans(&self) -> crate::Result<u64> {
+        let cutoff = (Utc::now() - Duration::days(30)).to_rfc3339();
+        let result = sqlx::query("DELETE FROM plans WHERE julianday(updated_at) <= julianday(?)")
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await?;
+        let deleted = result.rows_affected();
+        if deleted > 0 {
+            tracing::info!(deleted, "deleted expired plans");
+        }
+        Ok(deleted)
     }
 
     async fn list_plans(&self) -> crate::Result<Vec<Plan>> {
@@ -1001,6 +1021,93 @@ mod tests {
         assert_eq!(todos, 0);
         assert_eq!(events, 0);
         assert_eq!(active, 0);
+    }
+
+    #[tokio::test]
+    async fn test_delete_expired_plans_removes_all_statuses_and_cascades() {
+        let store = test_store().await;
+        let statuses = [
+            PlanStatus::Pending,
+            PlanStatus::InProgress,
+            PlanStatus::Blocked,
+            PlanStatus::Completed,
+            PlanStatus::Failed,
+            PlanStatus::Partial,
+            PlanStatus::Canceled,
+        ];
+
+        for (index, status) in statuses.into_iter().enumerate() {
+            let id = format!("expired-{index}");
+            let mut plan = make_plan(&id, "Expired");
+            plan.status = status;
+            plan.updated_at = Utc::now() - chrono::Duration::days(31);
+            store.create_plan(&plan).await.unwrap();
+        }
+
+        let mut recent = make_plan("recent", "Keep");
+        recent.updated_at = Utc::now() - chrono::Duration::days(29);
+        store.create_plan(&recent).await.unwrap();
+
+        let expired_id = PlanId("expired-0".to_string());
+        let now = Utc::now();
+        store
+            .create_step(&PlanStep {
+                id: "expired-step".to_string(),
+                plan_id: expired_id.clone(),
+                ordinal: 0,
+                title: "Expired step".to_string(),
+                rationale: None,
+                expected_output: None,
+                status: PlanStatus::Pending,
+                evidence_ref: None,
+                created_at: now,
+                updated_at: now,
+            })
+            .await
+            .unwrap();
+        store
+            .create_todo(
+                &expired_id,
+                &TodoItem {
+                    id: TodoId("expired-todo".to_string()),
+                    plan_step_id: Some("expired-step".to_string()),
+                    title: "Expired todo".to_string(),
+                    detail: None,
+                    status: TodoStatus::Pending,
+                    priority: TodoPriority::Normal,
+                    evidence_ref: None,
+                    block_reason: None,
+                    updated_at: now,
+                },
+            )
+            .await
+            .unwrap();
+        store
+            .append_event(
+                &expired_id,
+                &PlanEvent::Created {
+                    plan_id: expired_id.clone(),
+                    title: "Expired".to_string(),
+                    goal: "Test goal".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        store.set_active_plan(&expired_id).await.unwrap();
+
+        assert_eq!(store.delete_expired_plans().await.unwrap(), 7);
+        assert_eq!(store.list_plans().await.unwrap().len(), 1);
+        assert!(store.get_active_plan().await.is_err());
+
+        for table in ["plan_steps", "todo_items", "planning_events"] {
+            let count: i64 =
+                sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table} WHERE plan_id = ?"))
+                    .bind(&expired_id.0)
+                    .fetch_one(&store.pool)
+                    .await
+                    .unwrap();
+            assert_eq!(count, 0, "{table} should cascade-delete expired rows");
+        }
     }
 
     #[tokio::test]

@@ -45,6 +45,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-10`: Released 30-day planning retention cleanup after adding startup/list-triggered hard deletion, cascade coverage, Manager coverage, and iteration logs. Full core library validation retains an unrelated supervised executor failure recorded in `TODOLIST.md`.
+
 - `2026-07-10`: Released Bootstrap one-shot guard after using `bootstrap_seeded_at`, adding fail-closed handling for corrupt soul state, adding prompt boundaries against autonomous `BOOTSTRAP.md` reads, and passing focused context/soul tests; recorded `docs/logs/2026-07-bootstrap-guard/v0.0.1-one-shot-bootstrap/`.
 
 - `2026-07-10`: Released chat plan task overlay lock after removing the independent plan button/sidebar, integrating task selection into the chat plan bar, adding a task status backdrop dialog, and passing GUI typecheck plus focused tests; recorded `docs/logs/2026-07-plan-gui/v0.0.10-chat-plan-task-overlay/`.

@@ -4,6 +4,10 @@
 
 ## Open
 
+- [ ] **Core: stabilize supervised executor no-handler failure test** `cargo test -p agent-diva-core --lib` intermittently/factually failed in `supervised::executor::tests::test_executor_fails_when_no_handler`: the run remained `Running` instead of becoming `Failed`. This is unrelated to the 30-day planning cleanup and leaves the full core library gate red.
+  - Related files: `agent-diva-core/src/supervised/executor.rs`
+  - Suggested fix: inspect the no-handler executor lifecycle and make the test await the terminal transition or correct the missing-handler failure path.
+
 - [ ] **GUI: duplicate `mode` locale keys** Vite reports duplicate `mode` keys in `agent-diva-gui/src/locales/zh.ts` and `agent-diva-gui/src/locales/en.ts`; remove the duplicate definitions so locale builds are warning-free.
 
 - [ ] **Agent: repair stale `compaction_real_test` integration harness** Running `cargo test -p agent-diva-agent <test-name>` still compiles `agent-diva-agent/tests/compaction_real_test.rs`, which currently targets removed compaction APIs such as `ContextCompactor::new(...)`, `compact_session(...)`, and `CompactTrigger::ProactiveThreshold`. This is unrelated to the image multimodal change but blocks clean package-scoped targeted test commands.

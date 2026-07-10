@@ -121,6 +121,11 @@ impl PlanningService {
 
     /// List all plans as lightweight summaries.
     pub async fn list_plans(&self) -> anyhow::Result<Vec<PlanSummary>> {
+        self.store
+            .delete_expired_plans()
+            .await
+            .context("failed to clean up expired plans before listing")?;
+
         let plans = self
             .store
             .list_plans()
@@ -416,5 +421,19 @@ mod tests {
 
         let result = svc.get_plan(&plan.id.0).await.unwrap();
         assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn list_plans_cleans_up_expired_plans() {
+        let svc = setup_service().await;
+        let mut expired = svc.create_plan("Expired", "Old goal").await.unwrap();
+        expired.updated_at = Utc::now() - chrono::Duration::days(31);
+        svc.store.update_plan(&expired).await.unwrap();
+        svc.create_plan("Recent", "Keep goal").await.unwrap();
+
+        let plans = svc.list_plans().await.unwrap();
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].title, "Recent");
+        assert!(svc.get_plan(&expired.id.0).await.unwrap().is_none());
     }
 }
