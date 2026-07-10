@@ -396,7 +396,21 @@
 
   .sidebar-collapsed .nav-item {
     justify-content: center;
-    padding: 10px 0;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    flex: 0 0 40px;
+    padding: 0;
+  }
+
+  .sidebar-collapsed .nav-item svg,
+  .sidebar-collapsed .nav-group-header svg,
+  .sidebar-collapsed .menu-toggle svg {
+    flex: 0 0 24px;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px;
+    min-height: 24px;
   }
 
   /* 弹出菜单项 */
@@ -455,6 +469,14 @@
     color: var(--text);
     cursor: pointer;
     transition: all 0.15s ease;
+  }
+
+  .sidebar-collapsed .menu-toggle {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    flex: 0 0 40px;
+    padding: 0;
   }
 
   .menu-toggle:hover {
@@ -517,7 +539,15 @@
 
   .sidebar-collapsed .nav-group-header {
     justify-content: center;
-    padding: 10px 0;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    flex: 0 0 40px;
+    padding: 0;
+  }
+
+  .sidebar-collapsed .nav-group {
+    margin-top: 4px;
   }
 
   .sidebar-collapsed .nav-group-header span,
