@@ -365,9 +365,12 @@
   }
 
   .nav-item svg {
-    flex-shrink: 0;
+    flex: 0 0 18px;
     width: 18px !important;
     height: 18px !important;
+    min-width: 18px;
+    min-height: 18px;
+    display: block;
     color: var(--nav-icon) !important;
     transition: color 0.15s ease;
   }
@@ -479,6 +482,8 @@
     cursor: pointer;
     transition: all 0.15s ease;
     user-select: none;
+    width: 100%;
+    min-width: 0;
   }
 
   .nav-group-header:hover {
@@ -486,14 +491,28 @@
   }
 
   .nav-group-header svg {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
+    flex: 0 0 18px;
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px;
+    min-height: 18px;
+    display: block;
+  }
+
+  .nav-group-header > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .nav-group-chevron {
-    margin-left: auto;
     display: flex;
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    margin-left: auto;
+    align-items: center;
+    justify-content: center;
   }
 
   .sidebar-collapsed .nav-group-header {
