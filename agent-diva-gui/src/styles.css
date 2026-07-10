@@ -473,10 +473,9 @@
     padding: 10px 12px;
     border-radius: var(--radius-sm);
     color: var(--text-muted);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: normal;
     cursor: pointer;
     transition: all 0.15s ease;
     user-select: none;
@@ -1690,8 +1689,9 @@
 
   /* 滚动条样式 */
   .scrollbar-thin {
+    scrollbar-gutter: stable;
     scrollbar-width: thin;
-    scrollbar-color: var(--accent-glow) transparent;
+    scrollbar-color: var(--accent-border) transparent;
   }
   
   .scrollbar-thin::-webkit-scrollbar {
@@ -1704,12 +1704,12 @@
   }
   
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: var(--accent-glow);
-    border-radius: 3px;
+    background-color: var(--accent-border);
+    border-radius: 999px;
   }
   
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: var(--accent-border);
+    background-color: var(--accent);
   }
   
   /* 拖拽区域 */

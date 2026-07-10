@@ -654,7 +654,7 @@ defineExpose({
       </button>
 
       <!-- 导航区域 -->
-      <nav class="sidebar-nav">
+      <nav class="sidebar-nav scrollbar-thin">
         <!-- 主导航项 -->
         <button class="nav-item" :class="{ active: isSectionActive('chat') }" @click="navigateTo('chat')">
           <MessageSquare />
@@ -1033,7 +1033,7 @@ defineExpose({
                 <X :size="18" />
               </button>
             </div>
-            <nav class="sidebar-nav">
+            <nav class="sidebar-nav scrollbar-thin">
               <button
                 v-for="section in ['chat', 'persona-memory', 'evolution', 'notebook', 'planning', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
                 :key="section"
