@@ -29,6 +29,9 @@ vi.mock('lucide-vue-next', () => {
     Loader2: stub('Loader2'),
     MessageSquare: stub('MessageSquare'),
     X: stub('X'),
+    ClipboardList: stub('ClipboardList'),
+    ChevronDown: stub('ChevronDown'),
+    ChevronRight: stub('ChevronRight'),
   };
 });
 

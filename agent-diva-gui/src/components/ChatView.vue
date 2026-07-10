@@ -159,6 +159,7 @@ const emit = defineEmits<{
   (e: 'new-session'): void;
   (e: 'toggle-pin', sessionKey: string): void;
   (e: 'rename-session', sessionKey: string, title: string): void;
+  (e: 'select-plan', planId: string): void;
   (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
   (e: 'regenerate', messageId: string): void;
 }>();
@@ -1188,11 +1189,13 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       :sessions="sessions || []"
       :active-session-key="activeSessionKey || ''"
       :theme-mode="themeMode || 'love'"
+      :active-plan="activePlanRuntime"
       @select="(key) => emit('select-session', key)"
       @delete="(key) => emit('delete-session', key)"
       @new="emit('new-session')"
       @toggle-pin="(key) => emit('toggle-pin', key)"
       @rename="(key, title) => emit('rename-session', key, title)"
+      @select-plan="(planId) => emit('select-plan', planId)"
       @close="convSidebarOpen = false"
       class="conv-sidebar-wrapper"
     />

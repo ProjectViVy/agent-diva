@@ -45,6 +45,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-10`: Released collapsible plan sidebar lock after placing the plan list below conversation history, wiring plan selection to PlanningView, passing `pnpm exec vue-tsc --noEmit` and all 388 GUI tests, and recording `docs/logs/2026-07-plan-gui/v0.0.2-collapsible-sidebar-plans/`.
+
 - `2026-07-10`: Released plan history/Todo GUI lock after adding structured plan snapshots to session messages, historical plan cards, active-plan Todo rail with concise/detail toggle, and passing Rust/GUI validation; recorded `docs/logs/2026-07-plan-gui/v0.0.1-plan-history-todo/`.
 
 - `2026-07-10`: Released plan-mode harness lock after making pending-approval state a runtime mutation guard, stopping the turn at `AwaitingApproval`, passing `cargo check -p agent-diva-agent`, `cargo fmt --all -- --check`, and all 335 `agent-diva-agent` library tests; recorded `docs/logs/2026-07-plan-harness/v0.0.1-plan-approval-guard/`.

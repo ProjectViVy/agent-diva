@@ -158,6 +158,11 @@ const currentTodoItems = computed<TodoDetail[]>(() =>
   })),
 );
 
+function openPlanFromSidebar(planId: string) {
+  planningSelection.value = planId;
+  navigateTo('planning');
+}
+
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'approve-plan'): void;
@@ -170,6 +175,7 @@ const emit = defineEmits<{
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
   (e: 'load-session', sessionKey: string): void;
   (e: 'delete-session', sessionKey: string): void;
+  (e: 'select-plan', planId: string): void;
 }>();
 
 type SidebarSection =
@@ -189,6 +195,7 @@ type EvolutionBadgeTone = 'none' | 'accent' | 'warning' | 'danger';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
 const activeMenu = ref<'evolution' | 'console' | 'persona-memory' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
+const planningSelection = ref<string | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -1034,7 +1041,7 @@ defineExpose({
         </div>
         <!-- Planning视图 -->
         <div v-else-if="activeMenu === 'planning'" class="h-full">
-          <PlanningView />
+          <PlanningView :initial-plan-id="planningSelection" />
         </div>
         <!-- Pet视图 -->
         <div v-else-if="activeMenu === 'pet'" class="h-full relative">
@@ -1119,6 +1126,7 @@ defineExpose({
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"
+              @select-plan="openPlanFromSidebar"
               @open-evolution="openEvolutionDeepLink"
               />
             </div>

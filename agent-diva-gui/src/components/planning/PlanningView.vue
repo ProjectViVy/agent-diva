@@ -9,6 +9,10 @@ import type { PlanSummary, PlanDetail } from '../../api/planning';
 
 const { t } = useI18n();
 
+const props = defineProps<{
+  initialPlanId?: string | null;
+}>();
+
 // --- State ---
 const plans = ref<PlanSummary[]>([]);
 const selectedPlanId = ref<string | null>(null);
@@ -67,6 +71,15 @@ async function loadActivePlan() {
   }
 }
 
+async function loadInitialPlan() {
+  if (!props.initialPlanId) {
+    await loadActivePlan();
+    return;
+  }
+  selectedPlanId.value = props.initialPlanId;
+  await loadPlanDetail(props.initialPlanId);
+}
+
 function selectPlan(planId: string) {
   selectedPlanId.value = planId;
   loadPlanDetail(planId);
@@ -92,7 +105,7 @@ function stopPolling() {
 // --- Lifecycle ---
 onMounted(async () => {
   await loadPlans();
-  await loadActivePlan();
+  await loadInitialPlan();
   startPolling();
 });
 
