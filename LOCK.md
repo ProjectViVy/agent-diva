@@ -45,6 +45,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-10`: Released Bootstrap one-shot guard after using `bootstrap_seeded_at`, adding fail-closed handling for corrupt soul state, adding prompt boundaries against autonomous `BOOTSTRAP.md` reads, and passing focused context/soul tests; recorded `docs/logs/2026-07-bootstrap-guard/v0.0.1-one-shot-bootstrap/`.
+
 - `2026-07-10`: Released active TODO detail toggle lock after adding expandable steps/TODO details to the chat bottom bar, passing GUI typecheck and all 388 tests; recorded `docs/logs/2026-07-plan-gui/v0.0.9-chat-todo-details-toggle/`.
 - `2026-07-10`: Released plan approval transition lock after making `plan_approve` atomically advance `AwaitingApproval` to `Execute`, removing it from Plan mode, and passing 335 agent library tests; recorded `docs/logs/2026-07-plan-lifecycle/v0.0.1-approval-transition-fix/`.
 

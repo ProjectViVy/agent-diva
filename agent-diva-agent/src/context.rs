@@ -14,6 +14,7 @@ use agent_diva_tools::sanitize::truncate_tool_result;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::warn;
 
 const DEFAULT_AGENT_NAME: &str = "agent-diva";
 const DEFAULT_AGENT_EMOJI: &str = "🐈";
@@ -187,6 +188,9 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         prompt.push_str(
             "\nWhen remembering something, create or update governed memory through the available memory tools or compatibility path; do not treat legacy authority files as default prompt authority.",
         );
+        prompt.push_str(
+            "\nBOOTSTRAP.md is a one-time onboarding input, not runtime authority. Do not read or replay it unless the user explicitly asks to start onboarding again.",
+        );
 
         prompt
     }
@@ -202,8 +206,24 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 
     fn should_include_bootstrap(&self) -> bool {
-        self.soul_settings.bootstrap_once
-            && !SoulStateStore::new(&self.workspace).is_bootstrap_completed()
+        if !self.soul_settings.bootstrap_once {
+            return false;
+        }
+
+        let store = SoulStateStore::new(&self.workspace);
+        match store.load() {
+            Ok(state) => {
+                state.bootstrap_seeded_at.is_none() && state.bootstrap_completed_at.is_none()
+            }
+            Err(error) => {
+                warn!(
+                    workspace = %self.workspace.display(),
+                    error = %error,
+                    "Skipping automatic Bootstrap because soul state could not be read"
+                );
+                false
+            }
+        }
     }
 
     fn read_soul_file(&self, rel: &str) -> Option<String> {
@@ -715,6 +735,42 @@ mod tests {
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
         let prompt = builder.build_system_prompt(None);
         assert!(!prompt.contains("## Bootstrap"));
+    }
+
+    #[test]
+    fn test_bootstrap_is_seeded_once_and_not_reentered() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(workspace.path().join("BOOTSTRAP.md"), "# Bootstrap Steps").unwrap();
+
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        builder.build_system_prompt(None);
+        let store = SoulStateStore::new(workspace.path());
+        let first_state = store.load().unwrap();
+        assert!(first_state.bootstrap_seeded_at.is_some());
+        assert!(first_state.bootstrap_completed_at.is_none());
+
+        builder.build_system_prompt(None);
+        let second_state = store.load().unwrap();
+        assert_eq!(
+            first_state.bootstrap_seeded_at,
+            second_state.bootstrap_seeded_at
+        );
+        assert!(!builder.should_include_bootstrap());
+    }
+
+    #[test]
+    fn test_bootstrap_does_not_start_when_state_file_is_corrupt() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(workspace.path().join("BOOTSTRAP.md"), "# Bootstrap Steps").unwrap();
+        let state_path = workspace.path().join(".agent-diva").join("soul-state.json");
+        fs::create_dir_all(state_path.parent().unwrap()).unwrap();
+        fs::write(&state_path, "not-json").unwrap();
+
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        builder.build_system_prompt(None);
+
+        assert_eq!(fs::read_to_string(state_path).unwrap(), "not-json");
+        assert!(!builder.should_include_bootstrap());
     }
 
     #[test]

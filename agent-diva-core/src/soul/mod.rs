@@ -35,8 +35,8 @@ impl SoulStateStore {
         }
 
         let raw = std::fs::read_to_string(&self.path)?;
-        let state: SoulState = serde_json::from_str(&raw).unwrap_or_default();
-        Ok(state)
+        serde_json::from_str(&raw)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
     }
 
     /// Persist state to disk.
