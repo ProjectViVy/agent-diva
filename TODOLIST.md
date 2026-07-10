@@ -144,6 +144,70 @@ Baseline: `4f3168e`. Related implementation (working tree at review time): `agen
 - [ ] **P2: return ApprovalReceipt on approve-execute transport** Tasks say snapshot/receipt; response is still `{ status, plan }` only.
   - Related: `loop_runtime_control.rs`, manager planning handler
 
+### Plan/TODO P3 runtime capability gate — triple-review follow-ups (2026-07-11)
+
+Source reviews (independent sessions; forced packet process):
+
+- `_bmad-output/implementation-artifacts/review-result-todo-p3-blind-hunter.md` (verdict: request-changes; 2 bug / 2 suggestion / 1 nit)
+- `_bmad-output/implementation-artifacts/review-result-todo-p3-edge-case-hunter.md` (verdict: not-ready; 2 bug / 2 suggestion / 2 nit)
+- `_bmad-output/implementation-artifacts/review-result-todo-p3-acceptance-auditor.md` (verdict: fails-spec; 2 bug / 5 missing-verification / 1 quality)
+
+Baseline: `a0e80ba`. Related implementation (working tree at review time): `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/agent_loop/loop_runtime_control.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`, `agent-diva-agent/src/planning/{mod,orchestrator,verifier}.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-core/src/planning/policy.rs`. Spec: `_bmad-output/implementation-artifacts/spec-plan-todo-p3-runtime-gate.md`. Review packets: `review-plan-todo-p3-{blind-hunter,edge-case-hunter,acceptance-auditor}.md`.
+
+**P0 — merge blockers / fails-spec**
+
+- [ ] **P3: terminal active plan must not deny all tools (Closed lockdown)** Blind + edge + acceptance. Any active plan phase becomes `policy_phase`, including `Completed`/`Failed`/`Partial` → `PlanModeState::Closed`, which denies **all** capabilities (including Inspect / `plan_create`). Active slot is not cleared when no non-terminal successor exists (`promote_next_active_plan` / orchestrator terminal transition). Pre-P3 only guarded `plan_mode || AwaitingApproval`.
+  - Related: `agent-diva-agent/src/agent_loop/loop_turn.rs` (~290-295, ~1012-1023), `agent-diva-core/src/planning/policy.rs` (~30-37, ~64-85), `agent-diva-agent/src/planning/verifier.rs` (~147-160)
+  - Suggested fix: treat terminal/`Closed` as `policy_phase = None`, or `clear_active_plan` on terminal entry when no successor; apply same helper at turn start and mid-turn rebuild; add regression test (active Completed + ordinary message still exposes normal tools).
+
+- [ ] **P3: rebuild registry after runtime ApproveActivePlan → Execute** Edge + acceptance (AC2/AC3). `handle_approve_active_plan` persists Execute but never calls `rebuild_tools_for_turn`. Mid-turn approval leaves inspect-only registry while invoke checks may already allow Execute tools that are not registered.
+  - Related: `agent-diva-agent/src/agent_loop/loop_runtime_control.rs` (~339-362), `loop_turn.rs` (~553-554, ~861, ~1012-1023), store approve path
+  - Suggested fix: rebuild with `Some(PlanPhase::Execute)` after successful approve (or on any drain-detected phase change); integration test approve → next iteration Execute tools visible.
+
+- [ ] **P3: mid-turn rebuild must use same policy_phase derivation as turn start** Blind. Post-tool rebuild passes raw `planning_after.phase` only — drops `plan_mode` synthetic `Plan` fallback and re-applies terminal freeze.
+  - Related: `loop_turn.rs` (~292-294 vs ~1019-1022, ~904-909)
+  - Suggested fix: shared `policy_phase_for(active_snapshot, plan_mode)` used at turn start, mid-turn rebuild, and invoke gate.
+
+**P1 — verification / AC proof (missing-verification)**
+
+- [ ] **P3: agent-loop integration fixture for AC1/AC2** Acceptance Tasks failed. No fixture proves: plan-mode + ordinary follow-up under AwaitingApproval deny write/exec/MCP/custom/todo; denied call has no persistence side effects; submit → Inspect-only next iteration; matching runtime-control approve → Execute next iteration.
+  - Related: `agent-diva-agent/tests/` (missing), `loop_turn.rs` / `tool_assembly.rs` unit coverage only
+  - Suggested fix: preload AwaitingApproval plan; assert registry + invoke denial + unchanged revision/events; cover submit/approve refresh paths.
+
+- [ ] **P3: iteration log at required path** Acceptance Tasks failed. Spec requires `docs/logs/2026-07-runtime-plan-gate/v0.0.1-runtime-gate-closure/` with summary/verification/release/acceptance; directory absent (existing P2/P3 mixed log does not satisfy path).
+  - Related: `_bmad-output/implementation-artifacts/spec-plan-todo-p3-runtime-gate.md` Tasks
+  - Suggested fix: create four required docs; record command outputs and AC matrix.
+
+- [ ] **P3: full phase×tool I/O matrix assertions in assembly tests** Acceptance. Current test only checks subset (`read_file`/`write_file`/`exec`/`plan_submit`/`todo_write`/`custom_tool`) and omits terminal phases and web/spawn/cron/enqueue/plan_create/edit_file.
+  - Related: `agent-diva-agent/src/tool_assembly.rs` (~516-541)
+  - Suggested fix: table-drive allow/deny per phase matching frozen I/O matrix; include Completed/Failed/Partial expectations after P0 terminal rule is chosen.
+
+- [ ] **P3: prove denied invoke has no side effects** Acceptance AC1. Policy denial returns error string but no test asserts denial happens before `tools.execute` and leaves plan revision/todos/events unchanged.
+  - Related: `loop_turn.rs` (~919-923)
+  - Suggested fix: unit/integration assert store snapshot equality on denied call.
+
+- [ ] **P3: record verification command evidence** Acceptance Verification. Required `cargo test -p agent-diva-core planning::policy`, agent planning/tool_assembly/loop_turn tests, and `just fmt-check && just check && just test` lack recorded evidence for this wave.
+  - Related: spec Verification; iteration `verification.md`
+  - Suggested fix: run and log results; separate pre-existing failures into TODOLIST.
+
+**P2 — product edges / defense-in-depth**
+
+- [ ] **P3: document or tighten plan_mode vs active-plan precedence** Blind + edge suggestion. Priority flipped from plan_mode-first to active-plan-first; `exec_mode=plan` while active Execute still allows mutations.
+  - Related: `loop_turn.rs` (~292-294, ~897-899)
+  - Suggested fix: document "persisted phase wins", or intersect with Plan when plan_mode is set if product wants a hard non-mutating switch.
+
+- [ ] **P3: runtime MCP/network/custom re-register must re-apply phase filter** Edge suggestion. `drain_runtime_control_commands` can re-inject tools without phase unregister; invoke still fail-closes Unknown, but registry is not a true capability boundary until full rebuild.
+  - Related: `loop_tools.rs` (~28-64), `tool_assembly.rs` (~264-325), `loop_turn.rs` (~861)
+  - Suggested fix: route tool-config updates through `rebuild_tools_for_turn(..., current_policy_phase, ...)`.
+
+- [ ] **P3: align plan-guard system prompt with WorkItem policy** Edge nit. Prompt mentions `todo_write` under plan guard, but WorkItem is only allowed in Execute — rejected under synthetic Plan.
+  - Related: `loop_turn.rs` (~476-479), `policy.rs` WorkItem matrix
+  - Suggested fix: prompt only Inspect/PlanningRecord tools in draft/await, or product decision to allow draft WorkItem.
+
+- [ ] **P3: delete dead commented orchestrator transition matrix** Blind nit + acceptance quality. Core delegation is correct; large commented former matrix remains.
+  - Related: `agent-diva-agent/src/planning/orchestrator.rs` (~117-137)
+  - Suggested fix: delete comment block; keep single-line core delegate + docs.
+
 ## Deferred (previously Open)
 
 - [ ] **Mentle: repair runtime prompt activation regressions** After Windows native-open isolation, `cargo test -p agent-diva-agent --features mentle --lib mentle` is mostly green (31 pass). Remaining failure: `test_register_default_tools_rebuild_keeps_active_mentle_prompt` — runtime is active / tools register, but system prompt still lacks `L2 Palace Memory` after tool rebuild. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
