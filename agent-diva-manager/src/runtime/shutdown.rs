@@ -1,4 +1,8 @@
 use super::*;
+use std::time::Duration;
+
+const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+const ABORT_JOIN_TIMEOUT: Duration = Duration::from_secs(1);
 
 // ---------------------------------------------------------------------------
 //  Story 3.2 migration: Future shutdown will use Bootstrap::stop_all()
@@ -31,49 +35,103 @@ pub(super) async fn wait_for_shutdown(tasks: &mut GatewayTasks) -> bool {
 }
 
 pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_completed: bool) {
-    tasks.bus.stop().await;
+    if tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.bus.stop())
+        .await
+        .is_err()
+    {
+        tracing::warn!("Message bus did not stop within the shutdown timeout");
+    }
 
     let _ = tasks.server_shutdown_tx.send(());
-    let _ = tasks.server_handle.await;
+    join_with_timeout(
+        "HTTP server",
+        tasks.server_handle,
+        GRACEFUL_SHUTDOWN_TIMEOUT,
+    )
+    .await;
 
     if !manager_handle_completed {
         tasks.manager_handle.abort();
-        let _ = tasks.manager_handle.await;
     }
+    join_with_timeout("manager", tasks.manager_handle, ABORT_JOIN_TIMEOUT).await;
 
     tasks.inbound_bridge_handle.abort();
-    let _ = tasks.inbound_bridge_handle.await;
+    join_with_timeout(
+        "inbound bridge",
+        tasks.inbound_bridge_handle,
+        ABORT_JOIN_TIMEOUT,
+    )
+    .await;
 
     if let Some(handle) = tasks.neuro_link_bridge_handle {
         handle.abort();
-        let _ = handle.await;
+        join_with_timeout("neuro-link bridge", handle, ABORT_JOIN_TIMEOUT).await;
     }
 
     tasks.outbound_dispatch_handle.abort();
-    let _ = tasks.outbound_dispatch_handle.await;
+    join_with_timeout(
+        "outbound dispatcher",
+        tasks.outbound_dispatch_handle,
+        ABORT_JOIN_TIMEOUT,
+    )
+    .await;
 
     tasks.agent_handle.abort();
-    let _ = tasks.agent_handle.await;
+    join_with_timeout("agent runtime", tasks.agent_handle, ABORT_JOIN_TIMEOUT).await;
 
     tasks.supervised_executor_cancel.cancel();
-    let mut supervised_executor_handle = tasks.supervised_executor_handle;
-    if tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        &mut supervised_executor_handle,
+    join_with_timeout(
+        "supervised executor",
+        tasks.supervised_executor_handle,
+        GRACEFUL_SHUTDOWN_TIMEOUT,
     )
-    .await
-    .is_err()
-    {
-        tracing::warn!("Supervised executor did not stop within timeout");
-        supervised_executor_handle.abort();
-        let _ = supervised_executor_handle.await;
-    }
+    .await;
 
     tasks.channel_handle.abort();
-    let _ = tasks.channel_handle.await;
+    join_with_timeout("channel runtime", tasks.channel_handle, ABORT_JOIN_TIMEOUT).await;
 
-    if let Err(e) = tasks.channel_manager.stop_all().await {
-        tracing::error!("Failed to stop channels: {}", e);
+    match tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.channel_manager.stop_all()).await {
+        Ok(Err(e)) => tracing::error!("Failed to stop channels: {}", e),
+        Err(_) => tracing::warn!("Channel manager did not stop within the shutdown timeout"),
+        Ok(Ok(())) => {}
     }
-    tasks.cron_service.stop().await;
+
+    if tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.cron_service.stop())
+        .await
+        .is_err()
+    {
+        tracing::warn!("Cron service did not stop within the shutdown timeout");
+    }
+}
+
+async fn join_with_timeout<T>(label: &str, mut handle: JoinHandle<T>, timeout: Duration) {
+    if tokio::time::timeout(timeout, &mut handle).await.is_ok() {
+        return;
+    }
+
+    tracing::warn!("{label} did not stop within the shutdown timeout; aborting task");
+    handle.abort();
+    if tokio::time::timeout(ABORT_JOIN_TIMEOUT, &mut handle)
+        .await
+        .is_err()
+    {
+        tracing::error!("{label} did not exit after abort");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn join_with_timeout_aborts_a_stuck_task() {
+        let handle = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+
+        let started = std::time::Instant::now();
+        join_with_timeout("test task", handle, Duration::from_millis(20)).await;
+
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
 }
