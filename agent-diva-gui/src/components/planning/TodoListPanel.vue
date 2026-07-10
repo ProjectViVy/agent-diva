@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
 import { ChevronDown, ChevronRight, List, ListChecks } from 'lucide-vue-next';
 import TodoItemRow from './TodoItemRow.vue';
@@ -11,26 +12,33 @@ const props = defineProps<{
   todos: TodoDetail[];
   planTitle?: string;
   planPhase?: string;
+  planId: string;
 }>();
+
+const emit = defineEmits<{ (event: 'changed'): void }>();
 
 const detailedMode = ref(false);
 
 // --- Group by status ---
 const inProgressTodos = computed(() =>
-  props.todos.filter((t: TodoDetail) => t.status === 'in_progress'),
+  props.todos.filter((t: TodoDetail) => t.status.toLowerCase() === 'inprogress' || t.status.toLowerCase() === 'in_progress'),
 );
 
 const pendingTodos = computed(() =>
-  props.todos.filter((t: TodoDetail) => t.status === 'pending'),
+  props.todos.filter((t: TodoDetail) => t.status.toLowerCase() === 'pending'),
 );
 
 const blockedTodos = computed(() =>
-  props.todos.filter((t: TodoDetail) => t.status === 'blocked'),
+  props.todos.filter((t: TodoDetail) => t.status.toLowerCase() === 'blocked'),
 );
 
 const completedTodos = computed(() =>
-  props.todos.filter((t: TodoDetail) => t.status === 'completed'),
+  props.todos.filter((t: TodoDetail) => t.status.toLowerCase() === 'completed'),
 );
+const canceledTodos = computed(() =>
+  props.todos.filter((t: TodoDetail) => t.status.toLowerCase() === 'canceled'),
+);
+const busyTodoId = ref<string | null>(null);
 
 // --- Progress ---
 const totalCount = computed(() => props.todos.length);
@@ -46,6 +54,7 @@ const collapsedGroups = ref<Record<string, boolean>>({
   pending: false,
   blocked: false,
   completed: true, // collapsed by default
+  canceled: true,
 });
 
 interface TodoGroup {
@@ -80,10 +89,32 @@ const groups = computed<TodoGroup[]>(() => [
     todos: completedTodos.value,
     color: 'var(--success)',
   },
+  {
+    key: 'canceled',
+    label: '已删除',
+    todos: canceledTodos.value,
+    color: 'var(--text-muted)',
+  },
 ]);
 
 function toggleGroup(key: string) {
   collapsedGroups.value[key] = !collapsedGroups.value[key];
+}
+
+async function changeTodoState(todo: TodoDetail, action: 'delete' | 'restore') {
+  if (busyTodoId.value) return;
+  busyTodoId.value = todo.id;
+  try {
+    await invoke(action === 'delete' ? 'delete_plan_todo' : 'restore_plan_todo', {
+      planId: props.planId,
+      todoId: todo.id,
+    });
+    emit('changed');
+  } catch (error) {
+    console.warn(`[TodoListPanel] Failed to ${action} todo:`, error);
+  } finally {
+    busyTodoId.value = null;
+  }
 }
 </script>
 
@@ -141,6 +172,11 @@ function toggleGroup(key: string) {
             :key="todo.id"
             :todo="todo"
             :detailed="detailedMode"
+            :can-delete="group.key !== 'canceled'"
+            :can-restore="group.key === 'canceled'"
+            :busy="busyTodoId === todo.id"
+            @delete="changeTodoState(todo, 'delete')"
+            @restore="changeTodoState(todo, 'restore')"
           />
         </div>
       </div>

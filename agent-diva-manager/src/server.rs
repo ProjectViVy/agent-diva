@@ -253,8 +253,9 @@ fn provider_routes() -> Router<AppState> {
 
 fn planning_routes() -> Router<AppState> {
     use crate::handlers::planning::{
-        approve_active_plan_handler, create_plan_handler, delete_plan_handler, get_plan_handler,
-        list_plans_handler, update_plan_handler,
+        approve_active_plan_handler, create_plan_handler, delete_plan_handler,
+        delete_plan_todo_handler, get_plan_handler, list_plans_handler, restore_plan_todo_handler,
+        update_plan_handler,
     };
     Router::new()
         .route(
@@ -270,6 +271,14 @@ fn planning_routes() -> Router<AppState> {
             get(get_plan_handler)
                 .put(update_plan_handler)
                 .delete(delete_plan_handler),
+        )
+        .route(
+            "/api/plans/:plan_id/todos/:todo_id/delete",
+            post(delete_plan_todo_handler),
+        )
+        .route(
+            "/api/plans/:plan_id/todos/:todo_id/restore",
+            post(restore_plan_todo_handler),
         )
 }
 

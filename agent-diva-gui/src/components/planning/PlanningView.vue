@@ -179,7 +179,13 @@ onUnmounted(() => {
       <!-- Plan detail content -->
       <template v-else-if="selectedPlan">
         <PlanStatusCard :plan="selectedPlan" />
-        <TodoListPanel :todos="selectedPlan.todos" />
+        <TodoListPanel
+          :todos="selectedPlan.todos"
+          :plan-id="selectedPlan.id"
+          :plan-title="selectedPlan.title"
+          :plan-phase="selectedPlan.phase"
+          @changed="loadPlanDetail(selectedPlan.id)"
+        />
       </template>
     </div>
   </div>

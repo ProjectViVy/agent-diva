@@ -176,6 +176,50 @@ pub async fn delete_plan_handler(
     }
 }
 
+async fn set_plan_todo_handler(
+    state: State<AppState>,
+    Path((plan_id, todo_id)): Path<(String, String)>,
+    restore: bool,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    let (tx, rx) = oneshot::channel();
+    let command = if restore {
+        ManagerCommand::RestorePlanTodo(plan_id, todo_id, tx)
+    } else {
+        ManagerCommand::DeletePlanTodo(plan_id, todo_id, tx)
+    };
+    state.api_tx.send(command).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"status":"error","message":e.to_string()})),
+        )
+    })?;
+    match rx.await {
+        Ok(Ok(())) => Ok(StatusCode::NO_CONTENT),
+        Ok(Err(e)) => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"status":"error","message":e})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"status":"error","message":e.to_string()})),
+        )),
+    }
+}
+
+pub async fn delete_plan_todo_handler(
+    state: State<AppState>,
+    path: Path<(String, String)>,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    set_plan_todo_handler(state, path, false).await
+}
+
+pub async fn restore_plan_todo_handler(
+    state: State<AppState>,
+    path: Path<(String, String)>,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    set_plan_todo_handler(state, path, true).await
+}
+
 /// POST /api/plans/active/approve-execute
 pub async fn approve_active_plan_handler(
     State(state): State<AppState>,

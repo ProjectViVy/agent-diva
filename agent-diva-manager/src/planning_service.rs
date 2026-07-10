@@ -262,6 +262,34 @@ impl PlanningService {
         Ok(())
     }
 
+    pub async fn delete_todo(&self, plan_id: &str, todo_id: &str) -> anyhow::Result<()> {
+        self.set_todo_status(plan_id, todo_id, TodoStatus::Canceled)
+            .await
+    }
+
+    pub async fn restore_todo(&self, plan_id: &str, todo_id: &str) -> anyhow::Result<()> {
+        self.set_todo_status(plan_id, todo_id, TodoStatus::Pending)
+            .await
+    }
+
+    async fn set_todo_status(
+        &self,
+        plan_id: &str,
+        todo_id: &str,
+        status: TodoStatus,
+    ) -> anyhow::Result<()> {
+        let plan_id = PlanId(plan_id.to_string());
+        let mut todos = self.store.get_todos(&plan_id).await?.items;
+        let todo = todos
+            .iter_mut()
+            .find(|todo| todo.id.0 == todo_id)
+            .ok_or_else(|| anyhow::anyhow!("todo not found: {todo_id}"))?;
+        todo.status = status;
+        todo.updated_at = Utc::now();
+        self.store.update_todo(&plan_id, todo).await?;
+        Ok(())
+    }
+
     // -- helpers --
 
     fn to_plan_detail(

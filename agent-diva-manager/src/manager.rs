@@ -381,6 +381,12 @@ impl Manager {
                         ManagerCommand::DeletePlan(plan_id, reply) => {
                             self.handle_delete_plan(plan_id, reply).await;
                         }
+                        ManagerCommand::DeletePlanTodo(plan_id, todo_id, reply) => {
+                            self.handle_delete_plan_todo(plan_id, todo_id, reply).await;
+                        }
+                        ManagerCommand::RestorePlanTodo(plan_id, todo_id, reply) => {
+                            self.handle_restore_plan_todo(plan_id, todo_id, reply).await;
+                        }
                         ManagerCommand::ApproveActivePlan(reply) => {
                             self.handle_approve_active_plan(reply).await;
                         }
@@ -599,6 +605,40 @@ impl Manager {
             return;
         };
         let result = svc.delete_plan(&plan_id).await.map_err(|e| e.to_string());
+        let _ = reply.send(result);
+    }
+
+    async fn handle_delete_plan_todo(
+        &mut self,
+        plan_id: String,
+        todo_id: String,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
+        let Some(svc) = self.ensure_planning_service().await else {
+            let _ = reply.send(Err("Planning service unavailable".into()));
+            return;
+        };
+        let result = svc
+            .delete_todo(&plan_id, &todo_id)
+            .await
+            .map_err(|e| e.to_string());
+        let _ = reply.send(result);
+    }
+
+    async fn handle_restore_plan_todo(
+        &mut self,
+        plan_id: String,
+        todo_id: String,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
+        let Some(svc) = self.ensure_planning_service().await else {
+            let _ = reply.send(Err("Planning service unavailable".into()));
+            return;
+        };
+        let result = svc
+            .restore_todo(&plan_id, &todo_id)
+            .await
+            .map_err(|e| e.to_string());
         let _ = reply.send(result);
     }
 

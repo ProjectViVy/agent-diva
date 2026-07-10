@@ -420,6 +420,55 @@ pub async fn delete_plan(
     }
 }
 
+async fn set_plan_todo_state(
+    plan_id: String,
+    todo_id: String,
+    action: &str,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    let url = format!(
+        "{}/plans/{}/todos/{}/{}",
+        state.api_base_url(),
+        urlencoding::encode(plan_id.trim()),
+        urlencoding::encode(todo_id.trim()),
+        action
+    );
+    let response = state
+        .client
+        .post(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to {} plan todo: {}", action, e))?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        Err(format!(
+            "Failed to {} plan todo ({}): {}",
+            action, status, body
+        ))
+    }
+}
+
+#[tauri::command]
+pub async fn delete_plan_todo(
+    #[allow(non_snake_case)] planId: String,
+    #[allow(non_snake_case)] todoId: String,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    set_plan_todo_state(planId, todoId, "delete", state).await
+}
+
+#[tauri::command]
+pub async fn restore_plan_todo(
+    #[allow(non_snake_case)] planId: String,
+    #[allow(non_snake_case)] todoId: String,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    set_plan_todo_state(planId, todoId, "restore", state).await
+}
+
 #[tauri::command]
 pub async fn get_active_plan(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
     let plans = get_plans(state.clone()).await?;

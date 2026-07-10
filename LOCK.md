@@ -53,6 +53,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 - `2026-07-10`: Released plan completion refresh lock after reloading the active plan on `agent-response-complete` to prevent stale TODO snapshots; GUI typecheck and focused tests passed; recorded `docs/logs/2026-07-plan-gui/v0.0.12-refresh-plan-after-complete/`.
 
+- `2026-07-10`: Released TODO delete/restore lock after adding persistent Canceled/Pending transitions, manager/Tauri APIs, GUI controls, and passing manager/GUI validation; recorded `docs/logs/2026-07-plan-gui/v0.0.13-todo-delete-restore/`.
+
 - `2026-07-10`: Released active TODO detail toggle lock after adding expandable steps/TODO details to the chat bottom bar, passing GUI typecheck and all 388 tests; recorded `docs/logs/2026-07-plan-gui/v0.0.9-chat-todo-details-toggle/`.
 - `2026-07-10`: Released plan approval transition lock after making `plan_approve` atomically advance `AwaitingApproval` to `Execute`, removing it from Plan mode, and passing 335 agent library tests; recorded `docs/logs/2026-07-plan-lifecycle/v0.0.1-approval-transition-fix/`.
 
