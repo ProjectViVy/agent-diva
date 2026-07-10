@@ -28,6 +28,14 @@ impl MentleRuntime {
             return None;
         }
 
+        if !mentle_supported_on_platform() {
+            warn!(
+                fallback_action = "disable_mentle",
+                "Mentle disabled: the native turso/simsimd startup path is not stable on Windows"
+            );
+            return None;
+        }
+
         let db_path = workspace.join("memory").join("palace.db");
         if let Some(parent) = db_path.parent() {
             if let Err(err) = std::fs::create_dir_all(parent) {
@@ -123,6 +131,16 @@ impl MentleRuntime {
     ) -> Self {
         Self::from_parts(toolkit, memory_provider, custom_tools)
     }
+}
+
+#[cfg(windows)]
+fn mentle_supported_on_platform() -> bool {
+    false
+}
+
+#[cfg(not(windows))]
+fn mentle_supported_on_platform() -> bool {
+    true
 }
 
 pub(super) struct MentleToolkitTool {
