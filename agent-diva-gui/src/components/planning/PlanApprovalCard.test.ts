@@ -17,6 +17,7 @@ vi.mock('lucide-vue-next', () => {
 
 const plan: PlanRuntimeState = {
   plan_id: 'plan-1',
+  revision: 1,
   title: '发布准备计划',
   goal: '完成发布前检查',
   phase: 'AwaitingApproval',
@@ -54,8 +55,18 @@ describe('PlanApprovalCard', () => {
 
     await wrapper.get('.plan-approval-approve').trigger('click');
     await wrapper.get('.plan-approval-revoke').trigger('click');
+    await wrapper.get('.plan-approval-feedback textarea').setValue('补充验证步骤');
+    await wrapper.get('.plan-approval-feedback .plan-approval-revoke').trigger('click');
 
     expect(wrapper.emitted('approve')).toHaveLength(1);
     expect(wrapper.emitted('revoke')).toHaveLength(1);
+    expect(wrapper.emitted('revoke')?.[0]).toEqual(['补充验证步骤']);
+  });
+
+  it('disables approval and requests a refresh when revision is unavailable', async () => {
+    const wrapper = mount(PlanApprovalCard, { props: { plan: { ...plan, revision: null } } });
+    expect(wrapper.get('.plan-approval-approve').attributes('disabled')).toBeDefined();
+    await wrapper.get('.plan-approval-refresh').trigger('click');
+    expect(wrapper.emitted('refresh')).toHaveLength(1);
   });
 });

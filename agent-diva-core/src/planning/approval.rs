@@ -32,9 +32,16 @@ pub struct PlanSubmission {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApprovalRequest {
     pub expected_revision: i64,
+    #[serde(skip_deserializing, default = "default_audit_approver")]
     pub approved_by: String,
     pub todo_policy: TodoPolicy,
     pub materialize_todos: bool,
+}
+
+/// GUI callers never choose the audit subject.  It is an internal provenance
+/// marker for a local desktop approval.
+fn default_audit_approver() -> String {
+    "desktop-ui".to_string()
 }
 
 /// Immutable audit record created by a successful approval.

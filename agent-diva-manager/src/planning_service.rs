@@ -33,6 +33,7 @@ pub struct PlanSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanDetail {
     pub id: String,
+    pub revision: Option<i64>,
     pub title: String,
     pub goal: String,
     pub phase: String,
@@ -189,8 +190,18 @@ impl PlanningService {
             .get_todos(&plan.id)
             .await
             .context("failed to get todos")?;
+        let revision = self
+            .store
+            .get_plan_revision(&plan.id)
+            .await
+            .context("failed to get plan revision")?;
 
-        Ok(Some(self.to_plan_detail(&plan, &steps, &todos.items)))
+        Ok(Some(self.to_plan_detail(
+            &plan,
+            revision,
+            &steps,
+            &todos.items,
+        )))
     }
 
     /// Create a new plan.
@@ -300,11 +311,13 @@ impl PlanningService {
     fn to_plan_detail(
         &self,
         plan: &Plan,
+        revision: Option<i64>,
         steps: &[agent_diva_core::planning::model::PlanStep],
         todos: &[agent_diva_core::planning::model::TodoItem],
     ) -> PlanDetail {
         PlanDetail {
             id: plan.id.0.clone(),
+            revision,
             title: plan.title.clone(),
             goal: plan.goal.clone(),
             phase: plan.phase.to_string(),

@@ -10,11 +10,14 @@ defineProps<{
 
 const emit = defineEmits<{
   (event: 'approve', materializeTodos: boolean): void;
-  (event: 'revoke'): void;
+  (event: 'revoke', feedback: string): void;
+  (event: 'refresh'): void;
 }>();
 
 const detailsOpen = ref(false);
 const materializeTodos = ref(false);
+const editingFeedback = ref(false);
+const feedback = ref('');
 </script>
 
 <template>
@@ -85,17 +88,23 @@ const materializeTodos = ref(false);
       <button
         type="button"
         class="plan-approval-approve"
-        :disabled="approving"
+        :disabled="approving || plan.revision == null"
         @click="emit('approve', materializeTodos)"
       >
         <Loader2 v-if="approving" :size="15" class="plan-approval-spinner" />
         <Check v-else :size="15" />
         {{ approving ? '正在启动…' : '执行计划' }}
       </button>
-      <button type="button" class="plan-approval-revoke" :disabled="approving" @click="emit('revoke')">
+      <button type="button" class="plan-approval-revoke" :disabled="approving" @click="editingFeedback = !editingFeedback">
         <X :size="15" />
         撤销
       </button>
+      <button type="button" class="plan-approval-refresh" :disabled="approving" @click="emit('refresh')">刷新</button>
+    </div>
+    <div v-if="editingFeedback" class="plan-approval-feedback">
+      <label for="plan-feedback">修改意见（可选）</label>
+      <textarea id="plan-feedback" v-model="feedback" :disabled="approving" placeholder="告诉 agent 要调整什么" />
+      <button type="button" class="plan-approval-revoke" :disabled="approving" @click="emit('revoke', feedback)">退回修改</button>
     </div>
   </section>
 </template>
@@ -123,6 +132,9 @@ const materializeTodos = ref(false);
 .plan-approval-actions button:disabled { cursor: not-allowed; opacity: 0.6; }
 .plan-approval-approve { border: 1px solid #d97706; color: white; background: #d97706; }
 .plan-approval-revoke { border: 1px solid #d6d3d1; color: #57534e; background: white; }
+.plan-approval-refresh { border: 1px solid #d6d3d1; color: #57534e; background: white; }
+.plan-approval-feedback { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; color: #57534e; font-size: 12px; }
+.plan-approval-feedback textarea { min-height: 68px; resize: vertical; border: 1px solid #d6d3d1; border-radius: 8px; padding: 8px; font: inherit; }
 .plan-approval-spinner { animation: plan-spin 0.9s linear infinite; }
 @keyframes plan-spin { to { transform: rotate(360deg); } }
 </style>

@@ -780,11 +780,16 @@ async function approvePlanExecution(materializeTodos = false) {
     if (pending?.revision == null) throw new Error('Plan revision is unavailable; refresh before approving.');
     const result = await approveActivePlanExecution({
       expected_revision: pending.revision,
-      approved_by: 'desktop-user',
       todo_policy: 'Optional',
       materialize_todos: materializeTodos,
     });
     syncPlanRuntime(result.plan);
+    messages.value.push({
+      id: generateMessageId(),
+      role: 'system',
+      content: `计划已批准：revision ${result.receipt.revision}，审批时间 ${result.receipt.approved_at}，${result.receipt.todos_materialized ? '已生成执行 TODO。' : '未生成执行 TODO。'}`,
+      timestamp: Date.now(),
+    });
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),
@@ -807,6 +812,7 @@ async function restoreActivePlanRuntime() {
     }
     syncPlanRuntime({
       plan_id: plan.id,
+      revision: plan.revision,
       title: plan.title,
       goal: plan.goal,
       phase: plan.phase,
@@ -840,12 +846,22 @@ async function restoreActivePlanRuntime() {
   }
 }
 
-async function revokePlanExecution() {
+async function revokePlanExecution(feedback = '') {
   const plan = pendingApprovalPlan.value;
   if (!plan) return;
+  if (feedback.trim() && isTyping.value) {
+    messages.value.push({
+      id: generateMessageId(),
+      role: 'system',
+      content: '请等待当前回复完成后再提交计划修改意见。',
+      timestamp: Date.now(),
+    });
+    return;
+  }
   try {
     const reopened = await returnActivePlanToDraft();
     syncPlanRuntime(reopened);
+    if (feedback.trim()) await sendMessage(feedback.trim(), undefined, 'plan');
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),
@@ -1827,6 +1843,7 @@ onUnmounted(() => {
       @send="sendMessage"
       @approve-plan="approvePlanExecution"
       @revoke-plan="revokePlanExecution"
+      @refresh-plan="restoreActivePlanRuntime"
       @clear="clearMessages"
       @stop="stopMessage"
       @regenerate="regenerateMessage"

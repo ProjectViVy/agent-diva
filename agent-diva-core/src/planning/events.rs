@@ -23,6 +23,13 @@ pub enum PlanEvent {
         plan_id: PlanId,
         revision: i64,
     },
+    /// A pending submission was returned to the editable plan phase.
+    /// The frozen revision remains visible in the append-only audit log but
+    /// must no longer be accepted for approval.
+    Reopened {
+        plan_id: PlanId,
+        invalidated_revision: i64,
+    },
     Approved {
         plan_id: PlanId,
         revision: i64,
@@ -127,6 +134,10 @@ mod tests {
             PlanEvent::Submitted {
                 plan_id: pid.clone(),
                 revision: 1,
+            },
+            PlanEvent::Reopened {
+                plan_id: pid.clone(),
+                invalidated_revision: 1,
             },
             PlanEvent::Approved {
                 plan_id: pid.clone(),

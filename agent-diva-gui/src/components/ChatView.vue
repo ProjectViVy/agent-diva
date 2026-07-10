@@ -152,7 +152,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'approve-plan', materializeTodos: boolean): void;
-  (e: 'revoke-plan'): void;
+  (e: 'revoke-plan', feedback: string): void;
+  (e: 'refresh-plan'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'select-session', sessionKey: string): void;
@@ -500,6 +501,7 @@ const getPlaceholder = computed(() => {
 const planProgressText = computed(() => {
   const plan = props.executingPlan ?? props.activePlanRuntime;
   if (!plan) return '';
+  if (plan.todos.length === 0) return '无执行清单';
   const completed = plan.todos.filter((todo) => todo.status === 'Completed').length;
   return `${completed}/${plan.todos.length}`;
 });
@@ -940,7 +942,8 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         :plan="pendingApprovalPlan"
         :approving="approvingPlan"
         @approve="emit('approve-plan', $event)"
-        @revoke="emit('revoke-plan')"
+        @revoke="emit('revoke-plan', $event)"
+        @refresh="emit('refresh-plan')"
       />
 
       <!-- Typing Indicator -->
@@ -958,7 +961,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         <div class="active-plan-todo-content">
           <span class="active-plan-todo-plan">{{ activePlanRuntime.title }}</span>
           <span v-if="activePlanTodo" class="active-plan-todo-title">{{ activePlanTodo.title }}</span>
-          <span v-else class="active-plan-todo-title">{{ activePlanRuntime.phase }}</span>
+          <span v-else class="active-plan-todo-title">{{ activePlanRuntime.todos.length === 0 ? '无执行清单，按批准计划执行' : activePlanRuntime.phase }}</span>
         </div>
         <span class="active-plan-todo-progress">{{ planProgressText }}</span>
         <Loader2 v-if="activePlanTodo?.status === 'InProgress'" :size="15" class="text-amber-500 animate-spin" />

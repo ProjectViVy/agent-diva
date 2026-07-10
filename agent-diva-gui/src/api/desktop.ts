@@ -156,7 +156,6 @@ export const getRuntimeConfig = () =>
 
 export interface PlanApprovalRequest {
   expected_revision: number;
-  approved_by: string;
   todo_policy: 'Optional';
   materialize_todos: boolean;
 }

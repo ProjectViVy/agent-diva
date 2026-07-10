@@ -345,6 +345,19 @@ impl PlanningStore for SqlitePlanningStore {
 
     async fn reopen_plan(&self, id: &PlanId) -> crate::Result<()> {
         let now = Utc::now();
+        let mut tx = self.pool.begin().await?;
+        let revision =
+            sqlx::query_scalar::<_, i64>("SELECT revision FROM plan_submissions WHERE plan_id = ?")
+                .bind(&id.0)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let Some(revision) = revision else {
+            return Err(PlanningError::ApprovalConflict {
+                plan_id: id.0.clone(),
+                expected_revision: 0,
+            }
+            .into());
+        };
         let result = sqlx::query(
             "UPDATE plans SET phase = ?, status = ?, updated_at = ? WHERE id = ? AND phase = ?",
         )
@@ -353,7 +366,7 @@ impl PlanningStore for SqlitePlanningStore {
         .bind(now.to_rfc3339())
         .bind(&id.0)
         .bind(PlanPhase::AwaitingApproval.to_string())
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
         if result.rows_affected() != 1 {
             return Err(PlanningError::ApprovalConflict {
@@ -362,10 +375,25 @@ impl PlanningStore for SqlitePlanningStore {
             }
             .into());
         }
-        sqlx::query("DELETE FROM plan_revisions WHERE plan_id = ?")
+        // Keep a monotonic revision counter so an old approval cannot become
+        // valid again after the next submission. `get_plan_revision` hides it
+        // outside AwaitingApproval, making the reopened snapshot unapprovable.
+        sqlx::query("UPDATE plan_submissions SET revision = revision + 1 WHERE plan_id = ?")
             .bind(&id.0)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+        let event = PlanEvent::Reopened {
+            plan_id: id.clone(),
+            invalidated_revision: revision,
+        };
+        sqlx::query("INSERT INTO planning_events (plan_id, event_type, payload, created_at) VALUES (?, ?, ?, ?)")
+            .bind(&id.0)
+            .bind(plan_event_type(&event))
+            .bind(serde_json::to_string(&event)?)
+            .bind(now.to_rfc3339())
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -705,7 +733,8 @@ impl PlanningStore for SqlitePlanningStore {
         if plan
             .strategy
             .as_deref()
-            .is_none_or(|value| value.trim().is_empty())
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
         {
             missing.push("strategy".to_string());
         }
@@ -755,8 +784,9 @@ impl PlanningStore for SqlitePlanningStore {
         sqlx::query("INSERT INTO plan_submissions (plan_id, revision, scope, verification_method, open_question_handling, submitted_at) VALUES (?, 1, ?, ?, ?, ?) ON CONFLICT(plan_id) DO UPDATE SET scope = excluded.scope, verification_method = excluded.verification_method, open_question_handling = excluded.open_question_handling, submitted_at = excluded.submitted_at")
             .bind(&plan_id.0).bind(&submission.scope).bind(&submission.verification_method).bind(&submission.open_question_handling).bind(now.to_rfc3339()).execute(&mut *tx).await?;
         let revision =
-            sqlx::query_scalar::<_, i64>("SELECT revision FROM plan_submissions WHERE plan_id = ?")
+            sqlx::query_scalar::<_, i64>("SELECT s.revision FROM plan_submissions s JOIN plans p ON p.id = s.plan_id WHERE s.plan_id = ? AND p.phase = ?")
                 .bind(&plan_id.0)
+                .bind(PlanPhase::AwaitingApproval.to_string())
                 .fetch_one(&mut *tx)
                 .await?;
         let event = PlanEvent::Submitted {
@@ -859,8 +889,9 @@ impl PlanningStore for SqlitePlanningStore {
 
     async fn get_plan_revision(&self, plan_id: &PlanId) -> crate::Result<Option<i64>> {
         Ok(
-            sqlx::query_scalar::<_, i64>("SELECT revision FROM plan_submissions WHERE plan_id = ?")
+            sqlx::query_scalar::<_, i64>("SELECT s.revision FROM plan_submissions s JOIN plans p ON p.id = s.plan_id WHERE s.plan_id = ? AND p.phase = ?")
                 .bind(&plan_id.0)
+                .bind(PlanPhase::AwaitingApproval.to_string())
                 .fetch_optional(&self.pool)
                 .await?,
         )
@@ -876,6 +907,7 @@ fn plan_event_type(event: &PlanEvent) -> &'static str {
         PlanEvent::Created { .. } => "PlanEvent::Created",
         PlanEvent::Drafted { .. } => "PlanEvent::Drafted",
         PlanEvent::Submitted { .. } => "PlanEvent::Submitted",
+        PlanEvent::Reopened { .. } => "PlanEvent::Reopened",
         PlanEvent::Approved { .. } => "PlanEvent::Approved",
         PlanEvent::PhaseTransition { .. } => "PlanEvent::PhaseTransition",
         PlanEvent::StatusChanged { .. } => "PlanEvent::StatusChanged",
@@ -1247,10 +1279,9 @@ mod tests {
 
         let reopened = store.get_plan(&plan_id).await.unwrap();
         assert_eq!(reopened.phase, PlanPhase::Plan);
-        let new_revision = store.get_plan_revision(&plan_id).await.unwrap().unwrap();
-        assert_eq!(new_revision, revision + 1);
+        assert_eq!(store.get_plan_revision(&plan_id).await.unwrap(), None);
 
-        store
+        let new_revision = store
             .submit_plan(
                 &plan_id,
                 &PlanSubmission {
@@ -1261,6 +1292,38 @@ mod tests {
             )
             .await
             .unwrap();
+        assert_eq!(new_revision, revision + 1);
+        assert!(store
+            .approve_plan(
+                &plan_id,
+                &ApprovalRequest {
+                    expected_revision: revision,
+                    approved_by: "user".to_string(),
+                    todo_policy: TodoPolicy::Never,
+                    materialize_todos: false,
+                },
+            )
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn reopen_records_invalidation_and_rejects_the_old_revision() {
+        let store = test_store().await;
+        let plan_id = PlanId("p-reopen".to_string());
+        let revision = submit_ready_plan(&store, &plan_id.0).await;
+
+        store.reopen_plan(&plan_id).await.unwrap();
+
+        assert_eq!(store.get_plan_revision(&plan_id).await.unwrap(), None);
+        assert_eq!(
+            store.get_plan(&plan_id).await.unwrap().phase,
+            PlanPhase::Plan
+        );
+        assert!(matches!(
+            store.get_events(&plan_id).await.unwrap().last(),
+            Some(PlanEvent::Reopened { invalidated_revision, .. }) if *invalidated_revision == revision
+        ));
         assert!(store
             .approve_plan(
                 &plan_id,

@@ -15,6 +15,7 @@ export interface PlanSummary {
 
 export interface PlanDetail {
   id: string;
+  revision?: number | null;
   title: string;
   goal: string;
   phase: string;
@@ -94,7 +95,6 @@ export interface PlanRuntimeState {
 export interface PlanApprovalReceipt {
   plan_id: string;
   revision: number;
-  approved_by: string;
   approved_at: string;
   todo_policy: 'Never' | 'Optional' | 'Always';
   todos_materialized: boolean;
