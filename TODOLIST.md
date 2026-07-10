@@ -10,6 +10,9 @@
   - Rule: TODO is optional and is materialized only after approval when selected by the user or plan.
   - Validation: `just fmt-check && just check && just test`, focused crate/GUI tests, and end-to-end denial/approval scenarios.
 
+- [x] **P2/P3 approval boundary and runtime capability enforcement (2026-07-11)** Added `plan_submit`, revision-bound store approval, append-only submitted/approved events, revision invalidation on plan-content edits, materialized-TODO replacement protection, and phase-aware tool assembly/pre-call denial. GUI request-body adoption remains P4; manager test execution remains deferred by the local command time limit.
+  - Related log: `docs/logs/2026-07-plan-todo-p2-p3/v0.0.1-approval-runtime-enforcement/`
+
 ### Plan/TODO P1 core policy — triple-review follow-ups (2026-07-11)
 
 Source reviews (forced packet process):
