@@ -39,7 +39,7 @@ fn parse_plan_phase(s: &str) -> Result<PlanPhase, ToolError> {
 // PlanApproveTool
 // ---------------------------------------------------------------------------
 
-/// `plan_approve` — marks a plan as approved, allowing transition to Execute.
+/// `plan_approve` — approves the waiting plan and advances it to Execute.
 pub struct PlanApproveTool {
     orchestrator: Arc<Mutex<PlanOrchestrator>>,
     store: Arc<dyn PlanningStore>,
@@ -76,12 +76,23 @@ impl Tool for PlanApproveTool {
         let plan_id = self.store.get_active_plan().await.map_err(core_err)?;
         let plan = self.store.get_plan(&plan_id).await.map_err(core_err)?;
 
+        if plan.phase != PlanPhase::AwaitingApproval {
+            return Err(ToolError::ExecutionFailed(format!(
+                "Plan '{}' can only be approved from AwaitingApproval phase (current: {})",
+                plan.title, plan.phase
+            )));
+        }
+
         let mut orch = self.orchestrator.lock().await;
         orch.approve(&plan_id);
+        let plan = orch
+            .transition_to(self.store.as_ref(), &plan_id, PlanPhase::Execute)
+            .await
+            .map_err(core_err)?;
 
         Ok(format!(
-            "Plan '{}' (id: {}) approved. You may now call plan_transition to advance to Execute phase.",
-            plan.title, plan_id
+            "Plan '{}' (id: {}) approved and transitioned to Execute phase (status: {}).",
+            plan.title, plan_id, plan.status
         ))
     }
 }

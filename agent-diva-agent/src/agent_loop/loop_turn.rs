@@ -54,7 +54,6 @@ fn is_plan_mode_allowed_tool(tool_name: &str) -> bool {
             | "read_attachment"
             | "plan_create"
             | "plan_show"
-            | "plan_approve"
             | "plan_transition"
             | "todo_show"
             | "todo_write"
