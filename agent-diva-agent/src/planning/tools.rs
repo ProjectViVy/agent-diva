@@ -39,7 +39,10 @@ fn parse_plan_phase(s: &str) -> Result<PlanPhase, ToolError> {
 // PlanApproveTool
 // ---------------------------------------------------------------------------
 
-/// `plan_approve` — approves the waiting plan and advances it to Execute.
+/// Legacy agent-facing approval tool.
+///
+/// Approval is intentionally unavailable to the agent and must enter through
+/// the user-originated runtime-control boundary.
 pub struct PlanApproveTool {
     orchestrator: Arc<Mutex<PlanOrchestrator>>,
     store: Arc<dyn PlanningStore>,
@@ -61,7 +64,7 @@ impl Tool for PlanApproveTool {
     }
 
     fn description(&self) -> &str {
-        "Approve the active plan, allowing it to transition to the Execute phase."
+        "Unavailable: plans require explicit revision-bound user approval through runtime control."
     }
 
     fn parameters(&self) -> Value {
@@ -73,26 +76,10 @@ impl Tool for PlanApproveTool {
     }
 
     async fn execute(&self, _args: Value) -> ToolResult<String> {
-        let plan_id = self.store.get_active_plan().await.map_err(core_err)?;
-        let plan = self.store.get_plan(&plan_id).await.map_err(core_err)?;
-
-        if plan.phase != PlanPhase::AwaitingApproval {
-            return Err(ToolError::ExecutionFailed(format!(
-                "Plan '{}' can only be approved from AwaitingApproval phase (current: {})",
-                plan.title, plan.phase
-            )));
-        }
-
-        let mut orch = self.orchestrator.lock().await;
-        orch.approve(&plan_id);
-        let plan = orch
-            .transition_to(self.store.as_ref(), &plan_id, PlanPhase::Execute)
-            .await
-            .map_err(core_err)?;
-
-        Ok(format!(
-            "Plan '{}' (id: {}) approved and transitioned to Execute phase (status: {}).",
-            plan.title, plan_id, plan.status
+        let _ = (&self.orchestrator, &self.store);
+        Err(ToolError::ExecutionFailed(
+            "Plans require an explicit revision-bound user approval through runtime control."
+                .into(),
         ))
     }
 }
@@ -146,6 +133,12 @@ impl Tool for PlanTransitionTool {
             .ok_or_else(|| ToolError::InvalidParams("Missing 'phase'".into()))?;
 
         let new_phase = parse_plan_phase(phase_str)?;
+        if matches!(new_phase, PlanPhase::AwaitingApproval | PlanPhase::Execute) {
+            return Err(ToolError::ExecutionFailed(
+                "Use plan_submit to request approval; only runtime control may approve execution."
+                    .into(),
+            ));
+        }
         let plan_id = self.store.get_active_plan().await.map_err(core_err)?;
 
         let mut orch = self.orchestrator.lock().await;

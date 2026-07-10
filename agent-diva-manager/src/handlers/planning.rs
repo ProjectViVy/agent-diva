@@ -223,11 +223,12 @@ pub async fn restore_plan_todo_handler(
 /// POST /api/plans/active/approve-execute
 pub async fn approve_active_plan_handler(
     State(state): State<AppState>,
+    Json(request): Json<agent_diva_core::planning::ApprovalRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let (tx, rx) = oneshot::channel();
     if let Err(e) = state
         .api_tx
-        .send(ManagerCommand::ApproveActivePlan(tx))
+        .send(ManagerCommand::ApproveActivePlan(request, tx))
         .await
     {
         tracing::error!("Failed to send ApproveActivePlan request: {}", e);

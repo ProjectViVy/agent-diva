@@ -1,5 +1,5 @@
 use crate::mask::{MaskFile, ToolPolicy};
-use crate::planning::{PlanApproveTool, PlanShowTool, PlanTransitionTool};
+use crate::planning::{PlanShowTool, PlanTransitionTool};
 use crate::tool_config::PlanningConfig;
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
 use agent_diva_core::config::schema::MaskConfig;
@@ -9,7 +9,7 @@ use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::FileManager;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
-use agent_diva_tools::planning::{PlanCreateTool, TodoShowTool, TodoWriteTool};
+use agent_diva_tools::planning::{PlanCreateTool, PlanSubmitTool, TodoShowTool, TodoWriteTool};
 use agent_diva_tools::{
     load_mcp_tools_sync, BackgroundTaskContext, CronTool, EditFileTool, EnqueueBackgroundTaskTool,
     ExecTool, ListDirTool, ReadAttachmentTool, ReadFileTool, SpawnTool, WebFetchTool,
@@ -280,12 +280,11 @@ impl ToolAssembly {
         if let Some(planning) = self.planning_config {
             registry.register(Arc::new(PlanCreateTool::new(planning.store.clone())));
             registry.register(Arc::new(TodoShowTool::new(planning.store.clone())));
-            registry.register(Arc::new(TodoWriteTool::new(planning.store.clone())));
+            if !self.plan_mode {
+                registry.register(Arc::new(TodoWriteTool::new(planning.store.clone())));
+            }
             registry.register(Arc::new(PlanShowTool::new(planning.store.clone())));
-            registry.register(Arc::new(PlanApproveTool::new(
-                planning.orchestrator.clone(),
-                planning.store.clone(),
-            )));
+            registry.register(Arc::new(PlanSubmitTool::new(planning.store.clone())));
             registry.register(Arc::new(PlanTransitionTool::new(
                 planning.orchestrator,
                 planning.store,
@@ -469,7 +468,9 @@ mod tests {
         assert!(registry.has("list_dir"));
         assert!(registry.has("plan_create"));
         assert!(registry.has("plan_show"));
-        assert!(registry.has("todo_write"));
+        assert!(registry.has("plan_submit"));
+        assert!(!registry.has("todo_write"));
+        assert!(!registry.has("plan_approve"));
         assert!(!registry.has("write_file"));
         assert!(!registry.has("edit_file"));
         assert!(!registry.has("exec"));

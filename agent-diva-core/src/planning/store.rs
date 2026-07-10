@@ -7,9 +7,12 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use sqlx::SqlitePool;
 
+use super::approval::{ApprovalReceipt, ApprovalRequest, PlanSubmission};
 use super::events::{PlanEvent, TodoEvent};
 use super::ids::{PlanId, TodoId};
-use super::model::{Plan, PlanStep, TodoItem, TodoList};
+use super::model::{
+    Plan, PlanPhase, PlanStatus, PlanStep, TodoItem, TodoList, TodoPriority, TodoStatus,
+};
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -24,6 +27,20 @@ pub enum PlanningError {
     TodoNotFound(String),
     #[error("No active plan")]
     NoActivePlan,
+    #[error("plan {plan_id} is incomplete: {missing:?}")]
+    PlanIncomplete {
+        plan_id: String,
+        missing: Vec<String>,
+    },
+    #[error("approval conflict for plan {plan_id}: expected revision {expected_revision}")]
+    ApprovalConflict {
+        plan_id: String,
+        expected_revision: i64,
+    },
+    #[error("plan {plan_id} already has execution TODO items")]
+    TodoAlreadyMaterialized { plan_id: String },
+    #[error("plan {plan_id} cannot be submitted from phase {phase}")]
+    NotSubmittable { plan_id: String, phase: PlanPhase },
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
     #[error("Serialization error: {0}")]
@@ -73,6 +90,17 @@ pub trait PlanningStore: Send + Sync {
     async fn set_active_plan(&self, plan_id: &PlanId) -> crate::Result<()>;
     async fn clear_active_plan(&self, plan_id: &PlanId) -> crate::Result<()>;
     async fn get_active_plan(&self) -> crate::Result<PlanId>;
+    async fn submit_plan(
+        &self,
+        plan_id: &PlanId,
+        submission: &PlanSubmission,
+    ) -> crate::Result<i64>;
+    async fn approve_plan(
+        &self,
+        plan_id: &PlanId,
+        request: &ApprovalRequest,
+    ) -> crate::Result<ApprovalReceipt>;
+    async fn get_plan_revision(&self, plan_id: &PlanId) -> crate::Result<Option<i64>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +133,34 @@ impl SqlitePlanningStore {
                 verification_verdict TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            )"#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"CREATE TABLE IF NOT EXISTS plan_submissions (
+                plan_id TEXT PRIMARY KEY REFERENCES plans(id) ON DELETE CASCADE,
+                revision INTEGER NOT NULL,
+                scope TEXT NOT NULL,
+                verification_method TEXT NOT NULL,
+                open_question_handling TEXT NOT NULL,
+                submitted_at TEXT NOT NULL
+            )"#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"CREATE TABLE IF NOT EXISTS plan_approvals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+                revision INTEGER NOT NULL,
+                approved_by TEXT NOT NULL,
+                approved_at TEXT NOT NULL,
+                todo_policy TEXT NOT NULL,
+                todos_materialized INTEGER NOT NULL,
+                UNIQUE(plan_id, revision)
             )"#,
         )
         .execute(&mut *tx)
@@ -231,6 +287,13 @@ impl PlanningStore for SqlitePlanningStore {
     }
 
     async fn update_plan(&self, plan: &Plan) -> crate::Result<()> {
+        let existing = self.get_plan(&plan.id).await?;
+        let content_changed = existing.title != plan.title
+            || existing.goal != plan.goal
+            || existing.strategy != plan.strategy
+            || existing.assumptions != plan.assumptions
+            || existing.risks != plan.risks
+            || existing.open_questions != plan.open_questions;
         let assumptions = serde_json::to_string(&plan.assumptions)?;
         let risks = serde_json::to_string(&plan.risks)?;
         let open_questions = serde_json::to_string(&plan.open_questions)?;
@@ -256,6 +319,24 @@ impl PlanningStore for SqlitePlanningStore {
 
         if result.rows_affected() == 0 {
             return Err(PlanningError::PlanNotFound(plan.id.0.clone()).into());
+        }
+        if content_changed
+            && matches!(
+                existing.phase,
+                PlanPhase::AwaitingApproval | PlanPhase::Execute | PlanPhase::Verify
+            )
+        {
+            sqlx::query("UPDATE plans SET phase = ?, status = ?, updated_at = ? WHERE id = ?")
+                .bind(PlanPhase::Plan.to_string())
+                .bind(PlanStatus::Pending.to_string())
+                .bind(Utc::now().to_rfc3339())
+                .bind(&plan.id.0)
+                .execute(&self.pool)
+                .await?;
+            sqlx::query("UPDATE plan_submissions SET revision = revision + 1 WHERE plan_id = ?")
+                .bind(&plan.id.0)
+                .execute(&self.pool)
+                .await?;
         }
         Ok(())
     }
@@ -449,6 +530,19 @@ impl PlanningStore for SqlitePlanningStore {
         let now = Utc::now().to_rfc3339();
         let mut tx = self.pool.begin().await?;
 
+        let materialized = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM plan_approvals WHERE plan_id = ? AND todos_materialized = 1",
+        )
+        .bind(&plan_id.0)
+        .fetch_one(&mut *tx)
+        .await?;
+        if materialized != 0 {
+            return Err(PlanningError::TodoAlreadyMaterialized {
+                plan_id: plan_id.0.clone(),
+            }
+            .into());
+        }
+
         sqlx::query("DELETE FROM todo_items WHERE plan_id = ?")
             .bind(&plan_id.0)
             .execute(&mut *tx)
@@ -523,7 +617,7 @@ impl PlanningStore for SqlitePlanningStore {
 
     async fn get_events(&self, plan_id: &PlanId) -> crate::Result<Vec<PlanEvent>> {
         let rows = sqlx::query_as::<_, EventRow>(
-            "SELECT * FROM planning_events WHERE plan_id = ? AND event_type != 'TodoEvent' ORDER BY id",
+            "SELECT * FROM planning_events WHERE plan_id = ? AND event_type LIKE 'PlanEvent::%' ORDER BY id",
         )
         .bind(&plan_id.0)
         .fetch_all(&self.pool)
@@ -568,6 +662,181 @@ impl PlanningStore for SqlitePlanningStore {
             None => Err(PlanningError::NoActivePlan.into()),
         }
     }
+
+    async fn submit_plan(
+        &self,
+        plan_id: &PlanId,
+        submission: &PlanSubmission,
+    ) -> crate::Result<i64> {
+        let plan = self.get_plan(plan_id).await?;
+        let steps = self.get_steps(plan_id).await?;
+        let mut missing = Vec::new();
+        if plan.goal.trim().is_empty() {
+            missing.push("goal".to_string());
+        }
+        if plan
+            .strategy
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+        {
+            missing.push("strategy".to_string());
+        }
+        if plan.assumptions.is_empty() {
+            missing.push("assumptions".to_string());
+        }
+        if plan.risks.is_empty() {
+            missing.push("risks".to_string());
+        }
+        if steps.is_empty() {
+            missing.push("steps".to_string());
+        }
+        if submission.scope.trim().is_empty() {
+            missing.push("scope".to_string());
+        }
+        if submission.verification_method.trim().is_empty() {
+            missing.push("verification_method".to_string());
+        }
+        if !plan.open_questions.is_empty() && submission.open_question_handling.trim().is_empty() {
+            missing.push("open_question_handling".to_string());
+        }
+        if !missing.is_empty() {
+            return Err(PlanningError::PlanIncomplete {
+                plan_id: plan_id.0.clone(),
+                missing,
+            }
+            .into());
+        }
+
+        let now = Utc::now();
+        let mut tx = self.pool.begin().await?;
+        let result =
+            sqlx::query("UPDATE plans SET phase = ?, updated_at = ? WHERE id = ? AND phase = ?")
+                .bind(PlanPhase::AwaitingApproval.to_string())
+                .bind(now.to_rfc3339())
+                .bind(&plan_id.0)
+                .bind(PlanPhase::Plan.to_string())
+                .execute(&mut *tx)
+                .await?;
+        if result.rows_affected() != 1 {
+            return Err(PlanningError::NotSubmittable {
+                plan_id: plan_id.0.clone(),
+                phase: plan.phase,
+            }
+            .into());
+        }
+        sqlx::query("INSERT INTO plan_submissions (plan_id, revision, scope, verification_method, open_question_handling, submitted_at) VALUES (?, 1, ?, ?, ?, ?) ON CONFLICT(plan_id) DO UPDATE SET scope = excluded.scope, verification_method = excluded.verification_method, open_question_handling = excluded.open_question_handling, submitted_at = excluded.submitted_at")
+            .bind(&plan_id.0).bind(&submission.scope).bind(&submission.verification_method).bind(&submission.open_question_handling).bind(now.to_rfc3339()).execute(&mut *tx).await?;
+        let revision =
+            sqlx::query_scalar::<_, i64>("SELECT revision FROM plan_submissions WHERE plan_id = ?")
+                .bind(&plan_id.0)
+                .fetch_one(&mut *tx)
+                .await?;
+        let event = PlanEvent::Submitted {
+            plan_id: plan_id.clone(),
+            revision,
+        };
+        sqlx::query("INSERT INTO planning_events (plan_id, event_type, payload, created_at) VALUES (?, ?, ?, ?)")
+            .bind(&plan_id.0)
+            .bind(plan_event_type(&event))
+            .bind(serde_json::to_string(&event)?)
+            .bind(now.to_rfc3339())
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(revision)
+    }
+
+    async fn approve_plan(
+        &self,
+        plan_id: &PlanId,
+        request: &ApprovalRequest,
+    ) -> crate::Result<ApprovalReceipt> {
+        let now = Utc::now();
+        let materialize = request.todo_policy.materializes(request.materialize_todos);
+        let mut tx = self.pool.begin().await?;
+        let revision =
+            sqlx::query_scalar::<_, i64>("SELECT revision FROM plan_submissions WHERE plan_id = ?")
+                .bind(&plan_id.0)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if revision != Some(request.expected_revision) {
+            return Err(PlanningError::ApprovalConflict {
+                plan_id: plan_id.0.clone(),
+                expected_revision: request.expected_revision,
+            }
+            .into());
+        }
+        let updated = sqlx::query(
+            "UPDATE plans SET phase = ?, status = ?, updated_at = ? WHERE id = ? AND phase = ?",
+        )
+        .bind(PlanPhase::Execute.to_string())
+        .bind(PlanStatus::InProgress.to_string())
+        .bind(now.to_rfc3339())
+        .bind(&plan_id.0)
+        .bind(PlanPhase::AwaitingApproval.to_string())
+        .execute(&mut *tx)
+        .await?;
+        if updated.rows_affected() != 1 {
+            return Err(PlanningError::ApprovalConflict {
+                plan_id: plan_id.0.clone(),
+                expected_revision: request.expected_revision,
+            }
+            .into());
+        }
+        if materialize {
+            let count =
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM todo_items WHERE plan_id = ?")
+                    .bind(&plan_id.0)
+                    .fetch_one(&mut *tx)
+                    .await?;
+            if count != 0 {
+                return Err(PlanningError::TodoAlreadyMaterialized {
+                    plan_id: plan_id.0.clone(),
+                }
+                .into());
+            }
+            let steps = sqlx::query_as::<_, StepRow>(
+                "SELECT * FROM plan_steps WHERE plan_id = ? ORDER BY ordinal",
+            )
+            .bind(&plan_id.0)
+            .fetch_all(&mut *tx)
+            .await?;
+            for step in steps {
+                sqlx::query("INSERT INTO todo_items (id, plan_id, plan_step_id, title, detail, status, priority, evidence_ref, block_reason, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)")
+                    .bind(TodoId::new().0).bind(&plan_id.0).bind(step.id).bind(step.title).bind(step.expected_output)
+                    .bind(TodoStatus::Pending.to_string()).bind(TodoPriority::Normal.to_string()).bind(now.to_rfc3339()).execute(&mut *tx).await?;
+            }
+        }
+        let receipt = ApprovalReceipt {
+            plan_id: plan_id.clone(),
+            revision: request.expected_revision,
+            approved_by: request.approved_by.clone(),
+            approved_at: now,
+            todo_policy: request.todo_policy,
+            todos_materialized: materialize,
+        };
+        sqlx::query("INSERT INTO plan_approvals (plan_id, revision, approved_by, approved_at, todo_policy, todos_materialized) VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(&plan_id.0).bind(receipt.revision).bind(&receipt.approved_by).bind(receipt.approved_at.to_rfc3339()).bind(serde_json::to_string(&receipt.todo_policy)?).bind(i64::from(receipt.todos_materialized)).execute(&mut *tx).await?;
+        let event = PlanEvent::Approved {
+            plan_id: plan_id.clone(),
+            revision: receipt.revision,
+            approved_by: receipt.approved_by.clone(),
+            todos_materialized: receipt.todos_materialized,
+        };
+        sqlx::query("INSERT INTO planning_events (plan_id, event_type, payload, created_at) VALUES (?, ?, ?, ?)")
+            .bind(&plan_id.0).bind(plan_event_type(&event)).bind(serde_json::to_string(&event)?).bind(now.to_rfc3339()).execute(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(receipt)
+    }
+
+    async fn get_plan_revision(&self, plan_id: &PlanId) -> crate::Result<Option<i64>> {
+        Ok(
+            sqlx::query_scalar::<_, i64>("SELECT revision FROM plan_submissions WHERE plan_id = ?")
+                .bind(&plan_id.0)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -578,6 +847,8 @@ fn plan_event_type(event: &PlanEvent) -> &'static str {
     match event {
         PlanEvent::Created { .. } => "PlanEvent::Created",
         PlanEvent::Drafted { .. } => "PlanEvent::Drafted",
+        PlanEvent::Submitted { .. } => "PlanEvent::Submitted",
+        PlanEvent::Approved { .. } => "PlanEvent::Approved",
         PlanEvent::PhaseTransition { .. } => "PlanEvent::PhaseTransition",
         PlanEvent::StatusChanged { .. } => "PlanEvent::StatusChanged",
         PlanEvent::VerificationRecorded { .. } => "PlanEvent::VerificationRecorded",
@@ -831,6 +1102,7 @@ mod tests {
     use super::*;
     use crate::planning::ids::*;
     use crate::planning::model::*;
+    use crate::planning::TodoPolicy;
     use chrono::Utc;
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
@@ -859,6 +1131,162 @@ mod tests {
             created_at: now,
             updated_at: now,
         }
+    }
+
+    async fn submit_ready_plan(store: &SqlitePlanningStore, id: &str) -> i64 {
+        let mut plan = make_plan(id, "Ready");
+        plan.phase = PlanPhase::Plan;
+        plan.strategy = Some("bounded scope".to_string());
+        plan.assumptions = vec!["available".to_string()];
+        plan.risks = vec!["low".to_string()];
+        store.create_plan(&plan).await.unwrap();
+        let now = Utc::now();
+        store
+            .create_step(&PlanStep {
+                id: format!("{id}-step"),
+                plan_id: plan.id.clone(),
+                ordinal: 0,
+                title: "Implement".to_string(),
+                rationale: None,
+                expected_output: Some("verified".to_string()),
+                status: PlanStatus::Pending,
+                evidence_ref: None,
+                created_at: now,
+                updated_at: now,
+            })
+            .await
+            .unwrap();
+        store
+            .submit_plan(
+                &plan.id,
+                &PlanSubmission {
+                    scope: "core".to_string(),
+                    verification_method: "tests".to_string(),
+                    open_question_handling: "none".to_string(),
+                },
+            )
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn approval_is_revision_bound_and_optionally_materializes_todos() {
+        let store = test_store().await;
+        let plan_id = PlanId("p-approval".to_string());
+        let revision = submit_ready_plan(&store, &plan_id.0).await;
+        let receipt = store
+            .approve_plan(
+                &plan_id,
+                &ApprovalRequest {
+                    expected_revision: revision,
+                    approved_by: "user".to_string(),
+                    todo_policy: TodoPolicy::Optional,
+                    materialize_todos: false,
+                },
+            )
+            .await
+            .unwrap();
+        assert!(!receipt.todos_materialized);
+        assert!(store.get_todos(&plan_id).await.unwrap().items.is_empty());
+        assert_eq!(
+            store.get_plan(&plan_id).await.unwrap().phase,
+            PlanPhase::Execute
+        );
+        assert!(store
+            .approve_plan(
+                &plan_id,
+                &ApprovalRequest {
+                    expected_revision: revision,
+                    approved_by: "user".to_string(),
+                    todo_policy: TodoPolicy::Always,
+                    materialize_todos: true
+                }
+            )
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn content_edit_reopens_submitted_plan_and_invalidates_revision() {
+        let store = test_store().await;
+        let plan_id = PlanId("p-revision".to_string());
+        let revision = submit_ready_plan(&store, &plan_id.0).await;
+
+        let mut plan = store.get_plan(&plan_id).await.unwrap();
+        plan.goal = "Changed scope".to_string();
+        plan.updated_at = Utc::now();
+        store.update_plan(&plan).await.unwrap();
+
+        let reopened = store.get_plan(&plan_id).await.unwrap();
+        assert_eq!(reopened.phase, PlanPhase::Plan);
+        let new_revision = store.get_plan_revision(&plan_id).await.unwrap().unwrap();
+        assert_eq!(new_revision, revision + 1);
+
+        store
+            .submit_plan(
+                &plan_id,
+                &PlanSubmission {
+                    scope: "core".to_string(),
+                    verification_method: "tests".to_string(),
+                    open_question_handling: "none".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        assert!(store
+            .approve_plan(
+                &plan_id,
+                &ApprovalRequest {
+                    expected_revision: revision,
+                    approved_by: "user".to_string(),
+                    todo_policy: TodoPolicy::Never,
+                    materialize_todos: false,
+                },
+            )
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn materialization_rejects_existing_todos_without_advancing_phase() {
+        let store = test_store().await;
+        let plan_id = PlanId("p-existing-todo".to_string());
+        let revision = submit_ready_plan(&store, &plan_id.0).await;
+        store
+            .create_todo(
+                &plan_id,
+                &TodoItem {
+                    id: TodoId::new(),
+                    plan_step_id: None,
+                    title: "legacy todo".to_string(),
+                    detail: None,
+                    status: TodoStatus::Pending,
+                    priority: TodoPriority::Normal,
+                    evidence_ref: None,
+                    block_reason: None,
+                    updated_at: Utc::now(),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert!(store
+            .approve_plan(
+                &plan_id,
+                &ApprovalRequest {
+                    expected_revision: revision,
+                    approved_by: "user".to_string(),
+                    todo_policy: TodoPolicy::Always,
+                    materialize_todos: true,
+                },
+            )
+            .await
+            .is_err());
+        assert_eq!(
+            store.get_plan(&plan_id).await.unwrap().phase,
+            PlanPhase::AwaitingApproval
+        );
+        assert_eq!(store.get_todos(&plan_id).await.unwrap().items.len(), 1);
     }
 
     #[tokio::test]

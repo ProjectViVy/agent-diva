@@ -4,7 +4,6 @@ use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{
     AgentEvent, InboundMessage, PlanRuntimeState, PlanRuntimeStep, PlanRuntimeTodo,
 };
-use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::session::CompactTrigger;
 use agent_diva_providers::Message;
 use tokio::sync::mpsc;
@@ -109,8 +108,8 @@ impl AgentLoop {
                 let result = self.handle_compact_session(&session_key).await;
                 let _ = reply_tx.send(result);
             }
-            RuntimeControlCommand::ApproveActivePlan { reply_tx } => {
-                let result = self.handle_approve_active_plan().await;
+            RuntimeControlCommand::ApproveActivePlan { request, reply_tx } => {
+                let result = self.handle_approve_active_plan(request).await;
                 let _ = reply_tx.send(result);
             }
         }
@@ -337,7 +336,10 @@ impl AgentLoop {
         Ok((title, generated.is_some(), false))
     }
 
-    async fn handle_approve_active_plan(&mut self) -> Result<PlanRuntimeState, String> {
+    async fn handle_approve_active_plan(
+        &mut self,
+        request: agent_diva_core::planning::ApprovalRequest,
+    ) -> Result<PlanRuntimeState, String> {
         let Some(planning) = self.tool_config.planning.as_ref() else {
             return Err("planning runtime is unavailable".to_string());
         };
@@ -348,14 +350,11 @@ impl AgentLoop {
             .await
             .map_err(|error| error.to_string())?;
 
-        {
-            let mut orchestrator = planning.orchestrator.lock().await;
-            orchestrator.approve(&plan_id);
-            orchestrator
-                .transition_to(planning.store.as_ref(), &plan_id, PlanPhase::Execute)
-                .await
-                .map_err(|error| error.to_string())?;
-        }
+        planning
+            .store
+            .approve_plan(&plan_id, &request)
+            .await
+            .map_err(|error| error.to_string())?;
 
         self.snapshot_plan_runtime(&plan_id)
             .await
@@ -376,9 +375,11 @@ impl AgentLoop {
         let plan = planning.store.get_plan(plan_id).await.ok()?;
         let steps = planning.store.get_steps(plan_id).await.ok()?;
         let todos = planning.store.get_todos(plan_id).await.ok()?;
+        let revision = planning.store.get_plan_revision(plan_id).await.ok()?;
 
         Some(PlanRuntimeState {
             plan_id: plan.id.0.clone(),
+            revision,
             title: plan.title.clone(),
             goal: plan.goal.clone(),
             phase: plan.phase,

@@ -3,6 +3,7 @@
 //! Provides read-only tools that expose plan and todo state to the agent,
 //! plus lifecycle tools for plan creation, approval, and phase transitions.
 
+use agent_diva_core::planning::approval::PlanSubmission;
 use agent_diva_core::planning::events::TodoEvent;
 use agent_diva_core::planning::ids::{PlanId, TodoId};
 use agent_diva_core::planning::model::{
@@ -353,6 +354,67 @@ impl Tool for PlanCreateTool {
         Ok(format!(
             "Plan created: {} (id: {})\nPhase: Explore\nUse todo_write to add todo items, then plan_transition to advance through phases.",
             title_out, id
+        ))
+    }
+}
+
+/// `plan_submit` — validates and freezes the active plan for user approval.
+pub struct PlanSubmitTool {
+    store: Arc<dyn PlanningStore>,
+}
+
+impl PlanSubmitTool {
+    pub fn new(store: Arc<dyn PlanningStore>) -> Self {
+        Self { store }
+    }
+}
+
+#[async_trait]
+impl Tool for PlanSubmitTool {
+    fn name(&self) -> &str {
+        "plan_submit"
+    }
+
+    fn description(&self) -> &str {
+        "Validate the complete active plan and submit one frozen revision for explicit user approval."
+    }
+
+    fn parameters(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "scope": { "type": "string" },
+                "verification_method": { "type": "string" },
+                "open_question_handling": { "type": "string" }
+            },
+            "required": ["scope", "verification_method", "open_question_handling"]
+        })
+    }
+
+    async fn execute(&self, args: Value) -> ToolResult<String> {
+        let required = |key: &str| {
+            args.get(key)
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .ok_or_else(|| ToolError::InvalidParams(format!("Missing '{key}'")))
+        };
+        let submission = PlanSubmission {
+            scope: required("scope")?,
+            verification_method: required("verification_method")?,
+            open_question_handling: required("open_question_handling")?,
+        };
+        let plan_id = self
+            .store
+            .get_active_plan()
+            .await
+            .map_err(core_err_to_tool)?;
+        let revision = self
+            .store
+            .submit_plan(&plan_id, &submission)
+            .await
+            .map_err(core_err_to_tool)?;
+        Ok(format!(
+            "Plan {plan_id} submitted for approval at revision {revision}."
         ))
     }
 }

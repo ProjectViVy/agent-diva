@@ -31,6 +31,8 @@ pub struct PlanRuntimeTodo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanRuntimeState {
     pub plan_id: String,
+    /// Frozen submission revision, when the active plan has been submitted.
+    pub revision: Option<i64>,
     pub title: String,
     pub goal: String,
     pub phase: PlanPhase,

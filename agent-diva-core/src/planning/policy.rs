@@ -32,6 +32,11 @@ impl From<&PlanPhase> for PlanModeState {
     }
 }
 
+/// Evaluates a capability directly from the persisted phase.
+pub fn allows_for_phase(phase: &PlanPhase, capability: ToolCapability) -> bool {
+    allows(PlanModeState::from(phase), capability)
+}
+
 /// A normalized operation category used for planning runtime authorization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolCapability {
@@ -59,19 +64,35 @@ pub enum PlanningPolicyError {
 pub fn allows(state: PlanModeState, capability: ToolCapability) -> bool {
     match (state, capability) {
         (
-            PlanModeState::Exploring | PlanModeState::Drafting | PlanModeState::AwaitingApproval,
+            PlanModeState::Exploring | PlanModeState::Drafting,
             ToolCapability::Inspect | ToolCapability::PlanningRecord,
         ) => true,
-        (PlanModeState::Executing, ToolCapability::Unknown) => false,
-        (PlanModeState::Executing, _) => true,
-        (PlanModeState::Verifying, ToolCapability::Inspect | ToolCapability::Execute) => true,
+        (PlanModeState::AwaitingApproval, ToolCapability::Inspect) => true,
+        (
+            PlanModeState::Executing,
+            ToolCapability::Inspect
+            | ToolCapability::PlanningRecord
+            | ToolCapability::WorkItem
+            | ToolCapability::WorkspaceWrite
+            | ToolCapability::Execute
+            | ToolCapability::External,
+        ) => true,
+        (
+            PlanModeState::Verifying,
+            ToolCapability::Inspect | ToolCapability::PlanningRecord | ToolCapability::Execute,
+        ) => true,
         _ => false,
     }
 }
 
 /// Returns whether the lifecycle edge from `from` to `to` is valid.
 pub fn is_valid_transition(from: &PlanPhase, to: &PlanPhase) -> bool {
-    if *to == PlanPhase::Failed {
+    if *to == PlanPhase::Failed
+        && !matches!(
+            from,
+            PlanPhase::Completed | PlanPhase::Failed | PlanPhase::Partial
+        )
+    {
         return true;
     }
 
@@ -115,14 +136,26 @@ mod tests {
 
     #[test]
     fn phase_projection_preserves_lifecycle_meaning() {
-        assert_eq!(PlanModeState::from(&PlanPhase::Explore), PlanModeState::Exploring);
-        assert_eq!(PlanModeState::from(&PlanPhase::Plan), PlanModeState::Drafting);
+        assert_eq!(
+            PlanModeState::from(&PlanPhase::Explore),
+            PlanModeState::Exploring
+        );
+        assert_eq!(
+            PlanModeState::from(&PlanPhase::Plan),
+            PlanModeState::Drafting
+        );
         assert_eq!(
             PlanModeState::from(&PlanPhase::AwaitingApproval),
             PlanModeState::AwaitingApproval
         );
-        assert_eq!(PlanModeState::from(&PlanPhase::Execute), PlanModeState::Executing);
-        assert_eq!(PlanModeState::from(&PlanPhase::Verify), PlanModeState::Verifying);
+        assert_eq!(
+            PlanModeState::from(&PlanPhase::Execute),
+            PlanModeState::Executing
+        );
+        assert_eq!(
+            PlanModeState::from(&PlanPhase::Verify),
+            PlanModeState::Verifying
+        );
 
         for phase in [PlanPhase::Completed, PlanPhase::Failed, PlanPhase::Partial] {
             assert_eq!(PlanModeState::from(&phase), PlanModeState::Closed);
@@ -131,11 +164,7 @@ mod tests {
 
     #[test]
     fn capability_matrix_is_fail_closed() {
-        let read_only_states = [
-            PlanModeState::Exploring,
-            PlanModeState::Drafting,
-            PlanModeState::AwaitingApproval,
-        ];
+        let read_only_states = [PlanModeState::Exploring, PlanModeState::Drafting];
 
         for state in read_only_states {
             for capability in CAPABILITIES {
@@ -153,13 +182,26 @@ mod tests {
 
         for capability in CAPABILITIES {
             assert_eq!(
+                allows(PlanModeState::AwaitingApproval, capability),
+                capability == ToolCapability::Inspect,
+                "AwaitingApproval / {capability:?}"
+            );
+        }
+
+        for capability in CAPABILITIES {
+            assert_eq!(
                 allows(PlanModeState::Executing, capability),
                 capability != ToolCapability::Unknown,
                 "Executing / {capability:?}"
             );
             assert_eq!(
                 allows(PlanModeState::Verifying, capability),
-                matches!(capability, ToolCapability::Inspect | ToolCapability::Execute),
+                matches!(
+                    capability,
+                    ToolCapability::Inspect
+                        | ToolCapability::PlanningRecord
+                        | ToolCapability::Execute
+                ),
                 "Verifying / {capability:?}"
             );
             assert!(!allows(PlanModeState::Closed, capability));
@@ -193,7 +235,13 @@ mod tests {
             PlanPhase::Failed,
             PlanPhase::Partial,
         ] {
-            assert!(is_valid_transition(&from, &PlanPhase::Failed));
+            assert_eq!(
+                is_valid_transition(&from, &PlanPhase::Failed),
+                !matches!(
+                    from,
+                    PlanPhase::Completed | PlanPhase::Failed | PlanPhase::Partial
+                )
+            );
         }
     }
 
@@ -208,5 +256,38 @@ mod tests {
                 to: PlanPhase::Execute,
             })
         );
+    }
+
+    #[test]
+    fn every_undocumented_transition_is_rejected() {
+        let phases = [
+            PlanPhase::Explore,
+            PlanPhase::Plan,
+            PlanPhase::AwaitingApproval,
+            PlanPhase::Execute,
+            PlanPhase::Verify,
+            PlanPhase::Completed,
+            PlanPhase::Failed,
+            PlanPhase::Partial,
+        ];
+        for from in &phases {
+            for to in &phases {
+                let documented = matches!(
+                    (from, to),
+                    (PlanPhase::Explore, PlanPhase::Plan)
+                        | (PlanPhase::Plan, PlanPhase::AwaitingApproval)
+                        | (PlanPhase::AwaitingApproval, PlanPhase::Execute)
+                        | (PlanPhase::Execute, PlanPhase::Verify)
+                        | (PlanPhase::Execute, PlanPhase::Completed)
+                        | (PlanPhase::Verify, PlanPhase::Completed)
+                        | (PlanPhase::Verify, PlanPhase::Partial)
+                ) || (*to == PlanPhase::Failed
+                    && !matches!(
+                        from,
+                        PlanPhase::Completed | PlanPhase::Failed | PlanPhase::Partial
+                    ));
+                assert_eq!(is_valid_transition(from, to), documented, "{from} -> {to}");
+            }
+        }
     }
 }

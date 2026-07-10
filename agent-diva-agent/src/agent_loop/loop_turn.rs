@@ -10,6 +10,7 @@ use agent_diva_core::bus::{
 };
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
+use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
 use agent_diva_core::session::{ChatMessage, CompactTrigger, Session, TokenUsage};
@@ -46,18 +47,20 @@ fn is_plan_mode(msg: &InboundMessage) -> bool {
         .is_some_and(|mode| mode.eq_ignore_ascii_case("plan"))
 }
 
-fn is_plan_mode_allowed_tool(tool_name: &str) -> bool {
-    matches!(
-        tool_name,
-        "read_file"
-            | "list_dir"
-            | "read_attachment"
-            | "plan_create"
-            | "plan_show"
-            | "plan_transition"
-            | "todo_show"
-            | "todo_write"
-    )
+fn tool_capability(tool_name: &str) -> ToolCapability {
+    match tool_name {
+        "read_file" | "list_dir" | "read_attachment" | "plan_show" | "todo_show" => {
+            ToolCapability::Inspect
+        }
+        "plan_create" | "plan_transition" | "plan_submit" => ToolCapability::PlanningRecord,
+        "todo_write" => ToolCapability::WorkItem,
+        "write_file" | "edit_file" => ToolCapability::WorkspaceWrite,
+        "exec" => ToolCapability::Execute,
+        "cron" | "spawn" | "enqueue_background_task" | "web_search" | "web_fetch" => {
+            ToolCapability::External
+        }
+        _ => ToolCapability::Unknown,
+    }
 }
 
 fn fallback_session_title(session: &Session) -> Option<String> {
@@ -907,8 +910,25 @@ impl AgentLoop {
                                 .as_ref()
                                 .is_some_and(ToolPolicy::is_read_only_mode)
                                 && !ToolPolicy::is_read_only_tool(&tool_call.name);
-                            let plan_mode_rejected =
-                                plan_guard_active && !is_plan_mode_allowed_tool(&tool_call.name);
+                            let active_plan_phase = self
+                                .snapshot_active_plan_runtime()
+                                .await
+                                .map(|plan| plan.phase);
+                            let policy_phase = if plan_mode {
+                                Some(PlanPhase::Plan)
+                            } else {
+                                active_plan_phase.clone()
+                            };
+                            let capability = tool_capability(&tool_call.name);
+                            let plan_mode_rejected = policy_phase
+                                .as_ref()
+                                .is_some_and(|phase| !allows_for_phase(phase, capability))
+                                || (plan_guard_active
+                                    && active_plan_phase.is_none()
+                                    && !matches!(
+                                        capability,
+                                        ToolCapability::Inspect | ToolCapability::PlanningRecord
+                                    ));
 
                             if read_only_rejected {
                                 (
@@ -920,8 +940,8 @@ impl AgentLoop {
                                 )
                             } else if plan_mode_rejected {
                                 (format!(
-                                    "Error: tool '{}' is disabled in Plan mode. Plan mode can only use planning and read-only inspection tools.",
-                                    tool_call.name
+                                    "Error: tool '{}' is denied by the active plan capability policy.",
+                                    tool_call.name,
                                 ), true)
                             } else {
                                 if tool_call.name == "cron" {

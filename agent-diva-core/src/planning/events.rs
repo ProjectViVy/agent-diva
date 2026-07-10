@@ -19,6 +19,16 @@ pub enum PlanEvent {
     Drafted {
         plan_id: PlanId,
     },
+    Submitted {
+        plan_id: PlanId,
+        revision: i64,
+    },
+    Approved {
+        plan_id: PlanId,
+        revision: i64,
+        approved_by: String,
+        todos_materialized: bool,
+    },
     PhaseTransition {
         plan_id: PlanId,
         from: PlanPhase,
@@ -113,6 +123,16 @@ mod tests {
             },
             PlanEvent::Drafted {
                 plan_id: pid.clone(),
+            },
+            PlanEvent::Submitted {
+                plan_id: pid.clone(),
+                revision: 1,
+            },
+            PlanEvent::Approved {
+                plan_id: pid.clone(),
+                revision: 1,
+                approved_by: "user".to_string(),
+                todos_materialized: false,
             },
             PlanEvent::PhaseTransition {
                 plan_id: pid.clone(),

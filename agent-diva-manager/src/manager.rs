@@ -387,8 +387,8 @@ impl Manager {
                         ManagerCommand::RestorePlanTodo(plan_id, todo_id, reply) => {
                             self.handle_restore_plan_todo(plan_id, todo_id, reply).await;
                         }
-                        ManagerCommand::ApproveActivePlan(reply) => {
-                            self.handle_approve_active_plan(reply).await;
+                        ManagerCommand::ApproveActivePlan(request, reply) => {
+                            self.handle_approve_active_plan(request, reply).await;
                         }
                     }
                 }
@@ -644,13 +644,14 @@ impl Manager {
 
     async fn handle_approve_active_plan(
         &self,
+        request: agent_diva_core::planning::ApprovalRequest,
         reply: oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
     ) {
         let result = self
             .with_runtime_control(
                 |tx| async move {
                     let (reply_tx, reply_rx) = oneshot::channel();
-                    tx.send(RuntimeControlCommand::ApproveActivePlan { reply_tx })
+                    tx.send(RuntimeControlCommand::ApproveActivePlan { request, reply_tx })
                         .map_err(|e| format!("failed to send ApproveActivePlan command: {}", e))?;
                     reply_rx.await.map_err(|e| {
                         format!("failed to receive ApproveActivePlan response: {}", e)
