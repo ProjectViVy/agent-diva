@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { Search, Plus, Pin, PinOff, Trash2, Edit3, CheckCircle2, XCircle, Loader2, MessageSquare, X, ClipboardList, ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { Search, Plus, Pin, PinOff, Trash2, Edit3, CheckCircle2, XCircle, Loader2, MessageSquare, X } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
-import type { PlanRuntimeState, PlanSummary } from '../api/planning';
-import { isTauriRuntime } from '../api/desktop';
 
 const { t } = useI18n();
 
@@ -28,7 +25,6 @@ const props = defineProps<{
   sessions: Session[];
   activeSessionKey: string;
   themeMode: string;
-  activePlan?: PlanRuntimeState | null;
 }>();
 
 const emit = defineEmits<{
@@ -38,7 +34,6 @@ const emit = defineEmits<{
   (e: 'toggle-pin', sessionKey: string): void;
   (e: 'rename', sessionKey: string, newTitle: string): void;
   (e: 'close'): void;
-  (e: 'select-plan', planId: string): void;
 }>();
 
 const searchQuery = ref('');
@@ -61,47 +56,6 @@ const filteredSessions = computed(() => {
     return haystack.includes(q);
   });
 });
-const plans = ref<PlanSummary[]>([]);
-const plansExpanded = ref(true);
-const plansLoading = ref(false);
-
-const visiblePlans = computed(() => {
-  const merged = [...plans.value];
-  const active = props.activePlan;
-  if (active && !merged.some((plan) => plan.id === active.plan_id)) {
-    merged.unshift({
-      id: active.plan_id,
-      title: active.title,
-      goal: active.goal,
-      phase: active.phase,
-      status: active.status,
-      todo_count: active.todos.length,
-      todo_completed: active.todos.filter((todo) => todo.status.toLowerCase() === 'completed').length,
-      is_active: true,
-    });
-  }
-  return merged.sort((a, b) => Number(b.is_active) - Number(a.is_active));
-});
-
-async function loadPlans() {
-  if (!isTauriRuntime()) return;
-  plansLoading.value = true;
-  try {
-    plans.value = await invoke<PlanSummary[]>('get_plans');
-  } catch (error) {
-    console.warn('[ConversationSidebar] Failed to load plans:', error);
-  } finally {
-    plansLoading.value = false;
-  }
-}
-
-function selectPlan(planId: string) {
-  emit('select-plan', planId);
-}
-
-onMounted(loadPlans);
-watch(() => props.activePlan?.updated_at, loadPlans);
-
 // Separate pinned and regular sessions
 const pinnedSessions = computed(() =>
   filteredSessions.value
@@ -378,41 +332,6 @@ defineExpose({ closeContextMenu });
       </div>
     </div>
 
-    <!-- Collapsible plan list below conversation history -->
-    <section class="plan-sidebar-section">
-      <button type="button" class="plan-sidebar-header" @click="plansExpanded = !plansExpanded">
-        <span class="plan-sidebar-header-left">
-          <ChevronDown v-if="plansExpanded" :size="14" />
-          <ChevronRight v-else :size="14" />
-          <ClipboardList :size="14" />
-          <span>计划</span>
-          <span class="plan-sidebar-count">{{ visiblePlans.length }}</span>
-        </span>
-        <Loader2 v-if="plansLoading" :size="13" class="animate-spin" />
-      </button>
-      <div v-if="plansExpanded" class="plan-sidebar-list">
-        <button
-          v-for="plan in visiblePlans"
-          :key="plan.id"
-          type="button"
-          class="plan-sidebar-item"
-          :class="{ 'plan-sidebar-item-active': plan.is_active }"
-          @click="selectPlan(plan.id)"
-        >
-          <span class="plan-sidebar-item-icon"><ClipboardList :size="13" /></span>
-          <span class="plan-sidebar-item-body">
-            <span class="plan-sidebar-item-title">{{ plan.title }}</span>
-            <span class="plan-sidebar-item-meta">
-              <span>{{ plan.phase }}</span>
-              <span>{{ plan.todo_completed }}/{{ plan.todo_count }}</span>
-            </span>
-          </span>
-          <span v-if="plan.is_active" class="plan-sidebar-active-dot" aria-label="active" />
-        </button>
-        <div v-if="!plansLoading && visiblePlans.length === 0" class="plan-sidebar-empty">暂无计划</div>
-      </div>
-    </section>
-
     <!-- Context Menu -->
     <Teleport to="body">
       <div
@@ -586,42 +505,6 @@ defineExpose({ closeContextMenu });
   overflow-x: hidden;
   padding: 4px 8px;
 }
-
-.plan-sidebar-section {
-  flex: 0 0 auto;
-  max-height: 220px;
-  border-top: 1px solid var(--line, #e5e7eb);
-  background: color-mix(in srgb, var(--panel, #fff) 94%, var(--brand, #ec4899));
-}
-
-.plan-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 9px 12px;
-  border: 0;
-  color: var(--text, #111827);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.plan-sidebar-header:hover { background: var(--nav-hover, rgba(0, 0, 0, 0.04)); }
-.plan-sidebar-header-left { display: flex; align-items: center; gap: 6px; }
-.plan-sidebar-header-left svg:last-of-type { color: var(--brand, #ec4899); }
-.plan-sidebar-count { min-width: 18px; padding: 1px 5px; border-radius: 999px; color: var(--text-muted, #9ca3af); background: var(--nav-hover, rgba(0, 0, 0, 0.05)); font-size: 10px; text-align: center; }
-.plan-sidebar-list { max-height: 174px; padding: 0 8px 8px; overflow-y: auto; }
-.plan-sidebar-item { display: flex; align-items: center; width: 100%; gap: 8px; padding: 7px 8px; border: 0; border-radius: 7px; color: var(--text, #111827); background: transparent; text-align: left; cursor: pointer; }
-.plan-sidebar-item:hover { background: var(--nav-hover, rgba(0, 0, 0, 0.04)); }
-.plan-sidebar-item-active { background: var(--nav-active, rgba(0, 0, 0, 0.06)); }
-.plan-sidebar-item-icon { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 auto; border: 1px solid var(--line, #e5e7eb); border-radius: 6px; color: var(--brand, #ec4899); background: var(--panel-solid, #fff); }
-.plan-sidebar-item-body { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 2px; }
-.plan-sidebar-item-title { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.plan-sidebar-item-meta { display: flex; justify-content: space-between; gap: 6px; color: var(--text-muted, #9ca3af); font-size: 10px; }
-.plan-sidebar-active-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--brand, #ec4899); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #ec4899) 16%, transparent); }
-.plan-sidebar-empty { padding: 8px; color: var(--text-muted, #9ca3af); font-size: 11px; text-align: center; }
 
 /* Section */
 .conv-section {

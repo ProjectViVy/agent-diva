@@ -15,6 +15,7 @@ import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
 import PlanHistoryCard from './planning/PlanHistoryCard.vue';
+import PlanSidebarPanel from './PlanSidebarPanel.vue';
 import {
   triggerAutoDream,
   getAutoDreamRunStatus,
@@ -175,6 +176,7 @@ const inputHeight = ref(24); // 动态输入框高度
 
 // 右侧会话侧边栏状态
 const convSidebarOpen = ref(false);
+const planSidebarOpen = ref(false);
 const convSidebarRef = ref<InstanceType<typeof ConversationSidebar> | null>(null);
 
 // 输入区域状态
@@ -601,7 +603,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 </script>
 
 <template>
-  <div class="chat-shell flex flex-row h-full relative overflow-hidden" :class="[`theme-${themeMode || 'love'}`, { 'conv-sidebar-open': convSidebarOpen }]">
+  <div class="chat-shell flex flex-row h-full relative overflow-hidden" :class="[`theme-${themeMode || 'love'}`, { 'conv-sidebar-open': convSidebarOpen, 'plan-sidebar-open': planSidebarOpen }]">
     <!-- Main Chat Area -->
     <div class="chat-main flex flex-col flex-1 min-w-0">
       <!-- Sidebar Toggle Button (top-right of chat area) -->
@@ -612,6 +614,13 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       >
         <Clock v-if="convSidebarOpen" :size="18" />
         <Clock v-else :size="18" />
+      </button>
+      <button
+        @click="planSidebarOpen = !planSidebarOpen"
+        class="plan-sidebar-toggle"
+        :title="planSidebarOpen ? '收起计划栏' : '打开计划栏'"
+      >
+        <ClipboardList :size="18" />
       </button>
 
       <!-- Sakura Effect -->
@@ -1189,15 +1198,20 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       :sessions="sessions || []"
       :active-session-key="activeSessionKey || ''"
       :theme-mode="themeMode || 'love'"
-      :active-plan="activePlanRuntime"
       @select="(key) => emit('select-session', key)"
       @delete="(key) => emit('delete-session', key)"
       @new="emit('new-session')"
       @toggle-pin="(key) => emit('toggle-pin', key)"
       @rename="(key, title) => emit('rename-session', key, title)"
-      @select-plan="(planId) => emit('select-plan', planId)"
       @close="convSidebarOpen = false"
       class="conv-sidebar-wrapper"
+    />
+    <PlanSidebarPanel
+      v-if="planSidebarOpen"
+      :active-plan="activePlanRuntime"
+      class="plan-sidebar-wrapper"
+      @select-plan="(planId) => emit('select-plan', planId)"
+      @close="planSidebarOpen = false"
     />
   </div>
 </template>
@@ -1232,6 +1246,33 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
   color: var(--text, #111827);
   border-color: var(--brand, #ec4899);
 }
+
+.plan-sidebar-toggle {
+  position: absolute;
+  top: 54px;
+  right: 12px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  color: var(--text-muted, #9ca3af);
+  background: var(--panel-solid, #fff);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+}
+
+.plan-sidebar-toggle:hover, .plan-sidebar-open .plan-sidebar-toggle {
+  color: var(--brand, #ec4899);
+  border-color: var(--brand, #ec4899);
+  background: var(--nav-hover, rgba(0, 0, 0, .04));
+}
+
+.conv-sidebar-open .plan-sidebar-toggle { right: 292px; }
+.plan-sidebar-wrapper { --plan-sidebar-right: 12px; }
+.conv-sidebar-open .plan-sidebar-wrapper { --plan-sidebar-right: 292px; }
 
 /* Conversation Sidebar Wrapper */
 .conv-sidebar-wrapper {

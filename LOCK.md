@@ -45,6 +45,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-10`: Released independent plan panel lock after moving plans out of ConversationSidebar into a separate panel below the history toggle, passing GUI typecheck and all 388 tests, and recording `docs/logs/2026-07-plan-gui/v0.0.5-independent-plan-panel/`.
+
 - `2026-07-10`: Released layout semantics correction after removing the persistent main-chat Todo rail and keeping only the collapsible plan section below conversation history; GUI typecheck and all 388 tests passed; recorded `docs/logs/2026-07-plan-gui/v0.0.4-remove-persistent-todo-rail/`.
 
 - `2026-07-10`: Released chat fixed-bottom layout lock after constraining the plan grid and chat column with `height: 100%`, `min-height: 0`, and overflow boundaries; GUI typecheck and all 388 tests passed; recorded `docs/logs/2026-07-plan-gui/v0.0.3-chat-fixed-bottom/`.
