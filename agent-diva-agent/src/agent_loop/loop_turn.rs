@@ -17,7 +17,7 @@ use agent_diva_core::planning::{
 };
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
-use agent_diva_core::session::{ChatMessage, CompactTrigger, Session, TokenUsage};
+use agent_diva_core::session::{align_chat_history, ChatMessage, CompactTrigger, Session, TokenUsage};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
@@ -455,7 +455,8 @@ impl AgentLoop {
         // Phase 2: run best-effort auto compaction before any provider call.
         // The first provider request for this turn must see the post-compaction
         // session snapshot, not the pre-compaction history captured above.
-        let (mut history, history_len, compaction_history, did_compact) = if should_compact {
+        let (mut history, _history_len_before_policy, compaction_history, did_compact) =
+            if should_compact {
             info!(
                 "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
                 budget_report.pressure_ratio * 100.0,
@@ -549,8 +550,10 @@ impl AgentLoop {
             && history.len() > 6
         {
             // Lightweight compact: keep the latest few turns plus the plan system note later.
+            // Always re-align after tail truncation so we never open with an orphan
+            // `tool` message (DeepSeek/OpenAI reject that shape with HTTP 400).
             let keep = 6.min(history.len());
-            history = history.split_off(history.len() - keep);
+            history = align_chat_history(history.split_off(history.len() - keep));
         }
 
         let mut messages = self.context.build_messages(
@@ -591,6 +594,11 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                 )),
             );
         }
+        // Drop any history-shaped orphans before the first provider call.
+        crate::context::ContextBuilder::sanitize_messages_for_provider(&mut messages);
+        // Prefix (system / plan notes / history / current user) ends here.
+        // Agent-loop assistant/tool messages are appended after this index.
+        let turn_messages_start = messages.len();
         if let Some(mask) = active_mask.as_ref() {
             if let Some(first) = messages.first_mut() {
                 *first = agent_diva_providers::Message::system(
@@ -701,6 +709,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                 } else {
                     None
                 };
+                crate::context::ContextBuilder::sanitize_messages_for_provider(&mut messages);
                 match self
                     .provider
                     .chat_stream(
@@ -782,6 +791,14 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                 Some(&msg.chat_id),
                                 &reactive_compaction_history,
                             );
+                            if let Some(markdown) = approved_plan_markdown.as_deref() {
+                                messages.insert(
+                                    1,
+                                    agent_diva_providers::Message::system(format!(
+                                        "You are implementing this approved plan. It remains authoritative throughout execution. Do not re-plan; execute and report results.\n\n{markdown}"
+                                    )),
+                                );
+                            }
                             if is_cron_trigger {
                                 let current_message = messages.pop();
                                 messages.push(agent_diva_providers::Message::system(
@@ -794,6 +811,9 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                             replace_current_turn_message(
                                 &mut messages,
                                 current_turn_message.clone(),
+                            );
+                            crate::context::ContextBuilder::sanitize_messages_for_provider(
+                                &mut messages,
                             );
 
                             info!("Reactive compaction complete, retrying provider call...");
@@ -1271,7 +1291,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
             save_turn(
                 session,
                 &messages,
-                history_len,
+                turn_messages_start,
                 user_role,
                 &message_content,
                 &final_content,
@@ -1516,7 +1536,7 @@ fn format_soul_transparency_notice(
 fn save_turn(
     session: &mut agent_diva_core::session::Session,
     messages: &[agent_diva_providers::Message],
-    history_len: usize,
+    turn_messages_start: usize,
     user_role: &str,
     user_content: &str,
     final_content: &str,
@@ -1526,10 +1546,11 @@ fn save_turn(
     // Save trigger message; cron-triggered turns are not real-time user input.
     session.add_message(user_role, user_content);
 
-    // Skip system prompt (1) + history (history_len) + current user message (1)
-    let turn_start = 1 + history_len + 1;
-    if turn_start < messages.len() {
-        for m in &messages[turn_start..] {
+    // `turn_messages_start` is the message count after system/history/current-user
+    // prefix construction (including injected plan notes). Only assistant/tool
+    // messages appended by the agent loop are persisted from `messages`.
+    if turn_messages_start < messages.len() {
+        for m in &messages[turn_messages_start..] {
             match m.role.as_str() {
                 "assistant" => {
                     if m.content.to_text_lossy().trim().is_empty()
@@ -1585,7 +1606,8 @@ fn save_turn(
     }
 
     // Save the final assistant response if not already captured
-    if messages.len() <= turn_start || messages.last().map(|m| m.role.as_str()) != Some("assistant")
+    if messages.len() <= turn_messages_start
+        || messages.last().map(|m| m.role.as_str()) != Some("assistant")
     {
         let mut final_msg = ChatMessage::new("assistant", final_content);
         if let Some(last) = messages.last() {

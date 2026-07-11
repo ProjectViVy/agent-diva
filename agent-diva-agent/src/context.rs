@@ -296,12 +296,15 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
                     let mut m = Message::assistant(&msg.content);
                     // Restore tool_calls from session history
                     if let Some(ref tc_values) = msg.tool_calls {
-                        if let Ok(calls) =
-                            serde_json::from_value::<Vec<agent_diva_providers::ToolCallRequest>>(
-                                serde_json::Value::Array(tc_values.clone()),
-                            )
-                        {
-                            m.tool_calls = Some(calls);
+                        match serde_json::from_value::<Vec<agent_diva_providers::ToolCallRequest>>(
+                            serde_json::Value::Array(tc_values.clone()),
+                        ) {
+                            Ok(calls) if !calls.is_empty() => m.tool_calls = Some(calls),
+                            Ok(_) => {}
+                            Err(error) => {
+                                // Leaving tool results without tool_calls causes provider 400s.
+                                warn!(%error, "failed to restore assistant tool_calls from history");
+                            }
                         }
                     }
                     if let Some(reasoning) = msg.reasoning_content {
@@ -327,6 +330,68 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         messages.push(Message::user(current_message));
 
         messages
+    }
+
+    /// Drop orphan tool messages / incomplete tool_call groups so providers
+    /// like DeepSeek do not reject the request with HTTP 400.
+    pub fn sanitize_messages_for_provider(messages: &mut Vec<Message>) {
+        use std::collections::HashSet;
+
+        let original = std::mem::take(messages);
+        let mut out: Vec<Message> = Vec::with_capacity(original.len());
+        let mut open_tool_ids: HashSet<String> = HashSet::new();
+
+        for mut msg in original {
+            match msg.role.as_str() {
+                "tool" => {
+                    let id = msg.tool_call_id.as_deref().unwrap_or("");
+                    if !id.is_empty() && open_tool_ids.remove(id) {
+                        out.push(msg);
+                    } else {
+                        warn!(
+                            tool_call_id = id,
+                            "dropping orphan tool message before provider call"
+                        );
+                    }
+                }
+                "assistant" => {
+                    if !open_tool_ids.is_empty() {
+                        if let Some(prev) = out.iter_mut().rev().find(|m| m.role == "assistant") {
+                            prev.tool_calls = None;
+                        }
+                        open_tool_ids.clear();
+                    }
+                    if let Some(ref calls) = msg.tool_calls {
+                        if calls.is_empty() {
+                            msg.tool_calls = None;
+                        } else {
+                            for call in calls {
+                                if !call.id.is_empty() {
+                                    open_tool_ids.insert(call.id.clone());
+                                }
+                            }
+                        }
+                    }
+                    out.push(msg);
+                }
+                _ => {
+                    if !open_tool_ids.is_empty() {
+                        if let Some(prev) = out.iter_mut().rev().find(|m| m.role == "assistant") {
+                            prev.tool_calls = None;
+                        }
+                        open_tool_ids.clear();
+                    }
+                    out.push(msg);
+                }
+            }
+        }
+
+        if !open_tool_ids.is_empty() {
+            if let Some(prev) = out.iter_mut().rev().find(|m| m.role == "assistant") {
+                prev.tool_calls = None;
+            }
+        }
+        *messages = out;
     }
 
     /// Add a tool result to the message list
@@ -677,6 +742,38 @@ mod tests {
         );
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[1].role, "tool");
+    }
+
+    #[test]
+    fn sanitize_messages_for_provider_drops_orphan_tools() {
+        use agent_diva_providers::ToolCallRequest;
+        use std::collections::HashMap;
+
+        let mut messages = vec![
+            Message::system("sys"),
+            Message::user("hi"),
+            Message::tool("orphan", "call_missing"),
+            {
+                let mut assistant = Message::assistant("");
+                assistant.tool_calls = Some(vec![ToolCallRequest {
+                    id: "call_1".into(),
+                    call_type: "function".into(),
+                    name: "read_file".into(),
+                    arguments: HashMap::new(),
+                }]);
+                assistant
+            },
+            Message::tool("ok", "call_1"),
+            Message::user("next"),
+        ];
+        ContextBuilder::sanitize_messages_for_provider(&mut messages);
+        assert_eq!(messages.len(), 5);
+        assert_eq!(messages[0].role, "system");
+        assert_eq!(messages[1].role, "user");
+        assert_eq!(messages[2].role, "assistant");
+        assert_eq!(messages[3].role, "tool");
+        assert_eq!(messages[3].tool_call_id.as_deref(), Some("call_1"));
+        assert_eq!(messages[4].role, "user");
     }
 
     #[test]
