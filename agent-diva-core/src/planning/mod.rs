@@ -8,8 +8,8 @@ pub mod events;
 pub mod ids;
 pub mod model;
 pub mod policy;
-pub mod report;
 pub mod render;
+pub mod report;
 pub mod store;
 
 pub use approval::*;

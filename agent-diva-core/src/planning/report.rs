@@ -70,7 +70,10 @@ const REQUIRED_SECTIONS: [&str; 5] = ["目标", "范围", "计划步骤", "风�
 
 /// Validate the canonical report format before approval.
 pub fn validate_report_markdown(markdown: &str) -> Result<(), PlanReportValidationError> {
-    if !markdown.lines().any(|line| line.trim_start().starts_with("# ")) {
+    if !markdown
+        .lines()
+        .any(|line| line.trim_start().starts_with("# "))
+    {
         return Err(PlanReportValidationError::MissingTitle);
     }
 
@@ -116,7 +119,10 @@ mod tests {
 
     #[test]
     fn revision_hash_is_stable_and_content_sensitive() {
-        assert_eq!(revision_hash(COMPLETE_REPORT), revision_hash(COMPLETE_REPORT));
+        assert_eq!(
+            revision_hash(COMPLETE_REPORT),
+            revision_hash(COMPLETE_REPORT)
+        );
         assert_ne!(revision_hash(COMPLETE_REPORT), revision_hash("# changed"));
     }
 }
