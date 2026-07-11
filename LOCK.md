@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-12T00:30:00+08:00`
-- Last Heartbeat: `2026-07-12T00:30:00+08:00`
+- Last Heartbeat: `2026-07-12T00:38:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-12`: Released blue plan-report identity lock after commit `16c77fd`; plan messages have a blue “计划 / Plan” label and pencil avatar. Full GUI suite (391 tests), typecheck, and production build passed. `just check` is blocked by the existing planning-policy Clippy lint.
 
 - `2026-07-12`: Released Markdown plan-history lock after commit `8e2483d`; the full GUI suite (391 tests) and typecheck passed. PLAN history now contains only a rendered plan document; TODO execution evidence is excluded.
 
