@@ -961,11 +961,11 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
     messages.value.push({
       id: generateMessageId(),
       role: 'system',
-      content: `计划已批准（revision ${result.receipt.revision}，${result.receipt.approved_at}）。上下文策略：${policyLabel}。正在自动开始执行…`,
+      content: `计划已批准（revision ${result.receipt.revision}，${result.receipt.approved_at}）。上下文策略：${policyLabel}。已切换到 Agent 模式并开始执行…`,
       timestamp: Date.now(),
     });
-    // Kick off a streamed agent turn. Runtime loads the approved markdown from
-    // the active execution session for this chat.
+    // Always kick off in agent mode (never inherit the plan-mode selector).
+    // Runtime loads the approved markdown from the active execution session.
     await sendMessage(
       'Carry out the approved plan. Work independently and report the implementation result.\n开始执行已批准的计划：按计划逐步实现，完成后报告结果。',
       undefined,

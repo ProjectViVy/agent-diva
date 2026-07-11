@@ -283,6 +283,25 @@ const handleSend = () => {
   });
 };
 
+/** Leave plan mode as soon as the user approves execution. */
+function handleApprovePlan(payload: { contextPolicy: 'retain' | 'compact' | 'clear' }) {
+  execMode.value = 'agent';
+  showModeMenu.value = false;
+  emit('approve-plan', payload);
+}
+
+// Parent may flip runtime into Execute without going through the local approve
+// handler (e.g. restore / event). Keep the mode selector aligned.
+watch(
+  () => props.executingPlan?.plan_id ?? null,
+  (executionId, previousId) => {
+    if (executionId && executionId !== previousId) {
+      execMode.value = 'agent';
+      showModeMenu.value = false;
+    }
+  },
+);
+
 const handleFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement;
   const files = target.files;
@@ -959,7 +978,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         v-if="approvalPlan"
         :plan="approvalPlan"
         :approving="approvingPlan"
-        @approve="emit('approve-plan', $event)"
+        @approve="handleApprovePlan"
         @revoke="emit('revoke-plan', $event)"
         @refresh="emit('refresh-plan')"
       />
