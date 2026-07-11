@@ -301,11 +301,10 @@ impl AgentLoop {
         // Hydrate approved report execution (replacement plan runtime).
         let active_execution = match &self.tool_config.planning {
             Some(planning) if !plan_mode => planning
-                .report_store
+                .registry
                 .active_execution_for_session(&session_key)
                 .await
-                .ok()
-                .flatten(),
+                ,
             _ => None,
         };
         // Kickoff turns that begin implementing an approved report.
@@ -357,12 +356,7 @@ impl AgentLoop {
         } else if let (Some(planning), Some(execution)) =
             (&self.tool_config.planning, active_execution.as_ref())
         {
-            planning
-                .report_store
-                .get_detail(&execution.report_id, execution.revision)
-                .await
-                .ok()
-                .map(|detail| detail.revision.markdown)
+            planning.registry.execution_markdown(&execution.id).await
         } else {
             None
         };
@@ -624,7 +618,6 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
         let mut turn_token_usage: Option<TokenUsage> = None;
-        let mut plan_history_snapshot: Option<PlanRuntimeState> = None;
 
         // Intent-aware prefetch: run recall search before the first LLM call
         // when the user message provides a workable intent string.
@@ -1108,9 +1101,6 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     } else {
                         None
                     };
-                    if let Some(plan) = planning_after.as_ref() {
-                        plan_history_snapshot = Some(plan.clone());
-                    }
 
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),
@@ -1223,7 +1213,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                         .unwrap_or("Plan report");
                     let soft_issues = report_validation_issues(&markdown);
                     match planning
-                        .report_store
+                        .registry
                         .create_report(&session_key, title, &markdown, PlanRevisionAuthor::Agent)
                         .await
                     {
@@ -1296,7 +1286,6 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                 &message_content,
                 &final_content,
                 turn_token_usage,
-                plan_history_snapshot.as_ref(),
             );
         }
 
@@ -1541,7 +1530,6 @@ fn save_turn(
     user_content: &str,
     final_content: &str,
     turn_token_usage: Option<TokenUsage>,
-    plan_history_snapshot: Option<&PlanRuntimeState>,
 ) {
     // Save trigger message; cron-triggered turns are not real-time user input.
     session.add_message(user_role, user_content);
@@ -1626,18 +1614,6 @@ fn save_turn(
         }
     }
 
-    if let Some(plan) = plan_history_snapshot {
-        let mut plan_message = ChatMessage::new(
-            "system",
-            format!("Plan snapshot: {} ({})", plan.title, plan.phase),
-        );
-        plan_message.metadata = Some(serde_json::json!({
-            "kind": "plan_snapshot",
-            "version": 1,
-            "plan": plan,
-        }));
-        session.add_full_message(plan_message);
-    }
 }
 
 /// Extract token usage from the LLM response usage map.

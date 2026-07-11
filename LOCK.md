@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T06:00:00+08:00`
-- Last Heartbeat: `2026-07-12T06:00:00+08:00`
+- Started At: `2026-07-12T14:30:00+08:00`
+- Last Heartbeat: `2026-07-12T15:20:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-12`: Released session-scoped ephemeral PLAN runtime lock after replacing SQLite report/execution TODO persistence with a process-lifetime registry, deleting legacy `planning.db` files at startup, binding approvals to `session_key`, and stopping PLAN snapshot history writes. Targeted Rust tests, Rust checks, GUI typecheck, and diff check passed; workspace fmt check still reports pre-existing unrelated drift in `loop_turn.rs`.
 
 - `2026-07-12`: Released plan-runtime session-isolation lock after making active plan restoration and plan feedback session-scoped. GUI typecheck, focused Tauri unit test, and plan GUI tests passed; manual desktop smoke remains pending.
 

@@ -302,11 +302,11 @@ impl ToolAssembly {
             (self.planning_config, self.execution_session_id)
         {
             registry.register(Arc::new(ExecutionTodoShowTool::new(
-                planning.report_store.clone(),
+                planning.registry.clone(),
                 execution_session_id.clone(),
             )));
             registry.register(Arc::new(ExecutionTodoWriteTool::new(
-                planning.report_store,
+                planning.registry,
                 execution_session_id,
             )));
         }

@@ -155,8 +155,10 @@ export const getRuntimeConfig = () =>
   invoke<RuntimeConfigSnapshot>("get_config");
 
 export interface PlanApprovalRequest {
+  session_key: string;
   plan_id?: string;
   expected_revision: number;
+  markdown: string;
   todo_policy: 'Optional';
   materialize_todos: boolean;
   context_policy?: 'retain' | 'compact' | 'clear';

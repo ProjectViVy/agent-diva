@@ -2,49 +2,37 @@ pub mod builtin;
 pub mod mentle;
 pub mod network;
 
-use crate::planning::PlanOrchestrator;
-use agent_diva_core::planning::report_store::SqlitePlanReportStore;
-use agent_diva_core::planning::store::PlanningStore;
-use agent_diva_core::planning::store::SqlitePlanningStore;
+use agent_diva_core::planning::EphemeralPlanRegistry;
 use anyhow::Context;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 /// Optional planning subsystem configuration.
 ///
 /// When present, planning tools are registered and planning hooks are active.
 #[derive(Clone)]
 pub struct PlanningConfig {
-    /// The planning store (SQLite-backed).
-    pub store: Arc<dyn PlanningStore>,
-    /// Shared plan lifecycle orchestrator.
-    pub orchestrator: Arc<Mutex<PlanOrchestrator>>,
-    /// Immutable report and execution-session storage used by the replacement
-    /// PLAN/TODO contract.
-    pub report_store: Arc<SqlitePlanReportStore>,
+    /// Process-local state for drafts and approved executions. It is scoped by
+    /// session key and intentionally disappears on restart.
+    pub registry: Arc<EphemeralPlanRegistry>,
 }
 
 impl PlanningConfig {
-    /// Open the workspace-local planning database.
+    /// Start a fresh, in-memory planning runtime and erase obsolete durable
+    /// planning data so it cannot be restored accidentally.
     pub async fn open_workspace(workspace: &Path) -> anyhow::Result<Self> {
         let db_dir = workspace.join(".agent-diva");
         std::fs::create_dir_all(&db_dir)
             .with_context(|| format!("failed to create {}", db_dir.display()))?;
-        let db_url = format!("sqlite:{}?mode=rwc", db_dir.join("planning.db").display());
-        let pool = sqlx::SqlitePool::connect(&db_url)
-            .await
-            .with_context(|| format!("failed to connect planning database at {db_url}"))?;
-        let store = SqlitePlanningStore::new(pool)
-            .await
-            .context("failed to initialize planning store")?;
-        let report_store = SqlitePlanReportStore::new(store.pool().clone())
-            .await
-            .context("failed to initialize plan report store")?;
+        for suffix in ["planning.db", "planning.db-wal", "planning.db-shm"] {
+            let path = db_dir.join(suffix);
+            if path.exists() {
+                std::fs::remove_file(&path)
+                    .with_context(|| format!("failed to remove obsolete planning data {}", path.display()))?;
+            }
+        }
         Ok(Self {
-            store: Arc::new(store),
-            orchestrator: Arc::new(Mutex::new(PlanOrchestrator::new())),
-            report_store: Arc::new(report_store),
+            registry: Arc::new(EphemeralPlanRegistry::new()),
         })
     }
 }

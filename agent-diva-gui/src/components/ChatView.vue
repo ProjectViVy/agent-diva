@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch, ClipboardList, Pencil } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch, ClipboardList } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -14,7 +14,6 @@ import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
-import PlanHistoryCard from './planning/PlanHistoryCard.vue';
 import PlanningView from './planning/PlanningView.vue';
 import { activePlanTodos as filterActivePlanTodos } from './planning/planExecutionState';
 import {
@@ -80,7 +79,6 @@ interface Message {
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
   attachments?: string[];
-  planSnapshot?: PlanRuntimeState;
 }
 
 const expandedTools = ref<Record<string, boolean>>({});
@@ -714,10 +712,8 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
           <div
             v-if="msg.role !== 'user' && msg.role !== 'tool'"
             class="chat-avatar w-9 h-9 rounded-md flex items-center justify-center text-xl flex-shrink-0"
-            :class="{ 'chat-avatar-plan': msg.planSnapshot }"
           >
-            <Pencil v-if="msg.planSnapshot" :size="17" :stroke-width="2.25" aria-label="计划" />
-            <template v-else>{{ getEmotionEmoji(msg.emotion) }}</template>
+            {{ getEmotionEmoji(msg.emotion) }}
           </div>
           <div
             v-else-if="msg.role === 'tool'"
@@ -734,7 +730,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 
           <!-- Bubble -->
           <div class="flex flex-col min-w-0 max-w-full">
-            <PlanHistoryCard v-if="msg.planSnapshot" :plan="msg.planSnapshot" />
             <!-- Tool Message -->
             <template v-if="msg.role === 'tool'">
               <!-- Card rendering: plan_create / todo_write / approval_request -->
@@ -858,7 +853,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 
             <!-- Normal Message -->
             <div
-              v-else-if="!msg.planSnapshot"
+              v-else
               class="chat-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words"
               :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
             >

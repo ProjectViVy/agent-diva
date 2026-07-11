@@ -18,7 +18,6 @@ import {
   planReportValidationIssues,
   type PlanDetail,
   type PlanRuntimeState,
-  type PlanSnapshotMetadata,
   type PlanStreamEvent,
 } from "./api/planning";
 import type { ToolsConfigShape } from "./types/toolsConfig";
@@ -56,7 +55,6 @@ interface Message {
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
   attachments?: string[];
-  planSnapshot?: PlanRuntimeState;
 }
 
 interface ToolStartPayload {
@@ -600,10 +598,6 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
   const toolName = extractToolName(msg.role, msg.name, msg.tool_calls);
   const toolArgs = extractToolArgs(msg.tool_calls);
   const rawMeta = buildRawMeta(msg);
-  const planMetadata = msg.metadata as Partial<PlanSnapshotMetadata> | null | undefined;
-  const planSnapshot = planMetadata?.kind === 'plan_snapshot' && planMetadata.plan
-    ? planMetadata.plan
-    : undefined;
   const toolResult = mappedRole === 'tool' ? (msg.content || '') : undefined;
   const toolStatus = mappedRole === 'tool'
     ? (/^error\b/i.test(msg.content || '') ? 'error' : 'success')
@@ -623,7 +617,6 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
     toolCallId: msg.tool_call_id || undefined,
     rawMeta,
     fromHistory: true,
-    planSnapshot,
   };
 }
 
@@ -931,8 +924,10 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
     const pending = pendingApprovalPlan.value;
     if (pending?.revision == null) throw new Error('Plan revision is unavailable; refresh before approving.');
     const result = await approveActivePlanExecution({
+      session_key: currentSessionKey.value,
       plan_id: pending.plan_id,
       expected_revision: pending.revision,
+      markdown: pending.markdown || pending.summary || '',
       todo_policy: 'Optional',
       materialize_todos: false,
       context_policy: payload.contextPolicy,

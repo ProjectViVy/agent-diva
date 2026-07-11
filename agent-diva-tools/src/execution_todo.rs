@@ -1,5 +1,5 @@
 use agent_diva_core::planning::{
-    ExecutionTodo, ExecutionTodoPriority, ExecutionTodoStatus, SqlitePlanReportStore,
+    EphemeralPlanRegistry, ExecutionTodo, ExecutionTodoPriority, ExecutionTodoStatus,
 };
 use agent_diva_tooling::{Result, Tool, ToolError};
 use chrono::Utc;
@@ -8,12 +8,12 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ExecutionTodoShowTool {
-    store: Arc<SqlitePlanReportStore>,
+    store: Arc<EphemeralPlanRegistry>,
     execution_session_id: String,
 }
 
 impl ExecutionTodoShowTool {
-    pub fn new(store: Arc<SqlitePlanReportStore>, execution_session_id: String) -> Self {
+    pub fn new(store: Arc<EphemeralPlanRegistry>, execution_session_id: String) -> Self {
         Self {
             store,
             execution_session_id,
@@ -54,12 +54,12 @@ impl Tool for ExecutionTodoShowTool {
 
 #[derive(Clone)]
 pub struct ExecutionTodoWriteTool {
-    store: Arc<SqlitePlanReportStore>,
+    store: Arc<EphemeralPlanRegistry>,
     execution_session_id: String,
 }
 
 impl ExecutionTodoWriteTool {
-    pub fn new(store: Arc<SqlitePlanReportStore>, execution_session_id: String) -> Self {
+    pub fn new(store: Arc<EphemeralPlanRegistry>, execution_session_id: String) -> Self {
         Self {
             store,
             execution_session_id,

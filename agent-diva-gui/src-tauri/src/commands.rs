@@ -1243,45 +1243,27 @@ pub async fn approve_active_plan_execution(
     request: serde_json::Value,
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, String> {
-    let reports = get_plan_reports(state.clone()).await?;
-    let preferred_id = request
+    let report_id = request
         .get("plan_id")
         .or_else(|| request.get("planId"))
         .and_then(|value| value.as_str())
         .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let expected_revision = request
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "plan_id is required".to_string())?;
+    let session_key = request
+        .get("session_key")
+        .or_else(|| request.get("sessionKey"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "session_key is required".to_string())?;
+    let revision = request
         .get("expected_revision")
         .or_else(|| request.get("expectedRevision"))
-        .and_then(|value| value.as_i64());
-
-    let report = reports
-        .as_array()
-        .and_then(|reports| {
-            // Prefer the exact pending report the GUI is showing.
-            if let Some(id) = preferred_id {
-                if let Some(exact) = reports.iter().find(|report| {
-                    plan_report_id(report) == Some(id)
-                        && plan_report_status(report) == "AwaitingApproval"
-                }) {
-                    return Some(exact);
-                }
-            }
-            reports.iter().find(|report| {
-                plan_report_status(report) == "AwaitingApproval"
-                    && expected_revision
-                        .map(|rev| plan_report_revision(report) == Some(rev))
-                        .unwrap_or(true)
-            })
-        })
-        .ok_or_else(|| "No plan report is awaiting approval".to_string())?;
-
-    let report_id =
-        plan_report_id(report).ok_or_else(|| "Plan report is missing id".to_string())?;
-    let markdown = plan_report_markdown(report);
-    let revision = expected_revision
-        .or_else(|| plan_report_revision(report))
-        .ok_or_else(|| "Plan report is missing revision".to_string())?;
+        .and_then(|value| value.as_i64())
+        .ok_or_else(|| "expected_revision is required".to_string())?;
+    let markdown = request.get("markdown").and_then(|value| value.as_str())
+        .ok_or_else(|| "markdown is required".to_string())?;
     let context_policy = match request
         .get("context_policy")
         .or_else(|| request.get("contextPolicy"))
@@ -1293,6 +1275,7 @@ pub async fn approve_active_plan_execution(
         _ => ExecutionContextPolicy::Compact,
     };
     let payload = serde_json::json!({
+        "session_key": session_key,
         "revision": revision,
         "revision_hash": revision_hash(&markdown),
         "context_policy": context_policy,
@@ -1300,26 +1283,11 @@ pub async fn approve_active_plan_execution(
     });
     let execution = approve_plan_report(report_id.to_string(), payload, state.clone()).await?;
 
-    // Prefer a fresh projection after status flips to Approved.
-    let plan = get_plan_reports(state)
-        .await
-        .ok()
-        .and_then(|reports| {
-            reports.as_array().and_then(|reports| {
-                reports
-                    .iter()
-                    .find(|item| plan_report_id(item) == Some(report_id))
-                    .map(plan_report_detail_projection)
-            })
-        })
-        .unwrap_or_else(|| {
-            let mut projected = plan_report_detail_projection(report);
-            if let Some(obj) = projected.as_object_mut() {
-                obj.insert("phase".into(), serde_json::json!("Execute"));
-                obj.insert("status".into(), serde_json::json!("InProgress"));
-            }
-            projected
-        });
+    let plan = serde_json::json!({
+        "plan_id": report_id, "revision": revision, "phase": "Execute",
+        "status": "InProgress", "markdown": markdown, "summary": markdown,
+        "strategy": markdown, "steps": [], "todos": []
+    });
 
     let approved_at = execution
         .get("created_at")

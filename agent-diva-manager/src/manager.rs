@@ -490,29 +490,9 @@ impl Manager {
         if let Some(ref svc) = self.planning_service {
             return Some(Arc::clone(svc));
         }
-        // Lazy-init: create SQLite pool and PlanningService
-        let db_path = self.workspace.join(".agent-diva").join("planning.db");
-        if let Some(parent) = db_path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
-        match sqlx::SqlitePool::connect(&db_url).await {
-            Ok(pool) => match crate::planning_service::PlanningService::new_from_pool(pool).await {
-                Ok(svc) => {
-                    let arc = Arc::new(svc);
-                    self.planning_service = Some(Arc::clone(&arc));
-                    Some(arc)
-                }
-                Err(e) => {
-                    error!("Failed to create PlanningService: {}", e);
-                    None
-                }
-            },
-            Err(e) => {
-                error!("Failed to connect to planning DB: {}", e);
-                None
-            }
-        }
+        let arc = Arc::new(crate::planning_service::PlanningService::new());
+        self.planning_service = Some(Arc::clone(&arc));
+        Some(arc)
     }
 
     async fn handle_list_plan_reports(
@@ -520,10 +500,7 @@ impl Manager {
         reply: oneshot::Sender<Result<Vec<agent_diva_core::planning::PlanReportDetail>, String>>,
     ) {
         let result = match self.ensure_planning_service().await {
-            Some(service) => service
-                .list_reports()
-                .await
-                .map_err(|error| error.to_string()),
+            Some(_) => Err("plan report history has been removed".to_string()),
             None => Err("Planning service unavailable".to_string()),
         };
         let _ = reply.send(result);
@@ -557,13 +534,7 @@ impl Manager {
     ) {
         let result = match self.ensure_planning_service().await {
             Some(service) => service
-                .append_report_revision(
-                    &report_id,
-                    request.expected_revision,
-                    &request.title,
-                    &request.markdown,
-                    agent_diva_core::planning::PlanRevisionAuthor::User,
-                )
+                .append_report_revision(&request, &report_id)
                 .await
                 .map_err(|error| error.to_string()),
             None => Err("Planning service unavailable".to_string()),
@@ -583,13 +554,7 @@ impl Manager {
         // from the active execution session for this session_key.
         let result = match self.ensure_planning_service().await {
             Some(service) => service
-                .approve_report_revision(
-                    &report_id,
-                    request.revision,
-                    &request.revision_hash,
-                    request.context_policy,
-                    request.compacted_context.as_deref(),
-                )
+                .approve_report_revision(&request, &report_id)
                 .await
                 .map_err(|error| error.to_string()),
             None => Err("Planning service unavailable".to_string()),
@@ -603,10 +568,7 @@ impl Manager {
         reply: oneshot::Sender<Result<Option<agent_diva_core::planning::ExecutionSession>, String>>,
     ) {
         let result = match self.ensure_planning_service().await {
-            Some(service) => service
-                .active_execution(&session_key)
-                .await
-                .map_err(|error| error.to_string()),
+            Some(service) => Ok(service.active_execution(&session_key).await),
             None => Err("Planning service unavailable".to_string()),
         };
         let _ = reply.send(result);

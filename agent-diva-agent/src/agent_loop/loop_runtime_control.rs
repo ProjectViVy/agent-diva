@@ -1,10 +1,7 @@
-use super::{policy_phase_for, AgentLoop};
+use super::AgentLoop;
 use crate::compaction::ContextCompactor;
 use crate::runtime_control::RuntimeControlCommand;
-use agent_diva_core::bus::{
-    AgentEvent, InboundMessage, PlanApprovalResult, PlanRuntimeState, PlanRuntimeStep,
-    PlanRuntimeTodo,
-};
+use agent_diva_core::bus::{AgentEvent, InboundMessage, PlanRuntimeState};
 use agent_diva_core::session::CompactTrigger;
 use agent_diva_providers::Message;
 use tokio::sync::mpsc;
@@ -33,6 +30,9 @@ impl AgentLoop {
                 self.cancelled_sessions.insert(session_key);
             }
             RuntimeControlCommand::ResetSession { session_key } => {
+                if let Some(planning) = self.tool_config.planning.as_ref() {
+                    planning.registry.discard_session(&session_key).await;
+                }
                 if let Err(e) = self.sessions.archive_and_reset(&session_key) {
                     tracing::error!("Failed to archive and reset session: {}", e);
                 } else {
@@ -58,6 +58,11 @@ impl AgentLoop {
                     .sessions
                     .delete(&session_key)
                     .map_err(|e| e.to_string());
+                if result.is_ok() {
+                    if let Some(planning) = self.tool_config.planning.as_ref() {
+                        planning.registry.discard_session(&session_key).await;
+                    }
+                }
                 match &result {
                     Ok(deleted) => {
                         info!(
@@ -112,13 +117,11 @@ impl AgentLoop {
                 let result = self.handle_compact_session(&session_key).await;
                 let _ = reply_tx.send(result);
             }
-            RuntimeControlCommand::ApproveActivePlan { request, reply_tx } => {
-                let result = self.handle_approve_active_plan(request).await;
-                let _ = reply_tx.send(result);
+            RuntimeControlCommand::ApproveActivePlan { reply_tx, .. } => {
+                let _ = reply_tx.send(Err("legacy global plan approval has been removed".to_string()));
             }
             RuntimeControlCommand::ReturnActivePlanToDraft { reply_tx } => {
-                let result = self.handle_return_active_plan_to_draft().await;
-                let _ = reply_tx.send(result);
+                let _ = reply_tx.send(Err("legacy global plan drafts have been removed".to_string()));
             }
         }
     }
@@ -344,123 +347,19 @@ impl AgentLoop {
         Ok((title, generated.is_some(), false))
     }
 
-    async fn handle_approve_active_plan(
-        &mut self,
-        request: agent_diva_core::planning::ApprovalRequest,
-    ) -> Result<PlanApprovalResult, String> {
-        let Some(planning) = self.tool_config.planning.as_ref() else {
-            return Err("planning runtime is unavailable".to_string());
-        };
-
-        let plan_id = planning
-            .store
-            .get_active_plan()
-            .await
-            .map_err(|error| error.to_string())?;
-
-        let receipt = planning
-            .store
-            .approve_plan(&plan_id, &request)
-            .await
-            .map_err(|error| error.to_string())?;
-
-        let plan = self
-            .snapshot_plan_runtime(&plan_id)
-            .await
-            .ok_or_else(|| "failed to load plan after approval".to_string())?;
-        self.rebuild_tools_for_active_phase().await;
-
-        Ok(PlanApprovalResult { plan, receipt })
-    }
-
-    async fn handle_return_active_plan_to_draft(&mut self) -> Result<PlanRuntimeState, String> {
-        let Some(planning) = self.tool_config.planning.as_ref() else {
-            return Err("planning runtime is unavailable".to_string());
-        };
-        let plan_id = planning
-            .store
-            .get_active_plan()
-            .await
-            .map_err(|error| error.to_string())?;
-        planning
-            .store
-            .reopen_plan(&plan_id)
-            .await
-            .map_err(|error| error.to_string())?;
-        let plan = self
-            .snapshot_plan_runtime(&plan_id)
-            .await
-            .ok_or_else(|| "failed to load reopened plan".to_string())?;
-        self.rebuild_tools_for_active_phase().await;
-        Ok(plan)
-    }
-
     /// Re-assemble after runtime mutations so registration remains a phase
     /// boundary even before a subsequent tool call can re-snapshot state.
     async fn rebuild_tools_for_active_phase(&mut self) {
         let active_mask = self.load_active_mask();
-        let active_plan = self.snapshot_active_plan_runtime().await;
         self.rebuild_tools_for_turn(
             active_mask.as_ref(),
-            policy_phase_for(active_plan.as_ref(), false),
+            None,
             None,
             None,
         );
     }
 
     pub(super) async fn snapshot_active_plan_runtime(&self) -> Option<PlanRuntimeState> {
-        let planning = self.tool_config.planning.as_ref()?;
-        let plan_id = planning.store.get_active_plan().await.ok()?;
-        self.snapshot_plan_runtime(&plan_id).await
-    }
-
-    pub(super) async fn snapshot_plan_runtime(
-        &self,
-        plan_id: &agent_diva_core::planning::ids::PlanId,
-    ) -> Option<PlanRuntimeState> {
-        let planning = self.tool_config.planning.as_ref()?;
-        let plan = planning.store.get_plan(plan_id).await.ok()?;
-        let steps = planning.store.get_steps(plan_id).await.ok()?;
-        let todos = planning.store.get_todos(plan_id).await.ok()?;
-        let revision = planning.store.get_plan_revision(plan_id).await.ok()?;
-
-        Some(PlanRuntimeState {
-            plan_id: plan.id.0.clone(),
-            revision,
-            title: plan.title.clone(),
-            goal: plan.goal.clone(),
-            phase: plan.phase,
-            status: plan.status,
-            strategy: plan.strategy.clone(),
-            summary: format!("{}: {}", plan.title, plan.goal),
-            steps: steps
-                .into_iter()
-                .map(|step| PlanRuntimeStep {
-                    id: step.id,
-                    ordinal: step.ordinal,
-                    title: step.title,
-                    rationale: step.rationale,
-                    expected_output: step.expected_output,
-                    status: step.status,
-                })
-                .collect(),
-            todos: todos
-                .items
-                .into_iter()
-                .map(|todo| PlanRuntimeTodo {
-                    id: todo.id.0,
-                    plan_step_id: todo.plan_step_id,
-                    title: todo.title,
-                    detail: todo.detail,
-                    status: todo.status,
-                    priority: todo.priority,
-                    evidence_ref: todo.evidence_ref,
-                    block_reason: todo.block_reason,
-                    updated_at: todo.updated_at,
-                })
-                .collect(),
-            created_at: plan.created_at,
-            updated_at: plan.updated_at,
-        })
+        None
     }
 }
