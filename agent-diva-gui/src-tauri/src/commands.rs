@@ -1289,6 +1289,58 @@ pub async fn return_active_plan_to_draft(
 }
 
 #[tauri::command]
+pub async fn get_plan_reports(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+    let url = format!("{}/plan-reports", state.api_base_url());
+    let value: serde_json::Value = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to get plan reports: {error}"))?
+        .json()
+        .await
+        .map_err(|error| format!("Invalid plan report response: {error}"))?;
+    value
+        .get("reports")
+        .cloned()
+        .ok_or_else(|| "Missing plan reports payload".to_string())
+}
+
+#[tauri::command]
+pub async fn approve_plan_report(
+    report_id: String,
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/plan-reports/{}/approve",
+        state.api_base_url(),
+        urlencoding::encode(report_id.trim())
+    );
+    let value: serde_json::Value = state
+        .client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to approve plan report: {error}"))?
+        .json()
+        .await
+        .map_err(|error| format!("Invalid plan report approval response: {error}"))?;
+    if value.get("status").and_then(|status| status.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|message| message.as_str())
+            .unwrap_or("Plan report approval failed")
+            .to_string());
+    }
+    value
+        .get("execution")
+        .cloned()
+        .ok_or_else(|| "Missing execution payload".to_string())
+}
+
+#[tauri::command]
 pub async fn stop_generation(
     channel: Option<String>,
     chat_id: Option<String>,
