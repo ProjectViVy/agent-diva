@@ -1020,6 +1020,12 @@ struct StreamPlanPayload {
     data: PlanStreamEvent,
 }
 
+#[derive(Serialize, Clone)]
+struct StreamJsonPayload {
+    request_id: String,
+    data: serde_json::Value,
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn send_message(
@@ -1215,6 +1221,17 @@ pub async fn send_message(
                             );
                         }
                     }
+                    "plan_report_ready_for_approval" => {
+                        if let Ok(data) = serde_json::from_str::<serde_json::Value>(&event.data) {
+                            let _ = window.emit(
+                                "agent-plan-report-ready",
+                                StreamJsonPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
+                                },
+                            );
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -1338,6 +1355,106 @@ pub async fn approve_plan_report(
         .get("execution")
         .cloned()
         .ok_or_else(|| "Missing execution payload".to_string())
+}
+
+#[tauri::command]
+pub async fn get_active_plan_execution(
+    session_key: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/plan-executions/active?session_key={}",
+        state.api_base_url(),
+        urlencoding::encode(session_key.trim())
+    );
+    let value: serde_json::Value = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to get active plan execution: {error}"))?
+        .json()
+        .await
+        .map_err(|error| format!("Invalid active execution response: {error}"))?;
+    if value.get("status").and_then(|status| status.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|message| message.as_str())
+            .unwrap_or("Failed to get active plan execution")
+            .to_string());
+    }
+    Ok(value
+        .get("execution")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null))
+}
+
+#[tauri::command]
+pub async fn get_execution_todos(
+    execution_id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/plan-executions/{}/todos",
+        state.api_base_url(),
+        urlencoding::encode(execution_id.trim())
+    );
+    let value: serde_json::Value = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to get execution todos: {error}"))?
+        .json()
+        .await
+        .map_err(|error| format!("Invalid execution todos response: {error}"))?;
+    if value.get("status").and_then(|status| status.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|message| message.as_str())
+            .unwrap_or("Failed to get execution todos")
+            .to_string());
+    }
+    value
+        .get("todos")
+        .cloned()
+        .ok_or_else(|| "Missing execution todos payload".to_string())
+}
+
+#[tauri::command]
+pub async fn update_execution_todo(
+    execution_id: String,
+    todo_id: String,
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/plan-executions/{}/todos/{}",
+        state.api_base_url(),
+        urlencoding::encode(execution_id.trim()),
+        urlencoding::encode(todo_id.trim())
+    );
+    let value: serde_json::Value = state
+        .client
+        .patch(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to update execution todo: {error}"))?
+        .json()
+        .await
+        .map_err(|error| format!("Invalid execution todo response: {error}"))?;
+    if value.get("status").and_then(|status| status.as_str()) != Some("ok") {
+        return Err(value
+            .get("message")
+            .and_then(|message| message.as_str())
+            .unwrap_or("Failed to update execution todo")
+            .to_string());
+    }
+    value
+        .get("todo")
+        .cloned()
+        .ok_or_else(|| "Missing execution todo payload".to_string())
 }
 
 #[tauri::command]

@@ -395,6 +395,9 @@ impl Manager {
                         ManagerCommand::CreatePlanReport(request, reply) => self.handle_create_plan_report(request, reply).await,
                         ManagerCommand::AppendPlanReportRevision(report_id, request, reply) => self.handle_append_plan_report_revision(report_id, request, reply).await,
                         ManagerCommand::ApprovePlanReport(report_id, request, reply) => self.handle_approve_plan_report(report_id, request, reply).await,
+                        ManagerCommand::GetActivePlanExecution(session_key, reply) => self.handle_get_active_plan_execution(session_key, reply).await,
+                        ManagerCommand::ListExecutionTodos(execution_id, reply) => self.handle_list_execution_todos(execution_id, reply).await,
+                        ManagerCommand::UpdateExecutionTodo(execution_id, todo_id, request, reply) => self.handle_update_execution_todo(execution_id, todo_id, request, reply).await,
                     }
                 }
             }
@@ -657,6 +660,53 @@ impl Manager {
                 Ok(execution)
             }
             .await,
+            None => Err("Planning service unavailable".to_string()),
+        };
+        let _ = reply.send(result);
+    }
+
+    async fn handle_get_active_plan_execution(
+        &mut self,
+        session_key: String,
+        reply: oneshot::Sender<Result<Option<agent_diva_core::planning::ExecutionSession>, String>>,
+    ) {
+        let result = match self.ensure_planning_service().await {
+            Some(service) => service
+                .active_execution(&session_key)
+                .await
+                .map_err(|error| error.to_string()),
+            None => Err("Planning service unavailable".to_string()),
+        };
+        let _ = reply.send(result);
+    }
+
+    async fn handle_list_execution_todos(
+        &mut self,
+        execution_id: String,
+        reply: oneshot::Sender<Result<Vec<agent_diva_core::planning::ExecutionTodo>, String>>,
+    ) {
+        let result = match self.ensure_planning_service().await {
+            Some(service) => service
+                .execution_todos(&execution_id)
+                .await
+                .map_err(|error| error.to_string()),
+            None => Err("Planning service unavailable".to_string()),
+        };
+        let _ = reply.send(result);
+    }
+
+    async fn handle_update_execution_todo(
+        &mut self,
+        execution_id: String,
+        todo_id: String,
+        request: crate::planning_service::UpdateExecutionTodoRequest,
+        reply: oneshot::Sender<Result<agent_diva_core::planning::ExecutionTodo, String>>,
+    ) {
+        let result = match self.ensure_planning_service().await {
+            Some(service) => service
+                .update_execution_todo(&execution_id, &todo_id, request)
+                .await
+                .map_err(|error| error.to_string()),
             None => Err("Planning service unavailable".to_string()),
         };
         let _ = reply.send(result);

@@ -7,7 +7,8 @@ use agent_diva_core::planning::ids::PlanId;
 use agent_diva_core::planning::model::{Plan, PlanPhase, PlanStatus, TodoStatus};
 use agent_diva_core::planning::store::{PlanningStore, SqlitePlanningStore};
 use agent_diva_core::planning::{
-    ExecutionContextPolicy, PlanReportDetail, PlanRevisionAuthor, SqlitePlanReportStore,
+    ExecutionContextPolicy, ExecutionSession, ExecutionTodo, ExecutionTodoPriority,
+    ExecutionTodoStatus, PlanReportDetail, PlanRevisionAuthor, SqlitePlanReportStore,
 };
 use anyhow::Context;
 use chrono::Utc;
@@ -120,6 +121,16 @@ pub struct ApprovePlanReportRequest {
     pub compacted_context: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateExecutionTodoRequest {
+    pub status: Option<ExecutionTodoStatus>,
+    pub title: Option<String>,
+    pub detail: Option<String>,
+    pub priority: Option<ExecutionTodoPriority>,
+    pub evidence_ref: Option<String>,
+    pub block_reason: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -219,6 +230,72 @@ impl PlanningService {
         self.report_store
             .get_detail(&PlanId(report_id.to_string()), revision)
             .await
+    }
+
+    pub async fn active_execution(
+        &self,
+        session_key: &str,
+    ) -> anyhow::Result<Option<ExecutionSession>> {
+        self.report_store
+            .active_execution_for_session(session_key)
+            .await
+    }
+
+    pub async fn execution_todos(
+        &self,
+        execution_session_id: &str,
+    ) -> anyhow::Result<Vec<ExecutionTodo>> {
+        self.report_store
+            .execution_todos(execution_session_id)
+            .await
+    }
+
+    pub async fn update_execution_todo(
+        &self,
+        execution_session_id: &str,
+        todo_id: &str,
+        request: UpdateExecutionTodoRequest,
+    ) -> anyhow::Result<ExecutionTodo> {
+        let mut todos = self
+            .report_store
+            .execution_todos(execution_session_id)
+            .await?;
+        let todo = todos
+            .iter_mut()
+            .find(|todo| todo.id == todo_id)
+            .ok_or_else(|| anyhow::anyhow!("execution todo not found: {todo_id}"))?;
+
+        if let Some(status) = request.status {
+            todo.status = status;
+        }
+        if let Some(title) = request.title {
+            let title = title.trim();
+            if title.is_empty() {
+                return Err(anyhow::anyhow!("execution todo title cannot be empty"));
+            }
+            todo.title = title.to_string();
+        }
+        if let Some(detail) = request.detail {
+            todo.detail = non_empty(detail);
+        }
+        if let Some(priority) = request.priority {
+            todo.priority = priority;
+        }
+        if let Some(evidence_ref) = request.evidence_ref {
+            todo.evidence_ref = non_empty(evidence_ref);
+        }
+        if let Some(block_reason) = request.block_reason {
+            todo.block_reason = non_empty(block_reason);
+        }
+        if todo.status == ExecutionTodoStatus::Blocked && todo.block_reason.is_none() {
+            return Err(anyhow::anyhow!(
+                "blocked execution todo requires block_reason"
+            ));
+        }
+        todo.updated_at = Utc::now();
+        let updated = todo.clone();
+        self.report_store.update_execution_todo(&updated).await?;
+        Ok(updated)
     }
 
     /// List all plans as lightweight summaries.
@@ -460,6 +537,15 @@ impl PlanningService {
             created_at: plan.created_at.to_rfc3339(),
             updated_at: plan.updated_at.to_rfc3339(),
         }
+    }
+}
+
+fn non_empty(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
     }
 }
 

@@ -259,6 +259,31 @@ impl SqlitePlanReportStore {
         rows.into_iter().map(execution_todo_from_row).collect()
     }
 
+    /// Update one execution TODO while its owning execution session is active.
+    pub async fn update_execution_todo(&self, todo: &ExecutionTodo) -> anyhow::Result<()> {
+        let result = sqlx::query(
+            "UPDATE execution_todos SET title = ?, detail = ?, status = ?, priority = ?, evidence_ref = ?, block_reason = ?, updated_at = ? WHERE id = ? AND execution_session_id = ? AND EXISTS (SELECT 1 FROM plan_execution_sessions WHERE id = ? AND status IN ('Executing', 'Verifying'))",
+        )
+        .bind(&todo.title)
+        .bind(&todo.detail)
+        .bind(execution_todo_status_name(todo.status))
+        .bind(execution_todo_priority_name(todo.priority))
+        .bind(&todo.evidence_ref)
+        .bind(&todo.block_reason)
+        .bind(todo.updated_at.to_rfc3339())
+        .bind(&todo.id)
+        .bind(&todo.execution_session_id)
+        .bind(&todo.execution_session_id)
+        .execute(&self.pool)
+        .await?;
+        if result.rows_affected() != 1 {
+            return Err(anyhow!(
+                "execution todo is unavailable or its session is not active"
+            ));
+        }
+        Ok(())
+    }
+
     pub async fn get_detail(
         &self,
         report_id: &PlanId,
@@ -542,5 +567,47 @@ mod tests {
             )
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn execution_todo_updates_are_bound_to_active_sessions() {
+        let store = store().await;
+        let created = store
+            .create_report("chat", "杩佺Щ", REPORT, PlanRevisionAuthor::Agent)
+            .await
+            .unwrap();
+        let (_, session) = store
+            .approve_revision(
+                &created.report.id,
+                1,
+                &revision_hash(REPORT),
+                ExecutionContextPolicy::Retain,
+                None,
+            )
+            .await
+            .unwrap();
+        let mut todo = ExecutionTodo {
+            id: "todo-1".to_string(),
+            execution_session_id: session.id.clone(),
+            title: "Run verification".to_string(),
+            detail: None,
+            status: ExecutionTodoStatus::Pending,
+            priority: ExecutionTodoPriority::Normal,
+            evidence_ref: None,
+            block_reason: None,
+            updated_at: Utc::now(),
+        };
+        store
+            .replace_execution_todos(&session.id, &[todo.clone()])
+            .await
+            .unwrap();
+
+        todo.status = ExecutionTodoStatus::Completed;
+        todo.evidence_ref = Some("cargo test".to_string());
+        store.update_execution_todo(&todo).await.unwrap();
+
+        let todos = store.execution_todos(&session.id).await.unwrap();
+        assert_eq!(todos[0].status, ExecutionTodoStatus::Completed);
+        assert_eq!(todos[0].evidence_ref.as_deref(), Some("cargo test"));
     }
 }

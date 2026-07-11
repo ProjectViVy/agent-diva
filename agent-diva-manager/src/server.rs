@@ -253,11 +253,9 @@ fn provider_routes() -> Router<AppState> {
 
 fn planning_routes() -> Router<AppState> {
     use crate::handlers::planning::{
-        append_plan_report_revision_handler, approve_active_plan_handler,
-        approve_plan_report_handler, create_plan_handler, create_plan_report_handler,
-        delete_plan_handler, delete_plan_todo_handler, get_plan_handler, list_plan_reports_handler,
-        list_plans_handler, restore_plan_todo_handler, return_active_plan_to_draft_handler,
-        update_plan_handler,
+        active_plan_execution_handler, append_plan_report_revision_handler,
+        approve_plan_report_handler, create_plan_report_handler, list_execution_todos_handler,
+        list_plan_reports_handler, update_execution_todo_handler,
     };
     Router::new()
         .route(
@@ -273,30 +271,16 @@ fn planning_routes() -> Router<AppState> {
             post(approve_plan_report_handler),
         )
         .route(
-            "/api/plans",
-            get(list_plans_handler).post(create_plan_handler),
+            "/api/plan-executions/active",
+            get(active_plan_execution_handler),
         )
         .route(
-            "/api/plans/active/approve-execute",
-            post(approve_active_plan_handler),
+            "/api/plan-executions/:execution_id/todos",
+            get(list_execution_todos_handler),
         )
         .route(
-            "/api/plans/active/return-to-draft",
-            post(return_active_plan_to_draft_handler),
-        )
-        .route(
-            "/api/plans/:plan_id",
-            get(get_plan_handler)
-                .put(update_plan_handler)
-                .delete(delete_plan_handler),
-        )
-        .route(
-            "/api/plans/:plan_id/todos/:todo_id/delete",
-            post(delete_plan_todo_handler),
-        )
-        .route(
-            "/api/plans/:plan_id/todos/:todo_id/restore",
-            post(restore_plan_todo_handler),
+            "/api/plan-executions/:execution_id/todos/:todo_id",
+            patch(update_execution_todo_handler),
         )
 }
 

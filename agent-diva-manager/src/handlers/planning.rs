@@ -5,10 +5,11 @@
 //! in this crate.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
+use serde::Deserialize;
 use tokio::sync::oneshot;
 
 use crate::planning_service::{
@@ -16,6 +17,11 @@ use crate::planning_service::{
     CreatePlanRequest, UpdatePlanRequest,
 };
 use crate::state::{AppState, ManagerCommand};
+
+#[derive(Debug, Deserialize)]
+pub struct ActiveExecutionQuery {
+    pub session_key: String,
+}
 
 /// GET /api/plan-reports
 pub async fn list_plan_reports_handler(
@@ -144,6 +150,117 @@ pub async fn approve_plan_report_handler(
         Err(error) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "status": "error", "message": error.to_string() })),
+        )),
+    }
+}
+
+/// GET /api/plan-executions/active?session_key=channel:chat_id
+pub async fn active_plan_execution_handler(
+    State(state): State<AppState>,
+    Query(query): Query<ActiveExecutionQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if query.session_key.trim().is_empty() {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"status":"error","message":"session_key is required"})),
+        ));
+    }
+    let (tx, rx) = oneshot::channel();
+    state
+        .api_tx
+        .send(ManagerCommand::GetActivePlanExecution(
+            query.session_key,
+            tx,
+        ))
+        .await
+        .map_err(|error| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"status":"error","message":error.to_string()})),
+            )
+        })?;
+    match rx.await {
+        Ok(Ok(execution)) => Ok(Json(serde_json::json!({
+            "status": "ok",
+            "execution": execution,
+        }))),
+        Ok(Err(error)) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"status":"error","message":error})),
+        )),
+        Err(error) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"status":"error","message":error.to_string()})),
+        )),
+    }
+}
+
+/// GET /api/plan-executions/:execution_id/todos
+pub async fn list_execution_todos_handler(
+    State(state): State<AppState>,
+    Path(execution_id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let (tx, rx) = oneshot::channel();
+    state
+        .api_tx
+        .send(ManagerCommand::ListExecutionTodos(execution_id, tx))
+        .await
+        .map_err(|error| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"status":"error","message":error.to_string()})),
+            )
+        })?;
+    match rx.await {
+        Ok(Ok(todos)) => Ok(Json(serde_json::json!({
+            "status": "ok",
+            "todos": todos,
+        }))),
+        Ok(Err(error)) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"status":"error","message":error})),
+        )),
+        Err(error) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"status":"error","message":error.to_string()})),
+        )),
+    }
+}
+
+/// PATCH /api/plan-executions/:execution_id/todos/:todo_id
+pub async fn update_execution_todo_handler(
+    State(state): State<AppState>,
+    Path((execution_id, todo_id)): Path<(String, String)>,
+    Json(request): Json<crate::planning_service::UpdateExecutionTodoRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let (tx, rx) = oneshot::channel();
+    state
+        .api_tx
+        .send(ManagerCommand::UpdateExecutionTodo(
+            execution_id,
+            todo_id,
+            request,
+            tx,
+        ))
+        .await
+        .map_err(|error| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"status":"error","message":error.to_string()})),
+            )
+        })?;
+    match rx.await {
+        Ok(Ok(todo)) => Ok(Json(serde_json::json!({
+            "status": "ok",
+            "todo": todo,
+        }))),
+        Ok(Err(error)) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"status":"error","message":error})),
+        )),
+        Err(error) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"status":"error","message":error.to_string()})),
         )),
     }
 }
