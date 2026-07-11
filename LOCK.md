@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T00:30:00+08:00`
-- Last Heartbeat: `2026-07-12T01:20:00+08:00`
+- Started At: `2026-07-11T18:00:00+08:00`
+- Last Heartbeat: `2026-07-11T18:00:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-11`: Released PLAN/TODO replacement lock after commits `57cccfc` and `736a96f`. Plan mode is now read-only without legacy plan tools and valid final Markdown persists as a report. Report approval starts an internal execution turn with the approved Markdown; Clear removes exploration history and no synthetic user message is saved. Tauri/GUI report DTO migration, independent execution TODO tools, Compact persistence, legacy API/database deletion, full validation, and iteration logs remain pending.
 
 - `2026-07-12`: Released execution-session TODO persistence lock after commit `4ebb786`; new TODO rows are bound only to active execution sessions. Agent/Tauri/GUI callers still use the legacy TODO path and require the next slice.
 
