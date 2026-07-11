@@ -203,6 +203,7 @@ const currentSessionKey = ref(`gui:${currentChatId.value}`);
 const activeStreamRequestId = ref<string | null>(null);
 const activePlanRuntime = ref<PlanRuntimeState | null>(null);
 const pendingApprovalPlan = ref<PlanRuntimeState | null>(null);
+const pendingApprovalSessionKey = ref<string | null>(null);
 const executingPlan = ref<PlanRuntimeState | null>(null);
 const approvingPlan = ref(false);
 const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
@@ -924,7 +925,7 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
     const pending = pendingApprovalPlan.value;
     if (pending?.revision == null) throw new Error('Plan revision is unavailable; refresh before approving.');
     const result = await approveActivePlanExecution({
-      session_key: currentSessionKey.value,
+      session_key: pendingApprovalSessionKey.value || currentSessionKey.value,
       plan_id: pending.plan_id,
       expected_revision: pending.revision,
       markdown: pending.markdown || pending.summary || '',
@@ -1920,6 +1921,9 @@ onMounted(async () => {
     if (active && event.payload.request_id !== active) return;
     const plan = planRuntimeFromReportPayload(event.payload.data);
     if (plan) {
+      const root = event.payload.data as { report?: { report?: { session_key?: unknown } } };
+      const sessionKey = root.report?.report?.session_key;
+      pendingApprovalSessionKey.value = typeof sessionKey === 'string' ? sessionKey : null;
       syncPlanRuntime(plan);
     }
   }));

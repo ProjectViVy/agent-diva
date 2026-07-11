@@ -500,7 +500,10 @@ impl Manager {
         reply: oneshot::Sender<Result<Vec<agent_diva_core::planning::PlanReportDetail>, String>>,
     ) {
         let result = match self.ensure_planning_service().await {
-            Some(_) => Err("plan report history has been removed".to_string()),
+            // Legacy clients may still poll this endpoint. PLAN history is
+            // intentionally gone, so report an empty list rather than turn a
+            // harmless compatibility poll into a 500 loop.
+            Some(_) => Ok(Vec::new()),
             None => Err("Planning service unavailable".to_string()),
         };
         let _ = reply.send(result);
