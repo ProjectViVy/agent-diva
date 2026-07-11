@@ -211,6 +211,16 @@ impl PlanningService {
         self.report_store.list_reports().await
     }
 
+    pub async fn report_detail(
+        &self,
+        report_id: &str,
+        revision: i64,
+    ) -> anyhow::Result<PlanReportDetail> {
+        self.report_store
+            .get_detail(&PlanId(report_id.to_string()), revision)
+            .await
+    }
+
     /// List all plans as lightweight summaries.
     pub async fn list_plans(&self) -> anyhow::Result<Vec<PlanSummary>> {
         self.store

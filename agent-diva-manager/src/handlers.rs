@@ -192,6 +192,9 @@ pub async fn chat_handler(
                 AgentEvent::PlanReadyForApproval { plan } => Event::default()
                     .event("plan_ready_for_approval")
                     .data(serde_json::json!({ "plan": plan }).to_string()),
+                AgentEvent::PlanReportReadyForApproval { report } => Event::default()
+                    .event("plan_report_ready_for_approval")
+                    .data(serde_json::json!({ "report": report }).to_string()),
                 AgentEvent::Error { message } => Event::default().event("error").data(message),
                 _ => Event::default().comment("keep-alive"),
             };

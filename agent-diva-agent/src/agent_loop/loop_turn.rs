@@ -285,6 +285,11 @@ impl AgentLoop {
 
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
         let plan_mode = is_plan_mode(&msg);
+        let execution_start = msg
+            .metadata
+            .get("execution_start")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
         // Plan safety is a runtime lifecycle property, not only a UI/request mode.
         // Once a plan is waiting for approval, an agent-mode follow-up must not
         // re-enable mutation tools before the explicit approval transition.
@@ -380,7 +385,7 @@ impl AgentLoop {
         // Phase 2: run best-effort auto compaction before any provider call.
         // The first provider request for this turn must see the post-compaction
         // session snapshot, not the pre-compaction history captured above.
-        let (history, history_len, compaction_history, did_compact) = if should_compact {
+        let (mut history, history_len, compaction_history, did_compact) = if should_compact {
             info!(
                 "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
                 budget_report.pressure_ratio * 100.0,
@@ -459,6 +464,16 @@ impl AgentLoop {
             }
         }
 
+        if execution_start
+            && msg
+                .metadata
+                .get("execution_context_policy")
+                .and_then(|value| value.as_str())
+                .is_some_and(|policy| policy == "Clear")
+        {
+            history.clear();
+        }
+
         let mut messages = self.context.build_messages(
             history,
             message_content.clone(),
@@ -486,6 +501,18 @@ impl AgentLoop {
             messages.insert(1, agent_diva_providers::Message::system(
                 "You are in Plan mode, but the planning runtime is unavailable. Do not perform implementation or external actions; respond with a plan and wait for user approval.",
             ));
+        }
+        if let Some(markdown) = msg
+            .metadata
+            .get("approved_plan_markdown")
+            .and_then(|value| value.as_str())
+        {
+            messages.insert(
+                1,
+                agent_diva_providers::Message::system(format!(
+                    "You are implementing this approved plan. It remains authoritative throughout execution.\n\n{markdown}"
+                )),
+            );
         }
         if let Some(mask) = active_mask.as_ref() {
             if let Some(first) = messages.first_mut() {
@@ -1132,7 +1159,11 @@ impl AgentLoop {
         // Save complete turn to session
         {
             let session = self.sessions.get_or_create(&session_key);
-            let user_role = if is_cron_trigger { "system" } else { "user" };
+            let user_role = if is_cron_trigger || execution_start {
+                "system"
+            } else {
+                "user"
+            };
             save_turn(
                 session,
                 &messages,
