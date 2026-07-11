@@ -4533,3 +4533,15 @@
     transform: translateY(0) scale(1) rotate(0deg);
   }
 }
+
+/* Plan reports are authored artifacts, not ordinary assistant replies. */
+.chat-avatar.chat-avatar-plan {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.14);
+}
+
+.chat-avatar.chat-avatar-plan:hover {
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.22);
+}

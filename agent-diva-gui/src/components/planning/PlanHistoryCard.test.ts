@@ -13,6 +13,7 @@ const plan: PlanRuntimeState = {
 describe('PlanHistoryCard', () => {
   it('renders one markdown plan document without TODO execution details', () => {
     const wrapper = mount(PlanHistoryCard, { props: { plan } });
+    expect(wrapper.text()).toContain('计划');
     expect(wrapper.text()).toContain('Historical plan');
     expect(wrapper.text()).toContain('Inspect before execution');
     expect(wrapper.text()).toContain('计划步骤');

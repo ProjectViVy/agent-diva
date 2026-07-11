@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, X, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch, ClipboardList } from 'lucide-vue-next';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch, ClipboardList, Pencil } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -684,8 +684,10 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
           <div
             v-if="msg.role !== 'user' && msg.role !== 'tool'"
             class="chat-avatar w-9 h-9 rounded-md flex items-center justify-center text-xl flex-shrink-0"
+            :class="{ 'chat-avatar-plan': msg.planSnapshot }"
           >
-            {{ getEmotionEmoji(msg.emotion) }}
+            <Pencil v-if="msg.planSnapshot" :size="17" :stroke-width="2.25" aria-label="计划" />
+            <template v-else>{{ getEmotionEmoji(msg.emotion) }}</template>
           </div>
           <div
             v-else-if="msg.role === 'tool'"
