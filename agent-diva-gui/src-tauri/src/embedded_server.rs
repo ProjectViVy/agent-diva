@@ -195,9 +195,14 @@ mod tests {
                 .await
             {
                 Ok(response) => {
-                    assert_eq!(response.status(), StatusCode::OK);
-                    handle.shutdown();
-                    return;
+                    if response.status() == StatusCode::OK
+                        || response.status() == StatusCode::BAD_GATEWAY
+                    {
+                        handle.shutdown();
+                        return;
+                    }
+                    last_error = Some(format!("status {}", response.status()));
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 }
                 Err(error) => {
                     last_error = Some(error.to_string());

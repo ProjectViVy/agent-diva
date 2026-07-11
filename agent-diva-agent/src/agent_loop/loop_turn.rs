@@ -1404,6 +1404,7 @@ fn format_soul_transparency_notice(
 }
 
 /// Save all messages from the current turn to the session
+#[allow(clippy::too_many_arguments)]
 fn save_turn(
     session: &mut agent_diva_core::session::Session,
     messages: &[agent_diva_providers::Message],

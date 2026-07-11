@@ -62,27 +62,26 @@ pub enum PlanningPolicyError {
 /// The matrix is intentionally fail-closed. In particular, `Unknown` is
 /// denied in every state so callers can safely map unrecognized tools to it.
 pub fn allows(state: PlanModeState, capability: ToolCapability) -> bool {
-    match (state, capability) {
+    matches!(
+        (state, capability),
         (
             PlanModeState::Exploring | PlanModeState::Drafting,
             ToolCapability::Inspect | ToolCapability::PlanningRecord,
-        ) => true,
-        (PlanModeState::AwaitingApproval, ToolCapability::Inspect) => true,
-        (
-            PlanModeState::Executing,
-            ToolCapability::Inspect
-            | ToolCapability::PlanningRecord
-            | ToolCapability::WorkItem
-            | ToolCapability::WorkspaceWrite
-            | ToolCapability::Execute
-            | ToolCapability::External,
-        ) => true,
-        (
-            PlanModeState::Verifying,
-            ToolCapability::Inspect | ToolCapability::PlanningRecord | ToolCapability::Execute,
-        ) => true,
-        _ => false,
-    }
+        ) | (PlanModeState::AwaitingApproval, ToolCapability::Inspect)
+            | (
+                PlanModeState::Executing,
+                ToolCapability::Inspect
+                    | ToolCapability::PlanningRecord
+                    | ToolCapability::WorkItem
+                    | ToolCapability::WorkspaceWrite
+                    | ToolCapability::Execute
+                    | ToolCapability::External,
+            )
+            | (
+                PlanModeState::Verifying,
+                ToolCapability::Inspect | ToolCapability::PlanningRecord | ToolCapability::Execute,
+            )
+    )
 }
 
 /// Returns whether the lifecycle edge from `from` to `to` is valid.

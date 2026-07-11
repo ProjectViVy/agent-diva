@@ -40,6 +40,12 @@ pub struct CollectedEvents {
 /// The caller **must** drop all senders before calling this function.
 pub struct EventCollector;
 
+impl Default for EventCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EventCollector {
     pub fn new() -> Self {
         Self
@@ -127,7 +133,8 @@ impl EventCollector {
                     | AgentEvent::TodoStepUpdated { .. }
                     | AgentEvent::TodoCompleted { .. }
                     | AgentEvent::TodoCancelled { .. }
-                    | AgentEvent::PlanReadyForApproval { .. } => {}
+                    | AgentEvent::PlanReadyForApproval { .. }
+                    | AgentEvent::PlanReportReadyForApproval { .. } => {}
                 }
             }
         })

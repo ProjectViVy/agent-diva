@@ -346,7 +346,7 @@ pub async fn run_chat(
     println!("{}", style("Agent Diva Chat").bold().cyan());
     println!("  model: {}", selected_model);
     println!("  session: {}", current_session);
-    println!("  title: {}", "(untitled)");
+    println!("  title: (untitled)");
     println!("  commands: /quit /clear /new /stop /mask /thinking auto|on|off /compact");
 
     loop {
@@ -369,7 +369,7 @@ pub async fn run_chat(
                 current_session =
                     format!("cli:chat:{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
                 println!("session -> {}", current_session);
-                println!("title -> {}", "(untitled)");
+                println!("title -> (untitled)");
                 continue;
             }
             "/stop" => {

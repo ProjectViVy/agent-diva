@@ -46,7 +46,7 @@ pub fn generate_report(trace_dir: &Path) -> std::io::Result<E2EReport> {
         for entry in std::fs::read_dir(trace_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().map_or(false, |e| e == "json") {
+            if path.extension().is_some_and(|e| e == "json") {
                 if let Ok(content) = std::fs::read_to_string(&path) {
                     if let Ok(trace) = serde_json::from_str::<TraceEntry>(&content) {
                         let name = trace.scenario.clone();

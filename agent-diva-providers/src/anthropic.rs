@@ -562,9 +562,13 @@ fn content_blocks_from_message_content(
     content: &MessageContent,
 ) -> ProviderResult<Vec<AnthropicContentBlock>> {
     match content {
-        MessageContent::Text(text) => Ok((!text.is_empty())
-            .then(|| vec![AnthropicContentBlock::Text { text: text.clone() }])
-            .unwrap_or_default()),
+        MessageContent::Text(text) => {
+            if text.is_empty() {
+                Ok(Vec::new())
+            } else {
+                Ok(vec![AnthropicContentBlock::Text { text: text.clone() }])
+            }
+        }
         MessageContent::Parts(parts) => parts
             .iter()
             .map(|part| match part {

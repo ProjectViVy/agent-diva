@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{fs, time::Duration};
 
 use agent_diva_autodream::{
     AutoDreamService, ManualRunTriggerRequest, ScheduledMonthlyReportOutcome,
@@ -207,7 +207,12 @@ fn notebook_monthly_trigger_generates_report_and_completes_run() {
 fn scheduled_monthly_report_runs_on_first_monday() {
     let temp = tempfile::tempdir().unwrap();
     let service = AutoDreamService::open(temp.path()).unwrap();
-    seed_session(temp.path(), "chat:1", "scheduled monthly report");
+    seed_session_at(
+        temp.path(),
+        "chat:1",
+        "scheduled monthly report",
+        "2026-06-01T01:02:03Z",
+    );
 
     let outcome = service
         .execute_scheduled_monthly_report(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap())
@@ -247,6 +252,34 @@ fn seed_session(workspace: &std::path::Path, key: &str, content: &str) {
     session.add_message("user", content);
     let cloned = session.clone();
     manager.save(&cloned).unwrap();
+}
+
+fn seed_session_at(workspace: &std::path::Path, key: &str, content: &str, timestamp: &str) {
+    let sessions_dir = workspace.join("sessions");
+    fs::create_dir_all(&sessions_dir).unwrap();
+    let safe_key = key.replace([':', '/', '\\'], "_");
+    let path = sessions_dir.join(format!("{safe_key}.jsonl"));
+    let content = serde_json::json!({
+        "_type": "metadata",
+        "key": key,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+        "metadata": {},
+        "title": null,
+        "last_consolidated": null,
+        "last_compacted": 0,
+        "compaction_history": [],
+    })
+    .to_string()
+        + "\n"
+        + &serde_json::json!({
+            "role": "user",
+            "content": content,
+            "timestamp": timestamp,
+            "metadata": {},
+        })
+        .to_string();
+    fs::write(path, content).unwrap();
 }
 
 fn seed_laputa(workspace: &std::path::Path, section: LaputaSectionName, content: &str) {

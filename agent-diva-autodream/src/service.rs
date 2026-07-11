@@ -360,11 +360,93 @@ impl AutoDreamService {
         let status = self.trigger_manual_run(ManualRunTriggerRequest {
             trigger: Some(MONTHLY_REPORT_TRIGGER.to_string()),
         })?;
-        let completed = self.execute_report_trigger(&status.run.id)?;
+        let completed = self.execute_monthly_report_trigger_for_month(
+            &status.run.id,
+            date.year(),
+            date.month(),
+        )?;
         Ok(ScheduledMonthlyReportOutcome::Triggered {
             run_id: completed.run.id,
             month_key,
         })
+    }
+
+    fn execute_monthly_report_trigger_for_month(
+        &self,
+        run_id: &str,
+        year: i32,
+        month: u32,
+    ) -> Result<AutoDreamRunStatus> {
+        let mut run = self.read_run(run_id)?;
+        if run.trigger != MONTHLY_REPORT_TRIGGER {
+            return Err(AutoDreamError::InvalidState(format!(
+                "run {} is not a monthly report trigger",
+                run.id
+            )));
+        }
+
+        let generator = AutoDreamMonthlyReportGenerator::new(self.storage.clone());
+        let mut last_error = None;
+        for attempt in 1..=REPORT_TRIGGER_MAX_ATTEMPTS {
+            match generator.generate_for_month(year, month, Utc::now(), attempt) {
+                Ok(result) => {
+                    let now = Utc::now();
+                    run.state = AutoDreamRunState::Completed;
+                    run.completed_at = Some(now);
+                    run.summary = Some(format!(
+                        "generated rhythm report at {}",
+                        result.path.display()
+                    ));
+                    run.error = None;
+                    self.write_run(&run)?;
+                    self.write_checkpoint_success(&run, now)?;
+                    self.remove_active_lock(run_id)?;
+                    self.append_event(AutoDreamEvent {
+                        id: format!("evt-{}", Uuid::new_v4()),
+                        run_id: Some(run.id.clone()),
+                        kind: "rhythm_report_generated".to_string(),
+                        message: format!("generated {}", result.path.display()),
+                        created_at: now,
+                    })?;
+                    return self.status_from_run(run, None);
+                }
+                Err(error) => {
+                    last_error = Some(error);
+                    if attempt < REPORT_TRIGGER_MAX_ATTEMPTS {
+                        self.append_event(AutoDreamEvent {
+                            id: format!("evt-{}", Uuid::new_v4()),
+                            run_id: Some(run.id.clone()),
+                            kind: "rhythm_report_retry".to_string(),
+                            message: format!(
+                                "retrying {} after attempt {attempt} of {}",
+                                run.trigger, REPORT_TRIGGER_MAX_ATTEMPTS
+                            ),
+                            created_at: Utc::now(),
+                        })?;
+                    }
+                }
+            }
+        }
+
+        let error = last_error.unwrap_or_else(|| {
+            AutoDreamError::InvalidState("rhythm report generation failed".to_string())
+        });
+        let now = Utc::now();
+        run.state = AutoDreamRunState::Failed;
+        run.completed_at = Some(now);
+        run.summary = Some("rhythm report generation failed".to_string());
+        run.error = Some(error.to_string());
+        self.write_run(&run)?;
+        self.remove_active_lock(run_id)?;
+        Self::metrics().record_failure();
+        self.append_event(AutoDreamEvent {
+            id: format!("evt-{}", Uuid::new_v4()),
+            run_id: Some(run.id.clone()),
+            kind: "rhythm_report_failed".to_string(),
+            message: error.to_string(),
+            created_at: now,
+        })?;
+        Err(error)
     }
 
     fn generate_report_for_trigger(

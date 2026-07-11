@@ -82,7 +82,7 @@ fn list_masks(masks_dir: &std::path::Path) -> Result<()> {
         return Ok(());
     }
 
-    println!("{:<4} {:<20} {:<10} {}", "", "Name", "Icon", "Description");
+    println!("{:<4} {:<20} {:<10} Description", "", "Name", "Icon");
     println!("{}", "-".repeat(80));
     for mask in masks {
         let active = current == Some(mask.frontmatter.name.as_str());

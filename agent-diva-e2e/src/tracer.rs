@@ -77,7 +77,7 @@ impl E2ETracer {
             "{}_{}_{}.json",
             scenario_name.replace(' ', "_"),
             Utc::now().format("%Y%m%d_%H%M%S"),
-            uuid::Uuid::new_v4().to_string()[..8].to_string()
+            &uuid::Uuid::new_v4().to_string()[..8]
         );
         let path = self.trace_dir.join(filename);
         let json = serde_json::to_string_pretty(&entry)?;

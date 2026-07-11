@@ -236,10 +236,9 @@ impl ToolAssembly {
 
         if self.builtin_config.web_search
             && self.network_config.web.search.enabled
-            && self
-                .plan_phase
-                .as_ref()
-                .is_none_or(|phase| allows_for_phase(phase, builtin_tool_capability("web_search")))
+            && self.plan_phase.as_ref().map_or(true, |phase| {
+                allows_for_phase(phase, builtin_tool_capability("web_search"))
+            })
         {
             registry.register(Arc::new(WebSearchTool::with_provider_and_max_results(
                 self.network_config.web.search.provider.clone(),
@@ -250,10 +249,9 @@ impl ToolAssembly {
 
         if self.builtin_config.web_fetch
             && self.network_config.web.fetch.enabled
-            && self
-                .plan_phase
-                .as_ref()
-                .is_none_or(|phase| allows_for_phase(phase, builtin_tool_capability("web_fetch")))
+            && self.plan_phase.as_ref().map_or(true, |phase| {
+                allows_for_phase(phase, builtin_tool_capability("web_fetch"))
+            })
         {
             registry.register(Arc::new(WebFetchTool::new()));
         }

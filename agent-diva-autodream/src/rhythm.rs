@@ -279,6 +279,7 @@ mod tests {
             reasoning_content: None,
             thinking_blocks: None,
             token_usage: None,
+            metadata: Default::default(),
         });
         manager.save(&session).unwrap();
 
@@ -330,6 +331,7 @@ mod tests {
             reasoning_content: None,
             thinking_blocks: None,
             token_usage: None,
+            metadata: Default::default(),
         });
         manager.save(&session).unwrap();
 

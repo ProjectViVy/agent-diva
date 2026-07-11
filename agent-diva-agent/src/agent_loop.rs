@@ -1719,7 +1719,7 @@ mod tests {
         assert!(agent
             .context
             .build_system_prompt(None)
-            .contains("L2 Palace Memory"));
+            .contains("Memory Startup Status"));
     }
 
     #[cfg(feature = "mentle")]
@@ -1847,7 +1847,7 @@ mod tests {
         assert!(agent
             .context
             .build_system_prompt(None)
-            .contains("L2 Palace Memory"));
+            .contains("Memory Startup Status"));
     }
 
     #[cfg(feature = "mentle")]

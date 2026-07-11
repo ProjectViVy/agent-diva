@@ -12,7 +12,7 @@ use agent_diva_agent::compaction::ContextCompactor;
 use agent_diva_agent::context_budget::BudgetConfig;
 use agent_diva_agent::token_estimate::{estimate_tokens, estimate_total_tokens};
 use agent_diva_core::session::{CompactTrigger, Session};
-use agent_diva_providers::OpenAiCompatibleClient;
+use agent_diva_providers::{LLMProvider, OpenAiCompatibleClient};
 use std::sync::Arc;
 
 fn build_realistic_conversation() -> Vec<(String, String)> {
@@ -60,7 +60,7 @@ fn conversation_to_session(conversation: &[(String, String)]) -> Session {
     session
 }
 
-fn create_real_provider() -> Arc<OpenAiCompatibleClient> {
+fn create_real_provider() -> Arc<dyn LLMProvider> {
     let api_key = std::env::var("TEAKACLOUD_API_KEY")
         .expect("TEAKACLOUD_API_KEY is required for this ignored real-provider test");
 
@@ -105,26 +105,27 @@ async fn test_real_compaction() {
     println!("estimated tokens: {}", pre_tokens);
 
     let provider = create_real_provider();
-    let compactor = ContextCompactor::new(provider, config);
+    let model = std::env::var("COMPACTION_TEST_MODEL").unwrap_or_else(|_| "MiniMax-M3".to_string());
 
-    let trigger = CompactTrigger::ProactiveThreshold {
-        used_tokens: pre_tokens,
-        threshold_tokens: (pre_tokens as f64 * 0.8) as usize,
-    };
-
-    let result = compactor
-        .compact_session(&session, trigger)
-        .await
-        .expect("compaction should succeed");
+    let result = ContextCompactor::compact(
+        &session,
+        &config,
+        provider,
+        &model,
+        CompactTrigger::Manual,
+        &session.compaction_history,
+    )
+    .await
+    .expect("compaction should succeed");
 
     print_separator("compaction result");
-    println!("summary chars: {}", result.summary.content.len());
+    println!("summary chars: {}", result.summary.summary.len());
     println!(
         "summary estimated tokens: {}",
-        estimate_tokens(&result.summary.content)
+        estimate_tokens(&result.summary.summary)
     );
-    println!("kept recent messages: {}", result.recent_messages.len());
+    println!("new compacted index: {}", result.new_compacted_index);
 
-    assert!(!result.summary.content.trim().is_empty());
-    assert!(!result.recent_messages.is_empty());
+    assert!(!result.summary.summary.trim().is_empty());
+    assert!(result.new_compacted_index > session.last_compacted);
 }
