@@ -3,9 +3,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { Loader2, AlertCircle, Inbox } from 'lucide-vue-next';
-import PlanStatusCard from './PlanStatusCard.vue';
-import TodoListPanel from './TodoListPanel.vue';
 import type { PlanSummary, PlanDetail } from '../../api/planning';
+import PlanDocument from './PlanDocument.vue';
 
 const { t } = useI18n();
 
@@ -157,7 +156,7 @@ onUnmounted(() => {
           </div>
           <div class="plan-item-meta">
             <span class="plan-item-phase">{{ plan.phase }}</span>
-            <span class="plan-item-progress">{{ plan.todo_completed }}/{{ plan.todo_count }}</span>
+            <span class="plan-item-progress">{{ plan.phase }}</span>
           </div>
         </button>
       </div>
@@ -177,14 +176,16 @@ onUnmounted(() => {
       </div>
 
       <!-- Plan detail content -->
-      <template v-else-if="selectedPlan">
-        <PlanStatusCard :plan="selectedPlan" />
-        <TodoListPanel
-          :todos="selectedPlan.todos"
-          :plan-title="selectedPlan.title"
-          :plan-phase="selectedPlan.phase"
-        />
-      </template>
+      <PlanDocument
+        v-else-if="selectedPlan"
+        :title="selectedPlan.title"
+        :goal="selectedPlan.goal"
+        :strategy="selectedPlan.strategy"
+        :steps="selectedPlan.steps"
+        :assumptions="selectedPlan.assumptions"
+        :risks="selectedPlan.risks"
+        :open-questions="selectedPlan.open_questions"
+      />
     </div>
   </div>
 </template>
@@ -337,4 +338,5 @@ onUnmounted(() => {
   flex: 1;
   gap: 0.5rem;
 }
+
 </style>
