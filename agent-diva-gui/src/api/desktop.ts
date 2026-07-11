@@ -168,8 +168,8 @@ export const approveActivePlanExecution = (request: PlanApprovalRequest) =>
 export const deletePlan = (planId: string) =>
   invoke<void>("delete_plan", { planId });
 
-export const returnActivePlanToDraft = () =>
-  invoke<PlanRuntimeState>("return_active_plan_to_draft");
+export const returnActivePlanToDraft = (sessionKey?: string) =>
+  invoke<PlanRuntimeState>("return_active_plan_to_draft", { sessionKey });
 
 export const saveRawConfig = (raw: string) =>
   invoke<void>("save_config", { raw });

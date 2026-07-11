@@ -986,7 +986,9 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
 async function restoreActivePlanRuntime() {
   if (!isTauri()) return;
   try {
-    const plan = await invoke<PlanDetail | null>('get_active_plan');
+    const plan = await invoke<PlanDetail | null>('get_active_plan', {
+      sessionKey: currentSessionKey.value || `gui:${currentChatId.value}`,
+    });
     if (!plan || !plan.id) {
       // Do not wipe a live pending approval card when the backend returns empty
       // (race after plan-report-ready, or transient list failure).
@@ -1046,7 +1048,9 @@ async function revokePlanExecution(feedback = '') {
     return;
   }
   try {
-    const reopened = await returnActivePlanToDraft();
+    const reopened = await returnActivePlanToDraft(
+      currentSessionKey.value || `gui:${currentChatId.value}`,
+    );
     syncPlanRuntime(reopened);
     if (feedback.trim()) await sendMessage(feedback.trim(), undefined, 'plan');
   } catch (error) {

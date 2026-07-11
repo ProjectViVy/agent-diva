@@ -449,25 +449,25 @@ pub async fn restore_plan_todo(
 }
 
 #[tauri::command]
-pub async fn get_active_plan(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
+pub async fn get_active_plan(
+    #[allow(non_snake_case)] sessionKey: Option<String>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
     let reports = get_plan_reports(state).await?;
+    let session_key = sessionKey.as_deref().map(str::trim).filter(|key| !key.is_empty());
     let active = reports
         .as_array()
         .and_then(|reports| {
             reports
                 .iter()
                 .find(|report| {
-                    report
-                        .pointer("/report/status")
-                        .and_then(|value| value.as_str())
-                        == Some("AwaitingApproval")
+                    report_matches_session(report, session_key)
+                        && plan_report_status(report) == "AwaitingApproval"
                 })
                 .or_else(|| {
                     reports.iter().find(|report| {
-                        report
-                            .pointer("/report/status")
-                            .and_then(|value| value.as_str())
-                            == Some("Approved")
+                        report_matches_session(report, session_key)
+                            && plan_report_status(report) == "Approved"
                     })
                 })
         })
@@ -1341,11 +1341,12 @@ pub async fn approve_active_plan_execution(
 
 #[tauri::command]
 pub async fn return_active_plan_to_draft(
+    #[allow(non_snake_case)] sessionKey: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, String> {
     // GUI only needs the JSON shape; do not force PlanRuntimeState enum decode
     // (report status AwaitingApproval is not a PlanStatus variant).
-    let value = get_active_plan(state).await?;
+    let value = get_active_plan(sessionKey, state).await?;
     if value.is_null() {
         return Err("No active plan to return to draft".to_string());
     }
@@ -1379,6 +1380,33 @@ fn plan_report_id(report: &serde_json::Value) -> Option<&str> {
                 .pointer("/report/id/0")
                 .and_then(|value| value.as_str())
         })
+}
+
+fn report_matches_session(report: &serde_json::Value, session_key: Option<&str>) -> bool {
+    session_key
+        .map(|key| {
+            report
+                .pointer("/report/session_key")
+                .and_then(|value| value.as_str())
+                == Some(key)
+        })
+        .unwrap_or(true)
+}
+
+#[cfg(test)]
+mod plan_session_tests {
+    use super::report_matches_session;
+
+    #[test]
+    fn active_plan_matching_is_limited_to_the_requested_session() {
+        let report = serde_json::json!({
+            "report": { "session_key": "gui:plan-chat" }
+        });
+
+        assert!(report_matches_session(&report, Some("gui:plan-chat")));
+        assert!(!report_matches_session(&report, Some("gui:agent-chat")));
+        assert!(report_matches_session(&report, None));
+    }
 }
 
 fn plan_report_revision(report: &serde_json::Value) -> Option<i64> {
