@@ -87,7 +87,7 @@ const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; deta
         <Loader2 v-if="approving" :size="15" class="plan-approval-spinner" /><Check v-else :size="15" />
         {{ approving ? '正在批准…' : plan.revision == null ? '需刷新 revision' : '批准并进入执行' }}
       </button>
-      <button type="button" class="plan-approval-revoke" :disabled="approving" @click="editingFeedback = !editingFeedback"><Pencil :size="15" /> 修改计划</button>
+      <button type="button" class="plan-approval-revoke" :disabled="approving" @click="editingFeedback = !editingFeedback"><Pencil :size="15" /> 退回修改</button>
       <button type="button" class="plan-approval-refresh" :disabled="approving" @click="emit('refresh')"><RefreshCw :size="15" /> 刷新</button>
     </div>
     <div v-if="editingFeedback" class="plan-approval-feedback">

@@ -1046,7 +1046,12 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         <button type="button" class="planning-dialog-close" title="关闭计划历史" aria-label="关闭计划历史" @click="planningOverlayOpen = false">
           <X :size="18" />
         </button>
-        <PlanningView />
+        <PlanningView
+          :approving="approvingPlan"
+          @approve="emit('approve-plan', $event)"
+          @revoke="emit('revoke-plan', $event)"
+          @refresh="emit('refresh-plan')"
+        />
       </section>
     </div>
 

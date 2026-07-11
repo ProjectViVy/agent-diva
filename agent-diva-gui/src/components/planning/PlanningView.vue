@@ -4,12 +4,20 @@ import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { Loader2, AlertCircle, Inbox } from 'lucide-vue-next';
 import type { PlanSummary, PlanDetail } from '../../api/planning';
+import PlanApprovalCard, { type ExecutionContextPolicy } from './PlanApprovalCard.vue';
 import PlanDocument from './PlanDocument.vue';
 
 const { t } = useI18n();
 
 const props = defineProps<{
   initialPlanId?: string | null;
+  approving?: boolean;
+}>();
+
+const emit = defineEmits<{
+  (event: 'approve', payload: { contextPolicy: ExecutionContextPolicy }): void;
+  (event: 'revoke', feedback: string): void;
+  (event: 'refresh'): void;
 }>();
 
 // --- State ---
@@ -30,6 +38,29 @@ const sortedPlans = computed(() => {
     if (!a.is_active && b.is_active) return 1;
     return 0;
   });
+});
+
+const selectedPlanIsActive = computed(() =>
+  plans.value.some((plan) => plan.id === selectedPlanId.value && plan.is_active),
+);
+
+const selectedPlanRuntime = computed(() => {
+  if (!selectedPlan.value) return null;
+  const plan = selectedPlan.value;
+  return {
+    plan_id: plan.id,
+    revision: plan.revision,
+    title: plan.title,
+    goal: plan.goal,
+    phase: plan.phase,
+    status: plan.status,
+    strategy: plan.strategy,
+    summary: `${plan.title}: ${plan.goal}`,
+    steps: plan.steps,
+    todos: plan.todos,
+    created_at: plan.created_at,
+    updated_at: plan.updated_at,
+  };
 });
 
 // --- Data loading ---
@@ -176,16 +207,25 @@ onUnmounted(() => {
       </div>
 
       <!-- Plan detail content -->
-      <PlanDocument
-        v-else-if="selectedPlan"
-        :title="selectedPlan.title"
-        :goal="selectedPlan.goal"
-        :strategy="selectedPlan.strategy"
-        :steps="selectedPlan.steps"
-        :assumptions="selectedPlan.assumptions"
-        :risks="selectedPlan.risks"
-        :open-questions="selectedPlan.open_questions"
-      />
+      <template v-else-if="selectedPlan">
+        <PlanApprovalCard
+          v-if="selectedPlanIsActive && selectedPlan.phase === 'AwaitingApproval' && selectedPlanRuntime"
+          :plan="selectedPlanRuntime"
+          :approving="approving"
+          @approve="emit('approve', $event)"
+          @revoke="emit('revoke', $event)"
+          @refresh="emit('refresh')"
+        />
+        <PlanDocument
+          :title="selectedPlan.title"
+          :goal="selectedPlan.goal"
+          :strategy="selectedPlan.strategy"
+          :steps="selectedPlan.steps"
+          :assumptions="selectedPlan.assumptions"
+          :risks="selectedPlan.risks"
+          :open-questions="selectedPlan.open_questions"
+        />
+      </template>
     </div>
   </div>
 </template>
