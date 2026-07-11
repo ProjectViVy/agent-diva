@@ -8,6 +8,7 @@ pub mod events;
 pub mod ids;
 pub mod model;
 pub mod policy;
+pub mod report;
 pub mod render;
 pub mod store;
 
@@ -16,3 +17,4 @@ pub use events::*;
 pub use ids::*;
 pub use model::*;
 pub use policy::*;
+pub use report::*;
