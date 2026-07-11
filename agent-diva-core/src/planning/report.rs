@@ -522,4 +522,22 @@ mod tests {
         );
         assert_ne!(revision_hash(COMPLETE_REPORT), revision_hash("# changed"));
     }
+
+    /// GUI used to `.trim()` plan bodies for display; that drops the trailing
+    /// newline always added by `normalize_report_markdown` and breaks approve.
+    #[test]
+    fn revision_hash_survives_display_trim_when_renormalized() {
+        let stored = normalize_report_markdown(COMPLETE_REPORT);
+        let display_trimmed = stored.trim();
+        assert_ne!(
+            revision_hash(&stored),
+            revision_hash(display_trimmed),
+            "trim alone must change the hash (documents the bug)"
+        );
+        assert_eq!(
+            revision_hash(&stored),
+            revision_hash(&normalize_report_markdown(display_trimmed)),
+            "desktop approve path re-normalizes before hashing"
+        );
+    }
 }

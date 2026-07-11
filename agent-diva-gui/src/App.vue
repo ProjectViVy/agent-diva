@@ -782,13 +782,12 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
     return;
   }
   // Normalize report statuses into the phases the chat card/bar understand.
+  // Keep markdown/summary/strategy byte-stable for revision_hash on approve;
+  // only display fields (title/goal) may be sanitized.
   const normalized: PlanRuntimeState = {
     ...plan,
     title: sanitizePlanText(plan.title) || plan.title || 'Plan',
     goal: sanitizePlanText(plan.goal) || plan.goal,
-    markdown: plan.markdown ? sanitizePlanText(plan.markdown) : plan.markdown,
-    summary: sanitizePlanText(plan.summary) || plan.summary,
-    strategy: plan.strategy == null ? null : sanitizePlanText(plan.strategy) || plan.strategy,
   };
   if (isAwaitingApprovalPhase(normalized)) {
     normalized.phase = 'AwaitingApproval';
@@ -827,7 +826,14 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
 function sanitizePlanText(value: string | null | undefined): string {
   if (!value) return '';
   // Drop UTF-8 replacement chars (common "计��报告" corruption) and trim.
+  // Display-only: do not use this on plan body markdown used for revision_hash.
   return value.replace(/\uFFFD/g, '').trim();
+}
+
+/** Keep plan body stable for server-side revision_hash (trailing newline matters). */
+function preservePlanMarkdown(value: string | null | undefined): string {
+  if (typeof value !== 'string') return '';
+  return value;
 }
 
 function planReportId(value: unknown): string | null {
@@ -880,8 +886,11 @@ function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null
   };
 
   const id = planReportId(reportMeta.id);
-  const markdown = sanitizePlanText(revisionMeta.markdown || (detail.markdown as string) || '');
-  if (!id || !markdown) return null;
+  // Exact body from the report event — must match server-stored bytes for revision_hash.
+  const markdown = preservePlanMarkdown(
+    revisionMeta.markdown || (typeof detail.markdown === 'string' ? detail.markdown : ''),
+  );
+  if (!id || !markdown.trim()) return null;
 
   const titleFromMarkdown = markdown
     .split('\n')

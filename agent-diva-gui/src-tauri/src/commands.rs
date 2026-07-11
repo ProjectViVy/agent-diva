@@ -12,7 +12,9 @@ use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusRepor
 use agent_diva_core::bus::PlanRuntimeState;
 use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
-use agent_diva_core::planning::{revision_hash, ExecutionContextPolicy};
+use agent_diva_core::planning::{
+    normalize_report_markdown, revision_hash, ExecutionContextPolicy,
+};
 use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
@@ -1264,6 +1266,9 @@ pub async fn approve_active_plan_execution(
         .ok_or_else(|| "expected_revision is required".to_string())?;
     let markdown = request.get("markdown").and_then(|value| value.as_str())
         .ok_or_else(|| "markdown is required".to_string())?;
+    // Agent stores normalize_report_markdown(body). Display paths may trim the
+    // body (stripping the trailing newline), which must not change the hash.
+    let markdown = normalize_report_markdown(markdown);
     let context_policy = match request
         .get("context_policy")
         .or_else(|| request.get("contextPolicy"))

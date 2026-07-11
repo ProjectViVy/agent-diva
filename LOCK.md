@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T16:00:00+08:00`
-- Last Heartbeat: `2026-07-12T16:40:00+08:00`
+- Started At: `2026-07-12T17:00:00+08:00`
+- Last Heartbeat: `2026-07-12T17:20:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -44,4 +44,4 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
-- `2026-07-12`: Released plan-approve registry share lock after fixing `EphemeralPlanRegistry` Default to use the process OnceLock and making `PlanningService::new()` explicit. Regression tests and cargo check (core/manager/agent) passed. Manual GUI smoke (generate → execute) remains pending after gateway restart.
+- `2026-07-12`: Released plan revision-hash conflict lock. GUI no longer trims plan body for approve; Tauri re-normalizes markdown before hashing. Core regression tests + GUI check/typecheck passed. Manual desktop smoke still pending after rebuild/restart.
