@@ -98,6 +98,28 @@ pub struct UpdatePlanRequest {
     pub strategy: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePlanReportRequest {
+    pub session_key: String,
+    pub title: String,
+    pub markdown: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppendPlanReportRevisionRequest {
+    pub expected_revision: i64,
+    pub title: String,
+    pub markdown: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovePlanReportRequest {
+    pub revision: i64,
+    pub revision_hash: String,
+    pub context_policy: ExecutionContextPolicy,
+    pub compacted_context: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------

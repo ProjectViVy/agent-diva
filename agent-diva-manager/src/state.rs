@@ -17,7 +17,10 @@ use std::time::Instant;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::mcp_service::{McpServerDto, McpServerUpsert};
-use crate::planning_service::{CreatePlanRequest, PlanDetail, PlanSummary, UpdatePlanRequest};
+use crate::planning_service::{
+    AppendPlanReportRevisionRequest, ApprovePlanReportRequest, CreatePlanReportRequest,
+    CreatePlanRequest, PlanDetail, PlanSummary, UpdatePlanRequest,
+};
 use crate::skill_service::SkillDto;
 
 #[derive(Clone)]
@@ -209,6 +212,23 @@ pub enum ManagerCommand {
     ),
     ReturnActivePlanToDraft(
         oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
+    ),
+    ListPlanReports(
+        oneshot::Sender<Result<Vec<agent_diva_core::planning::PlanReportDetail>, String>>,
+    ),
+    CreatePlanReport(
+        CreatePlanReportRequest,
+        oneshot::Sender<Result<agent_diva_core::planning::PlanReportDetail, String>>,
+    ),
+    AppendPlanReportRevision(
+        String,
+        AppendPlanReportRevisionRequest,
+        oneshot::Sender<Result<agent_diva_core::planning::PlanReportDetail, String>>,
+    ),
+    ApprovePlanReport(
+        String,
+        ApprovePlanReportRequest,
+        oneshot::Sender<Result<agent_diva_core::planning::ExecutionSession, String>>,
     ),
     // Companion / HTTP management plane for GUI and remote administration.
     Provider(ProviderCommand),

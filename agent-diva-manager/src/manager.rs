@@ -391,6 +391,10 @@ impl Manager {
                             self.handle_approve_active_plan(request, reply).await;
                         }
                         ManagerCommand::ReturnActivePlanToDraft(reply) => self.handle_return_active_plan_to_draft(reply).await,
+                        ManagerCommand::ListPlanReports(reply) => self.handle_list_plan_reports(reply).await,
+                        ManagerCommand::CreatePlanReport(request, reply) => self.handle_create_plan_report(request, reply).await,
+                        ManagerCommand::AppendPlanReportRevision(report_id, request, reply) => self.handle_append_plan_report_revision(report_id, request, reply).await,
+                        ManagerCommand::ApprovePlanReport(report_id, request, reply) => self.handle_approve_plan_report(report_id, request, reply).await,
                     }
                 }
             }
@@ -542,6 +546,84 @@ impl Manager {
             return;
         };
         let result = svc.list_plans().await.map_err(|e| e.to_string());
+        let _ = reply.send(result);
+    }
+
+    async fn handle_list_plan_reports(
+        &mut self,
+        reply: oneshot::Sender<Result<Vec<agent_diva_core::planning::PlanReportDetail>, String>>,
+    ) {
+        let result = match self.ensure_planning_service().await {
+            Some(service) => service
+                .list_reports()
+                .await
+                .map_err(|error| error.to_string()),
+            None => Err("Planning service unavailable".to_string()),
+        };
+        let _ = reply.send(result);
+    }
+
+    async fn handle_create_plan_report(
+        &mut self,
+        request: crate::planning_service::CreatePlanReportRequest,
+        reply: oneshot::Sender<Result<agent_diva_core::planning::PlanReportDetail, String>>,
+    ) {
+        let result = match self.ensure_planning_service().await {
+            Some(service) => service
+                .create_report(
+                    &request.session_key,
+                    &request.title,
+                    &request.markdown,
+                    agent_diva_core::planning::PlanRevisionAuthor::Agent,
+                )
+                .await
+                .map_err(|error| error.to_string()),
+            None => Err("Planning service unavailable".to_string()),
+        };
+        let _ = reply.send(result);
+    }
+
+    async fn handle_append_plan_report_revision(
+        &mut self,
+        report_id: String,
+        request: crate::planning_service::AppendPlanReportRevisionRequest,
+        reply: oneshot::Sender<Result<agent_diva_core::planning::PlanReportDetail, String>>,
+    ) {
+        let result = match self.ensure_planning_service().await {
+            Some(service) => service
+                .append_report_revision(
+                    &report_id,
+                    request.expected_revision,
+                    &request.title,
+                    &request.markdown,
+                    agent_diva_core::planning::PlanRevisionAuthor::User,
+                )
+                .await
+                .map_err(|error| error.to_string()),
+            None => Err("Planning service unavailable".to_string()),
+        };
+        let _ = reply.send(result);
+    }
+
+    async fn handle_approve_plan_report(
+        &mut self,
+        report_id: String,
+        request: crate::planning_service::ApprovePlanReportRequest,
+        reply: oneshot::Sender<Result<agent_diva_core::planning::ExecutionSession, String>>,
+    ) {
+        let result = match self.ensure_planning_service().await {
+            Some(service) => service
+                .approve_report_revision(
+                    &report_id,
+                    request.revision,
+                    &request.revision_hash,
+                    request.context_policy,
+                    request.compacted_context.as_deref(),
+                )
+                .await
+                .map_err(|error| error.to_string()),
+            None => Err("Planning service unavailable".to_string()),
+        };
         let _ = reply.send(result);
     }
 
