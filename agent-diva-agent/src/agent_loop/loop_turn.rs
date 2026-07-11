@@ -3,7 +3,7 @@ use crate::compaction::ContextCompactor;
 use crate::consolidation;
 use crate::context_budget::check_budget;
 use crate::mask::ToolPolicy;
-use crate::planning::{builtin_tool_capability, inject_plan_context};
+use crate::planning::builtin_tool_capability;
 use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::bus::{
     AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
@@ -492,25 +492,9 @@ impl AgentLoop {
             Some(&msg.chat_id),
             &compaction_history,
         );
-        if let Some(planning) = &self.tool_config.planning {
-            match inject_plan_context(planning.store.as_ref()).await {
-                Ok(Some(block)) => {
-                    messages.insert(1, agent_diva_providers::Message::system(block));
-                }
-                Ok(None) if plan_guard_active => {
-                    messages.insert(1, agent_diva_providers::Message::system(
-                        "You are in Plan mode. Create or update a plan record only. Use Inspect and planning-record tools such as plan_create, plan_show, todo_show, and plan_submit. Do not use todo_write or perform implementation, file modification, shell execution, spawning, scheduling, MCP actions, or other external actions. Stop after presenting the plan and wait for user approval.",
-                    ));
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    warn!("Planning context injection failed (non-fatal): {}", e);
-                }
-            }
-        } else if plan_guard_active {
-            warn!("Plan mode requested but planning runtime is not configured");
+        if plan_guard_active {
             messages.insert(1, agent_diva_providers::Message::system(
-                "You are in Plan mode, but the planning runtime is unavailable. Do not perform implementation or external actions; respond with a plan and wait for user approval.",
+                "You are in Plan mode. Explore with read-only tools only, then produce one standard Markdown plan report for user review. Do not call planning/TODO tools, do not modify files, and do not begin implementation. The report must include these headings: ## 目标, ## 范围, ## 计划步骤, ## 风险与假设, ## 验证方法.",
             ));
         }
         if let Some(markdown) = msg

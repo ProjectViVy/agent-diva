@@ -1,6 +1,6 @@
 //! Immutable Markdown plan-report contracts.
 //!
-//! A plan report is a review artifact, not a tool-maintained task graph.  The
+//! A plan report is a review artifact, not a tool-maintained task graph. The
 //! report body is canonical Markdown; revisions are append-only and approval
 //! is bound to one exact revision.
 
@@ -10,14 +10,12 @@ use thiserror::Error;
 
 use super::ids::PlanId;
 
-/// The actor that produced a report revision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlanRevisionAuthor {
     Agent,
     User,
 }
 
-/// Review lifecycle for the current revision of a report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlanReportStatus {
     Draft,
@@ -26,7 +24,6 @@ pub enum PlanReportStatus {
     Closed,
 }
 
-/// A durable report identity. Its body lives only in [`PlanRevision`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanReport {
     pub id: PlanId,
@@ -37,7 +34,6 @@ pub struct PlanReport {
     pub updated_at: DateTime<Utc>,
 }
 
-/// Runtime state of an execution session started from an approved revision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionSessionStatus {
     Executing,
@@ -47,7 +43,6 @@ pub enum ExecutionSessionStatus {
     Partial,
 }
 
-/// The durable execution boundary created by approval.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionSession {
     pub id: String,
@@ -60,8 +55,6 @@ pub struct ExecutionSession {
     pub updated_at: DateTime<Utc>,
 }
 
-/// A short-lived execution work item. It is intentionally not linked to a
-/// plan step or report section.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionTodo {
     pub id: String,
@@ -91,7 +84,6 @@ pub enum ExecutionTodoPriority {
     High,
 }
 
-/// One immutable Markdown revision of a report.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanRevision {
     pub report_id: PlanId,
@@ -102,7 +94,6 @@ pub struct PlanRevision {
     pub created_at: DateTime<Utc>,
 }
 
-/// The execution-context boundary selected when approving a report revision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionContextPolicy {
     Retain,
@@ -110,7 +101,6 @@ pub enum ExecutionContextPolicy {
     Clear,
 }
 
-/// Immutable record that starts one execution from one approved revision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanRevisionApproval {
     pub report_id: PlanId,
@@ -120,8 +110,6 @@ pub struct PlanRevisionApproval {
     pub approved_at: DateTime<Utc>,
 }
 
-/// User-visible report validation failures. These are never tool protocol
-/// failures: drafts remain editable and only approval is blocked.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum PlanReportValidationError {
     #[error("计划报告缺少标题")]
@@ -132,7 +120,6 @@ pub enum PlanReportValidationError {
 
 const REQUIRED_SECTIONS: [&str; 5] = ["目标", "范围", "计划步骤", "风险与假设", "验证方法"];
 
-/// Validate the canonical report format before approval.
 pub fn validate_report_markdown(markdown: &str) -> Result<(), PlanReportValidationError> {
     if !markdown
         .lines()
@@ -150,10 +137,7 @@ pub fn validate_report_markdown(markdown: &str) -> Result<(), PlanReportValidati
     Ok(())
 }
 
-/// Return a deterministic revision hash for optimistic approval.
 pub fn revision_hash(markdown: &str) -> String {
-    // The standard library has no stable hashing contract, so use the
-    // persisted bytes directly with a simple, deterministic FNV-1a digest.
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in markdown.as_bytes() {
         hash ^= u64::from(*byte);
