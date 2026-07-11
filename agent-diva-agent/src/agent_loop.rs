@@ -230,10 +230,6 @@ struct ToolTurnOptions<'a> {
 /// Terminal plans remain available for history and audit, but they do not keep
 /// an ordinary conversation in a closed capability state. An explicit plan
 /// request is deliberately stricter than a persisted Execute/Verify phase.
-///
-/// Draft-like phases (`Plan` / `Explore`) only constrain **plan mode**. A stale
-/// global active-plan singleton must not lock ordinary agent-mode chats (and
-/// must not force every tool turn to dump a "历史计划" card into the wrong session).
 pub(crate) fn policy_phase_for(
     active_plan: Option<&PlanRuntimeState>,
     plan_mode: bool,
@@ -242,13 +238,9 @@ pub(crate) fn policy_phase_for(
         return Some(PlanPhase::Plan);
     }
 
-    active_plan.and_then(|plan| match &plan.phase {
-        // Terminal: no capability lock.
+    active_plan.and_then(|plan| match plan.phase {
         PlanPhase::Completed | PlanPhase::Failed | PlanPhase::Partial => None,
-        // Drafts: only via explicit plan_mode (handled above). Never bleed into agent mode.
-        PlanPhase::Plan | PlanPhase::Explore => None,
-        // Approval / execution barriers still apply across mode switches.
-        other => Some(other.clone()),
+        _ => Some(plan.phase.clone()),
     })
 }
 
@@ -931,7 +923,6 @@ mod tests {
             status: agent_diva_core::planning::model::PlanStatus::InProgress,
             strategy: None,
             summary: "Plan: Goal".to_string(),
-            markdown: None,
             steps: Vec::new(),
             todos: Vec::new(),
             created_at: chrono::Utc::now(),
@@ -949,28 +940,6 @@ mod tests {
             plan.phase = terminal;
             assert_eq!(policy_phase_for(Some(&plan), false), None);
         }
-
-        // Stale draft active plans must not lock agent-mode chats.
-        for draft in [PlanPhase::Plan, PlanPhase::Explore] {
-            plan.phase = draft.clone();
-            assert_eq!(
-                policy_phase_for(Some(&plan), false),
-                None,
-                "draft phase {draft:?} must not constrain agent mode"
-            );
-            assert_eq!(
-                policy_phase_for(Some(&plan), true),
-                Some(PlanPhase::Plan),
-                "explicit plan mode still constrains tools"
-            );
-        }
-
-        // Approval barrier still applies outside plan mode.
-        plan.phase = PlanPhase::AwaitingApproval;
-        assert_eq!(
-            policy_phase_for(Some(&plan), false),
-            Some(PlanPhase::AwaitingApproval)
-        );
     }
     #[cfg(feature = "mentle")]
     use crate::mentle_runtime::{

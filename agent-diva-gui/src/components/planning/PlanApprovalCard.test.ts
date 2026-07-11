@@ -43,30 +43,15 @@ const plan: PlanRuntimeState = {
 };
 
 describe('PlanApprovalCard', () => {
-  it('shows the full plan body by default (not goal-only)', () => {
+  it('shows the report shell and expands the markdown plan', async () => {
     const wrapper = mount(PlanApprovalCard, { props: { plan } });
 
-    expect(wrapper.text()).toContain('待审批');
     expect(wrapper.text()).toContain('发布准备计划');
-    expect(wrapper.text()).toContain('完成发布前检查');
+    expect(wrapper.text()).not.toContain('检查依赖');
+
+    await wrapper.get('.plan-approval-details-toggle').trigger('click');
     expect(wrapper.text()).toContain('检查依赖');
     expect(wrapper.text()).toContain('运行验证');
-    // Context options stay collapsed until expanded.
-    expect(wrapper.text()).not.toContain('压缩上下文');
-  });
-
-  it('resolves a generic Plan title from markdown H1', () => {
-    const wrapper = mount(PlanApprovalCard, {
-      props: {
-        plan: {
-          ...plan,
-          title: 'Plan',
-          goal: '完成发布前检查',
-        },
-      },
-    });
-    expect(wrapper.get('.plan-approval-title').text()).toBe('发布准备计划');
-    expect(wrapper.text()).not.toMatch(/计划\s*Plan\s*Plan/);
   });
 
   it('emits approve and edit actions', async () => {
@@ -83,7 +68,6 @@ describe('PlanApprovalCard', () => {
 
   it('passes the selected execution context policy', async () => {
     const wrapper = mount(PlanApprovalCard, { props: { plan } });
-    await wrapper.get('.plan-approval-details-toggle').trigger('click');
     await wrapper.get('input[value="clear"]').setValue();
     await wrapper.get('.plan-approval-approve').trigger('click');
     expect(wrapper.emitted('approve')?.[0]).toEqual([{ contextPolicy: 'clear' }]);

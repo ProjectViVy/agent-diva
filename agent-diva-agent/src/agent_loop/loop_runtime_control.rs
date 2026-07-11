@@ -424,18 +424,6 @@ impl AgentLoop {
         let todos = planning.store.get_todos(plan_id).await.ok()?;
         let revision = planning.store.get_plan_revision(plan_id).await.ok()?;
 
-        // Prefer the report body when this id is a plan report; fall back to
-        // deterministic plan rendering so history cards stay complete.
-        let report_markdown = planning
-            .report_store
-            .get_current_detail(plan_id)
-            .await
-            .ok()
-            .flatten()
-            .map(|detail| detail.revision.markdown);
-        let rendered = agent_diva_core::planning::render::render_plan_md(&plan, &steps);
-        let markdown = report_markdown.unwrap_or(rendered);
-
         Some(PlanRuntimeState {
             plan_id: plan.id.0.clone(),
             revision,
@@ -444,8 +432,7 @@ impl AgentLoop {
             phase: plan.phase,
             status: plan.status,
             strategy: plan.strategy.clone(),
-            summary: markdown.clone(),
-            markdown: Some(markdown),
+            summary: format!("{}: {}", plan.title, plan.goal),
             steps: steps
                 .into_iter()
                 .map(|step| PlanRuntimeStep {

@@ -42,10 +42,6 @@ pub struct PlanRuntimeState {
     pub status: PlanStatus,
     pub strategy: Option<String>,
     pub summary: String,
-    /// Full plan-document markdown for history/approval cards (report body or
-    /// rendered legacy plan). Prefer this over the short `summary` line.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub markdown: Option<String>,
     pub steps: Vec<PlanRuntimeStep>,
     pub todos: Vec<PlanRuntimeTodo>,
     pub created_at: DateTime<Utc>,
