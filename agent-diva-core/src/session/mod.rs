@@ -11,7 +11,9 @@ pub use manager::{SessionInfo, SessionManager};
 pub use search::{
     SessionSearchDiagnostic, SessionSearchHit, SessionSearchQuery, SessionSearchResponse,
 };
-pub use store::{ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session};
+pub use store::{
+    align_chat_history, ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session,
+};
 
 // Re-export TokenUsage for convenience — it's used alongside ChatMessage
 // to record per-turn LLM token consumption.

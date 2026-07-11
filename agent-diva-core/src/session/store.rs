@@ -3,6 +3,7 @@
 use crate::config::schema::TokenUsage;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 pub const SESSION_META_CONVERSATION_TITLE: &str = "conversation_title";
 pub const SESSION_META_TITLE_GENERATED: &str = "title_generated";
@@ -153,16 +154,12 @@ impl Session {
             .min(self.messages.len());
         let window = &self.messages[floor..];
         let start = window.len().saturating_sub(max_messages);
-        let mut sliced: Vec<ChatMessage> = window[start..]
+        let sliced: Vec<ChatMessage> = window[start..]
             .iter()
             .filter(|m| matches!(m.role.as_str(), "user" | "assistant" | "tool"))
             .cloned()
             .collect();
-        // Drop leading non-user messages to avoid orphaned tool results
-        if let Some(pos) = sliced.iter().position(|m| m.role == "user") {
-            sliced = sliced[pos..].to_vec();
-        }
-        sliced
+        align_chat_history(sliced)
     }
 
     /// Clear all messages
@@ -267,6 +264,79 @@ impl Session {
             .collect::<Vec<_>>()
             .join("\n\n")
     }
+}
+
+/// Repair a chat history window so tool results always follow an assistant
+/// message that declared matching `tool_calls`.
+///
+/// Providers (DeepSeek / OpenAI-compatible) reject histories where a `tool`
+/// role message is not a response to the immediately preceding tool-call
+/// group. Naive tail truncation (e.g. keep last N messages) can create that
+/// shape; this keeps the window API-safe.
+pub fn align_chat_history(messages: Vec<ChatMessage>) -> Vec<ChatMessage> {
+    // Start at the first user turn so we never open with a bare tool result.
+    let Some(user_pos) = messages.iter().position(|m| m.role == "user") else {
+        return Vec::new();
+    };
+    let window = &messages[user_pos..];
+
+    let mut out: Vec<ChatMessage> = Vec::with_capacity(window.len());
+    let mut open_tool_ids: HashSet<String> = HashSet::new();
+
+    for msg in window {
+        match msg.role.as_str() {
+            "tool" => {
+                let id = msg.tool_call_id.as_deref().unwrap_or("");
+                if !id.is_empty() && open_tool_ids.remove(id) {
+                    out.push(msg.clone());
+                }
+                // Orphan tool results (no open parent call) are dropped.
+            }
+            "assistant" => {
+                // Incomplete previous tool group: strip dangling tool_calls so
+                // the next turn does not require missing tool messages.
+                if !open_tool_ids.is_empty() {
+                    if let Some(prev) = out.iter_mut().rev().find(|m| m.role == "assistant") {
+                        prev.tool_calls = None;
+                    }
+                    open_tool_ids.clear();
+                }
+                let mut cloned = msg.clone();
+                if let Some(ref tcs) = cloned.tool_calls {
+                    if tcs.is_empty() {
+                        cloned.tool_calls = None;
+                    } else {
+                        for tc in tcs {
+                            if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
+                                if !id.is_empty() {
+                                    open_tool_ids.insert(id.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                out.push(cloned);
+            }
+            "user" => {
+                if !open_tool_ids.is_empty() {
+                    if let Some(prev) = out.iter_mut().rev().find(|m| m.role == "assistant") {
+                        prev.tool_calls = None;
+                    }
+                    open_tool_ids.clear();
+                }
+                out.push(msg.clone());
+            }
+            _ => {}
+        }
+    }
+
+    // Trailing incomplete tool_calls at the end of history.
+    if !open_tool_ids.is_empty() {
+        if let Some(prev) = out.iter_mut().rev().find(|m| m.role == "assistant") {
+            prev.tool_calls = None;
+        }
+    }
+    out
 }
 
 /// A chat message
@@ -415,6 +485,82 @@ mod tests {
 
         let history = session.get_history(50);
         assert_eq!(history.len(), 50);
+    }
+
+    #[test]
+    fn align_chat_history_drops_leading_orphan_tools() {
+        let messages = vec![
+            ChatMessage::with_tool_metadata(
+                "tool",
+                "orphan result",
+                Some("call_orphan".into()),
+                None,
+                Some("read_file".into()),
+            ),
+            ChatMessage::new("user", "continue"),
+            ChatMessage::new("assistant", "ok"),
+        ];
+        let aligned = align_chat_history(messages);
+        assert_eq!(aligned.len(), 2);
+        assert_eq!(aligned[0].role, "user");
+        assert_eq!(aligned[1].role, "assistant");
+    }
+
+    #[test]
+    fn align_chat_history_keeps_paired_tool_calls() {
+        let assistant = ChatMessage::with_tool_metadata(
+            "assistant",
+            "",
+            None,
+            Some(vec![serde_json::json!({
+                "id": "call_1",
+                "type": "function",
+                "function": { "name": "read_file", "arguments": "{}" }
+            })]),
+            None,
+        );
+        let tool = ChatMessage::with_tool_metadata(
+            "tool",
+            "file contents",
+            Some("call_1".into()),
+            None,
+            Some("read_file".into()),
+        );
+        let messages = vec![
+            ChatMessage::new("user", "read it"),
+            assistant,
+            tool,
+            ChatMessage::new("assistant", "done"),
+        ];
+        let aligned = align_chat_history(messages);
+        assert_eq!(aligned.len(), 4);
+        assert_eq!(aligned[1].role, "assistant");
+        assert!(aligned[1].tool_calls.is_some());
+        assert_eq!(aligned[2].role, "tool");
+        assert_eq!(aligned[2].tool_call_id.as_deref(), Some("call_1"));
+    }
+
+    #[test]
+    fn align_chat_history_strips_incomplete_tool_calls() {
+        let assistant = ChatMessage::with_tool_metadata(
+            "assistant",
+            "",
+            None,
+            Some(vec![serde_json::json!({
+                "id": "call_missing",
+                "type": "function",
+                "function": { "name": "read_file", "arguments": "{}" }
+            })]),
+            None,
+        );
+        let messages = vec![
+            ChatMessage::new("user", "read it"),
+            assistant,
+            ChatMessage::new("user", "never mind"),
+        ];
+        let aligned = align_chat_history(messages);
+        assert_eq!(aligned.len(), 3);
+        assert!(aligned[1].tool_calls.is_none());
     }
 
     #[test]
