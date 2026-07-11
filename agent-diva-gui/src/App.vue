@@ -952,12 +952,25 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
       todos: result.plan.todos ?? [],
     };
     syncPlanRuntime(approved);
+    const policyLabel =
+      payload.contextPolicy === 'retain'
+        ? '保留上下文'
+        : payload.contextPolicy === 'clear'
+          ? '清空探索上下文'
+          : '压缩上下文';
     messages.value.push({
       id: generateMessageId(),
       role: 'system',
-      content: `计划已批准：revision ${result.receipt.revision}，审批时间 ${result.receipt.approved_at}。已记录“${payload.contextPolicy}”上下文策略（当前仅为 GUI 原型，未传给运行时）。TODO 将由 agent 在执行时按需创建。`,
+      content: `计划已批准（revision ${result.receipt.revision}，${result.receipt.approved_at}）。上下文策略：${policyLabel}。正在自动开始执行…`,
       timestamp: Date.now(),
     });
+    // Kick off a streamed agent turn. Runtime loads the approved markdown from
+    // the active execution session for this chat.
+    await sendMessage(
+      'Carry out the approved plan. Work independently and report the implementation result.\n开始执行已批准的计划：按计划逐步实现，完成后报告结果。',
+      undefined,
+      'agent',
+    );
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),

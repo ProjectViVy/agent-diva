@@ -7,7 +7,7 @@ use agent_diva_agent::tool_config::network::{
     NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
 };
 use agent_diva_channels::ChannelManager;
-use agent_diva_core::bus::{InboundMessage, MessageBus};
+use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
 use agent_diva_files::FileManager;
@@ -577,10 +577,13 @@ impl Manager {
         request: crate::planning_service::ApprovePlanReportRequest,
         reply: oneshot::Sender<Result<agent_diva_core::planning::ExecutionSession, String>>,
     ) {
+        // Approve only creates the durable execution session. The desktop (or
+        // API client) must start a normal agent chat turn so the user receives
+        // a streamed implementation run. Agent loop hydrates the approved plan
+        // from the active execution session for this session_key.
         let result = match self.ensure_planning_service().await {
-            Some(service) => async {
-                let execution = service
-                    .approve_report_revision(
+            Some(service) => service
+                .approve_report_revision(
                     &report_id,
                     request.revision,
                     &request.revision_hash,
@@ -588,41 +591,7 @@ impl Manager {
                     request.compacted_context.as_deref(),
                 )
                 .await
-                .map_err(|error| error.to_string())?;
-                let report = service
-                    .report_detail(&report_id, execution.revision)
-                    .await
-                    .map_err(|error| error.to_string())?;
-                let (channel, chat_id) = report
-                    .report
-                    .session_key
-                    .split_once(':')
-                    .ok_or_else(|| "invalid plan report session key".to_string())?;
-                let mut start = InboundMessage::new(
-                    channel,
-                    "execution-runtime",
-                    chat_id,
-                    "Carry out the approved plan. Work independently and report the implementation result.",
-                );
-                start.metadata.insert(
-                    "execution_start".to_string(),
-                    serde_json::Value::Bool(true),
-                );
-                start.metadata.insert(
-                    "approved_plan_markdown".to_string(),
-                    serde_json::Value::String(report.revision.markdown),
-                );
-                start.metadata.insert(
-                    "execution_context_policy".to_string(),
-                    serde_json::to_value(execution.context_policy)
-                        .map_err(|error| error.to_string())?,
-                );
-                self.bus
-                    .publish_inbound(start)
-                    .map_err(|error| format!("failed to start approved execution: {error}"))?;
-                Ok(execution)
-            }
-            .await,
+                .map_err(|error| error.to_string()),
             None => Err("Planning service unavailable".to_string()),
         };
         let _ = reply.send(result);

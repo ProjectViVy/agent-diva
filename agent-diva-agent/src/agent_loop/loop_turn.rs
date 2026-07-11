@@ -288,7 +288,7 @@ impl AgentLoop {
 
         let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
         let plan_mode = is_plan_mode(&msg);
-        let execution_start = msg
+        let mut execution_start = msg
             .metadata
             .get("execution_start")
             .and_then(|value| value.as_bool())
@@ -297,18 +297,74 @@ impl AgentLoop {
         // Once a plan is waiting for approval, an agent-mode follow-up must not
         // re-enable mutation tools before the explicit approval transition.
         let active_plan = self.snapshot_active_plan_runtime().await;
-        let policy_phase = policy_phase_for(active_plan.as_ref(), plan_mode);
-        let plan_guard_active = policy_phase.is_some();
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
-        let active_execution_id = match &self.tool_config.planning {
+        // Hydrate approved report execution (replacement plan runtime).
+        let active_execution = match &self.tool_config.planning {
             Some(planning) if !plan_mode => planning
                 .report_store
                 .active_execution_for_session(&session_key)
                 .await
                 .ok()
-                .flatten()
-                .map(|execution| execution.id),
+                .flatten(),
             _ => None,
+        };
+        // Kickoff turns that begin implementing an approved report.
+        if active_execution.is_some() && !plan_mode {
+            execution_start = execution_start
+                || msg
+                    .metadata
+                    .get("approved_plan_markdown")
+                    .and_then(|value| value.as_str())
+                    .is_some()
+                || msg.content.contains("Carry out the approved plan")
+                || msg.content.contains("开始执行已批准");
+        }
+        let active_execution_id = active_execution.as_ref().map(|execution| execution.id.clone());
+        // An active report execution session must not be blocked by a stale
+        // legacy plan phase (e.g. AwaitingApproval left in the old store).
+        let policy_phase = if active_execution_id.is_some() && !plan_mode {
+            None
+        } else {
+            policy_phase_for(active_plan.as_ref(), plan_mode)
+        };
+        let plan_guard_active = policy_phase.is_some();
+        let execution_context_policy = active_execution
+            .as_ref()
+            .map(|execution| execution.context_policy)
+            .or_else(|| {
+                msg.metadata
+                    .get("execution_context_policy")
+                    .and_then(|value| value.as_str())
+                    .and_then(|policy| match policy {
+                        "Clear" | "clear" => {
+                            Some(agent_diva_core::planning::ExecutionContextPolicy::Clear)
+                        }
+                        "Retain" | "retain" => {
+                            Some(agent_diva_core::planning::ExecutionContextPolicy::Retain)
+                        }
+                        "Compact" | "compact" => {
+                            Some(agent_diva_core::planning::ExecutionContextPolicy::Compact)
+                        }
+                        _ => None,
+                    })
+            });
+        let approved_plan_markdown = if let Some(markdown) = msg
+            .metadata
+            .get("approved_plan_markdown")
+            .and_then(|value| value.as_str())
+        {
+            Some(markdown.to_string())
+        } else if let (Some(planning), Some(execution)) =
+            (&self.tool_config.planning, active_execution.as_ref())
+        {
+            planning
+                .report_store
+                .get_detail(&execution.report_id, execution.revision)
+                .await
+                .ok()
+                .map(|detail| detail.revision.markdown)
+        } else {
+            None
         };
         let background_task_context = BackgroundTaskContext {
             channel: Some(msg.channel.clone()),
@@ -479,13 +535,22 @@ impl AgentLoop {
         }
 
         if execution_start
-            && msg
-                .metadata
-                .get("execution_context_policy")
-                .and_then(|value| value.as_str())
-                .is_some_and(|policy| policy == "Clear")
+            && matches!(
+                execution_context_policy,
+                Some(agent_diva_core::planning::ExecutionContextPolicy::Clear)
+            )
         {
             history.clear();
+        } else if execution_start
+            && matches!(
+                execution_context_policy,
+                Some(agent_diva_core::planning::ExecutionContextPolicy::Compact)
+            )
+            && history.len() > 6
+        {
+            // Lightweight compact: keep the latest few turns plus the plan system note later.
+            let keep = 6.min(history.len());
+            history = history.split_off(history.len() - keep);
         }
 
         let mut messages = self.context.build_messages(
@@ -518,15 +583,11 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                 ),
             );
         }
-        if let Some(markdown) = msg
-            .metadata
-            .get("approved_plan_markdown")
-            .and_then(|value| value.as_str())
-        {
+        if let Some(markdown) = approved_plan_markdown.as_deref() {
             messages.insert(
                 1,
                 agent_diva_providers::Message::system(format!(
-                    "You are implementing this approved plan. It remains authoritative throughout execution.\n\n{markdown}"
+                    "You are implementing this approved plan. It remains authoritative throughout execution. Do not re-plan; execute and report results.\n\n{markdown}"
                 )),
             );
         }
