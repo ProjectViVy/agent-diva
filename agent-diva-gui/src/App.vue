@@ -15,7 +15,13 @@ import {
   FileAttachmentDto,
 } from "./api/desktop";
 import {
+  applyFinalAssistantContent,
+  collapsePlanHistoryMessages,
+  isRenderablePlanSnapshot,
+  planDocumentMarkdown,
   planReportValidationIssues,
+  resolvePlanDisplayTitle,
+  sanitizeAssistantPlanContent,
   type PlanDetail,
   type PlanRuntimeState,
   type PlanSnapshotMetadata,
@@ -26,7 +32,11 @@ import {
   HISTORY_PREFS_KEY,
   SAVED_MODELS_KEY,
   SESSION_CACHE_PREFIX,
+  SESSION_CACHE_TTL_MS,
   WELCOME_STORAGE_KEY,
+  invalidateSessionCache,
+  isSessionCacheStaleAgainstList,
+  sessionCacheStorageKeys,
 } from "./utils/localStorageAgentDiva";
 import {
   DEFAULT_DEEPSEEK_API_BASE,
@@ -177,9 +187,9 @@ interface ProviderConfigEntry {
   source: 'providers' | 'custom_providers';
 }
 
-const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
 const STARTUP_TASK_TIMEOUT_MS = 2500;
-const SESSION_LOAD_TIMEOUT_MS = 2000;
+/** History payloads can be large; keep offline cache as fallback only. */
+const SESSION_LOAD_TIMEOUT_MS = 8000;
 const defaultChatDisplayPrefs: ChatDisplayPrefs = {
   autoExpandReasoning: true,
   autoExpandToolDetails: false,
@@ -473,6 +483,8 @@ function syncCurrentSessionListEntry(seedContent?: string) {
   const lastVisible = [...visibleMessages].reverse().find((message) => message.content?.trim());
   const existing = sessions.value.find((session) => session.session_key === currentSessionKey.value);
   const fallbackTitle = existing?.title || fallbackSessionTitle(seedContent || visibleMessages[0]?.content);
+  // Live chat mutates messages; drop frozen localStorage snapshots immediately.
+  invalidateCurrentSessionCache();
   upsertSession({
     session_key: currentSessionKey.value,
     chat_id: currentChatId.value,
@@ -601,18 +613,38 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
   const toolArgs = extractToolArgs(msg.tool_calls);
   const rawMeta = buildRawMeta(msg);
   const planMetadata = msg.metadata as Partial<PlanSnapshotMetadata> | null | undefined;
-  const planSnapshot = planMetadata?.kind === 'plan_snapshot' && planMetadata.plan
+  const rawPlanSnapshot = planMetadata?.kind === 'plan_snapshot' && planMetadata.plan
     ? planMetadata.plan
     : undefined;
+  // Normalize older short snapshots; drop junk shells ("历史计划 / Plan" with no body).
+  const normalizedPlanSnapshot = rawPlanSnapshot
+    ? {
+        ...rawPlanSnapshot,
+        markdown: planDocumentMarkdown(rawPlanSnapshot),
+        summary: planDocumentMarkdown(rawPlanSnapshot),
+      }
+    : undefined;
+  const planSnapshot =
+    normalizedPlanSnapshot && isRenderablePlanSnapshot(normalizedPlanSnapshot)
+      ? normalizedPlanSnapshot
+      : undefined;
+  // Junk / empty plan_snapshot rows must not appear as "Plan snapshot: Plan (...)" system text.
+  if (planMetadata?.kind === 'plan_snapshot' && !planSnapshot) {
+    return null;
+  }
   const toolResult = mappedRole === 'tool' ? (msg.content || '') : undefined;
   const toolStatus = mappedRole === 'tool'
     ? (/^error\b/i.test(msg.content || '') ? 'error' : 'success')
     : undefined;
 
+  const rawContent = msg.content || '';
+  const content =
+    mappedRole === 'agent' ? sanitizeAssistantPlanContent(rawContent) : rawContent;
+
   return {
     id: generateMessageId(),
     role: mappedRole,
-    content: msg.content || '',
+    content,
     reasoning: msg.reasoning_content || undefined,
     timestamp: parseMessageTimestamp(msg.timestamp),
     emotion: mappedRole === 'agent' ? 'normal' : undefined,
@@ -628,13 +660,7 @@ function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
 }
 
 function getSessionCacheKeys(chatId: string): string[] {
-  if (!chatId) return [];
-  const normalized = chatId.includes(':') ? chatId : `gui:${chatId}`;
-  const keys = [normalized];
-  if (chatId !== normalized) {
-    keys.push(chatId);
-  }
-  return keys.map((key) => `${SESSION_CACHE_PREFIX}${key}`);
+  return sessionCacheStorageKeys(chatId);
 }
 
 function readSessionFromCache(chatId: string): BackendSessionHistory | null {
@@ -670,6 +696,25 @@ function writeSessionToCache(session: BackendSessionHistory) {
   } catch (e) {
     console.warn('Failed to write session cache:', e);
   }
+}
+
+/** Drop local session snapshots so the next open cannot show pre-mutation history. */
+function invalidateCurrentSessionCache(extraKeys: string[] = []) {
+  invalidateSessionCache(
+    currentSessionKey.value,
+    currentChatId.value,
+    ...extraKeys,
+  );
+}
+
+function countBackendVisibleMessages(
+  historyMessages: BackendChatMessage[] | undefined | null,
+): number {
+  if (!historyMessages?.length) return 0;
+  return historyMessages.filter((msg) => {
+    if (!['user', 'assistant', 'tool'].includes(msg.role)) return false;
+    return Boolean((msg.content || '').trim());
+  }).length;
 }
 
 function generateMessageId(): string {
@@ -788,13 +833,22 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
     return;
   }
   // Normalize report statuses into the phases the chat card/bar understand.
+  const markdown = plan.markdown ? sanitizePlanText(plan.markdown) : plan.markdown;
+  const summary = sanitizePlanText(plan.summary) || plan.summary;
+  const strategy = plan.strategy == null ? null : sanitizePlanText(plan.strategy) || plan.strategy;
   const normalized: PlanRuntimeState = {
     ...plan,
-    title: sanitizePlanText(plan.title) || plan.title || 'Plan',
+    title: resolvePlanDisplayTitle({
+      title: sanitizePlanText(plan.title) || plan.title,
+      goal: sanitizePlanText(plan.goal) || plan.goal,
+      markdown,
+      summary,
+      strategy,
+    }),
     goal: sanitizePlanText(plan.goal) || plan.goal,
-    markdown: plan.markdown ? sanitizePlanText(plan.markdown) : plan.markdown,
-    summary: sanitizePlanText(plan.summary) || plan.summary,
-    strategy: plan.strategy == null ? null : sanitizePlanText(plan.strategy) || plan.strategy,
+    markdown,
+    summary,
+    strategy,
   };
   if (isAwaitingApprovalPhase(normalized)) {
     normalized.phase = 'AwaitingApproval';
@@ -889,28 +943,23 @@ function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null
   const markdown = sanitizePlanText(revisionMeta.markdown || (detail.markdown as string) || '');
   if (!id || !markdown) return null;
 
-  const titleFromMarkdown = markdown
-    .split('\n')
-    .map((line) => line.trim())
-    .find((line) => line.startsWith('# '))
-    ?.slice(2)
-    .trim();
-  let title = sanitizePlanText(revisionMeta.title || titleFromMarkdown || '') || 'Plan';
-  // Recover from truncated mojibake titles like "计报告".
-  if (title.includes('报告') && title.length < 4) {
-    title = titleFromMarkdown && titleFromMarkdown.length >= 4 ? titleFromMarkdown : '计划报告';
-  }
+  const validation_issues = planReportValidationIssues(markdown);
+  const title = resolvePlanDisplayTitle({
+    title: sanitizePlanText(revisionMeta.title || ''),
+    markdown,
+    summary: markdown,
+    strategy: markdown,
+  });
   const goalLine = markdown
     .split('\n')
     .map((line) => line.trim())
-    .find((line) => line.length > 0 && !line.startsWith('#'));
-  const validation_issues = planReportValidationIssues(markdown);
+    .find((line) => line.length > 0 && !line.startsWith('#') && line !== '目标' && line !== '## 目标');
   // Report-ready always means pending user approval in the replacement model.
   return {
     plan_id: id,
     revision: revisionMeta.revision ?? reportMeta.current_revision ?? null,
     title,
-    goal: goalLine || title || 'Markdown plan report',
+    goal: goalLine || title,
     phase: 'AwaitingApproval',
     status: 'AwaitingApproval',
     strategy: markdown,
@@ -986,7 +1035,11 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
 async function restoreActivePlanRuntime() {
   if (!isTauri()) return;
   try {
-    const plan = await invoke<PlanDetail | null>('get_active_plan');
+    // Session-scoped: never pick another chat's Approved report (that forced
+    // ChatView out of plan mode after every turn via executingPlan watch).
+    const plan = await invoke<PlanDetail | null>('get_active_plan', {
+      sessionKey: currentSessionKey.value || `gui:${currentChatId.value}`,
+    });
     if (!plan || !plan.id) {
       // Do not wipe a live pending approval card when the backend returns empty
       // (race after plan-report-ready, or transient list failure).
@@ -996,16 +1049,23 @@ async function restoreActivePlanRuntime() {
       syncPlanRuntime(null);
       return;
     }
+    const markdown = plan.markdown || plan.summary || plan.strategy || plan.goal || '';
     syncPlanRuntime({
       plan_id: plan.id,
       revision: plan.revision,
-      title: sanitizePlanText(plan.title) || plan.title,
+      title: resolvePlanDisplayTitle({
+        title: sanitizePlanText(plan.title) || plan.title,
+        goal: sanitizePlanText(plan.goal) || plan.goal,
+        markdown,
+        summary: plan.summary,
+        strategy: plan.strategy,
+      }),
       goal: sanitizePlanText(plan.goal) || plan.goal,
       phase: plan.phase,
       status: plan.status,
       strategy: plan.strategy,
-      summary: plan.summary || plan.markdown || `${plan.title}: ${plan.goal}`,
-      markdown: plan.markdown || plan.summary || plan.strategy || plan.goal,
+      summary: plan.summary || markdown,
+      markdown,
       steps: (plan.steps ?? []).map((step) => ({
         id: step.id,
         ordinal: step.ordinal,
@@ -1046,7 +1106,9 @@ async function revokePlanExecution(feedback = '') {
     return;
   }
   try {
-    const reopened = await returnActivePlanToDraft();
+    const reopened = await returnActivePlanToDraft(
+      currentSessionKey.value || `gui:${currentChatId.value}`,
+    );
     syncPlanRuntime(reopened);
     if (feedback.trim()) await sendMessage(feedback.trim(), undefined, 'plan');
   } catch (error) {
@@ -1269,6 +1331,7 @@ async function stopMessage() {
 }
 
 const clearMessages = () => {
+  invalidateCurrentSessionCache();
   currentChatId.value = generateChatId();
   currentSessionKey.value = `gui:${currentChatId.value}`;
   activeStreamRequestId.value = null;
@@ -1369,19 +1432,31 @@ async function loadSession(sessionKey: string): Promise<boolean> {
   const chatId = extractChatId(sessionKey);
 
   try {
-    let sessionHistory = readSessionFromCache(sessionKey);
-    if (!sessionHistory && chatId && chatId !== sessionKey) {
-      sessionHistory = readSessionFromCache(chatId);
-    }
-    if (!sessionHistory) {
-      sessionHistory = await withTimeout(
+    // Network-first: localStorage is only an offline/timeout fallback so we
+    // never prefer a frozen snapshot over the durable JSONL history.
+    let sessionHistory: BackendSessionHistory | null = null;
+    let usedCacheFallback = false;
+
+    try {
+      const fetched = await withTimeout(
         invoke<BackendSessionHistory | null>("get_session_history", { chatId: sessionKey }),
         SESSION_LOAD_TIMEOUT_MS,
         `get_session_history(${sessionKey})`
       );
-      if (sessionHistory && Array.isArray(sessionHistory.messages)) {
-        writeSessionToCache(sessionHistory);
+      if (fetched && Array.isArray(fetched.messages)) {
+        sessionHistory = fetched;
+        writeSessionToCache(fetched);
+      } else {
+        // Backend responded without a session — do not resurrect deleted cache.
+        sessionHistory = null;
       }
+    } catch (fetchError) {
+      console.warn("Failed to fetch session history, trying cache fallback:", fetchError);
+      sessionHistory = readSessionFromCache(sessionKey);
+      if (!sessionHistory && chatId && chatId !== sessionKey) {
+        sessionHistory = readSessionFromCache(chatId);
+      }
+      usedCacheFallback = Boolean(sessionHistory);
     }
 
     if (!sessionHistory || !Array.isArray(sessionHistory.messages)) {
@@ -1398,9 +1473,11 @@ async function loadSession(sessionKey: string): Promise<boolean> {
     currentSessionKey.value = sessionHistory.key || sessionKey;
     syncPlanRuntime(null);
 
-    const newMessages: Message[] = sessionHistory.messages
-      .map(mapBackendMessageToUi)
-      .filter((msg): msg is Message => msg !== null);
+    const newMessages: Message[] = collapsePlanHistoryMessages(
+      sessionHistory.messages
+        .map(mapBackendMessageToUi)
+        .filter((msg): msg is Message => msg !== null),
+    );
 
     if (newMessages.length > 0) {
       messages.value = newMessages;
@@ -1412,6 +1489,25 @@ async function loadSession(sessionKey: string): Promise<boolean> {
         timestamp: Date.now()
       });
       return false;
+    }
+
+    if (usedCacheFallback) {
+      const listed = sessions.value.find(
+        (session) =>
+          session.session_key === currentSessionKey.value ||
+          session.session_key === sessionKey,
+      );
+      const cachedVisible = countBackendVisibleMessages(sessionHistory.messages);
+      if (isSessionCacheStaleAgainstList(cachedVisible, listed?.message_count)) {
+        messages.value.push({
+          id: generateMessageId(),
+          role: 'system',
+          content:
+            `${t('app.errorPrefix')}Loaded offline cache which may be incomplete. ` +
+            'Reconnect and reopen this session for the latest messages.',
+          timestamp: Date.now(),
+        });
+      }
     }
 
     const selectedSession = sessions.value.find((session) => session.session_key === currentSessionKey.value);
@@ -1469,15 +1565,7 @@ async function deleteSession(sessionKey: string) {
       timestamp: Date.now(),
     });
   }
-  const keysToRemove = new Set<string>([
-    ...getSessionCacheKeys(sessionKey),
-    ...getSessionCacheKeys(chatId),
-  ]);
-  for (const key of keysToRemove) {
-    try {
-      localStorage.removeItem(key);
-    } catch (_) {}
-  }
+  invalidateSessionCache(sessionKey, chatId);
   locallyDeletedSessionKeys.value.add(sessionKey);
   sessions.value = sessions.value.filter((session) => session.session_key !== sessionKey);
   await refreshSessions();
@@ -1763,9 +1851,12 @@ onMounted(async () => {
     suppressNextStopError.value = false;
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      if (!lastMsg.content && event.payload.data) {
-         lastMsg.content = event.payload.data;
-      }
+      // Prefer authoritative final content over streamed deltas. Backend may
+      // demux <proposed_plan> into PlanApprovalCard and replace the bubble text.
+      lastMsg.content = applyFinalAssistantContent(
+        lastMsg.content || '',
+        event.payload.data,
+      );
       lastMsg.isStreaming = false;
       lastMsg.isThinking = false;
       isTyping.value = false;

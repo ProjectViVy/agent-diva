@@ -9,11 +9,11 @@ use agent_diva_core::bus::{
     AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
 };
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
-use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
+use agent_diva_core::planning::model::{PlanPhase, PlanStatus, TodoStatus};
 use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
 use agent_diva_core::planning::{
     normalize_report_markdown, report_validation_issues, resolve_plan_report_body,
-    strip_proposed_plan_block, PlanRevisionAuthor,
+    strip_proposed_plan_block, PlanReportDetail, PlanReportStatus, PlanRevisionAuthor,
 };
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
@@ -42,6 +42,100 @@ const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
 struct ProcessedInboundMedia {
     prompt_text: String,
     image_parts: Vec<MessageContentPart>,
+}
+
+/// Build a session-history plan card from a plan-mode report artifact.
+fn plan_runtime_from_report_detail(detail: &PlanReportDetail) -> PlanRuntimeState {
+    let markdown = detail.revision.markdown.clone();
+    let title = detail.revision.title.clone();
+    let goal = markdown
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty() && !line.starts_with('#'))
+        .unwrap_or(title.as_str())
+        .to_string();
+    let (phase, status) = match detail.report.status {
+        PlanReportStatus::AwaitingApproval | PlanReportStatus::Draft => {
+            (PlanPhase::AwaitingApproval, PlanStatus::Pending)
+        }
+        PlanReportStatus::Approved => (PlanPhase::Execute, PlanStatus::InProgress),
+        PlanReportStatus::Closed => (PlanPhase::Completed, PlanStatus::Completed),
+    };
+    PlanRuntimeState {
+        plan_id: detail.report.id.0.clone(),
+        revision: Some(detail.revision.revision),
+        title,
+        goal,
+        phase,
+        status,
+        strategy: Some(markdown.clone()),
+        summary: markdown.clone(),
+        markdown: Some(markdown),
+        steps: Vec::new(),
+        todos: Vec::new(),
+        created_at: detail.report.created_at,
+        updated_at: detail.report.updated_at,
+    }
+}
+
+/// True when a plan snapshot has enough body to justify a history card.
+/// Blocks empty "Plan" shells that only carry title/goal stubs.
+fn plan_snapshot_has_renderable_body(plan: &PlanRuntimeState) -> bool {
+    if let Some(md) = plan.markdown.as_ref() {
+        let content_lines = md
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .count();
+        if content_lines >= 1 && (md.contains("##") || content_lines >= 2 || md.len() > 80) {
+            return true;
+        }
+    }
+    if plan.summary.contains('\n') && plan.summary.len() > plan.title.len() + 8 {
+        return true;
+    }
+    if plan.strategy.as_ref().is_some_and(|s| s.contains('\n') || s.len() > 40) {
+        return true;
+    }
+    !plan.steps.is_empty() || !plan.todos.is_empty()
+}
+
+/// Persist at most one history card per meaningful lifecycle change (not every tool touch).
+///
+/// Critical: the planning store keeps a **global** active-plan singleton. Merely
+/// observing that singleton at the start of an unrelated agent-mode chat must
+/// NOT dump a "历史计划" card into that session (the Fibonacci leak).
+fn should_persist_plan_history_snapshot(
+    before: Option<&PlanRuntimeState>,
+    after: &PlanRuntimeState,
+) -> bool {
+    if !plan_snapshot_has_renderable_body(after) {
+        return false;
+    }
+    match before {
+        // First sighting of a global active plan: only persist approval-grade
+        // lifecycle events. Draft Plan/Explore shells are written via the
+        // explicit plan-report path (`plan_runtime_from_report_detail`), not here.
+        None => matches!(after.phase, PlanPhase::AwaitingApproval),
+        Some(prev) => {
+            // Real transitions only — never re-stamp the same draft each turn.
+            let changed = prev.plan_id != after.plan_id
+                || prev.phase != after.phase
+                || prev.status != after.status
+                || prev.revision != after.revision;
+            if !changed {
+                return false;
+            }
+            // Draft-to-draft noise (same plan id, still Plan/Explore) is not a history event.
+            if matches!(after.phase, PlanPhase::Plan | PlanPhase::Explore)
+                && matches!(prev.phase, PlanPhase::Plan | PlanPhase::Explore)
+                && prev.plan_id == after.plan_id
+            {
+                return false;
+            }
+            true
+        }
+    }
 }
 
 fn is_plan_mode(msg: &InboundMessage) -> bool {
@@ -1109,7 +1203,14 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                         None
                     };
                     if let Some(plan) = planning_after.as_ref() {
-                        plan_history_snapshot = Some(plan.clone());
+                        // Only snapshot phase/revision transitions so chat history
+                        // does not accumulate a "历史计划" card on every tool call.
+                        if should_persist_plan_history_snapshot(
+                            planning_before.as_ref(),
+                            plan,
+                        ) {
+                            plan_history_snapshot = Some(plan.clone());
+                        }
                     }
 
                     let event = AgentEvent::ToolCallFinished {
@@ -1249,6 +1350,9 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                     missing.join("；")
                                 ));
                             }
+                            // Durable history card with full markdown (not the short title:goal line).
+                            plan_history_snapshot =
+                                Some(plan_runtime_from_report_detail(&report));
                             self.emit_agent_event(
                                 &msg,
                                 event_tx,
@@ -1605,7 +1709,9 @@ fn save_turn(
         }
     }
 
-    // Save the final assistant response if not already captured
+    // Save the final assistant response if not already captured.
+    // Prefer `final_content` (post-processed: plan demux, soul notices, etc.)
+    // over raw model text mirrored from the LLM buffer.
     if messages.len() <= turn_messages_start
         || messages.last().map(|m| m.role.as_str()) != Some("assistant")
     {
@@ -1616,14 +1722,22 @@ fn save_turn(
         }
         final_msg.token_usage = turn_token_usage;
         session.add_full_message(final_msg);
-    } else {
-        // The last message was an assistant message already added above.
-        // Attach token usage to it if provided.
-        if turn_token_usage.is_some() {
-            if let Some(last) = session.messages.last_mut() {
-                last.token_usage = turn_token_usage;
+    } else if let Some(last) = session.messages.last_mut() {
+        // Last LLM message was already copied above. Overwrite plain assistant
+        // content with demuxed final so history never keeps raw <proposed_plan>.
+        let has_tool_calls = last
+            .tool_calls
+            .as_ref()
+            .map(|calls| !calls.is_empty())
+            .unwrap_or(false);
+        if last.role == "assistant" && !has_tool_calls {
+            last.content = final_content.to_string();
+            if let Some(src) = messages.last() {
+                last.reasoning_content = src.reasoning_content.clone();
+                last.thinking_blocks = src.thinking_blocks.clone();
             }
         }
+        last.token_usage = turn_token_usage;
     }
 
     if let Some(plan) = plan_history_snapshot {
@@ -1724,6 +1838,46 @@ fn is_context_overflow_error(err: &ProviderError) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_plan(phase: PlanPhase) -> PlanRuntimeState {
+        PlanRuntimeState {
+            plan_id: "37f63748-fib".to_string(),
+            revision: Some(1),
+            title: "C++ 斐波那契数列程序".to_string(),
+            goal: "在 cpp/ 目录下创建斐波那契程序".to_string(),
+            phase,
+            status: agent_diva_core::planning::model::PlanStatus::InProgress,
+            strategy: Some("递归和迭代两种方式".to_string()),
+            summary: "C++ 斐波那契数列程序\n在 cpp/ 目录下创建".to_string(),
+            markdown: Some(
+                "# C++ 斐波那契数列程序\n\n## 目标\n在 cpp/ 目录下创建斐波那契程序\n".to_string(),
+            ),
+            steps: Vec::new(),
+            todos: Vec::new(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn should_not_dump_stale_global_draft_plan_into_unrelated_session() {
+        let draft = sample_plan(PlanPhase::Plan);
+        // First sighting of a leftover global draft — do not stamp history.
+        assert!(!should_persist_plan_history_snapshot(None, &draft));
+        // Unchanged draft across tools — still no.
+        assert!(!should_persist_plan_history_snapshot(Some(&draft), &draft));
+    }
+
+    #[test]
+    fn should_persist_approval_lifecycle_and_real_phase_changes() {
+        let draft = sample_plan(PlanPhase::Plan);
+        let awaiting = sample_plan(PlanPhase::AwaitingApproval);
+        let execute = sample_plan(PlanPhase::Execute);
+
+        assert!(should_persist_plan_history_snapshot(None, &awaiting));
+        assert!(should_persist_plan_history_snapshot(Some(&draft), &awaiting));
+        assert!(should_persist_plan_history_snapshot(Some(&awaiting), &execute));
+    }
 
     #[test]
     fn test_derive_prefetch_intent_is_empty_for_non_question() {

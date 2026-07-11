@@ -16,7 +16,10 @@ import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
 import PlanHistoryCard from './planning/PlanHistoryCard.vue';
 import PlanningView from './planning/PlanningView.vue';
-import { activePlanTodos as filterActivePlanTodos } from './planning/planExecutionState';
+import {
+  activePlanTodos as filterActivePlanTodos,
+  shouldShowPlanTodoPanel,
+} from './planning/planExecutionState';
 import {
   triggerAutoDream,
   getAutoDreamRunStatus,
@@ -283,24 +286,25 @@ const handleSend = () => {
   });
 };
 
-/** Leave plan mode as soon as the user approves execution. */
+/**
+ * Plan-mode exit boundary (GUI):
+ * - Stay in plan for explore / demux / pending approval.
+ * - Leave plan only when the user approves execution (below) or picks another mode.
+ * Do NOT flip on executingPlan restore — that hijacked plan mode after turns
+ * that never produced a plan (global Approved report leakage).
+ */
 function handleApprovePlan(payload: { contextPolicy: 'retain' | 'compact' | 'clear' }) {
   execMode.value = 'agent';
   showModeMenu.value = false;
   emit('approve-plan', payload);
 }
 
-// Parent may flip runtime into Execute without going through the local approve
-// handler (e.g. restore / event). Keep the mode selector aligned.
-watch(
-  () => props.executingPlan?.plan_id ?? null,
-  (executionId, previousId) => {
-    if (executionId && executionId !== previousId) {
-      execMode.value = 'agent';
-      showModeMenu.value = false;
-    }
-  },
-);
+/** Keep selector on plan when user submits edit feedback (parent still sends mode=plan). */
+function handleRevokePlan(feedback: string) {
+  execMode.value = 'plan';
+  showModeMenu.value = false;
+  emit('revoke-plan', feedback);
+}
 
 const handleFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement;
@@ -529,11 +533,18 @@ const approvalPlan = computed(() => {
   return null;
 });
 
+/** Report plans execute without TODOs — never show the empty checklist chrome. */
+const showPlanTodoPanel = computed(() =>
+  !!props.activePlanRuntime
+  && !approvalPlan.value
+  && shouldShowPlanTodoPanel(props.activePlanRuntime),
+);
+
 const planProgressText = computed(() => {
   const plan = props.executingPlan ?? props.activePlanRuntime;
-  if (!plan) return '';
+  if (!plan || !shouldShowPlanTodoPanel(plan)) return '';
   const active = filterActivePlanTodos(plan.todos);
-  if (active.length === 0) return plan.todos.length === 0 ? '无执行清单' : '暂无活动 TODO';
+  if (active.length === 0) return '暂无活动 TODO';
   return `${active.length} 项活动 TODO`;
 });
 
@@ -979,7 +990,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         :plan="approvalPlan"
         :approving="approvingPlan"
         @approve="handleApprovePlan"
-        @revoke="emit('revoke-plan', $event)"
+        @revoke="handleRevokePlan"
         @refresh="emit('refresh-plan')"
       />
 
@@ -989,8 +1000,10 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       <div ref="messagesEndRef" />
     </div>
 
+    <!-- Only when the plan actually has TODOs (legacy task-graph plans).
+         Report-style markdown plans execute without a checklist. -->
     <div
-      v-if="activePlanRuntime && !approvalPlan"
+      v-if="showPlanTodoPanel && activePlanRuntime"
       class="active-plan-todo-panel"
     >
       <div class="active-plan-todo-bar" role="button" tabindex="0" @click="openPlanTasks" @keydown.enter="openPlanTasks">
@@ -998,7 +1011,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
         <div class="active-plan-todo-content">
           <span class="active-plan-todo-plan">{{ activePlanRuntime.title }}</span>
           <span v-if="activePlanTodo" class="active-plan-todo-title">{{ activePlanTodo.title }}</span>
-          <span v-else class="active-plan-todo-title">{{ activePlanRuntime.todos.length === 0 ? '无执行清单，按批准计划执行' : activePlanRuntime.phase }}</span>
+          <span v-else class="active-plan-todo-title">{{ activePlanRuntime.phase }}</span>
         </div>
         <span class="active-plan-todo-progress">{{ planProgressText }}</span>
         <Loader2 v-if="activePlanTodo?.status === 'InProgress'" :size="15" class="text-amber-500 animate-spin" />

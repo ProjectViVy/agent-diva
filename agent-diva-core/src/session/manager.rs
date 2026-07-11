@@ -257,11 +257,20 @@ impl SessionManager {
 
         if let Ok(entries) = std::fs::read_dir(&self.sessions_dir) {
             for entry in entries.flatten() {
-                if entry.path().extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+                let path = entry.path();
+                if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+                    continue;
+                }
+                // Skip archive-and-reset snapshots: `{safe_key}.reset.{ts}.jsonl`
+                if path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.contains(".reset."))
+                {
                     continue;
                 }
 
-                if let Some(session) = session_summary_from_file(&entry.path()) {
+                if let Some(session) = session_summary_from_file(&path) {
                     sessions.push(session);
                 }
             }
@@ -491,6 +500,42 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = SessionManager::new(temp_dir.path());
         assert!(manager.list_sessions().is_empty());
+    }
+
+    #[test]
+    fn list_sessions_skips_reset_archive_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+
+        let session = manager.get_or_create("gui:active");
+        session.add_message("user", "live");
+        let key = session.key.clone();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
+
+        // Simulate archive-and-reset sibling left on disk.
+        let archive_path = temp_dir
+            .path()
+            .join("sessions")
+            .join("gui_active.reset.1234567890.jsonl");
+        fs::write(
+            &archive_path,
+            r#"{"_type":"metadata","key":"gui:active","created_at":"2020-01-01T00:00:00Z","updated_at":"2020-01-01T00:00:00Z","metadata":{}}
+{"role":"user","content":"archived","timestamp":"2020-01-01T00:00:00Z"}
+"#,
+        )
+        .unwrap();
+
+        let listed = manager.list_sessions();
+        assert_eq!(listed.len(), 1, "reset archives must not appear in list");
+        assert_eq!(listed[0].key, "gui:active");
+        assert_eq!(listed[0].message_count, 1);
+        assert_eq!(listed[0].last_message.as_deref(), Some("live"));
+
+        // Active session still loads normally.
+        manager.cache.clear();
+        let loaded = manager.get_or_load("gui:active").unwrap();
+        assert_eq!(loaded.messages.len(), 1);
+        assert_eq!(loaded.messages[0].content, "live");
     }
 
     #[test]

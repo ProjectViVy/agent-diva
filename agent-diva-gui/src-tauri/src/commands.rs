@@ -449,30 +449,45 @@ pub async fn restore_plan_todo(
 }
 
 #[tauri::command]
-pub async fn get_active_plan(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let reports = get_plan_reports(state).await?;
-    let active = reports
-        .as_array()
-        .and_then(|reports| {
-            reports
-                .iter()
-                .find(|report| {
-                    report
-                        .pointer("/report/status")
-                        .and_then(|value| value.as_str())
-                        == Some("AwaitingApproval")
-                })
-                .or_else(|| {
-                    reports.iter().find(|report| {
-                        report
-                            .pointer("/report/status")
-                            .and_then(|value| value.as_str())
-                            == Some("Approved")
+pub async fn get_active_plan(
+    #[allow(non_snake_case)] sessionKey: Option<String>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let session_key = sessionKey;
+    let reports = get_plan_reports(state.clone()).await?;
+    let report_list = reports.as_array().map(|v| v.as_slice()).unwrap_or(&[]);
+
+    // Prefer an active execution in this session (true Execute path).
+    let execution_report_id = if let Some(ref key) = session_key {
+        let key = key.trim();
+        if !key.is_empty() {
+            match get_active_plan_execution(key.to_string(), state.clone()).await {
+                Ok(execution) if !execution.is_null() => execution
+                    .get("report_id")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| {
+                        // PlanId newtype may serialize as { "0": "uuid" }.
+                        execution
+                            .pointer("/report_id/0")
+                            .and_then(|v| v.as_str())
                     })
-                })
-        })
-        .map(plan_report_detail_projection)
-        .unwrap_or(serde_json::Value::Null);
+                    .map(|s| s.to_string()),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let active = select_active_plan_report(
+        report_list,
+        session_key.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+        execution_report_id.as_deref(),
+    )
+    .map(plan_report_detail_projection)
+    .unwrap_or(serde_json::Value::Null);
     Ok(active)
 }
 
@@ -1341,11 +1356,12 @@ pub async fn approve_active_plan_execution(
 
 #[tauri::command]
 pub async fn return_active_plan_to_draft(
+    #[allow(non_snake_case)] sessionKey: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, String> {
     // GUI only needs the JSON shape; do not force PlanRuntimeState enum decode
     // (report status AwaitingApproval is not a PlanStatus variant).
-    let value = get_active_plan(state).await?;
+    let value = get_active_plan(sessionKey, state).await?;
     if value.is_null() {
         return Err("No active plan to return to draft".to_string());
     }
@@ -1379,6 +1395,124 @@ fn plan_report_id(report: &serde_json::Value) -> Option<&str> {
                 .pointer("/report/id/0")
                 .and_then(|value| value.as_str())
         })
+}
+
+fn plan_report_session_key(report: &serde_json::Value) -> Option<&str> {
+    report
+        .pointer("/report/session_key")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+}
+
+/// Match `gui:chatId` with bare `chatId` (and vice versa).
+fn session_keys_match(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let left_bare = left.strip_prefix("gui:").unwrap_or(left);
+    let right_bare = right.strip_prefix("gui:").unwrap_or(right);
+    left_bare == right_bare
+}
+
+fn report_matches_session(report: &serde_json::Value, session_key: &str) -> bool {
+    plan_report_session_key(report).is_some_and(|key| session_keys_match(key, session_key))
+}
+
+/// Pick the plan report that should drive the chat approval/execution UI.
+///
+/// Order when `session_key` is set:
+/// 1. AwaitingApproval for this session
+/// 2. Report bound to this session's active execution (Executing/Verifying)
+///
+/// Never falls back to a global arbitrary Approved report (that hijacked plan mode).
+/// Without session_key: only a single AwaitingApproval if unique path is needed for
+/// legacy callers — still no global Approved fallback.
+fn select_active_plan_report<'a>(
+    reports: &'a [serde_json::Value],
+    session_key: Option<&str>,
+    active_execution_report_id: Option<&str>,
+) -> Option<&'a serde_json::Value> {
+    let scoped: Vec<&serde_json::Value> = match session_key {
+        Some(key) => reports
+            .iter()
+            .filter(|r| report_matches_session(r, key))
+            .collect(),
+        None => reports.iter().collect(),
+    };
+
+    if let Some(pending) = scoped
+        .iter()
+        .copied()
+        .find(|r| plan_report_status(r) == "AwaitingApproval")
+    {
+        return Some(pending);
+    }
+
+    if let Some(exec_id) = active_execution_report_id {
+        if let Some(running) = scoped
+            .iter()
+            .copied()
+            .find(|r| plan_report_id(r) == Some(exec_id))
+        {
+            return Some(running);
+        }
+        // Execution may point at a report still visible in the unfiltered list.
+        if let Some(running) = reports.iter().find(|r| plan_report_id(r) == Some(exec_id)) {
+            return Some(running);
+        }
+    }
+
+    None
+}
+
+#[cfg(test)]
+mod active_plan_select_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn report(id: &str, session: &str, status: &str) -> serde_json::Value {
+        json!({
+            "report": { "id": id, "session_key": session, "status": status },
+            "revision": { "revision": 1, "title": id, "markdown": format!("# {id}\n") }
+        })
+    }
+
+    #[test]
+    fn prefers_session_awaiting_over_other_sessions_approved() {
+        let reports = vec![
+            report("other-approved", "gui:other", "Approved"),
+            report("mine-pending", "gui:me", "AwaitingApproval"),
+            report("mine-old", "gui:me", "Approved"),
+        ];
+        let picked = select_active_plan_report(&reports, Some("gui:me"), None).unwrap();
+        assert_eq!(plan_report_id(picked), Some("mine-pending"));
+    }
+
+    #[test]
+    fn does_not_fallback_to_global_approved() {
+        let reports = vec![report("other-approved", "gui:other", "Approved")];
+        assert!(select_active_plan_report(&reports, Some("gui:me"), None).is_none());
+        assert!(select_active_plan_report(&reports, None, None).is_none());
+    }
+
+    #[test]
+    fn uses_active_execution_report_when_no_pending() {
+        let reports = vec![
+            report("executing", "gui:me", "Approved"),
+            report("other", "gui:other", "Approved"),
+        ];
+        let picked =
+            select_active_plan_report(&reports, Some("gui:me"), Some("executing")).unwrap();
+        assert_eq!(plan_report_id(picked), Some("executing"));
+    }
+
+    #[test]
+    fn session_keys_match_gui_prefix() {
+        assert!(session_keys_match("gui:abc", "abc"));
+        assert!(session_keys_match("abc", "gui:abc"));
+        assert!(!session_keys_match("gui:abc", "gui:xyz"));
+    }
 }
 
 fn plan_report_revision(report: &serde_json::Value) -> Option<i64> {

@@ -301,6 +301,21 @@ impl SqlitePlanReportStore {
         })
     }
 
+    /// Load the current revision body for a report id, if it exists.
+    pub async fn get_current_detail(
+        &self,
+        report_id: &PlanId,
+    ) -> anyhow::Result<Option<PlanReportDetail>> {
+        let row = sqlx::query_as::<_, ReportRow>("SELECT * FROM plan_reports WHERE id = ?")
+            .bind(&report_id.0)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(report) => Ok(Some(self.get_detail(report_id, report.current_revision).await?)),
+            None => Ok(None),
+        }
+    }
+
     async fn insert_report(
         &self,
         report: &PlanReport,

@@ -2,7 +2,11 @@
 import { computed, ref } from 'vue';
 import { Check, ChevronDown, ChevronRight, Loader2, Pencil, RefreshCw } from 'lucide-vue-next';
 import type { PlanRuntimeState } from '../../api/planning';
-import { planReportValidationIssues } from '../../api/planning';
+import {
+  planDocumentMarkdown,
+  planReportValidationIssues,
+  resolvePlanDisplayTitle,
+} from '../../api/planning';
 import PlanDocument from './PlanDocument.vue';
 
 export type ExecutionContextPolicy = 'retain' | 'compact' | 'clear';
@@ -12,9 +16,12 @@ const props = defineProps<{
   approving?: boolean;
 }>();
 
+const displayTitle = computed(() => resolvePlanDisplayTitle(props.plan));
+const documentMarkdown = computed(() => planDocumentMarkdown(props.plan));
+
 const validationIssues = computed(() => {
   if (props.plan.validation_issues?.length) return props.plan.validation_issues;
-  return planReportValidationIssues(props.plan.markdown || props.plan.summary || props.plan.strategy);
+  return planReportValidationIssues(documentMarkdown.value);
 });
 
 const emit = defineEmits<{
@@ -23,6 +30,7 @@ const emit = defineEmits<{
   (event: 'refresh'): void;
 }>();
 
+/** Context policy panel; plan body is always visible. */
 const detailsOpen = ref(false);
 const editingFeedback = ref(false);
 const feedback = ref('');
@@ -41,14 +49,12 @@ const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; deta
       <div class="plan-approval-title-wrap">
         <div class="plan-approval-icon"><Pencil :size="17" /></div>
         <div>
-          <div class="plan-approval-eyebrow">计划 · 待审批</div>
-          <h3 class="plan-approval-title">{{ plan.title }}</h3>
+          <div class="plan-approval-eyebrow">待审批</div>
+          <h3 class="plan-approval-title">{{ displayTitle }}</h3>
         </div>
       </div>
       <span class="plan-approval-badge">r{{ plan.revision ?? '?' }}</span>
     </div>
-
-    <p class="plan-approval-goal">{{ plan.goal }}</p>
 
     <div v-if="validationIssues.length" class="plan-approval-warnings" role="status">
       <strong>章节不完整，仍可批准或点编辑继续完善</strong>
@@ -57,23 +63,25 @@ const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; deta
       </ul>
     </div>
 
+    <div class="plan-approval-body">
+      <PlanDocument :markdown="documentMarkdown" />
+    </div>
+
     <button type="button" class="plan-approval-details-toggle" @click="detailsOpen = !detailsOpen">
       <ChevronDown v-if="detailsOpen" :size="15" />
       <ChevronRight v-else :size="15" />
-      {{ detailsOpen ? '收起计划' : '查看完整计划' }}
+      {{ detailsOpen ? '收起上下文选项' : '展开上下文选项与操作说明' }}
     </button>
 
     <div v-if="detailsOpen" class="plan-approval-details">
-      <PlanDocument :markdown="plan.markdown || plan.summary || plan.strategy || plan.goal" />
+      <fieldset class="plan-context-choice" :disabled="approving">
+        <legend>批准后的执行上下文</legend>
+        <label v-for="choice in contextChoices" :key="choice.value" class="plan-context-option">
+          <input v-model="contextPolicy" type="radio" name="plan-context-policy" :value="choice.value" />
+          <span><strong>{{ choice.title }}</strong><small>{{ choice.detail }}</small></span>
+        </label>
+      </fieldset>
     </div>
-
-    <fieldset class="plan-context-choice" :disabled="approving">
-      <legend>批准后的执行上下文</legend>
-      <label v-for="choice in contextChoices" :key="choice.value" class="plan-context-option">
-        <input v-model="contextPolicy" type="radio" name="plan-context-policy" :value="choice.value" />
-        <span><strong>{{ choice.title }}</strong><small>{{ choice.detail }}</small></span>
-      </label>
-    </fieldset>
 
     <div class="plan-approval-actions">
       <button type="button" class="plan-approval-approve" :disabled="approving || plan.revision == null" @click="emit('approve', { contextPolicy })">
@@ -98,15 +106,18 @@ const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; deta
 .plan-approval-header { justify-content: space-between; }
 .plan-approval-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; color: #1d4ed8; background: #dbeafe; }
 .plan-approval-eyebrow { color: #1d4ed8; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.plan-approval-title { margin: 2px 0 0; color: var(--text, #1f2937); font-size: 15px; }
-.plan-approval-badge { border: 1px solid #bfdbfe; border-radius: 999px; padding: 4px 9px; color: #1d4ed8; background: #dbeafe; font-size: 11px; }
-.plan-approval-goal { margin: 12px 0 0; color: var(--text-muted, #667085); font-size: 13px; line-height: 1.55; }
+.plan-approval-title { margin: 2px 0 0; color: var(--text, #1f2937); font-size: 15px; line-height: 1.35; }
+.plan-approval-badge { border: 1px solid #bfdbfe; border-radius: 999px; padding: 4px 9px; color: #1d4ed8; background: #dbeafe; font-size: 11px; flex-shrink: 0; }
+.plan-approval-body { margin-top: 12px; }
+/* Card header already shows the title — hide duplicate H1 from markdown body. */
+.plan-approval-body :deep(.plan-document h1:first-child) { display: none; }
 .plan-approval-warnings { margin-top: 12px; border: 1px solid #fcd34d; border-radius: 10px; padding: 10px 12px; color: #92400e; background: #fffbeb; font-size: 12px; line-height: 1.45; }
 .plan-approval-warnings strong { display: block; margin-bottom: 6px; font-size: 12px; }
 .plan-approval-warnings ul { margin: 0; padding-left: 1.1rem; }
 .plan-approval-warnings li { margin: 2px 0; }
 .plan-approval-details-toggle { display: inline-flex; align-items: center; gap: 4px; margin-top: 13px; border: 0; color: #1d4ed8; background: transparent; font-size: 12px; cursor: pointer; }
 .plan-approval-details, .plan-context-choice { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; color: var(--text-muted, #667085); background: rgba(255, 255, 255, .62); font-size: 12px; }
+.plan-context-choice { margin-top: 0; padding: 0; border: 0; background: transparent; }
 .plan-context-choice legend { padding: 0 4px; color: var(--text, #1f2937); font-weight: 700; }
 .plan-context-option { display: flex; gap: 8px; cursor: pointer; }
 .plan-context-option span { display: flex; flex-direction: column; gap: 2px; }
