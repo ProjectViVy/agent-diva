@@ -60,6 +60,37 @@ pub struct ExecutionSession {
     pub updated_at: DateTime<Utc>,
 }
 
+/// A short-lived execution work item. It is intentionally not linked to a
+/// plan step or report section.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExecutionTodo {
+    pub id: String,
+    pub execution_session_id: String,
+    pub title: String,
+    pub detail: Option<String>,
+    pub status: ExecutionTodoStatus,
+    pub priority: ExecutionTodoPriority,
+    pub evidence_ref: Option<String>,
+    pub block_reason: Option<String>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutionTodoStatus {
+    Pending,
+    InProgress,
+    Blocked,
+    Completed,
+    Canceled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutionTodoPriority {
+    Low,
+    Normal,
+    High,
+}
+
 /// One immutable Markdown revision of a report.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanRevision {

@@ -8,8 +8,8 @@ use sqlx::{FromRow, SqlitePool};
 use super::ids::PlanId;
 use super::report::{
     revision_hash, validate_report_markdown, ExecutionContextPolicy, ExecutionSession,
-    ExecutionSessionStatus, PlanReport, PlanReportStatus, PlanRevision, PlanRevisionApproval,
-    PlanRevisionAuthor,
+    ExecutionSessionStatus, ExecutionTodo, ExecutionTodoPriority, ExecutionTodoStatus, PlanReport,
+    PlanReportStatus, PlanRevision, PlanRevisionApproval, PlanRevisionAuthor,
 };
 
 #[derive(Clone)]
@@ -63,6 +63,11 @@ impl SqlitePlanReportStore {
         .await?;
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS plan_execution_sessions (id TEXT PRIMARY KEY, report_id TEXT NOT NULL REFERENCES plan_reports(id) ON DELETE CASCADE, revision INTEGER NOT NULL, context_policy TEXT NOT NULL, status TEXT NOT NULL, compacted_context TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS execution_todos (id TEXT PRIMARY KEY, execution_session_id TEXT NOT NULL REFERENCES plan_execution_sessions(id) ON DELETE CASCADE, title TEXT NOT NULL, detail TEXT, status TEXT NOT NULL, priority TEXT NOT NULL, evidence_ref TEXT, block_reason TEXT, updated_at TEXT NOT NULL)",
         )
         .execute(&mut *tx)
         .await?;
@@ -201,6 +206,59 @@ impl SqlitePlanReportStore {
         Ok(reports)
     }
 
+    pub async fn active_execution_for_session(
+        &self,
+        session_key: &str,
+    ) -> anyhow::Result<Option<ExecutionSession>> {
+        let row = sqlx::query_as::<_, ExecutionSessionRow>(
+            "SELECT execution.id, execution.report_id, execution.revision, execution.context_policy, execution.status, execution.compacted_context, execution.created_at, execution.updated_at FROM plan_execution_sessions execution INNER JOIN plan_reports report ON report.id = execution.report_id WHERE report.session_key = ? AND execution.status IN ('Executing', 'Verifying') ORDER BY execution.updated_at DESC LIMIT 1",
+        )
+        .bind(session_key)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(execution_session_from_row).transpose()
+    }
+
+    pub async fn replace_execution_todos(
+        &self,
+        execution_session_id: &str,
+        todos: &[ExecutionTodo],
+    ) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+        let active: Option<String> = sqlx::query_scalar(
+            "SELECT id FROM plan_execution_sessions WHERE id = ? AND status IN ('Executing', 'Verifying')",
+        )
+        .bind(execution_session_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if active.is_none() {
+            return Err(anyhow!("execution session is not active"));
+        }
+        sqlx::query("DELETE FROM execution_todos WHERE execution_session_id = ?")
+            .bind(execution_session_id)
+            .execute(&mut *tx)
+            .await?;
+        for todo in todos {
+            sqlx::query("INSERT INTO execution_todos (id, execution_session_id, title, detail, status, priority, evidence_ref, block_reason, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(&todo.id).bind(execution_session_id).bind(&todo.title).bind(&todo.detail).bind(execution_todo_status_name(todo.status)).bind(execution_todo_priority_name(todo.priority)).bind(&todo.evidence_ref).bind(&todo.block_reason).bind(todo.updated_at.to_rfc3339()).execute(&mut *tx).await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn execution_todos(
+        &self,
+        execution_session_id: &str,
+    ) -> anyhow::Result<Vec<ExecutionTodo>> {
+        let rows = sqlx::query_as::<_, ExecutionTodoRow>(
+            "SELECT * FROM execution_todos WHERE execution_session_id = ? ORDER BY rowid",
+        )
+        .bind(execution_session_id)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter().map(execution_todo_from_row).collect()
+    }
+
     pub async fn get_detail(
         &self,
         report_id: &PlanId,
@@ -230,6 +288,30 @@ impl SqlitePlanReportStore {
             .bind(&report.id.0).bind(revision.revision).bind(&revision.title).bind(&revision.markdown).bind(revision_hash(&revision.markdown)).bind(author_name(revision.author)).bind(revision.created_at.to_rfc3339()).execute(&mut *tx).await?;
         tx.commit().await.context("failed to persist plan report")
     }
+}
+
+#[derive(Debug, FromRow)]
+struct ExecutionSessionRow {
+    id: String,
+    report_id: String,
+    revision: i64,
+    context_policy: String,
+    status: String,
+    compacted_context: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+#[derive(Debug, FromRow)]
+struct ExecutionTodoRow {
+    id: String,
+    execution_session_id: String,
+    title: String,
+    detail: Option<String>,
+    status: String,
+    priority: String,
+    evidence_ref: Option<String>,
+    block_reason: Option<String>,
+    updated_at: String,
 }
 
 fn author_name(author: PlanRevisionAuthor) -> &'static str {
@@ -273,6 +355,83 @@ fn revision_author(value: &str) -> anyhow::Result<PlanRevisionAuthor> {
         "User" => Ok(PlanRevisionAuthor::User),
         _ => Err(anyhow!("invalid report revision author")),
     }
+}
+fn execution_todo_status_name(status: ExecutionTodoStatus) -> &'static str {
+    match status {
+        ExecutionTodoStatus::Pending => "Pending",
+        ExecutionTodoStatus::InProgress => "InProgress",
+        ExecutionTodoStatus::Blocked => "Blocked",
+        ExecutionTodoStatus::Completed => "Completed",
+        ExecutionTodoStatus::Canceled => "Canceled",
+    }
+}
+fn execution_todo_priority_name(priority: ExecutionTodoPriority) -> &'static str {
+    match priority {
+        ExecutionTodoPriority::Low => "Low",
+        ExecutionTodoPriority::Normal => "Normal",
+        ExecutionTodoPriority::High => "High",
+    }
+}
+fn execution_todo_status(value: &str) -> anyhow::Result<ExecutionTodoStatus> {
+    match value {
+        "Pending" => Ok(ExecutionTodoStatus::Pending),
+        "InProgress" => Ok(ExecutionTodoStatus::InProgress),
+        "Blocked" => Ok(ExecutionTodoStatus::Blocked),
+        "Completed" => Ok(ExecutionTodoStatus::Completed),
+        "Canceled" => Ok(ExecutionTodoStatus::Canceled),
+        _ => Err(anyhow!("invalid execution todo status")),
+    }
+}
+fn execution_todo_priority(value: &str) -> anyhow::Result<ExecutionTodoPriority> {
+    match value {
+        "Low" => Ok(ExecutionTodoPriority::Low),
+        "Normal" => Ok(ExecutionTodoPriority::Normal),
+        "High" => Ok(ExecutionTodoPriority::High),
+        _ => Err(anyhow!("invalid execution todo priority")),
+    }
+}
+fn execution_context_policy(value: &str) -> anyhow::Result<ExecutionContextPolicy> {
+    match value {
+        "Retain" => Ok(ExecutionContextPolicy::Retain),
+        "Compact" => Ok(ExecutionContextPolicy::Compact),
+        "Clear" => Ok(ExecutionContextPolicy::Clear),
+        _ => Err(anyhow!("invalid execution context policy")),
+    }
+}
+fn execution_session_status(value: &str) -> anyhow::Result<ExecutionSessionStatus> {
+    match value {
+        "Executing" => Ok(ExecutionSessionStatus::Executing),
+        "Verifying" => Ok(ExecutionSessionStatus::Verifying),
+        "Completed" => Ok(ExecutionSessionStatus::Completed),
+        "Failed" => Ok(ExecutionSessionStatus::Failed),
+        "Partial" => Ok(ExecutionSessionStatus::Partial),
+        _ => Err(anyhow!("invalid execution session status")),
+    }
+}
+fn execution_session_from_row(row: ExecutionSessionRow) -> anyhow::Result<ExecutionSession> {
+    Ok(ExecutionSession {
+        id: row.id,
+        report_id: PlanId(row.report_id),
+        revision: row.revision,
+        context_policy: execution_context_policy(&row.context_policy)?,
+        status: execution_session_status(&row.status)?,
+        compacted_context: row.compacted_context,
+        created_at: parse_time(row.created_at)?,
+        updated_at: parse_time(row.updated_at)?,
+    })
+}
+fn execution_todo_from_row(row: ExecutionTodoRow) -> anyhow::Result<ExecutionTodo> {
+    Ok(ExecutionTodo {
+        id: row.id,
+        execution_session_id: row.execution_session_id,
+        title: row.title,
+        detail: row.detail,
+        status: execution_todo_status(&row.status)?,
+        priority: execution_todo_priority(&row.priority)?,
+        evidence_ref: row.evidence_ref,
+        block_reason: row.block_reason,
+        updated_at: parse_time(row.updated_at)?,
+    })
 }
 fn report_from_row(row: ReportRow) -> anyhow::Result<PlanReport> {
     Ok(PlanReport {
@@ -355,6 +514,24 @@ mod tests {
             .unwrap();
         assert_eq!(approval.revision, 1);
         assert_eq!(session.context_policy, ExecutionContextPolicy::Clear);
+        store
+            .replace_execution_todos(
+                &session.id,
+                &[ExecutionTodo {
+                    id: "todo-1".to_string(),
+                    execution_session_id: session.id.clone(),
+                    title: "Run verification".to_string(),
+                    detail: None,
+                    status: ExecutionTodoStatus::Pending,
+                    priority: ExecutionTodoPriority::Normal,
+                    evidence_ref: None,
+                    block_reason: None,
+                    updated_at: Utc::now(),
+                }],
+            )
+            .await
+            .unwrap();
+        assert_eq!(store.execution_todos(&session.id).await.unwrap().len(), 1);
         assert!(store
             .approve_revision(
                 &created.report.id,
