@@ -499,6 +499,17 @@ const getPlaceholder = computed(() => {
   return t('chat.placeholder');
 });
 
+/** Prefer explicit pending prop; fall back to active runtime awaiting approval. */
+const approvalPlan = computed(() => {
+  if (props.pendingApprovalPlan) return props.pendingApprovalPlan;
+  const active = props.activePlanRuntime;
+  if (!active) return null;
+  if (active.phase === 'AwaitingApproval' || active.status === 'AwaitingApproval') {
+    return active;
+  }
+  return null;
+});
+
 const planProgressText = computed(() => {
   const plan = props.executingPlan ?? props.activePlanRuntime;
   if (!plan) return '';
@@ -945,8 +956,8 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       </div>
 
       <PlanApprovalCard
-        v-if="pendingApprovalPlan"
-        :plan="pendingApprovalPlan"
+        v-if="approvalPlan"
+        :plan="approvalPlan"
         :approving="approvingPlan"
         @approve="emit('approve-plan', $event)"
         @revoke="emit('revoke-plan', $event)"
@@ -960,7 +971,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
     </div>
 
     <div
-      v-if="activePlanRuntime && !pendingApprovalPlan"
+      v-if="activePlanRuntime && !approvalPlan"
       class="active-plan-todo-panel"
     >
       <div class="active-plan-todo-bar" role="button" tabindex="0" @click="openPlanTasks" @keydown.enter="openPlanTasks">

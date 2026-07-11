@@ -1137,13 +1137,18 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                         .await
                     {
                         Ok(report) => {
+                            // Keep chat bubble short; the approval card owns the plan body.
                             if extracted.tagged {
                                 final_content = strip_proposed_plan_block(&final_content);
-                                if final_content.trim().is_empty() {
-                                    final_content =
-                                        "已生成计划报告，请在下方审批卡片中查看并批准。"
-                                            .to_string();
-                                }
+                            } else {
+                                // Freeform plans are the whole reply — do not leave a
+                                // second incomplete surface in the message list.
+                                final_content.clear();
+                            }
+                            if final_content.trim().is_empty() {
+                                final_content =
+                                    "已生成计划报告，请在下方审批卡片中查看并批准。"
+                                        .to_string();
                             }
                             if !soft_issues.is_empty() {
                                 let missing: Vec<String> =

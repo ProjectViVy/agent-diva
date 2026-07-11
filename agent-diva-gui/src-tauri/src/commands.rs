@@ -1335,11 +1335,31 @@ fn plan_report_revision(report: &serde_json::Value) -> Option<i64> {
 }
 
 fn plan_report_title(report: &serde_json::Value) -> String {
-    report
+    let raw = report
         .pointer("/revision/title")
         .and_then(|value| value.as_str())
-        .unwrap_or("Plan")
-        .to_string()
+        .unwrap_or("");
+    let cleaned: String = raw.chars().filter(|ch| *ch != '\u{FFFD}').collect();
+    let cleaned = cleaned.trim();
+    if cleaned.is_empty() {
+        // Fall back to first markdown H1.
+        if let Some(title) = plan_report_markdown(report)
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("# "))
+        {
+            let t: String = title.chars().filter(|ch| *ch != '\u{FFFD}').collect();
+            let t = t.trim();
+            if !t.is_empty() {
+                return t.to_string();
+            }
+        }
+        return "计划报告".to_string();
+    }
+    // Recover truncated mojibake titles such as "计报告".
+    if cleaned.contains('报') && cleaned.chars().count() < 4 {
+        return "计划报告".to_string();
+    }
+    cleaned.to_string()
 }
 
 fn plan_report_markdown(report: &serde_json::Value) -> String {
@@ -1381,12 +1401,26 @@ fn plan_report_summary_projection(report: &serde_json::Value) -> serde_json::Val
 fn plan_report_detail_projection(report: &serde_json::Value) -> serde_json::Value {
     let id = plan_report_id(report).unwrap_or_default();
     let status = plan_report_status(report);
-    let phase = if status == "Approved" {
-        "Execute"
+    // Pending reports must surface as AwaitingApproval so the GUI shows the
+    // approval card (not only the compact execution bar).
+    let phase = match status.as_str() {
+        "Approved" => "Execute",
+        "Draft" | "AwaitingApproval" => "AwaitingApproval",
+        other => other,
+    };
+    let status_out = if matches!(status.as_str(), "Draft" | "AwaitingApproval") {
+        "AwaitingApproval"
     } else {
         status.as_str()
     };
     let markdown = plan_report_markdown(report);
+    let title = plan_report_title(report);
+    let goal = markdown
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty() && !line.starts_with('#'))
+        .unwrap_or(title.as_str())
+        .to_string();
     let created_at = report
         .pointer("/report/created_at")
         .cloned()
@@ -1397,11 +1431,12 @@ fn plan_report_detail_projection(report: &serde_json::Value) -> serde_json::Valu
         .unwrap_or_else(|| serde_json::Value::String(String::new()));
     serde_json::json!({
         "id": id,
+        "plan_id": id,
         "revision": plan_report_revision(report),
-        "title": plan_report_title(report),
-        "goal": markdown.lines().find(|line| !line.trim().is_empty()).unwrap_or("Markdown plan report"),
+        "title": title,
+        "goal": goal,
         "phase": phase,
-        "status": status,
+        "status": status_out,
         "strategy": markdown,
         "summary": markdown,
         "markdown": markdown,

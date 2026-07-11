@@ -758,29 +758,82 @@ function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
   };
 }
 
+function isAwaitingApprovalPhase(plan: PlanRuntimeState): boolean {
+  return plan.phase === 'AwaitingApproval' || plan.status === 'AwaitingApproval';
+}
+
+function isExecutingPhase(plan: PlanRuntimeState): boolean {
+  return plan.phase === 'Execute'
+    || plan.phase === 'Verify'
+    || plan.status === 'Approved'
+    || plan.status === 'Executing'
+    || plan.status === 'Verifying';
+}
+
+function isTerminalPhase(plan: PlanRuntimeState): boolean {
+  return plan.phase === 'Completed'
+    || plan.phase === 'Failed'
+    || plan.phase === 'Partial'
+    || plan.status === 'Closed'
+    || plan.status === 'Completed'
+    || plan.status === 'Failed'
+    || plan.status === 'Partial';
+}
+
 function syncPlanRuntime(plan: PlanRuntimeState | null) {
-  activePlanRuntime.value = plan;
   if (!plan) {
+    activePlanRuntime.value = null;
     pendingApprovalPlan.value = null;
     executingPlan.value = null;
     return;
   }
-  if (plan.phase === 'AwaitingApproval') {
-    pendingApprovalPlan.value = plan;
+  // Normalize report statuses into the phases the chat card/bar understand.
+  const normalized: PlanRuntimeState = {
+    ...plan,
+    title: sanitizePlanText(plan.title) || plan.title || 'Plan',
+    goal: sanitizePlanText(plan.goal) || plan.goal,
+    markdown: plan.markdown ? sanitizePlanText(plan.markdown) : plan.markdown,
+    summary: sanitizePlanText(plan.summary) || plan.summary,
+    strategy: plan.strategy == null ? null : sanitizePlanText(plan.strategy) || plan.strategy,
+  };
+  if (isAwaitingApprovalPhase(normalized)) {
+    normalized.phase = 'AwaitingApproval';
+    normalized.status = 'AwaitingApproval';
+    activePlanRuntime.value = normalized;
+    pendingApprovalPlan.value = normalized;
     executingPlan.value = null;
     return;
   }
-  if (plan.phase === 'Execute' || plan.phase === 'Verify') {
-    executingPlan.value = plan;
+  if (isExecutingPhase(normalized)) {
+    if (normalized.phase !== 'Verify') normalized.phase = 'Execute';
+    activePlanRuntime.value = normalized;
+    executingPlan.value = normalized;
     pendingApprovalPlan.value = null;
     return;
   }
-  if (plan.phase === 'Completed' || plan.phase === 'Failed' || plan.phase === 'Partial') {
+  if (isTerminalPhase(normalized)) {
     // Terminal plans must not keep occupying the chat's active-plan bar.
     activePlanRuntime.value = null;
     pendingApprovalPlan.value = null;
     executingPlan.value = null;
+    return;
   }
+  // Unknown phase: keep visible as active, but if it has markdown treat as pending review.
+  if ((normalized.markdown || normalized.summary || normalized.strategy) && normalized.revision != null) {
+    normalized.phase = 'AwaitingApproval';
+    normalized.status = 'AwaitingApproval';
+    activePlanRuntime.value = normalized;
+    pendingApprovalPlan.value = normalized;
+    executingPlan.value = null;
+    return;
+  }
+  activePlanRuntime.value = normalized;
+}
+
+function sanitizePlanText(value: string | null | undefined): string {
+  if (!value) return '';
+  // Drop UTF-8 replacement chars (common "计��报告" corruption) and trim.
+  return value.replace(/\uFFFD/g, '').trim();
 }
 
 function planReportId(value: unknown): string | null {
@@ -794,53 +847,80 @@ function planReportId(value: unknown): string | null {
 }
 
 function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null {
-  // SSE data is `{ report: PlanReportDetail }`; tolerate a bare detail object.
-  const reportEnvelope = payload && typeof payload === 'object' && 'report' in payload
-    ? (payload as { report?: unknown }).report
-    : payload;
-  if (!reportEnvelope || typeof reportEnvelope !== 'object') return null;
-  const detail = reportEnvelope as {
-    report?: { id?: unknown; current_revision?: number; status?: string; created_at?: string; updated_at?: string };
-    revision?: { title?: string; markdown?: string; revision?: number };
-  };
-  // Nested PlanReportDetail uses { report, revision }; some paths may flatten.
-  const reportMeta = detail.report && typeof detail.report === 'object'
+  if (!payload || typeof payload !== 'object') return null;
+  const root = payload as Record<string, unknown>;
+
+  // Accept:
+  // 1) SSE envelope `{ report: PlanReportDetail }`
+  // 2) bare `PlanReportDetail` `{ report, revision }`
+  // 3) double-wrapped `{ report: { report: PlanReportDetail } }`
+  let detail: Record<string, unknown> = root;
+  if (root.report && typeof root.report === 'object') {
+    const level1 = root.report as Record<string, unknown>;
+    if (level1.report && typeof level1.report === 'object' && level1.revision) {
+      detail = level1;
+    } else if (level1.revision || level1.markdown) {
+      detail = level1.revision ? level1 : root;
+    } else if (root.revision) {
+      detail = root;
+    } else {
+      detail = level1;
+    }
+  }
+
+  const reportMeta = (detail.report && typeof detail.report === 'object'
     ? detail.report
-    : (detail as { id?: unknown; current_revision?: number; status?: string; created_at?: string; updated_at?: string });
-  const revisionMeta = detail.revision;
-  const id = planReportId(reportMeta?.id ?? (detail as { id?: unknown }).id);
-  const markdown = revisionMeta?.markdown
-    || (detail as { markdown?: string }).markdown
-    || '';
-  const status = reportMeta?.status || 'AwaitingApproval';
+    : detail) as {
+    id?: unknown;
+    current_revision?: number;
+    status?: string;
+    created_at?: string;
+    updated_at?: string;
+  };
+  const revisionMeta = (detail.revision && typeof detail.revision === 'object'
+    ? detail.revision
+    : detail) as {
+    title?: string;
+    markdown?: string;
+    revision?: number;
+  };
+
+  const id = planReportId(reportMeta.id);
+  const markdown = sanitizePlanText(revisionMeta.markdown || (detail.markdown as string) || '');
   if (!id || !markdown) return null;
+
   const titleFromMarkdown = markdown
     .split('\n')
     .map((line) => line.trim())
     .find((line) => line.startsWith('# '))
     ?.slice(2)
     .trim();
-  const title = revisionMeta?.title || titleFromMarkdown || 'Plan';
+  let title = sanitizePlanText(revisionMeta.title || titleFromMarkdown || '') || 'Plan';
+  // Recover from truncated mojibake titles like "计报告".
+  if (title.includes('报告') && title.length < 4) {
+    title = titleFromMarkdown && titleFromMarkdown.length >= 4 ? titleFromMarkdown : '计划报告';
+  }
   const goalLine = markdown
     .split('\n')
     .map((line) => line.trim())
     .find((line) => line.length > 0 && !line.startsWith('#'));
   const validation_issues = planReportValidationIssues(markdown);
+  // Report-ready always means pending user approval in the replacement model.
   return {
     plan_id: id,
-    revision: revisionMeta?.revision ?? reportMeta?.current_revision ?? null,
+    revision: revisionMeta.revision ?? reportMeta.current_revision ?? null,
     title,
     goal: goalLine || title || 'Markdown plan report',
-    phase: status === 'Approved' ? 'Execute' : status,
-    status,
+    phase: 'AwaitingApproval',
+    status: 'AwaitingApproval',
     strategy: markdown,
     summary: markdown,
     markdown,
     validation_issues: validation_issues.length ? validation_issues : undefined,
     steps: [],
     todos: [],
-    created_at: reportMeta?.created_at || '',
-    updated_at: reportMeta?.updated_at || '',
+    created_at: reportMeta.created_at || '',
+    updated_at: reportMeta.updated_at || '',
   };
 }
 
@@ -879,21 +959,26 @@ async function restoreActivePlanRuntime() {
   if (!isTauri()) return;
   try {
     const plan = await invoke<PlanDetail | null>('get_active_plan');
-    if (!plan) {
+    if (!plan || !plan.id) {
+      // Do not wipe a live pending approval card when the backend returns empty
+      // (race after plan-report-ready, or transient list failure).
+      if (pendingApprovalPlan.value && isAwaitingApprovalPhase(pendingApprovalPlan.value)) {
+        return;
+      }
       syncPlanRuntime(null);
       return;
     }
     syncPlanRuntime({
       plan_id: plan.id,
       revision: plan.revision,
-      title: plan.title,
-      goal: plan.goal,
+      title: sanitizePlanText(plan.title) || plan.title,
+      goal: sanitizePlanText(plan.goal) || plan.goal,
       phase: plan.phase,
       status: plan.status,
       strategy: plan.strategy,
       summary: plan.summary || plan.markdown || `${plan.title}: ${plan.goal}`,
       markdown: plan.markdown || plan.summary || plan.strategy || plan.goal,
-      steps: plan.steps.map((step) => ({
+      steps: (plan.steps ?? []).map((step) => ({
         id: step.id,
         ordinal: step.ordinal,
         title: step.title,
@@ -901,7 +986,7 @@ async function restoreActivePlanRuntime() {
         expected_output: step.expected_output,
         status: step.status,
       })),
-      todos: plan.todos.map((todo) => ({
+      todos: (plan.todos ?? []).map((todo) => ({
         id: todo.id,
         plan_step_id: todo.plan_step_id,
         title: todo.title,
@@ -1656,11 +1741,14 @@ onMounted(async () => {
       lastMsg.isStreaming = false;
       lastMsg.isThinking = false;
       isTyping.value = false;
-      activeStreamRequestId.value = null;
-      // The final plan_transition snapshot is not emitted as a dedicated
-      // stream event. Refresh it after the turn so the UI cannot retain a
-      // stale TODO list when the agent finishes the plan.
-      void restoreActivePlanRuntime();
+      // Refresh plan state before clearing the stream id so a late
+      // plan-report-ready for this request can still be accepted, and so
+      // restore can re-hydrate the approval card after the turn.
+      void restoreActivePlanRuntime().finally(() => {
+        if (activeStreamRequestId.value === event.payload.request_id) {
+          activeStreamRequestId.value = null;
+        }
+      });
       syncCurrentSessionListEntry();
       if (isTauri()) {
         void maybeGenerateCurrentSessionTitle();
@@ -1799,8 +1887,14 @@ onMounted(async () => {
   }));
 
   unlisteners.push(await listen<StreamJsonPayload>("agent-plan-report-ready", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) return;
-    syncPlanRuntime(planRuntimeFromReportPayload(event.payload.data));
+    // Accept while the stream is active. Also accept a late event after
+    // complete if the payload is a valid report (restore may race).
+    const active = activeStreamRequestId.value;
+    if (active && event.payload.request_id !== active) return;
+    const plan = planRuntimeFromReportPayload(event.payload.data);
+    if (plan) {
+      syncPlanRuntime(plan);
+    }
   }));
 
   // Listen for errors

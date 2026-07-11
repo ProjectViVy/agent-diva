@@ -291,9 +291,15 @@ pub fn looks_like_plan_report(text: &str) -> bool {
     title_signal && section_hits >= 1
 }
 
+fn strip_replacement_chars(text: &str) -> String {
+    text.chars().filter(|ch| *ch != '\u{FFFD}').collect()
+}
+
 /// Best-effort normalization so freeform model output becomes approvable Markdown.
 pub fn normalize_report_markdown(text: &str) -> String {
-    let mut lines: Vec<String> = text
+    // Drop UTF-8 replacement characters early so titles do not become "计��报告".
+    let cleaned = strip_replacement_chars(text);
+    let mut lines: Vec<String> = cleaned
         .lines()
         .map(|line| line.trim_end().to_string())
         .collect();
@@ -321,7 +327,7 @@ pub fn normalize_report_markdown(text: &str) -> String {
         .iter()
         .any(|line| line.trim_start().starts_with("# ") && !line.trim_start().starts_with("## "));
     if !has_h1 {
-        let title = lines
+        let mut title = lines
             .iter()
             .find(|line| {
                 let t = line.trim();
@@ -330,6 +336,10 @@ pub fn normalize_report_markdown(text: &str) -> String {
             .map(|line| line.trim().trim_start_matches('#').trim().to_string())
             .filter(|t| !t.is_empty())
             .unwrap_or_else(|| "计划报告".to_string());
+        // Recover obviously broken titles after replacement-char stripping.
+        if title.contains('报') && title.chars().count() < 4 {
+            title = "计划报告".to_string();
+        }
         // If the first content line became the title source and is not a heading, replace it.
         if let Some(first_idx) = lines.iter().position(|line| !line.trim().is_empty()) {
             let first = lines[first_idx].trim();
@@ -340,6 +350,26 @@ pub fn normalize_report_markdown(text: &str) -> String {
             }
         } else {
             lines.push(format!("# {title}"));
+        }
+    } else {
+        // Clean existing H1 lines that contain replacement residue.
+        for line in &mut lines {
+            let trimmed = line.trim_start();
+            if let Some(rest) = trimmed.strip_prefix("# ") {
+                if !trimmed.starts_with("## ") {
+                    let cleaned_title = strip_replacement_chars(rest).trim().to_string();
+                    let title = if cleaned_title.contains('报') && cleaned_title.chars().count() < 4
+                    {
+                        "计划报告".to_string()
+                    } else if cleaned_title.is_empty() {
+                        "计划报告".to_string()
+                    } else {
+                        cleaned_title
+                    };
+                    *line = format!("# {title}");
+                    break;
+                }
+            }
         }
     }
 
@@ -464,6 +494,18 @@ mod tests {
         assert!(normalized.lines().any(|l| l.trim() == "## 范围"));
         assert_eq!(assert_report_ready_for_approval(&normalized), Ok(()));
         assert!(validate_report_markdown(&normalized).is_ok());
+    }
+
+    #[test]
+    fn normalize_repairs_replacement_char_titles() {
+        let broken = "# 计\u{FFFD}\u{FFFD}报告\n\n## 目标\n做点事\n\n## 范围\nx\n\n## 计划步骤\n1\n\n## 风险与假设\nr\n\n## 验证方法\nv\n";
+        let normalized = normalize_report_markdown(broken);
+        let title = normalized
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("# "))
+            .unwrap_or("");
+        assert!(!title.contains('\u{FFFD}'));
+        assert_eq!(title, "计划报告");
     }
 
     #[test]
