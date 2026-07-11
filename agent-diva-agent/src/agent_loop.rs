@@ -221,6 +221,7 @@ impl SubagentSpawner for SubagentManagerSpawner {
 struct ToolTurnOptions<'a> {
     active_mask: Option<&'a MaskFile>,
     plan_phase: Option<PlanPhase>,
+    execution_session_id: Option<String>,
     background_task_context: Option<BackgroundTaskContext>,
 }
 
@@ -268,7 +269,8 @@ fn build_agent_tools(
                 .active_mask
                 .map(|mask| mask.frontmatter.clone()),
         )
-        .with_plan_phase(turn_options.plan_phase);
+        .with_plan_phase(turn_options.plan_phase)
+        .with_execution_session(turn_options.execution_session_id);
 
     if let Some(cron_service) = cron_service {
         assembly = assembly.with_cron_service(cron_service);
@@ -309,6 +311,7 @@ impl AgentLoop {
         &mut self,
         active_mask: Option<&MaskFile>,
         plan_phase: Option<PlanPhase>,
+        execution_session_id: Option<String>,
         background_task_context: Option<BackgroundTaskContext>,
     ) {
         self.tools = build_agent_tools(
@@ -323,6 +326,7 @@ impl AgentLoop {
             ToolTurnOptions {
                 active_mask,
                 plan_phase,
+                execution_session_id,
                 background_task_context,
             },
         );

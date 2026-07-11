@@ -297,6 +297,16 @@ impl AgentLoop {
         let policy_phase = policy_phase_for(active_plan.as_ref(), plan_mode);
         let plan_guard_active = policy_phase.is_some();
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
+        let active_execution_id = match &self.tool_config.planning {
+            Some(planning) if !plan_mode => planning
+                .report_store
+                .active_execution_for_session(&session_key)
+                .await
+                .ok()
+                .flatten()
+                .map(|execution| execution.id),
+            _ => None,
+        };
         let background_task_context = BackgroundTaskContext {
             channel: Some(msg.channel.clone()),
             chat_id: Some(msg.chat_id.clone()),
@@ -313,6 +323,7 @@ impl AgentLoop {
         self.rebuild_tools_for_turn(
             active_mask.as_ref(),
             policy_phase.clone(),
+            active_execution_id,
             Some(background_task_context.clone()),
         );
 
@@ -1041,6 +1052,7 @@ impl AgentLoop {
                             self.rebuild_tools_for_turn(
                                 active_mask.as_ref(),
                                 policy_phase_for(planning_after.as_ref(), plan_mode),
+                                None,
                                 Some(background_task_context.clone()),
                             );
                         }

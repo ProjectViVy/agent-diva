@@ -1,5 +1,5 @@
 use crate::mask::{MaskFile, ToolPolicy};
-use crate::planning::{builtin_tool_capability, PlanShowTool, PlanTransitionTool};
+use crate::planning::builtin_tool_capability;
 use crate::tool_config::PlanningConfig;
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
 use agent_diva_core::config::schema::MaskConfig;
@@ -11,11 +11,10 @@ use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::FileManager;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
-use agent_diva_tools::planning::{PlanCreateTool, PlanSubmitTool, TodoShowTool, TodoWriteTool};
 use agent_diva_tools::{
     load_mcp_tools_sync, BackgroundTaskContext, CronTool, EditFileTool, EnqueueBackgroundTaskTool,
-    ExecTool, ListDirTool, ReadAttachmentTool, ReadFileTool, SpawnTool, WebFetchTool,
-    WebSearchTool, WriteFileTool,
+    ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool, ListDirTool, ReadAttachmentTool,
+    ReadFileTool, SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -49,6 +48,7 @@ pub struct ToolAssembly {
     mask_config: Option<MaskConfig>,
     planning_config: Option<PlanningConfig>,
     plan_phase: Option<PlanPhase>,
+    execution_session_id: Option<String>,
 }
 
 impl ToolAssembly {
@@ -70,6 +70,7 @@ impl ToolAssembly {
             mask_config: None,
             planning_config: None,
             plan_phase: None,
+            execution_session_id: None,
         }
     }
 
@@ -151,6 +152,11 @@ impl ToolAssembly {
     /// Constrain this registry to the persisted phase active for the turn.
     pub fn with_plan_phase(mut self, phase: Option<PlanPhase>) -> Self {
         self.plan_phase = phase;
+        self
+    }
+
+    pub fn with_execution_session(mut self, execution_session_id: Option<String>) -> Self {
+        self.execution_session_id = execution_session_id;
         self
     }
 
@@ -294,18 +300,16 @@ impl ToolAssembly {
             }
         }
 
-        if let Some(planning) = self
-            .planning_config
-            .filter(|_| !matches!(self.plan_phase, Some(PlanPhase::Plan)))
+        if let (Some(planning), Some(execution_session_id)) =
+            (self.planning_config, self.execution_session_id)
         {
-            registry.register(Arc::new(PlanCreateTool::new(planning.store.clone())));
-            registry.register(Arc::new(TodoShowTool::new(planning.store.clone())));
-            registry.register(Arc::new(TodoWriteTool::new(planning.store.clone())));
-            registry.register(Arc::new(PlanShowTool::new(planning.store.clone())));
-            registry.register(Arc::new(PlanSubmitTool::new(planning.store.clone())));
-            registry.register(Arc::new(PlanTransitionTool::new(
-                planning.orchestrator,
-                planning.store,
+            registry.register(Arc::new(ExecutionTodoShowTool::new(
+                planning.report_store.clone(),
+                execution_session_id.clone(),
+            )));
+            registry.register(Arc::new(ExecutionTodoWriteTool::new(
+                planning.report_store,
+                execution_session_id,
             )));
         }
 
@@ -518,31 +522,15 @@ mod tests {
             .await
             .unwrap();
 
-        for (phase, inspect, write, execute, external, planning_record, todo_write) in [
-            (PlanPhase::Explore, true, false, false, false, true, false),
-            (PlanPhase::Plan, true, false, false, false, true, false),
-            (
-                PlanPhase::AwaitingApproval,
-                true,
-                false,
-                false,
-                false,
-                false,
-                false,
-            ),
-            (PlanPhase::Execute, true, true, true, true, true, true),
-            (PlanPhase::Verify, true, false, true, false, true, false),
-            (
-                PlanPhase::Completed,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-            ),
-            (PlanPhase::Failed, false, false, false, false, false, false),
-            (PlanPhase::Partial, false, false, false, false, false, false),
+        for (phase, inspect, write, execute, external) in [
+            (PlanPhase::Explore, true, false, false, false),
+            (PlanPhase::Plan, true, false, false, false),
+            (PlanPhase::AwaitingApproval, true, false, false, false),
+            (PlanPhase::Execute, true, true, true, true),
+            (PlanPhase::Verify, true, false, true, false),
+            (PlanPhase::Completed, false, false, false, false),
+            (PlanPhase::Failed, false, false, false, false),
+            (PlanPhase::Partial, false, false, false, false),
         ] {
             let registry = ToolAssembly::new(temp_dir.path().to_path_buf())
                 .builtin(BuiltInToolsConfig::all())
@@ -555,16 +543,36 @@ mod tests {
 
             assert_eq!(registry.has("read_file"), inspect, "{phase}");
             assert_eq!(registry.has("list_dir"), inspect, "{phase}");
-            assert_eq!(registry.has("plan_create"), planning_record, "{phase}");
-            assert_eq!(registry.has("plan_transition"), planning_record, "{phase}");
+            assert!(!registry.has("plan_create"), "{phase}");
+            assert!(!registry.has("plan_transition"), "{phase}");
             assert_eq!(registry.has("write_file"), write, "{phase}");
             assert_eq!(registry.has("edit_file"), write, "{phase}");
             assert_eq!(registry.has("exec"), execute, "{phase}");
-            assert_eq!(registry.has("plan_submit"), planning_record, "{phase}");
-            assert_eq!(registry.has("todo_write"), todo_write, "{phase}");
+            assert!(!registry.has("plan_submit"), "{phase}");
+            assert!(!registry.has("todo_write"), "{phase}");
             assert_eq!(registry.has("web_search"), external, "{phase}");
             assert!(!registry.has("custom_tool"), "{phase}");
         }
+    }
+
+    #[tokio::test]
+    async fn execution_session_registers_execution_todo_tools_only() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let planning = PlanningConfig::open_workspace(temp_dir.path())
+            .await
+            .unwrap();
+        let registry = ToolAssembly::new(temp_dir.path().to_path_buf())
+            .builtin(BuiltInToolsConfig::all())
+            .with_planning_config(Some(planning))
+            .with_plan_phase(Some(PlanPhase::Execute))
+            .with_execution_session(Some("execution-1".to_string()))
+            .build();
+
+        assert!(registry.has("todo_show"));
+        assert!(registry.has("todo_write"));
+        assert!(!registry.has("plan_create"));
+        assert!(!registry.has("plan_submit"));
+        assert!(!registry.has("plan_transition"));
     }
 
     #[test]

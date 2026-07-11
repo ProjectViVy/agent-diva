@@ -404,6 +404,7 @@ impl AgentLoop {
             active_mask.as_ref(),
             policy_phase_for(active_plan.as_ref(), false),
             None,
+            None,
         );
     }
 
