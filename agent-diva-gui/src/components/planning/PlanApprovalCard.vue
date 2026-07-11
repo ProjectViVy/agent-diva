@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Check, ChevronDown, ChevronRight, Loader2, Pencil, RefreshCw } from 'lucide-vue-next';
 import type { PlanRuntimeState } from '../../api/planning';
+import { planReportValidationIssues } from '../../api/planning';
 import PlanDocument from './PlanDocument.vue';
 
 export type ExecutionContextPolicy = 'retain' | 'compact' | 'clear';
 
-defineProps<{
+const props = defineProps<{
   plan: PlanRuntimeState;
   approving?: boolean;
 }>();
+
+const validationIssues = computed(() => {
+  if (props.plan.validation_issues?.length) return props.plan.validation_issues;
+  return planReportValidationIssues(props.plan.markdown || props.plan.summary || props.plan.strategy);
+});
 
 const emit = defineEmits<{
   (event: 'approve', payload: { contextPolicy: ExecutionContextPolicy }): void;
@@ -43,6 +49,13 @@ const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; deta
     </div>
 
     <p class="plan-approval-goal">{{ plan.goal }}</p>
+
+    <div v-if="validationIssues.length" class="plan-approval-warnings" role="status">
+      <strong>章节不完整，仍可批准或点编辑继续完善</strong>
+      <ul>
+        <li v-for="issue in validationIssues" :key="issue">{{ issue }}</li>
+      </ul>
+    </div>
 
     <button type="button" class="plan-approval-details-toggle" @click="detailsOpen = !detailsOpen">
       <ChevronDown v-if="detailsOpen" :size="15" />
@@ -88,6 +101,10 @@ const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; deta
 .plan-approval-title { margin: 2px 0 0; color: var(--text, #1f2937); font-size: 15px; }
 .plan-approval-badge { border: 1px solid #bfdbfe; border-radius: 999px; padding: 4px 9px; color: #1d4ed8; background: #dbeafe; font-size: 11px; }
 .plan-approval-goal { margin: 12px 0 0; color: var(--text-muted, #667085); font-size: 13px; line-height: 1.55; }
+.plan-approval-warnings { margin-top: 12px; border: 1px solid #fcd34d; border-radius: 10px; padding: 10px 12px; color: #92400e; background: #fffbeb; font-size: 12px; line-height: 1.45; }
+.plan-approval-warnings strong { display: block; margin-bottom: 6px; font-size: 12px; }
+.plan-approval-warnings ul { margin: 0; padding-left: 1.1rem; }
+.plan-approval-warnings li { margin: 2px 0; }
 .plan-approval-details-toggle { display: inline-flex; align-items: center; gap: 4px; margin-top: 13px; border: 0; color: #1d4ed8; background: transparent; font-size: 12px; cursor: pointer; }
 .plan-approval-details, .plan-context-choice { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; color: var(--text-muted, #667085); background: rgba(255, 255, 255, .62); font-size: 12px; }
 .plan-context-choice legend { padding: 0 4px; color: var(--text, #1f2937); font-weight: 700; }

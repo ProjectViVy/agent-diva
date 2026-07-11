@@ -14,7 +14,13 @@ import {
   returnActivePlanToDraft,
   FileAttachmentDto,
 } from "./api/desktop";
-import type { PlanDetail, PlanRuntimeState, PlanSnapshotMetadata, PlanStreamEvent } from "./api/planning";
+import {
+  planReportValidationIssues,
+  type PlanDetail,
+  type PlanRuntimeState,
+  type PlanSnapshotMetadata,
+  type PlanStreamEvent,
+} from "./api/planning";
 import type { ToolsConfigShape } from "./types/toolsConfig";
 import {
   HISTORY_PREFS_KEY,
@@ -777,33 +783,64 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
   }
 }
 
+function planReportId(value: unknown): string | null {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj['0'] === 'string' && obj['0'].length > 0) return obj['0'];
+    if (typeof obj.id === 'string' && obj.id.length > 0) return obj.id;
+  }
+  return null;
+}
+
 function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null {
+  // SSE data is `{ report: PlanReportDetail }`; tolerate a bare detail object.
   const reportEnvelope = payload && typeof payload === 'object' && 'report' in payload
     ? (payload as { report?: unknown }).report
-    : null;
+    : payload;
   if (!reportEnvelope || typeof reportEnvelope !== 'object') return null;
   const detail = reportEnvelope as {
-    report?: { id?: string; current_revision?: number; status?: string; created_at?: string; updated_at?: string };
+    report?: { id?: unknown; current_revision?: number; status?: string; created_at?: string; updated_at?: string };
     revision?: { title?: string; markdown?: string; revision?: number };
   };
-  const id = detail.report?.id;
-  const markdown = detail.revision?.markdown || '';
-  const status = detail.report?.status || 'AwaitingApproval';
+  // Nested PlanReportDetail uses { report, revision }; some paths may flatten.
+  const reportMeta = detail.report && typeof detail.report === 'object'
+    ? detail.report
+    : (detail as { id?: unknown; current_revision?: number; status?: string; created_at?: string; updated_at?: string });
+  const revisionMeta = detail.revision;
+  const id = planReportId(reportMeta?.id ?? (detail as { id?: unknown }).id);
+  const markdown = revisionMeta?.markdown
+    || (detail as { markdown?: string }).markdown
+    || '';
+  const status = reportMeta?.status || 'AwaitingApproval';
   if (!id || !markdown) return null;
+  const titleFromMarkdown = markdown
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('# '))
+    ?.slice(2)
+    .trim();
+  const title = revisionMeta?.title || titleFromMarkdown || 'Plan';
+  const goalLine = markdown
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && !line.startsWith('#'));
+  const validation_issues = planReportValidationIssues(markdown);
   return {
     plan_id: id,
-    revision: detail.revision?.revision ?? detail.report?.current_revision ?? null,
-    title: detail.revision?.title || 'Plan',
-    goal: markdown.split('\n').find((line) => line.trim().length > 0) || 'Markdown plan report',
+    revision: revisionMeta?.revision ?? reportMeta?.current_revision ?? null,
+    title,
+    goal: goalLine || title || 'Markdown plan report',
     phase: status === 'Approved' ? 'Execute' : status,
     status,
     strategy: markdown,
     summary: markdown,
     markdown,
+    validation_issues: validation_issues.length ? validation_issues : undefined,
     steps: [],
     todos: [],
-    created_at: detail.report?.created_at || '',
-    updated_at: detail.report?.updated_at || '',
+    created_at: reportMeta?.created_at || '',
+    updated_at: reportMeta?.updated_at || '',
   };
 }
 

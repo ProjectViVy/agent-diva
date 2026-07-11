@@ -89,10 +89,33 @@ export interface PlanRuntimeState {
   strategy: string | null;
   summary: string;
   markdown?: string;
+  /** Soft completeness warnings (missing sections, etc.); do not block approval. */
+  validation_issues?: string[];
   steps: PlanRuntimeStep[];
   todos: PlanRuntimeTodo[];
   created_at: string;
   updated_at: string;
+}
+
+const PLAN_REQUIRED_SECTIONS = ['目标', '范围', '计划步骤', '风险与假设', '验证方法'] as const;
+
+/** Soft completeness hints for plan report markdown (mirrors core report_validation_issues). */
+export function planReportValidationIssues(markdown: string | undefined | null): string[] {
+  if (!markdown || !markdown.trim()) {
+    return ['计划报告正文为空'];
+  }
+  const issues: string[] = [];
+  const lines = markdown.split(/\r?\n/);
+  if (!lines.some((line) => line.trimStart().startsWith('# '))) {
+    issues.push('计划报告缺少标题');
+  }
+  for (const section of PLAN_REQUIRED_SECTIONS) {
+    const heading = `## ${section}`;
+    if (!lines.some((line) => line.trim() === heading)) {
+      issues.push(`计划报告缺少章节：${section}`);
+    }
+  }
+  return issues;
 }
 
 export interface PlanApprovalReceipt {

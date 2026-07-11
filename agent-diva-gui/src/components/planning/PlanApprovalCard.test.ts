@@ -79,4 +79,28 @@ describe('PlanApprovalCard', () => {
     await wrapper.get('.plan-approval-refresh').trigger('click');
     expect(wrapper.emitted('refresh')).toHaveLength(1);
   });
+
+  it('still shows approve for incomplete freeform plan markdown', () => {
+    const incompleteMarkdown = [
+      '# C++ 测试项目',
+      '',
+      '## 目标',
+      '创建项目',
+      '',
+      '## 范围',
+      'cpp/',
+    ].join('\n');
+    const incomplete: PlanRuntimeState = {
+      ...plan,
+      title: 'C++ 测试项目',
+      goal: '创建项目',
+      strategy: incompleteMarkdown,
+      summary: incompleteMarkdown,
+      markdown: incompleteMarkdown,
+      validation_issues: ['计划报告缺少章节：计划步骤', '计划报告缺少章节：风险与假设', '计划报告缺少章节：验证方法'],
+    };
+    const wrapper = mount(PlanApprovalCard, { props: { plan: incomplete } });
+    expect(wrapper.text()).toContain('章节不完整，仍可批准或点编辑继续完善');
+    expect(wrapper.get('.plan-approval-approve').attributes('disabled')).toBeUndefined();
+  });
 });
