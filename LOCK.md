@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-12T00:30:00+08:00`
-- Last Heartbeat: `2026-07-12T00:55:00+08:00`
+- Last Heartbeat: `2026-07-12T01:20:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-12`: Released plan-report core/gateway foundation after commits `8fc363b`, `1fea81e`, `d445e7d`, `1b609e6`, and `55029d7`. New immutable report persistence and HTTP endpoints are ready; agent-loop/Tauri/GUI replacement and legacy deletion are intentionally pending the next vertical slice.
 
 - `2026-07-12`: Released pending-plan action visibility lock after commit `3ed5337`; history detail reuses the approval card only for the current `AwaitingApproval` plan. Focused approval/history tests, full GUI suite (391 tests), typecheck, and production build passed.
 
