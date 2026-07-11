@@ -4,6 +4,11 @@
 
 ## Active Plan
 
+- [ ] **Plan Mode: make default execution-context Compact a durable summary boundary** The current default `Compact` policy only trims the first execution request to six local messages; it does not create a summary, advance a boundary, or prevent exploratory context from returning in later execution turns. `Clear` is also request-local rather than an execution-session policy.
+  - Expected behavior: Compact persists a quality-checked pre-execution summary plus an execution boundary; Clear persists the boundary without a summary; both policies apply to every execution turn while retaining the transcript for audit. Summary failure must be explicit and must not silently retain context.
+  - Related: `docs/architecture/plan-execution-context-compaction-fix.md`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-core/src/planning/report.rs`, `agent-diva-core/src/planning/report_store.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src/App.vue`
+  - Suggested validation: deterministic approval-to-execution integration tests for Compact/Clear/Retain, restart persistence, and reactive generic compaction rebuild.
+
 - [ ] **Plan/TODO architecture implementation** Execute the project-management plan in [09-project-management.md](docs/architecture/plan-todo/09-project-management.md), with the detailed architecture anchors in `docs/architecture/plan-todo/01-architecture-exploration.md` through `13-acceptance-criteria.md`. This is the only active stream.
   - Scope: P1 core state/capability policy → P2 revision-bound approval and optional TODO materialization → P3 agent-loop enforcement → P4 GUI projection → P5 regression and release validation.
   - Rule: before approval, file writes, shell execution, MCP, spawning, scheduling, and other external mutations remain denied by runtime policy.
