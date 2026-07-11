@@ -23,11 +23,27 @@ pub struct UpdateExecutionTodoRequest {
     pub priority: Option<ExecutionTodoPriority>, pub evidence_ref: Option<String>, pub block_reason: Option<String>,
 }
 
-#[derive(Clone, Default)]
-pub struct PlanningService { registry: Arc<EphemeralPlanRegistry> }
+#[derive(Clone)]
+pub struct PlanningService {
+    registry: Arc<EphemeralPlanRegistry>,
+}
+
+impl Default for PlanningService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl PlanningService {
-    pub fn new() -> Self { Self::default() }
+    /// Construct a service handle on the process-wide plan registry.
+    ///
+    /// Must use [`EphemeralPlanRegistry::new`] (not a private empty map) so
+    /// gateway approve/execution sees drafts created by the agent loop.
+    pub fn new() -> Self {
+        Self {
+            registry: Arc::new(EphemeralPlanRegistry::new()),
+        }
+    }
     pub fn registry(&self) -> Arc<EphemeralPlanRegistry> { self.registry.clone() }
     pub async fn create_report(&self, session_key: &str, title: &str, markdown: &str, author: PlanRevisionAuthor) -> anyhow::Result<PlanReportDetail> {
         self.registry.create_report(session_key, title, markdown, author).await

@@ -22,7 +22,7 @@ pub struct PlanReportDetail {
     pub revision: PlanRevision,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct EphemeralPlanRegistry {
     sessions: Arc<RwLock<HashMap<String, SessionPlanState>>>,
 }
@@ -40,11 +40,26 @@ struct ExecutionState {
     todos: Vec<ExecutionTodo>,
 }
 
+impl Default for EphemeralPlanRegistry {
+    /// Always share the process-wide registry.
+    ///
+    /// `#[derive(Default)]` would allocate a private empty map, which breaks
+    /// Manager approve/execution against drafts created by the agent loop
+    /// (`plan draft not found for session`).
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EphemeralPlanRegistry {
     pub fn new() -> Self {
         // Components are constructed independently (agent loop, gateway, and
         // desktop bridge), but they run in one backend process.  They share
         // this registry instance while retaining strict session-key isolation.
+        //
+        // Both `new()` and `Default` must return handles to this same map;
+        // Manager `PlanningService` historically constructed via Default while
+        // the agent loop uses `new()`.
         static PROCESS_REGISTRY: OnceLock<Arc<RwLock<HashMap<String, SessionPlanState>>>> = OnceLock::new();
         Self { sessions: PROCESS_REGISTRY.get_or_init(|| Arc::new(RwLock::new(HashMap::new()))).clone() }
     }
@@ -226,13 +241,96 @@ mod tests {
     #[tokio::test]
     async fn drafts_and_execution_are_isolated_by_session_and_replaced() {
         let registry = EphemeralPlanRegistry::new();
-        let a = registry.create_report("a", "A", PLAN, PlanRevisionAuthor::Agent).await.unwrap();
-        registry.create_report("b", "B", PLAN, PlanRevisionAuthor::Agent).await.unwrap();
-        assert!(registry.active_execution_for_session("b").await.is_none());
+        let a = registry
+            .create_report(
+                "session-isolation-a",
+                "A",
+                PLAN,
+                PlanRevisionAuthor::Agent,
+            )
+            .await
+            .unwrap();
+        registry
+            .create_report(
+                "session-isolation-b",
+                "B",
+                PLAN,
+                PlanRevisionAuthor::Agent,
+            )
+            .await
+            .unwrap();
+        assert!(registry
+            .active_execution_for_session("session-isolation-b")
+            .await
+            .is_none());
         let hash = revision_hash(PLAN);
-        let (_, execution) = registry.approve_revision("a", &a.report.id, 1, &hash, ExecutionContextPolicy::Retain, None).await.unwrap();
-        assert_eq!(registry.execution_markdown(&execution.id).await.as_deref(), Some(PLAN));
-        assert!(registry.create_report("a", "new", PLAN, PlanRevisionAuthor::Agent).await.is_ok());
+        let (_, execution) = registry
+            .approve_revision(
+                "session-isolation-a",
+                &a.report.id,
+                1,
+                &hash,
+                ExecutionContextPolicy::Retain,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            registry.execution_markdown(&execution.id).await.as_deref(),
+            Some(PLAN)
+        );
+        assert!(registry
+            .create_report(
+                "session-isolation-a",
+                "new",
+                PLAN,
+                PlanRevisionAuthor::Agent,
+            )
+            .await
+            .is_ok());
         assert!(registry.execution_markdown(&execution.id).await.is_none());
+        registry.discard_session("session-isolation-a").await;
+        registry.discard_session("session-isolation-b").await;
+    }
+
+    /// Regression: agent loop creates via `new()`, manager approve used
+    /// `Default`/`PlanningService::new()`. They must see the same draft.
+    #[tokio::test]
+    async fn default_and_new_share_process_registry_for_approve() {
+        let agent_side = EphemeralPlanRegistry::new();
+        let manager_side = EphemeralPlanRegistry::default();
+        let session_key = "gui:plan-approve-registry-share";
+        agent_side.discard_session(session_key).await;
+        manager_side.discard_session(session_key).await;
+
+        let draft = agent_side
+            .create_report(session_key, "Shared", PLAN, PlanRevisionAuthor::Agent)
+            .await
+            .unwrap();
+        let hash = revision_hash(PLAN);
+        let result = manager_side
+            .approve_revision(
+                session_key,
+                &draft.report.id,
+                1,
+                &hash,
+                ExecutionContextPolicy::Compact,
+                None,
+            )
+            .await;
+        assert!(
+            result.is_ok(),
+            "manager Default registry must see agent new() draft: {:?}",
+            result.err().map(|e| e.to_string())
+        );
+        let (_, execution) = result.unwrap();
+        assert_eq!(
+            manager_side
+                .execution_markdown(&execution.id)
+                .await
+                .as_deref(),
+            Some(PLAN)
+        );
+        agent_side.discard_session(session_key).await;
     }
 }
