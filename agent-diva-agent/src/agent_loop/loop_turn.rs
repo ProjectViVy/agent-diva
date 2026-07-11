@@ -382,7 +382,7 @@ impl AgentLoop {
         self.rebuild_tools_for_turn(
             active_mask.as_ref(),
             policy_phase.clone(),
-            active_execution_id,
+            active_execution_id.clone(),
             Some(background_task_context.clone()),
         );
 
@@ -994,8 +994,13 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                 .as_ref()
                                 .is_some_and(ToolPolicy::is_read_only_mode)
                                 && !ToolPolicy::is_read_only_tool(&tool_call.name);
-                            let policy_phase =
-                                policy_phase_for(planning_before.as_ref(), plan_mode);
+                            // Active report execution must not be re-gated by a
+                            // stale legacy plan phase mid-turn.
+                            let policy_phase = if active_execution_id.is_some() && !plan_mode {
+                                None
+                            } else {
+                                policy_phase_for(planning_before.as_ref(), plan_mode)
+                            };
                             let capability = builtin_tool_capability(&tool_call.name);
                             let plan_mode_rejected = policy_phase
                                 .as_ref()
@@ -1115,10 +1120,15 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                 .as_ref()
                                 .map(|plan| (plan.phase.clone(), plan.revision))
                         {
+                            let rebuild_phase = if active_execution_id.is_some() && !plan_mode {
+                                None
+                            } else {
+                                policy_phase_for(planning_after.as_ref(), plan_mode)
+                            };
                             self.rebuild_tools_for_turn(
                                 active_mask.as_ref(),
-                                policy_phase_for(planning_after.as_ref(), plan_mode),
-                                None,
+                                rebuild_phase,
+                                active_execution_id.clone(),
                                 Some(background_task_context.clone()),
                             );
                         }
