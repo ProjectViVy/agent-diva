@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-11T19:00:00+08:00`
-- Last Heartbeat: `2026-07-11T23:59:00+08:00`
+- Started At: `2026-07-12T04:14:05+08:00`
+- Last Heartbeat: `2026-07-12T04:17:09+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-12`: Released settings-card-priority lock after reordering settings dashboard cards, passing GUI typecheck and production build, and recording the delivery log.
 
 - `2026-07-11`: Released final PLAN/TODO replacement lock after commits `6ac9833`, `d5e51d8`, `7f9dd6f`, `690c405`, `5f5444d`, `170936c`, and `6377854`. PLAN history now renders Markdown reports, old manager `/api/plans*` gateway handlers are removed, legacy plan tools are no longer registered, and execution TODO tools are bound to active execution sessions. Focused Rust/GUI validations passed; `just ci` passed fmt and clippy but `cargo test --all` hit Windows page-file/PDB resource failures (`os error 1455`, `LNK1318`) after prior assertion failures were fixed and individually rerun.
 

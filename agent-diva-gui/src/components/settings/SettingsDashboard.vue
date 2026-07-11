@@ -10,20 +10,20 @@ const emit = defineEmits<{
 }>();
 
 const cards = computed(() => [
-  { id: 'general', icon: SlidersHorizontal, title: t('dashboard.general'), desc: t('dashboard.generalDesc') },
-  { id: 'mcp', icon: Bot, title: t('dashboard.mcp'), desc: t('dashboard.mcpDesc') },
-  { id: 'skills', icon: WandSparkles, title: t('dashboard.skills'), desc: t('dashboard.skillsDesc') },
   { id: 'providers', icon: Server, title: t('dashboard.providers'), desc: t('dashboard.providersDesc') },
   { id: 'channels', icon: MessageSquare, title: t('dashboard.channels'), desc: t('dashboard.channelsDesc') },
-  { id: 'network', icon: Search, title: t('dashboard.network'), desc: t('dashboard.networkDesc') },
-  { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc') },
-  { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc') },
-  { id: 'theme', icon: Palette, title: t('dashboard.theme'), desc: t('dashboard.themeDesc') },
-  { id: 'self-evolution', icon: Sparkles, title: t('dashboard.selfEvolution'), desc: t('dashboard.selfEvolutionDesc') },
+  { id: 'general', icon: SlidersHorizontal, title: t('dashboard.general'), desc: t('dashboard.generalDesc') },
+  { id: 'skills', icon: WandSparkles, title: t('dashboard.skills'), desc: t('dashboard.skillsDesc') },
+  { id: 'mcp', icon: Bot, title: t('dashboard.mcp'), desc: t('dashboard.mcpDesc') },
   { id: 'sandbox', icon: ShieldCheck, title: t('dashboard.sandbox'), desc: t('dashboard.sandboxDesc') },
+  { id: 'network', icon: Search, title: t('dashboard.network'), desc: t('dashboard.networkDesc') },
   { id: 'compaction', icon: Minimize2, title: t('dashboard.compaction'), desc: t('dashboard.compactionDesc') },
-  { id: 'pet', icon: Cat, title: t('dashboard.pet'), desc: t('dashboard.petDesc') },
+  { id: 'self-evolution', icon: Sparkles, title: t('dashboard.selfEvolution'), desc: t('dashboard.selfEvolutionDesc') },
   { id: 'audit', icon: FileText, title: t('dashboard.audit'), desc: t('dashboard.auditDesc') },
+  { id: 'theme', icon: Palette, title: t('dashboard.theme'), desc: t('dashboard.themeDesc') },
+  { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc') },
+  { id: 'pet', icon: Cat, title: t('dashboard.pet'), desc: t('dashboard.petDesc') },
+  { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc') },
 ]);
 </script>
 
