@@ -931,12 +931,27 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
     const pending = pendingApprovalPlan.value;
     if (pending?.revision == null) throw new Error('Plan revision is unavailable; refresh before approving.');
     const result = await approveActivePlanExecution({
+      plan_id: pending.plan_id,
       expected_revision: pending.revision,
       todo_policy: 'Optional',
       materialize_todos: false,
       context_policy: payload.contextPolicy,
     });
-    syncPlanRuntime(result.plan);
+    // After approve, force execution UI even if projection is partial.
+    const approved = {
+      ...result.plan,
+      plan_id: result.plan.plan_id || pending.plan_id,
+      phase: result.plan.phase === 'AwaitingApproval' ? 'Execute' : (result.plan.phase || 'Execute'),
+      status: result.plan.status === 'AwaitingApproval' || result.plan.status === 'Pending'
+        ? 'InProgress'
+        : (result.plan.status || 'InProgress'),
+      markdown: result.plan.markdown || pending.markdown,
+      summary: result.plan.summary || pending.summary || pending.markdown || '',
+      strategy: result.plan.strategy ?? pending.strategy ?? pending.markdown ?? null,
+      steps: result.plan.steps ?? [],
+      todos: result.plan.todos ?? [],
+    };
+    syncPlanRuntime(approved);
     messages.value.push({
       id: generateMessageId(),
       role: 'system',

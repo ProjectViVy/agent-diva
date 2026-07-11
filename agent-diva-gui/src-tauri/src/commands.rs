@@ -9,7 +9,7 @@ use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
 use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
-use agent_diva_core::bus::{PlanApprovalResult, PlanRuntimeState};
+use agent_diva_core::bus::PlanRuntimeState;
 use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::planning::{revision_hash, ExecutionContextPolicy};
@@ -1242,23 +1242,45 @@ pub async fn send_message(
 pub async fn approve_active_plan_execution(
     request: serde_json::Value,
     state: State<'_, AgentState>,
-) -> Result<PlanApprovalResult, String> {
+) -> Result<serde_json::Value, String> {
     let reports = get_plan_reports(state.clone()).await?;
+    let preferred_id = request
+        .get("plan_id")
+        .or_else(|| request.get("planId"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let expected_revision = request
+        .get("expected_revision")
+        .or_else(|| request.get("expectedRevision"))
+        .and_then(|value| value.as_i64());
+
     let report = reports
         .as_array()
         .and_then(|reports| {
+            // Prefer the exact pending report the GUI is showing.
+            if let Some(id) = preferred_id {
+                if let Some(exact) = reports.iter().find(|report| {
+                    plan_report_id(report) == Some(id)
+                        && plan_report_status(report) == "AwaitingApproval"
+                }) {
+                    return Some(exact);
+                }
+            }
             reports.iter().find(|report| {
-                report
-                    .pointer("/report/status")
-                    .and_then(|value| value.as_str())
-                    == Some("AwaitingApproval")
+                plan_report_status(report) == "AwaitingApproval"
+                    && expected_revision
+                        .map(|rev| plan_report_revision(report) == Some(rev))
+                        .unwrap_or(true)
             })
         })
         .ok_or_else(|| "No plan report is awaiting approval".to_string())?;
+
     let report_id =
         plan_report_id(report).ok_or_else(|| "Plan report is missing id".to_string())?;
     let markdown = plan_report_markdown(report);
-    let revision = plan_report_revision(report)
+    let revision = expected_revision
+        .or_else(|| plan_report_revision(report))
         .ok_or_else(|| "Plan report is missing revision".to_string())?;
     let context_policy = match request
         .get("context_policy")
@@ -1276,27 +1298,58 @@ pub async fn approve_active_plan_execution(
         "context_policy": context_policy,
         "compacted_context": null,
     });
-    let execution = approve_plan_report(report_id.to_string(), payload, state).await?;
-    let plan = plan_report_detail_projection(report);
-    serde_json::from_value(serde_json::json!({
+    let execution = approve_plan_report(report_id.to_string(), payload, state.clone()).await?;
+
+    // Prefer a fresh projection after status flips to Approved.
+    let plan = get_plan_reports(state)
+        .await
+        .ok()
+        .and_then(|reports| {
+            reports.as_array().and_then(|reports| {
+                reports
+                    .iter()
+                    .find(|item| plan_report_id(item) == Some(report_id))
+                    .map(plan_report_detail_projection)
+            })
+        })
+        .unwrap_or_else(|| {
+            let mut projected = plan_report_detail_projection(report);
+            if let Some(obj) = projected.as_object_mut() {
+                obj.insert("phase".into(), serde_json::json!("Execute"));
+                obj.insert("status".into(), serde_json::json!("InProgress"));
+            }
+            projected
+        });
+
+    let approved_at = execution
+        .get("created_at")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!(chrono::Utc::now().to_rfc3339()));
+
+    Ok(serde_json::json!({
         "plan": plan,
         "receipt": {
             "plan_id": report_id,
             "revision": revision,
-            "approved_at": execution.get("created_at").cloned().unwrap_or(serde_json::Value::Null),
+            "approved_by": "desktop-ui",
+            "approved_at": approved_at,
             "todo_policy": "Optional",
             "todos_materialized": false,
         },
     }))
-    .map_err(|e| format!("Invalid approval payload: {}", e))
 }
 
 #[tauri::command]
 pub async fn return_active_plan_to_draft(
     state: State<'_, AgentState>,
-) -> Result<PlanRuntimeState, String> {
+) -> Result<serde_json::Value, String> {
+    // GUI only needs the JSON shape; do not force PlanRuntimeState enum decode
+    // (report status AwaitingApproval is not a PlanStatus variant).
     let value = get_active_plan(state).await?;
-    serde_json::from_value(value).map_err(|e| e.to_string())
+    if value.is_null() {
+        return Err("No active plan to return to draft".to_string());
+    }
+    Ok(value)
 }
 
 #[tauri::command]
@@ -1400,18 +1453,15 @@ fn plan_report_summary_projection(report: &serde_json::Value) -> serde_json::Val
 
 fn plan_report_detail_projection(report: &serde_json::Value) -> serde_json::Value {
     let id = plan_report_id(report).unwrap_or_default();
-    let status = plan_report_status(report);
-    // Pending reports must surface as AwaitingApproval so the GUI shows the
-    // approval card (not only the compact execution bar).
-    let phase = match status.as_str() {
-        "Approved" => "Execute",
-        "Draft" | "AwaitingApproval" => "AwaitingApproval",
-        other => other,
-    };
-    let status_out = if matches!(status.as_str(), "Draft" | "AwaitingApproval") {
-        "AwaitingApproval"
-    } else {
-        status.as_str()
+    let report_status = plan_report_status(report);
+    // GUI uses `phase` for card/bar routing (PlanPhase).
+    // `status` must stay compatible with PlanStatus when any Rust path deserializes
+    // PlanRuntimeState (Pending/InProgress/… — never report statuses like AwaitingApproval).
+    let (phase, status_out) = match report_status.as_str() {
+        "Approved" => ("Execute", "InProgress"),
+        "Closed" => ("Completed", "Completed"),
+        "Draft" | "AwaitingApproval" => ("AwaitingApproval", "Pending"),
+        other => (other, "Pending"),
     };
     let markdown = plan_report_markdown(report);
     let title = plan_report_title(report);
@@ -1437,6 +1487,7 @@ fn plan_report_detail_projection(report: &serde_json::Value) -> serde_json::Valu
         "goal": goal,
         "phase": phase,
         "status": status_out,
+        "report_status": report_status,
         "strategy": markdown,
         "summary": markdown,
         "markdown": markdown,
