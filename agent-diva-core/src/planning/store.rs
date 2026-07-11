@@ -232,6 +232,12 @@ impl SqlitePlanningStore {
 
         Ok(store)
     }
+
+    /// Exposes the shared SQLite pool to adjacent planning persistence
+    /// adapters. The store remains the owner of the legacy tables.
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
 }
 
 async fn configure_sqlite_connection(pool: &SqlitePool) -> Result<(), PlanningError> {

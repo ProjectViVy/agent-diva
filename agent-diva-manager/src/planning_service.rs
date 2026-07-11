@@ -6,6 +6,9 @@
 use agent_diva_core::planning::ids::PlanId;
 use agent_diva_core::planning::model::{Plan, PlanPhase, PlanStatus, TodoStatus};
 use agent_diva_core::planning::store::{PlanningStore, SqlitePlanningStore};
+use agent_diva_core::planning::{
+    ExecutionContextPolicy, PlanReportDetail, PlanRevisionAuthor, SqlitePlanReportStore,
+};
 use anyhow::Context;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -103,21 +106,87 @@ pub struct UpdatePlanRequest {
 #[derive(Clone)]
 pub struct PlanningService {
     store: Arc<SqlitePlanningStore>,
+    report_store: Arc<SqlitePlanReportStore>,
 }
 
 impl PlanningService {
-    pub fn new(store: Arc<SqlitePlanningStore>) -> Self {
-        Self { store }
+    pub async fn new(store: Arc<SqlitePlanningStore>) -> anyhow::Result<Self> {
+        let report_store = SqlitePlanReportStore::new(store.pool().clone())
+            .await
+            .context("failed to create plan report store")?;
+        Ok(Self {
+            store,
+            report_store: Arc::new(report_store),
+        })
     }
 
     /// Create a new PlanningService from a raw SqlitePool, auto-migrating the schema.
     pub async fn new_from_pool(pool: SqlitePool) -> anyhow::Result<Self> {
-        let store = SqlitePlanningStore::new(pool)
+        let store = SqlitePlanningStore::new(pool.clone())
             .await
             .context("failed to create planning store")?;
+        let report_store = SqlitePlanReportStore::new(pool)
+            .await
+            .context("failed to create plan report store")?;
         Ok(Self {
             store: Arc::new(store),
+            report_store: Arc::new(report_store),
         })
+    }
+
+    pub async fn create_report(
+        &self,
+        session_key: &str,
+        title: &str,
+        markdown: &str,
+        author: PlanRevisionAuthor,
+    ) -> anyhow::Result<PlanReportDetail> {
+        self.report_store
+            .create_report(session_key, title, markdown, author)
+            .await
+    }
+
+    pub async fn append_report_revision(
+        &self,
+        report_id: &str,
+        expected_revision: i64,
+        title: &str,
+        markdown: &str,
+        author: PlanRevisionAuthor,
+    ) -> anyhow::Result<PlanReportDetail> {
+        self.report_store
+            .append_revision(
+                &PlanId(report_id.to_string()),
+                expected_revision,
+                title,
+                markdown,
+                author,
+            )
+            .await
+    }
+
+    pub async fn approve_report_revision(
+        &self,
+        report_id: &str,
+        revision: i64,
+        revision_hash: &str,
+        context_policy: ExecutionContextPolicy,
+        compacted_context: Option<&str>,
+    ) -> anyhow::Result<agent_diva_core::planning::ExecutionSession> {
+        self.report_store
+            .approve_revision(
+                &PlanId(report_id.to_string()),
+                revision,
+                revision_hash,
+                context_policy,
+                compacted_context,
+            )
+            .await
+            .map(|(_, session)| session)
+    }
+
+    pub async fn list_reports(&self) -> anyhow::Result<Vec<PlanReportDetail>> {
+        self.report_store.list_reports().await
     }
 
     /// List all plans as lightweight summaries.
@@ -376,6 +445,8 @@ mod tests {
             .await
             .expect("failed to create planning store");
         PlanningService::new(Arc::new(store))
+            .await
+            .expect("failed to create planning service")
     }
 
     #[tokio::test]
