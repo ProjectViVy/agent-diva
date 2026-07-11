@@ -3,6 +3,7 @@ pub mod mentle;
 pub mod network;
 
 use crate::planning::PlanOrchestrator;
+use agent_diva_core::planning::report_store::SqlitePlanReportStore;
 use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::planning::store::SqlitePlanningStore;
 use anyhow::Context;
@@ -19,6 +20,9 @@ pub struct PlanningConfig {
     pub store: Arc<dyn PlanningStore>,
     /// Shared plan lifecycle orchestrator.
     pub orchestrator: Arc<Mutex<PlanOrchestrator>>,
+    /// Immutable report and execution-session storage used by the replacement
+    /// PLAN/TODO contract.
+    pub report_store: Arc<SqlitePlanReportStore>,
 }
 
 impl PlanningConfig {
@@ -34,9 +38,13 @@ impl PlanningConfig {
         let store = SqlitePlanningStore::new(pool)
             .await
             .context("failed to initialize planning store")?;
+        let report_store = SqlitePlanReportStore::new(store.pool().clone())
+            .await
+            .context("failed to initialize plan report store")?;
         Ok(Self {
             store: Arc::new(store),
             orchestrator: Arc::new(Mutex::new(PlanOrchestrator::new())),
+            report_store: Arc::new(report_store),
         })
     }
 }

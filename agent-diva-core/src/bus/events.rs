@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::planning::ApprovalReceipt;
+use crate::planning::PlanReportDetail;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +101,10 @@ pub enum AgentEvent {
     },
     PlanReadyForApproval {
         plan: PlanRuntimeState,
+    },
+    /// A canonical Markdown report produced by a Plan-mode exploration turn.
+    PlanReportReadyForApproval {
+        report: PlanReportDetail,
     },
     FinalResponse {
         content: String,

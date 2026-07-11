@@ -11,6 +11,7 @@ use agent_diva_core::bus::{
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
 use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
+use agent_diva_core::planning::{validate_report_markdown, PlanRevisionAuthor};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
 use agent_diva_core::session::{ChatMessage, CompactTrigger, Session, TokenUsage};
@@ -1072,6 +1073,41 @@ impl AgentLoop {
                 frequent_hint,
             );
             final_content.push_str(&notice);
+        }
+
+        // A Plan-mode response is the report itself.  Do not ask the model to
+        // create a second tool-maintained plan record; persist this immutable
+        // Markdown revision only when it satisfies the review contract.
+        if plan_mode {
+            if let Some(planning) = &self.tool_config.planning {
+                if validate_report_markdown(&final_content).is_ok() {
+                    let title = final_content
+                        .lines()
+                        .find_map(|line| line.trim().strip_prefix("# "))
+                        .unwrap_or("Plan report");
+                    match planning
+                        .report_store
+                        .create_report(
+                            &session_key,
+                            title,
+                            &final_content,
+                            PlanRevisionAuthor::Agent,
+                        )
+                        .await
+                    {
+                        Ok(report) => self.emit_agent_event(
+                            &msg,
+                            event_tx,
+                            AgentEvent::PlanReportReadyForApproval { report },
+                        ),
+                        Err(error) => warn!(%error, "failed to persist plan report"),
+                    }
+                } else {
+                    final_content.push_str(
+                        "\n\n> 计划报告尚未包含完整的标准章节；请补全后重新生成以供批准。",
+                    );
+                }
+            }
         }
 
         trace!(trace_id = %trace_id, step_name = "response_generated", "Response generated");

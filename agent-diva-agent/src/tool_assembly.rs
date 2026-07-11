@@ -177,7 +177,9 @@ impl ToolAssembly {
         let read_only_mode = mask_file
             .as_ref()
             .is_some_and(ToolPolicy::is_read_only_mode);
-        let action_restricted = read_only_mode;
+        // Plan exploration is a hard runtime read-only boundary.  It is not
+        // represented by legacy planning-record tools.
+        let action_restricted = read_only_mode || matches!(self.plan_phase, Some(PlanPhase::Plan));
         let mut registry = ToolRegistry::with_timeout(self.global_timeout_secs);
 
         if self.builtin_config.filesystem {
@@ -292,7 +294,10 @@ impl ToolAssembly {
             }
         }
 
-        if let Some(planning) = self.planning_config {
+        if let Some(planning) = self
+            .planning_config
+            .filter(|_| !matches!(self.plan_phase, Some(PlanPhase::Plan)))
+        {
             registry.register(Arc::new(PlanCreateTool::new(planning.store.clone())));
             registry.register(Arc::new(TodoShowTool::new(planning.store.clone())));
             registry.register(Arc::new(TodoWriteTool::new(planning.store.clone())));
@@ -475,7 +480,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_tool_assembly_plan_mode_limits_actions_and_keeps_planning_tools() {
+    async fn test_tool_assembly_plan_mode_is_read_only_without_legacy_planning_tools() {
         let temp_dir = tempfile::tempdir().unwrap();
         let planning = PlanningConfig::open_workspace(temp_dir.path())
             .await
@@ -491,9 +496,9 @@ mod tests {
 
         assert!(registry.has("read_file"));
         assert!(registry.has("list_dir"));
-        assert!(registry.has("plan_create"));
-        assert!(registry.has("plan_show"));
-        assert!(registry.has("plan_submit"));
+        assert!(!registry.has("plan_create"));
+        assert!(!registry.has("plan_show"));
+        assert!(!registry.has("plan_submit"));
         assert!(!registry.has("todo_write"));
         assert!(!registry.has("plan_approve"));
         assert!(!registry.has("write_file"));
