@@ -366,31 +366,6 @@ impl Manager {
                         ManagerCommand::UpdateChannel(update) => {
                             self.handle_update_channel(update).await;
                         }
-                        ManagerCommand::ListPlans(reply) => {
-                            self.handle_list_plans(reply).await;
-                        }
-                        ManagerCommand::GetPlan(plan_id, reply) => {
-                            self.handle_get_plan(plan_id, reply).await;
-                        }
-                        ManagerCommand::CreatePlan(request, reply) => {
-                            self.handle_create_plan(request, reply).await;
-                        }
-                        ManagerCommand::UpdatePlan(plan_id, request, reply) => {
-                            self.handle_update_plan(plan_id, request, reply).await;
-                        }
-                        ManagerCommand::DeletePlan(plan_id, reply) => {
-                            self.handle_delete_plan(plan_id, reply).await;
-                        }
-                        ManagerCommand::DeletePlanTodo(plan_id, todo_id, reply) => {
-                            self.handle_delete_plan_todo(plan_id, todo_id, reply).await;
-                        }
-                        ManagerCommand::RestorePlanTodo(plan_id, todo_id, reply) => {
-                            self.handle_restore_plan_todo(plan_id, todo_id, reply).await;
-                        }
-                        ManagerCommand::ApproveActivePlan(request, reply) => {
-                            self.handle_approve_active_plan(request, reply).await;
-                        }
-                        ManagerCommand::ReturnActivePlanToDraft(reply) => self.handle_return_active_plan_to_draft(reply).await,
                         ManagerCommand::ListPlanReports(reply) => self.handle_list_plan_reports(reply).await,
                         ManagerCommand::CreatePlanReport(request, reply) => self.handle_create_plan_report(request, reply).await,
                         ManagerCommand::AppendPlanReportRevision(report_id, request, reply) => self.handle_append_plan_report_revision(report_id, request, reply).await,
@@ -538,18 +513,6 @@ impl Manager {
                 None
             }
         }
-    }
-
-    async fn handle_list_plans(
-        &mut self,
-        reply: oneshot::Sender<Result<Vec<crate::planning_service::PlanSummary>, String>>,
-    ) {
-        let Some(svc) = self.ensure_planning_service().await else {
-            let _ = reply.send(Err("Planning service unavailable".into()));
-            return;
-        };
-        let result = svc.list_plans().await.map_err(|e| e.to_string());
-        let _ = reply.send(result);
     }
 
     async fn handle_list_plan_reports(
@@ -709,143 +672,6 @@ impl Manager {
                 .map_err(|error| error.to_string()),
             None => Err("Planning service unavailable".to_string()),
         };
-        let _ = reply.send(result);
-    }
-
-    async fn handle_get_plan(
-        &mut self,
-        plan_id: String,
-        reply: oneshot::Sender<Result<Option<crate::planning_service::PlanDetail>, String>>,
-    ) {
-        let Some(svc) = self.ensure_planning_service().await else {
-            let _ = reply.send(Err("Planning service unavailable".into()));
-            return;
-        };
-        let result = svc.get_plan(&plan_id).await.map_err(|e| e.to_string());
-        let _ = reply.send(result);
-    }
-
-    async fn handle_create_plan(
-        &mut self,
-        request: crate::planning_service::CreatePlanRequest,
-        reply: oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
-    ) {
-        let Some(svc) = self.ensure_planning_service().await else {
-            let _ = reply.send(Err("Planning service unavailable".into()));
-            return;
-        };
-        let result = svc
-            .create_plan(&request.title, &request.goal)
-            .await
-            .map_err(|e| e.to_string());
-        let _ = reply.send(result);
-    }
-
-    async fn handle_update_plan(
-        &mut self,
-        plan_id: String,
-        request: crate::planning_service::UpdatePlanRequest,
-        reply: oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
-    ) {
-        let Some(svc) = self.ensure_planning_service().await else {
-            let _ = reply.send(Err("Planning service unavailable".into()));
-            return;
-        };
-        let result = svc
-            .update_plan(
-                &plan_id,
-                request.title.as_deref(),
-                request.goal.as_deref(),
-                request.strategy.as_deref(),
-            )
-            .await
-            .map_err(|e| e.to_string());
-        let _ = reply.send(result);
-    }
-
-    async fn handle_delete_plan(
-        &mut self,
-        plan_id: String,
-        reply: oneshot::Sender<Result<(), String>>,
-    ) {
-        let Some(svc) = self.ensure_planning_service().await else {
-            let _ = reply.send(Err("Planning service unavailable".into()));
-            return;
-        };
-        let result = svc.delete_plan(&plan_id).await.map_err(|e| e.to_string());
-        let _ = reply.send(result);
-    }
-
-    async fn handle_delete_plan_todo(
-        &mut self,
-        plan_id: String,
-        todo_id: String,
-        reply: oneshot::Sender<Result<(), String>>,
-    ) {
-        let Some(svc) = self.ensure_planning_service().await else {
-            let _ = reply.send(Err("Planning service unavailable".into()));
-            return;
-        };
-        let result = svc
-            .delete_todo(&plan_id, &todo_id)
-            .await
-            .map_err(|e| e.to_string());
-        let _ = reply.send(result);
-    }
-
-    async fn handle_restore_plan_todo(
-        &mut self,
-        plan_id: String,
-        todo_id: String,
-        reply: oneshot::Sender<Result<(), String>>,
-    ) {
-        let Some(svc) = self.ensure_planning_service().await else {
-            let _ = reply.send(Err("Planning service unavailable".into()));
-            return;
-        };
-        let result = svc
-            .restore_todo(&plan_id, &todo_id)
-            .await
-            .map_err(|e| e.to_string());
-        let _ = reply.send(result);
-    }
-
-    async fn handle_approve_active_plan(
-        &self,
-        request: agent_diva_core::planning::ApprovalRequest,
-        reply: oneshot::Sender<Result<agent_diva_core::bus::PlanApprovalResult, String>>,
-    ) {
-        let result = self
-            .with_runtime_control(
-                |tx| async move {
-                    let (reply_tx, reply_rx) = oneshot::channel();
-                    tx.send(RuntimeControlCommand::ApproveActivePlan { request, reply_tx })
-                        .map_err(|e| format!("failed to send ApproveActivePlan command: {}", e))?;
-                    reply_rx.await.map_err(|e| {
-                        format!("failed to receive ApproveActivePlan response: {}", e)
-                    })?
-                },
-                "runtime control channel is not initialized",
-            )
-            .await;
-        let _ = reply.send(result);
-    }
-
-    async fn handle_return_active_plan_to_draft(
-        &self,
-        reply: oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
-    ) {
-        let result = self
-            .with_runtime_control(
-                |tx| async move {
-                    let (reply_tx, reply_rx) = oneshot::channel();
-                    tx.send(RuntimeControlCommand::ReturnActivePlanToDraft { reply_tx })
-                        .map_err(|e| e.to_string())?;
-                    reply_rx.await.map_err(|e| e.to_string())?
-                },
-                "runtime control channel is not initialized",
-            )
-            .await;
         let _ = reply.send(result);
     }
 }

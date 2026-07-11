@@ -19,7 +19,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::mcp_service::{McpServerDto, McpServerUpsert};
 use crate::planning_service::{
     AppendPlanReportRevisionRequest, ApprovePlanReportRequest, CreatePlanReportRequest,
-    CreatePlanRequest, PlanDetail, PlanSummary, UpdateExecutionTodoRequest, UpdatePlanRequest,
+    UpdateExecutionTodoRequest,
 };
 use crate::skill_service::SkillDto;
 
@@ -191,28 +191,7 @@ pub enum ManagerCommand {
         FileUploadRequest,
         oneshot::Sender<Result<agent_diva_core::attachment::FileAttachment, String>>,
     ),
-    // Planning commands
-    ListPlans(oneshot::Sender<Result<Vec<PlanSummary>, String>>),
-    GetPlan(String, oneshot::Sender<Result<Option<PlanDetail>, String>>),
-    CreatePlan(
-        CreatePlanRequest,
-        oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
-    ),
-    UpdatePlan(
-        String,
-        UpdatePlanRequest,
-        oneshot::Sender<Result<agent_diva_core::planning::model::Plan, String>>,
-    ),
-    DeletePlan(String, oneshot::Sender<Result<(), String>>),
-    DeletePlanTodo(String, String, oneshot::Sender<Result<(), String>>),
-    RestorePlanTodo(String, String, oneshot::Sender<Result<(), String>>),
-    ApproveActivePlan(
-        agent_diva_core::planning::ApprovalRequest,
-        oneshot::Sender<Result<agent_diva_core::bus::PlanApprovalResult, String>>,
-    ),
-    ReturnActivePlanToDraft(
-        oneshot::Sender<Result<agent_diva_core::bus::PlanRuntimeState, String>>,
-    ),
+    // Plan report and execution commands
     ListPlanReports(
         oneshot::Sender<Result<Vec<agent_diva_core::planning::PlanReportDetail>, String>>,
     ),
