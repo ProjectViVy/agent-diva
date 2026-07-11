@@ -2,6 +2,7 @@
 
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 
 use super::ids::PlanId;
@@ -16,7 +17,7 @@ pub struct SqlitePlanReportStore {
     pool: SqlitePool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanReportDetail {
     pub report: PlanReport,
     pub revision: PlanRevision,
