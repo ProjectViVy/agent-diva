@@ -10,6 +10,7 @@ pub mod model;
 pub mod policy;
 pub mod render;
 pub mod report;
+pub mod report_store;
 pub mod store;
 
 pub use approval::*;
@@ -18,3 +19,4 @@ pub use ids::*;
 pub use model::*;
 pub use policy::*;
 pub use report::*;
+pub use report_store::*;

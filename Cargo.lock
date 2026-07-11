@@ -176,6 +176,7 @@ name = "agent-diva-core"
 version = "0.5.0"
 dependencies = [
  "agent-diva-files",
+ "anyhow",
  "async-trait",
  "chrono",
  "chrono-tz",

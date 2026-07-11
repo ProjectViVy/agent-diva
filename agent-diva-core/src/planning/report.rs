@@ -17,12 +17,45 @@ pub enum PlanRevisionAuthor {
     User,
 }
 
+/// Review lifecycle for the current revision of a report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PlanReportStatus {
+    Draft,
+    AwaitingApproval,
+    Approved,
+    Closed,
+}
+
 /// A durable report identity. Its body lives only in [`PlanRevision`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanReport {
     pub id: PlanId,
     pub session_key: String,
     pub current_revision: i64,
+    pub status: PlanReportStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Runtime state of an execution session started from an approved revision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutionSessionStatus {
+    Executing,
+    Verifying,
+    Completed,
+    Failed,
+    Partial,
+}
+
+/// The durable execution boundary created by approval.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExecutionSession {
+    pub id: String,
+    pub report_id: PlanId,
+    pub revision: i64,
+    pub context_policy: ExecutionContextPolicy,
+    pub status: ExecutionSessionStatus,
+    pub compacted_context: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
