@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-12T06:00:00+08:00`
-- Last Heartbeat: `2026-07-12T05:50:00+08:00`
+- Last Heartbeat: `2026-07-12T06:00:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -44,6 +44,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-08`: Codex released provider protocol split lock after adding native Anthropic routing, OpenAI-compatible rename, factory wiring, provider schema cleanup, targeted validation, and `docs/logs/2026-07-provider-protocol-split/v0.0.1-provider-protocol-split/`.
 
 ## Handoff Notes
+
+- `2026-07-12`: Released plan-runtime session-isolation lock after making active plan restoration and plan feedback session-scoped. GUI typecheck, focused Tauri unit test, and plan GUI tests passed; manual desktop smoke remains pending.
 
 - `2026-07-12`: Released plan-mode handoff revert lock after reverting `e05664c`; focused plan GUI tests (7/7), GUI typecheck, and Core/Agent/Manager cargo check passed. The settings-card order and Plan Mode compaction-remediation documentation were preserved.
 
