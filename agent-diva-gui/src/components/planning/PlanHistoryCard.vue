@@ -6,14 +6,12 @@ defineProps<{ plan: PlanRuntimeState }>();
 </script>
 
 <template>
-  <section class="plan-history-card" aria-label="计划文档历史">
-    <div class="plan-history-card__label"><span aria-hidden="true">计划</span><span>Plan</span></div>
-    <PlanDocument
-      :title="plan.title"
-      :goal="plan.goal"
-      :strategy="plan.strategy"
-      :steps="plan.steps"
-    />
+  <section class="plan-history-card" aria-label="计划历史">
+    <div class="plan-history-card__label">
+      <span aria-hidden="true">计划</span>
+      <span>Plan</span>
+    </div>
+    <PlanDocument :markdown="plan.markdown || plan.summary || plan.strategy || plan.goal" />
   </section>
 </template>
 

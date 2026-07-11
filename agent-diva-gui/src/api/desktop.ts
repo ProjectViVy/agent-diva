@@ -158,6 +158,7 @@ export interface PlanApprovalRequest {
   expected_revision: number;
   todo_policy: 'Optional';
   materialize_todos: boolean;
+  context_policy?: 'retain' | 'compact' | 'clear';
 }
 
 export const approveActivePlanExecution = (request: PlanApprovalRequest) =>

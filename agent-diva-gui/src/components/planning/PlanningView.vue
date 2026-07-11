@@ -216,15 +216,7 @@ onUnmounted(() => {
           @revoke="emit('revoke', $event)"
           @refresh="emit('refresh')"
         />
-        <PlanDocument
-          :title="selectedPlan.title"
-          :goal="selectedPlan.goal"
-          :strategy="selectedPlan.strategy"
-          :steps="selectedPlan.steps"
-          :assumptions="selectedPlan.assumptions"
-          :risks="selectedPlan.risks"
-          :open-questions="selectedPlan.open_questions"
-        />
+        <PlanDocument :markdown="selectedPlan.markdown || selectedPlan.summary || selectedPlan.strategy || selectedPlan.goal" />
       </template>
     </div>
   </div>

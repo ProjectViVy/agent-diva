@@ -12,7 +12,7 @@ use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusRepor
 use agent_diva_core::bus::{PlanApprovalResult, PlanRuntimeState};
 use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
-use agent_diva_core::planning::ApprovalRequest;
+use agent_diva_core::planning::{revision_hash, ExecutionContextPolicy};
 use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
@@ -341,27 +341,17 @@ pub fn greet(name: &str) -> String {
 
 #[tauri::command]
 pub async fn get_plans(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let url = format!("{}/plans", state.api_base_url());
-    let response = state
-        .client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to get plans: {}", e))?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "Planning API returned error: {}",
-            response.status()
-        ));
-    }
-    let value: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse plans response: {}", e))?;
-    Ok(value
-        .get("plans")
-        .cloned()
-        .unwrap_or_else(|| serde_json::Value::Array(vec![])))
+    let reports = get_plan_reports(state).await?;
+    let summaries = reports
+        .as_array()
+        .map(|reports| {
+            reports
+                .iter()
+                .map(plan_report_summary_projection)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    Ok(serde_json::Value::Array(summaries))
 }
 
 #[tauri::command]
@@ -369,31 +359,19 @@ pub async fn get_plan(
     #[allow(non_snake_case)] planId: String,
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, String> {
-    let url = format!(
-        "{}/plans/{}",
-        state.api_base_url(),
-        urlencoding::encode(planId.trim())
-    );
-    let response = state
-        .client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to get plan: {}", e))?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "Planning API returned error: {}",
-            response.status()
-        ));
-    }
-    let value: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse plan response: {}", e))?;
-    Ok(value
-        .get("plan")
-        .cloned()
-        .unwrap_or(serde_json::Value::Null))
+    let reports = get_plan_reports(state).await?;
+    let plan_id = planId.trim();
+    let detail = reports
+        .as_array()
+        .and_then(|reports| {
+            reports
+                .iter()
+                .find(|report| plan_report_id(report) == Some(plan_id))
+                .cloned()
+        })
+        .map(|report| plan_report_detail_projection(&report))
+        .unwrap_or(serde_json::Value::Null);
+    Ok(detail)
 }
 
 #[tauri::command]
@@ -472,21 +450,30 @@ pub async fn restore_plan_todo(
 
 #[tauri::command]
 pub async fn get_active_plan(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    let plans = get_plans(state.clone()).await?;
-    let Some(active_id) = plans
+    let reports = get_plan_reports(state).await?;
+    let active = reports
         .as_array()
-        .and_then(|plans| {
-            plans
+        .and_then(|reports| {
+            reports
                 .iter()
-                .find(|plan| plan.get("is_active").and_then(|v| v.as_bool()) == Some(true))
+                .find(|report| {
+                    report
+                        .pointer("/report/status")
+                        .and_then(|value| value.as_str())
+                        == Some("AwaitingApproval")
+                })
+                .or_else(|| {
+                    reports.iter().find(|report| {
+                        report
+                            .pointer("/report/status")
+                            .and_then(|value| value.as_str())
+                            == Some("Approved")
+                    })
+                })
         })
-        .and_then(|plan| plan.get("id"))
-        .and_then(|id| id.as_str())
-        .map(ToString::to_string)
-    else {
-        return Ok(serde_json::Value::Null);
-    };
-    get_plan(active_id, state).await
+        .map(plan_report_detail_projection)
+        .unwrap_or(serde_json::Value::Null);
+    Ok(active)
 }
 
 #[tauri::command]
@@ -1253,31 +1240,53 @@ pub async fn send_message(
 
 #[tauri::command]
 pub async fn approve_active_plan_execution(
-    request: ApprovalRequest,
+    request: serde_json::Value,
     state: State<'_, AgentState>,
 ) -> Result<PlanApprovalResult, String> {
-    let url = format!("{}/plans/active/approve-execute", state.api_base_url());
-    let response = state
-        .client
-        .post(&url)
-        .json(&request)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to approve active plan: {}", e))?;
-    let value: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Invalid approve plan response: {}", e))?;
-    if value.get("status").and_then(|status| status.as_str()) != Some("ok") {
-        return Err(value
-            .get("message")
-            .and_then(|message| message.as_str())
-            .unwrap_or("Failed to approve active plan")
-            .to_string());
-    }
+    let reports = get_plan_reports(state.clone()).await?;
+    let report = reports
+        .as_array()
+        .and_then(|reports| {
+            reports.iter().find(|report| {
+                report
+                    .pointer("/report/status")
+                    .and_then(|value| value.as_str())
+                    == Some("AwaitingApproval")
+            })
+        })
+        .ok_or_else(|| "No plan report is awaiting approval".to_string())?;
+    let report_id =
+        plan_report_id(report).ok_or_else(|| "Plan report is missing id".to_string())?;
+    let markdown = plan_report_markdown(report);
+    let revision = plan_report_revision(report)
+        .ok_or_else(|| "Plan report is missing revision".to_string())?;
+    let context_policy = match request
+        .get("context_policy")
+        .or_else(|| request.get("contextPolicy"))
+        .and_then(|value| value.as_str())
+        .unwrap_or("compact")
+    {
+        "retain" | "Retain" => ExecutionContextPolicy::Retain,
+        "clear" | "Clear" => ExecutionContextPolicy::Clear,
+        _ => ExecutionContextPolicy::Compact,
+    };
+    let payload = serde_json::json!({
+        "revision": revision,
+        "revision_hash": revision_hash(&markdown),
+        "context_policy": context_policy,
+        "compacted_context": null,
+    });
+    let execution = approve_plan_report(report_id.to_string(), payload, state).await?;
+    let plan = plan_report_detail_projection(report);
     serde_json::from_value(serde_json::json!({
-        "plan": value.get("plan").cloned().ok_or_else(|| "Missing plan payload".to_string())?,
-        "receipt": value.get("receipt").cloned().ok_or_else(|| "Missing approval receipt".to_string())?,
+        "plan": plan,
+        "receipt": {
+            "plan_id": report_id,
+            "revision": revision,
+            "approved_at": execution.get("created_at").cloned().unwrap_or(serde_json::Value::Null),
+            "todo_policy": "Optional",
+            "todos_materialized": false,
+        },
     }))
     .map_err(|e| format!("Invalid approval payload: {}", e))
 }
@@ -1286,23 +1295,8 @@ pub async fn approve_active_plan_execution(
 pub async fn return_active_plan_to_draft(
     state: State<'_, AgentState>,
 ) -> Result<PlanRuntimeState, String> {
-    let url = format!("{}/plans/active/return-to-draft", state.api_base_url());
-    let value: serde_json::Value = state
-        .client
-        .post(&url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())?;
-    serde_json::from_value(
-        value
-            .get("plan")
-            .cloned()
-            .ok_or_else(|| "Missing plan payload".to_string())?,
-    )
-    .map_err(|e| e.to_string())
+    let value = get_active_plan(state).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1321,6 +1315,105 @@ pub async fn get_plan_reports(state: State<'_, AgentState>) -> Result<serde_json
         .get("reports")
         .cloned()
         .ok_or_else(|| "Missing plan reports payload".to_string())
+}
+
+fn plan_report_id(report: &serde_json::Value) -> Option<&str> {
+    report
+        .pointer("/report/id")
+        .and_then(|value| value.as_str())
+        .or_else(|| {
+            report
+                .pointer("/report/id/0")
+                .and_then(|value| value.as_str())
+        })
+}
+
+fn plan_report_revision(report: &serde_json::Value) -> Option<i64> {
+    report
+        .pointer("/revision/revision")
+        .and_then(|value| value.as_i64())
+}
+
+fn plan_report_title(report: &serde_json::Value) -> String {
+    report
+        .pointer("/revision/title")
+        .and_then(|value| value.as_str())
+        .unwrap_or("Plan")
+        .to_string()
+}
+
+fn plan_report_markdown(report: &serde_json::Value) -> String {
+    report
+        .pointer("/revision/markdown")
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+fn plan_report_status(report: &serde_json::Value) -> String {
+    report
+        .pointer("/report/status")
+        .and_then(|value| value.as_str())
+        .unwrap_or("Draft")
+        .to_string()
+}
+
+fn plan_report_summary_projection(report: &serde_json::Value) -> serde_json::Value {
+    let id = plan_report_id(report).unwrap_or_default();
+    let status = plan_report_status(report);
+    let phase = if status == "Approved" {
+        "Execute"
+    } else {
+        status.as_str()
+    };
+    serde_json::json!({
+        "id": id,
+        "title": plan_report_title(report),
+        "goal": plan_report_markdown(report).lines().find(|line| !line.trim().is_empty()).unwrap_or("Markdown plan report"),
+        "phase": phase,
+        "status": status,
+        "todo_count": 0,
+        "todo_completed": 0,
+        "is_active": matches!(status.as_str(), "AwaitingApproval" | "Approved"),
+    })
+}
+
+fn plan_report_detail_projection(report: &serde_json::Value) -> serde_json::Value {
+    let id = plan_report_id(report).unwrap_or_default();
+    let status = plan_report_status(report);
+    let phase = if status == "Approved" {
+        "Execute"
+    } else {
+        status.as_str()
+    };
+    let markdown = plan_report_markdown(report);
+    let created_at = report
+        .pointer("/report/created_at")
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::String(String::new()));
+    let updated_at = report
+        .pointer("/report/updated_at")
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::String(String::new()));
+    serde_json::json!({
+        "id": id,
+        "revision": plan_report_revision(report),
+        "title": plan_report_title(report),
+        "goal": markdown.lines().find(|line| !line.trim().is_empty()).unwrap_or("Markdown plan report"),
+        "phase": phase,
+        "status": status,
+        "strategy": markdown,
+        "summary": markdown,
+        "markdown": markdown,
+        "assumptions": [],
+        "risks": [],
+        "open_questions": [],
+        "verification_verdict": null,
+        "steps": [],
+        "todos": [],
+        "created_at": created_at,
+        "updated_at": updated_at,
+    })
 }
 
 #[tauri::command]

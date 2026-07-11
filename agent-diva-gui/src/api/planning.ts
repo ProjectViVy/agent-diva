@@ -21,6 +21,8 @@ export interface PlanDetail {
   phase: string;
   status: string;
   strategy: string | null;
+  summary?: string;
+  markdown?: string;
   assumptions: string[];
   risks: string[];
   open_questions: string[];
@@ -86,6 +88,7 @@ export interface PlanRuntimeState {
   status: string;
   strategy: string | null;
   summary: string;
+  markdown?: string;
   steps: PlanRuntimeStep[];
   todos: PlanRuntimeTodo[];
   created_at: string;

@@ -84,6 +84,11 @@ interface StreamPlanPayload {
   data: PlanStreamEvent;
 }
 
+interface StreamJsonPayload {
+  request_id: string;
+  data: unknown;
+}
+
 interface SavedModel {
   id: string;
   provider: string;
@@ -772,6 +777,36 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
   }
 }
 
+function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null {
+  const reportEnvelope = payload && typeof payload === 'object' && 'report' in payload
+    ? (payload as { report?: unknown }).report
+    : null;
+  if (!reportEnvelope || typeof reportEnvelope !== 'object') return null;
+  const detail = reportEnvelope as {
+    report?: { id?: string; current_revision?: number; status?: string; created_at?: string; updated_at?: string };
+    revision?: { title?: string; markdown?: string; revision?: number };
+  };
+  const id = detail.report?.id;
+  const markdown = detail.revision?.markdown || '';
+  const status = detail.report?.status || 'AwaitingApproval';
+  if (!id || !markdown) return null;
+  return {
+    plan_id: id,
+    revision: detail.revision?.revision ?? detail.report?.current_revision ?? null,
+    title: detail.revision?.title || 'Plan',
+    goal: markdown.split('\n').find((line) => line.trim().length > 0) || 'Markdown plan report',
+    phase: status === 'Approved' ? 'Execute' : status,
+    status,
+    strategy: markdown,
+    summary: markdown,
+    markdown,
+    steps: [],
+    todos: [],
+    created_at: detail.report?.created_at || '',
+    updated_at: detail.report?.updated_at || '',
+  };
+}
+
 async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compact' | 'clear' }) {
   if (approvingPlan.value) return;
   approvingPlan.value = true;
@@ -782,6 +817,7 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
       expected_revision: pending.revision,
       todo_policy: 'Optional',
       materialize_todos: false,
+      context_policy: payload.contextPolicy,
     });
     syncPlanRuntime(result.plan);
     messages.value.push({
@@ -818,7 +854,8 @@ async function restoreActivePlanRuntime() {
       phase: plan.phase,
       status: plan.status,
       strategy: plan.strategy,
-      summary: `${plan.title}: ${plan.goal}`,
+      summary: plan.summary || plan.markdown || `${plan.title}: ${plan.goal}`,
+      markdown: plan.markdown || plan.summary || plan.strategy || plan.goal,
       steps: plan.steps.map((step) => ({
         id: step.id,
         ordinal: step.ordinal,
@@ -1722,6 +1759,11 @@ onMounted(async () => {
   unlisteners.push(await listen<StreamPlanPayload>("agent-plan-ready", (event) => {
     if (event.payload.request_id !== activeStreamRequestId.value) return;
     syncPlanRuntime(event.payload.data.plan);
+  }));
+
+  unlisteners.push(await listen<StreamJsonPayload>("agent-plan-report-ready", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) return;
+    syncPlanRuntime(planRuntimeFromReportPayload(event.payload.data));
   }));
 
   // Listen for errors
