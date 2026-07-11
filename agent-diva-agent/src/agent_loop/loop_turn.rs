@@ -11,7 +11,10 @@ use agent_diva_core::bus::{
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
 use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
-use agent_diva_core::planning::{validate_report_markdown, PlanRevisionAuthor};
+use agent_diva_core::planning::{
+    normalize_report_markdown, report_validation_issues, resolve_plan_report_body,
+    strip_proposed_plan_block, PlanRevisionAuthor,
+};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
 use agent_diva_core::session::{ChatMessage, CompactTrigger, Session, TokenUsage};
@@ -493,9 +496,27 @@ impl AgentLoop {
             &compaction_history,
         );
         if plan_guard_active {
-            messages.insert(1, agent_diva_providers::Message::system(
-                "You are in Plan mode. Explore with read-only tools only, then produce one standard Markdown plan report for user review. Do not call planning/TODO tools, do not modify files, and do not begin implementation. The report must include these headings: ## 目标, ## 范围, ## 计划步骤, ## 风险与假设, ## 验证方法.",
-            ));
+            messages.insert(
+                1,
+                agent_diva_providers::Message::system(
+                    "You are in Plan mode until the user leaves it. Explore with read-only tools only: do not modify files, run mutating shell commands, call planning/TODO tools, or begin implementation.\n\n\
+When you have enough information for a complete plan, end the turn with exactly one line-oriented XML block (tags alone on their lines, tags untranslated):\n\
+<proposed_plan>\n\
+# short title\n\
+## 目标\n\
+...\n\
+## 范围\n\
+...\n\
+## 计划步骤\n\
+...\n\
+## 风险与假设\n\
+...\n\
+## 验证方法\n\
+...\n\
+</proposed_plan>\n\n\
+Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风险与假设, 验证方法. Put any preface outside the tags. At most one <proposed_plan> per turn; revisions must be a full replacement. Do not ask whether to implement — the user uses the approval UI.",
+                ),
+            );
         }
         if let Some(markdown) = msg
             .metadata
@@ -1098,37 +1119,48 @@ impl AgentLoop {
             final_content.push_str(&notice);
         }
 
-        // A Plan-mode response is the report itself.  Do not ask the model to
-        // create a second tool-maintained plan record; persist this immutable
-        // Markdown revision only when it satisfies the review contract.
+        // Plan mode: demux a proposed plan into a durable report artifact so the
+        // GUI can show PlanApprovalCard. Prefer <proposed_plan> tags (Codex-style);
+        // fall back to freeform plan-like text. Section completeness is soft.
         if plan_mode {
             if let Some(planning) = &self.tool_config.planning {
-                if validate_report_markdown(&final_content).is_ok() {
-                    let title = final_content
+                if let Some(extracted) = resolve_plan_report_body(&final_content) {
+                    let markdown = normalize_report_markdown(&extracted.markdown);
+                    let title = markdown
                         .lines()
                         .find_map(|line| line.trim().strip_prefix("# "))
                         .unwrap_or("Plan report");
+                    let soft_issues = report_validation_issues(&markdown);
                     match planning
                         .report_store
-                        .create_report(
-                            &session_key,
-                            title,
-                            &final_content,
-                            PlanRevisionAuthor::Agent,
-                        )
+                        .create_report(&session_key, title, &markdown, PlanRevisionAuthor::Agent)
                         .await
                     {
-                        Ok(report) => self.emit_agent_event(
-                            &msg,
-                            event_tx,
-                            AgentEvent::PlanReportReadyForApproval { report },
-                        ),
+                        Ok(report) => {
+                            if extracted.tagged {
+                                final_content = strip_proposed_plan_block(&final_content);
+                                if final_content.trim().is_empty() {
+                                    final_content =
+                                        "已生成计划报告，请在下方审批卡片中查看并批准。"
+                                            .to_string();
+                                }
+                            }
+                            if !soft_issues.is_empty() {
+                                let missing: Vec<String> =
+                                    soft_issues.iter().map(|issue| issue.to_string()).collect();
+                                final_content.push_str(&format!(
+                                    "\n\n> 计划已提交审批，但章节仍不完整（{}）。可直接批准，或点编辑继续完善。",
+                                    missing.join("；")
+                                ));
+                            }
+                            self.emit_agent_event(
+                                &msg,
+                                event_tx,
+                                AgentEvent::PlanReportReadyForApproval { report },
+                            );
+                        }
                         Err(error) => warn!(%error, "failed to persist plan report"),
                     }
-                } else {
-                    final_content.push_str(
-                        "\n\n> 计划报告尚未包含完整的标准章节；请补全后重新生成以供批准。",
-                    );
                 }
             }
         }

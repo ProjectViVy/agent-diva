@@ -7,7 +7,7 @@ use sqlx::{FromRow, SqlitePool};
 
 use super::ids::PlanId;
 use super::report::{
-    revision_hash, validate_report_markdown, ExecutionContextPolicy, ExecutionSession,
+    assert_report_ready_for_approval, revision_hash, ExecutionContextPolicy, ExecutionSession,
     ExecutionSessionStatus, ExecutionTodo, ExecutionTodoPriority, ExecutionTodoStatus, PlanReport,
     PlanReportStatus, PlanRevision, PlanRevisionApproval, PlanRevisionAuthor,
 };
@@ -159,7 +159,7 @@ impl SqlitePlanReportStore {
         if actual_hash != expected_hash {
             return Err(anyhow!("plan report revision conflict"));
         }
-        validate_report_markdown(&row.markdown).map_err(|error| anyhow!(error))?;
+        assert_report_ready_for_approval(&row.markdown).map_err(|error| anyhow!(error))?;
         let now = Utc::now();
         let approval = PlanRevisionApproval {
             report_id: report_id.clone(),
