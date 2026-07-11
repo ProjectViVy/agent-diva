@@ -142,7 +142,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
-  (e: 'approve-plan', materializeTodos: boolean): void;
+  (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
   (e: 'clear'): void;

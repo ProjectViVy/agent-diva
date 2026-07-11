@@ -772,7 +772,7 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
   }
 }
 
-async function approvePlanExecution(materializeTodos = false) {
+async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compact' | 'clear' }) {
   if (approvingPlan.value) return;
   approvingPlan.value = true;
   try {
@@ -781,13 +781,13 @@ async function approvePlanExecution(materializeTodos = false) {
     const result = await approveActivePlanExecution({
       expected_revision: pending.revision,
       todo_policy: 'Optional',
-      materialize_todos: materializeTodos,
+      materialize_todos: false,
     });
     syncPlanRuntime(result.plan);
     messages.value.push({
       id: generateMessageId(),
       role: 'system',
-      content: `计划已批准：revision ${result.receipt.revision}，审批时间 ${result.receipt.approved_at}，${result.receipt.todos_materialized ? '已生成执行 TODO。' : '未生成执行 TODO。'}`,
+      content: `计划已批准：revision ${result.receipt.revision}，审批时间 ${result.receipt.approved_at}。已记录“${payload.contextPolicy}”上下文策略（当前仅为 GUI 原型，未传给运行时）。TODO 将由 agent 在执行时按需创建。`,
       timestamp: Date.now(),
     });
   } catch (error) {

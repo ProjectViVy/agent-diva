@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
-import { Loader2, AlertCircle, Inbox, Trash2 } from 'lucide-vue-next';
+import { Loader2, AlertCircle, Inbox } from 'lucide-vue-next';
 import PlanStatusCard from './PlanStatusCard.vue';
 import TodoListPanel from './TodoListPanel.vue';
 import type { PlanSummary, PlanDetail } from '../../api/planning';
@@ -20,7 +20,6 @@ const selectedPlan = ref<PlanDetail | null>(null);
 const loading = ref(false);
 const detailLoading = ref(false);
 const error = ref('');
-const deletingPlanId = ref<string | null>(null);
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -86,23 +85,6 @@ function selectPlan(planId: string) {
   loadPlanDetail(planId);
 }
 
-async function deletePlan(planId: string) {
-  if (deletingPlanId.value) return;
-  deletingPlanId.value = planId;
-  try {
-    await invoke('delete_plan', { planId });
-    plans.value = plans.value.filter((plan) => plan.id !== planId);
-    if (selectedPlanId.value === planId) {
-      selectedPlanId.value = null;
-      selectedPlan.value = null;
-    }
-  } catch (err) {
-    error.value = String(err);
-  } finally {
-    deletingPlanId.value = null;
-  }
-}
-
 // --- Polling ---
 function startPolling() {
   pollHandle = setInterval(() => {
@@ -137,7 +119,7 @@ onUnmounted(() => {
     <!-- Left pane: plan list -->
     <div class="plan-list-pane">
       <div class="plan-list-header">
-        <h2 class="plan-list-title">{{ t('planning.title') }}</h2>
+        <h2 class="plan-list-title">计划历史</h2>
       </div>
 
       <!-- Loading state -->
@@ -176,10 +158,6 @@ onUnmounted(() => {
           <div class="plan-item-meta">
             <span class="plan-item-phase">{{ plan.phase }}</span>
             <span class="plan-item-progress">{{ plan.todo_completed }}/{{ plan.todo_count }}</span>
-            <button type="button" class="plan-delete-button" title="删除整个规划" aria-label="删除整个规划" @click.stop="deletePlan(plan.id)">
-              <Loader2 v-if="deletingPlanId === plan.id" :size="13" class="animate-spin" />
-              <Trash2 v-else :size="13" />
-            </button>
           </div>
         </button>
       </div>

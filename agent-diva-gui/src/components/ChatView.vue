@@ -16,6 +16,7 @@ import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
 import PlanHistoryCard from './planning/PlanHistoryCard.vue';
 import PlanningView from './planning/PlanningView.vue';
+import { activePlanTodos as filterActivePlanTodos } from './planning/planExecutionState';
 import {
   triggerAutoDream,
   getAutoDreamRunStatus,
@@ -151,7 +152,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
-  (e: 'approve-plan', materializeTodos: boolean): void;
+  (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
   (e: 'clear'): void;
@@ -501,13 +502,17 @@ const getPlaceholder = computed(() => {
 const planProgressText = computed(() => {
   const plan = props.executingPlan ?? props.activePlanRuntime;
   if (!plan) return '';
-  if (plan.todos.length === 0) return '无执行清单';
-  const completed = plan.todos.filter((todo) => todo.status === 'Completed').length;
-  return `${completed}/${plan.todos.length}`;
+  const active = filterActivePlanTodos(plan.todos);
+  if (active.length === 0) return plan.todos.length === 0 ? '无执行清单' : '暂无活动 TODO';
+  return `${active.length} 项活动 TODO`;
 });
 
+const activePlanTodos = computed(() =>
+  filterActivePlanTodos(props.activePlanRuntime?.todos ?? []),
+);
+
 const activePlanTodo = computed(() => {
-  const todos = props.activePlanRuntime?.todos ?? [];
+  const todos = activePlanTodos.value;
   return todos.find((todo) => todo.status === 'InProgress') ?? todos.find((todo) => todo.status !== 'Completed') ?? null;
 });
 
@@ -979,7 +984,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       <div v-if="planTasksOpen" class="active-plan-task-list">
         <div class="active-plan-task-list-title">{{ activePlanRuntime.title }} · 任务</div>
         <button
-          v-for="todo in activePlanRuntime.todos"
+          v-for="todo in activePlanTodos"
           :key="todo.id"
           type="button"
           class="active-plan-task-item"
@@ -1035,31 +1040,12 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
     </div>
 
     <div v-if="planningOverlayOpen" class="planning-overlay" @click.self="planningOverlayOpen = false">
-      <section class="planning-dialog" role="dialog" aria-modal="true" aria-label="规划">
-        <button type="button" class="planning-dialog-close" title="关闭规划" aria-label="关闭规划" @click="planningOverlayOpen = false">
+      <section class="planning-dialog" role="dialog" aria-modal="true" aria-label="计划历史">
+        <button type="button" class="planning-dialog-close" title="关闭计划历史" aria-label="关闭计划历史" @click="planningOverlayOpen = false">
           <X :size="18" />
         </button>
         <PlanningView />
       </section>
-    </div>
-
-    <div
-      v-if="executingPlan"
-      class="mx-4 mb-3 rounded-2xl border border-sky-200 bg-white/95 shadow-lg px-4 py-3"
-    >
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <div class="text-sm font-semibold text-gray-900">{{ executingPlan.title }}</div>
-          <div class="text-xs text-sky-700 mt-1">Running · {{ planProgressText }}</div>
-        </div>
-        <Loader2 :size="16" class="text-sky-600 animate-spin" />
-      </div>
-      <div class="mt-3 h-2 rounded-full bg-sky-100 overflow-hidden">
-        <div
-          class="h-full bg-sky-500 transition-all duration-300"
-          :style="{ width: `${executingPlan.todos.length === 0 ? 0 : (executingPlan.todos.filter((todo) => todo.status === 'Completed').length / executingPlan.todos.length) * 100}%` }"
-        />
-      </div>
     </div>
 
     <!-- Input Area - Cursor/OpenAkita 风格 -->
@@ -1123,8 +1109,8 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
             type="button"
             class="toolbar-btn"
             :class="{ active: planningOverlayOpen }"
-            title="打开规划"
-            aria-label="打开规划"
+            title="打开计划历史"
+            aria-label="打开计划历史"
             @click="planningOverlayOpen = true"
           >
             <ClipboardList :size="14" />

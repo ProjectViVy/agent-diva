@@ -11,7 +11,8 @@ vi.mock('lucide-vue-next', () => {
     ChevronRight: icon('ChevronRight'),
     ClipboardList: icon('ClipboardList'),
     Loader2: icon('Loader2'),
-    X: icon('X'),
+    Pencil: icon('Pencil'),
+    RefreshCw: icon('RefreshCw'),
   };
 });
 
@@ -59,8 +60,17 @@ describe('PlanApprovalCard', () => {
     await wrapper.get('.plan-approval-feedback .plan-approval-revoke').trigger('click');
 
     expect(wrapper.emitted('approve')).toHaveLength(1);
+    expect(wrapper.emitted('approve')?.[0]).toEqual([{ contextPolicy: 'compact' }]);
     expect(wrapper.emitted('revoke')).toHaveLength(1);
     expect(wrapper.emitted('revoke')?.[0]).toEqual(['补充验证步骤']);
+  });
+
+  it('lets the user select a display-only execution context policy', async () => {
+    const wrapper = mount(PlanApprovalCard, { props: { plan } });
+    await wrapper.get('input[value="clear"]').setValue();
+    expect(wrapper.text()).toContain('本次不会改变运行时上下文');
+    await wrapper.get('.plan-approval-approve').trigger('click');
+    expect(wrapper.emitted('approve')?.[0]).toEqual([{ contextPolicy: 'clear' }]);
   });
 
   it('disables approval and requests a refresh when revision is unavailable', async () => {
