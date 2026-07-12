@@ -20,13 +20,13 @@
           type="button"
           class="thinking-copy-btn"
           :class="{ 'thinking-copy-success': copied }"
-          :title="copied ? $t('common.copied') : $t('common.copy')"
-          :aria-label="copied ? $t('common.copied') : $t('common.copy')"
+          :title="copied ? $t('chat.copied') : $t('chat.copy')"
+          :aria-label="copied ? $t('chat.copied') : $t('chat.copy')"
           @click.stop="handleCopy"
         >
           <CheckCircle2 v-if="copied" :size="14" />
           <Copy v-else :size="14" />
-          <span class="thinking-action-label">{{ copied ? $t('common.copied') : $t('common.copy') }}</span>
+          <span class="thinking-action-label">{{ copied ? $t('chat.copied') : $t('chat.copy') }}</span>
         </button>
         <button
           type="button"

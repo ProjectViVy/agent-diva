@@ -71,6 +71,7 @@ export default {
     prefAutoRawMeta: 'Auto Raw Metadata',
     // Message actions
     copy: 'Copy',
+    copied: 'Copied',
     edit: 'Edit',
     regenerate: 'Regenerate',
     rewind: 'Rewind to here',

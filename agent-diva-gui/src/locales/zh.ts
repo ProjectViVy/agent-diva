@@ -71,6 +71,7 @@ export default {
     prefAutoRawMeta: '自动展开元数据',
     // 消息操作
     copy: '复制',
+    copied: '已复制',
     edit: '编辑',
     regenerate: '重新生成',
     rewind: '回到这里',
