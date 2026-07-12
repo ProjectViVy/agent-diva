@@ -1,20 +1,23 @@
 <template>
   <div class="thinking-card">
     <!-- Header -->
-    <div
-      class="thinking-header"
-      :class="{ 'thinking-header-expanded': isExpanded }"
-      @click="toggleExpanded"
-    >
-      <div class="thinking-header-left">
+    <div class="thinking-header" :class="{ 'thinking-header-expanded': isExpanded }">
+      <button
+        type="button"
+        class="thinking-header-toggle"
+        :aria-expanded="isExpanded"
+        :aria-controls="contentId"
+        @click="toggleExpanded"
+      >
         <Brain :size="16" class="thinking-icon" />
         <span class="thinking-label">{{ $t('chat.thinkingProcess') }}</span>
         <span v-if="thinkingMs && thinkingMs > 0" class="thinking-duration">
           ({{ formatDuration(thinkingMs) }})
         </span>
-      </div>
+      </button>
       <div class="thinking-header-actions">
         <button
+          type="button"
           class="thinking-copy-btn"
           :class="{ 'thinking-copy-success': copied }"
           :title="copied ? $t('common.copied') : $t('common.copy')"
@@ -23,12 +26,23 @@
         >
           <CheckCircle2 v-if="copied" :size="14" />
           <Copy v-else :size="14" />
+          <span class="thinking-action-label">{{ copied ? $t('common.copied') : $t('common.copy') }}</span>
         </button>
-        <ChevronDown
-          :size="16"
-          class="thinking-chevron"
-          :class="{ 'thinking-chevron-rotated': !isExpanded }"
-        />
+        <button
+          type="button"
+          class="thinking-expand-btn"
+          :aria-expanded="isExpanded"
+          :aria-controls="contentId"
+          :title="isExpanded ? $t('chat.hideDetails') : $t('chat.viewDetails')"
+          @click="toggleExpanded"
+        >
+          <span class="thinking-action-label">{{ isExpanded ? $t('chat.hideDetails') : $t('chat.viewDetails') }}</span>
+          <ChevronDown
+            :size="16"
+            class="thinking-chevron"
+            :class="{ 'thinking-chevron-rotated': !isExpanded }"
+          />
+        </button>
       </div>
     </div>
 
@@ -39,7 +53,7 @@
       @after-enter="onAfterEnter"
       @leave="onLeave"
     >
-      <div v-show="isExpanded" class="thinking-content-wrapper">
+      <div :id="contentId" v-show="isExpanded" class="thinking-content-wrapper">
         <div class="thinking-content">
           <pre class="thinking-pre">{{ content }}</pre>
         </div>
@@ -49,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Brain, ChevronDown, Copy, CheckCircle2 } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -59,6 +73,7 @@ const props = defineProps<{
 
 const isExpanded = ref(false)
 const copied = ref(false)
+const contentId = computed(() => `thinking-content-${Math.random().toString(36).slice(2)}`)
 
 function toggleExpanded() {
   isExpanded.value = !isExpanded.value
@@ -125,8 +140,6 @@ function onLeave(el: Element) {
   align-items: center;
   column-gap: 12px;
   padding: 10px 14px;
-  cursor: pointer;
-  user-select: none;
   border-radius: var(--radius);
   transition: background-color 0.2s ease, border-radius 0.2s ease;
 }
@@ -139,12 +152,17 @@ function onLeave(el: Element) {
   border-radius: var(--radius) var(--radius) 0 0;
 }
 
-.thinking-header-left {
+.thinking-header-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
 }
 
 .thinking-header-actions {
@@ -153,6 +171,27 @@ function onLeave(el: Element) {
   gap: 8px;
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+.thinking-copy-btn,
+.thinking-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  gap: 5px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.thinking-action-label {
+  font-size: 12px;
+  line-height: 1;
 }
 
 .thinking-icon {
@@ -174,24 +213,11 @@ function onLeave(el: Element) {
 }
 
 .thinking-copy-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  flex: 0 0 28px;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease,
-    transform 0.1s ease;
+  flex: 0 0 auto;
 }
 
-.thinking-copy-btn:hover {
+.thinking-copy-btn:hover,
+.thinking-expand-btn:hover {
   background: var(--accent-bg-light);
   color: var(--text);
 }
@@ -212,6 +238,17 @@ function onLeave(el: Element) {
 
 .thinking-chevron-rotated {
   transform: rotate(-90deg);
+}
+
+@media (max-width: 480px) {
+  .thinking-header {
+    column-gap: 6px;
+    padding: 9px 10px;
+  }
+
+  .thinking-header-actions { gap: 2px; }
+  .thinking-copy-btn, .thinking-expand-btn { width: 28px; padding: 0; }
+  .thinking-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 
 /* Content area */
