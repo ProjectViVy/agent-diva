@@ -15,6 +15,7 @@ import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
 import PlanningView from './planning/PlanningView.vue';
+import AgentMessageBody from './planning/AgentMessageBody.vue';
 import { activePlanTodos as filterActivePlanTodos } from './planning/planExecutionState';
 import {
   triggerAutoDream,
@@ -884,7 +885,12 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
               </div>
               <div v-else>
-                <div class="markdown-body" v-html="md.render(msg.content)"></div>
+                <!-- Agent/system text: demux <proposed_plan> into a plan message block -->
+                <AgentMessageBody
+                  v-if="msg.role === 'agent' || msg.role === 'system'"
+                  :content="msg.content"
+                />
+                <div v-else class="markdown-body" v-html="md.render(msg.content)"></div>
                 <!-- 流式光标：内容存在且正在流式输出时显示 -->
                 <span v-if="msg.content && msg.role === 'agent' && msg.isStreaming" class="streaming-cursor"></span>
               </div>
