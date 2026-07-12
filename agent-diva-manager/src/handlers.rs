@@ -6,10 +6,12 @@ pub mod logs;
 pub mod planning;
 mod provider_companion;
 pub mod todo;
+pub mod token_stats;
 
 pub use audit::{get_audit_events_handler, get_audit_log_handler};
 pub use logs::{logs_routes, query_logs_handler};
 pub use todo::{create_todo_handler, query_todos_handler, todo_routes, update_todo_handler};
+pub use token_stats::token_stats_routes;
 
 pub use health::health_handler;
 

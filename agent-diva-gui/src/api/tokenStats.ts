@@ -61,20 +61,11 @@ export type TimeRangePeriod = '1d' | '3d' | '1w' | '1m' | '6m' | '1y';
 export type GroupByDimension = 'endpoint' | 'model' | 'operation_type' | 'session' | 'channel';
 export type TimeIntervalType = 'hour' | 'day';
 
-// API response wrapper
-interface ApiResponse<T> {
-  status: 'ok' | 'error';
-  data?: T;
-  message?: string;
-}
-
 /**
  * Get total token usage statistics
  */
 export async function getTokenUsageTotal(period: TimeRangePeriod = '1d'): Promise<UsageTotal> {
-  const response = await invoke<ApiResponse<UsageTotal>>('get_token_usage_total', { period });
-  if (response.status === 'error') throw new Error(response.message);
-  return response.data!;
+  return invoke<UsageTotal>('get_token_usage_total', { period });
 }
 
 /**
@@ -84,12 +75,10 @@ export async function getTokenUsageSummary(
   period: TimeRangePeriod = '1d',
   groupBy: GroupByDimension = 'endpoint'
 ): Promise<UsageSummary[]> {
-  const response = await invoke<ApiResponse<UsageSummary[]>>('get_token_usage_summary', {
+  return invoke<UsageSummary[]>('get_token_usage_summary', {
     period,
     groupBy
   });
-  if (response.status === 'error') throw new Error(response.message);
-  return response.data!;
 }
 
 /**
@@ -99,12 +88,10 @@ export async function getTokenUsageTimeline(
   period: TimeRangePeriod = '1d',
   interval?: TimeIntervalType
 ): Promise<TimelinePoint[]> {
-  const response = await invoke<ApiResponse<TimelinePoint[]>>('get_token_usage_timeline', {
+  return invoke<TimelinePoint[]>('get_token_usage_timeline', {
     period,
     interval: interval || (period === '1d' ? 'hour' : 'day')
   });
-  if (response.status === 'error') throw new Error(response.message);
-  return response.data!;
 }
 
 /**
@@ -114,12 +101,10 @@ export async function getTokenUsageSessions(
   period: TimeRangePeriod = '1d',
   limit: number = 20
 ): Promise<SessionUsage[]> {
-  const response = await invoke<ApiResponse<SessionUsage[]>>('get_token_usage_sessions', {
+  return invoke<SessionUsage[]>('get_token_usage_sessions', {
     period,
     limit
   });
-  if (response.status === 'error') throw new Error(response.message);
-  return response.data!;
 }
 
 /**
@@ -128,20 +113,16 @@ export async function getTokenUsageSessions(
 export async function getTokenUsageModels(
   period: TimeRangePeriod = '1d'
 ): Promise<ModelDistribution[]> {
-  const response = await invoke<ApiResponse<ModelDistribution[]>>('get_token_usage_models', {
+  return invoke<ModelDistribution[]>('get_token_usage_models', {
     period
   });
-  if (response.status === 'error') throw new Error(response.message);
-  return response.data!;
 }
 
 /**
  * Get real-time in-memory statistics
  */
 export async function getTokenUsageRealtime(): Promise<InMemoryStats> {
-  const response = await invoke<ApiResponse<InMemoryStats>>('get_token_usage_realtime');
-  if (response.status === 'error') throw new Error(response.message);
-  return response.data!;
+  return invoke<InMemoryStats>('get_token_usage_realtime');
 }
 
 /**
