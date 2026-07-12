@@ -318,10 +318,7 @@ mod tests {
         });
         let generator = LlmReportNarrativeGenerator::new(
             mock.clone(),
-            LlmCurationConfig {
-                enabled: true,
-                ..LlmCurationConfig::default()
-            },
+            LlmCurationConfig::default(),
             "deepseek-chat",
         );
         let (narrative, metadata) = generator

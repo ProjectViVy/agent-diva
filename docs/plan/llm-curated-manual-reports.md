@@ -90,7 +90,7 @@ coverage_status: complete          # complete / partial / fallback
 ### P1：基础契约、配置与报告事实包
 
 - 在 core 定义数据结构、序列化、输入大小限制和 evidence 引用校验；增加与 UI 无关的单元测试。
-- 在配置中增加显式开关与预算：`reports.llm_curation.enabled`、模型选择（可继承默认 provider）、总输入/输出 token、超时、语言、fallback 策略。默认启用前需保持可关闭。
+- 在配置中增加显式开关与预算：`reports.llm_curation.enabled`、模型选择（可继承默认 provider）、总输入/输出 token、超时、语言、fallback 策略。默认启用，且可显式关闭。
 - 把 `rhythm.rs` 与月报逻辑的收集代码提取为共享 `ReportFactBundle` builder，保证日/周/月统计和缺口语义不变。
 
 ### P2：Provider 适配、结构化生成与安全降级

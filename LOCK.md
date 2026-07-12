@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-13T00:00:00+08:00`
-- Last Heartbeat: `2026-07-12T00:45:00+08:00`
+- Last Heartbeat: `2026-07-12T01:20:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-12`: Released default LLM Notebook report curation. New/omitted report-curation configuration now enables AI summaries; an explicit `false` remains an opt-out. Updated the local legacy report-curation flag to true. Core configuration and AutoDream tests, provider narrative unit tests, and manager check passed; provider integration tests remain blocked by existing `ToolChoiceMode` call-site compile errors.
 
 - `2026-07-12`: Released Notebook report regeneration. Daily, weekly, and monthly report toolbars now trigger the existing generation path and refresh after completion. Targeted GUI test and production build passed.
 

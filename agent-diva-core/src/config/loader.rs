@@ -515,6 +515,7 @@ mod tests {
         assert_eq!(config.agents.defaults.provider.as_deref(), Some("deepseek"));
         assert_eq!(config.agents.defaults.model, "deepseek-chat");
         assert_eq!(config.agents.defaults.max_tokens, 8192);
+        assert!(config.reports.llm_curation.enabled);
     }
 
     #[test]
@@ -530,6 +531,20 @@ mod tests {
         let loaded = loader.load().unwrap();
 
         assert_eq!(loaded.agents.defaults.model, "test-model");
+    }
+
+    #[test]
+    fn test_explicitly_disabled_report_curation_overrides_default() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+        let mut config = Config::default();
+        config.reports.llm_curation.enabled = false;
+
+        loader.save(&config).unwrap();
+        let loaded = loader.load().unwrap();
+
+        assert!(!loaded.reports.llm_curation.enabled);
     }
 
     #[test]

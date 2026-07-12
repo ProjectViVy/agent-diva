@@ -318,7 +318,7 @@ pub struct ReportsConfig {
 /// LLM curation settings for manual/scheduled rhythm reports.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LlmCurationConfig {
-    /// When false, report generation always uses deterministic fallback.
+    /// Defaults to enabled; set false to always use deterministic fallback.
     #[serde(default)]
     pub enabled: bool,
     /// Optional provider override; inherits `agents.defaults.provider` when null.
@@ -364,7 +364,7 @@ fn default_report_fallback() -> String {
 impl Default for LlmCurationConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             provider: None,
             model: None,
             language: default_report_language(),
