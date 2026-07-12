@@ -46,9 +46,9 @@ function isAuditLine(line: string): boolean {
 async function copyLine(content: string) {
   try {
     await navigator.clipboard.writeText(content);
-    showAppToast(t('auditPage.raw.copySuccess'), 'success');
+    showAppToast(t('auditPage.gateway.copySuccess'), 'success');
   } catch {
-    showAppToast(t('auditPage.raw.copyFailed'), 'error');
+    showAppToast(t('auditPage.gateway.copyFailed'), 'error');
   }
 }
 
@@ -111,9 +111,10 @@ function levelClass(level: string): string {
   <div
     class="raw-log-tab"
     role="tabpanel"
-    :aria-label="t('auditPage.raw.panelLabel')"
+    :aria-label="t('auditPage.gateway.panelLabel')"
     :aria-busy="loading"
   >
+    <div class="gateway-log-source">{{ t('auditPage.gateway.source') }}</div>
     <div class="log-toolbar">
       <button
         class="log-toolbar-btn"
@@ -124,9 +125,9 @@ function levelClass(level: string): string {
         @keydown.space.prevent="toggleAutoRefresh"
       >
         <Activity :size="14" aria-hidden="true" />
-        <span>{{ autoRefresh ? t('auditPage.raw.autoRefreshOn') : t('auditPage.raw.autoRefreshOff') }}</span>
+        <span>{{ autoRefresh ? t('auditPage.gateway.autoRefreshOn') : t('auditPage.gateway.autoRefreshOff') }}</span>
       </button>
-      <span v-if="autoRefresh" class="log-live-badge" role="status">{{ t('auditPage.raw.live') }}</span>
+      <span v-if="autoRefresh" class="log-live-badge" role="status">{{ t('auditPage.gateway.live') }}</span>
     </div>
 
     <div v-if="loading && lines.length === 0" class="skeleton-container" aria-hidden="true">
@@ -142,8 +143,8 @@ function levelClass(level: string): string {
       role="status"
     >
       <span class="empty-icon" aria-hidden="true">馃搫</span>
-      <p class="empty-title">{{ t('auditPage.raw.emptyTitle') }}</p>
-      <p class="empty-hint">{{ t('auditPage.raw.emptyHint') }}</p>
+      <p class="empty-title">{{ t('auditPage.gateway.emptyTitle') }}</p>
+      <p class="empty-hint">{{ t('auditPage.gateway.emptyHint') }}</p>
     </div>
 
     <div v-else class="log-lines-container">
@@ -175,8 +176,8 @@ function levelClass(level: string): string {
         </code>
         <button
           class="log-line-copy"
-          :aria-label="t('auditPage.raw.copyLineLabel', { line: idx + 1 })"
-          :title="t('auditPage.raw.copyLineLabel', { line: idx + 1 })"
+          :aria-label="t('auditPage.gateway.copyLineLabel', { line: idx + 1 })"
+          :title="t('auditPage.gateway.copyLineLabel', { line: idx + 1 })"
           @click="copyLine(line)"
           @keydown.enter.prevent="copyLine(line)"
           @keydown.space.prevent="copyLine(line)"
@@ -191,6 +192,13 @@ function levelClass(level: string): string {
 <style scoped>
 .raw-log-tab {
   min-height: 200px;
+}
+
+.gateway-log-source {
+  margin-bottom: 12px;
+  color: var(--warning, #f59e0b);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .log-toolbar {

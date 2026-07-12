@@ -176,8 +176,23 @@ export const returnActivePlanToDraft = (sessionKey?: string) =>
 export const saveRawConfig = (raw: string) =>
   invoke<void>("save_config", { raw });
 
-export const tailLogs = (lines: number) =>
-  invoke<string[]>("tail_logs", { lines });
+export interface GuiLogEntry {
+  timestamp: string;
+  level: string;
+  source: 'gui';
+  message: string;
+  args: unknown;
+  windowLabel: string;
+}
+
+export const appendGuiLog = (entries: GuiLogEntry[]) =>
+  invoke<void>('append_gui_log', { entries });
+
+export const getGatewayLogLines = (date: string, maxLines = 500) =>
+  invoke<string[]>('get_gateway_log_lines', { date, maxLines });
+
+export const getGuiLogLines = (date: string, maxLines = 500) =>
+  invoke<string[]>('get_gui_log_lines', { date, maxLines });
 
 export const checkHealth = () => invoke<boolean>("check_health");
 

@@ -23,6 +23,7 @@ vi.mock('../../../utils/appToast', () => ({
 vi.mock('lucide-vue-next', () => ({
   Copy: { name: 'Copy', template: '<span class="Copy" />' },
   Activity: { name: 'Activity', template: '<span class="Activity" />' },
+  Monitor: { name: 'Monitor', template: '<span class="Monitor" />' },
 }));
 
 describe('audit page i18n', () => {
@@ -53,5 +54,20 @@ describe('audit page i18n', () => {
     expect(wrapper.text()).toContain('auditPage.structured.emptyTitle');
     expect(wrapper.text()).toContain('auditPage.structured.emptyHint');
     expect(wrapper.attributes('aria-label')).toBe('auditPage.structured.panelLabel');
+  });
+
+  it('loads each log source only when its tab becomes active', async () => {
+    const wrapper = mount(AuditPage);
+    await flushPromises();
+    expect(invokeMock).toHaveBeenCalledWith('get_audit_events', expect.any(Object));
+
+    const tabs = wrapper.findAll('[role="tab"]');
+    await tabs[1].trigger('click');
+    await flushPromises();
+    expect(invokeMock).toHaveBeenCalledWith('get_gateway_log_lines', expect.objectContaining({ maxLines: 500 }));
+
+    await tabs[2].trigger('click');
+    await flushPromises();
+    expect(invokeMock).toHaveBeenCalledWith('get_gui_log_lines', expect.objectContaining({ maxLines: 500 }));
   });
 });

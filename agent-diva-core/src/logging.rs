@@ -134,7 +134,10 @@ fn cleanup_old_logs(dir: &str, days: u64) -> std::io::Result<()> {
         if path.is_file() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 // Match standard patterns
-                if name.starts_with("gateway.log") || name.starts_with("gateway-") {
+                if name.starts_with("gateway.log")
+                    || name.starts_with("gateway-")
+                    || name.starts_with("gui.log")
+                {
                     if let Ok(metadata) = entry.metadata() {
                         if let Ok(modified) = metadata.modified() {
                             if let Ok(age) = now.duration_since(modified) {
@@ -230,5 +233,17 @@ mod tests {
         assert!(!old_log.exists(), "expired gateway log should be removed");
         assert!(fresh_log.exists(), "fresh gateway log should be retained");
         assert!(unrelated.exists(), "non-gateway files should be ignored");
+    }
+
+    #[test]
+    fn logging_retention_removes_expired_gui_logs() {
+        let temp = tempfile::tempdir().unwrap();
+        let old_log = temp.path().join("gui.log.2026-06-01");
+        write_log_file(&old_log);
+        set_file_mtime(&old_log, FileTime::from_unix_time(946684800, 0)).unwrap();
+
+        cleanup_old_logs(temp.path().to_str().unwrap(), 1).unwrap();
+
+        assert!(!old_log.exists(), "expired GUI log should be removed");
     }
 }

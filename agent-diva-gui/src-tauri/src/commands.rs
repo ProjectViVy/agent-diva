@@ -5718,16 +5718,127 @@ pub fn get_audit_events(date: String) -> Result<Vec<AuditEventDto>, String> {
     Ok(events)
 }
 
-/// Read raw log lines from gateway.log for a given date.
+/// A sanitized console entry emitted by the desktop application's WebView.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GuiLogEntry {
+    pub timestamp: String,
+    pub level: String,
+    pub source: String,
+    pub message: String,
+    pub args: serde_json::Value,
+    pub window_label: String,
+}
+
+const GUI_LOG_VALUE_LIMIT: usize = 4_096;
+
+fn valid_log_date(date: &str) -> Result<(), String> {
+    chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map(|_| ())
+        .map_err(|_| format!("invalid log date: {date}"))
+}
+
+fn sanitize_gui_value(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.into_iter()
+                .map(|(key, value)| {
+                    let sensitive = [
+                        "apikey",
+                        "api_key",
+                        "token",
+                        "password",
+                        "authorization",
+                        "secret",
+                    ]
+                    .iter()
+                    .any(|needle| key.to_ascii_lowercase().contains(needle));
+                    (
+                        key,
+                        if sensitive {
+                            serde_json::Value::String("[REDACTED]".to_string())
+                        } else {
+                            sanitize_gui_value(value)
+                        },
+                    )
+                })
+                .collect(),
+        ),
+        serde_json::Value::Array(values) => {
+            serde_json::Value::Array(values.into_iter().map(sanitize_gui_value).collect())
+        }
+        serde_json::Value::String(value) if value.chars().count() > GUI_LOG_VALUE_LIMIT => {
+            serde_json::Value::String(
+                value.chars().take(GUI_LOG_VALUE_LIMIT).collect::<String>() + "…[truncated]",
+            )
+        }
+        value => value,
+    }
+}
+
+fn gui_log_path(date: &str) -> Result<PathBuf, String> {
+    valid_log_date(date)?;
+    let loader = ConfigLoader::new();
+    let config = loader.load().unwrap_or_default();
+    Ok(
+        resolve_configured_path(&config.logging.dir, loader.config_dir())
+            .join(format!("gui.log.{date}")),
+    )
+}
+
+/// Append sanitized GUI console records to the date-specific desktop log.
 #[tauri::command]
-pub fn get_raw_log_lines(date: String, max_lines: u32) -> Result<Vec<String>, String> {
+pub fn append_gui_log(entries: Vec<GuiLogEntry>) -> Result<(), String> {
+    use std::io::Write;
+    for mut entry in entries {
+        let date = entry
+            .timestamp
+            .get(..10)
+            .ok_or("GUI log timestamp is missing a date")?;
+        let path = gui_log_path(date)?;
+        let parent = path.parent().ok_or("GUI log path has no parent")?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create GUI log directory: {e}"))?;
+        entry.source = "gui".to_string();
+        entry.message = sanitize_gui_value(serde_json::Value::String(entry.message))
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        entry.args = sanitize_gui_value(entry.args);
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|e| format!("failed to open GUI log file: {e}"))?;
+        serde_json::to_writer(&mut file, &entry)
+            .map_err(|e| format!("failed to encode GUI log: {e}"))?;
+        file.write_all(b"\n")
+            .map_err(|e| format!("failed to write GUI log: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Read GUI console records for a date, returning only the requested tail.
+#[tauri::command]
+pub fn get_gui_log_lines(date: String, max_lines: u32) -> Result<Vec<String>, String> {
+    let log_path = gui_log_path(&date)?;
+    read_log_tail(&log_path, max_lines)
+}
+
+/// Read gateway backend log lines for a given date.
+#[tauri::command]
+pub fn get_gateway_log_lines(date: String, max_lines: u32) -> Result<Vec<String>, String> {
     let log_path = resolve_audit_log_path(&date)?;
+    read_log_tail(&log_path, max_lines)
+}
+
+fn read_log_tail(log_path: &Path, max_lines: u32) -> Result<Vec<String>, String> {
     if !log_path.exists() {
         return Ok(Vec::new());
     }
 
-    let content = std::fs::read_to_string(&log_path)
-        .map_err(|e| format!("failed to read log for {}: {}", date, e))?;
+    let content = std::fs::read_to_string(log_path)
+        .map_err(|e| format!("failed to read log {}: {}", log_path.display(), e))?;
 
     let mut all_lines: Vec<String> = content.lines().map(ToString::to_string).collect();
     let keep = max_lines.max(1) as usize;
@@ -5738,6 +5849,7 @@ pub fn get_raw_log_lines(date: String, max_lines: u32) -> Result<Vec<String>, St
 }
 
 fn resolve_audit_log_path(date: &str) -> Result<std::path::PathBuf, String> {
+    valid_log_date(date)?;
     let loader = ConfigLoader::new();
     let config = loader.load().unwrap_or_default();
 
@@ -5748,6 +5860,43 @@ fn resolve_audit_log_path(date: &str) -> Result<std::path::PathBuf, String> {
     // tracing_appender::rolling::daily(dir, "gateway.log") produces gateway.log.YYYY-MM-DD
     let log_path = log_dir.join(format!("gateway.log.{}", date));
     Ok(log_path)
+}
+
+#[cfg(test)]
+mod gui_log_tests {
+    use super::*;
+
+    #[test]
+    fn gui_log_date_must_be_a_calendar_date() {
+        assert!(valid_log_date("2026-07-12").is_ok());
+        assert!(valid_log_date("2026-99-99").is_err());
+        assert!(valid_log_date("../../gateway.log").is_err());
+    }
+
+    #[test]
+    fn gui_log_sanitization_redacts_nested_secrets_and_truncates_text() {
+        let value = serde_json::json!({
+            "token": "do-not-store",
+            "nested": { "authorization": "Bearer secret" },
+            "message": "x".repeat(GUI_LOG_VALUE_LIMIT + 1),
+        });
+        let sanitized = sanitize_gui_value(value);
+        assert_eq!(sanitized["token"], "[REDACTED]");
+        assert_eq!(sanitized["nested"]["authorization"], "[REDACTED]");
+        assert!(sanitized["message"]
+            .as_str()
+            .unwrap()
+            .ends_with("…[truncated]"));
+    }
+
+    #[test]
+    fn read_log_tail_returns_last_requested_lines_and_handles_missing_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("gui.log.2026-07-12");
+        assert!(read_log_tail(&path, 2).unwrap().is_empty());
+        std::fs::write(&path, "one\ntwo\nthree\n").unwrap();
+        assert_eq!(read_log_tail(&path, 2).unwrap(), vec!["two", "three"]);
+    }
 }
 
 #[cfg(test)]

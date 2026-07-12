@@ -3,14 +3,16 @@ import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
 import StructuredEventsTab from './StructuredEventsTab.vue';
-import RawLogTab from './RawLogTab.vue';
+import GatewayBackendLogTab from './RawLogTab.vue';
+import GuiLogTab from './GuiLogTab.vue';
 import type { AuditEvent } from './types';
 
 const { t } = useI18n();
-const activeTab = ref<'structured' | 'raw'>('structured');
+const activeTab = ref<'structured' | 'gateway' | 'gui'>('structured');
 const selectedDate = ref(new Date().toISOString().slice(0, 10));
 const events = ref<AuditEvent[]>([]);
-const rawLines = ref<string[]>([]);
+const gatewayLines = ref<string[]>([]);
+const guiLines = ref<string[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -27,50 +29,71 @@ async function loadEvents() {
   }
 }
 
-async function loadRawLog() {
+async function loadGatewayLog() {
   loading.value = true;
   error.value = null;
   try {
-    rawLines.value = await invoke('get_raw_log_lines', {
+    gatewayLines.value = await invoke('get_gateway_log_lines', {
       date: selectedDate.value,
       maxLines: 500,
     });
   } catch (e) {
     error.value = String(e);
-    rawLines.value = [];
+    gatewayLines.value = [];
   } finally {
     loading.value = false;
   }
 }
 
-function onTabChange(tab: 'structured' | 'raw') {
+async function loadGuiLog() {
+  loading.value = true;
+  error.value = null;
+  try {
+    guiLines.value = await invoke('get_gui_log_lines', { date: selectedDate.value, maxLines: 500 });
+  } catch (e) {
+    error.value = String(e);
+    guiLines.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+function onTabChange(tab: 'structured' | 'gateway' | 'gui') {
   activeTab.value = tab;
   if (tab === 'structured') loadEvents();
-  else loadRawLog();
+  else if (tab === 'gateway') loadGatewayLog();
+  else loadGuiLog();
 }
 
 function onDateChange(event: Event) {
   const input = event.target as HTMLInputElement;
   selectedDate.value = input.value;
   if (activeTab.value === 'structured') loadEvents();
-  else loadRawLog();
+  else if (activeTab.value === 'gateway') loadGatewayLog();
+  else loadGuiLog();
 }
 
-function onTabKeydown(event: KeyboardEvent, tab: 'structured' | 'raw') {
+function onTabKeydown(event: KeyboardEvent, tab: 'structured' | 'gateway' | 'gui') {
   if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-    const next = tab === 'structured' ? 'raw' : 'structured';
+    const tabs: Array<'structured' | 'gateway' | 'gui'> = ['structured', 'gateway', 'gui'];
+    const delta = event.key === 'ArrowRight' ? 1 : -1;
+    const next = tabs[(tabs.indexOf(tab) + delta + tabs.length) % tabs.length];
     onTabChange(next);
     // Focus the next tab button
     const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll('.audit-tab');
     if (buttons) {
-      const nextIdx = next === 'structured' ? 0 : 1;
+      const nextIdx = tabs.indexOf(next);
       (buttons[nextIdx] as HTMLElement)?.focus();
     }
   }
 }
 
-function onRawLogRefresh() {
-  loadRawLog();
+function onGatewayLogRefresh() {
+  loadGatewayLog();
+}
+
+function onGuiLogRefresh() {
+  loadGuiLog();
 }
 
 onMounted(() => {
@@ -99,6 +122,7 @@ onMounted(() => {
         :aria-selected="activeTab === 'structured'"
         :tabindex="activeTab === 'structured' ? 0 : -1"
         :class="['audit-tab', { active: activeTab === 'structured' }]"
+        data-testid="audit-events-tab"
         @click="onTabChange('structured')"
         @keydown="onTabKeydown($event, 'structured')"
       >
@@ -106,13 +130,25 @@ onMounted(() => {
       </button>
       <button
         role="tab"
-        :aria-selected="activeTab === 'raw'"
-        :tabindex="activeTab === 'raw' ? 0 : -1"
-        :class="['audit-tab', { active: activeTab === 'raw' }]"
-        @click="onTabChange('raw')"
-        @keydown="onTabKeydown($event, 'raw')"
+        :aria-selected="activeTab === 'gateway'"
+        :tabindex="activeTab === 'gateway' ? 0 : -1"
+        :class="['audit-tab', { active: activeTab === 'gateway' }]"
+        data-testid="gateway-backend-logs-tab"
+        @click="onTabChange('gateway')"
+        @keydown="onTabKeydown($event, 'gateway')"
       >
-        {{ t('auditPage.tabs.raw') }}
+        {{ t('auditPage.tabs.gateway') }}
+      </button>
+      <button
+        role="tab"
+        :aria-selected="activeTab === 'gui'"
+        :tabindex="activeTab === 'gui' ? 0 : -1"
+        :class="['audit-tab', { active: activeTab === 'gui' }]"
+        data-testid="frontend-gui-logs-tab"
+        @click="onTabChange('gui')"
+        @keydown="onTabKeydown($event, 'gui')"
+      >
+        {{ t('auditPage.tabs.gui') }}
       </button>
     </div>
 
@@ -130,11 +166,17 @@ onMounted(() => {
         :loading="loading"
         :selected-date="selectedDate"
       />
-      <RawLogTab
-        v-show="activeTab === 'raw'"
-        :lines="rawLines"
+      <GatewayBackendLogTab
+        v-show="activeTab === 'gateway'"
+        :lines="gatewayLines"
         :loading="loading"
-        @refresh="onRawLogRefresh"
+        @refresh="onGatewayLogRefresh"
+      />
+      <GuiLogTab
+        v-show="activeTab === 'gui'"
+        :lines="guiLines"
+        :loading="loading"
+        @refresh="onGuiLogRefresh"
       />
     </div>
   </div>

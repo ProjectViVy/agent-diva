@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Activity, Server, Zap } from 'lucide-vue-next';
+import { Activity, Zap } from 'lucide-vue-next';
 
 import {
   checkHealth,
@@ -11,12 +11,10 @@ import {
   saveRawConfig,
   startGateway,
   stopGateway,
-  tailLogs,
   type GatewayProcessStatus,
 } from '../api/desktop';
 import StatusPanel from './console/StatusPanel.vue';
 import ConfigEditor from './console/ConfigEditor.vue';
-import LogPanel from './console/LogPanel.vue';
 import TokenStatsPanel from './console/TokenStatsPanel.vue';
 
 const { t } = useI18n();
@@ -33,11 +31,6 @@ const configBusy = ref(false);
 const configError = ref('');
 const configSavedAt = ref<number | null>(null);
 
-// Logs state
-const logLines = ref<string[]>([]);
-const logLineCount = ref(200);
-const logsBusy = ref(false);
-const logsError = ref('');
 
 // Gateway actions
 const refreshGatewayStatus = async () => {
@@ -117,51 +110,16 @@ const persistConfig = async () => {
   }
 };
 
-// Logs actions
-const fetchLogLines = async (opts?: { withSpinner?: boolean }) => {
-  const withSpinner = opts?.withSpinner ?? false;
-  if (withSpinner) {
-    logsBusy.value = true;
-  }
-  logsError.value = '';
-  try {
-    if (!isTauriRuntime()) {
-      logLines.value = ['[mock] gateway logs are only available in Tauri runtime'];
-      return;
-    }
-    logLines.value = await tailLogs(logLineCount.value);
-  } catch (error) {
-    logsError.value = String(error);
-  } finally {
-    if (withSpinner) {
-      logsBusy.value = false;
-    }
-  }
-};
-
-const refreshLogs = () => fetchLogLines({ withSpinner: true });
-
-const updateLogLineCount = (value: number) => {
-  logLineCount.value = value;
-  fetchLogLines({ withSpinner: true });
-};
-
 // Polling
-let logPollId: number | undefined;
 let healthPollId: number | undefined;
 
 onMounted(async () => {
   await Promise.all([
     refreshGatewayStatus(),
     reloadConfig(),
-    fetchLogLines({ withSpinner: true }),
   ]);
 
   if (isTauriRuntime()) {
-    logPollId = window.setInterval(() => {
-      void fetchLogLines();
-    }, 2000) as number;
-
     healthPollId = window.setInterval(() => {
       void refreshGatewayStatus();
     }, 5000) as number;
@@ -169,9 +127,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  if (logPollId !== undefined) {
-    window.clearInterval(logPollId);
-  }
   if (healthPollId !== undefined) {
     window.clearInterval(healthPollId);
   }
@@ -248,27 +203,6 @@ onUnmounted(() => {
         <TokenStatsPanel />
       </section>
 
-      <!-- Log Panel Section -->
-      <section class="console-section">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="console-section-icon console-section-icon--amber">
-            <Server :size="20" />
-          </div>
-          <div>
-            <h3 class="console-section-title">{{ t('console.logsTitle') }}</h3>
-            <p class="console-section-desc">{{ t('console.logsDesc') }}</p>
-          </div>
-        </div>
-
-        <LogPanel
-          :log-lines="logLines"
-          :loading="logsBusy"
-          :error="logsError"
-          :max-lines="logLineCount"
-          @refresh="refreshLogs"
-          @update:max-lines="updateLogLineCount"
-        />
-      </section>
     </div>
   </div>
 </template>
@@ -300,11 +234,6 @@ onUnmounted(() => {
 .console-section-icon--blue {
   background: var(--accent-bg-light);
   color: var(--accent);
-}
-
-.console-section-icon--amber {
-  background: var(--warning-bg, rgba(245, 158, 11, 0.15));
-  color: var(--warning);
 }
 
 .console-section-icon--purple {
