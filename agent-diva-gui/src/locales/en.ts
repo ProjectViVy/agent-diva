@@ -1262,6 +1262,7 @@ export default {
     generateDaily: 'Generate Daily Report',
     generateWeekly: 'Generate Weekly Report',
     generateMonthly: 'Generate Monthly Report',
+    regenerate: 'Regenerate {period}',
     generateTriggered: '{period} generation triggered',
     truncatedNotice: 'This report is too large to render fully. Showing the first {shown} lines out of {total}.',
     selectReport: 'Select a report to view',

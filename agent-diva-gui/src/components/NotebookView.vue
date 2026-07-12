@@ -226,7 +226,7 @@ async function fetchReports() {
   }
 }
 
-async function triggerMissingReport() {
+async function triggerReportGeneration() {
   generationBusy.value = true;
   try {
     if (isTauri()) {
@@ -455,7 +455,7 @@ onUnmounted(() => {
           <button
             class="notebook-retry-btn"
             :disabled="generationBusy"
-            @click="triggerMissingReport"
+            @click="triggerReportGeneration"
           >
             <Loader2 v-if="generationBusy" :size="14" class="spin" />
             <RefreshCw v-else :size="14" />
@@ -592,6 +592,15 @@ onUnmounted(() => {
 
     <!-- Bottom action bar -->
     <div v-if="selectedReport" class="notebook-actions">
+      <button
+        class="notebook-regenerate-btn"
+        :disabled="generationBusy || actionBusy || previewBusy"
+        @click="triggerReportGeneration"
+      >
+        <Loader2 v-if="generationBusy" :size="16" class="spin" />
+        <RefreshCw v-else :size="16" />
+        <span>{{ t('notebook.regenerate', { period: periodLabel }) }}</span>
+      </button>
       <button
         class="notebook-action-btn"
         :disabled="actionBusy || previewBusy"
@@ -1176,7 +1185,8 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.notebook-action-btn {
+.notebook-action-btn,
+.notebook-regenerate-btn {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1191,13 +1201,15 @@ onUnmounted(() => {
   transition: all 0.15s;
 }
 
-.notebook-action-btn:hover:not(:disabled) {
+.notebook-action-btn:hover:not(:disabled),
+.notebook-regenerate-btn:hover:not(:disabled) {
   background: var(--accent-bg-light);
   border-color: var(--accent-border);
   color: var(--accent);
 }
 
-.notebook-action-btn:disabled {
+.notebook-action-btn:disabled,
+.notebook-regenerate-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

@@ -76,6 +76,44 @@ describe('NotebookView', () => {
     expect(showAppToast).toHaveBeenCalled();
   });
 
+  it('regenerates daily, weekly, and monthly reports from the report actions', async () => {
+    const reportFor = (period: 'daily' | 'weekly' | 'monthly') => ({
+      id: `${period}:2026-06-14`,
+      period,
+      date: '2026-06-14',
+      title: `${period} report`,
+      summary: 'Summary',
+      content: '# Report',
+    });
+    invokeMock
+      .mockResolvedValueOnce([reportFor('daily')])
+      .mockResolvedValueOnce({ id: 'run-daily' })
+      .mockResolvedValueOnce([reportFor('daily')])
+      .mockResolvedValueOnce([reportFor('weekly')])
+      .mockResolvedValueOnce({ id: 'run-weekly' })
+      .mockResolvedValueOnce([reportFor('weekly')])
+      .mockResolvedValueOnce([reportFor('monthly')])
+      .mockResolvedValueOnce({ id: 'run-monthly' })
+      .mockResolvedValueOnce([reportFor('monthly')]);
+
+    const wrapper = mount(NotebookView);
+    await flushPromises();
+
+    for (const [period, tabLabel] of [
+      ['daily', 'notebook.periodDaily'],
+      ['weekly', 'notebook.periodWeekly'],
+      ['monthly', 'notebook.periodMonthly'],
+    ] as const) {
+      if (period !== 'daily') {
+        await wrapper.findAll('.notebook-tab').find((tab) => tab.text().includes(tabLabel))!.trigger('click');
+        await flushPromises();
+      }
+      await wrapper.find('.notebook-regenerate-btn').trigger('click');
+      await flushPromises();
+      expect(invokeMock).toHaveBeenCalledWith('trigger_notebook_report_generation', { period });
+    }
+  });
+
   it('shows a truncated banner when the selected report was clipped by the backend', async () => {
     invokeMock.mockResolvedValueOnce([
       {

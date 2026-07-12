@@ -1205,6 +1205,7 @@ export default {
     generateDaily: '生成日报',
     generateWeekly: '生成周报',
     generateMonthly: '生成月报',
+    regenerate: '重新生成{period}',
     generateTriggered: '{period}生成已触发',
     truncatedNotice: '报告内容过长，当前仅显示前 {shown} 行，共 {total} 行。',
     selectReport: '请选择一份报告查看',
