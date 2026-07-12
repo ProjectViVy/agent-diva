@@ -57,4 +57,17 @@ describe('ChatView streaming states', () => {
     expect(wrapper.find('.streaming-dots-only').exists()).toBe(false);
     expect(wrapper.findAll('.streaming-dots i')).toHaveLength(0);
   });
+
+  it('opens session history as an overlay on narrow windows', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 });
+    const wrapper = mountChat([]);
+
+    await wrapper.find('.conv-sidebar-toggle').trigger('click');
+
+    expect(wrapper.find('.conv-sidebar-scrim').exists()).toBe(true);
+    expect(wrapper.find('.conv-sidebar-wrapper--overlay').exists()).toBe(true);
+
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+  });
 });

@@ -278,6 +278,9 @@ const currentProviderLabel = computed(() => {
 // const showBackendDisconnectedIndicator = computed(() => props.connectionStatus === 'error');
 
 const closeSidebar = () => {
+  if (sidebarAutoCollapsed.value) {
+    sidebarCollapsed.value = true;
+  }
   sidebarOpen.value = false;
   isModelDropdownOpen.value = false;
 };
@@ -318,7 +321,7 @@ const handleNavigateAndClose = (section: SidebarSection, settingsView: SettingsS
 };
 
 const handleResize = () => {
-  sidebarAutoCollapsed.value = window.innerWidth < 768;
+  sidebarAutoCollapsed.value = window.innerWidth < 1024;
   if (sidebarAutoCollapsed.value) {
     sidebarCollapsed.value = true;
   }
@@ -597,7 +600,7 @@ defineExpose({
   <div
     class="app-shell"
     :class="{
-      'sidebar-expanded': !sidebarCollapsed,
+      'sidebar-expanded': !sidebarCollapsed && !sidebarAutoCollapsed,
       [`theme-${themeMode}`]: true,
       'pet-immersive': activeMenu === 'pet',
     }"
@@ -640,10 +643,18 @@ defineExpose({
         <img :src="mikuAvatarSrc" alt="Miku" />
       </div>
     </div>
+    <div
+      v-if="activeMenu !== 'pet' && sidebarAutoCollapsed && !sidebarCollapsed"
+      class="narrow-sidebar-scrim"
+      @click="closeSidebar"
+    />
     <aside
       v-if="activeMenu !== 'pet'"
       class="sidebar"
-      :class="{ 'sidebar-collapsed': sidebarCollapsed }"
+      :class="{
+        'sidebar-collapsed': sidebarCollapsed,
+        'sidebar-overlay': sidebarAutoCollapsed && !sidebarCollapsed,
+      }"
     >
       <!-- Logo区域 -->
       <div class="sidebar-header">
@@ -1132,6 +1143,21 @@ defineExpose({
   position: fixed;
   width: var(--sidebar-width);
   box-shadow: var(--shadow);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 160;
+  width: var(--sidebar-width);
+  box-shadow: 12px 0 28px rgba(15, 23, 42, 0.22);
+}
+
+.narrow-sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(15, 23, 42, 0.28);
 }
 
 .overlay-close-btn {

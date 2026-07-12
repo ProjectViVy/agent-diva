@@ -177,6 +177,11 @@ const inputHeight = ref(24); // 动态输入框高度
 // 右侧会话侧边栏状态
 const convSidebarOpen = ref(false);
 const convSidebarRef = ref<InstanceType<typeof ConversationSidebar> | null>(null);
+const narrowLayout = ref(false);
+
+const updateNarrowLayout = () => {
+  narrowLayout.value = window.innerWidth < 1024;
+};
 
 // 输入区域状态
 const showModeMenu = ref(false);
@@ -260,11 +265,14 @@ watch(() => props.messages, (newMessages, oldMessages) => {
 }, { deep: true });
 
 onMounted(() => {
+  updateNarrowLayout();
+  window.addEventListener('resize', updateNarrowLayout);
   scrollToBottom();
   inputRef.value?.focus();
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateNarrowLayout);
   autoDreamPollTimers.forEach((timer) => clearTimeout(timer));
   autoDreamPollTimers.clear();
 });
@@ -1286,6 +1294,11 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
     </div> <!-- End chat-main -->
 
     <!-- Conversation Sidebar (Right Panel) -->
+    <div
+      v-if="convSidebarOpen && narrowLayout"
+      class="conv-sidebar-scrim"
+      @click="convSidebarOpen = false"
+    />
     <ConversationSidebar
       v-if="convSidebarOpen"
       ref="convSidebarRef"
@@ -1300,6 +1313,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       @refresh="emit('refresh-sessions')"
       @close="convSidebarOpen = false"
       class="conv-sidebar-wrapper"
+      :class="{ 'conv-sidebar-wrapper--overlay': narrowLayout }"
     />
   </div>
 </template>
@@ -1386,6 +1400,22 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 .conv-sidebar-wrapper {
   flex-shrink: 0;
   height: 100%;
+}
+
+.conv-sidebar-wrapper--overlay {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 160;
+  width: 280px;
+  max-width: calc(100vw - 40px);
+  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.22);
+}
+
+.conv-sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(15, 23, 42, 0.28);
 }
 
 /* Scoped styles if needed, but we rely on global tailwind classes mostly */
