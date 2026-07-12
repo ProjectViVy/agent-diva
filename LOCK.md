@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T18:00:00+08:00`
-- Last Heartbeat: `2026-07-12T18:20:00+08:00`
+- Started At: `2026-07-12T20:00:00+08:00`
+- Last Heartbeat: `2026-07-12T20:30:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -24,24 +24,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 6. Record handoff notes before taking over a stale lock.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
-## Acquisition Checklist
-
-- Set `Lock State` to `HELD`
-- Fill `Owner`, `Session/Task`, and `Branch/Worktree`
-- Fill an exact `Scope`
-- Record `Started At`, `Last Heartbeat`, and `Expires At`
-
-## Release Checklist
-
-- Confirm the work is complete, handed off, or explicitly paused
-- Set `Lock State` to `FREE`
-- Reset `Scope`, `Owner`, and `Session/Task` to `none`
-- Record remaining risks or next steps in `Handoff Notes`
-
 ## Active Lock
 
 - none
 
 ## Handoff Notes
 
-- `2026-07-12`: Released proposed_plan chat render lock. Agent/system bubbles demux `<proposed_plan>` into Plan message blocks. Vitest 7/7 + vue-tsc passed.
+- `2026-07-12`: Released tool follow-up lock. Agent loop grants one summary-only pass after tools at max iterations and replaces English empty-final with Chinese synthesis. Unit tests passed.

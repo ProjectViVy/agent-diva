@@ -618,6 +618,12 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
         let mut turn_token_usage: Option<TokenUsage> = None;
+        // Codex-style follow-up: after tools, keep sampling until text or budget.
+        let mut tool_run_summaries: Vec<ToolRunSummary> = Vec::new();
+        let mut stopped_for_plan_approval = false;
+        // One extra text-only sampling pass after tools hit max_iterations.
+        let mut summary_bonus_remaining: usize = 0;
+        let mut summary_only_nudge_injected = false;
 
         // Intent-aware prefetch: run recall search before the first LLM call
         // when the user message provides a workable intent string.
@@ -653,7 +659,8 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
             }
         }
 
-        while iteration < self.max_iterations {
+        // Allow at most one bonus summary-only iteration after tools exhaust max_iterations.
+        while iteration < self.max_iterations + summary_bonus_remaining {
             self.drain_runtime_control_commands().await;
             if self.is_session_cancelled(&session_key) {
                 self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
@@ -661,7 +668,21 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
             }
 
             iteration += 1;
-            debug!("Agent iteration {}/{}", iteration, self.max_iterations);
+            let summary_only_pass = iteration > self.max_iterations;
+            if summary_only_pass {
+                // Consume the single bonus pass budget.
+                summary_bonus_remaining = 0;
+            }
+            debug!(
+                "Agent iteration {}/{}{}",
+                iteration,
+                self.max_iterations,
+                if summary_only_pass {
+                    " (summary-only)"
+                } else {
+                    ""
+                }
+            );
             trace!(trace_id = %trace_id, loop_index = iteration, step_name = "loop_started", "Agent loop started");
 
             let event = AgentEvent::IterationStarted {
@@ -678,7 +699,14 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
             // Call LLM (streaming when provider supports it)
             // For cron-triggered turns, keep normal tools available but hide cron tool
             // to prevent recursive schedule creation loops.
-            let tool_defs = if msg.channel == "cron" || is_cron_trigger {
+            // Summary-only pass: no tools (Codex-style final text after tool work).
+            let tool_defs: Vec<serde_json::Value> = if summary_only_pass {
+                if !summary_only_nudge_injected {
+                    messages.push(agent_diva_providers::Message::system(SUMMARY_ONLY_NUDGE));
+                    summary_only_nudge_injected = true;
+                }
+                Vec::new()
+            } else if msg.channel == "cron" || is_cron_trigger {
                 self.tools
                     .get_definitions()
                     .into_iter()
@@ -956,6 +984,21 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
 
             // Handle tool calls
             if response.has_tool_calls() {
+                // On the summary-only bonus pass we disabled tools; if a provider
+                // still emits calls, skip execution and fall through to empty final.
+                if summary_only_pass {
+                    warn!(
+                        "summary-only pass received {} unexpected tool call(s); ignoring tools",
+                        response.tool_calls.len()
+                    );
+                    final_content = response.content.filter(|s| !s.trim().is_empty());
+                    final_reasoning = response.reasoning_content;
+                    if self.thinking_mode == ThinkingMode::Off {
+                        final_reasoning = None;
+                    }
+                    break;
+                }
+
                 info!("LLM requested {} tool calls", response.tool_calls.len());
 
                 // Add assistant message with tool calls
@@ -1150,6 +1193,11 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                             stop_after_tool_call = true;
                         }
                     }
+                    tool_run_summaries.push(ToolRunSummary {
+                        name: tool_call.name.clone(),
+                        ok: !is_error,
+                        detail: truncate_for_tool_summary(&result, 120),
+                    });
                     self.context.add_tool_result(
                         &mut messages,
                         tool_call.id.clone(),
@@ -1161,8 +1209,20 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     }
                 }
                 if stop_after_tool_call {
+                    // Lifecycle barrier: do not follow up with mutation tools.
+                    stopped_for_plan_approval = true;
                     break;
                 }
+                // Codex-style needs_follow_up: after tools, sample again.
+                // If this was the last normal iteration, grant one summary-only bonus.
+                if iteration >= self.max_iterations && summary_bonus_remaining == 0 {
+                    summary_bonus_remaining = 1;
+                    info!(
+                        "tool-only at iteration {}/{}; granting one summary-only pass",
+                        iteration, self.max_iterations
+                    );
+                }
+                continue;
             } else {
                 // No tool calls, we're done
                 if response.finish_reason == "error" {
@@ -1177,7 +1237,10 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     final_reasoning = None;
                     break;
                 }
-                final_content = response.content;
+                // Treat blank content as missing so fallback synthesis can run.
+                final_content = response
+                    .content
+                    .filter(|s| !s.trim().is_empty());
                 final_reasoning = response.reasoning_content;
                 // Honor thinking mode: Off clears reasoning, Auto/On pass through
                 if self.thinking_mode == ThinkingMode::Off {
@@ -1188,7 +1251,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
         }
 
         let mut final_content = final_content.unwrap_or_else(|| {
-            "I've completed processing but have no response to give.".to_string()
+            resolve_empty_final_content(stopped_for_plan_approval, &tool_run_summaries)
         });
         if self.notify_on_soul_change && !soul_files_changed.is_empty() {
             let frequent_hint = self.is_frequent_soul_change_turn();
@@ -1697,9 +1760,129 @@ fn is_context_overflow_error(err: &ProviderError) -> bool {
         || msg.contains("context window")
 }
 
+/// Compact record of a tool execution for empty-final synthesis.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ToolRunSummary {
+    name: String,
+    ok: bool,
+    detail: String,
+}
+
+const SUMMARY_ONLY_NUDGE: &str = "You already executed tools in this turn. Based on the tool results above, write a concise final reply for the user in their language. Do not call any tools.";
+
+const FALLBACK_EMPTY_REPLY_ZH: &str = "本轮处理已完成，但未生成可读回复。";
+const FALLBACK_PLAN_APPROVAL_ZH: &str =
+    "计划已提交审批，请在下方审批卡片中查看并批准。";
+
+fn truncate_for_tool_summary(text: &str, max_chars: usize) -> String {
+    let trimmed = text.trim();
+    if trimmed.chars().count() <= max_chars {
+        return trimmed.to_string();
+    }
+    let mut out: String = trimmed.chars().take(max_chars.saturating_sub(1)).collect();
+    out.push('…');
+    out
+}
+
+/// User-facing Chinese summary when the model ends after tools without text.
+fn synthesize_tool_turn_summary(summaries: &[ToolRunSummary]) -> String {
+    if summaries.is_empty() {
+        return "已执行工具调用，但模型未返回文字总结。".to_string();
+    }
+    let total = summaries.len();
+    let ok = summaries.iter().filter(|s| s.ok).count();
+    let fail = total.saturating_sub(ok);
+    let mut parts = vec![format!(
+        "已完成 {total} 个工具调用（成功 {ok}，失败 {fail}），但模型未返回文字总结。"
+    )];
+    // Show at most the last few tools — the final verification is usually last.
+    let tail: Vec<&ToolRunSummary> = summaries.iter().rev().take(3).collect();
+    for item in tail.into_iter().rev() {
+        let status = if item.ok { "成功" } else { "失败" };
+        if item.detail.is_empty() {
+            parts.push(format!("- `{}`：{}", item.name, status));
+        } else {
+            parts.push(format!("- `{}`：{} — {}", item.name, status, item.detail));
+        }
+    }
+    parts.join("\n")
+}
+
+fn resolve_empty_final_content(
+    stopped_for_plan_approval: bool,
+    tool_summaries: &[ToolRunSummary],
+) -> String {
+    if stopped_for_plan_approval {
+        return FALLBACK_PLAN_APPROVAL_ZH.to_string();
+    }
+    if !tool_summaries.is_empty() {
+        return synthesize_tool_turn_summary(tool_summaries);
+    }
+    FALLBACK_EMPTY_REPLY_ZH.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn synthesize_tool_turn_summary_lists_recent_tools() {
+        let summaries = vec![
+            ToolRunSummary {
+                name: "read_file".into(),
+                ok: true,
+                detail: "ok".into(),
+            },
+            ToolRunSummary {
+                name: "exec".into(),
+                ok: true,
+                detail: "rc: 0".into(),
+            },
+        ];
+        let text = synthesize_tool_turn_summary(&summaries);
+        assert!(text.contains("2 个工具"));
+        assert!(text.contains("`exec`"));
+        assert!(text.contains("成功"));
+        assert!(!text.contains("I've completed processing"));
+    }
+
+    #[test]
+    fn resolve_empty_final_prefers_plan_approval_over_tools() {
+        let summaries = vec![ToolRunSummary {
+            name: "plan_submit".into(),
+            ok: true,
+            detail: String::new(),
+        }];
+        let text = resolve_empty_final_content(true, &summaries);
+        assert!(text.contains("审批"));
+        assert!(!text.contains("I've completed processing"));
+    }
+
+    #[test]
+    fn resolve_empty_final_uses_tool_synthesis() {
+        let summaries = vec![ToolRunSummary {
+            name: "exec".into(),
+            ok: true,
+            detail: "stdout: hello".into(),
+        }];
+        let text = resolve_empty_final_content(false, &summaries);
+        assert!(text.contains("exec"));
+        assert!(!text.contains("I've completed processing"));
+    }
+
+    #[test]
+    fn resolve_empty_final_generic_when_no_tools() {
+        let text = resolve_empty_final_content(false, &[]);
+        assert_eq!(text, FALLBACK_EMPTY_REPLY_ZH);
+    }
+
+    #[test]
+    fn truncate_for_tool_summary_limits_chars() {
+        let long = "a".repeat(200);
+        let out = truncate_for_tool_summary(&long, 50);
+        assert!(out.chars().count() <= 50);
+        assert!(out.ends_with('…'));
+    }
 
     #[test]
     fn test_derive_prefetch_intent_is_empty_for_non_question() {
