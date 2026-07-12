@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-13T00:00:00+08:00`
-- Last Heartbeat: `2026-07-13T01:15:00+08:00`
+- Last Heartbeat: `2026-07-12T00:20:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-12`: Released sandbox command approval design package and matching TODO. Documentation only; no runtime code changed.
 
 - `2026-07-12`: Updated sidebar capability and tool group headers to use the primary text color, matching top-level navigation. GUI build passed.
 - `2026-07-12`: Corrected sidebar group-header height from 48px to the observed primary navigation size of 40px; retained consistent border treatment. GUI build passed.

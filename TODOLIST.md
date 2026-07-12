@@ -4,6 +4,10 @@
 
 ## Active Plan
 
+- [ ] **Sandbox command approval UI and persistent execution rules** Implement the design package in `docs/dev/sandbox-command-approval/`: route shell execution through the sandbox orchestrator, surface recoverable approval requests in the GUI, and persist only validated safe command-prefix allow rules globally.
+  - Expected behavior: Plan mode remains strictly read-only; agent mode can approve a recoverable sandbox escalation once or per session; only safe prefixes can enter the global default execution list.
+  - Related: `agent-diva-tools/src/shell.rs`, `agent-diva-sandbox/src/orchestrator.rs`, `agent-diva-manager/src/handlers.rs`, `agent-diva-gui/src/App.vue`
+
 - [ ] **Plan Mode: make default execution-context Compact a durable summary boundary** The current default `Compact` policy only trims the first execution request to six local messages; it does not create a summary, advance a boundary, or prevent exploratory context from returning in later execution turns. `Clear` is also request-local rather than an execution-session policy.
   - Expected behavior: Compact persists a quality-checked pre-execution summary plus an execution boundary; Clear persists the boundary without a summary; both policies apply to every execution turn while retaining the transcript for audit. Summary failure must be explicit and must not silently retain context.
   - Related: `docs/architecture/plan-execution-context-compaction-fix.md`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-core/src/planning/report.rs`, `agent-diva-core/src/planning/report_store.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src/App.vue`
