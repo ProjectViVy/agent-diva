@@ -600,7 +600,8 @@
      ======================================== */
 
   .nav-group {
-    margin-top: 8px;
+    /* The parent nav gap already separates adjacent top-level entries. */
+    margin-top: 0;
   }
 
   .nav-group-header {
@@ -681,7 +682,7 @@
   }
 
   .sidebar-collapsed .nav-group {
-    margin-top: 4px;
+    margin-top: 0;
     width: 100%;
     display: flex;
     flex-direction: column;

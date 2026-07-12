@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T22:00:00+08:00`
-- Last Heartbeat: `2026-07-12T00:15:00+08:00`
+- Started At: `2026-07-12T23:00:00+08:00`
+- Last Heartbeat: `2026-07-12T23:10:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -30,6 +30,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-12`: Released left sidebar navigation spacing correction. Removed redundant group top margins so top-level items and group headers share the parent navigation gap. Validation: Vite dev server responded locally; `pnpm build` passed.
 - `2026-07-12`: Released GUI streamed-response truncation fix. The agent loop flushes the protocol guard's safe suffix and the GUI reconciles to the authoritative final response. Validation: agent protocol-guard unit tests and GUI production build passed; full agent integration tests are blocked by pre-existing provider-trait mock drift.
 - `2026-07-12`: Released tool follow-up lock. Agent loop grants one summary-only pass after tools at max iterations and replaces English empty-final with Chinese synthesis. Unit tests passed.
 - `2026-07-12`: Released streaming UTF-8 boundary fix. OpenAI-compatible, Anthropic, and Ollama now retain incomplete UTF-8 across HTTP chunks; `cargo test -p agent-diva-providers --lib` passed (108 tests).
