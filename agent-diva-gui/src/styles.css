@@ -1399,6 +1399,13 @@
     box-shadow: var(--bubble-shadow);
   }
 
+  /* Thinking cards need a stable reading column instead of fit-content sizing. */
+  .chat-bubble-has-reasoning {
+    width: min(100%, 52rem);
+    min-width: min(100%, 34rem);
+    max-width: 100%;
+  }
+
   /* 消息操作按钮 - OpenAkita 风格 */
   .msg-actions {
     display: flex;

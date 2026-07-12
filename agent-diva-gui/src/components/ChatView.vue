@@ -855,7 +855,10 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
             <div
               v-else
               class="chat-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words"
-              :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
+              :class="[
+                msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant',
+                { 'chat-bubble-has-reasoning': Boolean(msg.reasoning) },
+              ]"
             >
               <!-- Reasoning Block -->
               <div v-if="msg.reasoning" class="streaming-reasoning-section">

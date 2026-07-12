@@ -38,6 +38,7 @@ describe('ChatView streaming states', () => {
     expect(wrapper.find('.streaming-reasoning-status').text()).toContain('正在深度思考...');
     expect(wrapper.findAll('.streaming-reasoning-status .streaming-dots i')).toHaveLength(3);
     expect(wrapper.find('.streaming-dots-only').exists()).toBe(false);
+    expect(wrapper.find('.chat-bubble-has-reasoning').exists()).toBe(true);
   });
 
   it('renders a running tool as a tool card without an assistant loading bubble', () => {
