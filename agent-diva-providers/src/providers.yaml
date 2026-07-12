@@ -143,7 +143,7 @@
     - deepseek
   env_key: DEEPSEEK_API_KEY
   display_name: DeepSeek
-  default_model: deepseek-chat
+  default_model: deepseek-v4-pro
   gateway_prefix: deepseek
   skip_prefixes:
     - deepseek/
@@ -155,6 +155,8 @@
   default_api_base: https://api.deepseek.com/v1
   strip_model_prefix: false
   models:
+    - deepseek-v4-pro
+    - deepseek-v4-flash
     - deepseek-chat
     - deepseek-coder
     - deepseek-reasoner

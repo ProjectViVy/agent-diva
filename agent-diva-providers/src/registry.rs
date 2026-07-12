@@ -151,6 +151,18 @@ mod tests {
     }
 
     #[test]
+    fn deepseek_v4_models_are_prioritized_defaults() {
+        let registry = ProviderRegistry::new();
+        let spec = registry.find_by_name("deepseek").unwrap();
+
+        assert_eq!(spec.default_model(), Some("deepseek-v4-pro"));
+        assert_eq!(
+            spec.models.get(..2),
+            Some(&["deepseek-v4-pro".to_string(), "deepseek-v4-flash".to_string()][..])
+        );
+    }
+
+    #[test]
     fn provider_spec_accepts_gateway_prefix() {
         let spec: ProviderSpec = serde_yaml::from_str(
             r#"
