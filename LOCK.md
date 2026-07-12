@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-13T00:00:00+08:00`
-- Last Heartbeat: `2026-07-12T01:15:00+08:00`
+- Last Heartbeat: `2026-07-12T00:20:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-12`: Released GUI thought-card action layout and message wrapping fix. The header uses a fixed action column for copy/expand controls; chat bubbles use responsive content sizing, a readable minimum width, and safe long-token wrapping. Targeted GUI tests and production build passed.
 
 - `2026-07-12`: Released plan-history UI removal. Removed the main-chat toolbar entry, its overlay, and unused history components. Targeted GUI test and production build passed.
 

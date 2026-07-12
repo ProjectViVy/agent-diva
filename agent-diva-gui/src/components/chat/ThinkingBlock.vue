@@ -13,11 +13,12 @@
           ({{ formatDuration(thinkingMs) }})
         </span>
       </div>
-      <div class="thinking-header-right">
+      <div class="thinking-header-actions">
         <button
           class="thinking-copy-btn"
           :class="{ 'thinking-copy-success': copied }"
           :title="copied ? $t('common.copied') : $t('common.copy')"
+          :aria-label="copied ? $t('common.copied') : $t('common.copy')"
           @click.stop="handleCopy"
         >
           <CheckCircle2 v-if="copied" :size="14" />
@@ -119,9 +120,10 @@ function onLeave(el: Element) {
 }
 
 .thinking-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  column-gap: 12px;
   padding: 10px 14px;
   cursor: pointer;
   user-select: none;
@@ -145,11 +147,12 @@ function onLeave(el: Element) {
   min-width: 0;
 }
 
-.thinking-header-right {
+.thinking-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .thinking-icon {
@@ -181,6 +184,7 @@ function onLeave(el: Element) {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  flex: 0 0 28px;
   transition:
     background-color 0.15s ease,
     color 0.15s ease,

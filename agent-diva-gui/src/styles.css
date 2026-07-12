@@ -1373,6 +1373,10 @@
     box-shadow: var(--bubble-shadow);
     padding: var(--bubble-padding, 12px 16px);
     max-width: var(--bubble-max-width, 85%);
+    width: fit-content;
+    min-width: min(100%, 10rem);
+    overflow-wrap: anywhere;
+    word-break: normal;
     transition: box-shadow 0.2s ease, transform 0.15s ease;
   }
 
