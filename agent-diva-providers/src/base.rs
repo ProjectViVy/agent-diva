@@ -68,6 +68,55 @@ fn parse_http_status_code(message: &str) -> Option<u16> {
 
 pub type ProviderEventStream = Pin<Box<dyn Stream<Item = ProviderResult<LLMStreamEvent>> + Send>>;
 
+/// Incrementally decodes UTF-8 received in arbitrary HTTP stream chunks.
+///
+/// HTTP chunk boundaries do not align with UTF-8 character boundaries. This
+/// decoder retains an incomplete trailing code point until a later chunk
+/// completes it, rather than replacing it with U+FFFD.
+#[derive(Debug, Default)]
+pub(crate) struct StreamingUtf8Decoder {
+    pending: Vec<u8>,
+}
+
+impl StreamingUtf8Decoder {
+    pub(crate) fn push(&mut self, chunk: &[u8]) -> ProviderResult<String> {
+        self.pending.extend_from_slice(chunk);
+
+        match std::str::from_utf8(&self.pending) {
+            Ok(text) => {
+                let decoded = text.to_owned();
+                self.pending.clear();
+                Ok(decoded)
+            }
+            Err(error) if error.error_len().is_some() => {
+                Err(ProviderError::InvalidResponse(format!(
+                    "stream contains invalid UTF-8 at byte {}",
+                    error.valid_up_to()
+                )))
+            }
+            Err(error) => {
+                let valid_up_to = error.valid_up_to();
+                let decoded =
+                    String::from_utf8(self.pending[..valid_up_to].to_vec()).map_err(|error| {
+                        ProviderError::InvalidResponse(format!("invalid UTF-8: {error}"))
+                    })?;
+                self.pending.drain(..valid_up_to);
+                Ok(decoded)
+            }
+        }
+    }
+
+    pub(crate) fn finish(self) -> ProviderResult<()> {
+        if self.pending.is_empty() {
+            Ok(())
+        } else {
+            Err(ProviderError::InvalidResponse(
+                "stream ended with an incomplete UTF-8 character".to_string(),
+            ))
+        }
+    }
+}
+
 /// Conservative feature flags for a model.
 ///
 /// Unknown models default to no optional capabilities. This prevents the
@@ -626,6 +675,38 @@ pub trait LLMProvider: Send + Sync {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn streaming_utf8_decoder_preserves_characters_split_across_chunks() {
+        let source = "data: {\"content\":\"你好，🌍\"}\n\n";
+        let bytes = source.as_bytes();
+        let split_points = [
+            bytes.iter().position(|byte| *byte == 0xE4).unwrap() + 1,
+            bytes.iter().position(|byte| *byte == 0xF0).unwrap() + 2,
+        ];
+        let mut decoder = StreamingUtf8Decoder::default();
+        let mut decoded = String::new();
+        let mut start = 0;
+
+        for end in split_points.into_iter().chain(std::iter::once(bytes.len())) {
+            decoded.push_str(&decoder.push(&bytes[start..end]).unwrap());
+            start = end;
+        }
+
+        decoder.finish().unwrap();
+        assert_eq!(decoded, source);
+        assert!(!decoded.contains('\u{FFFD}'));
+    }
+
+    #[test]
+    fn streaming_utf8_decoder_rejects_incomplete_final_character() {
+        let mut decoder = StreamingUtf8Decoder::default();
+        assert_eq!(decoder.push(&[0xE4, 0xBD]).unwrap(), "");
+        assert!(matches!(
+            decoder.finish(),
+            Err(ProviderError::InvalidResponse(_))
+        ));
+    }
 
     #[test]
     fn api_error_classification_preserves_retryable_server_failures() {

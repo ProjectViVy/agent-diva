@@ -14,7 +14,7 @@ use tracing::{debug, error};
 
 use crate::base::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
-    ProviderResult, ToolCallRequest,
+    ProviderResult, StreamingUtf8Decoder, ToolCallRequest,
 };
 use crate::http_util::build_api_http_client;
 use tokio::sync::mpsc;
@@ -467,6 +467,7 @@ impl LLMProvider for OllamaProvider {
         let (tx, rx) = mpsc::channel::<ProviderResult<LLMStreamEvent>>(100);
 
         tokio::spawn(async move {
+            let mut utf8_decoder = StreamingUtf8Decoder::default();
             let mut buffer = String::new();
             let mut content = String::new();
             let mut reasoning_content = String::new();
@@ -483,7 +484,13 @@ impl LLMProvider for OllamaProvider {
                     }
                 };
 
-                let text = String::from_utf8_lossy(&chunk);
+                let text = match utf8_decoder.push(&chunk) {
+                    Ok(text) => text,
+                    Err(error) => {
+                        let _ = tx.send(Err(error)).await;
+                        return;
+                    }
+                };
                 buffer.push_str(&text);
 
                 for payload in Self::parse_sse_events(&mut buffer) {
@@ -526,6 +533,10 @@ impl LLMProvider for OllamaProvider {
                             }
 
                             if chunk.done {
+                                if let Err(error) = utf8_decoder.finish() {
+                                    let _ = tx.send(Err(error)).await;
+                                    return;
+                                }
                                 // Extract usage from the final done chunk
                                 let final_usage =
                                     Self::extract_usage(chunk.prompt_eval_count, chunk.eval_count);
@@ -556,6 +567,11 @@ impl LLMProvider for OllamaProvider {
                         }
                     }
                 }
+            }
+
+            if let Err(error) = utf8_decoder.finish() {
+                let _ = tx.send(Err(error)).await;
+                return;
             }
 
             // Send completed response

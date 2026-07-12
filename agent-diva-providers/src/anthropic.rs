@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use crate::base::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, MessageContent, MessageContentPart,
-    ProviderError, ProviderEventStream, ProviderResult, ToolCallRequest,
+    ProviderError, ProviderEventStream, ProviderResult, StreamingUtf8Decoder, ToolCallRequest,
 };
 use crate::http_util::build_api_http_client;
 use crate::retry;
@@ -346,6 +346,7 @@ impl LLMProvider for AnthropicClient {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         tokio::spawn(async move {
             let mut response = response;
+            let mut utf8_decoder = StreamingUtf8Decoder::default();
             let mut buffer = String::new();
             let mut text = String::new();
             let mut reasoning = String::new();
@@ -370,7 +371,14 @@ impl LLMProvider for AnthropicClient {
                         return;
                     }
                 };
-                buffer.push_str(&String::from_utf8_lossy(&chunk));
+                let decoded_chunk = match utf8_decoder.push(&chunk) {
+                    Ok(text) => text,
+                    Err(error) => {
+                        let _ = tx.send(Err(error));
+                        return;
+                    }
+                };
+                buffer.push_str(&decoded_chunk);
                 for payload in Self::parse_sse_events(&mut buffer) {
                     let event: AnthropicStreamEvent = match serde_json::from_str(&payload) {
                         Ok(event) => event,
@@ -441,6 +449,10 @@ impl LLMProvider for AnthropicClient {
                             }
                         }
                         "message_stop" => {
+                            if let Err(error) = utf8_decoder.finish() {
+                                let _ = tx.send(Err(error));
+                                return;
+                            }
                             let response = LLMResponse {
                                 content: (!text.is_empty()).then_some(text.clone()),
                                 tool_calls: finalize_streaming_tools(&tools),
@@ -457,6 +469,10 @@ impl LLMProvider for AnthropicClient {
                         _ => {}
                     }
                 }
+            }
+            if let Err(error) = utf8_decoder.finish() {
+                let _ = tx.send(Err(error));
+                return;
             }
             let response = LLMResponse {
                 content: (!text.is_empty()).then_some(text),

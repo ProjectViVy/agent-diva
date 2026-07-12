@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T20:00:00+08:00`
-- Last Heartbeat: `2026-07-12T20:30:00+08:00`
+- Started At: `2026-07-12T20:35:00+08:00`
+- Last Heartbeat: `2026-07-12T20:50:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -31,3 +31,4 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Handoff Notes
 
 - `2026-07-12`: Released tool follow-up lock. Agent loop grants one summary-only pass after tools at max iterations and replaces English empty-final with Chinese synthesis. Unit tests passed.
+- `2026-07-12`: Released streaming UTF-8 boundary fix. OpenAI-compatible, Anthropic, and Ollama now retain incomplete UTF-8 across HTTP chunks; `cargo test -p agent-diva-providers --lib` passed (108 tests).

@@ -13,7 +13,7 @@ use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 
 use crate::base::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
-    ProviderResult, ToolCallRequest,
+    ProviderResult, StreamingUtf8Decoder, ToolCallRequest,
 };
 use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
@@ -877,6 +877,7 @@ impl LLMProvider for OpenAiCompatibleClient {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         tokio::spawn(async move {
             let mut response = response;
+            let mut utf8_decoder = StreamingUtf8Decoder::default();
             let mut buffer = String::new();
             let mut content = String::new();
             let mut reasoning_content = String::new();
@@ -901,11 +902,21 @@ impl LLMProvider for OpenAiCompatibleClient {
                     }
                 };
 
-                let text = String::from_utf8_lossy(&chunk);
+                let text = match utf8_decoder.push(&chunk) {
+                    Ok(text) => text,
+                    Err(error) => {
+                        let _ = tx.send(Err(error));
+                        return;
+                    }
+                };
                 buffer.push_str(&text);
 
                 for payload in Self::parse_sse_events(&mut buffer) {
                     if payload == "[DONE]" {
+                        if let Err(error) = utf8_decoder.finish() {
+                            let _ = tx.send(Err(error));
+                            return;
+                        }
                         tracing::debug!("Stream received [DONE]");
                         let final_response = Self::finalize_partial_response(
                             &provider_name,
@@ -981,6 +992,11 @@ impl LLMProvider for OpenAiCompatibleClient {
                         }
                     }
                 }
+            }
+
+            if let Err(error) = utf8_decoder.finish() {
+                let _ = tx.send(Err(error));
+                return;
             }
 
             let final_response = Self::finalize_partial_response(
