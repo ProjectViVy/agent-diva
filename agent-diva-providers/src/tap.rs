@@ -50,6 +50,7 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: crate::base::ToolChoiceMode,
         model: Option<String>,
         max_tokens: i32,
         temperature: f64,
@@ -76,7 +77,7 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         let start = std::time::Instant::now();
         let result = self
             .inner
-            .chat(messages, tools, model.clone(), max_tokens, temperature)
+            .chat(messages, tools, tool_choice, model.clone(), max_tokens, temperature)
             .await;
         let latency_ms = start.elapsed().as_millis() as u64;
 
@@ -123,6 +124,7 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: crate::base::ToolChoiceMode,
         model: Option<String>,
         max_tokens: i32,
         temperature: f64,
@@ -153,7 +155,7 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
 
         match self
             .inner
-            .chat_stream(messages, tools, model, max_tokens, temperature)
+            .chat_stream(messages, tools, tool_choice, model, max_tokens, temperature)
             .await
         {
             Ok(stream) => {
@@ -314,6 +316,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: crate::base::ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -338,6 +341,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: crate::base::ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -371,7 +375,7 @@ mod tests {
         let mock = MockProvider::new(false);
         let tap = ProviderTap::new(mock);
 
-        let result = tap.chat(vec![], None, Some("gpt-4".into()), 100, 0.7).await;
+        let result = tap.chat(vec![], None, crate::base::ToolChoiceMode::Unspecified, Some("gpt-4".into()), 100, 0.7).await;
         assert!(result.is_ok());
         // Event is emitted via tracing; we verify the call succeeds
     }
@@ -381,7 +385,7 @@ mod tests {
         let mock = MockProvider::new(true);
         let tap = ProviderTap::new(mock);
 
-        let result = tap.chat(vec![], None, Some("gpt-4".into()), 100, 0.7).await;
+        let result = tap.chat(vec![], None, crate::base::ToolChoiceMode::Unspecified, Some("gpt-4".into()), 100, 0.7).await;
         assert!(result.is_err());
         // Event is emitted via tracing; we verify the call returns error
     }
@@ -392,7 +396,7 @@ mod tests {
         let tap = ProviderTap::new(mock);
 
         let mut stream = tap
-            .chat_stream(vec![], None, Some("gpt-4".into()), 100, 0.7)
+            .chat_stream(vec![], None, crate::base::ToolChoiceMode::Unspecified, Some("gpt-4".into()), 100, 0.7)
             .await
             .unwrap();
 
@@ -410,7 +414,7 @@ mod tests {
         let tap = ProviderTap::new(mock);
 
         let result = tap
-            .chat_stream(vec![], None, Some("gpt-4".into()), 100, 0.7)
+            .chat_stream(vec![], None, crate::base::ToolChoiceMode::Unspecified, Some("gpt-4".into()), 100, 0.7)
             .await;
         assert!(result.is_err());
     }

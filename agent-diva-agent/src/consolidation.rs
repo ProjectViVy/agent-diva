@@ -165,6 +165,7 @@ pub async fn consolidate_with_gate(
             .chat(
                 vec![system_msg, user_msg],
                 Some(tools.clone()),
+                agent_diva_providers::ToolChoiceMode::Auto,
                 Some(model.to_string()),
                 2048,
                 0.3,

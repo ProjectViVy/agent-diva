@@ -74,6 +74,7 @@ impl NeuronNode for LlmNeuron {
             .chat_stream(
                 req.messages,
                 None,
+                agent_diva_providers::ToolChoiceMode::Unspecified,
                 Some(model),
                 req.max_tokens,
                 req.temperature,

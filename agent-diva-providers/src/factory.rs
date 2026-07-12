@@ -17,6 +17,7 @@ pub struct LlmProviderBuildOptions {
     pub model: String,
     pub reasoning_effort: Option<String>,
     pub reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
+    pub response_protocol: agent_diva_core::config::ProviderResponseProtocol,
 }
 
 pub fn build_llm_provider(
@@ -24,6 +25,14 @@ pub fn build_llm_provider(
 ) -> ProviderResult<Arc<dyn LLMProvider>> {
     let extra_headers = extra_headers(options.access.extra_headers);
     let provider_name = Some(options.spec.name.clone());
+
+    if options.response_protocol == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml
+        && !options.model.trim().to_ascii_lowercase().contains("deepseek-v4")
+    {
+        return Err(ProviderError::ConfigError(
+            "response_protocol=deepseek_v4_dsml requires a DeepSeek V4 model".to_string(),
+        ));
+    }
 
     match options.spec.api_type {
         ApiType::Openai => Ok(Arc::new(ProviderTap::new(
@@ -35,6 +44,7 @@ pub fn build_llm_provider(
                 provider_name,
                 options.reasoning_effort,
                 options.reasoning_config,
+                options.response_protocol,
             ),
         ))),
         ApiType::Anthropic => Ok(Arc::new(ProviderTap::new(AnthropicClient::new(
@@ -102,6 +112,7 @@ mod tests {
             model: "raw-model".to_string(),
             reasoning_effort: None,
             reasoning_config: None,
+            response_protocol: agent_diva_core::config::ProviderResponseProtocol::OpenaiJson,
         })
         .unwrap();
 
@@ -116,6 +127,7 @@ mod tests {
             model: "claude-sonnet-4-5".to_string(),
             reasoning_effort: None,
             reasoning_config: None,
+            response_protocol: agent_diva_core::config::ProviderResponseProtocol::OpenaiJson,
         })
         .unwrap();
 
@@ -130,6 +142,21 @@ mod tests {
             model: "gemini-native".to_string(),
             reasoning_effort: None,
             reasoning_config: None,
+            response_protocol: agent_diva_core::config::ProviderResponseProtocol::OpenaiJson,
+        });
+
+        assert!(matches!(result, Err(ProviderError::ConfigError(_))));
+    }
+
+    #[test]
+    fn dsml_protocol_requires_deepseek_v4_model() {
+        let result = build_llm_provider(LlmProviderBuildOptions {
+            spec: spec(ApiType::Openai),
+            access: access(),
+            model: "deepseek-chat".to_string(),
+            reasoning_effort: None,
+            reasoning_config: None,
+            response_protocol: agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml,
         });
 
         assert!(matches!(result, Err(ProviderError::ConfigError(_))));

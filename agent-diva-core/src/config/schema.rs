@@ -1160,6 +1160,21 @@ pub struct ProviderConfig {
     /// Per-provider reasoning configuration for dynamic model capability detection
     #[serde(default)]
     pub reasoning_config: Option<crate::reasoning::ReasoningConfig>,
+    /// Response protocol emitted by an OpenAI-compatible endpoint.
+    #[serde(default)]
+    pub response_protocol: ProviderResponseProtocol,
+}
+
+/// How an OpenAI-compatible endpoint encodes assistant responses.
+///
+/// `DeepseekV4Dsml` is intentionally opt-in: endpoints that already expose
+/// OpenAI JSON tool calls must continue using the default representation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderResponseProtocol {
+    #[default]
+    OpenaiJson,
+    DeepseekV4Dsml,
 }
 
 /// User-defined provider configuration.

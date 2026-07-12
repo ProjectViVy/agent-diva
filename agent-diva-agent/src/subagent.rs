@@ -691,6 +691,7 @@ impl SubagentManager {
                 .chat(
                     messages.clone(),
                     Some(tools.get_definitions()),
+                    agent_diva_providers::ToolChoiceMode::Auto,
                     Some(model.to_string()),
                     2000,
                     0.7,
@@ -804,6 +805,7 @@ impl SubagentManager {
                 .chat(
                     messages.clone(),
                     Some(tools.get_definitions()),
+                    agent_diva_providers::ToolChoiceMode::Auto,
                     Some(model.to_string()),
                     2000,
                     0.7,

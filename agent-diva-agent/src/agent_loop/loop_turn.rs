@@ -226,6 +226,7 @@ impl AgentLoop {
                     Message::user(prompt),
                 ],
                 None,
+                agent_diva_providers::ToolChoiceMode::Unspecified,
                 Some(model.to_string()),
                 64,
                 0.2,
@@ -736,6 +737,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     .chat_stream(
                         messages.clone(),
                         tool_defs_for_call,
+                        if summary_only_pass { agent_diva_providers::ToolChoiceMode::Disabled } else if tool_defs.is_empty() { agent_diva_providers::ToolChoiceMode::Unspecified } else { agent_diva_providers::ToolChoiceMode::Auto },
                         Some(model_to_use.clone()),
                         4096,
                         0.7,
@@ -1797,6 +1799,9 @@ struct ToolRunSummary {
 const SUMMARY_ONLY_NUDGE: &str = "You already executed tools in this turn. Based on the tool results above, write a concise final reply for the user in their language. Do not call any tools.";
 
 const INTERNAL_PROTOCOL_MARKERS: &[&str] = &[
+    "<｜DSML｜tool_calls>",
+    "<｜DSML｜invoke",
+    "<｜DSML｜parameter",
     "<｜｜DSML｜｜tool_calls>",
     "<｜｜DSML｜｜invoke",
     "<｜｜DSML｜｜parameter",

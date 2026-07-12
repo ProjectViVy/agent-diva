@@ -2413,6 +2413,7 @@ pub async fn test_provider_model(
         model: model.clone(),
         reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
         reasoning_config: None,
+        response_protocol: config.providers.get(&provider).map(|provider| provider.response_protocol).unwrap_or_default(),
     })
     .map_err(|error| error.to_string())?;
     let neuron = LlmNeuron::with_id(client, format!("provider-test:{provider}:{model}"));

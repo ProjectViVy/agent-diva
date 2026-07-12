@@ -176,7 +176,7 @@ impl ContextCompactor {
 
             // Call LLM (non-streaming, synchronous compaction)
             let response = match provider
-                .chat(messages, None, Some(model.to_string()), 4096, 0.3)
+                .chat(messages, None, agent_diva_providers::ToolChoiceMode::Unspecified, Some(model.to_string()), 4096, 0.3)
                 .await
             {
                 Ok(resp) => resp,
@@ -385,6 +385,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: agent_diva_providers::ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -417,6 +418,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: agent_diva_providers::ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,

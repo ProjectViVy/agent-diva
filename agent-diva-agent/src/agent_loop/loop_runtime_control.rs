@@ -313,6 +313,7 @@ impl AgentLoop {
                     )),
                 ],
                 None,
+                agent_diva_providers::ToolChoiceMode::Unspecified,
                 Some(self.provider.get_default_model()),
                 64,
                 0.2,

@@ -911,6 +911,7 @@ impl AgentLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_providers::ToolChoiceMode;
 
     #[test]
     fn policy_phase_prioritizes_explicit_plan_mode_and_releases_terminal_plans() {
@@ -967,6 +968,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -980,6 +982,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -1005,6 +1008,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -1018,6 +1022,7 @@ mod tests {
             &self,
             messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -1050,6 +1055,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -1081,6 +1087,7 @@ mod tests {
             &self,
             messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -1112,6 +1119,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,
@@ -1125,6 +1133,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,

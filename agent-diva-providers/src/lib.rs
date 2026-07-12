@@ -6,6 +6,7 @@ pub mod anthropic;
 pub mod base;
 pub mod catalog;
 pub mod discovery;
+mod deepseek_v4_dsml;
 pub mod factory;
 mod http_util;
 pub mod ollama;
@@ -20,7 +21,7 @@ pub use base::{
     supports_reasoning_model, supports_reasoning_model_with_config, supports_vision_model,
     ImageData, ImageFile, ImageUrl, LLMProvider, LLMResponse, LLMStreamEvent, Message,
     MessageContent, MessageContentPart, ModelCapabilities, ProviderError, ProviderEventStream,
-    ProviderResult, ToolCallRequest,
+    ProviderResult, ToolCallRequest, ToolChoiceMode,
 };
 pub use catalog::{
     CustomProviderUpsert, ProviderCatalogService, ProviderModelCatalogView, ProviderModelEntry,
@@ -69,13 +70,14 @@ impl LLMProvider for DynamicProvider {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: ToolChoiceMode,
         model: Option<String>,
         max_tokens: i32,
         temperature: f64,
     ) -> ProviderResult<LLMResponse> {
         let provider = self.current();
         provider
-            .chat(messages, tools, model, max_tokens, temperature)
+            .chat(messages, tools, tool_choice, model, max_tokens, temperature)
             .await
     }
 
@@ -83,13 +85,14 @@ impl LLMProvider for DynamicProvider {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: ToolChoiceMode,
         model: Option<String>,
         max_tokens: i32,
         temperature: f64,
     ) -> ProviderResult<ProviderEventStream> {
         let provider = self.current();
         provider
-            .chat_stream(messages, tools, model, max_tokens, temperature)
+            .chat_stream(messages, tools, tool_choice, model, max_tokens, temperature)
             .await
     }
 

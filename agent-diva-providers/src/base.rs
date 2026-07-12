@@ -68,6 +68,17 @@ fn parse_http_status_code(message: &str) -> Option<u16> {
 
 pub type ProviderEventStream = Pin<Box<dyn Stream<Item = ProviderResult<LLMStreamEvent>> + Send>>;
 
+/// The caller's tool-use intent for one provider request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolChoiceMode {
+    /// Tools are supplied and the model may choose to call them.
+    Auto,
+    /// Tools are intentionally disabled, such as the Agent Loop summary pass.
+    Disabled,
+    /// No tools are supplied, without imposing an OpenAI `tool_choice` field.
+    Unspecified,
+}
+
 /// Incrementally decodes UTF-8 received in arbitrary HTTP stream chunks.
 ///
 /// HTTP chunk boundaries do not align with UTF-8 character boundaries. This
@@ -636,6 +647,7 @@ pub trait LLMProvider: Send + Sync {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: ToolChoiceMode,
         model: Option<String>,
         max_tokens: i32,
         temperature: f64,
@@ -648,12 +660,13 @@ pub trait LLMProvider: Send + Sync {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: ToolChoiceMode,
         model: Option<String>,
         max_tokens: i32,
         temperature: f64,
     ) -> ProviderResult<ProviderEventStream> {
         let response = self
-            .chat(messages, tools, model, max_tokens, temperature)
+            .chat(messages, tools, tool_choice, model, max_tokens, temperature)
             .await?;
 
         let mut events = Vec::new();

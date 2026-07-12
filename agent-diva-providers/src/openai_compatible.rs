@@ -5,7 +5,7 @@ use regex::Regex;
 use reqwest::Client;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tracing::{debug, error, warn};
 
@@ -13,8 +13,9 @@ use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 
 use crate::base::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
-    ProviderResult, StreamingUtf8Decoder, ToolCallRequest,
+    ProviderResult, StreamingUtf8Decoder, ToolCallRequest, ToolChoiceMode,
 };
+use crate::deepseek_v4_dsml::decode_completion;
 use crate::http_util::build_api_http_client;
 use crate::registry::{ProviderRegistry, ProviderSpec};
 use crate::retry;
@@ -171,6 +172,7 @@ pub struct OpenAiCompatibleClient {
     default_reasoning_effort: Option<String>,
     /// Per-provider reasoning configuration for dynamic capability detection
     reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
+    response_protocol: agent_diva_core::config::ProviderResponseProtocol,
 }
 
 fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -179,6 +181,15 @@ where
     T: Deserialize<'de> + Default,
 {
     Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+fn tool_names(tools: Option<&Vec<serde_json::Value>>) -> HashSet<String> {
+    tools
+        .into_iter()
+        .flatten()
+        .filter_map(|tool| tool.pointer("/function/name").and_then(|name| name.as_str()))
+        .map(ToString::to_string)
+        .collect()
 }
 
 impl OpenAiCompatibleClient {
@@ -237,6 +248,7 @@ impl OpenAiCompatibleClient {
             provider_name,
             default_reasoning_effort,
             None,
+            agent_diva_core::config::ProviderResponseProtocol::OpenaiJson,
         )
     }
 
@@ -249,6 +261,7 @@ impl OpenAiCompatibleClient {
         provider_name: Option<String>,
         default_reasoning_effort: Option<String>,
         reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
+        response_protocol: agent_diva_core::config::ProviderResponseProtocol,
     ) -> Self {
         tracing::info!(
             "Creating OpenAiCompatibleClient. Provider: {:?}, Base: {:?}",
@@ -304,6 +317,7 @@ impl OpenAiCompatibleClient {
             selected_provider,
             default_reasoning_effort: derived_reasoning_effort,
             reasoning_config,
+            response_protocol,
         }
     }
 
@@ -410,6 +424,7 @@ impl OpenAiCompatibleClient {
         &self,
         response: ChatCompletionResponse,
         model: &str,
+        allowed_tools: &HashSet<String>,
     ) -> ProviderResult<LLMResponse> {
         let choice = response
             .choices
@@ -466,15 +481,31 @@ impl OpenAiCompatibleClient {
 
         let usage = self.build_usage_map(response.usage.clone(), model);
 
+        let decoded = if self.response_protocol
+            == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml
+        {
+            decode_completion(
+                choice.message.content.as_deref().unwrap_or_default(),
+                allowed_tools,
+                1024 * 1024,
+            )?
+        } else {
+            crate::deepseek_v4_dsml::DecodedCompletion {
+                content: choice.message.content.clone(),
+                reasoning_content: None,
+                tool_calls: Vec::new(),
+            }
+        };
+
         Ok(LLMResponse {
-            content: choice.message.content.clone(),
-            tool_calls,
+            content: decoded.content,
+            tool_calls: if decoded.tool_calls.is_empty() { tool_calls } else { decoded.tool_calls },
             finish_reason: choice
                 .finish_reason
                 .clone()
                 .unwrap_or_else(|| "stop".to_string()),
             usage,
-            reasoning_content: choice.message.reasoning_content.clone(),
+            reasoning_content: decoded.reasoning_content.or_else(|| choice.message.reasoning_content.clone()),
         })
     }
 
@@ -554,6 +585,7 @@ impl OpenAiCompatibleClient {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: ToolChoiceMode,
         options: RequestBuildOptions,
     ) -> ChatCompletionRequest {
         // Sanitize messages to remove control characters
@@ -579,13 +611,15 @@ impl OpenAiCompatibleClient {
 
         if let Some(tools_list) = tools {
             request.tools = Some(tools_list);
-            request.tool_choice = Some("auto".to_string());
-        } else {
-            // Be explicit when the caller intentionally disables tools (for
-            // example, the agent loop's summary-only pass).  Some compatible
-            // gateways otherwise continue a tool-call chat template from the
-            // preceding messages.
-            request.tool_choice = Some("none".to_string());
+        }
+        request.tool_choice = match tool_choice {
+            ToolChoiceMode::Auto => Some("auto".to_string()),
+            ToolChoiceMode::Disabled => Some("none".to_string()),
+            ToolChoiceMode::Unspecified => None,
+        };
+        if matches!(tool_choice, ToolChoiceMode::Auto) && request.tools.is_none() {
+            tracing::warn!("tool mode Auto requested without tool definitions; omitting tool_choice");
+            request.tool_choice = None;
         }
 
         request
@@ -726,6 +760,7 @@ impl LLMProvider for OpenAiCompatibleClient {
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: ToolChoiceMode,
         model: Option<String>,
         max_tokens: i32,
         temperature: f64,
@@ -737,9 +772,11 @@ impl LLMProvider for OpenAiCompatibleClient {
         self.apply_model_overrides(&model, &mut kwargs);
 
         // Build request
+        let allowed_tools = tool_names(tools.as_ref());
         let request = self.build_request(
             messages,
             tools,
+            tool_choice,
             RequestBuildOptions {
                 resolved_model: resolved_model.clone(),
                 max_tokens,
@@ -803,13 +840,14 @@ impl LLMProvider for OpenAiCompatibleClient {
                 Self::log_json_error("parse_chat_completion_response", &error, &response_text);
                 ProviderError::JsonError(error)
             })?;
-        self.parse_response(response_data, &model)
+        self.parse_response(response_data, &model, &allowed_tools)
     }
 
     async fn chat_stream(
         &self,
         messages: Vec<Message>,
         tools: Option<Vec<serde_json::Value>>,
+        tool_choice: ToolChoiceMode,
         model: Option<String>,
         max_tokens: i32,
         temperature: f64,
@@ -820,9 +858,11 @@ impl LLMProvider for OpenAiCompatibleClient {
         let mut kwargs = HashMap::new();
         self.apply_model_overrides(&model, &mut kwargs);
 
+        let allowed_tools = tool_names(tools.as_ref());
         let request = self.build_request(
             messages,
             tools,
+            tool_choice,
             RequestBuildOptions {
                 resolved_model: resolved_model.clone(),
                 max_tokens,
@@ -880,6 +920,7 @@ impl LLMProvider for OpenAiCompatibleClient {
         .await?;
 
         let provider_name = self.fallback_provider_name();
+        let response_protocol = self.response_protocol;
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         tokio::spawn(async move {
             let mut response = response;
@@ -924,6 +965,22 @@ impl LLMProvider for OpenAiCompatibleClient {
                             return;
                         }
                         tracing::debug!("Stream received [DONE]");
+                        if response_protocol == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml {
+                            match decode_completion(&content, &allowed_tools, 1024 * 1024) {
+                                Ok(decoded) => {
+                                    if let Some(reasoning) = decoded.reasoning_content.clone() {
+                                        let _ = tx.send(Ok(LLMStreamEvent::ReasoningDelta(reasoning)));
+                                    }
+                                    for (index, call) in decoded.tool_calls.iter().enumerate() {
+                                        let arguments_delta = serde_json::to_string(&call.arguments).ok();
+                                        let _ = tx.send(Ok(LLMStreamEvent::ToolCallDelta { index, id: Some(call.id.clone()), name: Some(call.name.clone()), arguments_delta }));
+                                    }
+                                    let _ = tx.send(Ok(LLMStreamEvent::Completed(LLMResponse { content: decoded.content, tool_calls: decoded.tool_calls, finish_reason: finish_reason.unwrap_or_else(|| "stop".to_string()), usage: Self::usage_map_with_fallback(usage.take(), &provider_name, &model), reasoning_content: decoded.reasoning_content.or_else(|| (!reasoning_content.is_empty()).then_some(reasoning_content.clone())) })));
+                                }
+                                Err(error) => { let _ = tx.send(Err(error)); }
+                            }
+                            return;
+                        }
                         let final_response = Self::finalize_partial_response(
                             &provider_name,
                             &model,
@@ -958,7 +1015,9 @@ impl LLMProvider for OpenAiCompatibleClient {
                         let delta = &choice.delta;
                         if let Some(delta_text) = &delta.content {
                             content.push_str(delta_text);
-                            let _ = tx.send(Ok(LLMStreamEvent::TextDelta(delta_text.clone())));
+                            if response_protocol != agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml {
+                                let _ = tx.send(Ok(LLMStreamEvent::TextDelta(delta_text.clone())));
+                            }
                         }
                         if let Some(reasoning) = &delta.reasoning_content {
                             reasoning_content.push_str(reasoning);
@@ -1005,6 +1064,20 @@ impl LLMProvider for OpenAiCompatibleClient {
                 return;
             }
 
+            if response_protocol == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml {
+                match decode_completion(&content, &allowed_tools, 1024 * 1024) {
+                    Ok(decoded) => {
+                        if let Some(reasoning) = decoded.reasoning_content.clone() { let _ = tx.send(Ok(LLMStreamEvent::ReasoningDelta(reasoning))); }
+                        for (index, call) in decoded.tool_calls.iter().enumerate() {
+                            let arguments_delta = serde_json::to_string(&call.arguments).ok();
+                            let _ = tx.send(Ok(LLMStreamEvent::ToolCallDelta { index, id: Some(call.id.clone()), name: Some(call.name.clone()), arguments_delta }));
+                        }
+                        let _ = tx.send(Ok(LLMStreamEvent::Completed(LLMResponse { content: decoded.content, tool_calls: decoded.tool_calls, finish_reason: finish_reason.unwrap_or_else(|| "stop".to_string()), usage: Self::usage_map_with_fallback(usage, &provider_name, &model), reasoning_content: decoded.reasoning_content.or_else(|| (!reasoning_content.is_empty()).then_some(reasoning_content)) })));
+                    }
+                    Err(error) => { let _ = tx.send(Err(error)); }
+                }
+                return;
+            }
             let final_response = Self::finalize_partial_response(
                 &provider_name,
                 &model,
@@ -1218,7 +1291,7 @@ mod tests {
             usage: Some(Usage::default()),
         };
         let result = client
-            .parse_response(response, "anthropic/claude-opus-4-5")
+            .parse_response(response, "anthropic/claude-opus-4-5", &HashSet::new())
             .unwrap();
         assert_eq!(result.tool_calls.len(), 1);
         assert_eq!(
@@ -1252,7 +1325,7 @@ mod tests {
             usage: Some(Usage::default()),
         };
         let result = client
-            .parse_response(response, "anthropic/claude-opus-4-5")
+            .parse_response(response, "anthropic/claude-opus-4-5", &HashSet::new())
             .unwrap();
         assert_eq!(result.tool_calls.len(), 1);
         assert_eq!(
@@ -1283,7 +1356,7 @@ mod tests {
             usage: Some(Usage::default()),
         };
         let result = client
-            .parse_response(response, "anthropic/claude-opus-4-5")
+            .parse_response(response, "anthropic/claude-opus-4-5", &HashSet::new())
             .unwrap();
         assert_eq!(result.tool_calls.len(), 1);
         assert!(result.tool_calls[0].arguments.contains_key("raw"));
@@ -1558,6 +1631,7 @@ mod tests {
                 },
             ]))],
             None,
+            ToolChoiceMode::Unspecified,
             RequestBuildOptions {
                 resolved_model: "gpt-4o".to_string(),
                 max_tokens: 4096,
@@ -1585,11 +1659,12 @@ mod tests {
     }
 
     #[test]
-    fn build_request_without_tools_explicitly_disables_tool_choice() {
+    fn build_request_disabled_tools_sets_tool_choice_none() {
         let client = OpenAiCompatibleClient::default();
         let request = client.build_request(
             vec![Message::user("summarize the completed work")],
             None,
+            ToolChoiceMode::Disabled,
             RequestBuildOptions {
                 resolved_model: "deepseek-chat".to_string(),
                 max_tokens: 4096,
@@ -1602,6 +1677,28 @@ mod tests {
         let value = serde_json::to_value(&request).unwrap();
         assert_eq!(value["tool_choice"], "none");
         assert!(value.get("tools").is_none());
+    }
+
+    #[test]
+    fn build_request_without_tools_omits_tool_choice() {
+        let client = OpenAiCompatibleClient::default();
+        let request = client.build_request(
+            vec![Message::user("hello")],
+            None,
+            ToolChoiceMode::Unspecified,
+            RequestBuildOptions {
+                resolved_model: "deepseek-v4-pro".to_string(),
+                max_tokens: 32,
+                temperature: 1.0,
+                reasoning_effort: None,
+                stream: false,
+            },
+        );
+
+        assert!(serde_json::to_value(request)
+            .unwrap()
+            .get("tool_choice")
+            .is_none());
     }
 
     #[test]
@@ -1621,6 +1718,7 @@ mod tests {
                 },
             ]))],
             None,
+            ToolChoiceMode::Unspecified,
             RequestBuildOptions {
                 resolved_model: "gpt-4.1-mini".to_string(),
                 max_tokens: 4096,
@@ -1657,7 +1755,7 @@ mod tests {
             usage: None,
         };
         let result = client
-            .parse_response(response, "anthropic/claude-opus-4-5")
+            .parse_response(response, "anthropic/claude-opus-4-5", &HashSet::new())
             .unwrap();
         assert_eq!(result.content, Some("hello".to_string()));
         assert!(result.usage.is_empty());
@@ -1682,7 +1780,7 @@ mod tests {
             }),
         };
         let result = client
-            .parse_response(response, "anthropic/claude-opus-4-5")
+            .parse_response(response, "anthropic/claude-opus-4-5", &HashSet::new())
             .unwrap();
         assert_eq!(result.content, Some("hello".to_string()));
         assert_eq!(result.usage.get("prompt_tokens"), Some(&10));

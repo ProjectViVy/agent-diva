@@ -429,6 +429,7 @@ mod tests {
             ])),
             custom_models: vec![],
             reasoning_config: None,
+            response_protocol: agent_diva_core::config::ProviderResponseProtocol::OpenaiJson,
         }));
 
         assert_eq!(access.api_key, None);

@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T20:35:00+08:00`
-- Last Heartbeat: `2026-07-12T21:35:00+08:00`
+- Started At: `2026-07-12T22:00:00+08:00`
+- Last Heartbeat: `2026-07-12T23:00:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -35,3 +35,4 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-12`: Released tool protocol leak guard. Summary-only requests explicitly send `tool_choice: none`; DSML/XML-like internal tool protocols are blocked from streamed and final output. Commit: `50506e2`.
 - `2026-07-12`: Released DeepSeek V4/DSML compatibility research document. Commit pending.
 - `2026-07-12`: Released DSML guard evolution documentation update. Commit pending.
+- `2026-07-12`: Released DeepSeek V4 DSML adapter. Adds explicit response protocol configuration, strict DSML decoding, stream isolation, and summary-only tool disabling. Validation: provider/agent checks and targeted unit tests passed; workspace fmt-check remains blocked by pre-existing unrelated formatting drift.
