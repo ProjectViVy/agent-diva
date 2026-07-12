@@ -20,12 +20,11 @@ function mountThinkingBlock() {
 }
 
 describe('ThinkingBlock actions', () => {
-  it('keeps copy and expand as independent controls', async () => {
+  it('shows a dedicated expand control without a copy action', async () => {
     const wrapper = mountThinkingBlock();
-    const copy = wrapper.find('.thinking-copy-btn');
     const expand = wrapper.find('.thinking-expand-btn');
 
-    expect(copy.exists()).toBe(true);
+    expect(wrapper.find('.thinking-copy-btn').exists()).toBe(false);
     expect(expand.exists()).toBe(true);
     expect(expand.text()).toContain('展开');
     expect(expand.attributes('aria-expanded')).toBe('false');

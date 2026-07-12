@@ -18,18 +18,6 @@
       <div class="thinking-header-actions">
         <button
           type="button"
-          class="thinking-copy-btn"
-          :class="{ 'thinking-copy-success': copied }"
-          :title="copied ? $t('chat.copied') : $t('chat.copy')"
-          :aria-label="copied ? $t('chat.copied') : $t('chat.copy')"
-          @click.stop="handleCopy"
-        >
-          <CheckCircle2 v-if="copied" :size="14" />
-          <Copy v-else :size="14" />
-          <span class="thinking-action-label">{{ copied ? $t('chat.copied') : $t('chat.copy') }}</span>
-        </button>
-        <button
-          type="button"
           class="thinking-expand-btn"
           :aria-expanded="isExpanded"
           :aria-controls="contentId"
@@ -64,15 +52,14 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Brain, ChevronDown, Copy, CheckCircle2 } from 'lucide-vue-next'
+import { Brain, ChevronDown } from 'lucide-vue-next'
 
-const props = defineProps<{
+defineProps<{
   content: string
   thinkingMs?: number
 }>()
 
 const isExpanded = ref(false)
-const copied = ref(false)
 const contentId = computed(() => `thinking-content-${Math.random().toString(36).slice(2)}`)
 
 function toggleExpanded() {
@@ -82,18 +69,6 @@ function toggleExpanded() {
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
-}
-
-async function handleCopy() {
-  try {
-    await navigator.clipboard.writeText(props.content)
-    copied.value = true
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy thinking content:', err)
-  }
 }
 
 // Transition hooks for height animation
@@ -173,7 +148,6 @@ function onLeave(el: Element) {
   white-space: nowrap;
 }
 
-.thinking-copy-btn,
 .thinking-expand-btn {
   display: inline-flex;
   align-items: center;
@@ -212,22 +186,9 @@ function onLeave(el: Element) {
   white-space: nowrap;
 }
 
-.thinking-copy-btn {
-  flex: 0 0 auto;
-}
-
-.thinking-copy-btn:hover,
 .thinking-expand-btn:hover {
   background: var(--accent-bg-light);
   color: var(--text);
-}
-
-.thinking-copy-btn:active {
-  transform: scale(0.92);
-}
-
-.thinking-copy-success {
-  color: var(--success);
 }
 
 .thinking-chevron {
@@ -247,7 +208,7 @@ function onLeave(el: Element) {
   }
 
   .thinking-header-actions { gap: 2px; }
-  .thinking-copy-btn, .thinking-expand-btn { width: 28px; padding: 0; }
+  .thinking-expand-btn { width: 28px; padding: 0; }
   .thinking-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 
