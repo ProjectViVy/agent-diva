@@ -11,11 +11,15 @@ description = "Manual AutoDream run lifecycle and file-first storage for Agent D
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core" }
 agent-diva-laputa = { path = "../agent-diva-laputa" }
+async-trait = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

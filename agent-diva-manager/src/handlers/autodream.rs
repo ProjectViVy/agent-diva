@@ -21,6 +21,7 @@ pub async fn trigger_autodream_run_handler(
         Some("notebook-daily" | "notebook-weekly" | "notebook-monthly") => state
             .autodream
             .execute_report_trigger(&status.run.id)
+            .await
             .map_err(autodream_error_response)?,
         _ => status,
     };

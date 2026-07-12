@@ -143,8 +143,8 @@ fn collect_inputs_persists_summary_into_run_record() {
         .contains("collected"));
 }
 
-#[test]
-fn notebook_daily_trigger_generates_report_and_completes_run() {
+#[tokio::test]
+async fn notebook_daily_trigger_generates_report_and_completes_run() {
     let temp = tempfile::tempdir().unwrap();
     let service = AutoDreamService::open(temp.path()).unwrap();
     seed_session(temp.path(), "chat:1", "daily report content");
@@ -154,7 +154,10 @@ fn notebook_daily_trigger_generates_report_and_completes_run() {
             trigger: Some("notebook-daily".to_string()),
         })
         .unwrap();
-    let completed = service.execute_report_trigger(&status.run.id).unwrap();
+    let completed = service
+        .execute_report_trigger(&status.run.id)
+        .await
+        .unwrap();
 
     assert_eq!(completed.run.state, AutoDreamRunState::Completed);
     assert!(completed.lock.is_none());
@@ -164,8 +167,8 @@ fn notebook_daily_trigger_generates_report_and_completes_run() {
         .exists());
 }
 
-#[test]
-fn notebook_weekly_trigger_generates_report_and_completes_run() {
+#[tokio::test]
+async fn notebook_weekly_trigger_generates_report_and_completes_run() {
     let temp = tempfile::tempdir().unwrap();
     let service = AutoDreamService::open(temp.path()).unwrap();
     seed_session(temp.path(), "chat:1", "weekly report content");
@@ -175,7 +178,10 @@ fn notebook_weekly_trigger_generates_report_and_completes_run() {
             trigger: Some("notebook-weekly".to_string()),
         })
         .unwrap();
-    let completed = service.execute_report_trigger(&status.run.id).unwrap();
+    let completed = service
+        .execute_report_trigger(&status.run.id)
+        .await
+        .unwrap();
 
     assert_eq!(completed.run.state, AutoDreamRunState::Completed);
     assert!(completed.lock.is_none());
@@ -185,8 +191,8 @@ fn notebook_weekly_trigger_generates_report_and_completes_run() {
         .exists());
 }
 
-#[test]
-fn notebook_monthly_trigger_generates_report_and_completes_run() {
+#[tokio::test]
+async fn notebook_monthly_trigger_generates_report_and_completes_run() {
     let temp = tempfile::tempdir().unwrap();
     let service = AutoDreamService::open(temp.path()).unwrap();
     seed_session(temp.path(), "chat:1", "monthly report content");
@@ -196,15 +202,18 @@ fn notebook_monthly_trigger_generates_report_and_completes_run() {
             trigger: Some("notebook-monthly".to_string()),
         })
         .unwrap();
-    let completed = service.execute_report_trigger(&status.run.id).unwrap();
+    let completed = service
+        .execute_report_trigger(&status.run.id)
+        .await
+        .unwrap();
 
     assert_eq!(completed.run.state, AutoDreamRunState::Completed);
     assert!(completed.lock.is_none());
     assert!(temp.path().join("reports/monthly").exists());
 }
 
-#[test]
-fn scheduled_monthly_report_runs_on_first_monday() {
+#[tokio::test]
+async fn scheduled_monthly_report_runs_on_first_monday() {
     let temp = tempfile::tempdir().unwrap();
     let service = AutoDreamService::open(temp.path()).unwrap();
     seed_session_at(
@@ -216,6 +225,7 @@ fn scheduled_monthly_report_runs_on_first_monday() {
 
     let outcome = service
         .execute_scheduled_monthly_report(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap())
+        .await
         .unwrap();
 
     match outcome {
@@ -228,13 +238,14 @@ fn scheduled_monthly_report_runs_on_first_monday() {
     assert!(temp.path().join("reports/monthly/2026-06.md").exists());
 }
 
-#[test]
-fn scheduled_monthly_report_skips_outside_window_without_retry_marker() {
+#[tokio::test]
+async fn scheduled_monthly_report_skips_outside_window_without_retry_marker() {
     let temp = tempfile::tempdir().unwrap();
     let service = AutoDreamService::open(temp.path()).unwrap();
 
     let outcome = service
         .execute_scheduled_monthly_report(NaiveDate::from_ymd_opt(2026, 6, 10).unwrap())
+        .await
         .unwrap();
 
     assert_eq!(

@@ -39,10 +39,18 @@ interface NotebookReport {
   generatedAt?: string | null;
   generatedBy?: string | null;
   schemaVersion?: string | null;
+  generationMode?: string | null;
+  coverageStatus?: string | null;
   sourcePath?: string;
   isTruncated?: boolean;
   originalLineCount?: number;
   displayedLineCount?: number;
+}
+
+function generationModeLabel(mode?: string | null): string | null {
+  if (mode === 'llm_curated') return 'LLM 归纳';
+  if (mode === 'deterministic_fallback') return '确定性降级';
+  return null;
 }
 
 type NotebookProposalAction = 'sop' | 'skill' | 'memory';
@@ -501,6 +509,13 @@ onUnmounted(() => {
             <div class="notebook-detail-date">
               <Calendar :size="14" />
               {{ selectedReport.date }}
+              <span
+                v-if="generationModeLabel(selectedReport.generationMode)"
+                class="notebook-generation-badge"
+                :data-mode="selectedReport.generationMode || ''"
+              >
+                {{ generationModeLabel(selectedReport.generationMode) }}
+              </span>
             </div>
           </div>
           <div v-if="selectedReport.isTruncated" class="notebook-truncated-banner">
@@ -839,6 +854,26 @@ onUnmounted(() => {
   gap: 6px;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+.notebook-generation-badge {
+  margin-left: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.4;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  color: var(--text-muted);
+}
+
+.notebook-generation-badge[data-mode='llm_curated'] {
+  color: #7dd3a7;
+  border-color: rgba(125, 211, 167, 0.35);
+}
+
+.notebook-generation-badge[data-mode='deterministic_fallback'] {
+  color: #f0c674;
+  border-color: rgba(240, 198, 116, 0.35);
 }
 
 /* ===== Markdown body ===== */

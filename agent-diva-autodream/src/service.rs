@@ -2,11 +2,13 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::Path,
-    sync::OnceLock,
+    sync::{Arc, OnceLock},
     time::{Duration, SystemTime},
 };
 
+use agent_diva_core::config::LlmCurationConfig;
 use agent_diva_core::evolution::{AutoDreamRunRecord, AutoDreamRunState};
+use agent_diva_core::reports::ReportNarrativeGenerator;
 use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -78,10 +80,12 @@ pub struct ManualRunTriggerRequest {
     pub trigger: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AutoDreamService {
     storage: AutoDreamStorage,
     stale_lock_after: Duration,
+    narrative_generator: Option<Arc<dyn ReportNarrativeGenerator>>,
+    llm_curation: LlmCurationConfig,
 }
 
 impl AutoDreamService {
@@ -108,11 +112,24 @@ impl AutoDreamService {
         Self {
             storage,
             stale_lock_after: Duration::from_secs(DEFAULT_STALE_LOCK_SECS),
+            narrative_generator: None,
+            llm_curation: LlmCurationConfig::default(),
         }
     }
 
     pub fn with_stale_lock_after(mut self, stale_lock_after: Duration) -> Self {
         self.stale_lock_after = stale_lock_after;
+        self
+    }
+
+    /// Inject optional LLM narrative generator and curation config.
+    pub fn with_report_curation(
+        mut self,
+        narrative_generator: Option<Arc<dyn ReportNarrativeGenerator>>,
+        llm_curation: LlmCurationConfig,
+    ) -> Self {
+        self.narrative_generator = narrative_generator;
+        self.llm_curation = llm_curation;
         self
     }
 
@@ -262,7 +279,7 @@ impl AutoDreamService {
         })
     }
 
-    pub fn execute_report_trigger(&self, run_id: &str) -> Result<AutoDreamRunStatus> {
+    pub async fn execute_report_trigger(&self, run_id: &str) -> Result<AutoDreamRunStatus> {
         let mut run = self.read_run(run_id)?;
         let max_attempts = if run.trigger == MONTHLY_REPORT_TRIGGER {
             REPORT_TRIGGER_MAX_ATTEMPTS
@@ -271,7 +288,7 @@ impl AutoDreamService {
         };
         let mut last_error = None;
         for attempt in 1..=max_attempts {
-            match self.generate_report_for_trigger(&run.trigger, attempt) {
+            match self.generate_report_for_trigger(&run.trigger, attempt).await {
                 Ok(result) => {
                     let now = Utc::now();
                     run.state = AutoDreamRunState::Completed;
@@ -332,12 +349,12 @@ impl AutoDreamService {
         Err(error)
     }
 
-    pub fn execute_scheduled_monthly_report(
+    pub async fn execute_scheduled_monthly_report(
         &self,
         date: NaiveDate,
     ) -> Result<ScheduledMonthlyReportOutcome> {
         let month_key = format!("{:04}-{:02}", date.year(), date.month());
-        let monthly = AutoDreamMonthlyReportGenerator::new(self.storage.clone());
+        let monthly = self.monthly_generator();
         let report_path = self.storage.paths().monthly_report_file(&month_key);
         if report_path.exists() && monthly.read_error_marker(&month_key)?.is_none() {
             return Ok(ScheduledMonthlyReportOutcome::AlreadyGenerated { month_key });
@@ -360,18 +377,16 @@ impl AutoDreamService {
         let status = self.trigger_manual_run(ManualRunTriggerRequest {
             trigger: Some(MONTHLY_REPORT_TRIGGER.to_string()),
         })?;
-        let completed = self.execute_monthly_report_trigger_for_month(
-            &status.run.id,
-            date.year(),
-            date.month(),
-        )?;
+        let completed = self
+            .execute_monthly_report_trigger_for_month(&status.run.id, date.year(), date.month())
+            .await?;
         Ok(ScheduledMonthlyReportOutcome::Triggered {
             run_id: completed.run.id,
             month_key,
         })
     }
 
-    fn execute_monthly_report_trigger_for_month(
+    async fn execute_monthly_report_trigger_for_month(
         &self,
         run_id: &str,
         year: i32,
@@ -385,10 +400,13 @@ impl AutoDreamService {
             )));
         }
 
-        let generator = AutoDreamMonthlyReportGenerator::new(self.storage.clone());
+        let generator = self.monthly_generator();
         let mut last_error = None;
         for attempt in 1..=REPORT_TRIGGER_MAX_ATTEMPTS {
-            match generator.generate_for_month(year, month, Utc::now(), attempt) {
+            match generator
+                .generate_for_month(year, month, Utc::now(), attempt)
+                .await
+            {
                 Ok(result) => {
                     let now = Utc::now();
                     run.state = AutoDreamRunState::Completed;
@@ -449,16 +467,31 @@ impl AutoDreamService {
         Err(error)
     }
 
-    fn generate_report_for_trigger(
+    fn rhythm_generator(&self) -> AutoDreamRhythmReportGenerator {
+        AutoDreamRhythmReportGenerator::with_narrative(
+            self.storage.clone(),
+            self.narrative_generator.clone(),
+            self.llm_curation.clone(),
+        )
+    }
+
+    fn monthly_generator(&self) -> AutoDreamMonthlyReportGenerator {
+        AutoDreamMonthlyReportGenerator::with_narrative(
+            self.storage.clone(),
+            self.narrative_generator.clone(),
+            self.llm_curation.clone(),
+        )
+    }
+
+    async fn generate_report_for_trigger(
         &self,
         trigger: &str,
         attempt: u32,
     ) -> Result<crate::RhythmReportWriteResult> {
         if trigger == MONTHLY_REPORT_TRIGGER {
-            return AutoDreamMonthlyReportGenerator::new(self.storage.clone())
-                .generate_current_month(attempt);
+            return self.monthly_generator().generate_current_month(attempt).await;
         }
-        AutoDreamRhythmReportGenerator::new(self.storage.clone()).generate_for_trigger(trigger)
+        self.rhythm_generator().generate_for_trigger(trigger).await
     }
 
     fn status_from_run(

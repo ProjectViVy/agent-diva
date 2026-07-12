@@ -21,6 +21,9 @@ futures = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+# Time (report narrative tests / shared timestamps)
+chrono = { workspace = true }
+
 # Error handling
 thiserror = { workspace = true }
 

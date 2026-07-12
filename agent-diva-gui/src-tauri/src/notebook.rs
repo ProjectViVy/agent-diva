@@ -2,27 +2,15 @@ use agent_diva_core::evolution::{
     EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType,
     RiskLevel,
 };
-use agent_diva_core::reports::{
-    collect_session_window_digest_for_dates, estimate_tokens, read_rhythm_report,
-    RhythmReportDocument, SessionWindowDigest,
-};
 use agent_diva_core::session::{
     SessionManager, SessionSearchHit, SessionSearchQuery, SessionSearchResponse,
 };
-use chrono::{Datelike, Days, Local, NaiveDate, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const MAX_RENDER_LINES: usize = 5_000;
-// Monthly generation pipeline: public API reserved for future Tauri command wiring.
-// Suppress dead_code until the GUI command layer is connected.
-#[allow(dead_code)]
-const REPORT_SYSTEM_GENERATED_BY: &str = "agent-diva-report-system";
-#[allow(dead_code)]
-const REPORT_SYSTEM_SCHEMA_VERSION: u8 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotebookPeriod {
@@ -70,6 +58,10 @@ pub struct NotebookReportDto {
     pub generated_at: Option<String>,
     pub generated_by: Option<String>,
     pub schema_version: Option<String>,
+    /// `llm_curated` or `deterministic_fallback` when present.
+    pub generation_mode: Option<String>,
+    /// `complete`, `partial`, or `fallback` when present.
+    pub coverage_status: Option<String>,
     pub source_path: String,
     pub is_truncated: bool,
     pub original_line_count: usize,
@@ -88,13 +80,8 @@ struct ReportFrontmatter {
     session_count: Option<u64>,
     token_used: Option<u64>,
     schema_version: Option<serde_yaml::Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)]
-pub struct NotebookGenerationResult {
-    pub path: PathBuf,
-    pub date_key: String,
+    generation_mode: Option<String>,
+    coverage_status: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -251,46 +238,6 @@ pub fn search_notebook_session_evidence(
 }
 
 #[allow(dead_code)]
-pub fn generate_monthly_notebook_report(
-    workspace: &Path,
-) -> Result<NotebookGenerationResult, String> {
-    let now = Local::now();
-    generate_monthly_notebook_report_for(
-        workspace,
-        now.year(),
-        now.month(),
-        Utc::now().to_rfc3339(),
-    )
-}
-
-#[allow(dead_code)]
-fn generate_monthly_notebook_report_for(
-    workspace: &Path,
-    year: i32,
-    month: u32,
-    generated_at: String,
-) -> Result<NotebookGenerationResult, String> {
-    let month_key = format!("{year:04}-{month:02}");
-    let path = workspace
-        .join("reports/monthly")
-        .join(format!("{month_key}.md"));
-    let content = match render_monthly_report_content(workspace, year, month, &generated_at) {
-        Ok(content) => {
-            remove_monthly_error_marker(&path);
-            content
-        }
-        Err(error) => {
-            write_monthly_error_marker(&path, &month_key, &generated_at, &error);
-            return Err(error);
-        }
-    };
-    atomic_write(&path, content.as_bytes())?;
-    Ok(NotebookGenerationResult {
-        path,
-        date_key: month_key,
-    })
-}
-
 fn parse_report_file(
     workspace: &Path,
     path: &Path,
@@ -354,6 +301,8 @@ fn parse_report_file(
         generated_at: frontmatter.generated_at.clone(),
         generated_by: frontmatter.generated_by.clone(),
         schema_version,
+        generation_mode: frontmatter.generation_mode.clone(),
+        coverage_status: frontmatter.coverage_status.clone(),
         source_path,
         is_truncated,
         original_line_count,
@@ -618,275 +567,17 @@ fn schema_version_to_string(value: &serde_yaml::Value) -> String {
     }
 }
 
-#[allow(dead_code)]
-fn render_monthly_report_content(
-    workspace: &Path,
-    year: i32,
-    month: u32,
-    generated_at: &str,
-) -> Result<String, String> {
-    let month_key = format!("{year:04}-{month:02}");
-    let all_dates = dates_in_month(year, month)?;
-    let mut daily_inputs = Vec::new();
-    let mut missing_dates = BTreeSet::new();
-
-    for date in &all_dates {
-        let path = workspace
-            .join(".agent-diva/autodream/reports/daily")
-            .join(format!("{}.md", date.format("%Y-%m-%d")));
-        match read_rhythm_report(&path) {
-            Ok(document) => daily_inputs.push((*date, path, document)),
-            Err(_) => {
-                missing_dates.insert(*date);
-            }
-        }
-    }
-
-    let fallback_digest = collect_session_window_digest_for_dates(workspace, &missing_dates)
-        .map_err(|error| format!("failed to collect monthly fallback sessions: {error}"))?;
-    if daily_inputs.is_empty() && fallback_digest.items.is_empty() {
-        return Err(format!(
-            "no daily reports or fallback sessions found for monthly report {month_key}"
-        ));
-    }
-
-    let mut session_count = fallback_digest.session_count;
-    let mut token_used = fallback_digest.estimated_tokens;
-    let mut daily_lines = Vec::new();
-
-    for (date, _path, document) in &daily_inputs {
-        session_count += document.frontmatter.session_count.unwrap_or(0);
-        token_used += document
-            .frontmatter
-            .token_used
-            .unwrap_or_else(|| estimate_tokens(&document.body));
-        daily_lines.push(format!(
-            "- {}: {}",
-            date.format("%Y-%m-%d"),
-            document.summary
-        ));
-    }
-
-    let summary = format!(
-        "Aggregated {} daily reports with {} fallback sessions for {}.",
-        daily_inputs.len(),
-        fallback_digest.session_count,
-        month_key
-    );
-
-    let mut markdown = String::new();
-    markdown.push_str("---\n");
-    markdown.push_str("period: monthly\n");
-    markdown.push_str(&format!("month: {month_key}\n"));
-    markdown.push_str(&format!("generated_at: {generated_at}\n"));
-    markdown.push_str(&format!("generated_by: {REPORT_SYSTEM_GENERATED_BY}\n"));
-    markdown.push_str("source: daily_aggregate\n");
-    markdown.push_str(&format!("session_count: {session_count}\n"));
-    markdown.push_str(&format!("token_used: {token_used}\n"));
-    markdown.push_str(&format!(
-        "fallback_used: {}\n",
-        !fallback_digest.items.is_empty()
-    ));
-    markdown.push_str(&format!("daily_inputs_count: {}\n", daily_inputs.len()));
-    markdown.push_str(&format!(
-        "missing_daily_dates_count: {}\n",
-        missing_dates.len()
-    ));
-    markdown.push_str(&format!("schema_version: {REPORT_SYSTEM_SCHEMA_VERSION}\n"));
-    markdown.push_str("---\n\n");
-    markdown.push_str(&format!("# Monthly Report {month_key}\n\n"));
-    markdown.push_str(&format!("{summary}\n\n"));
-    markdown.push_str("## Overview\n\n");
-    markdown.push_str(&format!(
-        "- **Coverage**: {}-01 -> {}-end\n",
-        month_key, month_key
-    ));
-    markdown.push_str(&format!("- **Daily Inputs**: {}\n", daily_inputs.len()));
-    markdown.push_str(&format!(
-        "- **Recovered Session Gaps**: {}\n",
-        fallback_digest.session_count
-    ));
-    markdown.push_str(&format!("- **Session Count**: {session_count}\n"));
-    markdown.push_str(&format!("- **Estimated Token Usage**: {token_used}\n\n"));
-    markdown.push_str("## Daily Highlights\n\n");
-    if daily_lines.is_empty() {
-        markdown.push_str("- No daily reports were available.\n\n");
-    } else {
-        markdown.push_str(&daily_lines.join("\n"));
-        markdown.push_str("\n\n");
-    }
-    markdown.push_str("## Gap Recovery\n\n");
-    if fallback_digest.items.is_empty() {
-        markdown.push_str("- No session fallback was required.\n\n");
-    } else {
-        for item in &fallback_digest.items {
-            markdown.push_str(&format!("- `{}`: {}\n", item.session_key, item.summary));
-        }
-        markdown.push('\n');
-    }
-    markdown.push_str("## Monthly Synthesis\n\n");
-    markdown.push_str(&render_monthly_synthesis_paragraphs(
-        &month_key,
-        &daily_inputs,
-        &fallback_digest,
-    ));
-    markdown.push_str("\n## Follow-up\n\n");
-    if missing_dates.is_empty() {
-        markdown.push_str("- Daily coverage was complete for this monthly synthesis.\n");
-    } else {
-        markdown.push_str(&format!(
-            "- Missing daily dates were recovered from sessions: {}.\n",
-            missing_dates
-                .iter()
-                .map(|date| date.format("%Y-%m-%d").to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
-    markdown.push_str(&format!(
-        "\n---\n*Generated by {REPORT_SYSTEM_GENERATED_BY} at {generated_at}*\n"
-    ));
-    Ok(markdown)
-}
-
-#[allow(dead_code)]
-fn render_monthly_synthesis_paragraphs(
-    month_key: &str,
-    daily_inputs: &[(NaiveDate, PathBuf, RhythmReportDocument)],
-    fallback_digest: &SessionWindowDigest,
-) -> String {
-    let mut paragraphs = Vec::new();
-    if !daily_inputs.is_empty() {
-        let top = daily_inputs
-            .iter()
-            .take(5)
-            .map(|(_, _, document)| document.summary.clone())
-            .collect::<Vec<_>>()
-            .join(" ");
-        paragraphs.push(format!(
-            "The report-system monthly synthesis for {month_key} was built primarily from {} daily summaries. {}",
-            daily_inputs.len(),
-            truncate_chars(&top, 600)
-        ));
-    }
-    if !fallback_digest.items.is_empty() {
-        let recovered = fallback_digest
-            .items
-            .iter()
-            .map(|item| item.summary.clone())
-            .collect::<Vec<_>>()
-            .join(" ");
-        paragraphs.push(format!(
-            "Session fallback filled {} missing daily gaps: {}",
-            fallback_digest.session_count,
-            truncate_chars(&recovered, 600)
-        ));
-    }
-    if paragraphs.is_empty() {
-        paragraphs.push(format!(
-            "No daily summaries or fallback sessions were available for {month_key}."
-        ));
-    }
-    format!("{}\n", paragraphs.join("\n\n"))
-}
-
-#[allow(dead_code)]
-fn dates_in_month(year: i32, month: u32) -> Result<Vec<NaiveDate>, String> {
-    let start = NaiveDate::from_ymd_opt(year, month, 1)
-        .ok_or_else(|| format!("invalid month key: {year:04}-{month:02}"))?;
-    let (next_year, next_month) = if month == 12 {
-        (year + 1, 1)
-    } else {
-        (year, month + 1)
-    };
-    let next = NaiveDate::from_ymd_opt(next_year, next_month, 1)
-        .ok_or_else(|| format!("invalid next month key: {next_year:04}-{next_month:02}"))?;
-    let span_days = (next - start).num_days();
-    let mut dates = Vec::with_capacity(span_days as usize);
-    for offset in 0..span_days {
-        if let Some(date) = start.checked_add_days(Days::new(offset as u64)) {
-            dates.push(date);
-        }
-    }
-    Ok(dates)
-}
-
-#[allow(dead_code)]
-fn write_monthly_error_marker(path: &Path, month_key: &str, generated_at: &str, error: &str) {
-    let error_path = path.with_extension("error.json");
-    let payload = serde_json::json!({
-        "month": month_key,
-        "generated_at": generated_at,
-        "status": "failed",
-        "message": error,
-    });
-    if let Ok(bytes) = serde_json::to_vec_pretty(&payload) {
-        let _ = atomic_write(&error_path, &bytes);
-    }
-}
-
-#[allow(dead_code)]
-fn remove_monthly_error_marker(path: &Path) {
-    let error_path = path.with_extension("error.json");
-    let _ = fs::remove_file(error_path);
-}
-
-#[allow(dead_code)]
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| "path has no parent".to_string())?;
-    fs::create_dir_all(parent).map_err(|error| {
-        format!(
-            "failed to create parent directory {}: {error}",
-            parent.display()
-        )
-    })?;
-    let temp = temp_path(path);
-    {
-        let mut file = fs::File::create(&temp)
-            .map_err(|error| format!("failed to create temp report {}: {error}", temp.display()))?;
-        file.write_all(bytes)
-            .map_err(|error| format!("failed to write temp report {}: {error}", temp.display()))?;
-        file.sync_all()
-            .map_err(|error| format!("failed to sync temp report {}: {error}", temp.display()))?;
-    }
-    fs::rename(&temp, path)
-        .map_err(|error| format!("failed to replace report {}: {error}", path.display()))?;
-    sync_parent_dir(parent);
-    Ok(())
-}
-
-#[allow(dead_code)]
-fn temp_path(path: &Path) -> PathBuf {
-    let file_name = path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or("notebook-report");
-    path.with_file_name(format!(".{file_name}.tmp"))
-}
-
-#[allow(dead_code)]
-fn sync_parent_dir(parent: &Path) {
-    if let Ok(dir) = fs::File::open(parent) {
-        let _ = dir.sync_all();
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         build_notebook_report_proposal, build_notebook_report_proposal_preview,
-        generate_monthly_notebook_report, generate_monthly_notebook_report_for,
         load_notebook_reports, search_notebook_session_evidence, NotebookPeriod,
         NotebookProposalAction, NotebookSessionSearchRequest, MAX_RENDER_LINES,
-        REPORT_SYSTEM_GENERATED_BY,
     };
     use agent_diva_core::evolution::{
         EvidenceSource, LaputaSectionName, ProposalState, ProposalType,
     };
     use agent_diva_core::session::SessionSearchHit;
-    use chrono::Local;
     use std::fs;
 
     fn write_report(path: &std::path::Path, body: &str) {
@@ -1092,156 +783,37 @@ date: 2026-06-14
     }
 
     #[test]
-    fn generates_report_owned_monthly_report_with_v1_frontmatter() {
+    fn loads_monthly_report_with_generation_mode_metadata() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-14.md"),
+            &temp.path().join("reports/monthly/2026-06.md"),
             "---
-period: daily
-date: 2026-06-14
-generated_by: agent-diva-autodream
-session_count: 2
-token_used: 12
+period: monthly
+month: 2026-06
+generated_by: agent-diva-report-system
+generation_mode: deterministic_fallback
+coverage_status: fallback
+schema_version: 1
 ---
 
-# Daily Reflection
+# Monthly Report 2026-06
 
-Summarized the launch planning and follow-up actions.
+聚合 1 份日报（确定性降级）。
 ",
         );
 
-        let result = generate_monthly_notebook_report_for(
-            temp.path(),
-            2026,
-            6,
-            "2026-06-15T00:00:00Z".to_string(),
-        )
-        .unwrap();
-        assert!(result.path.exists());
-        assert!(result.path.starts_with(temp.path().join("reports/monthly")));
-
-        let markdown = fs::read_to_string(&result.path).unwrap();
-        assert!(markdown.contains("period: monthly"));
-        assert!(markdown.contains("month: 2026-06"));
-        assert!(markdown.contains(&format!("generated_by: {REPORT_SYSTEM_GENERATED_BY}")));
-        assert!(markdown.contains("source: daily_aggregate"));
-        assert!(markdown.contains("daily_inputs_count: 1"));
-        assert!(markdown.contains("schema_version: 1"));
-        assert!(markdown.contains("## Monthly Synthesis"));
-    }
-
-    #[test]
-    fn monthly_generation_replaces_existing_report_atomically() {
-        let temp = tempfile::tempdir().unwrap();
-        let target = temp.path().join("reports/monthly/2099-12.md");
-        write_report(&target, "old");
-        write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2099-12-01.md"),
-            "---
-period: daily
-date: 2099-12-01
-session_count: 1
-token_used: 5
----
-
-# Future Daily
-
-Future summary.
-",
-        );
-
-        let result = generate_monthly_notebook_report_for(
-            temp.path(),
-            2099,
-            12,
-            "2026-06-15T00:00:00Z".to_string(),
-        )
-        .unwrap();
-        assert_eq!(result.path, target);
-        assert!(!target.with_file_name(".2099-12.md.tmp").exists());
-
-        let markdown = fs::read_to_string(target).unwrap();
-        assert!(markdown.contains("month: 2099-12"));
-        assert!(markdown.contains("Future summary."));
-        assert!(!markdown.contains("\nold"));
-    }
-
-    #[test]
-    fn public_monthly_generator_writes_current_month_file() {
-        let temp = tempfile::tempdir().unwrap();
-        let current_month = Local::now().format("%Y-%m").to_string();
-        let current_date = format!("{current_month}-01");
-        write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily")
-                .join(format!("{current_date}.md")),
-            &format!(
-                "---
-period: daily
-date: {current_date}
-session_count: 1
-token_used: 4
----
-
-# Current Daily
-
-Current month summary.
-"
-            ),
-        );
-        let result = generate_monthly_notebook_report(temp.path()).unwrap();
-        assert!(result.path.exists());
+        let reports = load_notebook_reports(temp.path(), NotebookPeriod::Monthly).unwrap();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].date, "2026-06");
         assert_eq!(
-            result.path,
-            temp.path()
-                .join("reports/monthly")
-                .join(format!("{}.md", result.date_key))
+            reports[0].generation_mode.as_deref(),
+            Some("deterministic_fallback")
         );
-    }
-
-    #[test]
-    fn monthly_generation_recovers_missing_daily_dates_from_sessions() {
-        let temp = tempfile::tempdir().unwrap();
-        write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-01.md"),
-            "---
-period: daily
-date: 2026-06-01
-session_count: 1
-token_used: 7
----
-
-# Daily 1
-
-Kickoff summary.
-",
+        assert_eq!(reports[0].coverage_status.as_deref(), Some("fallback"));
+        assert_eq!(
+            reports[0].generated_by.as_deref(),
+            Some("agent-diva-report-system")
         );
-        let sessions_dir = temp.path().join("sessions");
-        fs::create_dir_all(&sessions_dir).unwrap();
-        fs::write(
-            sessions_dir.join("telegram_8.jsonl"),
-            r#"{"_type":"metadata","created_at":"2026-06-02T00:00:00Z","updated_at":"2026-06-02T00:00:00Z","metadata":{}}
-{"role":"user","content":"Recovered second day context.","timestamp":"2026-06-02T01:02:03Z"}"#,
-        )
-        .unwrap();
-
-        let result = generate_monthly_notebook_report_for(
-            temp.path(),
-            2026,
-            6,
-            "2026-06-15T00:00:00Z".to_string(),
-        )
-        .unwrap();
-        let markdown = fs::read_to_string(result.path).unwrap();
-        assert!(markdown.contains("fallback_used: true"));
-        assert!(markdown.contains("Recovered second day context."));
     }
 
     #[test]

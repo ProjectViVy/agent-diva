@@ -91,11 +91,14 @@ version = "0.5.0"
 dependencies = [
  "agent-diva-core",
  "agent-diva-laputa",
+ "async-trait",
  "chrono",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 1.0.69",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -377,6 +380,7 @@ version = "0.5.0"
 dependencies = [
  "agent-diva-core",
  "async-trait",
+ "chrono",
  "futures",
  "http 1.4.0",
  "mockito",

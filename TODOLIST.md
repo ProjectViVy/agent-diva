@@ -4,13 +4,6 @@
 
 ## Active Plan
 
-- [ ] **LLM 归纳手动日报、周报、月报** 当前 Notebook 手动生成的日报、周报、月报以会话摘录和下级摘要的确定性模板拼接为主，用户看到的是 raw 数据而非有结论、去重且可行动的周期复盘。
-  - Expected behavior: 手动 `daily`/`weekly`/`monthly` 报表先收集受限且可审计的事实包，再调用无工具的 LLM 生成结构化中文归纳；正文包含摘要、主题/进展、决策、风险和下一步，证据清单与统计保留在数据口径/文末。每项结论引用有效 evidence ID，信息不足时明确说明。
-  - Safety/fallback: provider 超时、失败、输出无效、超预算或 evidence 校验失败时，原子写入标有 `generation_mode: deterministic_fallback` 的确定性报告；不得写空报告、泄露原始会话到日志或虚构事实。
-  - Architecture: 保持日报/周报由 `agent-diva-autodream` 持有、月报由 Report System 路径持有；收敛 `agent-diva-autodream/src/monthly.rs` 和 `agent-diva-gui/src-tauri/src/notebook.rs` 的重复月报生产逻辑，GUI 仅负责触发/读取/展示状态。
-  - Related: `docs/plan/llm-curated-manual-reports.md`, `agent-diva-autodream/src/{rhythm.rs,monthly.rs,reports.rs}`, `agent-diva-core/src/reports/`, `agent-diva-providers/`, `agent-diva-manager/src/handlers/autodream.rs`, `agent-diva-gui/src-tauri/src/{commands.rs,notebook.rs}`.
-  - Suggested validation: mock-provider 日/周/月 fixture（含问候/重复会话、明确决策、缺口恢复）、evidence 引用/JSON/schema/fallback 原子写入测试、Notebook 手动触发 smoke test，以及 `just fmt-check && just check && just test`。
-
 - [ ] **Plan Mode: make default execution-context Compact a durable summary boundary** The current default `Compact` policy only trims the first execution request to six local messages; it does not create a summary, advance a boundary, or prevent exploratory context from returning in later execution turns. `Clear` is also request-local rather than an execution-session policy.
   - Expected behavior: Compact persists a quality-checked pre-execution summary plus an execution boundary; Clear persists the boundary without a summary; both policies apply to every execution turn while retaining the transcript for audit. Summary failure must be explicit and must not silently retain context.
   - Related: `docs/architecture/plan-execution-context-compaction-fix.md`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-core/src/planning/report.rs`, `agent-diva-core/src/planning/report_store.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src/App.vue`
@@ -416,6 +409,9 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 ## Done
 
+- [x] **LLM 归纳手动日报、周报、月报** Implemented fact-bundle collection, optional no-tool LLM curation, evidence validation, deterministic fallback, manager injection, and GUI generation-mode display. Default `reports.llm_curation.enabled=false`. Removed GUI duplicate monthly generator.
+  - Related: `docs/plan/llm-curated-manual-reports.md`, `docs/logs/2026-07-llm-curated-manual-reports/v0.0.2-impl-llm-curated-manual-reports/`
+  - Validation: core/providers/autodream/gui notebook targeted tests; manager check.
 - [x] **GUI: fix pet immersive overlay sidebar navigation** Resolved the issue where clicking overlay sidebar items in pet immersive/fullscreen mode could not navigate back to the main page. The `.pet-immersive:not(.sidebar-expanded) .sidebar` rule applied `pointer-events: none` to the overlay sidebar as well, blocking all clicks. Excluded `.overlay-sidebar` from that rule.
   - Related files: `agent-diva-gui/src/styles.css`
   - Commit: `8c6fa68`

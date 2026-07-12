@@ -1,4 +1,4 @@
-# LOCK
+﻿# LOCK
 
 Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T23:00:00+08:00`
-- Last Heartbeat: `2026-07-12T23:35:00+08:00`
+- Started At: `2026-07-13T00:00:00+08:00`
+- Last Heartbeat: `2026-07-13T01:15:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -30,14 +30,5 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-13`: Released LLM-curated manual reports implementation. Core fact bundles + narrative contracts, providers LlmReportNarrativeGenerator, autodream day/week/month curation with deterministic fallback, manager injection, GUI DTO/badge and removed duplicate monthly generator. Targeted tests passed for core/providers/autodream/gui notebook; manager check passed.
 - `2026-07-12`: Released LLM-curated manual report planning scope. Added implementation plan, required iteration log, and a TODO covering report fact bundles, structure/evidence validation, provider fallback, and monthly generator consolidation. Documentation-only validation: `git diff --check` passed.
-- `2026-07-12`: Released left sidebar navigation spacing correction. Removed redundant group top margins so top-level items and group headers share the parent navigation gap. Validation: Vite dev server responded locally; `pnpm build` passed.
-- `2026-07-12`: Released GUI streamed-response truncation fix. The agent loop flushes the protocol guard's safe suffix and the GUI reconciles to the authoritative final response. Validation: agent protocol-guard unit tests and GUI production build passed; full agent integration tests are blocked by pre-existing provider-trait mock drift.
-- `2026-07-12`: Released tool follow-up lock. Agent loop grants one summary-only pass after tools at max iterations and replaces English empty-final with Chinese synthesis. Unit tests passed.
-- `2026-07-12`: Released streaming UTF-8 boundary fix. OpenAI-compatible, Anthropic, and Ollama now retain incomplete UTF-8 across HTTP chunks; `cargo test -p agent-diva-providers --lib` passed (108 tests).
-- `2026-07-12`: Released tool protocol leak guard. Summary-only requests explicitly send `tool_choice: none`; DSML/XML-like internal tool protocols are blocked from streamed and final output. Commit: `50506e2`.
-- `2026-07-12`: Released DeepSeek V4/DSML compatibility research document. Commit pending.
-- `2026-07-12`: Released DSML guard evolution documentation update. Commit pending.
-- `2026-07-12`: Released DeepSeek V4 DSML adapter. Adds explicit response protocol configuration, strict DSML decoding, stream isolation, and summary-only tool disabling. Validation: provider/agent checks and targeted unit tests passed; workspace fmt-check remains blocked by pre-existing unrelated formatting drift.
-- `2026-07-12`: Released DeepSeek V4-Pro/V4-Flash default model prioritization. Registry unit test passed.
-- `2026-07-12`: Released GUI provider model-selection persistence fix. Clicking a model now saves the active model and shortcut list immediately. Validation: GUI test suite (47 files, 400 tests) and production build passed.

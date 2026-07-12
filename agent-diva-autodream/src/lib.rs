@@ -1,6 +1,7 @@
 //! Manual AutoDream run lifecycle and file-first storage.
 
 mod atomic;
+mod curation;
 mod error;
 mod inputs;
 mod layout;

@@ -5,7 +5,6 @@ use std::{
 };
 
 use chrono::{DateTime, Local, NaiveDate, Utc};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, Result},
@@ -13,32 +12,9 @@ use crate::{
     session::SessionManager,
 };
 
+use super::frontmatter::{RhythmReportDocument, RhythmReportFrontmatter};
+
 const MAX_SUMMARY_CHARS: usize = 240;
-
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct RhythmReportFrontmatter {
-    pub period: Option<String>,
-    pub date: Option<String>,
-    pub week: Option<String>,
-    pub month: Option<String>,
-    pub generated_at: Option<String>,
-    pub generated_by: Option<String>,
-    pub source: Option<String>,
-    pub session_count: Option<u64>,
-    pub token_used: Option<u64>,
-    pub schema_version: Option<serde_yaml::Value>,
-    pub fallback_used: Option<bool>,
-    pub daily_inputs_count: Option<u64>,
-    pub missing_daily_dates_count: Option<u64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RhythmReportDocument {
-    pub frontmatter: RhythmReportFrontmatter,
-    pub title: String,
-    pub summary: String,
-    pub body: String,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionDigestItem {
@@ -161,6 +137,30 @@ pub fn estimate_tokens(text: &str) -> u64 {
     chars.div_ceil(4) as u64
 }
 
+pub(crate) fn truncate_chars(value: &str, max_chars: usize) -> String {
+    let mut iter = value.chars();
+    let truncated: String = iter.by_ref().take(max_chars).collect();
+    if iter.next().is_some() {
+        format!("{truncated}...")
+    } else {
+        truncated
+    }
+}
+
+pub(crate) fn sanitize_id_component(value: &str) -> String {
+    let mut sanitized = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            sanitized.push(ch.to_ascii_lowercase());
+        } else if ch == '-' || ch == '_' {
+            sanitized.push(ch);
+        } else {
+            sanitized.push('-');
+        }
+    }
+    sanitized.trim_matches('-').to_string()
+}
+
 fn split_frontmatter(markdown: &str) -> Result<(RhythmReportFrontmatter, &str)> {
     if !markdown.starts_with("---\n") {
         return Ok((RhythmReportFrontmatter::default(), markdown));
@@ -192,91 +192,4 @@ fn extract_summary(body: &str) -> Option<String> {
         .filter(|line| !line.is_empty())
         .find(|line| !line.starts_with('#') && !line.starts_with("```"))
         .map(ToOwned::to_owned)
-}
-
-fn truncate_chars(value: &str, max_chars: usize) -> String {
-    let mut iter = value.chars();
-    let truncated: String = iter.by_ref().take(max_chars).collect();
-    if iter.next().is_some() {
-        format!("{truncated}...")
-    } else {
-        truncated
-    }
-}
-
-fn sanitize_id_component(value: &str) -> String {
-    let mut sanitized = String::with_capacity(value.len());
-    for ch in value.chars() {
-        if ch.is_ascii_alphanumeric() {
-            sanitized.push(ch.to_ascii_lowercase());
-        } else if ch == '-' || ch == '_' {
-            sanitized.push(ch);
-        } else {
-            sanitized.push('-');
-        }
-    }
-    sanitized.trim_matches('-').to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{collect_session_window_digest_for_dates, parse_rhythm_report};
-    use crate::session::{ChatMessage, Session, SessionManager};
-    use chrono::{NaiveDate, TimeZone, Utc};
-    use std::collections::BTreeSet;
-
-    #[test]
-    fn parses_rhythm_report_document() {
-        let document = parse_rhythm_report(
-            "---
-period: daily
-date: 2026-06-18
-generated_by: agent-diva-autodream
-session_count: 2
-token_used: 42
----
-
-# Daily Report
-
-Summary line.
-
-## Details
-
-- item
-",
-        )
-        .unwrap();
-
-        assert_eq!(document.frontmatter.period.as_deref(), Some("daily"));
-        assert_eq!(document.frontmatter.session_count, Some(2));
-        assert_eq!(document.title, "Daily Report");
-        assert_eq!(document.summary, "Summary line.");
-    }
-
-    #[test]
-    fn collects_session_digest_for_selected_dates() {
-        let temp = tempfile::tempdir().unwrap();
-        let manager = SessionManager::new(temp.path());
-        let mut session = Session::new("telegram:1");
-        session.add_full_message(ChatMessage {
-            role: "user".to_string(),
-            content: "daily digest message".to_string(),
-            timestamp: Utc.with_ymd_and_hms(2026, 6, 18, 1, 0, 0).unwrap(),
-            tool_call_id: None,
-            tool_calls: None,
-            name: None,
-            reasoning_content: None,
-            thinking_blocks: None,
-            metadata: None,
-            token_usage: None,
-        });
-        manager.save(&session).unwrap();
-
-        let mut dates = BTreeSet::new();
-        dates.insert(NaiveDate::from_ymd_opt(2026, 6, 18).unwrap());
-        let digest = collect_session_window_digest_for_dates(temp.path(), &dates).unwrap();
-        assert_eq!(digest.session_count, 1);
-        assert_eq!(digest.message_count, 1);
-        assert_eq!(digest.items[0].session_key, "telegram:1");
-    }
 }

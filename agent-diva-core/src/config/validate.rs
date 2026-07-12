@@ -97,6 +97,10 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
         errors.push("pet.tts_volume must be in [0.0, 2.0]".to_string());
     }
 
+    if let Err(error) = config.reports.llm_curation.validate() {
+        errors.push(error);
+    }
+
     if errors.is_empty() {
         Ok(())
     } else {

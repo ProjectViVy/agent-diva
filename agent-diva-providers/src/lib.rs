@@ -12,6 +12,7 @@ mod http_util;
 pub mod ollama;
 pub mod openai_compatible;
 pub mod registry;
+pub mod report_narrative;
 pub mod retry;
 pub mod tap;
 pub mod transcription;
@@ -34,6 +35,7 @@ pub use factory::{build_llm_provider, LlmProviderBuildOptions};
 pub use ollama::OllamaProvider;
 pub use openai_compatible::OpenAiCompatibleClient;
 pub use registry::{ProviderRegistry, ProviderSpec};
+pub use report_narrative::LlmReportNarrativeGenerator;
 
 use async_trait::async_trait;
 use std::sync::{Arc, RwLock};

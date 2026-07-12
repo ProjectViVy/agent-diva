@@ -80,7 +80,17 @@ impl AppState {
         std::fs::create_dir_all(&audit_root)?;
         let audit_sink_ready = agent_diva_core::audit_sink::get_sink().is_some()
             || agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace_root).is_ok();
-        let autodream = AutoDreamService::open(workspace_root.clone())?;
+        let autodream =
+            match crate::runtime::open_autodream_with_report_curation(workspace_root.clone()) {
+                Ok(service) => service,
+                Err(error) => {
+                    tracing::warn!(
+                        error = %error,
+                        "failed to open AutoDream with report curation; falling back to deterministic"
+                    );
+                    AutoDreamService::open(workspace_root.clone())?
+                }
+            };
         let laputa = LaputaService::open(workspace_root.clone())?;
         Ok(Self {
             api_tx,

@@ -51,6 +51,11 @@ pub struct RhythmReportContent {
     pub fallback_used: Option<bool>,
     pub daily_inputs_count: Option<u64>,
     pub missing_daily_dates_count: Option<u64>,
+    pub generation_mode: Option<String>,
+    pub narrative_schema_version: Option<u32>,
+    pub prompt_version: Option<String>,
+    pub coverage_status: Option<String>,
+    pub fallback_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -228,6 +233,23 @@ fn render_report_markdown(request: &RhythmReportWriteRequest) -> String {
         markdown.push_str(&format!(
             "missing_daily_dates_count: {missing_daily_dates_count}\n"
         ));
+    }
+    if let Some(generation_mode) = request.content.generation_mode.as_deref() {
+        markdown.push_str(&format!("generation_mode: {generation_mode}\n"));
+    }
+    if let Some(narrative_schema_version) = request.content.narrative_schema_version {
+        markdown.push_str(&format!(
+            "narrative_schema_version: {narrative_schema_version}\n"
+        ));
+    }
+    if let Some(prompt_version) = request.content.prompt_version.as_deref() {
+        markdown.push_str(&format!("prompt_version: {prompt_version}\n"));
+    }
+    if let Some(coverage_status) = request.content.coverage_status.as_deref() {
+        markdown.push_str(&format!("coverage_status: {coverage_status}\n"));
+    }
+    if let Some(fallback_reason) = request.content.fallback_reason.as_deref() {
+        markdown.push_str(&format!("fallback_reason: {fallback_reason}\n"));
     }
     markdown.push_str(&format!("schema_version: {SCHEMA_VERSION}\n"));
     markdown.push_str("---\n\n");

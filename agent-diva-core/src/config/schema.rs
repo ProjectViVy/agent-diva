@@ -294,6 +294,9 @@ pub struct Config {
     /// Self-evolution and AutoDream governance policy.
     #[serde(default)]
     pub self_evolution: SelfEvolutionConfig,
+    /// Notebook / rhythm report generation settings.
+    #[serde(default)]
+    pub reports: ReportsConfig,
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
@@ -303,6 +306,95 @@ pub struct Config {
     /// Pet (desktop avatar) configuration
     #[serde(default)]
     pub pet: PetConfig,
+}
+
+/// Top-level report generation configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ReportsConfig {
+    #[serde(default)]
+    pub llm_curation: LlmCurationConfig,
+}
+
+/// LLM curation settings for manual/scheduled rhythm reports.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LlmCurationConfig {
+    /// When false, report generation always uses deterministic fallback.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Optional provider override; inherits `agents.defaults.provider` when null.
+    #[serde(default)]
+    pub provider: Option<String>,
+    /// Optional model override; inherits `agents.defaults.model` when null.
+    /// Must be the raw model id for native endpoints (no gateway prefix rewrite).
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default = "default_report_language")]
+    pub language: String,
+    #[serde(default = "default_report_max_input_tokens")]
+    pub max_input_tokens: u32,
+    #[serde(default = "default_report_max_output_tokens")]
+    pub max_output_tokens: u32,
+    #[serde(default = "default_report_timeout_secs")]
+    pub timeout_secs: u64,
+    /// Currently only `deterministic` is supported.
+    #[serde(default = "default_report_fallback")]
+    pub fallback: String,
+}
+
+fn default_report_language() -> String {
+    "zh-CN".to_string()
+}
+
+fn default_report_max_input_tokens() -> u32 {
+    8000
+}
+
+fn default_report_max_output_tokens() -> u32 {
+    1500
+}
+
+fn default_report_timeout_secs() -> u64 {
+    60
+}
+
+fn default_report_fallback() -> String {
+    "deterministic".to_string()
+}
+
+impl Default for LlmCurationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: None,
+            model: None,
+            language: default_report_language(),
+            max_input_tokens: default_report_max_input_tokens(),
+            max_output_tokens: default_report_max_output_tokens(),
+            timeout_secs: default_report_timeout_secs(),
+            fallback: default_report_fallback(),
+        }
+    }
+}
+
+impl LlmCurationConfig {
+    /// Validate curation settings; returns human-readable errors.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.timeout_secs == 0 {
+            return Err("reports.llm_curation.timeout_secs must be > 0".to_string());
+        }
+        if self.max_input_tokens == 0 {
+            return Err("reports.llm_curation.max_input_tokens must be > 0".to_string());
+        }
+        if self.max_output_tokens == 0 {
+            return Err("reports.llm_curation.max_output_tokens must be > 0".to_string());
+        }
+        if self.fallback != "deterministic" {
+            return Err(
+                "reports.llm_curation.fallback must be \"deterministic\"".to_string(),
+            );
+        }
+        Ok(())
+    }
 }
 
 /// Self-evolution policy configuration used by Evolution and AutoDream UI.

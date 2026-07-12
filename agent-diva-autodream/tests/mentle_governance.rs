@@ -106,6 +106,11 @@ fn rhythm_report_writes_do_not_sync_to_mentle_state() {
                 fallback_used: Some(false),
                 daily_inputs_count: Some(0),
                 missing_daily_dates_count: Some(0),
+                generation_mode: None,
+                narrative_schema_version: None,
+                prompt_version: None,
+                coverage_status: None,
+                fallback_reason: None,
             },
         )
         .unwrap();

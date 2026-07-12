@@ -19,8 +19,8 @@ use agent_diva_core::cron::CronService;
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
-    build_llm_provider, DynamicProvider, LLMProvider, LlmProviderBuildOptions, ProviderAccess,
-    ProviderCatalogService, ProviderRegistry,
+    build_llm_provider, DynamicProvider, LLMProvider, LlmProviderBuildOptions, LlmReportNarrativeGenerator,
+    ProviderAccess, ProviderCatalogService, ProviderRegistry,
 };
 use anyhow::Result;
 use chrono::Local;
@@ -158,6 +158,64 @@ fn resolve_provider_name_for_model(
     })
 }
 
+/// Open AutoDream with optional LLM report curation based on config.
+pub(crate) fn open_autodream_with_report_curation(
+    workspace: impl Into<PathBuf>,
+) -> Result<AutoDreamService> {
+    let workspace = workspace.into();
+    let service = AutoDreamService::open(workspace)?;
+    let config = ConfigLoader::new().load().unwrap_or_default();
+    let curation = config.reports.llm_curation.clone();
+    if !curation.enabled {
+        return Ok(service.with_report_curation(None, curation));
+    }
+
+    let model = curation
+        .model
+        .clone()
+        .or_else(|| Some(config.agents.defaults.model.clone()))
+        .unwrap_or_else(|| "deepseek-chat".to_string());
+    // Prefer explicit report provider; otherwise resolve from model / defaults.
+    let provider_override = curation.provider.as_deref().or(config.agents.defaults.provider.as_deref());
+    let provider = match resolve_provider_name_for_model(&config, &model, provider_override)
+        .ok_or_else(|| anyhow::anyhow!("No provider found for report model: {model}"))
+        .and_then(|name| {
+            let catalog = ProviderCatalogService::new();
+            let access = catalog
+                .get_provider_access(&config, &name)
+                .unwrap_or_else(|| ProviderAccess::from_config(None));
+            let spec = catalog
+                .provider_spec(&name, &config.providers)
+                .ok_or_else(|| anyhow::anyhow!("Unknown provider '{name}'"))?;
+            Ok(build_llm_provider(LlmProviderBuildOptions {
+                spec,
+                access,
+                model: model.clone(),
+                reasoning_effort: None,
+                reasoning_config: None,
+                response_protocol: config
+                    .providers
+                    .get(&name)
+                    .map(|provider| provider.response_protocol)
+                    .unwrap_or_default(),
+            })?)
+        }) {
+        Ok(provider) => provider,
+        Err(error) => {
+            tracing::warn!(
+                error = %error,
+                "report llm curation enabled but provider unavailable; using deterministic reports"
+            );
+            return Ok(service.with_report_curation(None, curation));
+        }
+    };
+
+    let generator: Arc<dyn agent_diva_core::reports::ReportNarrativeGenerator> = Arc::new(
+        LlmReportNarrativeGenerator::new(provider, curation.clone(), model),
+    );
+    Ok(service.with_report_curation(Some(generator), curation))
+}
+
 fn build_provider(config: &Config, model: &str) -> Result<Arc<dyn LLMProvider>> {
     let catalog = ProviderCatalogService::new();
     let provider_name = resolve_provider_name_for_model(
@@ -288,7 +346,7 @@ fn build_cron_callback_with_clock(
                     return Some("Error: cancelled".to_string());
                 }
                 if job.payload.kind == NOTEBOOK_MONTHLY_CRON_KIND {
-                    let service = match AutoDreamService::open(workspace) {
+                    let service = match open_autodream_with_report_curation(workspace) {
                         Ok(service) => service,
                         Err(error) => {
                             return Some(format!(
@@ -296,7 +354,10 @@ fn build_cron_callback_with_clock(
                             ));
                         }
                     };
-                    return match service.execute_scheduled_monthly_report(clock.local_today()) {
+                    return match service
+                        .execute_scheduled_monthly_report(clock.local_today())
+                        .await
+                    {
                         Ok(ScheduledMonthlyReportOutcome::Triggered { run_id, month_key }) => {
                             Some(format!(
                                 "triggered monthly notebook report {month_key} via run {run_id}"
