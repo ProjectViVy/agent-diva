@@ -4,6 +4,10 @@
 
 ## Active Plan
 
+- [ ] **Restore missing audit raw-tab locale labels** The GUI-wide Vitest suite currently fails because `auditPage.tabs.raw` is absent from both language packs.
+  - Expected behavior: `agent-diva-gui/src/locales/{zh,en}.ts` provide a translated raw-audit-tab label and `src/locales/evolution.test.ts` passes for both locales.
+  - Related: `agent-diva-gui/src/locales/{zh,en}.ts`, `agent-diva-gui/src/locales/evolution.test.ts`
+
 - [ ] **Sandbox command approval UI and persistent execution rules** Implement the design package in `docs/dev/sandbox-command-approval/`: route shell execution through the sandbox orchestrator, surface recoverable approval requests in the GUI, and persist only validated safe command-prefix allow rules globally.
   - Expected behavior: Plan mode remains strictly read-only; agent mode can approve a recoverable sandbox escalation once or per session; only safe prefixes can enter the global default execution list.
   - Related: `agent-diva-tools/src/shell.rs`, `agent-diva-sandbox/src/orchestrator.rs`, `agent-diva-manager/src/handlers.rs`, `agent-diva-gui/src/App.vue`

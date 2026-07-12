@@ -860,11 +860,24 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
               :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
             >
               <!-- Reasoning Block -->
-              <ThinkingBlock
-                v-if="msg.reasoning"
-                :content="msg.reasoning"
-                :thinking-ms="0"
-              />
+              <div v-if="msg.reasoning" class="streaming-reasoning-section">
+                <ThinkingBlock
+                  :content="msg.reasoning"
+                  :thinking-ms="0"
+                />
+                <div
+                  v-if="!msg.content && msg.isStreaming"
+                  class="streaming-reasoning-status"
+                  aria-live="polite"
+                >
+                  <span>{{ t('chat.thinking') }}</span>
+                  <div class="streaming-dots" aria-label="Loading">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                </div>
+              </div>
 
               <div v-if="hasRawMeta(msg)" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
                 <div
@@ -880,10 +893,14 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
               </div>
               
               <!-- Content or Loading -->
-              <div v-if="!msg.content && msg.role === 'agent' && msg.isStreaming" class="flex space-x-1 py-1">
-                 <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0s" />
-                 <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s" />
-                 <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
+              <div
+                v-if="!msg.content && !msg.reasoning && msg.role === 'agent' && msg.isStreaming"
+                class="streaming-dots streaming-dots-only"
+                aria-label="Loading"
+              >
+                 <i />
+                 <i />
+                 <i />
               </div>
               <div v-else>
                 <!-- Agent/system text: demux <proposed_plan> into a plan message block -->
@@ -1407,6 +1424,47 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 :deep(.markdown-body) {
   font-size: 0.875rem;
   line-height: 1.6;
+}
+
+.streaming-reasoning-section {
+  display: grid;
+  gap: 8px;
+}
+
+.streaming-reasoning-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  color: var(--text-muted, #6b7280);
+  font-size: 12px;
+}
+
+.streaming-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 12px;
+}
+
+.streaming-dots-only {
+  padding: 6px 0;
+}
+
+.streaming-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--text-muted, #9ca3af);
+  animation: streaming-dot-bounce 1s infinite ease-in-out;
+}
+
+.streaming-dots i:nth-child(2) { animation-delay: .1s; }
+.streaming-dots i:nth-child(3) { animation-delay: .2s; }
+
+@keyframes streaming-dot-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: .45; }
+  30% { transform: translateY(-3px); opacity: 1; }
 }
 
 :deep(.markdown-body p) {

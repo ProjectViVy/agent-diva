@@ -703,6 +703,22 @@ function closeStreamingPlaceholder(removeIfEmpty = false) {
   }
 }
 
+function removeStreamingAssistantPlaceholder() {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const message = messages.value[i];
+    if (message.role !== 'agent' || !message.isStreaming) {
+      continue;
+    }
+    if (!message.content) {
+      messages.value.splice(i, 1);
+    } else {
+      message.isStreaming = false;
+      message.isThinking = false;
+    }
+    return;
+  }
+}
+
 // Load saved models from localStorage
 onMounted(() => {
   const storedModels = localStorage.getItem(SAVED_MODELS_KEY);
@@ -1235,18 +1251,20 @@ async function stopMessage() {
 
   try {
     if (!isTauri()) {
-      const lastMsg = messages.value[messages.value.length - 1];
-      if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-        lastMsg.isStreaming = false;
-        lastMsg.isThinking = false;
-      }
+      const hadVisibleResponse = messages.value.some(
+        (message) => message.role === 'agent' && message.isStreaming && !!message.content,
+      );
+      removeStreamingAssistantPlaceholder();
       isTyping.value = false;
-      messages.value.push({
-        id: generateMessageId(),
-        role: 'system',
-        content: `[Mock] ${t('app.stopped')}`,
-        timestamp: Date.now()
-      });
+      if (!hadVisibleResponse) {
+        messages.value.push({
+          id: generateMessageId(),
+          role: 'agent',
+          content: t('app.stoppedMessage'),
+          timestamp: Date.now(),
+          emotion: currentEmotion.value,
+        });
+      }
       return;
     }
 
@@ -1255,18 +1273,22 @@ async function stopMessage() {
       chatId: currentChatId.value,
     });
     suppressNextStopError.value = true;
-    const lastMsg = messages.value[messages.value.length - 1];
-    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      lastMsg.isStreaming = false;
-      lastMsg.isThinking = false;
-    }
+    const hadVisibleResponse = messages.value.some(
+      (message) => message.role === 'agent' && message.isStreaming && !!message.content,
+    );
+    removeStreamingAssistantPlaceholder();
     isTyping.value = false;
-    messages.value.push({
-      id: generateMessageId(),
-      role: 'system',
-      content: t('app.stopRequested'),
-      timestamp: Date.now()
-    });
+    activeStreamRequestId.value = null;
+    if (!hadVisibleResponse) {
+      messages.value.push({
+        id: generateMessageId(),
+        role: 'agent',
+        content: t('app.stoppedMessage'),
+        timestamp: Date.now(),
+        emotion: currentEmotion.value,
+      });
+    }
+    syncCurrentSessionListEntry();
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),
@@ -1817,12 +1839,7 @@ onMounted(async () => {
     if (event.payload.request_id !== activeStreamRequestId.value) {
       return;
     }
-    const lastMsg = messages.value[messages.value.length - 1];
-    if (lastMsg && lastMsg.role === 'agent' && (lastMsg.content === '') && lastMsg.isStreaming) {
-      messages.value.pop();
-    } else if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      lastMsg.isStreaming = false;
-    }
+    closeStreamingPlaceholder(true);
 
     const payload = event.payload || ({} as StreamToolStartPayload);
     const toolName = payload.name || t('app.unknownTool');
@@ -1839,15 +1856,6 @@ onMounted(async () => {
       toolCallId: payload.call_id || undefined
     });
     
-    // Add placeholder for next agent response
-    messages.value.push({
-      id: generateMessageId(),
-      role: 'agent',
-      content: '',
-      isStreaming: true, 
-      timestamp: Date.now(),
-      emotion: currentEmotion.value
-    });
     syncCurrentSessionListEntry();
   }));
 

@@ -22,6 +22,7 @@ export default {
     connecting: 'Connecting',
     stopped: 'Stopped current generation.',
     stopRequested: 'Stop request sent.',
+    stoppedMessage: 'Stopped. What would you like me to do?',
     stopFailed: 'Failed to stop: {error}',
   },
   appDialog: {

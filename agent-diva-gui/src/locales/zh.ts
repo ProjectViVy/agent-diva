@@ -22,6 +22,7 @@ export default {
     connecting: '连接中',
     stopped: '已停止当前生成。',
     stopRequested: '已发送停止请求。',
+    stoppedMessage: '已停止。需要我做什么呢？',
     stopFailed: '停止失败: {error}',
   },
   appDialog: {
