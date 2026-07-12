@@ -939,6 +939,21 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     .as_deref()
                     .is_some_and(contains_internal_protocol);
 
+            // `push` retains a short suffix to detect protocol markers split
+            // across provider chunks. Once the response is known to be safe,
+            // publish that suffix so the streamed UI receives the full reply.
+            if !protocol_leak_detected {
+                if let Some(safe_tail) = output_guard.finish() {
+                    let event = AgentEvent::AssistantDelta { text: safe_tail };
+                    if let Some(tx) = event_tx {
+                        let _ = tx.send(event.clone());
+                    }
+                    let _ = self
+                        .bus
+                        .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+                }
+            }
+
             // Emit TokenUsed if usage data is available
             if let Some(tokens) = response.usage.get("total_tokens") {
                 if *tokens > 0 {
@@ -1843,6 +1858,14 @@ impl InternalProtocolGuard {
     fn detected(&self) -> bool {
         self.detected
     }
+
+    /// Returns the withheld safe suffix after the provider stream ends.
+    fn finish(&mut self) -> Option<String> {
+        if self.detected || self.pending.is_empty() {
+            return None;
+        }
+        Some(std::mem::take(&mut self.pending))
+    }
 }
 
 fn contains_internal_protocol(text: &str) -> bool {
@@ -1946,6 +1969,15 @@ mod tests {
         assert_eq!(guard.push("普通回复 <｜｜DS".into()), None);
         assert_eq!(guard.push("ML｜｜tool_calls>".into()), None);
         assert!(guard.detected());
+    }
+
+    #[test]
+    fn protocol_guard_flushes_safe_suffix_at_end_of_stream() {
+        let reply = "x".repeat(40);
+        let mut guard = InternalProtocolGuard::default();
+        assert_eq!(guard.push(reply), Some("x".repeat(8)));
+        assert_eq!(guard.finish(), Some("x".repeat(32)));
+        assert_eq!(guard.finish(), None);
     }
 
     #[test]

@@ -1772,8 +1772,11 @@ onMounted(async () => {
     suppressNextStopError.value = false;
     const lastMsg = messages.value[messages.value.length - 1];
     if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      if (!lastMsg.content && event.payload.data) {
-         lastMsg.content = event.payload.data;
+      // The backend `final` event is the authoritative complete response.
+      // Reconcile with it even when delta events were received: a lost tail
+      // must not leave the user with a truncated response.
+      if (event.payload.data) {
+        lastMsg.content = event.payload.data;
       }
       lastMsg.isStreaming = false;
       lastMsg.isThinking = false;
