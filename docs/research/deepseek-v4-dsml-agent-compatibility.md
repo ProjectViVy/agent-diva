@@ -87,6 +87,25 @@ OpenAI messages + tools
 
 若 GUI 看见 DSML，优先捕获“模型原始输出”和“HTTP 响应 JSON”，确认问题发生在推理服务 parser 之前或之后；不要先修改工具执行器。
 
+### 对既有防泄漏更新的处理
+
+不应回滚提交 `1250e79` 的安全保护。它阻止未解析的内部协议抵达 GUI，且在 summary-only 阶段防止模型越过迭代上限继续执行工具；这两项不变量应保留。
+
+后续兼容改动应把该保护从“全局拦截 DSML”演进为“**未被指定协议适配器成功解析的 DSML 才拦截**”：
+
+```text
+DeepSeek V4 原始流
+  -> DSML 流式解析器
+  -> ToolCallRequest / ReasoningDelta / TextDelta
+  -> Agent Loop
+  -> 未解析协议的最终泄漏拦截
+```
+
+- `openai_json`（默认）继续采用当前 fail-closed 策略：任何出现在 `content` 的 DSML 都是上游转换失败，必须拦截。
+- `deepseek_v4_dsml` 必须显式配置；解析成功的 DSML 变为既有结构化工具调用，不再触发泄漏拦截。
+- 解析失败、畸形调用、未知工具以及 summary-only 阶段的 DSML 一律保持拒绝执行和确定性状态摘要。
+- 当前实现把所有无工具请求都序列化为 `tool_choice: "none"`。为兼容可能拒绝该字段的非标准本地网关，后续应将 Provider 请求的工具模式显式化，并仅在 summary-only 请求中发送 `none`；正常的无工具聊天保留省略该字段的现有兼容行为。
+
 ## 七、建议的兼容实现与验收矩阵
 
 若产品需要接入原始 DSML，上层配置应显式区分 `openai_json`（默认）与 `deepseek_v4_dsml`，禁止自动猜测协议。`deepseek_v4_dsml` 适配器应：

@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-12T20:35:00+08:00`
-- Last Heartbeat: `2026-07-12T21:25:00+08:00`
+- Last Heartbeat: `2026-07-12T21:35:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -34,3 +34,4 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-12`: Released streaming UTF-8 boundary fix. OpenAI-compatible, Anthropic, and Ollama now retain incomplete UTF-8 across HTTP chunks; `cargo test -p agent-diva-providers --lib` passed (108 tests).
 - `2026-07-12`: Released tool protocol leak guard. Summary-only requests explicitly send `tool_choice: none`; DSML/XML-like internal tool protocols are blocked from streamed and final output. Commit: `50506e2`.
 - `2026-07-12`: Released DeepSeek V4/DSML compatibility research document. Commit pending.
+- `2026-07-12`: Released DSML guard evolution documentation update. Commit pending.
