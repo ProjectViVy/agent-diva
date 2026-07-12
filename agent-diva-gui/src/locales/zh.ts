@@ -126,6 +126,7 @@ export default {
     pinned: '置顶',
     sessions: '会话',
     noHistory: '暂无会话',
+    refresh: '刷新',
     noResults: '无匹配结果',
     deleteConfirm: '确定删除此会话？',
     rename: '重命名',

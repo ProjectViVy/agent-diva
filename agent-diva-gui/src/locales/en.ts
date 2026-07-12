@@ -126,6 +126,7 @@ export default {
     pinned: 'Pinned',
     sessions: 'Sessions',
     noHistory: 'No conversations yet',
+    refresh: 'Refresh',
     noResults: 'No matching results',
     deleteConfirm: 'Are you sure you want to delete this session?',
     rename: 'Rename',

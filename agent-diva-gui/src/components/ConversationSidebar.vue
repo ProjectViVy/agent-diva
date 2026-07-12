@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Search, Plus, Pin, PinOff, Trash2, Edit3, CheckCircle2, XCircle, Loader2, MessageSquare, X } from 'lucide-vue-next';
+import { Search, Plus, Pin, PinOff, Trash2, Edit3, CheckCircle2, XCircle, Loader2, MessageSquare, X, RefreshCw } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -33,6 +33,7 @@ const emit = defineEmits<{
   (e: 'new'): void;
   (e: 'toggle-pin', sessionKey: string): void;
   (e: 'rename', sessionKey: string, newTitle: string): void;
+  (e: 'refresh'): void;
   (e: 'close'): void;
 }>();
 
@@ -329,6 +330,15 @@ defineExpose({ closeContextMenu });
       <div v-if="filteredSessions.length === 0" class="conv-empty">
         <MessageSquare :size="32" class="conv-empty-icon" />
         <p>{{ searchQuery ? t('convSidebar.noResults') : t('convSidebar.noHistory') }}</p>
+        <button
+          v-if="!searchQuery"
+          type="button"
+          class="conv-empty-refresh"
+          @click="emit('refresh')"
+        >
+          <RefreshCw :size="14" />
+          <span>{{ t('convSidebar.refresh') }}</span>
+        </button>
       </div>
     </div>
 
@@ -658,6 +668,24 @@ defineExpose({ closeContextMenu });
 .conv-empty p {
   font-size: 13px;
   margin: 0;
+}
+
+.conv-empty-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text, #374151);
+  background: var(--panel-solid, #ffffff);
+  cursor: pointer;
+}
+
+.conv-empty-refresh:hover {
+  border-color: var(--brand, #ec4899);
+  color: var(--brand, #ec4899);
 }
 
 /* Context Menu */

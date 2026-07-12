@@ -30,5 +30,6 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-12`: Released GUI session-history recovery. When the gateway becomes healthy after the GUI's initial request failed, the session list reloads automatically; the empty session sidebar also exposes a manual refresh action. GUI targeted test and production build passed.
 - `2026-07-13`: Released LLM-curated manual reports implementation. Core fact bundles + narrative contracts, providers LlmReportNarrativeGenerator, autodream day/week/month curation with deterministic fallback, manager injection, GUI DTO/badge and removed duplicate monthly generator. Targeted tests passed for core/providers/autodream/gui notebook; manager check passed.
 - `2026-07-12`: Released LLM-curated manual report planning scope. Added implementation plan, required iteration log, and a TODO covering report fact bundles, structure/evidence validation, provider fallback, and monthly generator consolidation. Documentation-only validation: `git diff --check` passed.

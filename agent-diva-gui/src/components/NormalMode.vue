@@ -145,6 +145,7 @@ const emit = defineEmits<{
   (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
+  (e: 'refresh-sessions'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'regenerate', messageId: string): void;
@@ -1081,6 +1082,7 @@ defineExpose({
               @approve-plan="emit('approve-plan', $event)"
               @revoke-plan="emit('revoke-plan', $event)"
               @refresh-plan="emit('refresh-plan')"
+              @refresh-sessions="emit('refresh-sessions')"
               @clear="handleClearSession"
               @stop="emit('stop')"
               @regenerate="(id) => emit('regenerate', id)"

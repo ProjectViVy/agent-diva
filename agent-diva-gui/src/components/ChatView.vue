@@ -154,6 +154,7 @@ const emit = defineEmits<{
   (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
+  (e: 'refresh-sessions'): void;
   (e: 'clear'): void;
   (e: 'stop'): void;
   (e: 'select-session', sessionKey: string): void;
@@ -1306,6 +1307,7 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       @new="emit('new-session')"
       @toggle-pin="(key) => emit('toggle-pin', key)"
       @rename="(key, title) => emit('rename-session', key, title)"
+      @refresh="emit('refresh-sessions')"
       @close="convSidebarOpen = false"
       class="conv-sidebar-wrapper"
     />

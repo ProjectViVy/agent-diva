@@ -1306,8 +1306,8 @@ const clearMessages = () => {
   });
 };
 
-async function refreshSessions() {
-  if (!isTauri()) return;
+async function refreshSessions(): Promise<boolean> {
+  if (!isTauri()) return false;
   try {
     const fetched = await withTimeout(
       invoke<BackendSessionInfo[]>("get_sessions"),
@@ -1333,10 +1333,12 @@ async function refreshSessions() {
       sessions.value = mapped
         .filter((session) => !locallyDeletedSessionKeys.value.has(session.session_key))
         .sort((a, b) => b.timestamp - a.timestamp);
+      return true;
     }
   } catch (e) {
     console.error("Failed to fetch sessions:", e);
   }
+  return false;
 }
 
 /** GUI channel sessions only, already newest-first (same order as `sessions`). */
@@ -1629,7 +1631,14 @@ async function checkHealth() {
   
   try {
     const isHealthy = await invoke<boolean>("check_health");
+    const recovered = isHealthy && connectionStatus.value !== 'connected';
     connectionStatus.value = isHealthy ? 'connected' : 'error';
+    // The gateway can become ready after the GUI has already completed its one-time
+    // startup load. Reload sessions on recovery so a failed initial request does not
+    // leave the sidebar permanently empty.
+    if (recovered) {
+      await refreshSessions();
+    }
   } catch (e) {
     console.error("Health check failed:", e);
     connectionStatus.value = 'error';
@@ -2060,6 +2069,7 @@ onUnmounted(() => {
       @approve-plan="approvePlanExecution"
       @revoke-plan="revokePlanExecution"
       @refresh-plan="restoreActivePlanRuntime"
+      @refresh-sessions="refreshSessions"
       @clear="clearMessages"
       @stop="stopMessage"
       @regenerate="regenerateMessage"

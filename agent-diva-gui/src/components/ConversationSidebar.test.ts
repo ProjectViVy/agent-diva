@@ -29,6 +29,7 @@ vi.mock('lucide-vue-next', () => {
     Loader2: stub('Loader2'),
     MessageSquare: stub('MessageSquare'),
     X: stub('X'),
+    RefreshCw: stub('RefreshCw'),
     ClipboardList: stub('ClipboardList'),
     ChevronDown: stub('ChevronDown'),
     ChevronRight: stub('ChevronRight'),
@@ -87,6 +88,15 @@ describe('ConversationSidebar', () => {
     await input.setValue('search target');
     expect(wrapper.findAll('.conv-item')).toHaveLength(1);
     expect(wrapper.find('.conv-item-title').text()).toBe('Manual Name');
+  });
+
+  it('offers a refresh action when no sessions are available', async () => {
+    const wrapper = mount(ConversationSidebar, {
+      props: { activeSessionKey: '', themeMode: 'love', sessions: [] },
+    });
+
+    await wrapper.find('.conv-empty-refresh').trigger('click');
+    expect(wrapper.emitted('refresh')).toHaveLength(1);
   });
 
   it('shows an optimistic draft conversation item immediately', () => {
