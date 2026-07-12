@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-12T22:00:00+08:00`
-- Last Heartbeat: `2026-07-13T00:05:00+08:00`
+- Last Heartbeat: `2026-07-12T00:15:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -38,3 +38,4 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-07-12`: Released DSML guard evolution documentation update. Commit pending.
 - `2026-07-12`: Released DeepSeek V4 DSML adapter. Adds explicit response protocol configuration, strict DSML decoding, stream isolation, and summary-only tool disabling. Validation: provider/agent checks and targeted unit tests passed; workspace fmt-check remains blocked by pre-existing unrelated formatting drift.
 - `2026-07-12`: Released DeepSeek V4-Pro/V4-Flash default model prioritization. Registry unit test passed.
+- `2026-07-12`: Released GUI provider model-selection persistence fix. Clicking a model now saves the active model and shortcut list immediately. Validation: GUI test suite (47 files, 400 tests) and production build passed.
