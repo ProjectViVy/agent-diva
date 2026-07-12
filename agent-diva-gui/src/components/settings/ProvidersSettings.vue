@@ -640,7 +640,8 @@ const testModelConnection = async (modelName: string) => {
   }
 };
 
-const toggleModel = (modelName: string) => {
+const toggleModel = async (modelName: string) => {
+  if (isSavingConfig.value) return;
   if (!selectedProvider.value) return;
   const provider = selectedProvider.value;
   const trimmedModelName = modelName.trim();
@@ -661,6 +662,7 @@ const toggleModel = (modelName: string) => {
   localConfig.value.apiKey = entry.apiKey;
 
   upsertSavedModel(entry);
+  await saveProviderConfig();
 };
 
 const removeCurrentModel = () => {
