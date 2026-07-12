@@ -30,6 +30,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-12`: Corrected sidebar group-header height from 48px to the observed primary navigation size of 40px; retained consistent border treatment. GUI build passed.
 - `2026-07-12`: Released sidebar navigation normalization. Capability and tool group headers now use the same 48px border-box model and active border treatment as primary navigation.
 - `2026-07-12`: Released GUI session-history recovery. When the gateway becomes healthy after the GUI's initial request failed, the session list reloads automatically; the empty session sidebar also exposes a manual refresh action. GUI targeted test and production build passed.
 - `2026-07-13`: Released LLM-curated manual reports implementation. Core fact bundles + narrative contracts, providers LlmReportNarrativeGenerator, autodream day/week/month curation with deterministic fallback, manager injection, GUI DTO/badge and removed duplicate monthly generator. Targeted tests passed for core/providers/autodream/gui notebook; manager check passed.
