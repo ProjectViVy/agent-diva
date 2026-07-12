@@ -14,7 +14,6 @@ import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
-import PlanningView from './planning/PlanningView.vue';
 import AgentMessageBody from './planning/AgentMessageBody.vue';
 import { activePlanTodos as filterActivePlanTodos } from './planning/planExecutionState';
 import {
@@ -547,7 +546,6 @@ const activePlanTodo = computed(() => {
 });
 
 const activePlanTodoExpanded = ref(false);
-const planningOverlayOpen = ref(false);
 const planTasksOpen = ref(false);
 const selectedTodoId = ref<string | null>(null);
 
@@ -1090,20 +1088,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
       </section>
     </div>
 
-    <div v-if="planningOverlayOpen" class="planning-overlay" @click.self="planningOverlayOpen = false">
-      <section class="planning-dialog" role="dialog" aria-modal="true" aria-label="计划历史">
-        <button type="button" class="planning-dialog-close" title="关闭计划历史" aria-label="关闭计划历史" @click="planningOverlayOpen = false">
-          <X :size="18" />
-        </button>
-        <PlanningView
-          :approving="approvingPlan"
-          @approve="emit('approve-plan', $event)"
-          @revoke="emit('revoke-plan', $event)"
-          @refresh="emit('refresh-plan')"
-        />
-      </section>
-    </div>
-
     <!-- Input Area - Cursor/OpenAkita 风格 -->
     <div class="chat-input-bar border-t z-20">
       <div class="chat-input-container">
@@ -1157,20 +1141,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
               </div>
             </div>
           </div>
-
-          <div class="toolbar-divider"></div>
-
-          <!-- 附件按钮 -->
-          <button
-            type="button"
-            class="toolbar-btn"
-            :class="{ active: planningOverlayOpen }"
-            title="打开计划历史"
-            aria-label="打开计划历史"
-            @click="planningOverlayOpen = true"
-          >
-            <ClipboardList :size="14" />
-          </button>
 
           <button class="toolbar-btn" :title="uploading ? t('chat.uploading') : t('chat.attachFile')" @click="fileInputRef?.click()" :disabled="uploading">
             <Loader2 v-if="uploading" :size="14" class="animate-spin" />
@@ -1408,11 +1378,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
 .todo-status-row strong { font-size: 13px; }
 .todo-status-section p { margin: 5px 0 0; color: var(--text, #374151); font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
 .todo-status-blocked { padding: 10px 12px; border-radius: 9px; background: #fff7ed; }
-.planning-overlay { position: absolute; inset: 0; z-index: 75; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15, 23, 42, .42); backdrop-filter: blur(3px); }
-.planning-dialog { position: relative; width: min(980px, 100%); height: min(720px, 88vh); overflow: hidden; border: 1px solid var(--line, #e5e7eb); border-radius: 16px; background: var(--panel-solid, #fff); box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
-.planning-dialog :deep(.planning-view) { height: 100%; }
-.planning-dialog-close { position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 6px; border: 0; border-radius: 7px; color: var(--text-muted, #9ca3af); background: color-mix(in srgb, var(--panel-solid, #fff) 88%, transparent); cursor: pointer; }
-.planning-dialog-close:hover { color: var(--text, #111827); background: var(--nav-hover, rgba(0, 0, 0, .08)); }
 
 /* Conversation Sidebar Wrapper */
 .conv-sidebar-wrapper {

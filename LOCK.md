@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-13T00:00:00+08:00`
-- Last Heartbeat: `2026-07-12T00:45:00+08:00`
+- Last Heartbeat: `2026-07-12T01:15:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-12`: Released plan-history UI removal. Removed the main-chat toolbar entry, its overlay, and unused history components. Targeted GUI test and production build passed.
 
 - `2026-07-12`: Released GUI chat streaming state repair. Thought progress and loading dots are separated; running tools no longer leave a three-dot assistant placeholder; stopping removes empty bubbles and uses the assistant stop response. Targeted GUI test and production build passed; full GUI suite has an unrelated missing audit raw-tab locale key recorded in `TODOLIST.md`.
 
