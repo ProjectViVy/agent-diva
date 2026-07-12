@@ -609,13 +609,17 @@
     align-items: center;
     gap: 10px;
     padding: 9px 12px;
+    min-height: 48px;
+    box-sizing: border-box;
     border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
     color: var(--text-muted);
     font-size: 14px;
     font-weight: 500;
     letter-spacing: normal;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     user-select: none;
     width: 100%;
     min-width: 0;
@@ -623,6 +627,12 @@
 
   .nav-group-header:hover {
     background: var(--nav-hover);
+    color: var(--text);
+  }
+
+  .nav-group-header.active {
+    background: var(--nav-active);
+    border-color: var(--nav-active-border);
     color: var(--text);
   }
 
