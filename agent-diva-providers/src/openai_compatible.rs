@@ -580,6 +580,12 @@ impl OpenAiCompatibleClient {
         if let Some(tools_list) = tools {
             request.tools = Some(tools_list);
             request.tool_choice = Some("auto".to_string());
+        } else {
+            // Be explicit when the caller intentionally disables tools (for
+            // example, the agent loop's summary-only pass).  Some compatible
+            // gateways otherwise continue a tool-call chat template from the
+            // preceding messages.
+            request.tool_choice = Some("none".to_string());
         }
 
         request
@@ -1576,6 +1582,26 @@ mod tests {
         );
         assert!(!value.to_string().contains("image_file"));
         assert!(!value.to_string().contains("image_data"));
+    }
+
+    #[test]
+    fn build_request_without_tools_explicitly_disables_tool_choice() {
+        let client = OpenAiCompatibleClient::default();
+        let request = client.build_request(
+            vec![Message::user("summarize the completed work")],
+            None,
+            RequestBuildOptions {
+                resolved_model: "deepseek-chat".to_string(),
+                max_tokens: 4096,
+                temperature: 0.7,
+                reasoning_effort: None,
+                stream: true,
+            },
+        );
+
+        let value = serde_json::to_value(&request).unwrap();
+        assert_eq!(value["tool_choice"], "none");
+        assert!(value.get("tools").is_none());
     }
 
     #[test]

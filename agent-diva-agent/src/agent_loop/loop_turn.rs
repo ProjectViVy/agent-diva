@@ -847,6 +847,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
             };
             let mut streamed_content = String::new();
             let mut streamed_reasoning = String::new();
+            let mut output_guard = InternalProtocolGuard::default();
             let mut response: Option<LLMResponse> = None;
             loop {
                 self.drain_runtime_control_commands().await;
@@ -865,13 +866,17 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                 match stream_event? {
                     LLMStreamEvent::TextDelta(delta) => {
                         streamed_content.push_str(&delta);
-                        let event = AgentEvent::AssistantDelta { text: delta };
-                        if let Some(tx) = event_tx {
-                            let _ = tx.send(event.clone());
+                        if let Some(safe_delta) = output_guard.push(delta) {
+                            let event = AgentEvent::AssistantDelta { text: safe_delta };
+                            if let Some(tx) = event_tx {
+                                let _ = tx.send(event.clone());
+                            }
+                            let _ = self.bus.publish_event(
+                                msg.channel.clone(),
+                                msg.chat_id.clone(),
+                                event,
+                            );
                         }
-                        let _ =
-                            self.bus
-                                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
                     }
                     LLMStreamEvent::ReasoningDelta(delta) => {
                         debug!("Stream ReasoningDelta: {:?}", delta);
@@ -925,6 +930,12 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     Some(streamed_reasoning)
                 },
             });
+
+            let protocol_leak_detected = output_guard.detected()
+                || response
+                    .content
+                    .as_deref()
+                    .is_some_and(contains_internal_protocol);
 
             // Emit TokenUsed if usage data is available
             if let Some(tokens) = response.usage.get("total_tokens") {
@@ -982,6 +993,16 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
             };
             trace!(trace_id = %trace_id, loop_index = iteration, step_name = "intent_decided", decision_type = %decision_type, "Intent decided");
 
+            if protocol_leak_detected {
+                warn!(
+                    summary_only_pass,
+                    "provider response contained an internal tool protocol; suppressing user-visible output"
+                );
+                final_content = Some(synthesize_iteration_limit_summary(&tool_run_summaries, &[]));
+                final_reasoning = None;
+                break;
+            }
+
             // Handle tool calls
             if response.has_tool_calls() {
                 // On the summary-only bonus pass we disabled tools; if a provider
@@ -991,11 +1012,16 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                         "summary-only pass received {} unexpected tool call(s); ignoring tools",
                         response.tool_calls.len()
                     );
-                    final_content = response.content.filter(|s| !s.trim().is_empty());
-                    final_reasoning = response.reasoning_content;
-                    if self.thinking_mode == ThinkingMode::Off {
-                        final_reasoning = None;
-                    }
+                    let pending_tools: Vec<&str> = response
+                        .tool_calls
+                        .iter()
+                        .map(|call| call.name.as_str())
+                        .collect();
+                    final_content = Some(synthesize_iteration_limit_summary(
+                        &tool_run_summaries,
+                        &pending_tools,
+                    ));
+                    final_reasoning = None;
                     break;
                 }
 
@@ -1770,6 +1796,69 @@ struct ToolRunSummary {
 
 const SUMMARY_ONLY_NUDGE: &str = "You already executed tools in this turn. Based on the tool results above, write a concise final reply for the user in their language. Do not call any tools.";
 
+const INTERNAL_PROTOCOL_MARKERS: &[&str] = &[
+    "<｜｜DSML｜｜tool_calls>",
+    "<｜｜DSML｜｜invoke",
+    "<｜｜DSML｜｜parameter",
+    "<tool_calls>",
+    "<function_calls>",
+];
+
+/// Prevent internal tool protocols from reaching either streaming or final UI output.
+/// A short suffix is withheld so a marker split over stream chunks cannot leak.
+#[derive(Default)]
+struct InternalProtocolGuard {
+    pending: String,
+    detected: bool,
+}
+
+impl InternalProtocolGuard {
+    fn push(&mut self, delta: String) -> Option<String> {
+        if self.detected {
+            return None;
+        }
+        self.pending.push_str(&delta);
+        if contains_internal_protocol(&self.pending) {
+            self.detected = true;
+            self.pending.clear();
+            return None;
+        }
+
+        const RETAINED_CHARS: usize = 32;
+        let chars: Vec<char> = self.pending.chars().collect();
+        if chars.len() <= RETAINED_CHARS {
+            return None;
+        }
+        let split_at = chars.len() - RETAINED_CHARS;
+        let safe: String = chars[..split_at].iter().collect();
+        self.pending = chars[split_at..].iter().collect();
+        Some(safe)
+    }
+
+    fn detected(&self) -> bool {
+        self.detected
+    }
+}
+
+fn contains_internal_protocol(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    INTERNAL_PROTOCOL_MARKERS
+        .iter()
+        .any(|marker| lower.contains(&marker.to_ascii_lowercase()))
+}
+
+fn synthesize_iteration_limit_summary(summaries: &[ToolRunSummary], pending_tools: &[&str]) -> String {
+    let mut summary = format!(
+        "任务已达到最大工具迭代次数。已执行 {} 个工具调用。",
+        summaries.len()
+    );
+    if !pending_tools.is_empty() {
+        summary.push_str(&format!("未执行的工具请求：{}。", pending_tools.join("、")));
+    }
+    summary.push_str("未展示内部工具协议，请在继续任务前检查当前结果。");
+    summary
+}
+
 const FALLBACK_EMPTY_REPLY_ZH: &str = "本轮处理已完成，但未生成可读回复。";
 const FALLBACK_PLAN_APPROVAL_ZH: &str =
     "计划已提交审批，请在下方审批卡片中查看并批准。";
@@ -1844,6 +1933,28 @@ mod tests {
         assert!(text.contains("`exec`"));
         assert!(text.contains("成功"));
         assert!(!text.contains("I've completed processing"));
+    }
+
+    #[test]
+    fn protocol_guard_blocks_dsml_split_across_stream_chunks() {
+        let mut guard = InternalProtocolGuard::default();
+        assert_eq!(guard.push("普通回复 <｜｜DS".into()), None);
+        assert_eq!(guard.push("ML｜｜tool_calls>".into()), None);
+        assert!(guard.detected());
+    }
+
+    #[test]
+    fn internal_protocol_detection_covers_dsml_and_xml() {
+        assert!(contains_internal_protocol("<｜｜DSML｜｜invoke name=\"write_file\">"));
+        assert!(contains_internal_protocol("<tool_calls><invoke>"));
+        assert!(!contains_internal_protocol("正常的用户可见回复"));
+    }
+
+    #[test]
+    fn iteration_limit_summary_names_unexecuted_tools() {
+        let summary = synthesize_iteration_limit_summary(&[], &["write_file"]);
+        assert!(summary.contains("write_file"));
+        assert!(summary.contains("最大工具迭代次数"));
     }
 
     #[test]
