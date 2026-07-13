@@ -323,7 +323,16 @@ onUnmounted(() => {
             class="timeline-bar"
             :style="{ height: getTimelineBarHeight(point) }"
             :title="`${formatTimeBucketTooltip(point.time_bucket)}\n${t('tokenStats.totalTokens')}: ${formatTokenCount(point.total_tokens)}\n${t('tokenStats.inputTokens')}: ${formatTokenCount(point.total_input)}\n${t('tokenStats.outputTokens')}: ${formatTokenCount(point.total_output)}`"
-          ></div>
+          >
+            <div
+              class="timeline-bar-output"
+              :style="{ height: point.total_tokens > 0 ? (point.total_output / point.total_tokens * 100) + '%' : '0%' }"
+            ></div>
+            <div
+              class="timeline-bar-input"
+              :style="{ height: point.total_tokens > 0 ? (point.total_input / point.total_tokens * 100) + '%' : '0%' }"
+            ></div>
+          </div>
         </div>
         <div class="timeline-labels">
           <span>{{ formatTimeBucket(timeline[0]?.time_bucket) }}</span>
@@ -544,14 +553,34 @@ onUnmounted(() => {
 
 .timeline-bar {
   flex: 1;
-  background: linear-gradient(180deg, #6366f1 0%, rgba(99, 102, 241, 0.3) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   border-radius: 2px 2px 0 0;
   min-height: 4px;
+  overflow: hidden;
   transition: height 0.3s ease;
+  background: transparent;
 }
 
-.timeline-bar:hover {
-  background: linear-gradient(180deg, #8b5cf6 0%, rgba(139, 92, 246, 0.4) 100%);
+.timeline-bar-output {
+  width: 100%;
+  background: linear-gradient(180deg, #34d399 0%, rgba(52, 211, 153, 0.4) 100%);
+  transition: background 0.3s ease;
+}
+
+.timeline-bar-input {
+  width: 100%;
+  background: linear-gradient(180deg, #60a5fa 0%, rgba(96, 165, 250, 0.4) 100%);
+  transition: background 0.3s ease;
+}
+
+.timeline-bar:hover .timeline-bar-output {
+  background: linear-gradient(180deg, #10b981 0%, rgba(16, 185, 129, 0.6) 100%);
+}
+
+.timeline-bar:hover .timeline-bar-input {
+  background: linear-gradient(180deg, #3b82f6 0%, rgba(59, 130, 246, 0.6) 100%);
 }
 
 .timeline-labels {
