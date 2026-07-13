@@ -737,7 +737,10 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
           </div>
 
           <!-- Bubble -->
-          <div class="flex flex-col min-w-0 max-w-full">
+          <div
+            class="flex flex-col min-w-0 max-w-full"
+            :class="msg.role === 'user' ? 'items-end' : 'items-start'"
+          >
             <!-- Tool Message -->
             <template v-if="msg.role === 'tool'">
               <!-- Card rendering: plan_create / todo_write / approval_request -->

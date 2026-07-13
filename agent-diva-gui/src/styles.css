@@ -1374,7 +1374,6 @@
     padding: var(--bubble-padding, 12px 16px);
     max-width: 100%;
     width: max-content;
-    min-width: min(100%, 10rem);
     overflow-wrap: break-word;
     word-break: normal;
     transition: box-shadow 0.2s ease, transform 0.15s ease;
