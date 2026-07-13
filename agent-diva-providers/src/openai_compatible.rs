@@ -1003,8 +1003,11 @@ impl LLMProvider for OpenAiCompatibleClient {
                         }
                     };
 
-                    if parsed.choices.is_empty() {
+                    if parsed.usage.is_some() {
                         usage = parsed.usage;
+                    }
+
+                    if parsed.choices.is_empty() {
                         continue;
                     }
 
