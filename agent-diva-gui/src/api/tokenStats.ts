@@ -51,8 +51,8 @@ export interface ModelDistribution {
 
 export interface InMemoryStats {
   total_tokens: number;
-  input_tokens: number;
-  output_tokens: number;
+  total_input: number;
+  total_output: number;
   request_count: number;
   total_cost: number;
 }

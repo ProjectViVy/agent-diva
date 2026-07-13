@@ -63,13 +63,13 @@ async function fetchAllStats() {
 
   try {
     const [totalRes, endpointRes, modelRes, timelineRes, sessionsRes, modelsRes, realtimeRes] = await Promise.all([
-      getTokenUsageTotal(period.value).catch(() => null),
-      getTokenUsageSummary(period.value, 'endpoint').catch(() => []),
-      getTokenUsageSummary(period.value, 'model').catch(() => []),
-      getTokenUsageTimeline(period.value).catch(() => []),
-      getTokenUsageSessions(period.value, 10).catch(() => []),
-      getTokenUsageModels(period.value).catch(() => []),
-      getTokenUsageRealtime().catch(() => null),
+      getTokenUsageTotal(period.value),
+      getTokenUsageSummary(period.value, 'endpoint'),
+      getTokenUsageSummary(period.value, 'model'),
+      getTokenUsageTimeline(period.value),
+      getTokenUsageSessions(period.value, 10),
+      getTokenUsageModels(period.value),
+      getTokenUsageRealtime(),
     ]);
 
     total.value = totalRes;

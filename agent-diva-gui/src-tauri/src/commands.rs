@@ -5390,8 +5390,8 @@ pub struct TokenModelDistribution {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenInMemoryStats {
     pub total_tokens: i64,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
+    pub total_input: i64,
+    pub total_output: i64,
     pub request_count: u64,
     pub total_cost: f64,
 }
