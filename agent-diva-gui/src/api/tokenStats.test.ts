@@ -24,8 +24,8 @@ describe('token statistics API', () => {
 
     await expect(getTokenUsageTotal('1w')).resolves.toEqual(total);
     await expect(getTokenUsageModels('1w')).resolves.toEqual([]);
-    expect(invoke).toHaveBeenNthCalledWith(1, 'get_token_usage_total', { period: '1w' });
-    expect(invoke).toHaveBeenNthCalledWith(2, 'get_token_usage_models', { period: '1w' });
+    expect(invoke).toHaveBeenNthCalledWith(1, 'get_token_usage_total', { period: '1w', tzOffset: expect.any(Number) });
+    expect(invoke).toHaveBeenNthCalledWith(2, 'get_token_usage_models', { period: '1w', tzOffset: expect.any(Number) });
   });
 
   it('preserves Tauri command failures for the panel fallback path', async () => {

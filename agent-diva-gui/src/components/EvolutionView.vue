@@ -950,7 +950,7 @@ onMounted(async () => {
 <style scoped>
 .evolution-view {
   display: flex;
-  min-height: 100%;
+  height: 100%;
   min-width: 0;
   flex-direction: column;
   background: var(--panel);
@@ -1071,6 +1071,8 @@ onMounted(async () => {
 }
 
 .evolution-panel {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1;
   padding: 18px;
@@ -1111,7 +1113,7 @@ onMounted(async () => {
 
 .evolution-inbox-shell {
   display: grid;
-  height: 100%;
+  flex: 1;
   min-height: 480px;
   min-width: 0;
   grid-template-columns: minmax(320px, 0.85fr) minmax(520px, 1.4fr);
@@ -1133,6 +1135,7 @@ onMounted(async () => {
 .evolution-detail-pane,
 .evolution-data-panel {
   display: flex;
+  flex: 1;
   flex-direction: column;
 }
 

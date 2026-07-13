@@ -8,7 +8,7 @@ const evolutionKeys = [
   'auditPage.datePickerLabel',
   'auditPage.tabListLabel',
   'auditPage.tabs.structured',
-  'auditPage.tabs.raw',
+
   'auditPage.structured.panelLabel',
   'auditPage.structured.tableLabel',
   'auditPage.structured.emptyTitle',

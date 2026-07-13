@@ -471,6 +471,7 @@ onBeforeUnmount(() => {
 .proposal-inbox {
   display: flex;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
