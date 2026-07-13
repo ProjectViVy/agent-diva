@@ -88,7 +88,7 @@ struct ModelDistribution {
 }
 
 fn default_period() -> String {
-    "1d".to_string()
+    "1h".to_string()
 }
 fn default_group_by() -> String {
     "endpoint".to_string()
@@ -99,6 +99,7 @@ fn default_limit() -> usize {
 
 fn since_for_period(period: &str) -> Result<DateTime<Utc>, String> {
     let duration = match period {
+        "1h" => Duration::hours(1),
         "1d" => Duration::days(1),
         "3d" => Duration::days(3),
         "1w" => Duration::weeks(1),
@@ -220,13 +221,15 @@ pub async fn timeline_handler(
     Query(query): Query<TimelineQuery>,
 ) -> Json<serde_json::Value> {
     let interval = query.interval.unwrap_or_else(|| {
-        if query.period.period == "1d" {
+        if query.period.period == "1h" {
+            "minute".to_string()
+        } else if query.period.period == "1d" {
             "hour".to_string()
         } else {
             "day".to_string()
         }
     });
-    if interval != "hour" && interval != "day" {
+    if interval != "minute" && interval != "hour" && interval != "day" {
         return error(format!("invalid interval: {interval}"));
     }
     let result = since_for_period(&query.period.period)
@@ -234,7 +237,13 @@ pub async fn timeline_handler(
         .map(|entries| {
             let mut buckets: HashMap<String, UsageTotal> = HashMap::new();
             for entry in &entries {
-                let bucket = if interval == "hour" {
+                let bucket = if interval == "minute" {
+                    entry
+                        .timestamp
+                        .with_second(0)
+                        .and_then(|value| value.with_nanosecond(0))
+                        .expect("valid UTC minute")
+                } else if interval == "hour" {
                     entry
                         .timestamp
                         .with_minute(0)

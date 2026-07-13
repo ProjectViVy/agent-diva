@@ -34,7 +34,7 @@ const { t } = useI18n();
 const showDetail = ref(false);
 
 // State
-const period = ref<TimeRangePeriod>('1d');
+const period = ref<TimeRangePeriod>('1h');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -224,7 +224,7 @@ onUnmounted(() => {
       <div class="flex items-center justify-between">
         <div class="flex gap-2">
           <button
-            v-for="p in ['1d', '3d', '1w', '1m', '6m', '1y'] as TimeRangePeriod[]"
+            v-for="p in ['1h', '1d', '3d', '1w', '1m', '6m', '1y'] as TimeRangePeriod[]"
             :key="p"
             class="period-btn"
             :class="{ 'period-btn--active': period === p }"
