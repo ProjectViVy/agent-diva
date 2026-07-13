@@ -322,6 +322,8 @@ export default {
       clearSelection: 'Clear selection',
       markRead: 'Mark read',
       markUnread: 'Mark unread',
+      hideFilters: 'Hide filters',
+      showFilters: 'Show filters',
       loadingTitle: 'Loading proposals',
       loadingDesc: 'Reading the Laputa governance queue and latest proposal states.',
       emptyTitle: 'No proposals pending review',

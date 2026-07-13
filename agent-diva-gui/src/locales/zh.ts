@@ -322,6 +322,8 @@ export default {
       clearSelection: '清除选择',
       markRead: '标为已读',
       markUnread: '标为未读',
+      hideFilters: '隐藏筛选器',
+      showFilters: '显示筛选器',
       loadingTitle: '正在加载提案',
       loadingDesc: '正在读取 Laputa 治理队列与最新提案状态。',
       emptyTitle: '暂无待审查提案',

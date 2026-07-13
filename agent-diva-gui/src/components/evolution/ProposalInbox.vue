@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n';
 import {
   Archive,
   Check,
+  ChevronDown,
+  ChevronUp,
   Clock3,
   Eye,
   EyeOff,
@@ -57,6 +59,7 @@ const unreadOnly = ref(false);
 const searchText = ref('');
 const checkedIds = ref<string[]>([]);
 const searchInput = ref<HTMLInputElement | null>(null);
+const filtersExpanded = ref(true);
 
 const terminalStates = new Set<ProposalState>(['approved', 'rejected', 'applied', 'reverted', 'superseded']);
 const approveStates = new Set<ProposalState>(['pending_review', 'edited', 'deferred']);
@@ -285,10 +288,21 @@ onBeforeUnmount(() => {
         <h2>{{ t('evolution.inbox.title') }}</h2>
         <p>{{ t('evolution.inbox.count', { count: filteredProposals.length }) }}</p>
       </div>
-      <span class="proposal-inbox__count">{{ proposals.length }}</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button
+          class="proposal-inbox__filter-toggle"
+          type="button"
+          :title="filtersExpanded ? t('evolution.inbox.hideFilters') : t('evolution.inbox.showFilters')"
+          @click="filtersExpanded = !filtersExpanded"
+        >
+          <Filter :size="14" />
+          <component :is="filtersExpanded ? ChevronUp : ChevronDown" :size="14" />
+        </button>
+        <span class="proposal-inbox__count">{{ proposals.length }}</span>
+      </div>
     </div>
 
-    <section class="proposal-inbox__filters" aria-label="Proposal filters">
+    <section v-show="filtersExpanded" class="proposal-inbox__filters" aria-label="Proposal filters">
       <label class="proposal-inbox__search">
         <Search :size="14" />
         <input
@@ -513,6 +527,24 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
+}
+
+.proposal-inbox__filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.proposal-inbox__filter-toggle:hover {
+  background: var(--panel-solid);
+  color: var(--text);
 }
 
 .proposal-inbox__filters,
