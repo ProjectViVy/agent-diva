@@ -322,7 +322,7 @@ onUnmounted(() => {
             :key="index"
             class="timeline-bar"
             :style="{ height: getTimelineBarHeight(point) }"
-            :title="`${formatTimeBucketTooltip(point.time_bucket)}: ${formatTokenCount(point.total_tokens)}`"
+            :title="`${formatTimeBucketTooltip(point.time_bucket)}\n${t('tokenStats.totalTokens')}: ${formatTokenCount(point.total_tokens)}\n${t('tokenStats.inputTokens')}: ${formatTokenCount(point.total_input)}\n${t('tokenStats.outputTokens')}: ${formatTokenCount(point.total_output)}`"
           ></div>
         </div>
         <div class="timeline-labels">
