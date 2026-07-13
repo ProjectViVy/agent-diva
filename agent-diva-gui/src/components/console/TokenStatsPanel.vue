@@ -103,6 +103,22 @@ function getModelColor(index: number): string {
   return colors[index % colors.length];
 }
 
+function formatTimeBucket(isoString: string): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (period.value === '1d') {
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  } else {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+}
+
+function formatTimeBucketTooltip(isoString: string): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 function exportData() {
   // Export stats as JSON
   const data = {
@@ -306,12 +322,12 @@ onUnmounted(() => {
             :key="index"
             class="timeline-bar"
             :style="{ height: getTimelineBarHeight(point) }"
-            :title="`${point.time_bucket}: ${formatTokenCount(point.total_tokens)}`"
+            :title="`${formatTimeBucketTooltip(point.time_bucket)}: ${formatTokenCount(point.total_tokens)}`"
           ></div>
         </div>
         <div class="timeline-labels">
-          <span>{{ timeline[0]?.time_bucket || '' }}</span>
-          <span>{{ timeline[timeline.length - 1]?.time_bucket || '' }}</span>
+          <span>{{ formatTimeBucket(timeline[0]?.time_bucket) }}</span>
+          <span>{{ formatTimeBucket(timeline[timeline.length - 1]?.time_bucket) }}</span>
         </div>
       </div>
 
