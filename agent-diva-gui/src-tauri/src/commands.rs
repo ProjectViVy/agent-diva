@@ -5439,8 +5439,12 @@ async fn fetch_token_stats<T: serde::de::DeserializeOwned>(
 pub async fn get_token_usage_total(
     state: State<'_, AgentState>,
     period: String,
+    tz_offset: Option<i32>,
 ) -> Result<TokenUsageTotal, String> {
-    let endpoint = format!("/stats/tokens/total?period={}", period);
+    let mut endpoint = format!("/stats/tokens/total?period={}", period);
+    if let Some(tz) = tz_offset {
+        endpoint.push_str(&format!("&tz_offset={}", tz));
+    }
     fetch_token_stats(&state, &endpoint).await
 }
 
@@ -5449,11 +5453,15 @@ pub async fn get_token_usage_summary(
     state: State<'_, AgentState>,
     period: String,
     group_by: String,
+    tz_offset: Option<i32>,
 ) -> Result<Vec<TokenUsageSummary>, String> {
-    let endpoint = format!(
+    let mut endpoint = format!(
         "/stats/tokens/summary?period={}&group_by={}",
         period, group_by
     );
+    if let Some(tz) = tz_offset {
+        endpoint.push_str(&format!("&tz_offset={}", tz));
+    }
     fetch_token_stats(&state, &endpoint).await
 }
 
@@ -5462,11 +5470,15 @@ pub async fn get_token_usage_timeline(
     state: State<'_, AgentState>,
     period: String,
     interval: Option<String>,
+    tz_offset: Option<i32>,
 ) -> Result<Vec<TokenTimelinePoint>, String> {
-    let endpoint = match interval {
+    let mut endpoint = match interval {
         Some(int) => format!("/stats/tokens/timeline?period={}&interval={}", period, int),
         None => format!("/stats/tokens/timeline?period={}", period),
     };
+    if let Some(tz) = tz_offset {
+        endpoint.push_str(&format!("&tz_offset={}", tz));
+    }
     fetch_token_stats(&state, &endpoint).await
 }
 
@@ -5475,8 +5487,12 @@ pub async fn get_token_usage_sessions(
     state: State<'_, AgentState>,
     period: String,
     limit: u64,
+    tz_offset: Option<i32>,
 ) -> Result<Vec<TokenSessionUsage>, String> {
-    let endpoint = format!("/stats/tokens/sessions?period={}&limit={}", period, limit);
+    let mut endpoint = format!("/stats/tokens/sessions?period={}&limit={}", period, limit);
+    if let Some(tz) = tz_offset {
+        endpoint.push_str(&format!("&tz_offset={}", tz));
+    }
     fetch_token_stats(&state, &endpoint).await
 }
 
@@ -5484,8 +5500,12 @@ pub async fn get_token_usage_sessions(
 pub async fn get_token_usage_models(
     state: State<'_, AgentState>,
     period: String,
+    tz_offset: Option<i32>,
 ) -> Result<Vec<TokenModelDistribution>, String> {
-    let endpoint = format!("/stats/tokens/models?period={}", period);
+    let mut endpoint = format!("/stats/tokens/models?period={}", period);
+    if let Some(tz) = tz_offset {
+        endpoint.push_str(&format!("&tz_offset={}", tz));
+    }
     fetch_token_stats(&state, &endpoint).await
 }
 

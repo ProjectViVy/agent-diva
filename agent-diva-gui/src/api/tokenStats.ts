@@ -59,13 +59,14 @@ export interface InMemoryStats {
 
 export type TimeRangePeriod = '1d' | '3d' | '1w' | '1m' | '6m' | '1y';
 export type GroupByDimension = 'endpoint' | 'model' | 'operation_type' | 'session' | 'channel';
-export type TimeIntervalType = 'hour' | 'day';
+export type TimeIntervalType = 'half_hour' | 'hour' | 'day';
 
 /**
  * Get total token usage statistics
  */
 export async function getTokenUsageTotal(period: TimeRangePeriod = '1d'): Promise<UsageTotal> {
-  return invoke<UsageTotal>('get_token_usage_total', { period });
+  const tzOffset = new Date().getTimezoneOffset();
+  return invoke<UsageTotal>('get_token_usage_total', { period, tzOffset });
 }
 
 /**
@@ -75,9 +76,11 @@ export async function getTokenUsageSummary(
   period: TimeRangePeriod = '1d',
   groupBy: GroupByDimension = 'endpoint'
 ): Promise<UsageSummary[]> {
+  const tzOffset = new Date().getTimezoneOffset();
   return invoke<UsageSummary[]>('get_token_usage_summary', {
     period,
-    groupBy
+    groupBy,
+    tzOffset
   });
 }
 
@@ -88,9 +91,11 @@ export async function getTokenUsageTimeline(
   period: TimeRangePeriod = '1d',
   interval?: TimeIntervalType
 ): Promise<TimelinePoint[]> {
+  const tzOffset = new Date().getTimezoneOffset();
   return invoke<TimelinePoint[]>('get_token_usage_timeline', {
     period,
-    interval: interval || (period === '1d' ? 'hour' : 'day')
+    interval: interval || (period === '1d' ? 'half_hour' : 'day'),
+    tzOffset
   });
 }
 
@@ -101,9 +106,11 @@ export async function getTokenUsageSessions(
   period: TimeRangePeriod = '1d',
   limit: number = 20
 ): Promise<SessionUsage[]> {
+  const tzOffset = new Date().getTimezoneOffset();
   return invoke<SessionUsage[]>('get_token_usage_sessions', {
     period,
-    limit
+    limit,
+    tzOffset
   });
 }
 
@@ -113,8 +120,10 @@ export async function getTokenUsageSessions(
 export async function getTokenUsageModels(
   period: TimeRangePeriod = '1d'
 ): Promise<ModelDistribution[]> {
+  const tzOffset = new Date().getTimezoneOffset();
   return invoke<ModelDistribution[]>('get_token_usage_models', {
-    period
+    period,
+    tzOffset
   });
 }
 
