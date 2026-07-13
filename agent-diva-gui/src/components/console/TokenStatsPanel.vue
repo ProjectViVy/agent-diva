@@ -97,12 +97,6 @@ function getTimelineBarHeight(point: TimelinePoint): string {
   return `${Math.max(10, (point.total_tokens / max) * 100)}%`;
 }
 
-function getUsagePercentage(): number {
-  if (!total.value || total.value.total_tokens === 0) return 0;
-  // Assume 200k default budget
-  const budget = 200_000;
-  return Math.min(100, (total.value.total_tokens / budget) * 100);
-}
 
 function getModelColor(index: number): string {
   const colors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -287,23 +281,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Usage Progress -->
-      <div v-if="total" class="usage-progress">
-        <div class="usage-progress-header">
-          <span class="usage-progress-label">{{ t('tokenStats.usageRate') }}</span>
-          <span class="usage-progress-value">{{ getUsagePercentage().toFixed(1) }}%</span>
-        </div>
-        <div class="usage-progress-bar">
-          <div
-            class="usage-progress-fill"
-            :style="{ width: `${getUsagePercentage()}%` }"
-          ></div>
-        </div>
-        <div class="usage-progress-footer">
-          <span>{{ formatTokenCount(total.total_tokens) }} {{ t('tokenStats.used') }}</span>
-          <span>200K {{ t('tokenStats.budget') }}</span>
-        </div>
-      </div>
 
       <!-- Model Distribution -->
       <div v-if="modelDistribution.length > 0" class="model-distribution">
@@ -495,52 +472,6 @@ onUnmounted(() => {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-top: 0.125rem;
-}
-
-.usage-progress {
-  padding: 1rem;
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-.usage-progress-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.usage-progress-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.usage-progress-value {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.usage-progress-bar {
-  height: 6px;
-  background: var(--line);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.usage-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
-  border-radius: 3px;
-  transition: width 0.5s ease;
-}
-
-.usage-progress-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.375rem;
-  font-size: 0.625rem;
-  color: var(--text-muted);
 }
 
 .model-distribution {
