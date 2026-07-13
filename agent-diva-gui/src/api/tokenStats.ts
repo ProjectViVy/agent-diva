@@ -57,14 +57,14 @@ export interface InMemoryStats {
   total_cost: number;
 }
 
-export type TimeRangePeriod = '1h' | '1d' | '3d' | '1w' | '1m' | '6m' | '1y';
+export type TimeRangePeriod = '1d' | '3d' | '1w' | '1m' | '6m' | '1y';
 export type GroupByDimension = 'endpoint' | 'model' | 'operation_type' | 'session' | 'channel';
-export type TimeIntervalType = 'minute' | 'hour' | 'day';
+export type TimeIntervalType = 'hour' | 'day';
 
 /**
  * Get total token usage statistics
  */
-export async function getTokenUsageTotal(period: TimeRangePeriod = '1h'): Promise<UsageTotal> {
+export async function getTokenUsageTotal(period: TimeRangePeriod = '1d'): Promise<UsageTotal> {
   return invoke<UsageTotal>('get_token_usage_total', { period });
 }
 
@@ -72,7 +72,7 @@ export async function getTokenUsageTotal(period: TimeRangePeriod = '1h'): Promis
  * Get token usage summary grouped by dimension
  */
 export async function getTokenUsageSummary(
-  period: TimeRangePeriod = '1h',
+  period: TimeRangePeriod = '1d',
   groupBy: GroupByDimension = 'endpoint'
 ): Promise<UsageSummary[]> {
   return invoke<UsageSummary[]>('get_token_usage_summary', {
@@ -85,12 +85,12 @@ export async function getTokenUsageSummary(
  * Get token usage timeline for charting
  */
 export async function getTokenUsageTimeline(
-  period: TimeRangePeriod = '1h',
+  period: TimeRangePeriod = '1d',
   interval?: TimeIntervalType
 ): Promise<TimelinePoint[]> {
   return invoke<TimelinePoint[]>('get_token_usage_timeline', {
     period,
-    interval: interval || (period === '1h' ? 'minute' : (period === '1d' ? 'hour' : 'day'))
+    interval: interval || (period === '1d' ? 'hour' : 'day')
   });
 }
 
@@ -98,7 +98,7 @@ export async function getTokenUsageTimeline(
  * Get session-level token usage details
  */
 export async function getTokenUsageSessions(
-  period: TimeRangePeriod = '1h',
+  period: TimeRangePeriod = '1d',
   limit: number = 20
 ): Promise<SessionUsage[]> {
   return invoke<SessionUsage[]>('get_token_usage_sessions', {
@@ -111,7 +111,7 @@ export async function getTokenUsageSessions(
  * Get model distribution percentages
  */
 export async function getTokenUsageModels(
-  period: TimeRangePeriod = '1h'
+  period: TimeRangePeriod = '1d'
 ): Promise<ModelDistribution[]> {
   return invoke<ModelDistribution[]>('get_token_usage_models', {
     period
