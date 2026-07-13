@@ -15,7 +15,7 @@ use crate::state::AppState;
 pub struct PeriodQuery {
     #[serde(default = "default_period")]
     period: String,
-    tz_offset: Option<i32>,
+    tz_offset: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -98,8 +98,8 @@ fn default_limit() -> usize {
     20
 }
 
-fn since_for_period(period: &str, tz_offset: Option<i32>) -> Result<DateTime<Utc>, String> {
-    let tz_offset = tz_offset.unwrap_or(0);
+fn since_for_period(period: &str, tz_offset: Option<String>) -> Result<DateTime<Utc>, String> {
+    let tz_offset: i32 = tz_offset.and_then(|s| s.parse().ok()).unwrap_or(0);
     let now = Utc::now();
     let local_now = now - Duration::minutes(tz_offset as i64);
     let local_midnight = local_now.date_naive().and_hms_opt(0, 0, 0).expect("valid midnight");
@@ -185,7 +185,7 @@ pub async fn total_handler(
     State(state): State<AppState>,
     Query(query): Query<PeriodQuery>,
 ) -> Json<serde_json::Value> {
-    match since_for_period(&query.period, query.tz_offset).and_then(|since| read_entries(&state, Some(since))) {
+    match since_for_period(&query.period, query.tz_offset.clone()).and_then(|since| read_entries(&state, Some(since))) {
         Ok(entries) => ok(usage_total(&entries)),
         Err(message) => error(message),
     }
@@ -195,7 +195,7 @@ pub async fn summary_handler(
     State(state): State<AppState>,
     Query(query): Query<SummaryQuery>,
 ) -> Json<serde_json::Value> {
-    let result = since_for_period(&query.period.period, query.period.tz_offset)
+    let result = since_for_period(&query.period.period, query.period.tz_offset.clone())
         .and_then(|since| read_entries(&state, Some(since)))
         .and_then(|entries| {
             let mut grouped: HashMap<String, UsageTotal> = HashMap::new();
@@ -238,7 +238,7 @@ pub async fn timeline_handler(
     if interval != "half_hour" && interval != "hour" && interval != "day" {
         return error(format!("invalid interval: {interval}"));
     }
-    let result = since_for_period(&query.period.period, query.period.tz_offset)
+    let result = since_for_period(&query.period.period, query.period.tz_offset.clone())
         .and_then(|since| read_entries(&state, Some(since)).map(|entries| (since, entries)))
         .map(|(since, entries)| {
             let mut buckets: HashMap<String, UsageTotal> = HashMap::new();
@@ -288,7 +288,7 @@ pub async fn timeline_handler(
                         .and_then(|value| value.with_nanosecond(0))
                         .expect("valid UTC hour")
                 } else {
-                    let tz_offset = query.period.tz_offset.unwrap_or(0);
+                let tz_offset: i32 = query.period.tz_offset.as_deref().and_then(|s| s.parse().ok()).unwrap_or(0);
                     let local_ts = entry.timestamp - Duration::minutes(tz_offset as i64);
                     let local_midnight = local_ts.date_naive().and_hms_opt(0, 0, 0).expect("valid midnight");
                     (local_midnight.and_utc() + Duration::minutes(tz_offset as i64)).with_timezone(&Utc)
@@ -318,7 +318,7 @@ pub async fn sessions_handler(
     State(state): State<AppState>,
     Query(query): Query<SessionsQuery>,
 ) -> Json<serde_json::Value> {
-    let result = since_for_period(&query.period.period, query.period.tz_offset)
+    let result = since_for_period(&query.period.period, query.period.tz_offset.clone())
         .and_then(|since| read_entries(&state, Some(since)))
         .map(|entries| {
             let mut grouped: HashMap<String, Vec<TokenLedgerEntry>> = HashMap::new();
@@ -381,7 +381,7 @@ pub async fn models_handler(
     State(state): State<AppState>,
     Query(query): Query<PeriodQuery>,
 ) -> Json<serde_json::Value> {
-    let result = since_for_period(&query.period, query.tz_offset)
+    let result = since_for_period(&query.period, query.tz_offset.clone())
         .and_then(|since| read_entries(&state, Some(since)))
         .map(|entries| {
             let total = entries
