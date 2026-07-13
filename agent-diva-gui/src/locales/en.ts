@@ -1297,6 +1297,18 @@ export default {
   laputa: {
     title: 'Persona & Memory',
     subtitle: 'Manage Diva\'s long-term persona and memory content',
+    nodes: {
+      garden: 'Garden (Unified API Governance)',
+      laputa: 'Laputa (Persona & Core Memory)',
+      mempalace: 'Mempalace (Episodic Memory Palace)',
+      rag: 'Agentic RAG (Knowledge Base)',
+    },
+    placeholder: {
+      comingSoon: 'Coming Soon',
+      gardenDesc: 'Future-oriented unified API governance layer and external extension aggregator.',
+      mempalaceDesc: 'Precipitates episodic memories with emotional depth and temporal cues.',
+      ragDesc: 'Diva\'s external knowledge base retrieval and augmented generation foundation.',
+    },
     refresh: 'Refresh',
     loading: 'Loading Laputa data…',
     loadError: 'Unable to load memory data',

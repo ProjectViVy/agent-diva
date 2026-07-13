@@ -1240,6 +1240,18 @@ export default {
   laputa: {
     title: '人格与记忆',
     subtitle: '管理 Diva 的长期人格与记忆内容',
+    nodes: {
+      garden: 'Garden (统一API治理层)',
+      laputa: 'Laputa (人格与核心记忆)',
+      mempalace: 'Mempalace (情景记忆宫殿)',
+      rag: 'Agentic RAG (检索增强生成基座)',
+    },
+    placeholder: {
+      comingSoon: '敬请期待',
+      gardenDesc: '面向未来的统一 API 治理层与外部扩展聚合点。',
+      mempalaceDesc: '沉淀具有情感厚度与时空线索的情景记忆（Episodic Memory）。',
+      ragDesc: 'Diva 的外挂知识库检索与增强生成基座。',
+    },
     refresh: '刷新',
     loading: '正在加载 Laputa 数据…',
     loadError: '无法加载记忆数据',
