@@ -1125,6 +1125,7 @@ onMounted(async () => {
 .evolution-data-panel,
 .evolution-placeholder-panel {
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
