@@ -15,6 +15,7 @@ pub mod registry;
 pub mod sanitize;
 pub mod shell;
 pub mod spawn;
+pub mod update_plan;
 pub mod web;
 pub mod wtf;
 
@@ -28,6 +29,7 @@ pub use message::MessageTool;
 pub use sanitize::sanitize_for_json;
 pub use shell::ExecTool;
 pub use spawn::SpawnTool;
+pub use update_plan::UpdatePlanTool;
 pub use web::{WebFetchTool, WebSearchTool};
 pub use wtf::{print_ascii_agent_diva_logo, ASCII_AGENT_DIVA_LOGO};
 

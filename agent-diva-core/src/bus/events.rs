@@ -1,6 +1,7 @@
 //! Event types for the message bus
 
 use crate::planning::model::{PlanPhase, PlanStatus, TodoPriority, TodoStatus};
+use crate::planning::update_plan::UpdatePlanArgs;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -105,6 +106,11 @@ pub enum AgentEvent {
     /// A canonical Markdown report produced by a Plan-mode exploration turn.
     PlanReportReadyForApproval {
         report: PlanReportDetail,
+    },
+    /// A lightweight plan update emitted during a normal chat turn.
+    /// Carries a per-turn TODO list that is not persisted as part of Plan mode.
+    ChatPlanUpdate {
+        args: UpdatePlanArgs,
     },
     FinalResponse {
         content: String,
