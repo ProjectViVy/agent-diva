@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-13T00:00:00+08:00`
-- Last Heartbeat: `2026-07-12T01:20:00+08:00`
+- Started At: `2026-07-12T10:30:00+08:00`
+- Last Heartbeat: `2026-07-13T02:20:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,20 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-13`: Released console token-statistics data-path repair, commit `a8bc961`. Manager now serves ledger-backed `/api/stats/tokens/*` endpoints and GUI reads direct Tauri DTOs; Manager route tests, GUI API test, and GUI production build passed.
+
+- `2026-07-13`: Released narrow-window sidebar overlay behavior, commit `4c56e75`. At widths below 1024px, navigation and history panels open as overlay drawers with dismissible scrims; targeted ChatView tests and GUI production build passed.
+
+- `2026-07-13`: Released Tauri main-window minimum-size guard, commit `5752d69`. Main window is constrained to at least 720×540 logical pixels; configuration parse check and `cargo check -p agent-diva-gui` passed.
+
+- `2026-07-13`: Released thinking-card copy-action removal, commit `45211d9`. The thinking card now exposes only expand/collapse; targeted component test and GUI production build passed.
+
+- `2026-07-13`: Released thinking-card copy-label localization, commit `7e0884e`. Replaced invalid `common.*` translation keys with `chat.copy`/`chat.copied`, added Chinese and English labels, and verified the thinking component plus GUI build.
+
+- `2026-07-13`: Released thinking-card copy/expand control separation in isolated worktree `agent-diva-thinking-actions`, commit `9c0ebaf`. The title, copy action, and expand action now use independent controls; narrow viewports retain independent icon controls. Targeted component test and GUI production build passed.
+
+- `2026-07-12`: Released GUI token statistics data-path repair in isolated worktree `agent-diva-token-stats`, commit `ac5f348`. Added Manager ledger aggregation routes and corrected the GUI's Tauri DTO parsing. Manager route tests, GUI API tests, and GUI production build passed. Root workspace was left otherwise untouched.
 
 - `2026-07-12`: Released default LLM Notebook report curation. New/omitted report-curation configuration now enables AI summaries; an explicit `false` remains an opt-out. Updated the local legacy report-curation flag to true. Core configuration and AutoDream tests, provider narrative unit tests, and manager check passed; provider integration tests remain blocked by existing `ToolChoiceMode` call-site compile errors.
 
