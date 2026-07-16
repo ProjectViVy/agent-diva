@@ -1,4 +1,5 @@
 use agent_diva_agent::AgentEvent;
+use agent_diva_core::planning::update_plan::UpdatePlanArgs;
 use anyhow::Result;
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
@@ -107,6 +108,11 @@ impl ApiClient {
                         let _ = event_tx.send(AgentEvent::Error {
                             message: event.data,
                         });
+                    }
+                    "turn_plan_updated" => {
+                        if let Ok(args) = serde_json::from_str::<UpdatePlanArgs>(&event.data) {
+                            let _ = event_tx.send(AgentEvent::ChatPlanUpdate { args });
+                        }
                     }
                     _ => {}
                 },

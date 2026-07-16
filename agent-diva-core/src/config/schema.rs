@@ -1474,6 +1474,8 @@ pub struct BuiltInToolsConfig {
     pub mentle: bool,
     #[serde(default = "default_enabled")]
     pub enqueue_background_task: bool,
+    #[serde(default = "default_enabled")]
+    pub update_plan: bool,
 }
 
 impl Default for BuiltInToolsConfig {
@@ -1490,6 +1492,7 @@ impl Default for BuiltInToolsConfig {
             planning: false,
             mentle: true,
             enqueue_background_task: true,
+            update_plan: true,
         }
     }
 }

@@ -1149,6 +1149,12 @@ export default {
     expand: 'Expand',
     markAllDone: 'Mark all done',
   },
+  checklistCard: {
+    title: '📋 Task Checklist',
+    pending: 'Pending',
+    inProgress: 'In Progress',
+    completed: 'Completed',
+  },
   mask: {
     mode: {
       label: 'Mode',

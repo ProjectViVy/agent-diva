@@ -188,6 +188,70 @@ impl InboundMessage {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::planning::update_plan::{PlanItem, PlanItemStatus, UpdatePlanArgs};
+
+    fn sample_update_plan_args() -> UpdatePlanArgs {
+        UpdatePlanArgs {
+            explanation: Some("Normal-chat plan update".to_string()),
+            plan: vec![
+                PlanItem {
+                    step: "Analyze user request".to_string(),
+                    status: PlanItemStatus::Completed,
+                },
+                PlanItem {
+                    step: "Draft the response".to_string(),
+                    status: PlanItemStatus::InProgress,
+                },
+                PlanItem {
+                    step: "Review before sending".to_string(),
+                    status: PlanItemStatus::Pending,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn chat_plan_update_serde_roundtrip() {
+        let original = AgentEvent::ChatPlanUpdate {
+            args: sample_update_plan_args(),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let back: AgentEvent = serde_json::from_str(&json).unwrap();
+
+        match back {
+            AgentEvent::ChatPlanUpdate { args } => {
+                assert_eq!(args, sample_update_plan_args());
+            }
+            other => panic!("expected ChatPlanUpdate, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn chat_plan_update_nested_in_bus_event() {
+        let original = AgentBusEvent {
+            channel: "telegram".to_string(),
+            chat_id: "12345".to_string(),
+            event: AgentEvent::ChatPlanUpdate {
+                args: sample_update_plan_args(),
+            },
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let back: AgentBusEvent = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(back.channel, "telegram");
+        assert_eq!(back.chat_id, "12345");
+        match back.event {
+            AgentEvent::ChatPlanUpdate { args } => {
+                assert_eq!(args, sample_update_plan_args());
+            }
+            other => panic!("expected ChatPlanUpdate, got {:?}", other),
+        }
+    }
+}
+
 /// Message to send to a chat channel
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutboundMessage {

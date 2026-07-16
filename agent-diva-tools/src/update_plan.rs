@@ -5,7 +5,8 @@
 //! to any persistent store or plan registry.
 
 use agent_diva_core::planning::update_plan::{
-    UpdatePlanArgs, MAX_UPDATE_PLAN_EXPLANATION_LEN, MAX_UPDATE_PLAN_ITEMS, MAX_UPDATE_PLAN_STEP_LEN,
+    PlanItemStatus, UpdatePlanArgs, MAX_UPDATE_PLAN_EXPLANATION_LEN, MAX_UPDATE_PLAN_ITEMS,
+    MAX_UPDATE_PLAN_STEP_LEN,
 };
 use agent_diva_tooling::{Result, Tool, ToolError};
 use serde_json::Value;
@@ -31,8 +32,8 @@ impl Tool for UpdatePlanTool {
     }
 
     fn description(&self) -> &str {
-        "Create or update a lightweight multi-step TODO checklist for normal chat only. \
-         This tool does not execute the steps; it only validates the plan and returns a confirmation."
+        "Create or update the current task's lightweight TODO/progress checklist in normal chat. \
+         This is not Plan mode and does not execute or persist the steps."
     }
 
     fn parameters(&self) -> Value {
@@ -46,7 +47,7 @@ impl Tool for UpdatePlanTool {
                 },
                 "plan": {
                     "type": "array",
-                    "description": "The TODO checklist items (max 20)",
+                    "description": "The TODO checklist items (max 20, at most one in_progress)",
                     "maxItems": 20,
                     "items": {
                         "type": "object",
@@ -58,7 +59,7 @@ impl Tool for UpdatePlanTool {
                             },
                             "status": {
                                 "type": "string",
-                                "enum": ["Pending", "InProgress", "Completed"]
+                                "enum": ["pending", "in_progress", "completed"]
                             }
                         },
                         "required": ["step", "status"],
@@ -86,6 +87,17 @@ impl Tool for UpdatePlanTool {
                 MAX_UPDATE_PLAN_ITEMS
             )));
         }
+        if args
+            .plan
+            .iter()
+            .filter(|item| item.status == PlanItemStatus::InProgress)
+            .count()
+            > 1
+        {
+            return Err(ToolError::InvalidArguments(
+                "plan cannot contain more than one in_progress item".to_string(),
+            ));
+        }
         if let Some(explanation) = &args.explanation {
             if explanation.len() > MAX_UPDATE_PLAN_EXPLANATION_LEN {
                 return Err(ToolError::InvalidArguments(format!(
@@ -112,7 +124,7 @@ impl Tool for UpdatePlanTool {
         }
 
         Ok(format!(
-            "Plan updated with {} item(s).",
+            "TODO checklist updated with {} item(s).",
             args.plan.len()
         ))
     }
@@ -121,7 +133,6 @@ impl Tool for UpdatePlanTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::planning::update_plan::PlanItemStatus;
 
     #[tokio::test]
     async fn update_plan_valid() {
@@ -129,13 +140,13 @@ mod tests {
         let args = serde_json::json!({
             "explanation": "Steps to finish the feature",
             "plan": [
-                {"step": "Design API", "status": "Pending"},
-                {"step": "Implement backend", "status": "InProgress"},
-                {"step": "Write tests", "status": "Completed"}
+                {"step": "Design API", "status": "pending"},
+                {"step": "Implement backend", "status": "in_progress"},
+                {"step": "Write tests", "status": "completed"}
             ]
         });
         let result = tool.execute(args).await.unwrap();
-        assert!(result.contains("Plan updated with 3 item(s)"));
+        assert!(result.contains("TODO checklist updated with 3 item(s)"));
     }
 
     #[tokio::test]
@@ -148,7 +159,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
-            err.contains("Invalid arguments") || err.contains("unknown variant") || err.contains("Blocked"),
+            err.contains("Invalid arguments")
+                || err.contains("unknown variant")
+                || err.contains("Blocked"),
             "expected invalid status error, got: {}",
             err
         );
@@ -167,13 +180,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn update_plan_rejects_multiple_in_progress_items() {
+        let tool = UpdatePlanTool::new();
+        let result = tool
+            .execute(serde_json::json!({
+                "plan": [
+                    {"step": "First", "status": "in_progress"},
+                    {"step": "Second", "status": "in_progress"}
+                ]
+            }))
+            .await;
+
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("more than one in_progress"));
+    }
+
+    #[tokio::test]
     async fn update_plan_too_long() {
         let tool = UpdatePlanTool::new();
         let plan: Vec<Value> = (0..MAX_UPDATE_PLAN_ITEMS + 1)
             .map(|i| {
                 serde_json::json!({
                     "step": format!("step {}", i),
-                    "status": "Pending"
+                    "status": "pending"
                 })
             })
             .collect();
@@ -190,7 +221,7 @@ mod tests {
     async fn update_plan_overlong_step() {
         let tool = UpdatePlanTool::new();
         let args = serde_json::json!({
-            "plan": [{"step": "x".repeat(MAX_UPDATE_PLAN_STEP_LEN + 1), "status": "Pending"}]
+            "plan": [{"step": "x".repeat(MAX_UPDATE_PLAN_STEP_LEN + 1), "status": "pending"}]
         });
         let result = tool.execute(args).await;
         assert!(result.is_err());
@@ -205,7 +236,7 @@ mod tests {
         let tool = UpdatePlanTool::new();
         let args = serde_json::json!({
             "explanation": "x".repeat(MAX_UPDATE_PLAN_EXPLANATION_LEN + 1),
-            "plan": [{"step": "A valid step", "status": "Pending"}]
+            "plan": [{"step": "A valid step", "status": "pending"}]
         });
         let result = tool.execute(args).await;
         assert!(result.is_err());
@@ -219,7 +250,7 @@ mod tests {
     async fn update_plan_empty_step() {
         let tool = UpdatePlanTool::new();
         let args = serde_json::json!({
-            "plan": [{"step": "   ", "status": "Pending"}]
+            "plan": [{"step": "   ", "status": "pending"}]
         });
         let result = tool.execute(args).await;
         assert!(result.is_err());
@@ -232,8 +263,17 @@ mod tests {
     #[tokio::test]
     async fn update_plan_statuses_match_schema() {
         // Verify that the serde representation matches the schema enum names.
-        assert_eq!(serde_json::to_string(&PlanItemStatus::Pending).unwrap(), "\"Pending\"");
-        assert_eq!(serde_json::to_string(&PlanItemStatus::InProgress).unwrap(), "\"InProgress\"");
-        assert_eq!(serde_json::to_string(&PlanItemStatus::Completed).unwrap(), "\"Completed\"");
+        assert_eq!(
+            serde_json::to_string(&PlanItemStatus::Pending).unwrap(),
+            "\"pending\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PlanItemStatus::InProgress).unwrap(),
+            "\"in_progress\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PlanItemStatus::Completed).unwrap(),
+            "\"completed\""
+        );
     }
 }

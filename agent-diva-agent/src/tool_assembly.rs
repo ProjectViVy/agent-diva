@@ -14,7 +14,7 @@ use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::{
     load_mcp_tools_sync, BackgroundTaskContext, CronTool, EditFileTool, EnqueueBackgroundTaskTool,
     ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool, ListDirTool, ReadAttachmentTool,
-    ReadFileTool, SpawnTool, WebFetchTool, WebSearchTool, WriteFileTool,
+    ReadFileTool, SpawnTool, UpdatePlanTool, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -298,6 +298,16 @@ impl ToolAssembly {
             }
         }
 
+        // Register the lightweight `update_plan` tool only in normal chat mode.
+        // It is excluded from Plan mode (any plan_phase) and from approved Plan
+        // Execution mode (where execution_session_id is set).
+        if self.builtin_config.update_plan
+            && self.plan_phase.is_none()
+            && self.execution_session_id.is_none()
+        {
+            registry.register(Arc::new(UpdatePlanTool::new()));
+        }
+
         if let (Some(planning), Some(execution_session_id)) =
             (self.planning_config, self.execution_session_id)
         {
@@ -571,6 +581,59 @@ mod tests {
         assert!(!registry.has("plan_create"));
         assert!(!registry.has("plan_submit"));
         assert!(!registry.has("plan_transition"));
+    }
+
+    #[test]
+    fn tool_assembly_normal_chat_has_update_plan() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .build();
+
+        assert!(registry.has("update_plan"));
+    }
+
+    #[tokio::test]
+    async fn tool_assembly_plan_mode_no_update_plan() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let planning = PlanningConfig::open_workspace(temp_dir.path())
+            .await
+            .unwrap();
+
+        for phase in [
+            PlanPhase::Explore,
+            PlanPhase::Plan,
+            PlanPhase::AwaitingApproval,
+            PlanPhase::Execute,
+            PlanPhase::Verify,
+            PlanPhase::Completed,
+            PlanPhase::Failed,
+            PlanPhase::Partial,
+        ] {
+            let registry = ToolAssembly::new(temp_dir.path().to_path_buf())
+                .builtin(BuiltInToolsConfig::all())
+                .with_planning_config(Some(planning.clone()))
+                .with_plan_phase(Some(phase.clone()))
+                .build();
+
+            assert!(!registry.has("update_plan"), "{phase}");
+        }
+    }
+
+    #[tokio::test]
+    async fn tool_assembly_execution_mode_no_update_plan() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let planning = PlanningConfig::open_workspace(temp_dir.path())
+            .await
+            .unwrap();
+        let registry = ToolAssembly::new(temp_dir.path().to_path_buf())
+            .builtin(BuiltInToolsConfig::all())
+            .with_planning_config(Some(planning))
+            .with_plan_phase(Some(PlanPhase::Execute))
+            .with_execution_session(Some("execution-1".to_string()))
+            .build();
+
+        assert!(!registry.has("update_plan"));
+        assert!(registry.has("todo_write"));
     }
 
     #[test]

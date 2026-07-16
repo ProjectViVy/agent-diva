@@ -768,6 +768,13 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
                   />
                 </div>
               </template>
+              <template v-else-if="msg.toolName === 'update_plan' && getCachedCard(msg.id, msg.content)">
+                <div class="min-w-0">
+                  <TodoCard
+                    :card="(getCachedCard(msg.id, msg.content) as unknown as UiCard)"
+                  />
+                </div>
+              </template>
               <template v-else-if="msg.toolName === 'approval_request' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
                   <ApprovalBanner

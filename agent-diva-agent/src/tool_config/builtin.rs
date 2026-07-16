@@ -23,6 +23,8 @@ pub struct BuiltInToolsConfig {
     pub mentle: bool,
     #[serde(default = "default_true")]
     pub enqueue_background_task: bool,
+    #[serde(default = "default_true")]
+    pub update_plan: bool,
 }
 
 fn default_true() -> bool {
@@ -42,6 +44,7 @@ impl BuiltInToolsConfig {
             attachment: false,
             mentle: false,
             enqueue_background_task: false,
+            update_plan: false,
         }
     }
 
@@ -57,6 +60,7 @@ impl BuiltInToolsConfig {
             attachment: false,
             mentle: false,
             enqueue_background_task: false,
+            update_plan: false,
         }
     }
 
@@ -72,6 +76,7 @@ impl BuiltInToolsConfig {
             attachment: true,
             mentle: true,
             enqueue_background_task: true,
+            update_plan: true,
         }
     }
 
@@ -87,6 +92,7 @@ impl BuiltInToolsConfig {
             attachment: false,
             mentle: false,
             enqueue_background_task: false,
+            update_plan: false,
         }
     }
 }
@@ -104,6 +110,7 @@ impl Default for BuiltInToolsConfig {
             attachment: true,
             mentle: false,
             enqueue_background_task: false,
+            update_plan: true,
         }
     }
 }

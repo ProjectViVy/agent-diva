@@ -11,13 +11,16 @@ use agent_diva_core::bus::{
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
 use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
+use agent_diva_core::planning::update_plan::UpdatePlanArgs;
 use agent_diva_core::planning::{
     normalize_report_markdown, report_validation_issues, resolve_plan_report_body,
     strip_proposed_plan_block, PlanRevisionAuthor,
 };
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
-use agent_diva_core::session::{align_chat_history, ChatMessage, CompactTrigger, Session, TokenUsage};
+use agent_diva_core::session::{
+    align_chat_history, ChatMessage, CompactTrigger, Session, TokenUsage,
+};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
@@ -189,6 +192,33 @@ impl AgentLoop {
                 );
             }
             _ => {}
+        }
+    }
+
+    /// Emit a `ChatPlanUpdate` event when the `update_plan` tool succeeds.
+    ///
+    /// This is intentionally a pure event: the tool itself does not persist the
+    /// plan, so the handler only broadcasts the parsed arguments to streaming
+    /// consumers and the bus.
+    async fn emit_chat_plan_update(
+        &self,
+        msg: &InboundMessage,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+        tool_name: &str,
+        params: &serde_json::Value,
+        is_error: bool,
+    ) {
+        if is_error || tool_name != "update_plan" {
+            return;
+        }
+
+        match serde_json::from_value::<UpdatePlanArgs>(params.clone()) {
+            Ok(args) => {
+                self.emit_agent_event(msg, event_tx, AgentEvent::ChatPlanUpdate { args });
+            }
+            Err(error) => {
+                trace!("Failed to deserialize update_plan arguments: {}", error);
+            }
         }
     }
 
@@ -1187,6 +1217,21 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     } else {
                         None
                     };
+
+                    // Publish checklist inputs while the matching tool call is
+                    // still active. Clients can then replace the running tool
+                    // row before ToolCallFinished creates the next assistant
+                    // streaming placeholder.
+                    if !is_error {
+                        self.emit_chat_plan_update(
+                            &msg,
+                            event_tx,
+                            &tool_call.name,
+                            &serde_json::to_value(&tool_call.arguments).unwrap_or_default(),
+                            is_error,
+                        )
+                        .await;
+                    }
 
                     let event = AgentEvent::ToolCallFinished {
                         name: tool_call.name.clone(),

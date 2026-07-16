@@ -126,6 +126,9 @@ You have access to tools that allow you to:
 - Search the web and fetch web pages
 - Send messages to users on chat channels
 - Schedule reminders and recurring jobs (cron)
+- Track the current task with the lightweight `update_plan` TODO/progress checklist in normal chat
+
+`update_plan` is a TODO/checklist tool, not Plan mode and not the repository's durable `TODOLIST.md`. Use it for complex, multi-step, or ambiguous tasks, and when the user asks for steps or progress tracking. Keep the checklist current as work advances: statuses are `pending`, `in_progress`, and `completed`; keep at most one item `in_progress`, and mark every item `completed` when the task is done. Do not use it for trivial one-step work or repeat the full checklist in chat after the tool call. Formal planning and approval use Plan mode; execution-session TODOs use their dedicated tools.
 
 ## Current Time
 {now}
@@ -581,6 +584,19 @@ mod tests {
         let prompt = builder.build_system_prompt(None);
         assert!(prompt.contains("agent-diva"));
         assert!(prompt.contains("/tmp/test"));
+    }
+
+    #[test]
+    fn context_prompt_includes_update_plan() {
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let prompt = builder.build_system_prompt(None);
+        assert!(prompt.contains("update_plan"));
+        assert!(prompt.contains("pending"));
+        assert!(prompt.contains("in_progress"));
+        assert!(prompt.contains("completed"));
+        assert!(prompt.contains("not Plan mode"));
+        assert!(prompt.contains("TODOLIST.md"));
+        assert!(prompt.contains("explanation") || prompt.contains("plan"));
     }
 
     #[test]

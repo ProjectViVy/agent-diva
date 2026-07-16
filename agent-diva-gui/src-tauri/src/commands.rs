@@ -1003,10 +1003,28 @@ struct PlanStreamEvent {
     todo: Option<agent_diva_core::bus::PlanRuntimeTodo>,
 }
 
+#[derive(Deserialize, Serialize, Clone)]
+struct TurnPlanUpdatedEvent {
+    explanation: Option<String>,
+    plan: Vec<TurnPlanItem>,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+struct TurnPlanItem {
+    step: String,
+    status: String,
+}
+
 #[derive(Serialize, Clone)]
 struct StreamPlanPayload {
     request_id: String,
     data: PlanStreamEvent,
+}
+
+#[derive(Serialize, Clone)]
+struct StreamTurnPlanPayload {
+    request_id: String,
+    data: TurnPlanUpdatedEvent,
 }
 
 #[derive(Serialize, Clone)]
@@ -1215,6 +1233,18 @@ pub async fn send_message(
                             let _ = window.emit(
                                 "agent-plan-report-ready",
                                 StreamJsonPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
+                                },
+                            );
+                        }
+                    }
+                    "turn_plan_updated" => {
+                        if let Ok(data) = serde_json::from_str::<TurnPlanUpdatedEvent>(&event.data)
+                        {
+                            let _ = window.emit(
+                                "agent-turn-plan-updated",
+                                StreamTurnPlanPayload {
                                     request_id: stream_request_id.clone(),
                                     data,
                                 },

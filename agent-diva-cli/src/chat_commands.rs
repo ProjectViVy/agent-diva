@@ -65,6 +65,7 @@ pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         attachment: config.tools.builtin.attachment,
         mentle: config.tools.builtin.mentle,
         enqueue_background_task: config.tools.builtin.enqueue_background_task,
+        update_plan: config.tools.builtin.update_plan,
     }
 }
 

@@ -12,8 +12,8 @@ const enMessages = {
     expand: 'Expand',
     markAllDone: 'Mark all done',
   },
-  planUpdateCard: {
-    title: '📋 Updated Plan',
+  checklistCard: {
+    title: '📋 Task Checklist',
     pending: 'Pending',
     inProgress: 'In Progress',
     completed: 'Completed',
@@ -29,19 +29,19 @@ function createTestI18n() {
   });
 }
 
-function buildPlanCard(overrides: Partial<UiCard> = {}): UiCard {
+function buildChecklistCard(overrides: Partial<UiCard> = {}): UiCard {
   return {
     id: 'plan-1',
-    kind: 'plan',
+    kind: 'checklist',
     status: 'active',
-    title: 'Updated Plan',
-    summary: 'Plan update',
+    title: 'Task Checklist',
+    summary: 'Checklist update',
     body_markdown: '',
     actions: [],
     plan_items: [
-      { step: 'Analyze request', status: 'Completed' },
-      { step: 'Draft response', status: 'InProgress' },
-      { step: 'Review output', status: 'Pending' },
+      { step: 'Analyze request', status: 'completed' },
+      { step: 'Draft response', status: 'in_progress' },
+      { step: 'Review output', status: 'pending' },
     ],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -49,9 +49,9 @@ function buildPlanCard(overrides: Partial<UiCard> = {}): UiCard {
   };
 }
 
-describe('TodoCard plan update rendering', () => {
-  it('renders the plan update title', () => {
-    const card = buildPlanCard();
+describe('TodoCard checklist rendering', () => {
+  it('renders the checklist title', () => {
+    const card = buildChecklistCard();
     const wrapper = mount(TodoCard, {
       props: { card },
       global: { plugins: [createTestI18n()] },
@@ -59,11 +59,11 @@ describe('TodoCard plan update rendering', () => {
 
     const title = wrapper.find('.todo-title');
     expect(title.exists()).toBe(true);
-    expect(title.text()).toContain('Updated Plan');
+    expect(title.text()).toContain('Task Checklist');
   });
 
   it('renders the explanation when present', () => {
-    const card = buildPlanCard({ explanation: 'Adapting the plan based on new context.' });
+    const card = buildChecklistCard({ explanation: 'Adapting the checklist based on new context.' });
     const wrapper = mount(TodoCard, {
       props: { card },
       global: { plugins: [createTestI18n()] },
@@ -71,11 +71,11 @@ describe('TodoCard plan update rendering', () => {
 
     const explanation = wrapper.find('.plan-explanation');
     expect(explanation.exists()).toBe(true);
-    expect(explanation.text()).toBe('Adapting the plan based on new context.');
+    expect(explanation.text()).toBe('Adapting the checklist based on new context.');
   });
 
   it('does not render explanation when omitted', () => {
-    const card = buildPlanCard({ explanation: undefined });
+    const card = buildChecklistCard({ explanation: undefined });
     const wrapper = mount(TodoCard, {
       props: { card },
       global: { plugins: [createTestI18n()] },
@@ -85,7 +85,7 @@ describe('TodoCard plan update rendering', () => {
   });
 
   it('renders all plan items with correct status classes', () => {
-    const card = buildPlanCard();
+    const card = buildChecklistCard();
     const wrapper = mount(TodoCard, {
       props: { card },
       global: { plugins: [createTestI18n()] },
@@ -104,8 +104,25 @@ describe('TodoCard plan update rendering', () => {
     expect(items[2].find('.plan-step').text()).toBe('Review output');
   });
 
-  it('does not render interactive checkboxes for plan updates', () => {
-    const card = buildPlanCard();
+  it('renders legacy status spellings for compatibility', () => {
+    const card = buildChecklistCard({
+      plan_items: [
+        { step: 'Legacy done', status: 'Completed' },
+        { step: 'Legacy active', status: 'InProgress' },
+      ],
+    });
+    const wrapper = mount(TodoCard, {
+      props: { card },
+      global: { plugins: [createTestI18n()] },
+    });
+
+    const items = wrapper.findAll('.plan-item');
+    expect(items[0].classes()).toContain('status-completed');
+    expect(items[1].classes()).toContain('status-in-progress');
+  });
+
+  it('does not render interactive checkboxes for checklist updates', () => {
+    const card = buildChecklistCard();
     const wrapper = mount(TodoCard, {
       props: { card },
       global: { plugins: [createTestI18n()] },
@@ -115,8 +132,8 @@ describe('TodoCard plan update rendering', () => {
     expect(wrapper.find('.todo-check-icon').exists()).toBe(false);
   });
 
-  it('hides the mark-all-done footer for plan updates', () => {
-    const card = buildPlanCard();
+  it('hides the mark-all-done footer for checklist updates', () => {
+    const card = buildChecklistCard();
     const wrapper = mount(TodoCard, {
       props: { card },
       global: { plugins: [createTestI18n()] },
@@ -127,14 +144,14 @@ describe('TodoCard plan update rendering', () => {
     expect((footer.element as HTMLElement).style.display).toBe('none');
   });
 
-  it('renders empty plan update without crashing', () => {
-    const card = buildPlanCard({ plan_items: [] });
+  it('renders an empty checklist without crashing', () => {
+    const card = buildChecklistCard({ plan_items: [] });
     const wrapper = mount(TodoCard, {
       props: { card },
       global: { plugins: [createTestI18n()] },
     });
 
-    expect(wrapper.find('.todo-title').text()).toContain('Updated Plan');
+    expect(wrapper.find('.todo-title').text()).toContain('Task Checklist');
     expect(wrapper.findAll('.plan-item').length).toBe(0);
   });
 });

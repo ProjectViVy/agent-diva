@@ -26,6 +26,7 @@ use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::{CronSchedule, CronService};
+use agent_diva_core::planning::update_plan::{PlanItemStatus, UpdatePlanArgs};
 use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -882,6 +883,7 @@ enum TimelineKind {
     System,
     Error,
     Thinking,
+    Checklist,
 }
 
 #[derive(Clone)]
@@ -897,6 +899,7 @@ struct TuiApp {
     should_quit: bool,
     scroll: u16,
     assistant_line: Option<usize>,
+    plan_update_line: Option<usize>,
     session_key: String,
     session_title: String,
     model: String,
@@ -904,6 +907,33 @@ struct TuiApp {
 
 fn chat_id_from_tui_session(session_key: &str) -> String {
     session_key.split(':').nth(2).unwrap_or("tui").to_string()
+}
+
+/// Format a normal-chat `update_plan` payload as a multi-line TODO list.
+fn format_plan_update(args: &UpdatePlanArgs) -> String {
+    let mut lines = Vec::new();
+    lines.push("Task Checklist".to_string());
+    if let Some(explanation) = args
+        .explanation
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        lines.push(explanation.to_string());
+    }
+    if args.plan.is_empty() {
+        lines.push("(no steps provided)".to_string());
+    } else {
+        for item in &args.plan {
+            let icon = match item.status {
+                PlanItemStatus::Pending => "☐",
+                PlanItemStatus::InProgress => "→",
+                PlanItemStatus::Completed => "✓",
+            };
+            lines.push(format!("{} {}", icon, item.step));
+        }
+    }
+    lines.join("\n")
 }
 
 impl TuiApp {
@@ -918,6 +948,7 @@ impl TuiApp {
             should_quit: false,
             scroll: 0,
             assistant_line: None,
+            plan_update_line: None,
             session_key,
             session_title: "(untitled)".to_string(),
             model,
@@ -1013,6 +1044,18 @@ impl TuiApp {
                 self.pending = false;
                 self.assistant_line = None;
                 self.add_line(TimelineKind::Error, format!("error: {}", message));
+            }
+            AgentEvent::ChatPlanUpdate { args } => {
+                self.assistant_line = None;
+                let text = format_plan_update(&args);
+                if let Some(idx) = self.plan_update_line {
+                    if let Some(item) = self.timeline.get_mut(idx) {
+                        item.text = text;
+                        return;
+                    }
+                }
+                self.plan_update_line = Some(self.timeline.len());
+                self.add_line(TimelineKind::Checklist, text);
             }
             _ => {}
         }
@@ -1138,11 +1181,23 @@ async fn run_tui(
                     TimelineKind::System => ("system", Color::Blue),
                     TimelineKind::Error => ("error", Color::Red),
                     TimelineKind::Thinking => ("thinking", Color::DarkGray),
+                    TimelineKind::Checklist => ("todo", Color::Magenta),
                 };
-                lines.push(Line::from(vec![
-                    Span::styled(format!("[{}] ", label), Style::default().fg(color)),
-                    Span::raw(item.text.clone()),
-                ]));
+                let label_prefix = format!("[{}] ", label);
+                let prefix = Span::styled(label_prefix.clone(), Style::default().fg(color));
+                let mut text_lines = item.text.lines();
+                if let Some(first) = text_lines.next() {
+                    lines.push(Line::from(vec![prefix, Span::raw(first.to_string())]));
+                    let indent = " ".repeat(label_prefix.len());
+                    for continuation in text_lines {
+                        lines.push(Line::from(vec![
+                            Span::raw(indent.clone()),
+                            Span::raw(continuation.to_string()),
+                        ]));
+                    }
+                } else {
+                    lines.push(Line::from(vec![prefix, Span::raw("")]));
+                }
             }
 
             let timeline = Paragraph::new(lines)
@@ -1194,11 +1249,13 @@ async fn run_tui(
                         } else if content == "/clear" {
                             app.timeline.clear();
                             app.assistant_line = None;
+                            app.plan_update_line = None;
                         } else if content == "/new" {
                             app.session_key =
                                 format!("cli:tui:{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
                             app.session_title = "(untitled)".to_string();
                             app.assistant_line = None;
+                            app.plan_update_line = None;
                             app.add_line(
                                 TimelineKind::System,
                                 format!("new session: {}", app.session_key),
@@ -1213,6 +1270,7 @@ async fn run_tui(
                             app.add_line(TimelineKind::User, content.clone());
                             app.pending = true;
                             app.assistant_line = None;
+                            app.plan_update_line = None;
                             let _ = request_tx.send((content, app.session_key.clone()));
                         }
                     }
@@ -1905,11 +1963,23 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
                     TimelineKind::System => ("system", Color::Blue),
                     TimelineKind::Error => ("error", Color::Red),
                     TimelineKind::Thinking => ("thinking", Color::Magenta),
+                    TimelineKind::Checklist => ("todo", Color::Magenta),
                 };
-                lines.push(Line::from(vec![
-                    Span::styled(format!("[{}] ", label), Style::default().fg(color)),
-                    Span::raw(item.text.clone()),
-                ]));
+                let label_prefix = format!("[{}] ", label);
+                let prefix = Span::styled(label_prefix.clone(), Style::default().fg(color));
+                let mut text_lines = item.text.lines();
+                if let Some(first) = text_lines.next() {
+                    lines.push(Line::from(vec![prefix, Span::raw(first.to_string())]));
+                    let indent = " ".repeat(label_prefix.len());
+                    for continuation in text_lines {
+                        lines.push(Line::from(vec![
+                            Span::raw(indent.clone()),
+                            Span::raw(continuation.to_string()),
+                        ]));
+                    }
+                } else {
+                    lines.push(Line::from(vec![prefix, Span::raw("")]));
+                }
             }
 
             let timeline = Paragraph::new(lines)
@@ -1961,11 +2031,13 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
                         } else if content == "/clear" {
                             app.timeline.clear();
                             app.assistant_line = None;
+                            app.plan_update_line = None;
                         } else if content == "/new" {
                             app.session_key =
                                 format!("cli:tui:{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
                             app.session_title = "(untitled)".to_string();
                             app.assistant_line = None;
+                            app.plan_update_line = None;
                             app.add_line(
                                 TimelineKind::System,
                                 format!("new session: {}", app.session_key),
@@ -1982,6 +2054,7 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
                             app.add_line(TimelineKind::User, content.clone());
                             app.pending = true;
                             app.assistant_line = None;
+                            app.plan_update_line = None;
                             let _ = request_tx.send((content, app.session_key.clone()));
                         }
                     }
@@ -2010,6 +2083,7 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::planning::update_plan::PlanItem;
 
     #[test]
     fn tui_disables_terminal_logging() {
@@ -2096,5 +2170,160 @@ mod tests {
         let provider = agent_diva_cli::cli_runtime::current_provider_name(&config);
 
         assert_eq!(provider.as_deref(), Some("minimax"));
+    }
+
+    #[test]
+    fn format_plan_update_renders_all_statuses() {
+        let args = UpdatePlanArgs {
+            explanation: None,
+            plan: vec![
+                PlanItem {
+                    step: "Analyze request".to_string(),
+                    status: PlanItemStatus::Completed,
+                },
+                PlanItem {
+                    step: "Draft response".to_string(),
+                    status: PlanItemStatus::InProgress,
+                },
+                PlanItem {
+                    step: "Review output".to_string(),
+                    status: PlanItemStatus::Pending,
+                },
+            ],
+        };
+        let text = format_plan_update(&args);
+        assert!(text.contains("Task Checklist"));
+        assert!(text.contains("✓ Analyze request"));
+        assert!(text.contains("→ Draft response"));
+        assert!(text.contains("☐ Review output"));
+    }
+
+    #[test]
+    fn format_plan_update_includes_explanation() {
+        let args = UpdatePlanArgs {
+            explanation: Some("Adapting plan".to_string()),
+            plan: vec![PlanItem {
+                step: "Only step".to_string(),
+                status: PlanItemStatus::Pending,
+            }],
+        };
+        let text = format_plan_update(&args);
+        assert!(text.starts_with("Task Checklist\n"));
+        assert!(text.contains("Adapting plan"));
+        assert!(text.contains("☐ Only step"));
+    }
+
+    #[test]
+    fn format_plan_update_empty_plan() {
+        let args = UpdatePlanArgs {
+            explanation: None,
+            plan: vec![],
+        };
+        let text = format_plan_update(&args);
+        assert!(text.contains("Task Checklist"));
+        assert!(text.contains("(no steps provided)"));
+    }
+
+    #[test]
+    fn format_plan_update_individual_status_icons() {
+        for (status, expected_icon) in [
+            (PlanItemStatus::Pending, "☐"),
+            (PlanItemStatus::InProgress, "→"),
+            (PlanItemStatus::Completed, "✓"),
+        ] {
+            let args = UpdatePlanArgs {
+                explanation: None,
+                plan: vec![PlanItem {
+                    step: "Step".to_string(),
+                    status,
+                }],
+            };
+            let text = format_plan_update(&args);
+            assert!(
+                text.contains(&format!("{} Step", expected_icon)),
+                "expected icon {} for status {:?}",
+                expected_icon,
+                status
+            );
+        }
+    }
+
+    #[test]
+    fn format_plan_update_whitespace_explanation_ignored() {
+        let args = UpdatePlanArgs {
+            explanation: Some("   \n  ".to_string()),
+            plan: vec![PlanItem {
+                step: "Step".to_string(),
+                status: PlanItemStatus::Pending,
+            }],
+        };
+        let text = format_plan_update(&args);
+        assert_eq!(text, "Task Checklist\n☐ Step");
+    }
+
+    #[test]
+    fn apply_agent_event_chat_plan_update_multiple_replacements() {
+        let mut app = TuiApp::new("cli:tui".to_string(), "model".to_string());
+
+        let first = UpdatePlanArgs {
+            explanation: Some("First plan".to_string()),
+            plan: vec![PlanItem {
+                step: "First".to_string(),
+                status: PlanItemStatus::Pending,
+            }],
+        };
+        let second = UpdatePlanArgs {
+            explanation: None,
+            plan: vec![PlanItem {
+                step: "Second".to_string(),
+                status: PlanItemStatus::InProgress,
+            }],
+        };
+        let third = UpdatePlanArgs {
+            explanation: Some("Final plan".to_string()),
+            plan: vec![PlanItem {
+                step: "Third".to_string(),
+                status: PlanItemStatus::Completed,
+            }],
+        };
+
+        app.apply_agent_event(AgentEvent::ChatPlanUpdate { args: first });
+        app.apply_agent_event(AgentEvent::ChatPlanUpdate { args: second });
+        app.apply_agent_event(AgentEvent::ChatPlanUpdate { args: third });
+
+        // The welcome message plus one plan update line.
+        assert_eq!(app.timeline.len(), 2);
+        assert_eq!(app.plan_update_line, Some(1));
+        let text = app.timeline[1].text.clone();
+        assert!(text.contains("Task Checklist"));
+        assert!(text.contains("Final plan"));
+        assert!(text.contains("✓ Third"));
+        assert!(!text.contains("First"));
+        assert!(!text.contains("Second"));
+    }
+
+    #[test]
+    fn apply_agent_event_chat_plan_update_resets_assistant_line() {
+        let mut app = TuiApp::new("cli:tui".to_string(), "model".to_string());
+
+        // Simulate an assistant streaming line.
+        app.apply_agent_event(AgentEvent::AssistantDelta {
+            text: "working".to_string(),
+        });
+        assert!(app.assistant_line.is_some());
+
+        app.apply_agent_event(AgentEvent::ChatPlanUpdate {
+            args: UpdatePlanArgs {
+                explanation: None,
+                plan: vec![PlanItem {
+                    step: "Plan".to_string(),
+                    status: PlanItemStatus::Completed,
+                }],
+            },
+        });
+
+        // The plan update should clear the assistant line so subsequent deltas
+        // start a new assistant line rather than appending to the plan text.
+        assert!(app.assistant_line.is_none());
     }
 }

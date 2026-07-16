@@ -557,6 +557,26 @@ export interface TodoItem {
   completed_at?: string;
 }
 
+export interface ChecklistItem {
+  step: string;
+  status:
+    | 'pending'
+    | 'in_progress'
+    | 'completed'
+    | 'Pending'
+    | 'InProgress'
+    | 'Completed';
+}
+
+export interface ChecklistCard {
+  id: string;
+  kind: 'checklist';
+  explanation?: string;
+  plan: ChecklistItem[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UiCardAction {
   id: string;
   label: string;
@@ -566,7 +586,7 @@ export interface UiCardAction {
 
 export interface UiCard {
   id: string;
-  kind: 'decision' | 'todo' | 'approval';
+  kind: 'decision' | 'todo' | 'approval' | 'checklist';
   status: string;
   title: string;
   summary: string;
@@ -575,6 +595,8 @@ export interface UiCard {
   evidence_refs?: string[];
   risk_level?: 'low' | 'medium' | 'high';
   todo_items?: TodoItem[];
+  plan_items?: ChecklistItem[];
+  explanation?: string;
   created_at: string;
   updated_at: string;
 }

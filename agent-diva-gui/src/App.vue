@@ -13,6 +13,7 @@ import {
   getRuntimeConfig,
   returnActivePlanToDraft,
   FileAttachmentDto,
+  ChecklistItem,
 } from "./api/desktop";
 import {
   planReportValidationIssues,
@@ -33,6 +34,11 @@ import {
   DEFAULT_DEEPSEEK_PROVIDER,
   buildWelcomeDeepSeekConfig,
 } from "./utils/welcomeConfig";
+import {
+  completeLatestStreamingAgent,
+  findCurrentTurnUpdatePlanToolIndex,
+  findLatestStreamingAgentIndex,
+} from "./utils/streamingMessages";
 
 const { t } = useI18n();
 
@@ -91,6 +97,14 @@ interface StreamPlanPayload {
 interface StreamJsonPayload {
   request_id: string;
   data: unknown;
+}
+
+interface StreamTurnPlanPayload {
+  request_id: string;
+  data: {
+    explanation?: string;
+    plan: ChecklistItem[];
+  };
 }
 
 interface SavedModel {
@@ -549,6 +563,16 @@ function hasValue(value: unknown): boolean {
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0;
   return true;
+}
+
+function isChecklistCardContent(content: string): boolean {
+  if (!content) return false;
+  try {
+    const parsed = JSON.parse(content) as { kind?: string; plan_items?: unknown };
+    return parsed.kind === 'checklist' && Array.isArray(parsed.plan_items);
+  } catch {
+    return false;
+  }
 }
 
 function extractToolName(
@@ -1801,29 +1825,30 @@ onMounted(async () => {
       return;
     }
     suppressNextStopError.value = false;
-    const lastMsg = messages.value[messages.value.length - 1];
-    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      // The backend `final` event is the authoritative complete response.
-      // Reconcile with it even when delta events were received: a lost tail
-      // must not leave the user with a truncated response.
-      if (event.payload.data) {
-        lastMsg.content = event.payload.data;
-      }
-      lastMsg.isStreaming = false;
-      lastMsg.isThinking = false;
-      isTyping.value = false;
-      // Refresh plan state before clearing the stream id so a late
-      // plan-report-ready for this request can still be accepted, and so
-      // restore can re-hydrate the approval card after the turn.
-      void restoreActivePlanRuntime().finally(() => {
-        if (activeStreamRequestId.value === event.payload.request_id) {
-          activeStreamRequestId.value = null;
-        }
+    const completedIndex = completeLatestStreamingAgent(messages.value, event.payload.data);
+    if (completedIndex === -1 && event.payload.data) {
+      messages.value.push({
+        id: generateMessageId(),
+        role: 'agent',
+        content: event.payload.data,
+        isStreaming: false,
+        isThinking: false,
+        timestamp: Date.now(),
+        emotion: currentEmotion.value,
       });
-      syncCurrentSessionListEntry();
-      if (isTauri()) {
-        void maybeGenerateCurrentSessionTitle();
+    }
+    isTyping.value = false;
+    // Refresh plan state before clearing the stream id so a late
+    // plan-report-ready for this request can still be accepted, and so
+    // restore can re-hydrate the approval card after the turn.
+    void restoreActivePlanRuntime().finally(() => {
+      if (activeStreamRequestId.value === event.payload.request_id) {
+        activeStreamRequestId.value = null;
       }
+    });
+    syncCurrentSessionListEntry();
+    if (isTauri()) {
+      void maybeGenerateCurrentSessionTitle();
     }
   }));
 
@@ -1888,12 +1913,16 @@ onMounted(async () => {
 
     if (toolMsgIndex !== -1) {
         const isError = payload.is_error === true || payload.result?.startsWith('Error');
-        messages.value[toolMsgIndex].toolStatus = isError ? 'error' : 'success';
-        messages.value[toolMsgIndex].content = isError ? t('app.toolError') : t('app.toolSuccess');
-        if (payload.name) {
-          messages.value[toolMsgIndex].toolName = payload.name;
+        const existing = messages.value[toolMsgIndex];
+        const preserveCard = isChecklistCardContent(existing.content);
+        existing.toolStatus = isError ? 'error' : 'success';
+        if (!preserveCard) {
+          existing.content = isError ? t('app.toolError') : t('app.toolSuccess');
         }
-        messages.value[toolMsgIndex].toolResult = payload.result || '';
+        if (payload.name) {
+          existing.toolName = payload.name;
+        }
+        existing.toolResult = payload.result || '';
     } else {
         // If no matching start message found, add a new entry.
         messages.value.push({
@@ -1955,6 +1984,50 @@ onMounted(async () => {
       pendingApprovalSessionKey.value = typeof sessionKey === 'string' ? sessionKey : null;
       syncPlanRuntime(plan);
     }
+  }));
+
+  // Listen for normal-chat TODO/checklist updates from update_plan.
+  unlisteners.push(await listen<StreamTurnPlanPayload>("agent-turn-plan-updated", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) {
+      return;
+    }
+    const { explanation, plan } = event.payload.data;
+    const card = {
+      id: generateMessageId(),
+      kind: 'checklist' as const,
+      explanation: explanation || undefined,
+      plan_items: plan || [],
+      status: 'updated',
+      title: 'Task Checklist',
+      summary: '',
+      body_markdown: '',
+      actions: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Update the current turn's tool row even if transport delivery races
+    // with tool_finish. Never reuse a checklist from an earlier user turn.
+    const existingIndex = findCurrentTurnUpdatePlanToolIndex(messages.value);
+    if (existingIndex !== -1) {
+      messages.value[existingIndex].content = JSON.stringify(card);
+    } else {
+      const checklistMessage: Message = {
+        id: generateMessageId(),
+        role: 'tool',
+        content: JSON.stringify(card),
+        timestamp: Date.now(),
+        toolName: 'update_plan',
+        toolStatus: 'success',
+      };
+      const streamingIndex = findLatestStreamingAgentIndex(messages.value);
+      if (streamingIndex === -1) {
+        messages.value.push(checklistMessage);
+      } else {
+        messages.value.splice(streamingIndex, 0, checklistMessage);
+      }
+    }
+    syncCurrentSessionListEntry();
   }));
 
   // Listen for errors

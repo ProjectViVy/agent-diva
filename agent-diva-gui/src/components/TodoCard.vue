@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, ChevronDown, ChevronUp } from 'lucide-vue-next'
-import type { UiCard, TodoItem } from '../api/desktop'
+import { Check, ChevronDown, ChevronUp, Clock, Loader2 } from 'lucide-vue-next'
+import type { UiCard, TodoItem, ChecklistItem } from '../api/desktop'
 
 const props = defineProps<{
   card: UiCard
@@ -17,12 +17,40 @@ const { t } = useI18n()
 const collapsed = ref(false)
 let collapseTimer: ReturnType<typeof setTimeout> | null = null
 
-const items = computed<TodoItem[]>(() => props.card.todo_items ?? [])
+const isChecklist = computed(() => props.card.kind === 'checklist')
 
-const doneCount = computed(() => items.value.filter(i => i.status === 'done').length)
-const totalCount = computed(() => items.value.length)
+const todoItems = computed<TodoItem[]>(() => props.card.todo_items ?? [])
+const checklistItems = computed<ChecklistItem[]>(() => props.card.plan_items ?? [])
+
+const doneCount = computed(() => {
+  if (isChecklist.value) {
+    return checklistItems.value.filter(
+      (item) => item.status === 'completed' || item.status === 'Completed',
+    ).length
+  }
+  return todoItems.value.filter((i) => i.status === 'done').length
+})
+const totalCount = computed(() => {
+  if (isChecklist.value) return checklistItems.value.length
+  return todoItems.value.length
+})
 const allDone = computed(() => totalCount.value > 0 && doneCount.value === totalCount.value)
 const hasPending = computed(() => doneCount.value < totalCount.value)
+
+function statusClass(status: ChecklistItem['status']) {
+  switch (status) {
+    case 'completed':
+    case 'Completed':
+      return 'status-completed'
+    case 'in_progress':
+    case 'InProgress':
+      return 'status-in-progress'
+    case 'pending':
+    case 'Pending':
+    default:
+      return 'status-pending'
+  }
+}
 
 // Auto-collapse 3s after all items are done
 watch(allDone, (val) => {
@@ -44,12 +72,14 @@ onUnmounted(() => {
 })
 
 function toggleItem(item: TodoItem) {
+  if (isChecklist.value) return
   const newStatus: 'pending' | 'done' = item.status === 'done' ? 'pending' : 'done'
   emit('check', { id: props.card.id, item_id: item.id, status: newStatus })
 }
 
 function markAllDone() {
-  for (const item of items.value) {
+  if (isChecklist.value) return
+  for (const item of todoItems.value) {
     if (item.status === 'pending') {
       emit('check', { id: props.card.id, item_id: item.id, status: 'done' })
     }
@@ -72,12 +102,12 @@ function formatTime(iso?: string): string {
 </script>
 
 <template>
-  <div class="todo-card" :class="{ 'all-done': allDone }">
+  <div class="todo-card" :class="{ 'all-done': allDone, 'plan-update': isChecklist }">
     <!-- Header -->
     <div class="todo-header" @click="toggleCollapse">
       <div class="todo-title-row">
         <span class="todo-icon">{{ allDone ? '✅' : '📋' }}</span>
-        <span class="todo-title">{{ t('todoCard.title') }}</span>
+        <span class="todo-title">{{ isChecklist ? t('checklistCard.title') : t('todoCard.title') }}</span>
         <span class="todo-progress">{{ doneCount }}/{{ totalCount }}</span>
       </div>
       <button class="collapse-btn" :title="t('todoCard.toggle')">
@@ -94,32 +124,57 @@ function formatTime(iso?: string): string {
       </button>
     </div>
 
+    <!-- Plan update explanation -->
+    <div v-if="isChecklist && card.explanation" class="plan-explanation">
+      {{ card.explanation }}
+    </div>
+
     <!-- Item list -->
     <div v-show="!collapsed" class="todo-items">
-      <label
-        v-for="item in items"
-        :key="item.id"
-        class="todo-item"
-        :class="{ done: item.status === 'done' }"
-      >
-        <input
-          type="checkbox"
-          class="todo-checkbox"
-          :checked="item.status === 'done'"
-          @change="toggleItem(item)"
-        />
-        <span class="todo-check-icon" :class="{ checked: item.status === 'done' }">
-          <Check v-if="item.status === 'done'" :size="12" />
-        </span>
-        <span class="todo-content">{{ item.content }}</span>
-        <span v-if="item.status === 'done' && item.completed_at" class="todo-time">
-          {{ formatTime(item.completed_at) }}
-        </span>
-      </label>
+      <!-- Plan update items (read-only) -->
+      <template v-if="isChecklist">
+        <div
+          v-for="(item, index) in checklistItems"
+          :key="index"
+          class="todo-item plan-item"
+          :class="statusClass(item.status)"
+        >
+          <span class="plan-status-icon" :class="statusClass(item.status)">
+            <Check v-if="item.status === 'completed' || item.status === 'Completed'" :size="12" />
+            <Loader2 v-else-if="item.status === 'in_progress' || item.status === 'InProgress'" :size="12" class="animate-spin" />
+            <Clock v-else :size="12" />
+          </span>
+          <span class="todo-content plan-step">{{ item.step }}</span>
+        </div>
+      </template>
+
+      <!-- Interactive todo items -->
+      <template v-else>
+        <label
+          v-for="item in todoItems"
+          :key="item.id"
+          class="todo-item"
+          :class="{ done: item.status === 'done' }"
+        >
+          <input
+            type="checkbox"
+            class="todo-checkbox"
+            :checked="item.status === 'done'"
+            @change="toggleItem(item)"
+          />
+          <span class="todo-check-icon" :class="{ checked: item.status === 'done' }">
+            <Check v-if="item.status === 'done'" :size="12" />
+          </span>
+          <span class="todo-content">{{ item.content }}</span>
+          <span v-if="item.status === 'done' && item.completed_at" class="todo-time">
+            {{ formatTime(item.completed_at) }}
+          </span>
+        </label>
+      </template>
     </div>
 
     <!-- Mark all done button -->
-    <div v-show="!collapsed && hasPending" class="todo-footer">
+    <div v-show="!collapsed && hasPending && !isChecklist" class="todo-footer">
       <button class="mark-all-btn" @click="markAllDone">
         {{ t('todoCard.markAllDone') }}
       </button>
@@ -147,6 +202,10 @@ function formatTime(iso?: string): string {
 
 .todo-card.all-done {
   border-left: 4px solid var(--success);
+}
+
+.todo-card.plan-update {
+  border-left: 4px solid var(--accent);
 }
 
 /* Header */
@@ -225,6 +284,16 @@ function formatTime(iso?: string): string {
   opacity: 0.8;
 }
 
+/* Plan explanation */
+.plan-explanation {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.5;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
 /* Items */
 .todo-items {
   display: flex;
@@ -248,6 +317,58 @@ function formatTime(iso?: string): string {
 
 .todo-item.done {
   opacity: 0.7;
+}
+
+/* Plan items are read-only but still show hover feedback */
+.todo-item.plan-item {
+  cursor: default;
+}
+
+.todo-item.plan-item.status-completed {
+  opacity: 0.75;
+}
+
+.todo-item.plan-item.status-in-progress {
+  background: var(--accent-bg-light);
+}
+
+.plan-status-icon {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  border: 2px solid var(--line);
+  color: var(--text-muted);
+}
+
+.plan-status-icon.status-pending {
+  border-color: var(--line);
+  color: var(--text-muted);
+}
+
+.plan-status-icon.status-in-progress {
+  border-color: var(--warning, #f59e0b);
+  color: var(--warning, #f59e0b);
+  background: var(--warning-bg-light, rgba(245, 158, 11, 0.1));
+}
+
+.plan-status-icon.status-completed {
+  border-color: var(--success);
+  background: var(--success);
+  color: white;
+}
+
+.plan-step {
+  color: var(--text);
+}
+
+.todo-item.status-completed .plan-step {
+  text-decoration: line-through;
+  color: var(--text-muted);
 }
 
 .todo-checkbox {

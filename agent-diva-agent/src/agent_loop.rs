@@ -950,6 +950,7 @@ mod tests {
     #[cfg(feature = "mentle")]
     use crate::tool_config::mentle::{MentleToolMode, MentleToolRuntimeConfig};
     use agent_diva_core::config::MaskConfig;
+    use agent_diva_core::planning::update_plan::PlanItemStatus;
     use agent_diva_providers::{
         LLMResponse, LLMStreamEvent, Message, OpenAiCompatibleClient, ProviderError,
         ProviderEventStream, ProviderResult, ToolCallRequest,
@@ -1154,6 +1155,96 @@ mod tests {
         }
     }
 
+    struct UpdatePlanToolCallProvider {
+        calls: Mutex<usize>,
+    }
+
+    impl Default for UpdatePlanToolCallProvider {
+        fn default() -> Self {
+            Self {
+                calls: Mutex::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for UpdatePlanToolCallProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let call_index = {
+                let mut calls = self.calls.lock().unwrap();
+                let index = *calls;
+                *calls += 1;
+                index
+            };
+
+            if call_index == 0 {
+                let args = HashMap::from([
+                    (
+                        "explanation".to_string(),
+                        serde_json::Value::String("Test plan".to_string()),
+                    ),
+                    (
+                        "plan".to_string(),
+                        serde_json::json!([
+                            {"step": "Analyze request", "status": "completed"},
+                            {"step": "Draft response", "status": "in_progress"}
+                        ]),
+                    ),
+                ]);
+                Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                    LLMResponse {
+                        content: None,
+                        tool_calls: vec![ToolCallRequest {
+                            id: "update-plan-call-1".to_string(),
+                            call_type: "function".to_string(),
+                            name: "update_plan".to_string(),
+                            arguments: args,
+                        }],
+                        finish_reason: "tool_calls".to_string(),
+                        usage: HashMap::new(),
+                        reasoning_content: None,
+                    },
+                ))])))
+            } else {
+                Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                    LLMResponse {
+                        content: Some("Done".to_string()),
+                        tool_calls: Vec::new(),
+                        finish_reason: "stop".to_string(),
+                        usage: HashMap::new(),
+                        reasoning_content: None,
+                    },
+                ))])))
+            }
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
     struct NamedTool {
         name: &'static str,
     }
@@ -1322,6 +1413,71 @@ mod tests {
         assert_eq!(error_event.0, "gui");
         assert_eq!(error_event.1, "chat-1");
         assert!(error_event.2.contains("simulated stream failure"));
+    }
+
+    #[tokio::test]
+    async fn update_plan_handler_emits_event() {
+        let bus = MessageBus::new();
+        let mut event_rx = bus.subscribe_events();
+        let provider = Arc::new(UpdatePlanToolCallProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1))
+            .await
+            .unwrap();
+        agent.register_default_tools(ToolConfig::default());
+
+        let response = agent
+            .process_direct("Plan this turn", "session-1", "gui", "chat-1")
+            .await
+            .unwrap();
+        assert_eq!(response, "Done");
+
+        let (event_order, chat_plan_event) = timeout(Duration::from_secs(2), async {
+            let mut event_order = Vec::new();
+            let mut chat_plan_event = None;
+            loop {
+                let bus_event = event_rx.recv().await.unwrap();
+                match bus_event.event {
+                    AgentEvent::ToolCallStarted { name, .. } if name == "update_plan" => {
+                        event_order.push("tool_started");
+                    }
+                    AgentEvent::ChatPlanUpdate { args } => {
+                        event_order.push("checklist_updated");
+                        chat_plan_event = Some((bus_event.channel, bus_event.chat_id, args));
+                    }
+                    AgentEvent::ToolCallFinished { name, .. } if name == "update_plan" => {
+                        event_order.push("tool_finished");
+                    }
+                    AgentEvent::FinalResponse { .. } => {
+                        event_order.push("final_response");
+                        break (event_order, chat_plan_event.unwrap());
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for ChatPlanUpdate event");
+
+        assert_eq!(chat_plan_event.0, "gui");
+        assert_eq!(chat_plan_event.1, "chat-1");
+        assert_eq!(chat_plan_event.2.explanation.as_deref(), Some("Test plan"));
+        assert_eq!(chat_plan_event.2.plan.len(), 2);
+        assert_eq!(chat_plan_event.2.plan[0].step, "Analyze request");
+        assert_eq!(chat_plan_event.2.plan[0].status, PlanItemStatus::Completed);
+        assert_eq!(chat_plan_event.2.plan[1].step, "Draft response");
+        assert_eq!(chat_plan_event.2.plan[1].status, PlanItemStatus::InProgress);
+        assert_eq!(
+            event_order,
+            vec![
+                "tool_started",
+                "checklist_updated",
+                "tool_finished",
+                "final_response"
+            ]
+        );
     }
 
     // ── memory provider lifecycle wiring tests (Task 6) ──────────────

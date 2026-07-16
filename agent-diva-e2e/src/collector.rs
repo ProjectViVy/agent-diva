@@ -134,7 +134,8 @@ impl EventCollector {
                     | AgentEvent::TodoCompleted { .. }
                     | AgentEvent::TodoCancelled { .. }
                     | AgentEvent::PlanReadyForApproval { .. }
-                    | AgentEvent::PlanReportReadyForApproval { .. } => {}
+                    | AgentEvent::PlanReportReadyForApproval { .. }
+                    | AgentEvent::ChatPlanUpdate { .. } => {}
                 }
             }
         })

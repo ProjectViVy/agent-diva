@@ -34,7 +34,7 @@ pub use provider_companion::{
 };
 
 use agent_diva_agent::AgentEvent;
-use agent_diva_core::bus::InboundMessage;
+use agent_diva_core::bus::{AgentBusEvent, InboundMessage};
 use agent_diva_core::config::schema::{ChannelsConfig, SelfEvolutionConfig};
 use axum::{
     extract::{Multipart, Path, Query, State},
@@ -193,6 +193,9 @@ pub async fn chat_handler(
                 AgentEvent::PlanReportReadyForApproval { report } => Event::default()
                     .event("plan_report_ready_for_approval")
                     .data(serde_json::json!({ "report": report }).to_string()),
+                AgentEvent::ChatPlanUpdate { args } => Event::default()
+                    .event("turn_plan_updated")
+                    .data(serde_json::to_string(&args).unwrap()),
                 AgentEvent::Error { message } => Event::default().event("error").data(message),
                 _ => Event::default().comment("keep-alive"),
             };
@@ -425,6 +428,40 @@ pub async fn generate_session_title_handler(
     }
 }
 
+fn agent_bus_event_to_sse(bus_event: &AgentBusEvent) -> Option<Event> {
+    match &bus_event.event {
+        AgentEvent::FinalResponse { content } => {
+            let data = serde_json::json!({
+                "channel": &bus_event.channel,
+                "chat_id": &bus_event.chat_id,
+                "content": content
+            });
+            Some(Event::default().event("final").data(data.to_string()))
+        }
+        AgentEvent::Error { message } => {
+            let data = serde_json::json!({
+                "channel": &bus_event.channel,
+                "chat_id": &bus_event.chat_id,
+                "message": message
+            });
+            Some(Event::default().event("error").data(data.to_string()))
+        }
+        AgentEvent::ChatPlanUpdate { args } => {
+            let data = serde_json::json!({
+                "channel": &bus_event.channel,
+                "chat_id": &bus_event.chat_id,
+                "args": args,
+            });
+            Some(
+                Event::default()
+                    .event("turn_plan_updated")
+                    .data(data.to_string()),
+            )
+        }
+        _ => None,
+    }
+}
+
 pub async fn events_handler(
     State(state): State<AppState>,
     Query(query): Query<EventsQuery>,
@@ -459,25 +496,7 @@ pub async fn events_handler(
                 }
             }
 
-            match bus_event.event {
-                AgentEvent::FinalResponse { content } => {
-                    let data = serde_json::json!({
-                        "channel": bus_event.channel,
-                        "chat_id": bus_event.chat_id,
-                        "content": content
-                    });
-                    Some(Ok(Event::default().event("final").data(data.to_string())))
-                }
-                AgentEvent::Error { message } => {
-                    let data = serde_json::json!({
-                        "channel": bus_event.channel,
-                        "chat_id": bus_event.chat_id,
-                        "message": message
-                    });
-                    Some(Ok(Event::default().event("error").data(data.to_string())))
-                }
-                _ => None,
-            }
+            agent_bus_event_to_sse(&bus_event).map(Ok)
         }
     });
 
@@ -1104,15 +1123,19 @@ pub async fn delete_cron_job_handler(
 #[cfg(test)]
 mod tests {
     use super::{
-        generate_session_title_handler, get_session_history_handler, get_sessions_handler,
-        normalized_exec_mode, update_session_title_handler,
+        agent_bus_event_to_sse, chat_handler, generate_session_title_handler,
+        get_session_history_handler, get_sessions_handler, normalized_exec_mode,
+        update_session_title_handler, AgentEvent, ChatRequest, Sse,
     };
     use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
     use agent_diva_core::bus::MessageBus;
     use agent_diva_core::session::store::{ChatMessage, Session};
     use agent_diva_core::session::SessionInfo;
     use axum::{
+        body::to_bytes,
         extract::{Path, State},
+        http::StatusCode,
+        response::IntoResponse,
         Json,
     };
     use chrono::Utc;
@@ -1278,5 +1301,106 @@ mod tests {
         .await;
         assert_eq!(response["status"], "ok");
         assert_eq!(response["title"], "Manual Title");
+    }
+
+    #[tokio::test]
+    async fn chat_plan_update_forward_serializes_via_chat_sse() {
+        use agent_diva_core::planning::update_plan::{PlanItem, PlanItemStatus, UpdatePlanArgs};
+
+        let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(1);
+        let bus = MessageBus::new();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
+
+        tokio::spawn(async move {
+            if let Some(ManagerCommand::Chat(req)) = api_rx.recv().await {
+                let _ = req.event_tx.send(AgentEvent::ChatPlanUpdate {
+                    args: UpdatePlanArgs {
+                        explanation: Some("test plan".to_string()),
+                        plan: vec![PlanItem {
+                            step: "step 1".to_string(),
+                            status: PlanItemStatus::Completed,
+                        }],
+                    },
+                });
+                let _ = req.event_tx.send(AgentEvent::FinalResponse {
+                    content: "done".to_string(),
+                });
+            }
+        });
+
+        let sse = chat_handler(
+            State(state),
+            Json(ChatRequest {
+                message: "hello".to_string(),
+                channel: None,
+                chat_id: None,
+                attachments: None,
+                mode: None,
+            }),
+        )
+        .await;
+        let response = sse.into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+
+        assert!(
+            text.contains("event: turn_plan_updated"),
+            "SSE should emit turn_plan_updated event; got: {text}"
+        );
+        assert!(
+            text.contains("test plan"),
+            "serialized explanation missing; got: {text}"
+        );
+        assert!(
+            text.contains("step 1"),
+            "serialized plan step missing; got: {text}"
+        );
+        assert!(
+            text.contains("completed"),
+            "serialized status missing; got: {text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn chat_plan_update_forward_via_events_bus_event() {
+        use agent_diva_core::bus::AgentBusEvent;
+        use agent_diva_core::planning::update_plan::{PlanItem, PlanItemStatus, UpdatePlanArgs};
+        use std::convert::Infallible;
+
+        let args = UpdatePlanArgs {
+            explanation: Some("via bus".to_string()),
+            plan: vec![PlanItem {
+                step: "bus step".to_string(),
+                status: PlanItemStatus::InProgress,
+            }],
+        };
+        let bus_event = AgentBusEvent {
+            channel: "gui".to_string(),
+            chat_id: "chat-7".to_string(),
+            event: AgentEvent::ChatPlanUpdate { args: args.clone() },
+        };
+
+        let event =
+            agent_bus_event_to_sse(&bus_event).expect("expected SSE event for ChatPlanUpdate");
+        let stream = futures::stream::once(async move { Ok::<_, Infallible>(event) });
+        let sse = Sse::new(stream);
+        let response = sse.into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+
+        assert!(
+            text.contains("event: turn_plan_updated"),
+            "SSE should emit turn_plan_updated event; got: {text}"
+        );
+        assert!(text.contains("gui"), "channel missing; got: {text}");
+        assert!(text.contains("chat-7"), "chat_id missing; got: {text}");
+        assert!(text.contains("via bus"), "explanation missing; got: {text}");
+        assert!(text.contains("bus step"), "step missing; got: {text}");
+        assert!(text.contains("in_progress"), "status missing; got: {text}");
     }
 }

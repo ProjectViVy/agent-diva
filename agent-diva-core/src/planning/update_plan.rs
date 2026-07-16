@@ -14,14 +14,17 @@ pub const MAX_UPDATE_PLAN_EXPLANATION_LEN: usize = 1000;
 /// Maximum length of a single `step` string in characters.
 pub const MAX_UPDATE_PLAN_STEP_LEN: usize = 500;
 
-/// Status of a single item in a normal-chat plan update.
+/// Status of a single item in a normal-chat TODO checklist update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlanItemStatus {
     /// Item has not been started yet.
+    #[serde(rename = "pending", alias = "Pending")]
     Pending,
     /// Item is currently being worked on.
+    #[serde(rename = "in_progress", alias = "InProgress")]
     InProgress,
     /// Item has been finished.
+    #[serde(rename = "completed", alias = "Completed")]
     Completed,
 }
 
@@ -39,7 +42,7 @@ pub struct PlanItem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdatePlanArgs {
-    /// Optional explanation for why the plan is being created or updated.
+    /// Optional explanation for why the checklist is being created or updated.
     #[serde(default)]
     pub explanation: Option<String>,
     /// The ordered list of plan items.
@@ -57,7 +60,11 @@ mod tests {
 
     #[test]
     fn test_plan_item_status_serde_roundtrip() {
-        for status in [PlanItemStatus::Pending, PlanItemStatus::InProgress, PlanItemStatus::Completed] {
+        for status in [
+            PlanItemStatus::Pending,
+            PlanItemStatus::InProgress,
+            PlanItemStatus::Completed,
+        ] {
             let json = serde_json::to_string(&status).unwrap();
             let back: PlanItemStatus = serde_json::from_str(&json).unwrap();
             assert_eq!(status, back);
@@ -66,9 +73,34 @@ mod tests {
 
     #[test]
     fn test_plan_item_status_json_names() {
-        assert_eq!(serde_json::to_string(&PlanItemStatus::Pending).unwrap(), "\"Pending\"");
-        assert_eq!(serde_json::to_string(&PlanItemStatus::InProgress).unwrap(), "\"InProgress\"");
-        assert_eq!(serde_json::to_string(&PlanItemStatus::Completed).unwrap(), "\"Completed\"");
+        assert_eq!(
+            serde_json::to_string(&PlanItemStatus::Pending).unwrap(),
+            "\"pending\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PlanItemStatus::InProgress).unwrap(),
+            "\"in_progress\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PlanItemStatus::Completed).unwrap(),
+            "\"completed\""
+        );
+    }
+
+    #[test]
+    fn test_plan_item_status_accepts_legacy_json_names() {
+        assert_eq!(
+            serde_json::from_str::<PlanItemStatus>("\"Pending\"").unwrap(),
+            PlanItemStatus::Pending
+        );
+        assert_eq!(
+            serde_json::from_str::<PlanItemStatus>("\"InProgress\"").unwrap(),
+            PlanItemStatus::InProgress
+        );
+        assert_eq!(
+            serde_json::from_str::<PlanItemStatus>("\"Completed\"").unwrap(),
+            PlanItemStatus::Completed
+        );
     }
 
     #[test]
@@ -97,7 +129,7 @@ mod tests {
 
     #[test]
     fn test_update_plan_args_explanation_defaults_to_none() {
-        let json = r#"{"plan": [{"step": "s", "status": "Pending"}]}"#;
+        let json = r#"{"plan": [{"step": "s", "status": "pending"}]}"#;
         let args: UpdatePlanArgs = serde_json::from_str(json).unwrap();
         assert!(args.explanation.is_none());
         assert_eq!(args.plan.len(), 1);
@@ -105,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_update_plan_args_explanation_may_be_present() {
-        let json = r#"{"explanation": "Why not", "plan": [{"step": "s", "status": "Completed"}]}"#;
+        let json = r#"{"explanation": "Why not", "plan": [{"step": "s", "status": "completed"}]}"#;
         let args: UpdatePlanArgs = serde_json::from_str(json).unwrap();
         assert_eq!(args.explanation.as_deref(), Some("Why not"));
     }
@@ -119,15 +151,23 @@ mod tests {
 
     #[test]
     fn test_unknown_field_rejected() {
-        let json = r#"{"explanation": "x", "plan": [{"step": "s", "status": "Pending", "extra": 1}]}"#;
+        let json =
+            r#"{"explanation": "x", "plan": [{"step": "s", "status": "pending", "extra": 1}]}"#;
         let result: Result<UpdatePlanArgs, _> = serde_json::from_str(json);
-        assert!(result.is_err(), "deny_unknown_fields should reject extra fields");
+        assert!(
+            result.is_err(),
+            "deny_unknown_fields should reject extra fields"
+        );
     }
 
     #[test]
     fn test_plan_item_status_variants_exactly_three() {
         // Compile-time guarantee: the enum has exactly three variants.
-        let all = [PlanItemStatus::Pending, PlanItemStatus::InProgress, PlanItemStatus::Completed];
+        let all = [
+            PlanItemStatus::Pending,
+            PlanItemStatus::InProgress,
+            PlanItemStatus::Completed,
+        ];
         assert_eq!(all.len(), 3);
     }
 }

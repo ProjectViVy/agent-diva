@@ -1092,6 +1092,12 @@ export default {
     expand: '展开',
     markAllDone: '全部完成',
   },
+  checklistCard: {
+    title: '📋 任务清单',
+    pending: '待处理',
+    inProgress: '进行中',
+    completed: '已完成',
+  },
   mask: {
     mode: {
       label: '模式',
