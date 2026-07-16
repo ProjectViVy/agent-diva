@@ -4,6 +4,10 @@
 
 ## Active Plan
 
+- [ ] **Workspace `cargo test --workspace` compile failures block full update_plan E2E verification** Running `cargo test --workspace update_plan` fails due to unrelated dirty-work compile errors in `agent-diva-providers`, `agent-diva-neuron`, `agent-diva-migration`, and `agent-diva-e2e`. These are caused by partially-landed signature changes (`ToolChoiceMode` parameter in `LLMProvider::chat`/`chat_stream`, missing `reports`/`response_protocol` fields, and `AgentEvent::ChatPlanUpdate` not handled in the e2e collector). The `update_plan` feature-lane tests pass when run per-crate (`agent-diva-core`, `agent-diva-agent`, `agent-diva-manager`, `agent-diva-cli`). These errors need to be resolved by the respective owners before the workspace-wide command can pass.
+  - Expected behavior: `cargo test --workspace update_plan` compiles and runs successfully after the affected crates are reconciled.
+  - Related: `agent-diva-providers/tests/{provider_retry,ollama_tools,ollama_streaming}.rs`, `agent-diva-neuron/tests/neuron_smoke.rs`, `agent-diva-migration/src/config_migration.rs`, `agent-diva-e2e/src/{collector,assertions}.rs`
+
 - [ ] **Restore missing audit raw-tab locale labels** The GUI-wide Vitest suite currently fails because `auditPage.tabs.raw` is absent from both language packs.
   - Expected behavior: `agent-diva-gui/src/locales/{zh,en}.ts` provide a translated raw-audit-tab label and `src/locales/evolution.test.ts` passes for both locales.
   - Related: `agent-diva-gui/src/locales/{zh,en}.ts`, `agent-diva-gui/src/locales/evolution.test.ts`
