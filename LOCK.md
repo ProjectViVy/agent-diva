@@ -30,6 +30,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-16`: Released normal-chat `update_plan` checklist flow repair, commit `d9bdb55`. Checklist events now precede tool completion, GUI streaming rows reconcile across event-order races, execution checklists are distinct from Plan mode and root `TODOLIST.md`, and canonical snake_case statuses retain legacy input compatibility. Focused staged-snapshot Rust tests, GUI tests/build, formatting, and clippy passed; the unrelated DeepSeek default-model assertion remains recorded in `TODOLIST.md`.
+
 - `2026-07-13`: Released console token-statistics data-path repair, commit `a8bc961`. Manager now serves ledger-backed `/api/stats/tokens/*` endpoints and GUI reads direct Tauri DTOs; Manager route tests, GUI API test, and GUI production build passed.
 
 - `2026-07-13`: Released narrow-window sidebar overlay behavior, commit `4c56e75`. At widths below 1024px, navigation and history panels open as overlay drawers with dismissible scrims; targeted ChatView tests and GUI production build passed.
