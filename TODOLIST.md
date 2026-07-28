@@ -8,10 +8,6 @@
   - Expected behavior: the provider configuration contract and test fixture agree on the intended DeepSeek default model without weakening the native-provider raw model-ID safety rule.
   - Related: `agent-diva-cli/tests/config_commands.rs:166`, DeepSeek provider defaults/config migration.
 
-- [ ] **Workspace `cargo test --workspace` compile failures block full update_plan E2E verification** Running `cargo test --workspace update_plan` fails due to unrelated dirty-work compile errors in `agent-diva-providers`, `agent-diva-neuron`, `agent-diva-migration`, and `agent-diva-e2e`. These are caused by partially-landed signature changes (`ToolChoiceMode` parameter in `LLMProvider::chat`/`chat_stream`, missing `reports`/`response_protocol` fields, and `AgentEvent::ChatPlanUpdate` not handled in the e2e collector). The `update_plan` feature-lane tests pass when run per-crate (`agent-diva-core`, `agent-diva-agent`, `agent-diva-manager`, `agent-diva-cli`). These errors need to be resolved by the respective owners before the workspace-wide command can pass.
-  - Expected behavior: `cargo test --workspace update_plan` compiles and runs successfully after the affected crates are reconciled.
-  - Related: `agent-diva-providers/tests/{provider_retry,ollama_tools,ollama_streaming}.rs`, `agent-diva-neuron/tests/neuron_smoke.rs`, `agent-diva-migration/src/config_migration.rs`, `agent-diva-e2e/src/{collector,assertions}.rs`
-
 - [ ] **Restore missing audit raw-tab locale labels** The GUI-wide Vitest suite currently fails because `auditPage.tabs.raw` is absent from both language packs.
   - Expected behavior: `agent-diva-gui/src/locales/{zh,en}.ts` provide a translated raw-audit-tab label and `src/locales/evolution.test.ts` passes for both locales.
   - Related: `agent-diva-gui/src/locales/{zh,en}.ts`, `agent-diva-gui/src/locales/evolution.test.ts`
@@ -30,9 +26,6 @@
   - Rule: before approval, file writes, shell execution, MCP, spawning, scheduling, and other external mutations remain denied by runtime policy.
   - Rule: TODO is optional and is materialized only after approval when selected by the user or plan.
   - Validation: `just fmt-check && just check && just test`, focused crate/GUI tests, and end-to-end denial/approval scenarios.
-
-- [x] **P2/P3 approval boundary and runtime capability enforcement (2026-07-11)** Added `plan_submit`, revision-bound store approval, append-only submitted/approved events, revision invalidation on plan-content edits, materialized-TODO replacement protection, and phase-aware tool assembly/pre-call denial. GUI request-body adoption remains P4; manager test execution remains deferred by the local command time limit.
-  - Related log: `docs/logs/2026-07-plan-todo-p2-p3/v0.0.1-approval-runtime-enforcement/`
 
 ### Plan/TODO P1 core policy — triple-review follow-ups (2026-07-11)
 
@@ -233,8 +226,6 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 - [ ] **Mentle: repair runtime prompt activation regressions** After Windows native-open isolation, `cargo test -p agent-diva-agent --features mentle --lib mentle` is mostly green (31 pass). Remaining failure: `test_register_default_tools_rebuild_keeps_active_mentle_prompt` — runtime is active / tools register, but system prompt still lacks `L2 Palace Memory` after tool rebuild. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
   - Related files: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`
-
-- [x] **Mentle: Windows STATUS_STACK_OVERFLOW on gateway startup** Fixed in `docs/logs/2026-07-10-mentle-windows-stack-overflow/v0.0.2-windows-native-open-isolation/`. Root cause was turso/simsimd stack pressure on default Windows stacks; fixed by process defaults (`LIMBO_DISABLE_FILE_LOCK`), large-stack assemble thread, CLI PE/worker stack 16 MiB. Gateway smoke reaches `Gateway ready` with `tool_count=32`.
 
 - [ ] **Core: stabilize supervised executor no-handler failure test** `cargo test -p agent-diva-core --lib` intermittently/factually failed in `supervised::executor::tests::test_executor_fails_when_no_handler`: the run remained `Running` instead of becoming `Failed`. This is unrelated to the 30-day planning cleanup and leaves the full core library gate red.
   - Related files: `agent-diva-core/src/supervised/executor.rs`
@@ -567,32 +558,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 - [ ] `summary.md`、`verification.md`、`release.md`、`acceptance.md` 齐全；发现但未修问题回填本 `TODOLIST.md`。
 - [ ] 每个 story 独立 Conventional Commit，只暂存本 story 文件；不推送，除非用户明确要求。
 
-## Done
+## Completed Archive
 
-- [x] **LLM 归纳手动日报、周报、月报** Implemented fact-bundle collection, optional no-tool LLM curation, evidence validation, deterministic fallback, manager injection, and GUI generation-mode display. Default `reports.llm_curation.enabled=false`. Removed GUI duplicate monthly generator.
-  - Related: `docs/plan/llm-curated-manual-reports.md`, `docs/logs/2026-07-llm-curated-manual-reports/v0.0.2-impl-llm-curated-manual-reports/`
-  - Validation: core/providers/autodream/gui notebook targeted tests; manager check.
-- [x] **GUI: fix pet immersive overlay sidebar navigation** Resolved the issue where clicking overlay sidebar items in pet immersive/fullscreen mode could not navigate back to the main page. The `.pet-immersive:not(.sidebar-expanded) .sidebar` rule applied `pointer-events: none` to the overlay sidebar as well, blocking all clicks. Excluded `.overlay-sidebar` from that rule.
-  - Related files: `agent-diva-gui/src/styles.css`
-  - Commit: `8c6fa68`
-  - Validation: `pnpm build` in `agent-diva-gui` passes; `DivaPetView.test.ts` passes; `NormalMode.test.ts` still blocked by pre-existing `miku.svg` import failure (see Open).
-- [x] **Backlog normalization on 2026-07-04** Closed all already-resolved items and converted all remaining unfinished items to explicit deferred status.
-- [x] **Wave 0 CI stabilization** Previous CI and workspace verification blockers were already cleared.
-- [x] **Plan mode runtime wiring** Previously completed and validated in `docs/logs/2026-06-plan-mode-runtime/v0.0.1-plan-mode-runtime-wiring/verification.md`.
-- [x] **Parallel lock mechanism** Repository-level `LOCK.md` workflow had already been introduced before this pass.
-- [x] **Wave 1 remediation on 2026-07-04** Closed the reviewed release blockers for E2E false-green behavior, token-budget enforcement, supervised-run cancellation, and security production wiring.
-  - Related log: `docs/logs/2026-07-wave1-remediation/v0.0.1-wave1-remediation/`
-- [x] **Wave 2 observability remediation on 2026-07-04** Closed the first Wave C runtime blockers around audit sink wiring, `/api/logs` path/cursor behavior, manager audit filtering, cron started-event ordering, and early tool denial audit emission.
-  - Related log: `docs/logs/2026-07-wave2-observability/v0.0.1-wave2-observability-remediation/`
-- [x] **Wave 3 review on 2026-07-04** Completed the next parallel review stage covering `Wave E` (Todo data plane) and `Wave F` (background task / subagent / workspace CLI), and recorded the resulting release blockers plus deferred follow-ups.
-  - Related log: `docs/logs/2026-07-wave3-review/v0.0.1-wave3-summary/`
-- [x] **Wave 3 workspace CLI hardening on 2026-07-04** Closed the `workspace` command path traversal, active-workspace delete bypass, and `list` write-side-effect findings, with focused CLI regression coverage.
-  - Related log: `docs/logs/2026-07-wave3-remediation/v0.0.1-workspace-cli-hardening/`
-- [x] **Wave C readiness and audit closure on 2026-07-05** Closed the direct CLI `ProviderTap` gap, stable skill rejection audit payloads, `JsonlAuditSink` read-after-write/rolling contracts, manager cron clock injection, `/api/health` readiness semantics, and audit-page i18n cleanup.
-  - Related log: `docs/logs/2026-07-wavec-remediation/v0.0.1-wavec-remediation/`
-- [x] **Wave C + Wave D review closure on 2026-07-05** Closed the remaining `/api/logs` malformed/schema-drift visibility tests, `/api/health` benchmark CI gate, rate limiter retry-after edge semantics, compaction ordering/retry-once guarantees, meta-compaction fact preservation, and session compaction serde compatibility coverage.
-  - Related log: `docs/logs/2026-07-wavecd-remediation/v0.0.1-wavecd-review-closure/`
-- [x] **Wave G review on 2026-07-05** Completed the parallel review of usage fallback metrics, ErrorCategory adoption, global timeout wiring, feature-gate CI coverage, and the rustfmt-only catch-up commit; review blockers were recorded as deferred residuals instead of being fixed in this read-only pass.
-  - Related log: `docs/logs/2026-07-waveg-review/v0.0.1-waveg-summary/`
-- [x] **Wave G remediation on 2026-07-05** Closed the OpenAI-compatible missing-usage false-zero fallback, tightened retry categorization and timeout retryability, wired `global_tool_timeout_secs` into production `ToolRegistry` assembly, fixed `logging.retention_days = 0`, and promoted the feature-gate check into a real cross-platform CI gate.
-  - Related log: `docs/logs/2026-07-waveg-remediation/v0.0.1-waveg-remediation/`
+- 历史已完成项目已迁移至 [`docs/archive/todolist/completed-through-2026-07-29.md`](docs/archive/todolist/completed-through-2026-07-29.md)。
+- 主 `TODOLIST.md` 只保留活动计划、未完成/延期事项，以及仍服务于开放验收工作的 review execution evidence。
