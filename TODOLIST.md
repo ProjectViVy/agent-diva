@@ -423,6 +423,17 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 - [ ] **Day 3** `Wave D` + `Wave A` + `Wave G`
 - [ ] **Day 4** Cross-wave regression pass, unified conclusion, and priority-pool cleanup
 
+## Active Governance Research Program
+
+- [ ] **RG-CODE-GOV: Agent Loop / Manager / GUI 原位治理** 深度治理分支的 clean-break 产品替代路线已判定失败；仅保留其单一副作用权威链、薄 Manager、GUI Host 边界和 fail-closed 能力登记原则。后续治理必须以当前 `agent-diva-pro` 的 crate、`/api`、存储、事件和产品能力为唯一基线，采用先刻画行为、再按 seam 分阶段收口的方式，不得回迁 deep crates、另建第二套 runtime/API/store 或大爆炸重写。
+  - 状态：研究/设计完成；实现未授权。
+  - 第一实施入口：G0 characterization tests 与 capability ledger；未完成 G0 不得开始拆 AgentLoop。
+  - 分期：G1 AgentLoop turn pipeline；G2 Manager handler/service；G3 GUI API/Tauri Host；G4 GUI state/composables；G5 DTO contract 与清理。
+  - 预期结果：AgentLoop 唯一 turn 入口和工具执行 seam 可定位；Manager handler 变薄；GUI domain/Host/local state 权威清晰；既有 API、schema 和用户旅程保持兼容。
+  - 退出标准：`docs/dev/agent-loop-manager-gui-governance/13-acceptance-criteria.md` 全部运行时条目通过，并有真实 CLI/Manager/Tauri smoke 与性能回归证据。
+  - 相关设计：`docs/dev/agent-loop-manager-gui-governance/`
+  - 本次文档日志：`docs/logs/2026-07-current-design-governance/v0.0.1-agent-loop-manager-gui-plan/`
+
 ## Done
 
 - [x] **LLM 归纳手动日报、周报、月报** Implemented fact-bundle collection, optional no-tool LLM curation, evidence validation, deterministic fallback, manager injection, and GUI generation-mode display. Default `reports.llm_curation.enabled=false`. Removed GUI duplicate monthly generator.
