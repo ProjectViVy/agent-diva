@@ -30,6 +30,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-29`: Released the Governance × Memory × Human-in-the-loop core refactor roadmap, commit `dce95f43`. Added a 10-week phased schedule, detailed `GMH-00..53` activities, gates, milestones, parallel-work constraints, and story-level completion criteria. Documentation-only validation with `git diff --check`; unrelated dirty-work changes were excluded.
+
 - `2026-07-16`: Released normal-chat `update_plan` checklist flow repair, commit `d9bdb55`. Checklist events now precede tool completion, GUI streaming rows reconcile across event-order races, execution checklists are distinct from Plan mode and root `TODOLIST.md`, and canonical snake_case statuses retain legacy input compatibility. Focused staged-snapshot Rust tests, GUI tests/build, formatting, and clippy passed; the unrelated DeepSeek default-model assertion remains recorded in `TODOLIST.md`.
 
 - `2026-07-13`: Released console token-statistics data-path repair, commit `a8bc961`. Manager now serves ledger-backed `/api/stats/tokens/*` endpoints and GUI reads direct Tauri DTOs; Manager route tests, GUI API test, and GUI production build passed.
