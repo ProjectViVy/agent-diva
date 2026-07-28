@@ -434,6 +434,139 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 相关设计：`docs/dev/agent-loop-manager-gui-governance/`
   - 本次文档日志：`docs/logs/2026-07-current-design-governance/v0.0.1-agent-loop-manager-gui-plan/`
 
+## Governance × Memory × Human-in-the-loop 核心重构排期
+
+> 目标周期：10 周；建议配置为 2 名 Rust 核心开发、1 名前端/桌面开发、1 名 QA/安全兼职。若只有 1 名核心开发，按依赖顺序执行并将周期调整为 14–16 周。所有时间均为净开发周，不包含等待产品决策或外部安全评审的时间。
+
+### 总体目标与强制边界
+
+- [ ] **GMH-00：冻结“一条权威链”架构约束** 所有 Memory 写入、策略变更、外部副作用和高风险自治行为必须统一经历“提议 → 策略判定 → 必要时人工决策 → 执行 → 审计 → 可恢复”的闭环。
+  - 不新建第二套 runtime、approval store、memory authority store 或 Manager 业务权威。
+  - `agent-diva-core` 持有跨 crate 契约；`agent-diva-laputa` 持有已应用 Memory/Persona 权威；`agent-diva-sandbox` 持有执行策略；`agent-diva-agent` 只编排；`agent-diva-manager` 只提供服务/传输；GUI 只投影状态并提交人类决定。
+  - 未识别的能力、风险类型、审批状态和 Memory 来源一律 fail-closed；待审提案不得进入默认 prompt。
+  - 完成定义：ADR、术语表、能力/风险矩阵、数据所有权图和兼容性清单评审通过。
+
+### Phase 0 — 基线、决策与测试护栏（第 1 周，必须串行）
+
+- [ ] **GMH-01：现状行为刻画与权威清单（D1–D2）**
+  - 盘点 `MemoryProvider`、`MemoryManager`、Laputa proposal/apply、Mentle feature lane、AutoDream、Plan approval、Sandbox Guardian、Manager API/SSE/Tauri、GUI Persona/Memory 页面。
+  - 输出读路径、写路径、审批路径、事件路径、重启恢复路径；标出重复状态、绕过点、隐式副作用和缺失审计。
+  - 建立 capability ledger：能力名称、风险等级、资源范围、幂等性、可撤销性、默认决策、所需证据、审批 TTL。
+  - 验收：每个生产副作用入口均能映射到唯一 owner 和唯一 policy decision point。
+- [ ] **GMH-02：产品决策冻结（D2–D3）**
+  - 明确 Memory 分类：会话事实、长期事实、偏好、承诺、关系、身份、历史摘要、临时 recall；定义保留期、敏感级别和可遗忘语义。
+  - 明确 HITL 决策：`approve_once`、`approve_session`、`approve_rule`、`edit_and_approve`、`reject`、`cancel`；定义谁可批、作用域、过期、撤销和拒绝后的行为。
+  - 明确自治等级 L0–L4：只读建议、低风险自动执行、会话授权执行、逐次审批、高风险禁止；将 Memory 写入和工具调用分别映射。
+  - 验收：无“实现时再决定”的 P0/P1 语义；未决项有 owner 和截止日。
+- [ ] **GMH-03：characterization 与契约测试（D3–D5）**
+  - 锁定当前 CLI/Manager/Tauri API、事件顺序、Laputa 已应用快照、pending proposal 排除、Plan revision-bound approval、Sandbox deny/approve/retry 行为。
+  - 增加崩溃/重启、重复提交、过期审批、并发审批、撤销、旧配置迁移的测试设计。
+  - Gate G0：测试能证明当前行为；失败用例先记录而非在本阶段顺手重构。
+
+### Phase 1 — 统一治理契约与决策引擎（第 2–3 周）
+
+- [ ] **GMH-10：核心治理领域模型（W2 D1–D3）**
+  - 在 `agent-diva-core` 定义稳定的 `GovernanceSubject`、`Capability`、`ResourceScope`、`RiskClass`、`Decision`、`ApprovalRequest/Receipt`、`EvidenceRef`、`AuditCorrelation`。
+  - 统一 Plan approval、Sandbox approval 与 Memory proposal 的公共信封，但保留各自领域 payload；禁止做“万能大枚举”耦合业务。
+  - 所有请求包含 `request_id`、`turn_id/session_id`、actor、目标资源、内容摘要/哈希、策略版本和到期时间。
+- [ ] **GMH-11：纯函数策略评估器（W2 D3–W3 D2）**
+  - 输入主体、能力、资源、风险、上下文和已有授权；输出 allow/deny/require-human，附 reason code、约束和可审计证据。
+  - 规则优先级：硬禁止 > 显式用户拒绝 > 资源/模式限制 > 有效授权 > 安全默认值；未知项拒绝。
+  - 为 Plan、Memory、shell/filesystem/network/MCP/spawn/schedule 建矩阵和全笛卡尔/属性测试。
+- [ ] **GMH-12：持久化审批账本与状态机（W3 D2–D5）**
+  - 建立 append-only decision ledger；派生当前状态，禁止 Manager/GUI 维护第二份真相。
+  - 实现 CAS/version、TTL、幂等键、内容哈希绑定、审批后内容变更失效、并发首胜、拒绝/撤销优先。
+  - Gate G1：领域模型、策略矩阵、迁移与账本恢复测试通过；尚未接入生产执行。
+
+### Phase 2 — Memory Framework 2.0（第 4–6 周）
+
+- [ ] **GMH-20：发布当前基线 Memory Interfaces Spec（W4 D1–D2）**
+  - 完成现有 backlog 中 `vrm-memory-test` 后续规格，将 `MemoryProvider` 生命周期拆清为 startup injection、prefetch/recall、turn sync、session end、proposal submission。
+  - 规定 provider 读能力与 authority 写能力分离；Laputa applied sections 是长期权威，Mentle/索引只做检索层，不得反向覆盖权威。
+- [ ] **GMH-21：规范化 Memory 记录与 provenance（W4 D2–W5 D1）**
+  - 定义记录 ID、类型、内容、来源、证据、置信度、敏感级别、创建/有效/过期时间、supersedes/tombstone、租户/会话范围。
+  - 兼容旧 `MEMORY.md`/`HISTORY.md` 和 Laputa JSON；设计双读校验、一次性迁移、回滚和数据完整性报告。
+  - 对 prompt injection 内容做信任标注和转义；用户输入、工具结果、AutoDream 推断不得直接升级为 authority。
+- [ ] **GMH-22：Recall 与上下文预算管线（W5 D1–D4）**
+  - 分离候选召回、权限/敏感过滤、相关性排序、去重、时间衰减、token budget、最终渲染。
+  - 每条注入内容可追踪到来源和选择理由；pending/rejected/expired/tombstoned 内容永不进入默认上下文。
+  - 定义 degraded/fallback：检索失败时显式降级，不能静默使用陈旧或越权数据。
+- [ ] **GMH-23：Memory 写入全部提案化（W5 D4–W6 D3）**
+  - 会话同步、AutoDream、GUI 直接编辑、导入/迁移统一生成 proposal；按分类和风险决定自动应用或 HITL。
+  - 高风险类别（身份、关系、承诺、敏感事实、批量删除）必须人工确认；低风险可在可配置策略下自动应用。
+  - apply 必须原子化并生成 changelog/audit；支持 edit-and-approve、冲突检测、撤销/补偿和遗忘请求。
+- [ ] **GMH-24：Memory 迁移与回归 Gate（W6 D3–D5）**
+  - 影子读对比旧/新结果；建立召回准确性、错误注入率、重复率、延迟、token 成本、提案接受率基线。
+  - Gate G2：fixture 迁移可回滚、authority 不丢失、旧配置兼容、Mentle/default lane 均通过；否则不切写路径。
+
+### Phase 3 — Human-in-the-loop 端到端闭环（第 5–7 周，可与 GMH-22 前半并行）
+
+- [ ] **GMH-30：统一审批协调器（W5 D1–W5 D5）**
+  - 将 Plan、Sandbox 与 Memory 请求接入同一协调接口；领域执行器只消费有效 receipt，不直接询问 UI。
+  - 支持 suspend/resume、进程重启恢复、取消传播、超时、重复响应、失联客户端和多客户端并发。
+  - 审批 receipt 必须绑定请求哈希、策略版本、资源 scope 和执行次数；禁止用布尔值表达长期授权。
+- [ ] **GMH-31：Manager API / SSE / Tauri 契约（W6 D1–D4）**
+  - 提供 pending 列表、详情、approve/edit/reject/cancel、审计查询；所有 mutation 使用幂等键和版本前置条件。
+  - 定义稳定 DTO、typed reason codes 和事件序列：requested → awaiting_human → decided → executing → succeeded/failed/compensated。
+  - 权限校验在服务端完成；GUI 隐藏按钮不构成安全边界。
+- [ ] **GMH-32：GUI 决策中心与就地审批（W6 D3–W7 D3）**
+  - 展示动作、目标、风险、证据、diff、命令/路径/网络范围、授权持续时间和拒绝影响。
+  - 支持 Memory diff 编辑后批准、一次/会话/规则授权、批量操作限制、倒计时、撤销与失败重试。
+  - 无障碍、窄窗、离线/重连、重复事件去重、跨页面 pending badge 纳入测试。
+- [ ] **GMH-33：CLI/headless 行为（W7 D2–D4）**
+  - 交互 CLI 可审批；非交互环境按配置明确 fail/queue，绝不默认放行。
+  - 给服务模式定义 webhook/外部审批扩展点，但本轮不绑定具体第三方平台。
+  - Gate G3：真实 shell、Memory 高风险写入、Plan 执行各完成一条 approve/reject/timeout/restart E2E。
+
+### Phase 4 — 接入 Agent Loop、自治治理与可观测性（第 7–8 周）
+
+- [ ] **GMH-40：Agent Loop 单一副作用 seam（W7 D4–W8 D2）**
+  - 工具组装、pre-call 和实际执行均引用同一治理快照；消除“已登记但可绕过”和“批准后 registry 未刷新”。
+  - turn pipeline 明确 prepare → recall → deliberate → propose → decide → execute → sync → audit；每段可取消、可度量。
+  - subagent、cron、heartbeat、AutoDream 继承父授权的方式必须显式，禁止权限放大。
+- [ ] **GMH-41：自治预算与熔断（W8 D1–D3）**
+  - 按 turn/session/day 限制工具次数、费用、写入量、审批数量和连续失败；拒绝风暴触发熔断。
+  - 用户在场/离线作为上下文信号，不作为绕过审批的授权；高风险离线动作必须排队或拒绝。
+- [ ] **GMH-42：治理可观测性与审计（W8 D2–D5）**
+  - 指标：decision latency、人工等待、approve/reject、policy deny、stale receipt、Memory proposal/apply/rollback、recall quality。
+  - 日志统一 correlation ID 并 redact 敏感内容；提供从用户决定到最终副作用的证据链。
+  - Gate G4：故障注入证明执行失败、审计失败、UI 断线、存储冲突均不会绕过策略或丢失恢复线索。
+
+### Phase 5 — 迁移、灰度、验收与收口（第 9–10 周）
+
+- [ ] **GMH-50：兼容迁移与 feature flags（W9 D1–D3）**
+  - 分开控制 unified governance、memory-v2 read、memory-v2 write、HITL UI；默认先 shadow，再 read cutover，最后 write cutover。
+  - 每个 flag 有配置迁移、启动校验、降级路径和删除日期；禁止长期双写。
+- [ ] **GMH-51：安全与数据恢复演练（W9 D3–D5）**
+  - 覆盖恶意 Memory 注入、路径/命令混淆、scope 扩大、receipt 重放、审批竞态、数据库损坏、部分写入和时钟漂移。
+  - 从备份恢复 authority/ledger，验证 pending/approved/executed 状态不重复执行。
+- [ ] **GMH-52：全量验收（W10 D1–D3）**
+  - 执行 `just fmt-check`、`just check`、`just test`、Mentle lane、GUI tests/build，以及 CLI/Manager/Tauri 最小真实路径 smoke。
+  - 性能门槛：策略判定 p95、召回 p95、prompt token 增量、Manager 事件延迟不超过 Phase 0 约定预算。
+  - 产品验收：用户能看懂“为什么问我、会改什么、授权多久、如何撤销”，并能从审计中心还原全过程。
+- [ ] **GMH-53：灰度与清理（W10 D3–D5）**
+  - 小样本开启 → 观察 → 扩大；出现越权、数据丢失、重复执行、不可恢复审批时立即回滚。
+  - 删除旧审批布尔捷径、重复 store、废弃 DTO 与双写代码；更新运维手册、威胁模型、用户文档和 `TODOLIST.md`。
+  - Gate G5：连续观察窗口内无 P0/P1，回滚演练成功，遗留项已分级并有 owner。
+
+### 里程碑、依赖与并行建议
+
+- [ ] **M0 / 第 1 周末：基线冻结** `GMH-01..03` 完成；没有 G0 不进入领域模型实现。
+- [ ] **M1 / 第 3 周末：治理内核可用** `GMH-10..12` 完成；Memory/HITL 只能依赖该契约，不能各建策略引擎。
+- [ ] **M2 / 第 6 周末：Memory v2 可影子运行** `GMH-20..24` 完成；旧权威仍可回退。
+- [ ] **M3 / 第 7 周末：HITL 闭环可用** `GMH-30..33` 完成；批准、拒绝、超时、重启均有 E2E。
+- [ ] **M4 / 第 8 周末：Agent Loop 接入** `GMH-40..42` 完成；所有生产副作用经过统一 seam。
+- [ ] **M5 / 第 10 周末：灰度发布完成** `GMH-50..53` 完成。
+- 并行规则：W4 后 Memory 数据模型与 HITL 传输/UI 可并行；共享 `agent-diva-core` 契约、Manager state、事件 DTO 时必须先拆文件级 story 并在 `LOCK.md` 声明；迁移、全 workspace 格式化和 schema 变更使用 `GLOBAL` 锁。
+
+### 每个 Story 的统一完成定义（DoD）
+
+- [ ] 设计/ADR 与 threat model 更新；API/schema/配置兼容性明确。
+- [ ] 成功、拒绝、超时、并发、重启、降级和回滚路径均有确定性测试。
+- [ ] 用户可见变更有 CLI/GUI/Channel 至少一条真实 smoke；GUI 变更另做 GUI smoke。
+- [ ] `summary.md`、`verification.md`、`release.md`、`acceptance.md` 齐全；发现但未修问题回填本 `TODOLIST.md`。
+- [ ] 每个 story 独立 Conventional Commit，只暂存本 story 文件；不推送，除非用户明确要求。
+
 ## Done
 
 - [x] **LLM 归纳手动日报、周报、月报** Implemented fact-bundle collection, optional no-tool LLM curation, evidence validation, deterministic fallback, manager injection, and GUI generation-mode display. Default `reports.llm_curation.enabled=false`. Removed GUI duplicate monthly generator.
