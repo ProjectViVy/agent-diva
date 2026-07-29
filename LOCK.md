@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `None`
-- Last Heartbeat: `2026-07-30T00:48:00+08:00`
+- Last Heartbeat: `2026-07-30T01:49:12+08:00`
 - Expires At: `None`
 
 ## Lock Rules
@@ -29,6 +29,20 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-30T01:49:12+08:00`: Released the AgentLoop G1 continuation.
+  G1.1-G1.5 now have explicit admission/context/iteration/tool/finalization
+  owners. `process_inbound_message_inner` fell from about 1,400 to 865 lines;
+  the stricter G1.6 ~500-line coordinator target remains in `TODOLIST.md`.
+  Focused AgentLoop tests, `just fmt-check`, `just check`, the complete
+  350.3-second `just test`, and CLI/gateway command smoke passed. Local commits:
+  `6fc17140`, `91754b27`, `2d57facb`, `07974682`, `5f57ec37`, and `93798604`.
+  No push was performed.
+
+- `2026-07-30T01:20:31+08:00`: Reclaimed the existing `Codex / root`
+  AgentLoop G1 scope at the user's direction. The previous timestamps were
+  future-dated relative to the workspace clock; the uncommitted G1 contracts
+  are explicitly preserved as recoverable work.
 
 - `2026-07-30`: Released GMH-22 Recall v2 scope. Added stable candidate source,
   fail-closed trust/sensitivity/scope/temporal filtering, deterministic ranking,
