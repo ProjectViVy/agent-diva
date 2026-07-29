@@ -5,9 +5,9 @@ use super::turn::{
     finalize::{FinalizationContext, FinalizationPreparation},
     iteration::{IterationBudget, IterationOutcome},
     prompt,
-    tool_step::{ToolExecutionContext, ToolStepPolicy},
+    tool_step::{ToolOrchestrationContext, ToolRunSummary},
 };
-use super::{policy_phase_for, AgentLoop};
+use super::AgentLoop;
 use agent_diva_core::bus::{
     AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
 };
@@ -16,7 +16,6 @@ use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::planning::update_plan::UpdatePlanArgs;
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::{ChatMessage, Session, TokenUsage};
-use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
 use agent_diva_providers::{ImageUrl, Message, MessageContent, MessageContentPart, ProviderError};
@@ -144,7 +143,7 @@ impl AgentLoop {
             .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
     }
 
-    async fn emit_planning_runtime_events(
+    pub(super) async fn emit_planning_runtime_events(
         &self,
         msg: &InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
@@ -213,7 +212,7 @@ impl AgentLoop {
     /// This is intentionally a pure event: the tool itself does not persist the
     /// plan, so the handler only broadcasts the parsed arguments to streaming
     /// consumers and the bus.
-    async fn emit_chat_plan_update(
+    pub(super) async fn emit_chat_plan_update(
         &self,
         msg: &InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
@@ -531,171 +530,34 @@ impl AgentLoop {
                 // call in the same turn, otherwise it can immediately retry a
                 // mutation after receiving a rejected tool result.
                 let mut stop_after_tool_call = false;
+                let tool_context = ToolOrchestrationContext {
+                    message: &msg,
+                    event_tx,
+                    session_key: &session_key,
+                    trace_id: &trace_id,
+                    iteration,
+                    plan_mode,
+                    plan_guard_active,
+                    active_mask: active_mask.as_ref(),
+                    active_execution_id: active_execution_id.clone(),
+                    background_task_context: background_task_context.clone(),
+                    scheduled: is_cron_trigger,
+                };
                 for tool_call in &response.tool_calls {
-                    self.drain_runtime_control_commands().await;
-                    if self.is_session_cancelled(&session_key) {
-                        self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
-                        return Ok(None);
-                    }
-
-                    trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_invoked", tool_name = %tool_call.name, "Tool invoked");
-
-                    let args_str = serde_json::to_string(&tool_call.arguments).unwrap_or_default();
-                    let preview = if args_str.chars().count() > 200 {
-                        format!("{}...", args_str.chars().take(200).collect::<String>())
-                    } else {
-                        args_str.clone()
-                    };
-                    info!("Tool call: {}({})", tool_call.name, preview);
-                    let planning_before = self.snapshot_active_plan_runtime(&session_key).await;
-                    turn_snapshot.refresh_policy(planning_before.as_ref());
-                    let tool_step_policy = ToolStepPolicy {
-                        phase: turn_snapshot.policy_phase.clone(),
-                        cancelled: self.is_session_cancelled(&session_key),
-                        plan_guard_active,
-                        persisted_plan_present: planning_before.is_some(),
-                        reviewer_read_only: active_mask
-                            .as_ref()
-                            .is_some_and(crate::mask::ToolPolicy::is_read_only_mode),
-                    };
-                    if !tool_step_policy.may_enter_executor() {
-                        self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
-                        return Ok(None);
-                    }
-                    let event = AgentEvent::ToolCallStarted {
-                        name: tool_call.name.clone(),
-                        args_preview: preview.clone(),
-                        call_id: tool_call.id.clone(),
-                    };
-                    if let Some(tx) = event_tx {
-                        let _ = tx.send(event.clone());
-                    }
-                    let _ = self
-                        .bus
-                        .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-
-                    let (result, is_error) = match serde_json::to_value(&tool_call.arguments) {
-                        Ok(arguments) => {
-                            let result = tool_step_policy
-                                .execute(
-                                    &tool_call.name,
-                                    &arguments,
-                                    ToolExecutionContext {
-                                        registry: &self.tools,
-                                        channel: &msg.channel,
-                                        chat_id: &msg.chat_id,
-                                        session_key: &session_key,
-                                        cron_trigger: msg.channel == "cron" || is_cron_trigger,
-                                    },
-                                )
-                                .await;
-                            (result.output, result.is_error)
-                        }
-                        Err(e) => {
-                            warn!(
-                                "Failed to serialize arguments for tool '{}' (call_id: {}): {}",
-                                tool_call.name, tool_call.id, e
-                            );
-                            (
-                                format!(
-                                    "Error: failed to serialize arguments for tool '{}': {}",
-                                    tool_call.name, e
-                                ),
-                                true,
-                            )
-                        }
-                    };
-                    if self.notify_on_soul_change && !is_error {
-                        if let Some(changed_file) =
-                            changed_soul_file(&tool_call.name, &tool_call.arguments, &result)
-                        {
-                            if changed_file == "BOOTSTRAP.md" {
-                                let _ =
-                                    SoulStateStore::new(&self.workspace).mark_bootstrap_completed();
-                            }
-                            soul_files_changed.insert(changed_file.to_string());
-                        }
-                    }
-
-                    trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
-
-                    let planning_after = if !is_error {
-                        self.snapshot_active_plan_runtime(&session_key).await
-                    } else {
-                        None
-                    };
-
-                    // Publish checklist inputs while the matching tool call is
-                    // still active. Clients can then replace the running tool
-                    // row before ToolCallFinished creates the next assistant
-                    // streaming placeholder.
-                    if !is_error {
-                        self.emit_chat_plan_update(
-                            &msg,
-                            event_tx,
-                            &tool_call.name,
-                            &serde_json::to_value(&tool_call.arguments).unwrap_or_default(),
-                            is_error,
+                    let Some(result) = self
+                        .orchestrate_tool_call(
+                            tool_call,
+                            &tool_context,
+                            &mut turn_snapshot,
+                            &mut messages,
+                            &mut soul_files_changed,
                         )
-                        .await;
-                    }
-
-                    let event = AgentEvent::ToolCallFinished {
-                        name: tool_call.name.clone(),
-                        is_error,
-                        result: result.clone(),
-                        call_id: tool_call.id.clone(),
+                        .await?
+                    else {
+                        return Ok(None);
                     };
-                    if let Some(tx) = event_tx {
-                        let _ = tx.send(event.clone());
-                    }
-                    let _ = self
-                        .bus
-                        .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-                    if !is_error {
-                        self.emit_planning_runtime_events(
-                            &msg,
-                            event_tx,
-                            &tool_call.name,
-                            planning_before.clone(),
-                            planning_after.clone(),
-                        )
-                        .await;
-                        if planning_before
-                            .as_ref()
-                            .map(|plan| (plan.phase.clone(), plan.revision))
-                            != planning_after
-                                .as_ref()
-                                .map(|plan| (plan.phase.clone(), plan.revision))
-                        {
-                            let rebuild_phase =
-                                policy_phase_for(planning_after.as_ref(), plan_mode);
-                            self.rebuild_tools_for_turn(
-                                active_mask.as_ref(),
-                                rebuild_phase,
-                                active_execution_id.clone(),
-                                Some(background_task_context.clone()),
-                            );
-                        }
-                        if matches!(tool_call.name.as_str(), "plan_submit" | "plan_transition")
-                            && planning_after
-                                .as_ref()
-                                .is_some_and(|plan| plan.phase == PlanPhase::AwaitingApproval)
-                        {
-                            stop_after_tool_call = true;
-                        }
-                    }
-                    tool_run_summaries.push(ToolRunSummary {
-                        name: tool_call.name.clone(),
-                        ok: !is_error,
-                        detail: truncate_for_tool_summary(&result, 120),
-                    });
-                    self.context.add_tool_result(
-                        &mut messages,
-                        tool_call.id.clone(),
-                        tool_call.name.clone(),
-                        result,
-                    );
+                    tool_run_summaries.push(result.summary);
+                    stop_after_tool_call = result.stop_after_tool_call;
                     if stop_after_tool_call {
                         break;
                     }
@@ -896,7 +758,7 @@ impl AgentLoop {
     }
 }
 
-fn changed_soul_file(
+pub(super) fn changed_soul_file(
     tool_name: &str,
     arguments: &HashMap<String, serde_json::Value>,
     _result: &str,
@@ -1117,13 +979,6 @@ pub(super) fn is_context_overflow_error(err: &ProviderError) -> bool {
 }
 
 /// Compact record of a tool execution for empty-final synthesis.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ToolRunSummary {
-    name: String,
-    ok: bool,
-    detail: String,
-}
-
 const SUMMARY_ONLY_NUDGE: &str = "You already executed tools in this turn. Based on the tool results above, write a concise final reply for the user in their language. Do not call any tools.";
 
 fn synthesize_iteration_limit_summary(
@@ -1144,7 +999,7 @@ fn synthesize_iteration_limit_summary(
 const FALLBACK_EMPTY_REPLY_ZH: &str = "本轮处理已完成，但未生成可读回复。";
 const FALLBACK_PLAN_APPROVAL_ZH: &str = "计划已提交审批，请在下方审批卡片中查看并批准。";
 
-fn truncate_for_tool_summary(text: &str, max_chars: usize) -> String {
+pub(super) fn truncate_for_tool_summary(text: &str, max_chars: usize) -> String {
     let trimmed = text.trim();
     if trimmed.chars().count() <= max_chars {
         return trimmed.to_string();
