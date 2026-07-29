@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-29T13:31:00+08:00`
-- Last Heartbeat: `2026-07-29T14:13:00+08:00`
+- Started At: `2026-07-29T14:25:00+08:00`
+- Last Heartbeat: `2026-07-29T15:14:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Released Sandbox command approval backend in `03cad9d1` and `3e712777`. Production exec now uses the sandbox orchestrator, recoverable escalation waits on scoped once/session/reject decisions, Manager exposes pending/SSE/resolve APIs, and chat stop cancels pending requests. `just fmt-check`, `just check`, and `just test` passed. GUI and persistent safe-prefix rules remain Phase 2; no push was performed.
 
 - `2026-07-29`: Released supervised executor terminal-state stabilization (`0d8bf1be`). SQLite claims now commit before executor observation, first heartbeat writes are delayed, terminal persistence errors propagate, and external terminal-state tests synchronize on `Running`. `just fmt-check`, `just check`, and the complete `just test` gate passed; no push was performed.
 

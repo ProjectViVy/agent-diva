@@ -4,9 +4,10 @@
 
 ## Active Plan
 
-- [ ] **Sandbox command approval UI and persistent execution rules** Implement the design package in `docs/dev/sandbox-command-approval/`: route shell execution through the sandbox orchestrator, surface recoverable approval requests in the GUI, and persist only validated safe command-prefix allow rules globally.
-  - Expected behavior: Plan mode remains strictly read-only; agent mode can approve a recoverable sandbox escalation once or per session; only safe prefixes can enter the global default execution list.
-  - Related: `agent-diva-tools/src/shell.rs`, `agent-diva-sandbox/src/orchestrator.rs`, `agent-diva-manager/src/handlers.rs`, `agent-diva-gui/src/App.vue`
+- [ ] **Sandbox command approval GUI and persistent safe-prefix rules (Phase 2)** The backend closure now routes production `exec` through `ToolOrchestrator`, suspends recoverable escalations on a scoped coordinator, and exposes pending/SSE/resolve Manager APIs. The remaining phase must consume those contracts in the GUI and persist only validated, non-banned command prefixes globally.
+  - Expected behavior: Plan mode remains strictly read-only; GUI users can approve once, approve for the session, or reject; only safe parsed prefixes can enter the global default execution list and rules can be reviewed/removed.
+  - Related: `agent-diva-manager/src/handlers/command_approvals.rs`, `agent-diva-gui/src/components/ApprovalBanner.vue`, `agent-diva-sandbox/src/exec_policy.rs`
+  - Backend evidence: `docs/logs/2026-07-sandbox-command-approval/v0.0.1-command-approval-backend/`
 
 ## Superseded Review Evidence
 
