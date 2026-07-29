@@ -54,6 +54,17 @@ evidence for deletion and does not define the target architecture.
   `cargo test -p agent-diva-manager --lib` rerun passed all 68 tests.
   Expected: identify and synchronize the load-sensitive Manager test so the
   complete workspace gate is deterministic. Related: `agent-diva-manager`.
+- [ ] **Workspace Rust 1.80 lockfile gate is blocked by legacy Mentle**
+  `cargo +1.80.0 check -p agent-diva-laputa` cannot parse the locked
+  `time-core 0.1.8` Edition-2024 chain required through
+  `memtle -> ureq -> cookie_store -> time ^0.3.47`. GMH-23B uses the existing
+  Rust-1.80-compatible `sqlx 0.7` API; the workspace gate becomes enforceable
+  after GMH-24 removes Mentle and refreshes the lockfile.
+- [ ] **Stable clippy flags pre-existing Laputa service assertions**
+  `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` reports four
+  `clippy::int_plus_one` findings in `agent-diva-laputa/tests/service.rs`.
+  The GMH-23B-specific `--lib --test typed_store` gate passes; update the
+  unrelated assertions in a focused cleanup.
 
 ## G0 Verified Backlog Reconciliation
 
@@ -542,7 +553,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 冻结 Mentle clean-break：无依赖、feature、adapter、tool、route、DTO、
     GUI setting、CI lane、LLVM 安装说明、旧库 reader 或双写。
   - Gate G2A：ADR、威胁模型、删除清单、数据所有权图和迁移边界评审通过。
-- [ ] **GMH-23B：移植 Embedded Laputa typed store（GMH-23A 后）**
+- [x] **GMH-23B：移植 Embedded Laputa typed store（GMH-23A 后）**
   - 从 `refactor/deep-governance` 定向移植设计与最小实现，不合并其
     clean-break runtime 重写；按当前 `agent-diva-laputa` API 适配。
   - 实现 profile/workspace 隔离、SQLite schema/事务、FTS5、record

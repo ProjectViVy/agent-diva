@@ -13,6 +13,7 @@ pub mod metrics;
 pub mod migration;
 pub mod proposals;
 pub mod service;
+pub mod typed_store;
 
 pub use atomic::{atomic_write, atomic_write_json};
 pub use error::{LaputaError, Result};
@@ -36,4 +37,8 @@ pub use proposals::{
 pub use service::{
     ChangelogFilter, ChangelogPage, LaputaEvent, LaputaEventKind, LaputaSection, LaputaService,
     LaputaSnapshot, RollbackChangelogRequest, RollbackOutcome, SectionStatus,
+};
+pub use typed_store::{
+    MemorySearchHit, MemoryStoreIntegrity, MemoryStoreMetadata, StoredMemoryRecord,
+    TypedMemoryStore, TypedMemoryStoreError, MAX_MEMORY_CONTENT_BYTES, MAX_MEMORY_RECORDS,
 };
