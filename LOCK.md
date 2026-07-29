@@ -30,6 +30,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-29`: Dirty-worktree cleanup moved three verified external-repository scratch copies (`msys64tmpopencode*`, about 27.3 MB) to recoverable quarantine `C:\Users\Administrator\Desktop\morediva\agent-diva-scratch-20260729`. The remaining 37 tracked files all contain semantic changes under whitespace-insensitive diff and were preserved; untracked research/review documents were also preserved.
+
 - `2026-07-29`: Follow-up `5bf5ec3e` makes explicit continuation retry both Pending and Blocked Compact initialization, preserving fail-closed behavior before implementation calls.
 
 - `2026-07-29`: Released persistent execution-context boundaries in `ad3dc531`, DeepSeek provider-set fixture alignment in `47972953`, and verification records in `5b88f46f`. `just fmt-check`, `just check`, focused Core/Manager/CLI tests, and GUI production build passed. Full `just test` passed the affected Plan/DeepSeek coverage but remained red on two pre-existing supervised-executor race assertions recorded in `TODOLIST.md`. No push was performed; unrelated dirty-work changes remain excluded.
