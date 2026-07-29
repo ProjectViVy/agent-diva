@@ -1,11 +1,10 @@
 #[cfg(test)]
 use super::turn::iteration::{contains_internal_protocol, InternalProtocolGuard};
 use super::turn::{
-    admission::TurnAdmission,
+    admission::AdmittedTurn,
     context::PreparedTurnContext,
     finalize::{FinalizationContext, FinalizationInput},
     iteration::{IterationBudget, IterationOutcome},
-    policy::TurnSnapshot,
     prompt,
     tool_step::{ToolExecutionContext, ToolStepPolicy},
 };
@@ -35,7 +34,6 @@ use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
 use agent_diva_providers::{
     supports_vision_model, ImageUrl, Message, MessageContent, MessageContentPart, ProviderError,
 };
-use agent_diva_tools::BackgroundTaskContext;
 use anyhow;
 use base64::Engine;
 use std::collections::{HashMap, HashSet};
@@ -316,175 +314,20 @@ impl AgentLoop {
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
         trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
 
-        // Load the active mask first so it can influence model selection and
-        // subagent defaults for this turn.
-        let active_mask = self.load_active_mask();
-        let model_to_use = self.effective_model_for_turn(active_mask.as_ref());
-        self.subagent_manager
-            .set_current_mask(active_mask.as_ref().map(|m| m.frontmatter.clone()))
-            .await;
-
-        let preview = if msg.content.chars().count() > 80 {
-            format!("{}...", msg.content.chars().take(80).collect::<String>())
-        } else {
-            msg.content.clone()
-        };
-        info!(
-            "Processing message from {}:{}: {} (model: {})",
-            msg.channel, msg.sender_id, preview, model_to_use
-        );
-
-        let admission = TurnAdmission::classify(&msg);
-        let is_cron_trigger = admission.scheduled;
-        let plan_mode = admission.plan_mode;
-        let mut execution_start = msg
-            .metadata
-            .get("execution_start")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false);
-        // Plan safety is a runtime lifecycle property, not only a UI/request mode.
-        // Once a plan is waiting for approval, an agent-mode follow-up must not
-        // re-enable mutation tools before the explicit approval transition.
-        let session_key = admission.session_key;
-        let active_plan = self.snapshot_active_plan_runtime(&session_key).await;
-        if let Some(planning) = &self.tool_config.planning {
-            if planning
-                .registry
-                .active_execution_for_session(&session_key)
-                .await
-                .is_none()
-            {
-                if let Ok(plan_id) = planning.store.get_active_plan().await {
-                    if let Ok(plan) = planning.store.get_plan(&plan_id).await {
-                        if plan.phase == PlanPhase::Execute {
-                            if let Some(context) = planning
-                                .store
-                                .get_execution_context_for_session(&plan_id, &session_key)
-                                .await?
-                            {
-                                if let Some(markdown) = plan.strategy {
-                                    planning
-                                            .registry
-                                            .restore_execution(
-                                                &session_key,
-                                                agent_diva_core::planning::ExecutionSession {
-                                                    id: context.execution_id,
-                                                    report_id: context.plan_id,
-                                                    revision: context.revision,
-                                                    context_policy: context.context_policy,
-                                                    status: agent_diva_core::planning::ExecutionSessionStatus::Executing,
-                                                    compacted_context: context.compacted_context,
-                                                    boundary: context.boundary,
-                                                    initialization_status: context.initialization_status,
-                                                    initialization_error: context.initialization_error,
-                                                    created_at: context.created_at,
-                                                    updated_at: context.updated_at,
-                                                },
-                                                markdown,
-                                            )
-                                        .await?;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // Hydrate approved report execution (replacement plan runtime).
-        let mut active_execution = match &self.tool_config.planning {
-            Some(planning) if !plan_mode => {
-                planning
-                    .registry
-                    .active_execution_for_session(&session_key)
-                    .await
-            }
-            _ => None,
-        };
-        if execution_start {
-            let execution = active_execution
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("no unique active execution for continuation"))?;
-            if msg
-                .metadata
-                .get("plan_id")
-                .and_then(|value| value.as_str())
-                .is_some_and(|value| value != execution.report_id.0)
-                || msg
-                    .metadata
-                    .get("plan_revision")
-                    .and_then(|value| value.as_i64())
-                    .is_some_and(|value| value != execution.revision)
-                || msg
-                    .metadata
-                    .get("execution_id")
-                    .and_then(|value| value.as_str())
-                    .is_some_and(|value| value != execution.id)
-            {
-                return Err(anyhow::anyhow!("approved execution continuation conflict").into());
-            }
-        }
-        // Kickoff turns that begin implementing an approved report.
-        if msg
-            .metadata
-            .get("legacy_execution_start")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false)
-            && active_execution.is_some()
-            && !plan_mode
-        {
-            execution_start = execution_start
-                || msg
-                    .metadata
-                    .get("approved_plan_markdown")
-                    .and_then(|value| value.as_str())
-                    .is_some()
-                || msg.content.contains("Carry out the approved plan")
-                || msg.content.contains("开始执行已批准");
-        }
-        let active_execution_id = active_execution
-            .as_ref()
-            .map(|execution| execution.id.clone());
-        let mut turn_snapshot = TurnSnapshot::capture(
-            session_key.clone(),
-            model_to_use.clone(),
+        let AdmittedTurn {
+            active_mask,
+            model: model_to_use,
+            scheduled: is_cron_trigger,
             plan_mode,
-            active_plan.as_ref(),
-            trace_id.clone(),
-        );
-        let policy_phase = turn_snapshot.policy_phase.clone();
-        let plan_guard_active = turn_snapshot.plan_guard_active();
-        let approved_plan_markdown = if let Some(markdown) = msg
-            .metadata
-            .get("approved_plan_markdown")
-            .and_then(|value| value.as_str())
-        {
-            Some(markdown.to_string())
-        } else if let (Some(planning), Some(execution)) =
-            (&self.tool_config.planning, active_execution.as_ref())
-        {
-            planning.registry.execution_markdown(&execution.id).await
-        } else {
-            None
-        };
-        let background_task_context = BackgroundTaskContext {
-            channel: Some(msg.channel.clone()),
-            chat_id: Some(msg.chat_id.clone()),
-            session_key: Some(session_key.clone()),
-            trace_id: Some(trace_id.clone()),
-            parent_run_id: msg
-                .metadata
-                .get("run_id")
-                .or_else(|| msg.metadata.get("parent_run_id"))
-                .and_then(|value| value.as_str())
-                .map(str::to_string),
-            token_budget_limit: self.session_token_budget_limit,
-        };
-        self.rebuild_tools_for_turn(
-            active_mask.as_ref(),
-            policy_phase.clone(),
-            active_execution_id.clone(),
-            Some(background_task_context.clone()),
-        );
+            execution_start,
+            session_key,
+            mut active_execution,
+            active_execution_id,
+            snapshot: mut turn_snapshot,
+            plan_guard_active,
+            approved_plan_markdown,
+            background_task_context,
+        } = self.admit_turn(&msg, &trace_id).await?;
 
         // Process attachments first, then run the combined user-visible payload through
         // the security gate before any session or provider work starts.
