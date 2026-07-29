@@ -995,11 +995,15 @@ async function approvePlanExecution(payload: {
       steps: result.plan.steps ?? [],
       todos: result.plan.todos ?? [],
     };
-    syncPlanRuntime(approved);
     if (!isExecutingPhase(approved)) {
       throw new Error('Approval did not return an executing backend state; refresh and retry.');
     }
-    await continueApprovedPlanExecution();
+    await continueApprovedPlanExecution(
+      approved.plan_id,
+      approved.revision ?? pending.revision,
+      approved.execution_id ?? undefined,
+    );
+    syncPlanRuntime({ ...approved, initialization_status: 'Ready' });
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),
@@ -1012,7 +1016,11 @@ async function approvePlanExecution(payload: {
   }
 }
 
-async function continueApprovedPlanExecution() {
+async function continueApprovedPlanExecution(
+  planId?: string,
+  revision?: number,
+  executionId?: string,
+) {
   if (isTyping.value) {
     throw new Error('Another response is already streaming.');
   }
@@ -1039,6 +1047,9 @@ async function continueApprovedPlanExecution() {
       channel: currentChannel.value,
       chatId: currentChatId.value,
       streamRequestId,
+      planId,
+      revision,
+      executionId,
     });
   } catch (error) {
     activeStreamRequestId.value = null;

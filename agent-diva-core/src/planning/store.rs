@@ -13,6 +13,7 @@ use super::ids::{PlanId, TodoId};
 use super::model::{
     Plan, PlanPhase, PlanStatus, PlanStep, TodoItem, TodoList, TodoPriority, TodoStatus,
 };
+use super::report::PersistedExecutionContext;
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -104,6 +105,24 @@ pub trait PlanningStore: Send + Sync {
         request: &ApprovalRequest,
     ) -> crate::Result<ApprovalReceipt>;
     async fn get_plan_revision(&self, plan_id: &PlanId) -> crate::Result<Option<i64>>;
+    async fn create_execution_context(
+        &self,
+        context: &PersistedExecutionContext,
+    ) -> crate::Result<()>;
+    async fn get_execution_context(
+        &self,
+        plan_id: &PlanId,
+        revision: i64,
+    ) -> crate::Result<Option<PersistedExecutionContext>>;
+    async fn get_execution_context_for_session(
+        &self,
+        plan_id: &PlanId,
+        session_key: &str,
+    ) -> crate::Result<Option<PersistedExecutionContext>>;
+    async fn update_execution_context(
+        &self,
+        context: &PersistedExecutionContext,
+    ) -> crate::Result<()>;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +238,21 @@ impl SqlitePlanningStore {
             r#"CREATE TABLE IF NOT EXISTS active_plan (
                 singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                 plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE
+            )"#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"CREATE TABLE IF NOT EXISTS plan_execution_contexts (
+                plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+                revision INTEGER NOT NULL,
+                session_key TEXT NOT NULL,
+                execution_id TEXT NOT NULL UNIQUE,
+                context_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(plan_id, revision)
             )"#,
         )
         .execute(&mut *tx)
@@ -861,8 +895,9 @@ impl PlanningStore for SqlitePlanningStore {
         let materialize = request.todo_policy.materializes(request.materialize_todos);
         let mut tx = self.pool.begin().await?;
         let revision =
-            sqlx::query_scalar::<_, i64>("SELECT revision FROM plan_submissions WHERE plan_id = ?")
+            sqlx::query_scalar::<_, i64>("SELECT s.revision FROM plan_submissions s JOIN plans p ON p.id = s.plan_id WHERE s.plan_id = ? AND p.phase = ?")
                 .bind(&plan_id.0)
+                .bind(PlanPhase::AwaitingApproval.to_string())
                 .fetch_optional(&mut *tx)
                 .await?;
         if revision != Some(request.expected_revision) {
@@ -943,6 +978,84 @@ impl PlanningStore for SqlitePlanningStore {
                 .fetch_optional(&self.pool)
                 .await?,
         )
+    }
+
+    async fn create_execution_context(
+        &self,
+        context: &PersistedExecutionContext,
+    ) -> crate::Result<()> {
+        sqlx::query(
+            "INSERT INTO plan_execution_contexts (plan_id, revision, session_key, execution_id, context_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&context.plan_id.0)
+        .bind(context.revision)
+        .bind(&context.session_key)
+        .bind(&context.execution_id)
+        .bind(serde_json::to_string(context)?)
+        .bind(context.created_at.to_rfc3339())
+        .bind(context.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get_execution_context(
+        &self,
+        plan_id: &PlanId,
+        revision: i64,
+    ) -> crate::Result<Option<PersistedExecutionContext>> {
+        let json = sqlx::query_scalar::<_, String>(
+            "SELECT context_json FROM plan_execution_contexts WHERE plan_id = ? AND revision = ?",
+        )
+        .bind(&plan_id.0)
+        .bind(revision)
+        .fetch_optional(&self.pool)
+        .await?;
+        json.map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    async fn get_execution_context_for_session(
+        &self,
+        plan_id: &PlanId,
+        session_key: &str,
+    ) -> crate::Result<Option<PersistedExecutionContext>> {
+        let json = sqlx::query_scalar::<_, String>(
+            "SELECT context_json FROM plan_execution_contexts WHERE plan_id = ? AND session_key = ? ORDER BY revision DESC LIMIT 1",
+        )
+        .bind(&plan_id.0)
+        .bind(session_key)
+        .fetch_optional(&self.pool)
+        .await?;
+        json.map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    async fn update_execution_context(
+        &self,
+        context: &PersistedExecutionContext,
+    ) -> crate::Result<()> {
+        let changed = sqlx::query(
+            "UPDATE plan_execution_contexts SET context_json = ?, updated_at = ? WHERE plan_id = ? AND revision = ? AND execution_id = ?",
+        )
+        .bind(serde_json::to_string(context)?)
+        .bind(context.updated_at.to_rfc3339())
+        .bind(&context.plan_id.0)
+        .bind(context.revision)
+        .bind(&context.execution_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        if changed != 1 {
+            return Err(PlanningError::ApprovalConflict {
+                plan_id: context.plan_id.0.clone(),
+                expected_revision: context.revision,
+            }
+            .into());
+        }
+        Ok(())
     }
 }
 
@@ -1927,5 +2040,59 @@ mod tests {
         let store = test_store().await;
         let result = store.get_active_plan().await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn execution_context_is_revision_isolated_and_restart_safe() {
+        let store = test_store().await;
+        let plan = make_plan("p1", "Plan");
+        store.create_plan(&plan).await.unwrap();
+        let now = Utc::now();
+        let mut context = PersistedExecutionContext {
+            plan_id: plan.id.clone(),
+            revision: 1,
+            session_key: "gui:session".to_string(),
+            execution_id: "execution-1".to_string(),
+            context_policy: crate::planning::ExecutionContextPolicy::Compact,
+            boundary: Some(crate::planning::ExecutionContextBoundary {
+                message_count: 12,
+                initialized_at: now,
+            }),
+            compacted_context: Some("approved execution summary".to_string()),
+            initialization_status: crate::planning::ExecutionInitializationStatus::Blocked,
+            initialization_error: Some("summary quality validation failed".to_string()),
+            created_at: now,
+            updated_at: now,
+        };
+        store.create_execution_context(&context).await.unwrap();
+
+        context.initialization_status = crate::planning::ExecutionInitializationStatus::Ready;
+        context.initialization_error = None;
+        context.updated_at = Utc::now();
+        store.update_execution_context(&context).await.unwrap();
+
+        let restored = store
+            .get_execution_context(&plan.id, 1)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored, context);
+        assert!(store
+            .get_execution_context(&plan.id, 2)
+            .await
+            .unwrap()
+            .is_none());
+
+        let mut stale = context.clone();
+        stale.revision = 2;
+        assert!(store.update_execution_context(&stale).await.is_err());
+        assert_eq!(
+            store
+                .get_execution_context(&plan.id, 1)
+                .await
+                .unwrap()
+                .unwrap(),
+            context
+        );
     }
 }

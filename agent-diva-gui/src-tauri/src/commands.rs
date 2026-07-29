@@ -1041,6 +1041,7 @@ pub async fn send_message(
     #[allow(non_snake_case)] chatId: Option<String>,
     attachments: Option<Vec<String>>,
     mode: Option<String>,
+    execution: Option<serde_json::Value>,
     #[allow(non_snake_case)] streamRequestId: String,
     window: Window,
     state: State<'_, AgentState>,
@@ -1061,7 +1062,11 @@ pub async fn send_message(
             "channel": channel,
             "chat_id": chat_id,
             "attachments": attachments,
-            "mode": mode
+            "mode": mode,
+            "execution_start": execution.as_ref().map(|_| true),
+            "plan_id": execution.as_ref().and_then(|value| value.get("plan_id")),
+            "plan_revision": execution.as_ref().and_then(|value| value.get("revision")),
+            "execution_id": execution.as_ref().and_then(|value| value.get("execution_id"))
         }))
         .send()
         .await
@@ -1273,10 +1278,14 @@ pub async fn send_message(
 /// Continues a previously approved plan without requiring the frontend to
 /// synthesize a visible user chat message.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn continue_approved_plan_execution(
     channel: Option<String>,
     #[allow(non_snake_case)] chatId: Option<String>,
     #[allow(non_snake_case)] streamRequestId: String,
+    plan_id: Option<String>,
+    revision: Option<i64>,
+    execution_id: Option<String>,
     window: Window,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
@@ -1318,7 +1327,9 @@ pub async fn approve_active_plan_execution(
         .or_else(|| request.get("expectedRevision"))
         .and_then(|value| value.as_i64())
         .ok_or_else(|| "expected_revision is required".to_string())?;
-    let markdown = request.get("markdown").and_then(|value| value.as_str())
+    let markdown = request
+        .get("markdown")
+        .and_then(|value| value.as_str())
         .ok_or_else(|| "markdown is required".to_string())?;
     // Agent stores normalize_report_markdown(body). Display paths may trim the
     // body (stripping the trailing newline), which must not change the hash.

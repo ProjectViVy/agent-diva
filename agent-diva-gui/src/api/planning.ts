@@ -95,6 +95,9 @@ export interface PlanRuntimeState {
   todos: PlanRuntimeTodo[];
   created_at: string;
   updated_at: string;
+  execution_id?: string | null;
+  initialization_status?: 'Pending' | 'Ready' | 'Blocked';
+  initialization_error?: string | null;
 }
 
 const PLAN_REQUIRED_SECTIONS = ['目标', '范围', '计划步骤', '风险与假设', '验证方法'] as const;

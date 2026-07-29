@@ -13,7 +13,8 @@ use std::{
 use tokio::sync::RwLock;
 
 use super::{
-    assert_report_ready_for_approval, revision_hash, ExecutionContextPolicy, ExecutionSession,
+    assert_report_ready_for_approval, revision_hash, ExecutionContextBoundary,
+    ExecutionContextPolicy, ExecutionInitializationStatus, ExecutionSession,
     ExecutionSessionStatus, ExecutionTodo, PlanId, PlanReport, PlanReportStatus, PlanRevision,
     PlanRevisionApproval, PlanRevisionAuthor,
 };
@@ -219,6 +220,9 @@ impl EphemeralPlanRegistry {
             context_policy,
             status: ExecutionSessionStatus::Executing,
             compacted_context: compacted_context.map(ToOwned::to_owned),
+            boundary: None,
+            initialization_status: ExecutionInitializationStatus::Pending,
+            initialization_error: None,
             created_at: now,
             updated_at: now,
         };
@@ -232,6 +236,28 @@ impl EphemeralPlanRegistry {
         Ok((approval, session))
     }
 
+    pub async fn update_execution_context(
+        &self,
+        execution_id: &str,
+        boundary: Option<ExecutionContextBoundary>,
+        compacted_context: Option<String>,
+        initialization_status: ExecutionInitializationStatus,
+        initialization_error: Option<String>,
+    ) -> anyhow::Result<ExecutionSession> {
+        let mut sessions = self.sessions.write().await;
+        let execution = sessions
+            .values_mut()
+            .filter_map(|state| state.execution.as_mut())
+            .find(|execution| execution.session.id == execution_id)
+            .ok_or_else(|| anyhow!("execution session not found"))?;
+        execution.session.boundary = boundary;
+        execution.session.compacted_context = compacted_context;
+        execution.session.initialization_status = initialization_status;
+        execution.session.initialization_error = initialization_error;
+        execution.session.updated_at = Utc::now();
+        Ok(execution.session.clone())
+    }
+
     pub async fn active_execution_for_session(
         &self,
         session_key: &str,
@@ -242,6 +268,29 @@ impl EphemeralPlanRegistry {
             .get(session_key)
             .and_then(|state| state.execution.as_ref())
             .map(|execution| execution.session.clone())
+    }
+
+    pub async fn restore_execution(
+        &self,
+        session_key: &str,
+        session: ExecutionSession,
+        markdown: String,
+    ) -> anyhow::Result<()> {
+        if session.revision <= 0 || markdown.trim().is_empty() {
+            return Err(anyhow!("invalid persisted execution projection"));
+        }
+        self.sessions.write().await.insert(
+            session_key.to_string(),
+            SessionPlanState {
+                draft: None,
+                execution: Some(ExecutionState {
+                    session,
+                    markdown,
+                    todos: Vec::new(),
+                }),
+            },
+        );
+        Ok(())
     }
 
     /// Projects the session-scoped report state into the canonical runtime

@@ -3,9 +3,10 @@
 use agent_diva_core::planning::store::{PlanningStore, SqlitePlanningStore};
 use agent_diva_core::planning::{
     validate_report_markdown, ApprovalRequest, EphemeralPlanRegistry, ExecutionContextPolicy,
-    ExecutionSession, ExecutionTodo, ExecutionTodoPriority, ExecutionTodoStatus, Plan, PlanId,
-    PlanPhase, PlanReport, PlanReportDetail, PlanReportStatus, PlanRevision, PlanRevisionAuthor,
-    PlanStatus, PlanStep, PlanSubmission, TodoPolicy,
+    ExecutionSession, ExecutionTodo, ExecutionTodoPriority, ExecutionTodoStatus,
+    PersistedExecutionContext, Plan, PlanId, PlanPhase, PlanReport, PlanReportDetail,
+    PlanReportStatus, PlanRevision, PlanRevisionAuthor, PlanStatus, PlanStep, PlanSubmission,
+    TodoPolicy,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -180,7 +181,7 @@ impl PlanningService {
                 request.revision,
                 &request.revision_hash,
                 request.context_policy,
-                request.compacted_context.as_deref(),
+                None,
             )
             .await?;
         if receipt.revision != session.revision {
@@ -188,6 +189,20 @@ impl PlanningService {
                 "canonical approval revision does not match execution session"
             ));
         }
+        let persisted_context = PersistedExecutionContext {
+            plan_id: session.report_id.clone(),
+            revision: session.revision,
+            session_key: request.session_key.clone(),
+            execution_id: session.id.clone(),
+            context_policy: session.context_policy,
+            boundary: session.boundary.clone(),
+            compacted_context: session.compacted_context.clone(),
+            initialization_status: session.initialization_status,
+            initialization_error: session.initialization_error.clone(),
+            created_at: session.created_at,
+            updated_at: session.updated_at,
+        };
+        store.create_execution_context(&persisted_context).await?;
         if request.todo_policy.materializes(request.materialize_todos) {
             let markdown = self
                 .registry

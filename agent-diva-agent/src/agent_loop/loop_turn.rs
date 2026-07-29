@@ -11,6 +11,7 @@ use agent_diva_core::bus::{
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
 use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
+use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::planning::update_plan::UpdatePlanArgs;
 use agent_diva_core::planning::{
     normalize_report_markdown, report_validation_issues, resolve_plan_report_body,
@@ -52,6 +53,31 @@ fn is_plan_mode(msg: &InboundMessage) -> bool {
         .get("exec_mode")
         .and_then(|value| value.as_str())
         .is_some_and(|mode| mode.eq_ignore_ascii_case("plan"))
+}
+
+async fn persist_execution_context(
+    planning: &crate::tool_config::PlanningConfig,
+    session_key: &str,
+    execution: &agent_diva_core::planning::ExecutionSession,
+) -> anyhow::Result<()> {
+    let context = agent_diva_core::planning::PersistedExecutionContext {
+        plan_id: execution.report_id.clone(),
+        revision: execution.revision,
+        session_key: session_key.to_string(),
+        execution_id: execution.id.clone(),
+        context_policy: execution.context_policy,
+        boundary: execution.boundary.clone(),
+        compacted_context: execution.compacted_context.clone(),
+        initialization_status: execution.initialization_status,
+        initialization_error: execution.initialization_error.clone(),
+        created_at: execution.created_at,
+        updated_at: execution.updated_at,
+    };
+    planning
+        .store
+        .update_execution_context(&context)
+        .await
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
 
 fn fallback_session_title(session: &Session) -> Option<String> {
@@ -329,8 +355,51 @@ impl AgentLoop {
         // re-enable mutation tools before the explicit approval transition.
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
         let active_plan = self.snapshot_active_plan_runtime(&session_key).await;
+        if let Some(planning) = &self.tool_config.planning {
+            if planning
+                .registry
+                .active_execution_for_session(&session_key)
+                .await
+                .is_none()
+            {
+                if let Ok(plan_id) = planning.store.get_active_plan().await {
+                    if let Ok(plan) = planning.store.get_plan(&plan_id).await {
+                        if plan.phase == PlanPhase::Execute {
+                            if let Some(context) = planning
+                                .store
+                                .get_execution_context_for_session(&plan_id, &session_key)
+                                .await?
+                            {
+                                if let Some(markdown) = plan.strategy {
+                                    planning
+                                            .registry
+                                            .restore_execution(
+                                                &session_key,
+                                                agent_diva_core::planning::ExecutionSession {
+                                                    id: context.execution_id,
+                                                    report_id: context.plan_id,
+                                                    revision: context.revision,
+                                                    context_policy: context.context_policy,
+                                                    status: agent_diva_core::planning::ExecutionSessionStatus::Executing,
+                                                    compacted_context: context.compacted_context,
+                                                    boundary: context.boundary,
+                                                    initialization_status: context.initialization_status,
+                                                    initialization_error: context.initialization_error,
+                                                    created_at: context.created_at,
+                                                    updated_at: context.updated_at,
+                                                },
+                                                markdown,
+                                            )
+                                        .await?;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         // Hydrate approved report execution (replacement plan runtime).
-        let active_execution = match &self.tool_config.planning {
+        let mut active_execution = match &self.tool_config.planning {
             Some(planning) if !plan_mode => {
                 planning
                     .registry
@@ -339,8 +408,38 @@ impl AgentLoop {
             }
             _ => None,
         };
+        if execution_start {
+            let execution = active_execution
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("no unique active execution for continuation"))?;
+            if msg
+                .metadata
+                .get("plan_id")
+                .and_then(|value| value.as_str())
+                .is_some_and(|value| value != execution.report_id.0)
+                || msg
+                    .metadata
+                    .get("plan_revision")
+                    .and_then(|value| value.as_i64())
+                    .is_some_and(|value| value != execution.revision)
+                || msg
+                    .metadata
+                    .get("execution_id")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value != execution.id)
+            {
+                return Err(anyhow::anyhow!("approved execution continuation conflict").into());
+            }
+        }
         // Kickoff turns that begin implementing an approved report.
-        if active_execution.is_some() && !plan_mode {
+        if msg
+            .metadata
+            .get("legacy_execution_start")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+            && active_execution.is_some()
+            && !plan_mode
+        {
             execution_start = execution_start
                 || msg
                     .metadata
@@ -355,26 +454,6 @@ impl AgentLoop {
             .map(|execution| execution.id.clone());
         let policy_phase = policy_phase_for(active_plan.as_ref(), plan_mode);
         let plan_guard_active = policy_phase.is_some();
-        let execution_context_policy = active_execution
-            .as_ref()
-            .map(|execution| execution.context_policy)
-            .or_else(|| {
-                msg.metadata
-                    .get("execution_context_policy")
-                    .and_then(|value| value.as_str())
-                    .and_then(|policy| match policy {
-                        "Clear" | "clear" => {
-                            Some(agent_diva_core::planning::ExecutionContextPolicy::Clear)
-                        }
-                        "Retain" | "retain" => {
-                            Some(agent_diva_core::planning::ExecutionContextPolicy::Retain)
-                        }
-                        "Compact" | "compact" => {
-                            Some(agent_diva_core::planning::ExecutionContextPolicy::Compact)
-                        }
-                        _ => None,
-                    })
-            });
         let approved_plan_markdown = if let Some(markdown) = msg
             .metadata
             .get("approved_plan_markdown")
@@ -454,6 +533,107 @@ impl AgentLoop {
         let current_turn_message =
             build_current_turn_message(&message_content, &processed_media.image_parts);
 
+        if execution_start {
+            if let (Some(planning), Some(execution)) =
+                (&self.tool_config.planning, active_execution.as_ref())
+            {
+                if execution.initialization_status
+                    == agent_diva_core::planning::ExecutionInitializationStatus::Pending
+                {
+                    let boundary_count = self
+                        .sessions
+                        .get(&session_key)
+                        .map_or(0, |session| session.messages.len());
+                    let boundary = agent_diva_core::planning::ExecutionContextBoundary {
+                        message_count: boundary_count,
+                        initialized_at: chrono::Utc::now(),
+                    };
+                    let compacted = match execution.context_policy {
+                        agent_diva_core::planning::ExecutionContextPolicy::Compact => {
+                            let mut snapshot =
+                                self.sessions.get(&session_key).cloned().ok_or_else(|| {
+                                    anyhow::anyhow!("execution transcript unavailable")
+                                })?;
+                            snapshot.messages.truncate(boundary_count);
+                            snapshot.last_compacted = 0;
+                            snapshot.compaction_history.clear();
+                            let mut config = self.tool_config.budget.clone();
+                            config.keep_recent_count = 0;
+                            let result = ContextCompactor::compact(
+                                &snapshot,
+                                &config,
+                                self.provider.clone(),
+                                &self.model,
+                                CompactTrigger::Manual,
+                                &[],
+                            )
+                            .await;
+                            match result {
+                                Ok(result)
+                                    if !result.summary.summary.trim().is_empty()
+                                        && result.summary.quality_score.unwrap_or_default()
+                                            >= 0.6 =>
+                                {
+                                    Some(result.summary.summary)
+                                }
+                                Ok(_) => {
+                                    let updated = planning
+                                        .registry
+                                        .update_execution_context(
+                                            &execution.id,
+                                            Some(boundary),
+                                            None,
+                                            agent_diva_core::planning::ExecutionInitializationStatus::Blocked,
+                                            Some("Compact summary did not pass quality validation".to_string()),
+                                        )
+                                        .await?;
+                                    persist_execution_context(planning, &session_key, &updated)
+                                        .await?;
+                                    return Err(anyhow::anyhow!(
+                                        "approved plan execution is blocked: Compact summary did not pass quality validation"
+                                    )
+                                    .into());
+                                }
+                                Err(error) => {
+                                    warn!("execution context initialization failed: {error}");
+                                    let updated = planning
+                                        .registry
+                                        .update_execution_context(
+                                            &execution.id,
+                                            Some(boundary),
+                                            None,
+                                            agent_diva_core::planning::ExecutionInitializationStatus::Blocked,
+                                            Some("Compact summary generation failed".to_string()),
+                                        )
+                                        .await?;
+                                    persist_execution_context(planning, &session_key, &updated)
+                                        .await?;
+                                    return Err(anyhow::anyhow!(
+                                        "approved plan execution is blocked: Compact summary generation failed"
+                                    )
+                                    .into());
+                                }
+                            }
+                        }
+                        agent_diva_core::planning::ExecutionContextPolicy::Clear
+                        | agent_diva_core::planning::ExecutionContextPolicy::Retain => None,
+                    };
+                    let updated = planning
+                        .registry
+                        .update_execution_context(
+                            &execution.id,
+                            Some(boundary),
+                            compacted,
+                            agent_diva_core::planning::ExecutionInitializationStatus::Ready,
+                            None,
+                        )
+                        .await?;
+                    persist_execution_context(planning, &session_key, &updated).await?;
+                    active_execution = Some(updated);
+                }
+            }
+        }
+
         // Derive prefetch intent from raw user message before it's consumed.
         let prefetch_intent = derive_prefetch_intent(&message_content);
         let prefetch_user_message = message_content.clone();
@@ -477,9 +657,9 @@ impl AgentLoop {
         // Phase 2: run best-effort auto compaction before any provider call.
         // The first provider request for this turn must see the post-compaction
         // session snapshot, not the pre-compaction history captured above.
-        let (mut history, _history_len_before_policy, compaction_history, did_compact) =
+        let (mut history, _history_len_before_policy, mut compaction_history, did_compact) =
             if should_compact {
-            info!(
+                info!(
                 "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
                 budget_report.pressure_ratio * 100.0,
                 budget_report.history_estimated,
@@ -557,25 +737,46 @@ impl AgentLoop {
             }
         }
 
-        if execution_start
-            && matches!(
-                execution_context_policy,
-                Some(agent_diva_core::planning::ExecutionContextPolicy::Clear)
-            )
-        {
-            history.clear();
-        } else if execution_start
-            && matches!(
-                execution_context_policy,
-                Some(agent_diva_core::planning::ExecutionContextPolicy::Compact)
-            )
-            && history.len() > 6
-        {
-            // Lightweight compact: keep the latest few turns plus the plan system note later.
-            // Always re-align after tail truncation so we never open with an orphan
-            // `tool` message (DeepSeek/OpenAI reject that shape with HTTP 400).
-            let keep = 6.min(history.len());
-            history = align_chat_history(history.split_off(history.len() - keep));
+        if let Some(execution) = active_execution.as_ref().filter(|execution| {
+            execution.initialization_status
+                == agent_diva_core::planning::ExecutionInitializationStatus::Ready
+        }) {
+            if let Some(boundary) = execution.boundary.as_ref() {
+                match execution.context_policy {
+                    agent_diva_core::planning::ExecutionContextPolicy::Retain => {}
+                    agent_diva_core::planning::ExecutionContextPolicy::Clear
+                    | agent_diva_core::planning::ExecutionContextPolicy::Compact => {
+                        let session = self.sessions.get_or_create(&session_key);
+                        history = align_chat_history(
+                            session
+                                .messages
+                                .iter()
+                                .skip(boundary.message_count)
+                                .cloned()
+                                .collect(),
+                        );
+                        compaction_history.clear();
+                        if let Some(summary) = execution.compacted_context.as_ref() {
+                            compaction_history.push(agent_diva_core::session::CompactSummary {
+                                schema_version: 1,
+                                compact_id: format!("execution:{}", execution.id),
+                                created_at: execution.updated_at.to_rfc3339(),
+                                trigger: CompactTrigger::Manual,
+                                source_range: agent_diva_core::session::CompactionRange {
+                                    start_index: 0,
+                                    end_index: boundary.message_count,
+                                },
+                                kept_recent_count: 0,
+                                pre_compact_message_count: boundary.message_count,
+                                pre_compact_estimated_tokens: 0,
+                                summary: summary.clone(),
+                                quality_score: Some(1.0),
+                                retry_count: 0,
+                            });
+                        }
+                    }
+                }
+            }
         }
 
         let mut messages = self.context.build_messages(

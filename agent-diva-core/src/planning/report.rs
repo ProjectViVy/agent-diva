@@ -51,6 +51,41 @@ pub struct ExecutionSession {
     pub context_policy: ExecutionContextPolicy,
     pub status: ExecutionSessionStatus,
     pub compacted_context: Option<String>,
+    #[serde(default)]
+    pub boundary: Option<ExecutionContextBoundary>,
+    #[serde(default)]
+    pub initialization_status: ExecutionInitializationStatus,
+    #[serde(default)]
+    pub initialization_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExecutionContextBoundary {
+    pub message_count: usize,
+    pub initialized_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutionInitializationStatus {
+    #[default]
+    Pending,
+    Ready,
+    Blocked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PersistedExecutionContext {
+    pub plan_id: PlanId,
+    pub revision: i64,
+    pub session_key: String,
+    pub execution_id: String,
+    pub context_policy: ExecutionContextPolicy,
+    pub boundary: Option<ExecutionContextBoundary>,
+    pub compacted_context: Option<String>,
+    pub initialization_status: ExecutionInitializationStatus,
+    pub initialization_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

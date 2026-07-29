@@ -61,6 +61,10 @@ pub struct ChatRequest {
     pub chat_id: Option<String>,
     pub attachments: Option<Vec<String>>,
     pub mode: Option<String>,
+    pub execution_start: Option<bool>,
+    pub plan_id: Option<String>,
+    pub plan_revision: Option<i64>,
+    pub execution_id: Option<String>,
 }
 
 fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
@@ -119,6 +123,18 @@ pub async fn chat_handler(
     let mut msg = InboundMessage::new(channel, "user", chat_id, payload.message);
     if let Some(mode) = normalized_exec_mode(payload.mode.as_deref()) {
         msg = msg.with_metadata("exec_mode", mode);
+    }
+    if payload.execution_start.unwrap_or(false) {
+        msg = msg.with_metadata("execution_start", true);
+        if let Some(plan_id) = payload.plan_id {
+            msg = msg.with_metadata("plan_id", plan_id);
+        }
+        if let Some(revision) = payload.plan_revision {
+            msg = msg.with_metadata("plan_revision", revision);
+        }
+        if let Some(execution_id) = payload.execution_id {
+            msg = msg.with_metadata("execution_id", execution_id);
+        }
     }
     if let Some(attachments) = payload.attachments {
         for attachment in attachments {
@@ -1337,6 +1353,10 @@ mod tests {
                 chat_id: None,
                 attachments: None,
                 mode: None,
+                execution_start: None,
+                plan_id: None,
+                plan_revision: None,
+                execution_id: None,
             }),
         )
         .await;
