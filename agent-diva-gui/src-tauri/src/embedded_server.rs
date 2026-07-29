@@ -3,7 +3,10 @@ use anyhow::Context;
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::watch;
+
+const TOKIO_RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Handle to the running embedded gateway.
 /// Drop or call `shutdown()` to stop the server gracefully.
@@ -88,6 +91,7 @@ pub fn start_embedded_gateway(
                     tracing::error!("Embedded gateway task failed: {}", error);
                 }
             });
+            runtime.shutdown_timeout(TOKIO_RUNTIME_SHUTDOWN_TIMEOUT);
         })
         .context("failed to spawn embedded gateway thread")?;
 
@@ -110,9 +114,17 @@ async fn run_embedded_gateway_task(
     let listener = tokio::net::TcpListener::from_std(std_listener)
         .context("failed to convert embedded gateway listener to tokio listener")?;
 
+    let mut lifecycle_rx = shutdown_rx.clone();
     let runtime = start_embedded_gateway_runtime(config, listener, shutdown_rx)
         .await
         .context("failed to bootstrap embedded manager runtime")?;
+
+    if !*lifecycle_rx.borrow() {
+        lifecycle_rx
+            .wait_for(|shutdown| *shutdown)
+            .await
+            .context("embedded gateway shutdown sender dropped before shutdown")?;
+    }
 
     runtime.shutdown().await;
     Ok(())
@@ -178,6 +190,20 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn immediate_shutdown_during_startup_is_bounded() {
+        let config_dir = TempDir::new().unwrap();
+        let workspace_dir = TempDir::new().unwrap();
+        let config = test_runtime_config(&config_dir, &workspace_dir);
+        let handle = start_embedded_gateway(config).unwrap();
+
+        let shutdown = tokio::task::spawn_blocking(move || handle.shutdown());
+        tokio::time::timeout(Duration::from_secs(15), shutdown)
+            .await
+            .expect("gateway shutdown exceeded its timeout")
+            .expect("gateway shutdown task panicked");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn embedded_gateway_serves_health_endpoint() {
         let config_dir = TempDir::new().unwrap();
         let workspace_dir = TempDir::new().unwrap();
@@ -187,34 +213,43 @@ mod tests {
         let port = handle.port;
         let client = reqwest::Client::new();
 
-        let mut last_error = None;
-        for _ in 0..30 {
-            match client
-                .get(format!("http://127.0.0.1:{port}/api/health"))
-                .send()
-                .await
-            {
-                Ok(response) => {
-                    if response.status() == StatusCode::OK
-                        || response.status() == StatusCode::BAD_GATEWAY
+        let health_result = tokio::time::timeout(Duration::from_secs(10), async {
+            let mut last_error = None;
+            for _ in 0..100 {
+                match client
+                    .get(format!("http://127.0.0.1:{port}/api/health"))
+                    .send()
+                    .await
+                {
+                    Ok(response)
+                        if response.status() == StatusCode::OK
+                            || response.status() == StatusCode::BAD_GATEWAY =>
                     {
-                        handle.shutdown();
-                        return;
+                        return Ok(());
                     }
-                    last_error = Some(format!("status {}", response.status()));
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    Ok(response) => {
+                        last_error = Some(format!("status {}", response.status()));
+                    }
+                    Err(error) => {
+                        last_error = Some(error.to_string());
+                    }
                 }
-                Err(error) => {
-                    last_error = Some(error.to_string());
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
             }
-        }
+            Err(last_error.unwrap_or_else(|| "unknown error".to_string()))
+        })
+        .await;
 
-        handle.shutdown();
-        panic!(
-            "embedded gateway health check did not become ready: {}",
-            last_error.unwrap_or_else(|| "unknown error".to_string())
-        );
+        let shutdown = tokio::task::spawn_blocking(move || handle.shutdown());
+        tokio::time::timeout(Duration::from_secs(15), shutdown)
+            .await
+            .expect("gateway shutdown exceeded its timeout")
+            .expect("gateway shutdown task panicked");
+
+        match health_result {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => panic!("embedded gateway health check did not become ready: {error}"),
+            Err(_) => panic!("embedded gateway health check exceeded its readiness timeout"),
+        }
     }
 }
