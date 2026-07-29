@@ -6,6 +6,7 @@
 pub mod hybrid;
 pub mod manager;
 pub mod provider;
+pub mod record;
 pub mod storage;
 
 #[cfg(feature = "mentle")]
@@ -16,5 +17,11 @@ pub use provider::{
     SessionEndRequest, SessionEndResponse, SessionEndStatus, StartupContextSnapshot,
     StartupInjectionShape, StartupStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus,
     SystemPromptBlock, SystemPromptRequest, SystemPromptResponse, WakeupPackSummary,
+};
+pub use record::{
+    escape_memory_for_prompt, memory_content_digest, MemoryIntegrityFinding, MemoryIntegrityReport,
+    MemoryIntegritySeverity, MemoryProvenance, MemoryProvenanceSource, MemoryRecord,
+    MemoryRecordKind, MemoryRecordValidationError, MemoryScope, MemorySensitivity, MemoryTombstone,
+    MemoryTrust, MAX_CONFIDENCE_BPS,
 };
 pub use storage::{DailyNote, Memory};

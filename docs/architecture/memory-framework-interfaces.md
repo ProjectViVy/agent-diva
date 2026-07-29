@@ -230,10 +230,19 @@ references, not raw Memory values, prompts, credentials, or full tool output.
 
 ### GMH-21 — normalized records and provenance
 
-- Define stable record, provenance, sensitivity, trust, supersession,
-  tombstone, tenant/session scope, and temporal fields.
-- Add adapters for `MEMORY.md`, `HISTORY.md`, and Laputa JSON.
-- Produce integrity reports and reversible migration artifacts; do not cut over.
+Status: implemented without production cutover.
+
+- `agent_diva_core::memory` owns the stable record, provenance, sensitivity,
+  trust, supersession, tombstone, scope, temporal, validation, digest, and
+  prompt-data escaping contracts.
+- `agent_diva_laputa::memory_records` owns pure `MEMORY.md`/`HISTORY.md` and
+  applied-section adapters, integrity comparison, and isolated reversible
+  migration artifacts.
+- Unknown classifications fail validation. AutoDream, session, tool, user, and
+  compaction inputs cannot self-assign applied authority.
+- Migration artifacts are written only beneath an explicit artifact root.
+  They do not overwrite or register `MEMORY.md`, `HISTORY.md`, Laputa sections,
+  proposals, or provider state.
 
 ### GMH-22 — recall and context budget
 

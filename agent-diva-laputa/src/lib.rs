@@ -8,6 +8,7 @@ pub mod error;
 pub mod layout;
 pub mod lock;
 pub mod memory_provider;
+pub mod memory_records;
 pub mod metrics;
 pub mod migration;
 pub mod proposals;
@@ -18,6 +19,11 @@ pub use error::{LaputaError, Result};
 pub use layout::{LaputaPaths, LaputaStorage};
 pub use lock::{LaputaLock, LockOptions};
 pub use memory_provider::LaputaMemoryProvider;
+pub use memory_records::{
+    adapt_laputa_section, adapt_legacy_markdown, compare_normalized_records, MemoryAdapterContext,
+    MemoryAdapterOutput, MemoryMigrationManifest, MemoryMigrationPlan, MemoryMigrationTestFailure,
+    MemoryRecordMigration, MemoryRollbackManifest,
+};
 pub use metrics::{LaputaMetrics, LaputaMetricsSnapshot};
 pub use migration::{
     LaputaMigration, LaputaMigrationBackup, LaputaMigrationOptions, LaputaMigrationOutcome,

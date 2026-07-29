@@ -467,7 +467,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 - [x] **GMH-20：发布当前基线 Memory Interfaces Spec（W4 D1–D2）**
   - 完成现有 backlog 中 `vrm-memory-test` 后续规格，将 `MemoryProvider` 生命周期拆清为 startup injection、prefetch/recall、turn sync、session end、proposal submission。
   - 规定 provider 读能力与 authority 写能力分离；Laputa applied sections 是长期权威，Mentle/索引只做检索层，不得反向覆盖权威。
-- [ ] **GMH-21：规范化 Memory 记录与 provenance（W4 D2–W5 D1）**
+- [x] **GMH-21：规范化 Memory 记录与 provenance（W4 D2–W5 D1）**
   - 定义记录 ID、类型、内容、来源、证据、置信度、敏感级别、创建/有效/过期时间、supersedes/tombstone、租户/会话范围。
   - 兼容旧 `MEMORY.md`/`HISTORY.md` 和 Laputa JSON；设计双读校验、一次性迁移、回滚和数据完整性报告。
   - 对 prompt injection 内容做信任标注和转义；用户输入、工具结果、AutoDream 推断不得直接升级为 authority。

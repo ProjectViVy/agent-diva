@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `None`
-- Last Heartbeat: `2026-07-29T22:58:00+08:00`
+- Last Heartbeat: `2026-07-30T00:15:00+08:00`
 - Expires At: `None`
 
 ## Lock Rules
@@ -29,6 +29,15 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-30`: Released GMH-21 normalized Memory record scope. Core now owns
+  stable records, provenance, trust/sensitivity/scope, validation, digests,
+  integrity reports, tombstones, and prompt-data escaping. Laputa exposes pure
+  legacy/applied adapters and isolated, idempotent, conflict-safe, reversible
+  migration artifacts with forged-path rejection. Focused tests,
+  `git diff --check`, `just fmt-check`, `just check`, and the final complete
+  `just test` passed. No production provider, authority file, API, schema, or
+  user-visible behavior was switched.
 
 - `2026-07-29`: Added an open operational reminder requiring explicit user
   notification before any GMH milestone that needs real-device, real-desktop,

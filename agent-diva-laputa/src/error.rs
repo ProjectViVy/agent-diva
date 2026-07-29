@@ -88,6 +88,15 @@ pub enum LaputaError {
     InjectedMigrationFailure {
         point: crate::migration::LaputaMigrationTestFailure,
     },
+
+    #[error("invalid Memory migration id: {migration_id}")]
+    InvalidMemoryMigrationId { migration_id: String },
+
+    #[error("Memory migration id already exists with different content: {migration_id}")]
+    MemoryMigrationConflict { migration_id: String },
+
+    #[error("injected Memory migration artifact failure")]
+    InjectedMemoryMigrationFailure,
 }
 
 impl LaputaError {
@@ -119,6 +128,9 @@ impl LaputaError {
             Self::RollbackFailed { .. } => "rollback_failed",
             Self::InjectedApplyFailure { .. } => "apply_recovery_failure",
             Self::InjectedMigrationFailure { .. } => "migration_recovery_failure",
+            Self::InvalidMemoryMigrationId { .. } => "invalid_memory_migration_id",
+            Self::MemoryMigrationConflict { .. } => "memory_migration_conflict",
+            Self::InjectedMemoryMigrationFailure => "memory_migration_recovery_failure",
         }
     }
 }
