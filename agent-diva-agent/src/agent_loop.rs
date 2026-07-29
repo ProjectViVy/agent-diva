@@ -1999,7 +1999,7 @@ mod tests {
 
     #[cfg(feature = "mentle")]
     #[tokio::test]
-    async fn test_register_default_tools_rebuild_keeps_active_mentle_prompt() {
+    async fn test_tool_rebuilds_keep_active_mentle_memory_startup_prompt() {
         let bus = MessageBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
@@ -2055,14 +2055,62 @@ mod tests {
         )));
 
         agent.register_default_tools(rebuild_config);
+        agent.rebuild_tools_for_turn(None, None, None, None);
 
         assert!(agent.mentle_active());
         assert!(agent.tools.has("memtle_status"));
         assert!(agent.tools.has("cron"));
-        assert!(agent
-            .context
-            .build_system_prompt(None)
-            .contains("Memory Startup Status"));
+        let prompt = agent.context.build_system_prompt(None);
+        assert!(prompt.contains("Memory Startup Status"));
+        assert!(!prompt.contains("L2 Palace Memory"));
+    }
+
+    #[cfg(feature = "mentle")]
+    #[tokio::test]
+    async fn test_tool_rebuilds_do_not_activate_inactive_mentle_prompt() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                &temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut config = ToolConfig::default();
+        config.builtin = BuiltInToolsConfig {
+            mentle: false,
+            cron: true,
+            ..BuiltInToolsConfig::none()
+        };
+        config.cron_service = Some(Arc::new(CronService::new(
+            workspace.join("cron.json"),
+            None,
+        )));
+
+        let mut agent = AgentLoop::with_tools(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            config.clone(),
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        agent.register_default_tools(config);
+        agent.rebuild_tools_for_turn(None, None, None, None);
+
+        assert!(!agent.mentle_active());
+        assert!(!agent.tools.has("memtle_status"));
+        let prompt = agent.context.build_system_prompt(None);
+        assert!(!prompt.contains("L2 Palace Memory"));
+        assert!(!prompt.contains("memtle_"));
     }
 
     #[cfg(feature = "mentle")]

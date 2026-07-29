@@ -219,6 +219,9 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 ## Deferred (previously Open)
 
+- [x] **Mentle: repair runtime prompt activation regressions** Resolved against the current governed-memory baseline. `L2 Palace Memory` is intentionally no longer injected by runtime flags after `fix(epic5): harden runtime authority boundaries`; prompt assembly now comes exclusively from the active `MemoryProvider`. Regression coverage verifies that `register_default_tools` and per-turn rebuilds retain the active Mentle provider's `Memory Startup Status`, while inactive Mentle remains absent and legacy `L2 Palace Memory` routing is not reintroduced. See `docs/logs/2026-07-mentle-prompt-rebuild/v0.0.1-mentle-prompt-rebuild/`.
+  - Related files: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`
+
 - [ ] **Provider: run StepFun real endpoint E2E for model pass-through** The runtime now keeps model IDs opaque and unit coverage verifies `provider_name = stepfun`, `api_base = https://api.stepfun.com/step_plan/v1`, and `model = step-3.7-flash` pass through unchanged. Real StepFun E2E could not be run in this checkout because `keys.txt` is absent and no StepFun API key is available in the environment.
   - Related files: `agent-diva-providers/src/openai_compatible.rs`, `agent-diva-e2e/src/config.rs`, `docs/logs/2026-07-provider-model-pass-through/v0.0.1-provider-model-pass-through/verification.md`
   - Suggested validation: set `E2E_PROVIDER_NAME=stepfun`, `E2E_API_BASE=https://api.stepfun.com/step_plan/v1`, `E2E_MODEL=step-3.7-flash`, and `E2E_API_KEY`/`DEEPSEEK_API_KEY` to a StepFun key, then run `just e2e-test`.
