@@ -48,3 +48,12 @@
 ## 保留在主清单的完成证据
 
 `Deferred Review Program` 中已勾选的 wave、角色和 commit review 条目仍保留在主文件。它们是尚未完成的 review program 的执行证据，与该 program 中仍开放的 wave reports、cross-wave matrix、priority pool 和 deferred timebox 共同阅读；在整个 program 关闭前不单独迁移。
+
+## 2026-07-29 测试健康与积压清账
+
+- [x] **Embedded gateway 生命周期稳定化** 服务等待明确关闭信号后才进入 Manager shutdown，并对 Tokio runtime 回收设置上限；health、启动中关闭、Drop 和幂等状态测试通过。Commit：`3bc9ea45`。
+- [x] **GUI 旧回归项复核** `evolution.test.ts` 与 `NormalMode.test.ts` 共 8 项通过；当前 locale 无重复顶层 `mode`，`/miku.svg` 也不再作为模块导入。
+- [x] **Core supervised executor 旧竞态项复核** external-cancel 聚焦测试通过且保持调用方取消原因；no-handler 和 lost-run 在 full-workspace 负载下仍可间歇复现，已合并回主清单为一个当前基线 TODO。
+- [x] **Agent compaction harness 复核** `compaction_real_test` 已使用当前 `ContextCompactor::compact` API，`cargo test -p agent-diva-agent --test compaction_real_test --no-run` 通过。
+- [x] **Workspace rustfmt 复核** `cargo fmt --all -- --check` 通过，旧 `agent-diva-e2e` drift 不再存在。
+- [x] **Plan/TODO P1–P3 旧评审基线归档** 旧 tool-oriented review packet 已被 revision-bound report/store/runtime closure 取代；主清单保留原文作为审计证据，但不再把其中复选框解释为当前 backlog。

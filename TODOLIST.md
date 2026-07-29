@@ -4,32 +4,15 @@
 
 ## Active Plan
 
-- [x] **Align the provider-set JSON test with the current DeepSeek default model** The fixture now expects `deepseek-v4-pro` and verifies the native endpoint keeps the raw, unprefixed model ID.
-  - Expected behavior: the provider configuration contract and test fixture agree on the intended DeepSeek default model without weakening the native-provider raw model-ID safety rule.
-  - Related: `agent-diva-cli/tests/config_commands.rs:166`, DeepSeek provider defaults/config migration.
-
-- [ ] **Restore missing audit raw-tab locale labels** The GUI-wide Vitest suite currently fails because `auditPage.tabs.raw` is absent from both language packs.
-  - Expected behavior: `agent-diva-gui/src/locales/{zh,en}.ts` provide a translated raw-audit-tab label and `src/locales/evolution.test.ts` passes for both locales.
-  - Related: `agent-diva-gui/src/locales/{zh,en}.ts`, `agent-diva-gui/src/locales/evolution.test.ts`
-
 - [ ] **Sandbox command approval UI and persistent execution rules** Implement the design package in `docs/dev/sandbox-command-approval/`: route shell execution through the sandbox orchestrator, surface recoverable approval requests in the GUI, and persist only validated safe command-prefix allow rules globally.
   - Expected behavior: Plan mode remains strictly read-only; agent mode can approve a recoverable sandbox escalation once or per session; only safe prefixes can enter the global default execution list.
   - Related: `agent-diva-tools/src/shell.rs`, `agent-diva-sandbox/src/orchestrator.rs`, `agent-diva-manager/src/handlers.rs`, `agent-diva-gui/src/App.vue`
 
-- [ ] **Plan Mode: make default execution-context Compact a durable summary boundary** The current default `Compact` policy only trims the first execution request to six local messages; it does not create a summary, advance a boundary, or prevent exploratory context from returning in later execution turns. `Clear` is also request-local rather than an execution-session policy.
-  - Expected behavior: Compact persists a quality-checked pre-execution summary plus an execution boundary; Clear persists the boundary without a summary; both policies apply to every execution turn while retaining the transcript for audit. Summary failure must be explicit and must not silently retain context.
-  - Related: `docs/architecture/plan-execution-context-compaction-fix.md`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-core/src/planning/report.rs`, `agent-diva-core/src/planning/report_store.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src/App.vue`
-  - Suggested validation: deterministic approval-to-execution integration tests for Compact/Clear/Retain, restart persistence, and reactive generic compaction rebuild.
+## Superseded Review Evidence
 
-- [x] **Plan/TODO architecture implementation** Implemented the project-management plan in [09-project-management.md](docs/architecture/plan-todo/09-project-management.md), with `PlanStore` as the revision/approval authority, phase-projected runtime gates, optional TODO materialization, backend-authoritative GUI approval, pending-plan restart recovery, and P1–P5 iteration evidence.
-  - Scope: P1 core state/capability policy → P2 revision-bound approval and optional TODO materialization → P3 agent-loop enforcement → P4 GUI projection → P5 regression and release validation.
-  - Rule: before approval, file writes, shell execution, MCP, spawning, scheduling, and other external mutations remain denied by runtime policy.
-  - Rule: TODO is optional and is materialized only after approval when selected by the user or plan.
-  - Validation: `just fmt-check && just check && just test`, focused crate/GUI tests, and end-to-end denial/approval scenarios.
-  - Completion evidence: commits `82c25856`, `a1c1389e`, and `91be604b`; logs under `docs/logs/2026-07-plan-todo-closure/`.
-  - Validation note: format and Clippy gates passed; the full test run reached the already-recorded DeepSeek default-model fixture mismatch after all affected planning suites passed.
+The following Plan/TODO P1–P3 review packets are retained for audit only. Their 2026-07-11 tool-oriented baseline was superseded by the revision-bound report/store/runtime implementation completed in commits `82c25856`, `a1c1389e`, `91be604b`, and `52db71ac`. They are not active backlog entries; any regression against the current architecture must be recorded as a new, reproducible TODO.
 
-### Plan/TODO P1 core policy — triple-review follow-ups (2026-07-11)
+### Plan/TODO P1 core policy — historical triple-review findings (2026-07-11)
 
 Source reviews (forced packet process):
 
@@ -83,7 +66,7 @@ Related implementation: `agent-diva-core/src/planning/policy.rs`, `agent-diva-co
 - [ ] **P1 policy: simplify Executing match arms** Blind nit. Dedicated `(Executing, Unknown) => false` is redundant once allowlist/fail-closed rewrite lands.
   - Related: `policy.rs` (~65-66)
 
-### Plan/TODO P2 approval materialization — triple-review follow-ups (2026-07-11)
+### Plan/TODO P2 approval materialization — historical triple-review findings (2026-07-11)
 
 Source reviews (independent sessions; forced packet process):
 
@@ -160,7 +143,7 @@ Baseline: `4f3168e`. Related implementation (working tree at review time): `agen
 - [ ] **P2: return ApprovalReceipt on approve-execute transport** Tasks say snapshot/receipt; response is still `{ status, plan }` only.
   - Related: `loop_runtime_control.rs`, manager planning handler
 
-### Plan/TODO P3 runtime capability gate — triple-review follow-ups (2026-07-11)
+### Plan/TODO P3 runtime capability gate — historical triple-review findings (2026-07-11)
 
 Source reviews (independent sessions; forced packet process):
 
@@ -229,34 +212,14 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 - [ ] **Mentle: repair runtime prompt activation regressions** After Windows native-open isolation, `cargo test -p agent-diva-agent --features mentle --lib mentle` is mostly green (31 pass). Remaining failure: `test_register_default_tools_rebuild_keeps_active_mentle_prompt` — runtime is active / tools register, but system prompt still lacks `L2 Palace Memory` after tool rebuild. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
   - Related files: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`
 
-- [ ] **Core: stabilize supervised executor no-handler failure test** `cargo test -p agent-diva-core --lib` intermittently/factually failed in `supervised::executor::tests::test_executor_fails_when_no_handler`: the run remained `Running` instead of becoming `Failed`. This is unrelated to the 30-day planning cleanup and leaves the full core library gate red.
-  - Related files: `agent-diva-core/src/supervised/executor.rs`
-- [ ] **Core: stabilize supervised executor external-cancel reason test** The full workspace gate intermittently observed the generic `run was cancelled` reason instead of the persisted `user request` reason in `test_executor_stops_after_external_cancel`.
-  - Expected behavior: external cancellation remains terminal and preserves the caller-provided cancellation reason deterministically.
+- [ ] **Core: eliminate supervised executor terminal-state races under the full workspace test load** Two consecutive `cargo test --all` runs reproduced intermittent failures while isolated and `--all-features` focused reruns passed: `test_executor_fails_when_no_handler` observed `Running` instead of `Failed`, and `test_executor_stops_after_run_marked_lost` observed no cancellation after the store reached `Lost`.
+  - Expected behavior: `tick()` must not return before its claimed run reaches the correct terminal state, and external `Lost`/cancel transitions must be observed deterministically under concurrent workspace load.
   - Related files: `agent-diva-core/src/supervised/executor.rs`, `agent-diva-core/src/supervised/store.rs`
-  - Suggested fix: inspect the no-handler executor lifecycle and make the test await the terminal transition or correct the missing-handler failure path.
+  - Evidence: `docs/logs/2026-07-todolist-health-closure/v0.0.1-test-health-backlog-reconciliation/verification.md`
 
-- [ ] **GUI: duplicate `mode` locale keys** Vite reports duplicate `mode` keys in `agent-diva-gui/src/locales/zh.ts` and `agent-diva-gui/src/locales/en.ts`; remove the duplicate definitions so locale builds are warning-free.
-
-- [ ] **Agent: repair stale `compaction_real_test` integration harness** Running `cargo test -p agent-diva-agent <test-name>` still compiles `agent-diva-agent/tests/compaction_real_test.rs`, which currently targets removed compaction APIs such as `ContextCompactor::new(...)`, `compact_session(...)`, and `CompactTrigger::ProactiveThreshold`. This is unrelated to the image multimodal change but blocks clean package-scoped targeted test commands.
-  - Related files: `agent-diva-agent/tests/compaction_real_test.rs`, `agent-diva-agent/src/compaction/compaction_exec.rs`, `agent-diva-core/src/session/`
-  - Suggested fix: update the integration test to the current compaction entrypoints/trigger variants or gate it behind an explicit ignored/manual path until it reflects the live API.
-- [ ] **Formatting: normalize pre-existing `agent-diva-e2e` rustfmt drift** `cargo fmt --check` is currently blocked by formatting diffs in `agent-diva-e2e/src/{collector,config,lib,report,runner,tracer,types}.rs`. This is outside the provider protocol split scope but prevents a clean workspace-wide fmt gate.
-  - Related files: `agent-diva-e2e/src/collector.rs`, `agent-diva-e2e/src/config.rs`, `agent-diva-e2e/src/lib.rs`, `agent-diva-e2e/src/report.rs`, `agent-diva-e2e/src/runner.rs`, `agent-diva-e2e/src/tracer.rs`, `agent-diva-e2e/src/types.rs`
-  - Suggested validation: run `cargo fmt -p agent-diva-e2e` in a focused formatting-only change, then rerun `cargo fmt --check`.
 - [ ] **Provider: run StepFun real endpoint E2E for model pass-through** The runtime now keeps model IDs opaque and unit coverage verifies `provider_name = stepfun`, `api_base = https://api.stepfun.com/step_plan/v1`, and `model = step-3.7-flash` pass through unchanged. Real StepFun E2E could not be run in this checkout because `keys.txt` is absent and no StepFun API key is available in the environment.
   - Related files: `agent-diva-providers/src/openai_compatible.rs`, `agent-diva-e2e/src/config.rs`, `docs/logs/2026-07-provider-model-pass-through/v0.0.1-provider-model-pass-through/verification.md`
   - Suggested validation: set `E2E_PROVIDER_NAME=stepfun`, `E2E_API_BASE=https://api.stepfun.com/step_plan/v1`, `E2E_MODEL=step-3.7-flash`, and `E2E_API_KEY`/`DEEPSEEK_API_KEY` to a StepFun key, then run `just e2e-test`.
-- [ ] **GUI: fix NormalMode.test.ts pre-existing `miku.svg` import failure** The vitest environment cannot resolve `/miku.svg` imported by `NormalMode.vue`, causing the whole `NormalMode.test.ts` suite to fail before any assertions run. This blocks regression testing of sidebar/navigation behavior and is unrelated to the pet overlay fix.
-  - Related files: `agent-diva-gui/src/components/NormalMode.vue`, `agent-diva-gui/src/components/NormalMode.test.ts`, `agent-diva-gui/vitest.config.ts`
-  - Suggested fix: add an SVG mock/ignore handler in `vitest.config.ts` (e.g., `assetsInclude` or a custom plugin) so static asset imports do not crash tests.
-- [ ] **GUI: stabilize `embedded_gateway_serves_health_endpoint` test** `cargo test -p agent-diva-gui` currently fails in `embedded_server::tests::embedded_gateway_serves_health_endpoint` because the health probe returned HTTP 502 instead of the expected 200 during validation for the Tauri watcher fix. This blocks a clean GUI crate test pass and should be isolated from the watcher-only change.
-  - Related files: `agent-diva-gui/src-tauri/src/embedded_server.rs`, `agent-diva-gui/src-tauri/tests/gateway_process_management_bugfix.rs`, `docs/logs/2026-07-gui-tauri-dev-exit-watch-loop/v0.0.1-tauri-dev-exit-watch-loop/verification.md`
-  - Suggested fix: inspect the embedded gateway startup/readiness handshake in tests and make the health assertion wait for the backend to become ready before asserting `200`.
-- [ ] **Plan GUI: remove the temporary visible approval-followup message after inline plan approval** The inline plan approval flow now calls the runtime approval API and then auto-sends a follow-up chat message (`"Plan approved. Execute the approved plan now..."`) to resume execution. This unblocks end-to-end behavior in the current session, but it is still a UX mismatch from the OpenAkita target, where approval continues execution without surfacing an extra synthetic user message.
-  - Related files: `agent-diva-gui/src/App.vue`, `agent-diva-manager/src/handlers/planning.rs`, `agent-diva-agent/src/agent_loop/loop_runtime_control.rs`
-  - Suggested fix: add a dedicated runtime continuation command that resumes the approved plan in-session without injecting a visible chat turn from the GUI.
-
 ## Deferred (existing backlog)
 
 - [ ] **Mask feature plan acceptance** Deferred while the Plan/TODO architecture is the sole active stream. The remaining acceptance items in `.sisyphus/plans/mask-feature-implementation.md` are preserved for later reactivation.
