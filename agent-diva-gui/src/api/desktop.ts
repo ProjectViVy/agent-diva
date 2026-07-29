@@ -601,13 +601,28 @@ export interface UiCard {
   updated_at: string;
 }
 
-export interface ApprovalRequest {
-  request_id: string;
-  operation: string;
-  risk: 'low' | 'medium' | 'high';
-  scope: string;
+export interface CommandApprovalScope {
+  channel: string;
+  chat_id: string;
+  session_key: string;
+}
+
+export type ApprovalDecision = 'approve_once' | 'approve_session' | 'reject';
+
+export interface CommandApprovalRequest {
+  approval_id: string;
+  command: string;
+  cwd: string;
+  reason: string;
+  scope: CommandApprovalScope;
   timeout_seconds: number;
   created_at: string;
+}
+
+export interface CommandApprovalResolution {
+  approval_id: string;
+  decision: ApprovalDecision;
+  status: 'approved' | 'rejected' | 'expired' | 'cancelled';
 }
 
 // ============================================================

@@ -2415,6 +2415,204 @@ pub async fn start_background_stream(
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandApprovalScopeDto {
+    pub channel: String,
+    pub chat_id: String,
+    pub session_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandApprovalRequestDto {
+    pub approval_id: String,
+    pub command: String,
+    pub cwd: String,
+    pub reason: String,
+    pub scope: CommandApprovalScopeDto,
+    pub created_at: String,
+    pub timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct CommandApprovalListResponse {
+    requests: Vec<CommandApprovalRequestDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandApprovalResolutionDto {
+    pub approval_id: String,
+    pub decision: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CommandApprovalApiError {
+    pub status: u16,
+    pub code: String,
+}
+
+#[tauri::command]
+pub async fn get_command_approvals(
+    state: State<'_, AgentState>,
+    session_key: Option<String>,
+) -> Result<Vec<CommandApprovalRequestDto>, String> {
+    let mut request = state.client.get(format!(
+        "{}/command-approvals?channel=gui",
+        state.api_base_url()
+    ));
+    if let Some(session_key) = session_key {
+        let chat_id = session_key
+            .strip_prefix("gui:")
+            .unwrap_or(&session_key)
+            .to_string();
+        request = request.query(&[
+            ("chat_id", chat_id.as_str()),
+            ("session_key", session_key.as_str()),
+        ]);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("Failed to query command approvals: {error}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Command approval query failed with HTTP {}",
+            response.status().as_u16()
+        ));
+    }
+    response
+        .json::<CommandApprovalListResponse>()
+        .await
+        .map(|body| {
+            body.requests
+                .into_iter()
+                .filter(|request| request.scope.channel == "gui")
+                .collect()
+        })
+        .map_err(|error| format!("Invalid command approval response: {error}"))
+}
+
+#[tauri::command]
+pub async fn resolve_command_approval(
+    state: State<'_, AgentState>,
+    approval_id: String,
+    decision: String,
+) -> Result<CommandApprovalResolutionDto, CommandApprovalApiError> {
+    if !matches!(
+        decision.as_str(),
+        "approve_once" | "approve_session" | "reject"
+    ) {
+        return Err(CommandApprovalApiError {
+            status: 422,
+            code: "invalid_decision".into(),
+        });
+    }
+    let response = state
+        .client
+        .post(format!(
+            "{}/command-approvals/{}",
+            state.api_base_url(),
+            approval_id
+        ))
+        .json(&serde_json::json!({ "decision": decision }))
+        .send()
+        .await
+        .map_err(|error| CommandApprovalApiError {
+            status: 0,
+            code: format!("transport_error:{error}"),
+        })?;
+    let status = response.status();
+    if !status.is_success() {
+        let code = response
+            .json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|body| {
+                body.get("error")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_owned)
+            })
+            .unwrap_or_else(|| format!("http_{}", status.as_u16()));
+        return Err(CommandApprovalApiError {
+            status: status.as_u16(),
+            code,
+        });
+    }
+    response
+        .json()
+        .await
+        .map_err(|error| CommandApprovalApiError {
+            status: 0,
+            code: format!("invalid_response:{error}"),
+        })
+}
+
+#[tauri::command]
+pub async fn start_command_approval_stream(
+    window: Window,
+    state: State<'_, AgentState>,
+    shutdown_manager: State<'_, ShutdownManager>,
+) -> Result<(), String> {
+    let client = state.client.clone();
+    let cancel_token = shutdown_manager.cancel_token();
+    let url = format!(
+        "{}/command-approvals/events?channel=gui",
+        state.api_base_url()
+    );
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let response = tokio::select! {
+                _ = cancel_token.cancelled() => break,
+                response = client.get(&url).send() => response,
+            };
+            let response = match response {
+                Ok(response) if response.status().is_success() => response,
+                Ok(response) => {
+                    error!(
+                        "Command approval stream server error: {}",
+                        response.status()
+                    );
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+                Err(error) => {
+                    error!("Failed to connect command approval stream: {error}");
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+            let _ = window.emit("command-approval-stream-connected", ());
+            let mut stream = response.bytes_stream().eventsource();
+            while let Some(event) = tokio::select! {
+                _ = cancel_token.cancelled() => None,
+                event = stream.next() => event,
+            } {
+                match event {
+                    Ok(event) if event.event == "command_approval_requested" => {
+                        if let Ok(request) =
+                            serde_json::from_str::<CommandApprovalRequestDto>(&event.data)
+                        {
+                            if request.scope.channel == "gui" {
+                                let _ = window.emit("command-approval-requested", request);
+                            }
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        error!("Command approval stream error: {error}");
+                        break;
+                    }
+                }
+            }
+            tokio::select! {
+                _ = cancel_token.cancelled() => break,
+                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+            }
+        }
+    });
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn check_health(state: State<'_, AgentState>) -> Result<bool, String> {
     let url = format!("{}/health", state.api_base_url());

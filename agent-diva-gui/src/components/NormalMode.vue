@@ -25,6 +25,7 @@ import ChatView from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
 import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
+import type { ApprovalDecision, CommandApprovalRequest } from '../api/desktop';
 import type { ToolsConfigShape } from '../types/toolsConfig';
 import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
@@ -118,6 +119,9 @@ interface Props {
   pendingApprovalPlan?: PlanRuntimeState | null;
   executingPlan?: PlanRuntimeState | null;
   approvingPlan?: boolean;
+  commandApprovals?: CommandApprovalRequest[];
+  resolvingApprovalIds?: string[];
+  commandApprovalErrors?: Record<string, string>;
   currentSessionKey?: string;
   savedModels?: SavedModel[];
   sessions?: {
@@ -154,6 +158,7 @@ const emit = defineEmits<{
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
   (e: 'load-session', sessionKey: string): void;
   (e: 'delete-session', sessionKey: string): void;
+  (e: 'resolve-command-approval', payload: { approval_id: string; decision: ApprovalDecision }): void;
 }>();
 
 type SidebarSection =
@@ -1089,6 +1094,9 @@ defineExpose({
               :pending-approval-plan="pendingApprovalPlan"
               :executing-plan="executingPlan"
               :approving-plan="approvingPlan"
+              :command-approvals="commandApprovals"
+              :resolving-approval-ids="resolvingApprovalIds"
+              :command-approval-errors="commandApprovalErrors"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @approve-plan="emit('approve-plan', $event)"
               @revoke-plan="emit('revoke-plan', $event)"
@@ -1099,6 +1107,7 @@ defineExpose({
               @regenerate="(id) => emit('regenerate', id)"
               @select-session="(key) => emit('load-session', key)"
               @delete-session="(key) => emit('delete-session', key)"
+              @resolve-command-approval="emit('resolve-command-approval', $event)"
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"

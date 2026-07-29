@@ -25,7 +25,8 @@ import {
   type AutoDreamRunRecord,
   type EvolutionProposal,
   type UiCard,
-  type ApprovalRequest,
+  type ApprovalDecision,
+  type CommandApprovalRequest,
 } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
 import type {
@@ -146,6 +147,9 @@ const props = defineProps<{
   pendingApprovalPlan?: PlanRuntimeState | null;
   executingPlan?: PlanRuntimeState | null;
   approvingPlan?: boolean;
+  commandApprovals?: CommandApprovalRequest[];
+  resolvingApprovalIds?: string[];
+  commandApprovalErrors?: Record<string, string>;
 }>();
 
 const emit = defineEmits<{
@@ -163,6 +167,7 @@ const emit = defineEmits<{
   (e: 'rename-session', sessionKey: string, title: string): void;
   (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
   (e: 'regenerate', messageId: string): void;
+  (e: 'resolve-command-approval', payload: { approval_id: string; decision: ApprovalDecision }): void;
 }>();
 
 const input = ref('');
@@ -664,10 +669,6 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   console.log('[ChatView] card check:', payload);
 };
 
-/** Handle ApprovalBanner allow/reject response */
-const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'reject' }) => {
-  console.log('[ChatView] approval respond:', payload);
-};
 </script>
 
 <template>
@@ -772,14 +773,6 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
                 <div class="min-w-0">
                   <TodoCard
                     :card="(getCachedCard(msg.id, msg.content) as unknown as UiCard)"
-                  />
-                </div>
-              </template>
-              <template v-else-if="msg.toolName === 'approval_request' && getCachedCard(msg.id, msg.content)">
-                <div class="min-w-0">
-                  <ApprovalBanner
-                    :request="(getCachedCard(msg.id, msg.content) as unknown as ApprovalRequest)"
-                    @respond="onApprovalRespond"
                   />
                 </div>
               </template>
@@ -1010,6 +1003,19 @@ const onApprovalRespond = (payload: { request_id: string; decision: 'allow' | 'r
             <span class="text-[10px] text-gray-400 mt-1 text-left">{{ formatTime(Date.now()) }}</span>
           </div>
         </div>
+      </div>
+
+      <div v-if="commandApprovals?.length" class="command-approval-list">
+        <ApprovalBanner
+          v-for="request in commandApprovals"
+          :key="request.approval_id"
+          :request="request"
+          :active="request.scope.session_key === activeSessionKey"
+          :submitting="resolvingApprovalIds?.includes(request.approval_id)"
+          :error="commandApprovalErrors?.[request.approval_id]"
+          @respond="emit('resolve-command-approval', $event)"
+          @locate="emit('select-session', $event)"
+        />
       </div>
 
       <PlanApprovalCard
