@@ -9,12 +9,14 @@ compaction, consolidation retry, context boundaries, Plan, title, cron, and
 downstream compaction labels to English. Core and GUI Plan validation now accept
 English and legacy Chinese section headings.
 
-The follow-up extraction completes G1.3–G1.5. Admission and execution hydration,
+The follow-up extraction completes G1.3–G1.6. Admission and execution hydration,
 provider context preparation, bounded sampling and streamed response handling,
 the pre-executor policy seam, and final persistence/events now delegate to the
-`turn` modules. `process_inbound_message_inner` remains the only coordinator and
-was reduced from about 1,400 lines to 865 lines.
+`turn` modules.
 
-G1.6 remains open against the broader architecture target: context compaction,
-tool-result orchestration, and Plan report demultiplexing still keep the
-coordinator above the approximate 500-line review threshold.
+The G1.6 closeout moves attachment/security/vision handling, execution-context
+hydration, compaction/history preparation, and recall prefetch into
+`turn/context.rs`; the complete registry-backed tool lifecycle into
+`turn/tool_step.rs`; and Soul/Plan demultiplexing plus persistence/outbound
+construction into `turn/finalize.rs`. The sole runtime path is retained and
+`process_inbound_message_inner` is reduced from 865 to 350 lines.

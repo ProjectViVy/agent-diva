@@ -12,10 +12,23 @@
 - Cancellation is checked before executor entry and while collecting provider
   stream events.
 - Focused AgentLoop, Clippy, full workspace, CLI, and gateway command gates pass.
+- `process_inbound_message_inner` is 350 lines and only coordinates admission,
+  context, iteration/tool, and finalization.
+- Attachment/security/vision preparation, tool execution lifecycle, Plan/Soul
+  demultiplexing, and persistence each have a single `turn`-module owner.
+- Tool failures retain `ToolCallStarted`, `ToolCallFinished(error)`, then
+  `FinalResponse` ordering.
 
 Deferred acceptance:
 
-- G1.6 coordinator slimming from 865 lines toward the ~500-line review target.
 - Real desktop GUI Plan approval smoke for the completed full G1 cut.
-- Before that real-desktop milestone, remind the user with environment, steps,
-  expected observations, and diagnostics to retain.
+- Environment: Windows desktop build with a configured provider, writable
+  workspace/session directory, and Manager gateway reachable by the GUI.
+- Steps: create a Plan-producing task, approve it and verify execution; repeat
+  and reject it; start an effectful tool turn and press stop before execution.
+- Observe: one approval card per revision, approve transitions to execution,
+  reject leaves no tool side effect, stop emits no late `ToolCallFinished`, and
+  the restored session preserves the same Plan/report state after restart.
+- Retain diagnostics: Manager and GUI logs, session key, plan id/revision,
+  ordered AgentEvent names, tool invocation count, and persisted session JSON
+  with secrets redacted.
