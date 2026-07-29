@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-12T10:30:00+08:00`
-- Last Heartbeat: `2026-07-13T02:20:00+08:00`
+- Started At: `2026-07-29T00:00:00+08:00`
+- Last Heartbeat: `2026-07-29T11:00:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Released Plan/TODO P1-P5 closure in commits `82c25856`, `a1c1389e`, `91be604b`, and `52db71ac`. PlanStore now owns revision approval and materialized TODO protection; report state projects into runtime phase policy and pending approvals restore after restart; GUI approval is backend-authoritative and resumes without a visible synthetic user message. `just fmt-check` and `just check` passed; affected tests and GUI build passed. Full `just test` reached the pre-existing DeepSeek default-model fixture mismatch already recorded in `TODOLIST.md`. Unrelated dirty-work files were excluded.
 
 - `2026-07-29`: Archived completed TODO projects, commit `c7b7d8dc`. Project-level completed items moved to `docs/archive/todolist/completed-through-2026-07-29.md`; root `TODOLIST.md` now links the archive and retains unfinished work plus execution evidence for the still-open Deferred Review Program. Documentation validation: `git diff --check`.
 
