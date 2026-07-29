@@ -30,6 +30,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-29`: Published quality-review docs (`3e7706cc`), loop-engineering research (`a9fbe249`), and normal-chat iteration evidence (`b40bbb2f`). Closed the remaining ToolChoiceMode/response-protocol migration (`e6d12e92`), completed GUI continuation payload wiring (`d9275acc`), removed an unused GUI icon import (`93e47b22`), and committed rustfmt-only residue (`6ad20c20`). `just fmt-check`, `just check`, and all 125 provider tests passed; working tree was clean before this lock release.
+
 - `2026-07-29`: Dirty-worktree cleanup moved three verified external-repository scratch copies (`msys64tmpopencode*`, about 27.3 MB) to recoverable quarantine `C:\Users\Administrator\Desktop\morediva\agent-diva-scratch-20260729`. The remaining 37 tracked files all contain semantic changes under whitespace-insensitive diff and were preserved; untracked research/review documents were also preserved.
 
 - `2026-07-29`: Follow-up `5bf5ec3e` makes explicit continuation retry both Pending and Blocked Compact initialization, preserving fail-closed behavior before implementation calls.
