@@ -37,6 +37,15 @@ function factory(props: Record<string, unknown> = {}) {
   });
 }
 
+const proposalResult = {
+  proposal_id: 'proposal-1',
+  proposal_type: 'identity_patch',
+  risk_level: 'high',
+  state: 'pending_review',
+  changelog_id: null,
+  applied_at: null,
+};
+
 describe('SectionEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -143,9 +152,9 @@ describe('SectionEditor', () => {
     expect(desktop.writeLaputaSection).not.toHaveBeenCalled();
   });
 
-  it('resets dirty state and emits saved after a successful save', async () => {
+  it('restores authority content and emits proposal-created after submission', async () => {
     (appDialog.appConfirm as ReturnType<typeof vi.fn>).mockResolvedValue(true);
-    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue({ changelog_id: '3' });
+    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue(proposalResult);
 
     const wrapper = factory({ initialContent: 'existing' });
     await wrapper.find('textarea').setValue('saved content');
@@ -154,8 +163,8 @@ describe('SectionEditor', () => {
     await wrapper.find('.section-editor-save-btn').trigger('click');
     await flushPromises();
 
-    expect(wrapper.emitted('saved')).toHaveLength(1);
-    expect(wrapper.emitted('saved')![0]).toEqual(['identity']);
+    expect(wrapper.emitted('proposal-created')).toEqual([['identity', proposalResult]]);
+    expect(wrapper.find('textarea').element.value).toBe('existing');
     expect(wrapper.find('.section-editor-save-btn').attributes('disabled')).toBeDefined();
   });
 
@@ -193,13 +202,13 @@ describe('SectionEditor', () => {
 
     const button = wrapper.find('.section-editor-save-btn');
     expect(button.attributes('disabled')).toBeDefined();
-    expect(button.text()).toContain(en.laputa.saving);
+    expect(button.text()).toContain(en.laputa.submitting);
     expect(wrapper.find('.spin').exists()).toBe(true);
 
-    resolveSave({ changelog_id: '4' });
+    resolveSave(proposalResult);
     await clickPromise;
     await flushPromises();
 
-    expect(button.text()).toContain(en.laputa.save);
+    expect(button.text()).toContain(en.laputa.submitProposal);
   });
 });
