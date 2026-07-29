@@ -1,7 +1,10 @@
-//! Read-only Laputa adapter for the Agent-Diva memory provider boundary.
+//! Laputa authority and governed turn-sync adapter for the memory provider boundary.
 
 use agent_diva_core::{
-    evolution::LaputaSectionName,
+    evolution::{
+        EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState,
+        ProposalType, RiskLevel,
+    },
     memory::{
         MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest,
         SessionEndResponse, SessionEndStatus, StartupInjectionShape, SyncTurnRequest,
@@ -9,14 +12,19 @@ use agent_diva_core::{
         SystemPromptResponse,
     },
 };
+use chrono::Utc;
 use serde_json::Value;
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use crate::{LaputaError, LaputaService, Result};
 
 const DEFAULT_MAX_SECTION_CHARS: usize = 4000;
+static PROPOSAL_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-/// Read-only `MemoryProvider` that exposes applied Laputa authority to prompt assembly.
+/// `MemoryProvider` that reads applied authority and proposalizes turn synchronization.
 #[derive(Clone, Debug)]
 pub struct LaputaMemoryProvider {
     service: LaputaService,
@@ -85,6 +93,62 @@ impl LaputaMemoryProvider {
             truncate_chars(&content, self.max_section_chars)
         )))
     }
+
+    fn create_turn_proposal(
+        &self,
+        proposal_type: ProposalType,
+        content: String,
+        evidence_label: &str,
+        risk_level: RiskLevel,
+    ) -> Result<()> {
+        let now = Utc::now();
+        let sequence = PROPOSAL_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let id = format!(
+            "turn-sync-{}-{}-{sequence}",
+            proposal_type,
+            now.timestamp_micros()
+        );
+        let proposed_patch = serde_json::to_string(&content)?;
+        self.service.create_proposal(EvolutionProposal {
+            id: id.clone(),
+            created_at: now,
+            updated_at: now,
+            created_by: "agent-loop-session-sync".to_string(),
+            proposal_type: proposal_type.clone(),
+            target_section: proposal_type.target_section(),
+            evidence_refs: vec![EvidenceRef {
+                id: format!("evidence-{id}"),
+                source: EvidenceSource::Session,
+                uri: format!("session-sync://{evidence_label}"),
+                excerpt: Some(format!("bounded {evidence_label} evidence")),
+                hash: None,
+                created_at: now,
+            }],
+            proposed_patch,
+            risk_level,
+            state: ProposalState::PendingReview,
+            source_run_id: None,
+        })?;
+        Ok(())
+    }
+
+    fn append_history_patch(&self, history_entry: &str) -> Result<String> {
+        let current = self
+            .service
+            .read_section(LaputaSectionName::HistoryMd)?
+            .content;
+        let current = match current {
+            Value::Null => String::new(),
+            Value::String(value) => value,
+            value => serde_json::to_string_pretty(&value)?,
+        };
+        let mut updated = current.trim_end().to_string();
+        if !updated.is_empty() {
+            updated.push('\n');
+        }
+        updated.push_str(history_entry);
+        Ok(updated)
+    }
 }
 
 #[async_trait::async_trait]
@@ -123,10 +187,49 @@ impl MemoryProvider for LaputaMemoryProvider {
 
     async fn sync_turn(
         &self,
-        _request: SyncTurnRequest,
+        request: SyncTurnRequest,
     ) -> agent_diva_core::Result<SyncTurnResponse> {
+        let memory_update = request
+            .memory_update_markdown
+            .filter(|value| !value.trim().is_empty());
+        let history_entry = request
+            .history_entry
+            .filter(|value| !value.trim().is_empty());
+        if memory_update.is_none() && history_entry.is_none() {
+            return Ok(SyncTurnResponse::default());
+        }
+
+        let result = (|| -> Result<()> {
+            let history_patch = history_entry
+                .as_deref()
+                .map(|entry| self.append_history_patch(entry))
+                .transpose()?;
+            if let Some(memory_update) = memory_update {
+                self.create_turn_proposal(
+                    ProposalType::MemoryPatch,
+                    memory_update,
+                    "memory-update",
+                    RiskLevel::Medium,
+                )?;
+            }
+            if let Some(history_patch) = history_patch {
+                self.create_turn_proposal(
+                    ProposalType::HistoryPatch,
+                    history_patch,
+                    "history-entry",
+                    RiskLevel::Low,
+                )?;
+            }
+            Ok(())
+        })();
+
         Ok(SyncTurnResponse {
-            status: SyncTurnStatus::Noop,
+            status: match result {
+                Ok(()) => SyncTurnStatus::Persisted,
+                Err(error) => SyncTurnStatus::Failed {
+                    reason: format!("failed to create turn-sync proposal: {error}"),
+                },
+            },
         })
     }
 
@@ -191,7 +294,9 @@ mod tests {
         evolution::{
             EvidenceRef, EvidenceSource, EvolutionProposal, ProposalState, ProposalType, RiskLevel,
         },
-        memory::{MemoryProvider, StartupStatus, SystemPromptRequest},
+        memory::{
+            MemoryProvider, StartupStatus, SyncTurnRequest, SyncTurnStatus, SystemPromptRequest,
+        },
     };
     use chrono::{DateTime, Utc};
     use std::fs;
@@ -327,5 +432,93 @@ mod tests {
             .markdown;
 
         assert!(markdown.contains("xxxxxxx..."));
+    }
+
+    #[tokio::test]
+    async fn turn_sync_creates_pending_proposals_without_mutating_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = LaputaService::open(temp.path()).unwrap();
+        let memory_path = temp
+            .path()
+            .join(".laputa")
+            .join("sections")
+            .join("memory_md.json");
+        let history_path = temp
+            .path()
+            .join(".laputa")
+            .join("sections")
+            .join("history_md.json");
+        fs::write(&memory_path, r#""Applied memory""#).unwrap();
+        fs::write(&history_path, r#""Earlier history""#).unwrap();
+        let provider = LaputaMemoryProvider::new(service.clone());
+
+        let response = provider
+            .sync_turn(SyncTurnRequest {
+                workspace_root: temp.path().to_path_buf(),
+                memory_update_markdown: Some("Candidate memory".to_string()),
+                history_entry: Some("[2026-06-14] Candidate history".to_string()),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(response.status, SyncTurnStatus::Persisted);
+        assert_eq!(
+            fs::read_to_string(&memory_path).unwrap(),
+            r#""Applied memory""#
+        );
+        assert_eq!(
+            fs::read_to_string(&history_path).unwrap(),
+            r#""Earlier history""#
+        );
+
+        let proposals = service
+            .list_proposals(crate::ProposalFilter::default())
+            .unwrap();
+        assert_eq!(proposals.len(), 2);
+        assert!(proposals
+            .iter()
+            .all(|proposal| proposal.state == ProposalState::PendingReview));
+        let memory = proposals
+            .iter()
+            .find(|proposal| proposal.proposal_type == ProposalType::MemoryPatch)
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<String>(&memory.proposed_patch).unwrap(),
+            "Candidate memory"
+        );
+        assert_eq!(memory.risk_level, RiskLevel::Medium);
+        assert_eq!(memory.evidence_refs[0].source, EvidenceSource::Session);
+
+        let history = proposals
+            .iter()
+            .find(|proposal| proposal.proposal_type == ProposalType::HistoryPatch)
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<String>(&history.proposed_patch).unwrap(),
+            "Earlier history\n[2026-06-14] Candidate history"
+        );
+        assert_eq!(history.risk_level, RiskLevel::Low);
+    }
+
+    #[tokio::test]
+    async fn empty_turn_sync_is_noop_without_proposals() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = LaputaService::open(temp.path()).unwrap();
+        let provider = LaputaMemoryProvider::new(service.clone());
+
+        let response = provider
+            .sync_turn(SyncTurnRequest {
+                workspace_root: temp.path().to_path_buf(),
+                memory_update_markdown: Some("  ".to_string()),
+                history_entry: None,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(response.status, SyncTurnStatus::Noop);
+        assert!(service
+            .list_proposals(crate::ProposalFilter::default())
+            .unwrap()
+            .is_empty());
     }
 }
