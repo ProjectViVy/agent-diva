@@ -5,7 +5,7 @@ use super::types::{RunExecutionError, RunKind, RunRecord, RunStatus};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
-use tokio::time::{interval, Duration, Instant};
+use tokio::time::{interval, interval_at, Duration, Instant};
 use tracing::{debug, error, info, warn};
 
 const HEARTBEAT_INTERVAL_SECS: u64 = 10;
@@ -147,7 +147,9 @@ impl TaskExecutor {
             let run_id = run_id.clone();
             let hb_cancel = hb_cancel.clone();
             tokio::spawn(async move {
-                let mut ticker = interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS));
+                let heartbeat_interval = Duration::from_secs(HEARTBEAT_INTERVAL_SECS);
+                let mut ticker =
+                    interval_at(Instant::now() + heartbeat_interval, heartbeat_interval);
                 loop {
                     tokio::select! {
                         _ = ticker.tick() => {
@@ -189,12 +191,12 @@ impl TaskExecutor {
         match outcome {
             ExecutionOutcome::Finished(Ok(summary)) => {
                 info!(run_id = %run_id, "run completed");
-                self.complete_if_running(&run_id, Some(summary)).await;
+                self.complete_if_running(&run_id, Some(summary)).await?;
             }
             ExecutionOutcome::Finished(Err(RunExecutionError::Cancelled))
             | ExecutionOutcome::Cancelled => {
                 warn!(run_id = %run_id, "run cancelled during execution");
-                self.cancel_if_running(&run_id, "run was cancelled").await;
+                self.cancel_if_running(&run_id, "run was cancelled").await?;
             }
             ExecutionOutcome::Lost => {
                 warn!(run_id = %run_id, "run marked lost during execution");
@@ -202,15 +204,15 @@ impl TaskExecutor {
             ExecutionOutcome::TimedOut => {
                 warn!(run_id = %run_id, "run timed out during execution");
                 self.fail_if_running(&run_id, RunExecutionError::Timeout)
-                    .await;
+                    .await?;
             }
             ExecutionOutcome::ExecutorShutdown => {
                 warn!(run_id = %run_id, "executor shutdown interrupted run");
-                self.cancel_if_running(&run_id, "executor shutdown").await;
+                self.cancel_if_running(&run_id, "executor shutdown").await?;
             }
             ExecutionOutcome::Finished(Err(e)) => {
                 warn!(run_id = %run_id, error = %e, "run failed");
-                self.fail_if_running(&run_id, e).await;
+                self.fail_if_running(&run_id, e).await?;
             }
         }
 
@@ -306,7 +308,11 @@ impl TaskExecutor {
         }
     }
 
-    async fn complete_if_running(&self, run_id: &str, summary: Option<String>) {
+    async fn complete_if_running(
+        &self,
+        run_id: &str,
+        summary: Option<String>,
+    ) -> Result<(), String> {
         match self.store.get_record(run_id).await {
             Ok(Some(record))
                 if record.status == RunStatus::Running
@@ -318,6 +324,7 @@ impl TaskExecutor {
                     .await
                 {
                     error!(run_id = %run_id, error = %e, "complete failed");
+                    return Err(format!("complete failed: {e}"));
                 }
             }
             Ok(Some(record)) => {
@@ -328,11 +335,13 @@ impl TaskExecutor {
             }
             Err(e) => {
                 error!(run_id = %run_id, error = %e, "failed to load run before completion");
+                return Err(format!("failed to load run before completion: {e}"));
             }
         }
+        Ok(())
     }
 
-    async fn fail_if_running(&self, run_id: &str, error: RunExecutionError) {
+    async fn fail_if_running(&self, run_id: &str, error: RunExecutionError) -> Result<(), String> {
         match self.store.get_record(run_id).await {
             Ok(Some(record))
                 if record.status == RunStatus::Running
@@ -344,6 +353,7 @@ impl TaskExecutor {
                     .await
                 {
                     error!(run_id = %run_id, error = %e, "fail failed");
+                    return Err(format!("fail failed: {e}"));
                 }
             }
             Ok(Some(record)) => {
@@ -354,11 +364,13 @@ impl TaskExecutor {
             }
             Err(e) => {
                 error!(run_id = %run_id, error = %e, "failed to load run before failure handling");
+                return Err(format!("failed to load run before failure handling: {e}"));
             }
         }
+        Ok(())
     }
 
-    async fn cancel_if_running(&self, run_id: &str, reason: &str) {
+    async fn cancel_if_running(&self, run_id: &str, reason: &str) -> Result<(), String> {
         match self.store.get_record(run_id).await {
             Ok(Some(record))
                 if record.status == RunStatus::Running
@@ -370,6 +382,7 @@ impl TaskExecutor {
                     .await
                 {
                     error!(run_id = %run_id, error = %e, "cancel failed");
+                    return Err(format!("cancel failed: {e}"));
                 }
             }
             Ok(Some(record)) => {
@@ -380,8 +393,12 @@ impl TaskExecutor {
             }
             Err(e) => {
                 error!(run_id = %run_id, error = %e, "failed to load run before cancellation handling");
+                return Err(format!(
+                    "failed to load run before cancellation handling: {e}"
+                ));
             }
         }
+        Ok(())
     }
 }
 
@@ -400,6 +417,25 @@ mod tests {
         let dir = TempDir::new().expect("tempdir");
         let store = RunStore::new(dir.path()).await.expect("store creation");
         (dir, store)
+    }
+
+    async fn wait_for_status(store: &RunStore, run_id: &str, expected: RunStatus) {
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let status = store
+                    .get_record(run_id)
+                    .await
+                    .expect("get record while waiting")
+                    .expect("record while waiting")
+                    .status;
+                if status == expected {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("run {run_id} did not reach status {}", expected.as_str()));
     }
 
     #[tokio::test]
@@ -529,7 +565,7 @@ mod tests {
             async move { executor.tick().await }
         });
 
-        tokio::time::sleep(Duration::from_millis(150)).await;
+        wait_for_status(&store, &created.id, RunStatus::Running).await;
         store
             .cancel_supervised(&created.id, Some("user request".to_string()))
             .await
@@ -569,7 +605,7 @@ mod tests {
             async move { executor.tick().await }
         });
 
-        tokio::time::sleep(Duration::from_millis(150)).await;
+        wait_for_status(&store, &created.id, RunStatus::Running).await;
         let lost = store
             .mark_lost(Utc::now() + chrono::Duration::seconds(1))
             .await

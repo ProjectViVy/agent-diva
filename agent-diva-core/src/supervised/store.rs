@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 use sqlx::Row;
 use std::path::Path;
+use std::time::Duration;
 
 /// Persistent SQLite store for supervised runs
 #[derive(Clone)]
@@ -24,7 +25,8 @@ impl RunStore {
         let options = SqliteConnectOptions::new()
             .filename(db_path)
             .create_if_missing(true)
-            .journal_mode(SqliteJournalMode::Wal);
+            .journal_mode(SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(5));
 
         let pool = SqlitePoolOptions::new().connect_with(options).await?;
 
@@ -358,6 +360,11 @@ impl RunStore {
     ) -> Result<Option<RunRecord>, RunStoreError> {
         let now = Utc::now();
         let now_str = now.to_rfc3339();
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
 
         let row = sqlx::query(
             "UPDATE supervised_runs
@@ -376,21 +383,30 @@ impl RunStore {
         .bind(now_str.clone())
         .bind(now_str.clone())
         .bind(now_str)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
 
-        match row {
+        let record = match row {
             Some(r) => {
                 let record = self.row_to_record(&r)?;
-                audit::emit(audit::AuditEvent::RunClaimed {
-                    run_id: record.id.clone(),
-                    worker_id: worker_id.to_string(),
-                });
-                Ok(Some(record))
+                Some(record)
             }
-            None => Ok(None),
+            None => None,
+        };
+
+        tx.commit()
+            .await
+            .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
+
+        if let Some(record) = &record {
+            audit::emit(audit::AuditEvent::RunClaimed {
+                run_id: record.id.clone(),
+                worker_id: worker_id.to_string(),
+            });
         }
+
+        Ok(record)
     }
 
     /// Update heartbeat for a running supervised run, with owner verification.
