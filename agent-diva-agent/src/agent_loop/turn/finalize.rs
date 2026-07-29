@@ -1,4 +1,13 @@
+use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
 use agent_diva_core::session::TokenUsage;
+use agent_diva_providers::Message;
+use tokio::sync::mpsc;
+use tracing::{error, info, trace};
+
+use super::super::super::consolidation;
+use super::super::loop_turn::{fallback_session_title, save_turn, should_generate_session_title};
+use super::super::AgentLoop;
+use super::iteration::IterationOutcome;
 
 /// Narrow input boundary for response/session finalization.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -6,4 +15,179 @@ pub(crate) struct FinalizationInput {
     pub content: String,
     pub reasoning: Option<String>,
     pub usage: Option<TokenUsage>,
+}
+
+impl From<IterationOutcome> for FinalizationInput {
+    fn from(outcome: IterationOutcome) -> Self {
+        Self {
+            content: outcome.content.unwrap_or_default(),
+            reasoning: outcome.reasoning,
+            usage: outcome.token_usage,
+        }
+    }
+}
+
+/// Owned values needed after model iteration has committed to a final response.
+pub(crate) struct FinalizationContext {
+    pub message: InboundMessage,
+    pub messages: Vec<Message>,
+    pub session_key: String,
+    pub message_content: String,
+    pub turn_messages_start: usize,
+    pub system_turn: bool,
+    pub model: String,
+    pub trace_id: String,
+}
+
+impl AgentLoop {
+    /// Persist and publish one completed turn after all policy-sensitive work.
+    pub(crate) async fn finalize_turn(
+        &mut self,
+        context: FinalizationContext,
+        finalization: FinalizationInput,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+    ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
+        let FinalizationContext {
+            message,
+            messages,
+            session_key,
+            message_content,
+            turn_messages_start,
+            system_turn,
+            model,
+            trace_id,
+        } = context;
+
+        trace!(
+            trace_id = %trace_id,
+            step_name = "response_generated",
+            "Response generated"
+        );
+        let preview = if finalization.content.chars().count() > 120 {
+            format!(
+                "{}...",
+                finalization.content.chars().take(120).collect::<String>()
+            )
+        } else {
+            finalization.content.clone()
+        };
+        info!(
+            "Response to {}:{}: {}",
+            message.channel, message.sender_id, preview
+        );
+
+        let event = AgentEvent::FinalResponse {
+            content: finalization.content.clone(),
+        };
+        if let Some(tx) = event_tx {
+            let _ = tx.send(event.clone());
+        }
+        let _ = self
+            .bus
+            .publish_event(message.channel.clone(), message.chat_id.clone(), event);
+
+        {
+            let session = self.sessions.get_or_create(&session_key);
+            save_turn(
+                session,
+                &messages,
+                turn_messages_start,
+                if system_turn { "system" } else { "user" },
+                &message_content,
+                &finalization.content,
+                finalization.usage.clone(),
+            );
+        }
+
+        {
+            let session = self.sessions.get_or_create(&session_key);
+            if consolidation::should_consolidate(session, self.memory_window) {
+                if let Err(error) = consolidation::consolidate(
+                    session,
+                    &self.provider,
+                    &model,
+                    &self.workspace,
+                    &*self.memory_provider,
+                    self.memory_window,
+                )
+                .await
+                {
+                    error!("Memory consolidation failed: {}", error);
+                }
+            }
+        }
+
+        let title_update = if let Some(session) = self.sessions.get(&session_key) {
+            if should_generate_session_title(session) {
+                let fallback = fallback_session_title(session);
+                let generated = self.generate_session_title_with_llm(session, &model).await;
+                generated
+                    .clone()
+                    .or(fallback)
+                    .map(|title| (title, generated.is_some()))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some((title, generated)) = title_update {
+            let session = self.sessions.get_or_create(&session_key);
+            session.set_conversation_title(Some(title));
+            session.set_title_generated(generated);
+            if !session.title_manually_set() {
+                session.set_title_manually_set(false);
+            }
+        }
+
+        if let Some(session) = self.sessions.get(&session_key) {
+            if let Err(error) = self.sessions.save(session) {
+                error!("Failed to save session: {}", error);
+            }
+        }
+
+        let reply_to = message
+            .metadata
+            .get("message_id")
+            .and_then(|value| value.as_str())
+            .map(str::to_string);
+        trace!(
+            trace_id = %trace_id,
+            step_name = "msg_sent_to_channel",
+            "Returning response to channel/manager"
+        );
+        trace!(
+            trace_id = %trace_id,
+            step_name = "msg_sent_to_manager",
+            "Returning response to manager"
+        );
+
+        Ok(Some(OutboundMessage {
+            channel: message.channel,
+            chat_id: message.chat_id,
+            content: finalization.content,
+            reply_to,
+            media: vec![],
+            reasoning_content: finalization.reasoning,
+            metadata: message.metadata,
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preserves_iteration_output_at_the_persistence_boundary() {
+        let finalization = FinalizationInput::from(IterationOutcome {
+            content: Some("answer".into()),
+            reasoning: Some("reasoning".into()),
+            ..Default::default()
+        });
+        assert_eq!(finalization.content, "answer");
+        assert_eq!(finalization.reasoning.as_deref(), Some("reasoning"));
+        assert!(finalization.usage.is_none());
+    }
 }

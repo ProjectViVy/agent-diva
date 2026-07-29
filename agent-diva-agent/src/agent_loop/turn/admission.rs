@@ -21,3 +21,25 @@ impl TurnAdmission {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classifies_plan_and_scheduled_turns_without_side_effects() {
+        let plan =
+            InboundMessage::new("gui", "user", "chat", "plan").with_metadata("exec_mode", "PLAN");
+        assert_eq!(
+            TurnAdmission::classify(&plan),
+            TurnAdmission {
+                session_key: "gui:chat".into(),
+                plan_mode: true,
+                scheduled: false,
+            }
+        );
+
+        let scheduled = InboundMessage::new("gui", "cron", "chat", "tick");
+        assert!(TurnAdmission::classify(&scheduled).scheduled);
+    }
+}

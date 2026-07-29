@@ -1,20 +1,21 @@
 use super::turn::{
-    admission::TurnAdmission, context::PreparedTurnContext, finalize::FinalizationInput,
-    iteration::IterationOutcome, policy::TurnSnapshot, prompt, tool_step::ToolStepPolicy,
+    admission::TurnAdmission,
+    context::PreparedTurnContext,
+    finalize::{FinalizationContext, FinalizationInput},
+    iteration::IterationOutcome,
+    policy::TurnSnapshot,
+    prompt,
+    tool_step::{ToolExecutionContext, ToolStepPolicy},
 };
 use super::{policy_phase_for, AgentLoop};
 use crate::compaction::ContextCompactor;
-use crate::consolidation;
 use crate::context_budget::check_budget;
-use crate::mask::ToolPolicy;
-use crate::planning::builtin_tool_capability;
 use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::bus::{
     AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
 };
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
-use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
 use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::planning::update_plan::UpdatePlanArgs;
 use agent_diva_core::planning::{
@@ -77,7 +78,7 @@ async fn persist_execution_context(
         .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
 
-fn fallback_session_title(session: &Session) -> Option<String> {
+pub(super) fn fallback_session_title(session: &Session) -> Option<String> {
     let first_user_msg = session.messages.iter().find(|msg| msg.role == "user")?;
     let content = first_user_msg.content.trim();
     if content.is_empty() {
@@ -94,7 +95,7 @@ fn normalize_generated_title(raw: &str) -> Option<String> {
     Some(first_line.chars().take(60).collect())
 }
 
-fn should_generate_session_title(session: &Session) -> bool {
+pub(super) fn should_generate_session_title(session: &Session) -> bool {
     if session.title_manually_set()
         || session.title_generated()
         || session.conversation_title().is_some()
@@ -245,7 +246,7 @@ impl AgentLoop {
         }
     }
 
-    async fn generate_session_title_with_llm(
+    pub(super) async fn generate_session_title_with_llm(
         &self,
         session: &Session,
         model: &str,
@@ -777,42 +778,25 @@ impl AgentLoop {
             }
         }
 
-        let mut messages = self.context.build_messages(
+        let messages = self.context.build_messages(
             history,
             message_content.clone(),
             Some(&msg.channel),
             Some(&msg.chat_id),
             &compaction_history,
         );
-        if plan_guard_active {
-            messages.insert(1, prompt::plan_mode().system());
-        }
-        if let Some(markdown) = approved_plan_markdown.as_deref() {
-            messages.insert(1, prompt::approved_plan(markdown).system());
-        }
-        // Drop any history-shaped orphans before the first provider call.
-        crate::context::ContextBuilder::sanitize_messages_for_provider(&mut messages);
-        // Prefix (system / plan notes / history / current user) ends here.
-        // Agent-loop assistant/tool messages are appended after this index.
-        let prepared_context = PreparedTurnContext::new(messages);
+        let prepared_context = PreparedTurnContext::prepare(
+            messages,
+            plan_guard_active,
+            approved_plan_markdown.as_deref(),
+            active_mask
+                .as_ref()
+                .map(|mask| self.context.build_system_prompt(Some(mask))),
+            is_cron_trigger,
+            current_turn_message.clone(),
+        );
         let turn_messages_start = prepared_context.turn_messages_start;
         let mut messages = prepared_context.messages;
-        if let Some(mask) = active_mask.as_ref() {
-            if let Some(first) = messages.first_mut() {
-                *first = agent_diva_providers::Message::system(
-                    self.context.build_system_prompt(Some(mask)),
-                );
-            }
-        }
-        if is_cron_trigger {
-            // Make trigger origin explicit so the model does not treat it as a fresh user request.
-            let current_message = messages.pop();
-            messages.push(prompt::scheduled_turn().system());
-            if let Some(current_message) = current_message {
-                messages.push(current_message);
-            }
-        }
-        replace_current_turn_message(&mut messages, current_turn_message.clone());
 
         // Agent loop
         let mut iteration = 0;
@@ -1279,6 +1263,11 @@ impl AgentLoop {
                     let tool_step_policy = ToolStepPolicy {
                         phase: turn_snapshot.policy_phase.clone(),
                         cancelled: self.is_session_cancelled(&session_key),
+                        plan_guard_active,
+                        persisted_plan_present: planning_before.is_some(),
+                        reviewer_read_only: active_mask
+                            .as_ref()
+                            .is_some_and(crate::mask::ToolPolicy::is_read_only_mode),
                     };
                     if !tool_step_policy.may_enter_executor() {
                         self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
@@ -1297,82 +1286,21 @@ impl AgentLoop {
                         .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
 
                     let (result, is_error) = match serde_json::to_value(&tool_call.arguments) {
-                        Ok(mut params_value) => {
-                            let read_only_rejected = active_mask
-                                .as_ref()
-                                .is_some_and(ToolPolicy::is_read_only_mode)
-                                && !ToolPolicy::is_read_only_tool(&tool_call.name);
-                            let policy_phase = tool_step_policy.phase.clone();
-                            let capability = builtin_tool_capability(&tool_call.name);
-                            let plan_mode_rejected = policy_phase
-                                .as_ref()
-                                .is_some_and(|phase| !allows_for_phase(phase, capability))
-                                || (plan_guard_active
-                                    && planning_before.is_none()
-                                    && !matches!(
-                                        capability,
-                                        ToolCapability::Inspect | ToolCapability::PlanningRecord
-                                    ));
-
-                            if read_only_rejected {
-                                (
-                                    format!(
-                                        "Error: tool '{}' is disabled in reviewer read-only mode",
-                                        tool_call.name
-                                    ),
-                                    true,
+                        Ok(arguments) => {
+                            let result = tool_step_policy
+                                .execute(
+                                    &tool_call.name,
+                                    &arguments,
+                                    ToolExecutionContext {
+                                        registry: &self.tools,
+                                        channel: &msg.channel,
+                                        chat_id: &msg.chat_id,
+                                        session_key: &session_key,
+                                        cron_trigger: msg.channel == "cron" || is_cron_trigger,
+                                    },
                                 )
-                            } else if plan_mode_rejected {
-                                (format!(
-                                    "Error: tool '{}' is denied by the active plan capability policy.",
-                                    tool_call.name,
-                                ), true)
-                            } else {
-                                if tool_call.name == "cron" {
-                                    if let Some(params_obj) = params_value.as_object_mut() {
-                                        params_obj.insert(
-                                            "context_channel".to_string(),
-                                            serde_json::Value::String(msg.channel.clone()),
-                                        );
-                                        params_obj.insert(
-                                            "context_chat_id".to_string(),
-                                            serde_json::Value::String(msg.chat_id.clone()),
-                                        );
-                                        if msg.channel == "cron" || is_cron_trigger {
-                                            params_obj.insert(
-                                                "_in_cron_context".to_string(),
-                                                serde_json::Value::Bool(true),
-                                            );
-                                        }
-                                    }
-                                }
-
-                                if tool_call.name == "exec" {
-                                    if let Some(params_obj) = params_value.as_object_mut() {
-                                        params_obj.insert(
-                                            "_context_channel".to_string(),
-                                            serde_json::Value::String(msg.channel.clone()),
-                                        );
-                                        params_obj.insert(
-                                            "_context_chat_id".to_string(),
-                                            serde_json::Value::String(msg.chat_id.clone()),
-                                        );
-                                        params_obj.insert(
-                                            "_context_session_key".to_string(),
-                                            serde_json::Value::String(session_key.clone()),
-                                        );
-                                    }
-                                }
-
-                                if is_cron_trigger && tool_call.name == "cron" {
-                                    ("Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string(), true)
-                                } else {
-                                    match self.tools.execute(&tool_call.name, params_value).await {
-                                        Ok(text) => (text, false),
-                                        Err(e) => (format!("Error: {}", e), true),
-                                    }
-                                }
-                            }
+                                .await;
+                            (result.output, result.is_error)
                         }
                         Err(e) => {
                             warn!(
@@ -1532,6 +1460,11 @@ impl AgentLoop {
             token_usage: turn_token_usage.clone(),
             stopped_for_plan_approval,
         };
+        debug_assert_eq!(iteration_outcome.resolved_content(), final_content);
+        debug_assert_eq!(
+            iteration_outcome.stopped_for_plan_approval,
+            stopped_for_plan_approval
+        );
         if self.notify_on_soul_change && !soul_files_changed.is_empty() {
             let frequent_hint = self.is_frequent_soul_change_turn();
             let notice = format_soul_transparency_notice(
@@ -1592,127 +1525,22 @@ impl AgentLoop {
             }
         }
 
-        let finalization = FinalizationInput {
-            content: final_content.clone(),
-            reasoning: iteration_outcome.reasoning,
-            usage: iteration_outcome.token_usage,
-        };
-        trace!(
-            trace_id = %turn_snapshot.trace_id,
-            prompt_model = %turn_snapshot.model,
-            session_key = %turn_snapshot.session_key,
-            step_name = "response_generated",
-            "Response generated"
-        );
-
-        // Log response preview - use char indices to handle multi-byte UTF-8 characters safely
-        let preview = if final_content.chars().count() > 120 {
-            format!("{}...", final_content.chars().take(120).collect::<String>())
-        } else {
-            final_content.clone()
-        };
-        info!("Response to {}:{}: {}", msg.channel, msg.sender_id, preview);
-        let event = AgentEvent::FinalResponse {
-            content: finalization.content.clone(),
-        };
-        if let Some(tx) = event_tx {
-            let _ = tx.send(event.clone());
-        }
-        let _ = self
-            .bus
-            .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-
-        // Save complete turn to session
-        {
-            let session = self.sessions.get_or_create(&session_key);
-            let user_role = if is_cron_trigger || execution_start {
-                "system"
-            } else {
-                "user"
-            };
-            save_turn(
-                session,
-                &messages,
+        let finalization = FinalizationInput::from(iteration_outcome);
+        self.finalize_turn(
+            FinalizationContext {
+                message: msg,
+                messages,
+                session_key: turn_snapshot.session_key,
+                message_content,
                 turn_messages_start,
-                user_role,
-                &message_content,
-                &final_content,
-                turn_token_usage,
-            );
-        }
-
-        // Run memory consolidation if threshold reached
-        {
-            let session = self.sessions.get_or_create(&session_key);
-            if consolidation::should_consolidate(session, self.memory_window) {
-                if let Err(e) = consolidation::consolidate(
-                    session,
-                    &self.provider,
-                    &model_to_use,
-                    &self.workspace,
-                    &*self.memory_provider,
-                    self.memory_window,
-                )
-                .await
-                {
-                    error!("Memory consolidation failed: {}", e);
-                }
-            }
-        }
-
-        let title_update = if let Some(session) = self.sessions.get(&session_key) {
-            if should_generate_session_title(session) {
-                let fallback = fallback_session_title(session);
-                let generated = self
-                    .generate_session_title_with_llm(session, &model_to_use)
-                    .await;
-                generated
-                    .clone()
-                    .or(fallback)
-                    .map(|title| (title, generated.is_some()))
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        if let Some((title, generated)) = title_update {
-            let session = self.sessions.get_or_create(&session_key);
-            session.set_conversation_title(Some(title));
-            session.set_title_generated(generated);
-            if !session.title_manually_set() {
-                session.set_title_manually_set(false);
-            }
-        }
-
-        // Persist session to disk
-        if let Some(session) = self.sessions.get(&session_key) {
-            if let Err(e) = self.sessions.save(session) {
-                error!("Failed to save session: {}", e);
-            }
-        }
-
-        // Extract reply_to from metadata if available (critical for platforms like QQ)
-        let reply_to = msg
-            .metadata
-            .get("message_id")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        trace!(trace_id = %trace_id, step_name = "msg_sent_to_channel", "Returning response to channel/manager");
-        // Also trace sent to manager as requested, which is effectively this return
-        trace!(trace_id = %trace_id, step_name = "msg_sent_to_manager", "Returning response to manager");
-
-        Ok(Some(OutboundMessage {
-            channel: msg.channel,
-            chat_id: msg.chat_id,
-            content: final_content,
-            reply_to,
-            media: vec![],
-            reasoning_content: final_reasoning,
-            metadata: msg.metadata,
-        }))
+                system_turn: is_cron_trigger || execution_start,
+                model: turn_snapshot.model,
+                trace_id: turn_snapshot.trace_id,
+            },
+            finalization,
+            event_tx,
+        )
+        .await
     }
 
     /// Load and format attachment contents for inclusion in the message.
@@ -1874,7 +1702,7 @@ fn format_soul_transparency_notice(
 
 /// Save all messages from the current turn to the session
 #[allow(clippy::too_many_arguments)]
-fn save_turn(
+pub(super) fn save_turn(
     session: &mut agent_diva_core::session::Session,
     messages: &[agent_diva_providers::Message],
     turn_messages_start: usize,
