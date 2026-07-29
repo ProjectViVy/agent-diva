@@ -100,7 +100,13 @@ export interface PlanRuntimeState {
   initialization_error?: string | null;
 }
 
-const PLAN_REQUIRED_SECTIONS = ['目标', '范围', '计划步骤', '风险与假设', '验证方法'] as const;
+const PLAN_REQUIRED_SECTION_ALIASES = [
+  ['目标', 'Goal', 'Objective'],
+  ['范围', 'Scope'],
+  ['计划步骤', 'Implementation Steps', 'Plan Steps', 'Steps'],
+  ['风险与假设', 'Risks and Assumptions', 'Risks & Assumptions', 'Risks', 'Assumptions'],
+  ['验证方法', 'Verification', 'Verification Method', 'Test Plan'],
+] as const;
 
 /** Completeness checks for plan report markdown (mirrors the core submission gate). */
 export function planReportValidationIssues(markdown: string | undefined | null): string[] {
@@ -112,10 +118,9 @@ export function planReportValidationIssues(markdown: string | undefined | null):
   if (!lines.some((line) => line.trimStart().startsWith('# '))) {
     issues.push('计划报告缺少标题');
   }
-  for (const section of PLAN_REQUIRED_SECTIONS) {
-    const heading = `## ${section}`;
-    if (!lines.some((line) => line.trim() === heading)) {
-      issues.push(`计划报告缺少章节：${section}`);
+  for (const aliases of PLAN_REQUIRED_SECTION_ALIASES) {
+    if (!aliases.some((section) => lines.some((line) => line.trim() === `## ${section}`))) {
+      issues.push(`计划报告缺少章节：${aliases[0]}`);
     }
   }
   return issues;

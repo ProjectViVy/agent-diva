@@ -167,14 +167,27 @@ pub struct ExtractedPlan {
 const REQUIRED_SECTIONS: [&str; 5] = ["目标", "范围", "计划步骤", "风险与假设", "验证方法"];
 
 const SECTION_ALIASES: &[(&str, &str)] = &[
+    ("Goal", "目标"),
+    ("Objective", "目标"),
     ("目标", "目标"),
+    ("Scope", "范围"),
     ("范围", "范围"),
+    ("Implementation Steps", "计划步骤"),
+    ("Plan Steps", "计划步骤"),
+    ("Steps", "计划步骤"),
     ("计划步骤", "计划步骤"),
     ("步骤", "计划步骤"),
     ("实现步骤", "计划步骤"),
+    ("Risks and Assumptions", "风险与假设"),
+    ("Risks & Assumptions", "风险与假设"),
+    ("Risks", "风险与假设"),
+    ("Assumptions", "风险与假设"),
     ("风险与假设", "风险与假设"),
     ("风险", "风险与假设"),
     ("假设", "风险与假设"),
+    ("Verification", "验证方法"),
+    ("Verification Method", "验证方法"),
+    ("Test Plan", "验证方法"),
     ("验证方法", "验证方法"),
     ("验证", "验证方法"),
     ("测试计划", "验证方法"),
@@ -199,8 +212,10 @@ pub fn report_validation_issues(markdown: &str) -> Vec<PlanReportValidationError
         issues.push(PlanReportValidationError::MissingTitle);
     }
     for section in REQUIRED_SECTIONS {
-        let heading = format!("## {section}");
-        if !markdown.lines().any(|line| line.trim() == heading) {
+        if !markdown
+            .lines()
+            .any(|line| match_section_label(line) == Some(section))
+        {
             issues.push(PlanReportValidationError::MissingSection(section));
         }
     }
@@ -481,6 +496,18 @@ mod tests {
         assert_eq!(validate_report_markdown(COMPLETE_REPORT), Ok(()));
         assert_eq!(assert_report_ready_for_approval(COMPLETE_REPORT), Ok(()));
         assert!(report_validation_issues(COMPLETE_REPORT).is_empty());
+    }
+
+    #[test]
+    fn english_and_mixed_section_aliases_remain_approvable() {
+        let english = "# Migration\n\n## Goal\nx\n## Scope\ny\n## Implementation Steps\nz\n## Risks and Assumptions\nr\n## Verification\nv\n";
+        assert_eq!(validate_report_markdown(english), Ok(()));
+
+        let mixed = "# Migration\n\n## 目标\nx\n## Scope\ny\n## Steps\nz\n## 风险与假设\nr\n## Test Plan\nv\n";
+        assert_eq!(validate_report_markdown(mixed), Ok(()));
+        let normalized = normalize_report_markdown(english);
+        assert!(normalized.contains("## 目标"));
+        assert!(normalized.contains("## 验证方法"));
     }
 
     #[test]
