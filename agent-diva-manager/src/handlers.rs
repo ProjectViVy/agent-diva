@@ -1,5 +1,6 @@
 pub mod audit;
 pub mod autodream;
+pub mod command_approvals;
 pub mod health;
 pub mod laputa;
 pub mod logs;
@@ -13,6 +14,7 @@ pub use logs::{logs_routes, query_logs_handler};
 pub use todo::{create_todo_handler, query_todos_handler, todo_routes, update_todo_handler};
 pub use token_stats::token_stats_routes;
 
+pub use command_approvals::command_approval_routes;
 pub use health::health_handler;
 
 pub use autodream::{
@@ -226,6 +228,14 @@ pub async fn stop_chat_handler(
     State(state): State<AppState>,
     Json(payload): Json<StopChatRequest>,
 ) -> Json<serde_json::Value> {
+    if let (Some(channel), Some(chat_id)) = (payload.channel.clone(), payload.chat_id.clone()) {
+        let scope = agent_diva_sandbox::CommandApprovalScope {
+            session_key: format!("{channel}:{chat_id}"),
+            channel,
+            chat_id,
+        };
+        state.command_approvals.cancel_scope(&scope).await;
+    }
     let (tx, rx) = oneshot::channel();
     if let Err(e) = state
         .api_tx

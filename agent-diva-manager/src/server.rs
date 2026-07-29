@@ -85,6 +85,7 @@ where
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(runtime_routes())
+        .merge(crate::handlers::command_approval_routes())
         .merge(provider_routes())
         .merge(planning_routes())
         .merge(autodream_routes())
