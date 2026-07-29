@@ -24,14 +24,16 @@ Direct dependency counts from `cargo metadata --no-deps --format-version 1`:
 
 These figures are diagnostic baselines, not completion targets.
 
-## Proposed repeatable timing method
+## Repeatable timing method
 
 Use a release build and a local Manager with a deterministic fake provider:
 
 1. Record process start immediately before spawning the Manager.
 2. Poll `/api/health` every 25 ms; record the first `200` or dependency-not-ready `502`.
-3. Open chat SSE, record request dispatch, first data event, first tool-start event, matching tool-finish event, and final response.
+3. Open chat SSE and record request dispatch, first data event, first tool-start event, matching tool-finish event, and final response.
 4. Run 30 warm samples after 5 warmups for plain chat and a deterministic no-op tool call.
 5. Report median and p95 for startup-to-health, request-to-first-event, and tool-start-to-tool-finish.
 
-Normalize dynamic ports, IDs, timestamps, and temporary paths before storing output. This iteration records the method only: no samples were collected and no new performance threshold is enforced. G0.4 therefore remains open.
+Normalize dynamic ports, IDs, timestamps, and temporary paths before storing output.
+No new performance threshold is introduced by G0. The existing fixed-time health
+benchmark remains a blocker because its full-suite result is load-sensitive.
