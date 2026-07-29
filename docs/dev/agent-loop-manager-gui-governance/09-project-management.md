@@ -22,8 +22,8 @@ LOC 只作为报警器，不是完成标准。
 
 ### G1：Agent Loop
 
-- [ ] G1.1 提取 `TurnSnapshot`，统一 policy phase
-- [ ] G1.2 收口 tool execution seam
+- [x] G1.1 提取 `TurnSnapshot`，统一 policy phase
+- [x] G1.2 收口 tool execution seam
 - [ ] G1.3 拆 admission/context
 - [ ] G1.4 拆 model iteration/tool step
 - [ ] G1.5 拆 finalize/persistence/events

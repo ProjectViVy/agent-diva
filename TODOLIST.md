@@ -253,6 +253,17 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - Suggested validation: set `E2E_PROVIDER_NAME=stepfun`, `E2E_API_BASE=https://api.stepfun.com/step_plan/v1`, `E2E_MODEL=step-3.7-flash`, and `E2E_API_KEY`/`DEEPSEEK_API_KEY` to a StepFun key, then run `just e2e-test`.
 ## Deferred (existing backlog)
 
+- [x] **Agent main-runtime prompt Englishization** Completed 2026-07-30. LLM-facing compaction, consolidation retry, context boundary, Plan/title/cron prompts and downstream compaction labels use subsystem-local English prompt contracts. Core and GUI accept English and legacy Chinese Plan headings without changing persisted Plan JSON.
+  - Proposal: `docs/architecture/agent-prompt-englishization-proposal.md`
+  - Primary files: `agent-diva-agent/src/compaction/`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/consolidation.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-core/src/planning/report.rs` (aliases only), `agent-diva-core/src/session/store.rs`
+  - Suggested landing order: Phase 1 compaction → Phase 2 quality/context/consolidation → Phase 3 Plan prompt + parser aliases → Phase 4 meta/session labels
+
+- [ ] **AgentLoop G1 stage extraction remains incomplete after contract landing** `TurnSnapshot`, admission/context/iteration/tool/finalization boundary types and subsystem-local prompts now exist, and tool policy is refreshed immediately before the executor. The full `process_inbound_message_inner` body still resides in `loop_turn.rs`, so G1.3–G1.6 and the ~500-line review target remain open. Continue by moving complete context preparation, sampling/tool iteration, and persistence/event finalization into the existing stage modules without introducing a second runtime.
+  - Related files: `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/agent_loop/turn/`, `docs/dev/agent-loop-manager-gui-governance/09-project-management.md`
+
+- [ ] **AgentLoop G1 full workspace test gate exceeds the command window** After fixing prompt-label fixtures, focused Agent/Core/GUI tests, formatting, and Clippy pass, but both `just test` and direct `cargo test --all --no-fail-fast` exceeded 300 seconds without a terminal result. Expected: isolate the long-running workspace test binary or add timeout-aware reporting, then rerun the complete gate.
+  - Evidence: `docs/logs/2026-07-agent-loop-g1/v0.0.1-turn-prompt-contracts/verification.md`
+
 - [ ] **Mask feature plan acceptance** Deferred while the Plan/TODO architecture is the sole active stream. The remaining acceptance items in `.sisyphus/plans/mask-feature-implementation.md` are preserved for later reactivation.
 
 - [x] **Memory: publish a current-baseline interfaces spec after the `vrm-memory-test` audit** Completed by GMH-20. The current contract maps the useful diary/recall intent onto today's `MemoryProvider` / `MemoryManager` / `memory_boundary` / Laputa-Mentle architecture without reviving a nonexistent crate.
