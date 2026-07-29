@@ -4,7 +4,7 @@
 
 ## Active Plan
 
-- [ ] **Align the provider-set JSON test with the current DeepSeek default model** The full workspace test gate deterministically fails because `provider_set_json_updates_model_and_credentials` expects `deepseek-chat`, while the current configuration resolves `deepseek-v4-pro`.
+- [x] **Align the provider-set JSON test with the current DeepSeek default model** The fixture now expects `deepseek-v4-pro` and verifies the native endpoint keeps the raw, unprefixed model ID.
   - Expected behavior: the provider configuration contract and test fixture agree on the intended DeepSeek default model without weakening the native-provider raw model-ID safety rule.
   - Related: `agent-diva-cli/tests/config_commands.rs:166`, DeepSeek provider defaults/config migration.
 
@@ -231,6 +231,9 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 - [ ] **Core: stabilize supervised executor no-handler failure test** `cargo test -p agent-diva-core --lib` intermittently/factually failed in `supervised::executor::tests::test_executor_fails_when_no_handler`: the run remained `Running` instead of becoming `Failed`. This is unrelated to the 30-day planning cleanup and leaves the full core library gate red.
   - Related files: `agent-diva-core/src/supervised/executor.rs`
+- [ ] **Core: stabilize supervised executor external-cancel reason test** The full workspace gate intermittently observed the generic `run was cancelled` reason instead of the persisted `user request` reason in `test_executor_stops_after_external_cancel`.
+  - Expected behavior: external cancellation remains terminal and preserves the caller-provided cancellation reason deterministically.
+  - Related files: `agent-diva-core/src/supervised/executor.rs`, `agent-diva-core/src/supervised/store.rs`
   - Suggested fix: inspect the no-handler executor lifecycle and make the test await the terminal transition or correct the missing-handler failure path.
 
 - [ ] **GUI: duplicate `mode` locale keys** Vite reports duplicate `mode` keys in `agent-diva-gui/src/locales/zh.ts` and `agent-diva-gui/src/locales/en.ts`; remove the duplicate definitions so locale builds are warning-free.
