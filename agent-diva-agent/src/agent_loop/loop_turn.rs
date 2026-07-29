@@ -2,20 +2,15 @@
 use super::turn::iteration::{contains_internal_protocol, InternalProtocolGuard};
 use super::turn::{
     admission::AdmittedTurn,
-    context::PreparedTurnContext,
     finalize::{FinalizationContext, FinalizationInput},
     iteration::{IterationBudget, IterationOutcome},
     prompt,
     tool_step::{ToolExecutionContext, ToolStepPolicy},
 };
 use super::{policy_phase_for, AgentLoop};
-use crate::compaction::ContextCompactor;
-use crate::context_budget::check_budget;
-use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::bus::{
     AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
 };
-use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
 use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::planning::update_plan::UpdatePlanArgs;
@@ -24,16 +19,11 @@ use agent_diva_core::planning::{
     strip_proposed_plan_block, PlanRevisionAuthor,
 };
 use agent_diva_core::reasoning::ThinkingMode;
-use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
-use agent_diva_core::session::{
-    align_chat_history, ChatMessage, CompactTrigger, Session, TokenUsage,
-};
+use agent_diva_core::session::{ChatMessage, Session, TokenUsage};
 use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
-use agent_diva_providers::{
-    supports_vision_model, ImageUrl, Message, MessageContent, MessageContentPart, ProviderError,
-};
+use agent_diva_providers::{ImageUrl, Message, MessageContent, MessageContentPart, ProviderError};
 use anyhow;
 use base64::Engine;
 use std::collections::{HashMap, HashSet};
@@ -45,12 +35,12 @@ use tracing::{debug, error, info, trace, warn};
 const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
 
 #[derive(Debug, Default, Clone)]
-struct ProcessedInboundMedia {
-    prompt_text: String,
-    image_parts: Vec<MessageContentPart>,
+pub(super) struct ProcessedInboundMedia {
+    pub(super) prompt_text: String,
+    pub(super) image_parts: Vec<MessageContentPart>,
 }
 
-async fn persist_execution_context(
+pub(super) async fn persist_execution_context(
     planning: &crate::tool_config::PlanningConfig,
     session_key: &str,
     execution: &agent_diva_core::planning::ExecutionSession,
@@ -114,7 +104,10 @@ fn todo_key(todo: &PlanRuntimeTodo) -> String {
     todo.title.trim().to_ascii_lowercase()
 }
 
-fn build_current_turn_message(text: &str, image_parts: &[MessageContentPart]) -> Message {
+pub(super) fn build_current_turn_message(
+    text: &str,
+    image_parts: &[MessageContentPart],
+) -> Message {
     if image_parts.is_empty() {
         return Message::user(text);
     }
@@ -329,319 +322,24 @@ impl AgentLoop {
             background_task_context,
         } = self.admit_turn(&msg, &trace_id).await?;
 
-        // Process attachments first, then run the combined user-visible payload through
-        // the security gate before any session or provider work starts.
-        let processed_media = if msg.media.is_empty() {
-            ProcessedInboundMedia::default()
-        } else {
-            self.load_attachment_contents(&msg.media).await?
-        };
-        let message_content = if processed_media.prompt_text.is_empty() {
-            msg.content.clone()
-        } else {
-            format!(
-                "{}\n\n[Attachments]\n{}\n[/Attachments]",
-                msg.content, processed_media.prompt_text
+        let runtime_context = self
+            .prepare_runtime_context(
+                &msg,
+                &model_to_use,
+                execution_start,
+                &session_key,
+                &mut active_execution,
+                plan_guard_active,
+                approved_plan_markdown.as_deref(),
+                active_mask.as_ref(),
+                is_cron_trigger,
+                &trace_id,
             )
-        };
-        let security_context = SecurityContext {
-            source_type: "channel".to_string(),
-            workspace_id: Some(self.workspace.display().to_string()),
-            run_id: None,
-            channel_id: Some(msg.channel.clone()),
-            tool_name: None,
-        };
-        let message_content = match check_security(&message_content, &security_context) {
-            SecurityDecision::Allow => message_content,
-            SecurityDecision::Sanitize { redacted, .. } => redacted,
-            SecurityDecision::Block { reason, .. }
-            | SecurityDecision::Quarantine { reason, .. } => {
-                audit::emit(AuditEvent::ChannelMessageBlocked {
-                    channel_id: msg.channel.clone(),
-                    reason: reason.clone(),
-                });
-                return Err(
-                    anyhow::anyhow!("Security policy blocked inbound message: {}", reason).into(),
-                );
-            }
-        };
-        if !processed_media.image_parts.is_empty() && !supports_vision_model(&model_to_use) {
-            return Err(anyhow::anyhow!(
-                "Current model `{}` does not support vision input. Switch to a vision-capable model such as `gpt-4o` or `gpt-4.1`.",
-                model_to_use
-            )
-            .into());
-        }
-        let current_turn_message =
-            build_current_turn_message(&message_content, &processed_media.image_parts);
-
-        if execution_start {
-            if let (Some(planning), Some(execution)) =
-                (&self.tool_config.planning, active_execution.as_ref())
-            {
-                if matches!(
-                    execution.initialization_status,
-                    agent_diva_core::planning::ExecutionInitializationStatus::Pending
-                        | agent_diva_core::planning::ExecutionInitializationStatus::Blocked
-                ) {
-                    let boundary_count = self
-                        .sessions
-                        .get(&session_key)
-                        .map_or(0, |session| session.messages.len());
-                    let boundary = agent_diva_core::planning::ExecutionContextBoundary {
-                        message_count: boundary_count,
-                        initialized_at: chrono::Utc::now(),
-                    };
-                    let compacted = match execution.context_policy {
-                        agent_diva_core::planning::ExecutionContextPolicy::Compact => {
-                            let mut snapshot =
-                                self.sessions.get(&session_key).cloned().ok_or_else(|| {
-                                    anyhow::anyhow!("execution transcript unavailable")
-                                })?;
-                            snapshot.messages.truncate(boundary_count);
-                            snapshot.last_compacted = 0;
-                            snapshot.compaction_history.clear();
-                            let mut config = self.tool_config.budget.clone();
-                            config.keep_recent_count = 0;
-                            let result = ContextCompactor::compact(
-                                &snapshot,
-                                &config,
-                                self.provider.clone(),
-                                &self.model,
-                                CompactTrigger::Manual,
-                                &[],
-                            )
-                            .await;
-                            match result {
-                                Ok(result)
-                                    if !result.summary.summary.trim().is_empty()
-                                        && result.summary.quality_score.unwrap_or_default()
-                                            >= 0.6 =>
-                                {
-                                    Some(result.summary.summary)
-                                }
-                                Ok(_) => {
-                                    let updated = planning
-                                        .registry
-                                        .update_execution_context(
-                                            &execution.id,
-                                            Some(boundary),
-                                            None,
-                                            agent_diva_core::planning::ExecutionInitializationStatus::Blocked,
-                                            Some("Compact summary did not pass quality validation".to_string()),
-                                        )
-                                        .await?;
-                                    persist_execution_context(planning, &session_key, &updated)
-                                        .await?;
-                                    return Err(anyhow::anyhow!(
-                                        "approved plan execution is blocked: Compact summary did not pass quality validation"
-                                    )
-                                    .into());
-                                }
-                                Err(error) => {
-                                    warn!("execution context initialization failed: {error}");
-                                    let updated = planning
-                                        .registry
-                                        .update_execution_context(
-                                            &execution.id,
-                                            Some(boundary),
-                                            None,
-                                            agent_diva_core::planning::ExecutionInitializationStatus::Blocked,
-                                            Some("Compact summary generation failed".to_string()),
-                                        )
-                                        .await?;
-                                    persist_execution_context(planning, &session_key, &updated)
-                                        .await?;
-                                    return Err(anyhow::anyhow!(
-                                        "approved plan execution is blocked: Compact summary generation failed"
-                                    )
-                                    .into());
-                                }
-                            }
-                        }
-                        agent_diva_core::planning::ExecutionContextPolicy::Clear
-                        | agent_diva_core::planning::ExecutionContextPolicy::Retain => None,
-                    };
-                    let updated = planning
-                        .registry
-                        .update_execution_context(
-                            &execution.id,
-                            Some(boundary),
-                            compacted,
-                            agent_diva_core::planning::ExecutionInitializationStatus::Ready,
-                            None,
-                        )
-                        .await?;
-                    persist_execution_context(planning, &session_key, &updated).await?;
-                    active_execution = Some(updated);
-                }
-            }
-        }
-
-        // Derive prefetch intent from raw user message before it's consumed.
-        let prefetch_intent = derive_prefetch_intent(&message_content);
-        let prefetch_user_message = message_content.clone();
-
-        // Get or create session
-        self.clear_session_cancellation(&session_key);
-
-        // ── Build initial messages with budget-aware compaction ──
-        // Phase 1: check budget and decide if compaction is needed (release borrow before .await)
-        let (should_compact, budget_report) = {
-            let session = self.sessions.get_or_create(&session_key);
-            let history = session.get_history(50); // Last 50 messages
-
-            // Budget check against context window limits
-            let budget_config = self.tool_config.budget.clone();
-            let budget_report = check_budget(&history, &budget_config);
-
-            (budget_report.should_compact, budget_report)
-        };
-
-        // Phase 2: run best-effort auto compaction before any provider call.
-        // The first provider request for this turn must see the post-compaction
-        // session snapshot, not the pre-compaction history captured above.
-        let (mut history, _history_len_before_policy, mut compaction_history, did_compact) =
-            if should_compact {
-                info!(
-                "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
-                budget_report.pressure_ratio * 100.0,
-                budget_report.history_estimated,
-                budget_report.total_estimated.saturating_sub(budget_report.system_estimated),
-            );
-
-                let provider = self.provider.clone();
-                let model = self.model.clone();
-                let budget_config = self.tool_config.budget.clone();
-
-                // Use immutable get() to avoid holding &mut across .await
-                let compact_result = {
-                    if let Some(session) = self.sessions.get(&session_key) {
-                        ContextCompactor::compact(
-                            session,
-                            &budget_config,
-                            provider,
-                            &model,
-                            CompactTrigger::Auto,
-                            &session.compaction_history,
-                        )
-                        .await
-                    } else {
-                        Err(anyhow::anyhow!("Session not found for compaction"))
-                    }
-                };
-
-                match compact_result {
-                    Ok(result) => {
-                        let session = self.sessions.get_or_create(&session_key);
-                        session.last_compacted = result.new_compacted_index;
-                        session.compaction_history.push(result.summary);
-                        let history = session.get_history(50);
-                        let history_len = history.len();
-                        (
-                            history,
-                            history_len,
-                            session.compaction_history.clone(),
-                            true,
-                        )
-                    }
-                    Err(e) => {
-                        warn!("Compaction failed (non-blocking): {}", e);
-                        // Carry forward existing compaction history as fallback
-                        let session = self.sessions.get_or_create(&session_key);
-                        let history = session.get_history(50);
-                        let history_len = history.len();
-                        (
-                            history,
-                            history_len,
-                            session.compaction_history.clone(),
-                            false,
-                        )
-                    }
-                }
-            } else {
-                // Carry forward any existing compaction history from a previous turn
-                let session = self.sessions.get_or_create(&session_key);
-                let history = session.get_history(50);
-                let history_len = history.len();
-                (
-                    history,
-                    history_len,
-                    session.compaction_history.clone(),
-                    false,
-                )
-            };
-
-        // Persist compaction state immediately when it just occurred
-        if did_compact {
-            if let Some(s) = self.sessions.get(&session_key) {
-                if let Err(e) = self.sessions.save(s) {
-                    error!("Failed to persist compaction state: {}", e);
-                }
-            }
-        }
-
-        if let Some(execution) = active_execution.as_ref().filter(|execution| {
-            execution.initialization_status
-                == agent_diva_core::planning::ExecutionInitializationStatus::Ready
-        }) {
-            if let Some(boundary) = execution.boundary.as_ref() {
-                match execution.context_policy {
-                    agent_diva_core::planning::ExecutionContextPolicy::Retain => {}
-                    agent_diva_core::planning::ExecutionContextPolicy::Clear
-                    | agent_diva_core::planning::ExecutionContextPolicy::Compact => {
-                        let session = self.sessions.get_or_create(&session_key);
-                        history = align_chat_history(
-                            session
-                                .messages
-                                .iter()
-                                .skip(boundary.message_count)
-                                .cloned()
-                                .collect(),
-                        );
-                        compaction_history.clear();
-                        if let Some(summary) = execution.compacted_context.as_ref() {
-                            compaction_history.push(agent_diva_core::session::CompactSummary {
-                                schema_version: 1,
-                                compact_id: format!("execution:{}", execution.id),
-                                created_at: execution.updated_at.to_rfc3339(),
-                                trigger: CompactTrigger::Manual,
-                                source_range: agent_diva_core::session::CompactionRange {
-                                    start_index: 0,
-                                    end_index: boundary.message_count,
-                                },
-                                kept_recent_count: 0,
-                                pre_compact_message_count: boundary.message_count,
-                                pre_compact_estimated_tokens: 0,
-                                summary: summary.clone(),
-                                quality_score: Some(1.0),
-                                retry_count: 0,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        let messages = self.context.build_messages(
-            history,
-            message_content.clone(),
-            Some(&msg.channel),
-            Some(&msg.chat_id),
-            &compaction_history,
-        );
-        let prepared_context = PreparedTurnContext::prepare(
-            messages,
-            plan_guard_active,
-            approved_plan_markdown.as_deref(),
-            active_mask
-                .as_ref()
-                .map(|mask| self.context.build_system_prompt(Some(mask))),
-            is_cron_trigger,
-            current_turn_message.clone(),
-        );
-        let turn_messages_start = prepared_context.turn_messages_start;
-        let mut messages = prepared_context.messages;
+            .await?;
+        let message_content = runtime_context.message_content;
+        let current_turn_message = runtime_context.current_turn_message;
+        let turn_messages_start = runtime_context.turn_messages_start;
+        let mut messages = runtime_context.messages;
 
         // Agent loop
         let mut iteration_budget = IterationBudget::default();
@@ -652,40 +350,6 @@ impl AgentLoop {
         // Codex-style follow-up: after tools, keep sampling until text or budget.
         let mut tool_run_summaries: Vec<ToolRunSummary> = Vec::new();
         let mut stopped_for_plan_approval = false;
-
-        // Intent-aware prefetch: run recall search before the first LLM call
-        // when the user message provides a workable intent string.
-        if !prefetch_intent.is_empty() {
-            let prefetch_result = self
-                .memory_provider
-                .prefetch(PrefetchRequest {
-                    workspace_root: self.workspace.clone(),
-                    intent: prefetch_intent,
-                    current_room: Some(msg.channel.clone()),
-                    user_message: Some(prefetch_user_message.clone()),
-                })
-                .await;
-            match prefetch_result {
-                Ok(response) => match response.status {
-                    PrefetchStatus::Failed { reason } => {
-                        warn!("Prefetch recall failed (non-fatal): {}", reason);
-                    }
-                    _ => {
-                        if let Some(block) = response.prompt_block {
-                            // Inject recall results as an additional system message
-                            // right after the main system prompt.
-                            messages.insert(1, agent_diva_providers::Message::system(block));
-                            trace!(trace_id = %trace_id, step_name = "prefetch_injected", "Prefetch recall injected into turn context");
-                        } else {
-                            trace!(trace_id = %trace_id, step_name = "prefetch_skipped", "Prefetch skipped or empty");
-                        }
-                    }
-                },
-                Err(e) => {
-                    warn!("Prefetch recall failed (non-fatal): {}", e);
-                }
-            }
-        }
 
         // Allow at most one bonus summary-only iteration after tools exhaust max_iterations.
         while iteration_budget.can_continue(self.max_iterations) {
@@ -1174,7 +838,7 @@ impl AgentLoop {
     /// Load and format attachment contents for inclusion in the message.
     /// Only text files under MAX_INLINE_ATTACHMENT_SIZE are inlined.
     /// For other files, adds a placeholder telling AI to use read_file tool.
-    async fn load_attachment_contents(
+    pub(super) async fn load_attachment_contents(
         &self,
         file_ids: &[String],
     ) -> Result<ProcessedInboundMedia, Box<dyn std::error::Error>> {
@@ -1443,7 +1107,7 @@ fn extract_token_usage(usage: &std::collections::HashMap<String, i64>) -> TokenU
 /// Returns an empty string when the message is too short or lacks any
 /// action/recall-indicating words, so `prefetch` is gated on intent
 /// availability without requiring a full intent classifier.
-fn derive_prefetch_intent(message: &str) -> String {
+pub(super) fn derive_prefetch_intent(message: &str) -> String {
     let trimmed = message.trim();
     if trimmed.len() < 4 {
         return String::new();
