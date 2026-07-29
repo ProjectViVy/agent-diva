@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `None`
-- Last Heartbeat: `2026-07-29T22:40:00+08:00`
+- Last Heartbeat: `2026-07-29T22:58:00+08:00`
 - Expires At: `None`
 
 ## Lock Rules
@@ -29,6 +29,11 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-29`: Added an open operational reminder requiring explicit user
+  notification before any GMH milestone that needs real-device, real-desktop,
+  or external-integration validation. The future reminder must include the
+  environment, steps, observation points, and diagnostic evidence to retain.
 
 - `2026-07-29`: Released GMH-20 current-baseline Memory interfaces scope.
   Published the five-stage lifecycle, authority/trust boundaries, failure
