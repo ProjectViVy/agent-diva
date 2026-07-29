@@ -85,7 +85,10 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     let bus_for_hotreload = bus.clone();
     let run_store_root = supervised_store_root_from_cron_store(&cron_store);
     let run_store = Arc::new(RunStore::new(&run_store_root).await?);
-    let command_approvals = CommandApprovalCoordinator::default();
+    let command_rules = Arc::new(agent_diva_sandbox::CommandRuleStore::open(
+        loader.config_dir().join("execpolicy.toml"),
+    )?);
+    let command_approvals = CommandApprovalCoordinator::default().with_command_rules(command_rules);
 
     // Start config hot-reload background task.
     // The handle is intentionally dropped — the tokio runtime will clean up

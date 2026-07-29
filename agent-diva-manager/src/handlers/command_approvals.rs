@@ -1,5 +1,7 @@
 use crate::state::AppState;
-use agent_diva_sandbox::{ApprovalDecision, ApprovalResolveError, CommandApprovalScope};
+use agent_diva_sandbox::{
+    ApprovalDecision, ApprovalResolveError, CommandApprovalScope, CommandRuleError,
+};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -7,7 +9,7 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
     },
-    routing::{get, post},
+    routing::{get, patch, post},
     Json, Router,
 };
 use futures::{Stream, StreamExt};
@@ -45,7 +47,7 @@ pub struct ResolveApprovalBody {
 
 #[derive(Debug, Serialize)]
 struct ApprovalError {
-    error: &'static str,
+    error: String,
 }
 
 pub fn command_approval_routes() -> Router<AppState> {
@@ -61,6 +63,11 @@ pub fn command_approval_routes() -> Router<AppState> {
         .route(
             "/api/command-approvals/:approval_id",
             post(resolve_command_approval_handler),
+        )
+        .route("/api/command-rules", get(list_command_rules_handler))
+        .route(
+            "/api/command-rules/:rule_id",
+            patch(update_command_rule_handler).delete(delete_command_rule_handler),
         )
 }
 
@@ -87,18 +94,111 @@ pub async fn resolve_command_approval_handler(
         Err(ApprovalResolveError::NotFound) => (
             StatusCode::NOT_FOUND,
             Json(ApprovalError {
-                error: "approval_not_found",
+                error: "approval_not_found".into(),
             }),
         )
             .into_response(),
         Err(ApprovalResolveError::AlreadyResolved) => (
             StatusCode::CONFLICT,
             Json(ApprovalError {
-                error: "approval_already_resolved",
+                error: "approval_already_resolved".into(),
+            }),
+        )
+            .into_response(),
+        Err(ApprovalResolveError::InvalidGlobalApproval) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ApprovalError {
+                error: "global_approval_not_available".into(),
+            }),
+        )
+            .into_response(),
+        Err(ApprovalResolveError::Persistence) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApprovalError {
+                error: "command_rule_persistence_failed".into(),
             }),
         )
             .into_response(),
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateRuleBody {
+    enabled: bool,
+    revision: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteRuleQuery {
+    revision: u64,
+}
+
+pub async fn list_command_rules_handler(State(state): State<AppState>) -> Response {
+    match state.command_approvals.command_rules() {
+        Some(rules) => Json(serde_json::json!({ "rules": rules.list() })).into_response(),
+        None => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApprovalError {
+                error: "command_rules_unavailable".into(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn update_command_rule_handler(
+    State(state): State<AppState>,
+    Path(rule_id): Path<String>,
+    Json(body): Json<UpdateRuleBody>,
+) -> Response {
+    let Some(rules) = state.command_approvals.command_rules() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApprovalError {
+                error: "command_rules_unavailable".into(),
+            }),
+        )
+            .into_response();
+    };
+    match rules.set_enabled(&rule_id, body.revision, body.enabled) {
+        Ok(rule) => Json(rule).into_response(),
+        Err(error) => command_rule_error_response(error),
+    }
+}
+
+pub async fn delete_command_rule_handler(
+    State(state): State<AppState>,
+    Path(rule_id): Path<String>,
+    Query(query): Query<DeleteRuleQuery>,
+) -> Response {
+    let Some(rules) = state.command_approvals.command_rules() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApprovalError {
+                error: "command_rules_unavailable".into(),
+            }),
+        )
+            .into_response();
+    };
+    match rules.delete(&rule_id, query.revision) {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(error) => command_rule_error_response(error),
+    }
+}
+
+fn command_rule_error_response(error: CommandRuleError) -> Response {
+    let (status, code) = match error {
+        CommandRuleError::NotFound => (StatusCode::NOT_FOUND, "command_rule_not_found"),
+        CommandRuleError::RevisionConflict => (StatusCode::CONFLICT, "command_rule_conflict"),
+        CommandRuleError::UnsafeSuggestion => {
+            (StatusCode::UNPROCESSABLE_ENTITY, "unsafe_command_rule")
+        }
+        CommandRuleError::InvalidFile(_) | CommandRuleError::Persistence(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "command_rule_persistence_failed",
+        ),
+    };
+    (status, Json(ApprovalError { error: code.into() })).into_response()
 }
 
 pub async fn command_approval_events_handler(
@@ -138,6 +238,21 @@ mod tests {
             api_tx,
             MessageBus::new(),
             tempfile::tempdir().unwrap().keep(),
+        )
+        .unwrap()
+    }
+
+    fn state_with_rules() -> AppState {
+        let (api_tx, _api_rx) = mpsc::channel(1);
+        let dir = tempfile::tempdir().unwrap().keep();
+        let rules = std::sync::Arc::new(
+            agent_diva_sandbox::CommandRuleStore::open(dir.join("execpolicy.toml")).unwrap(),
+        );
+        AppState::new_with_command_approvals(
+            api_tx,
+            MessageBus::new(),
+            dir,
+            agent_diva_sandbox::CommandApprovalCoordinator::default().with_command_rules(rules),
         )
         .unwrap()
     }
@@ -244,5 +359,82 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn global_approval_and_rule_lifecycle_contract() {
+        let state = state_with_rules();
+        let task = tokio::spawn({
+            let coordinator = state.command_approvals.clone();
+            async move {
+                coordinator
+                    .request(
+                        "git status".into(),
+                        ".".into(),
+                        "sandbox denied".into(),
+                        CommandApprovalScope {
+                            channel: "gui".into(),
+                            chat_id: "chat".into(),
+                            session_key: "gui:chat".into(),
+                        },
+                    )
+                    .await
+            }
+        });
+        tokio::task::yield_now().await;
+        let id = state.command_approvals.pending(None).await[0]
+            .approval_id
+            .clone();
+        let app = command_approval_routes().with_state(state);
+        let approve = Request::builder()
+            .method("POST")
+            .uri(format!("/api/command-approvals/{id}"))
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"decision":"approve_global"}"#))
+            .unwrap();
+        assert_eq!(
+            app.clone().oneshot(approve).await.unwrap().status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            task.await.unwrap().1,
+            agent_diva_sandbox::CommandApprovalStatus::Approved
+        );
+
+        let list = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/command-rules")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = to_bytes(list.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let rule = &json["rules"][0];
+        let rule_id = rule["id"].as_str().unwrap();
+        let revision = rule["revision"].as_u64().unwrap();
+
+        let disable = Request::builder()
+            .method("PATCH")
+            .uri(format!("/api/command-rules/{rule_id}"))
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"enabled":false,"revision":{revision}}}"#
+            )))
+            .unwrap();
+        let response = app.clone().oneshot(disable).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let stale_delete = Request::builder()
+            .method("DELETE")
+            .uri(format!("/api/command-rules/{rule_id}?revision={revision}"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.oneshot(stale_delete).await.unwrap().status(),
+            StatusCode::CONFLICT
+        );
     }
 }

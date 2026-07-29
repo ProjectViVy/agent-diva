@@ -1,5 +1,6 @@
 //! Async coordination for recoverable command approvals.
 
+use crate::command_rules::{safe_prefix_suggestion, CommandRuleStore, SafePrefixSuggestion};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -36,6 +37,8 @@ pub struct CommandApprovalRequest {
     pub scope: CommandApprovalScope,
     pub created_at: DateTime<Utc>,
     pub timeout_seconds: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggested_prefix: Option<SafePrefixSuggestion>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,12 +46,16 @@ pub struct CommandApprovalRequest {
 pub enum ApprovalDecision {
     ApproveOnce,
     ApproveSession,
+    ApproveGlobal,
     Reject,
 }
 
 impl ApprovalDecision {
     pub fn allows_execution(self) -> bool {
-        matches!(self, Self::ApproveOnce | Self::ApproveSession)
+        matches!(
+            self,
+            Self::ApproveOnce | Self::ApproveSession | Self::ApproveGlobal
+        )
     }
 }
 
@@ -72,6 +79,8 @@ pub struct ResolveApprovalResponse {
 pub enum ApprovalResolveError {
     NotFound,
     AlreadyResolved,
+    InvalidGlobalApproval,
+    Persistence,
 }
 
 struct PendingApproval {
@@ -92,6 +101,7 @@ pub struct CommandApprovalCoordinator {
     state: Arc<Mutex<CoordinatorState>>,
     request_tx: broadcast::Sender<CommandApprovalRequest>,
     timeout: Duration,
+    command_rules: Option<Arc<CommandRuleStore>>,
 }
 
 impl Default for CommandApprovalCoordinator {
@@ -107,7 +117,17 @@ impl CommandApprovalCoordinator {
             state: Arc::new(Mutex::new(CoordinatorState::default())),
             request_tx,
             timeout,
+            command_rules: None,
         }
+    }
+
+    pub fn with_command_rules(mut self, command_rules: Arc<CommandRuleStore>) -> Self {
+        self.command_rules = Some(command_rules);
+        self
+    }
+
+    pub fn command_rules(&self) -> Option<&Arc<CommandRuleStore>> {
+        self.command_rules.as_ref()
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<CommandApprovalRequest> {
@@ -121,6 +141,18 @@ impl CommandApprovalCoordinator {
         reason: String,
         scope: CommandApprovalScope,
     ) -> (String, CommandApprovalStatus) {
+        if self
+            .command_rules
+            .as_ref()
+            .is_some_and(|rules| rules.allows(&command))
+        {
+            emit_approval_audit(
+                "",
+                "command_rule_reused",
+                format!("session={}", scope.session_key),
+            );
+            return (String::new(), CommandApprovalStatus::Approved);
+        }
         let session_key = (scope.clone(), command.clone(), cwd.clone());
         if self
             .state
@@ -133,6 +165,7 @@ impl CommandApprovalCoordinator {
         }
 
         let approval_id = Uuid::new_v4().to_string();
+        let suggested_prefix = safe_prefix_suggestion(&command);
         let request = CommandApprovalRequest {
             approval_id: approval_id.clone(),
             command,
@@ -141,6 +174,7 @@ impl CommandApprovalCoordinator {
             scope,
             created_at: Utc::now(),
             timeout_seconds: self.timeout.as_secs(),
+            suggested_prefix,
         };
         let (response_tx, response_rx) = oneshot::channel();
         self.state.lock().await.pending.insert(
@@ -185,13 +219,36 @@ impl CommandApprovalCoordinator {
         decision: ApprovalDecision,
     ) -> Result<ResolveApprovalResponse, ApprovalResolveError> {
         let mut state = self.state.lock().await;
-        let Some(pending) = state.pending.remove(approval_id) else {
+        let Some(pending) = state.pending.get(approval_id) else {
             return if state.resolved.contains(approval_id) {
                 Err(ApprovalResolveError::AlreadyResolved)
             } else {
                 Err(ApprovalResolveError::NotFound)
             };
         };
+        if decision == ApprovalDecision::ApproveGlobal {
+            let suggestion = pending
+                .request
+                .suggested_prefix
+                .as_ref()
+                .ok_or(ApprovalResolveError::InvalidGlobalApproval)?;
+            let rules = self
+                .command_rules
+                .as_ref()
+                .ok_or(ApprovalResolveError::InvalidGlobalApproval)?;
+            rules
+                .add_suggestion(suggestion)
+                .map_err(|error| match error {
+                    crate::command_rules::CommandRuleError::UnsafeSuggestion => {
+                        ApprovalResolveError::InvalidGlobalApproval
+                    }
+                    _ => ApprovalResolveError::Persistence,
+                })?;
+        }
+        let pending = state
+            .pending
+            .remove(approval_id)
+            .ok_or(ApprovalResolveError::NotFound)?;
         if decision == ApprovalDecision::ApproveSession {
             state.session_approvals.insert((
                 pending.request.scope.clone(),
@@ -258,6 +315,7 @@ impl CommandApprovalCoordinator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::command_rules::CommandRuleStore;
 
     fn scope(chat: &str) -> CommandApprovalScope {
         CommandApprovalScope {
@@ -265,6 +323,84 @@ mod tests {
             chat_id: chat.into(),
             session_key: format!("api:{chat}"),
         }
+    }
+
+    #[tokio::test]
+    async fn global_approval_persists_and_reuses_across_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let rules = Arc::new(CommandRuleStore::open(dir.path().join("execpolicy.toml")).unwrap());
+        let coordinator = CommandApprovalCoordinator::new(Duration::from_secs(2))
+            .with_command_rules(rules.clone());
+        let task = tokio::spawn({
+            let coordinator = coordinator.clone();
+            async move {
+                coordinator
+                    .request(
+                        "git status".into(),
+                        PathBuf::from("."),
+                        "sandbox denied".into(),
+                        scope("first"),
+                    )
+                    .await
+            }
+        });
+        tokio::task::yield_now().await;
+        let pending = coordinator.pending(None).await;
+        assert!(pending[0].suggested_prefix.is_some());
+        coordinator
+            .resolve(&pending[0].approval_id, ApprovalDecision::ApproveGlobal)
+            .await
+            .unwrap();
+        assert_eq!(task.await.unwrap().1, CommandApprovalStatus::Approved);
+        assert_eq!(
+            coordinator
+                .request(
+                    "git status".into(),
+                    PathBuf::from("elsewhere"),
+                    "sandbox denied".into(),
+                    scope("second"),
+                )
+                .await
+                .1,
+            CommandApprovalStatus::Approved
+        );
+        assert!(coordinator.pending(None).await.is_empty());
+        assert_eq!(rules.list().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn global_approval_rejects_commands_without_safe_suggestion() {
+        let dir = tempfile::tempdir().unwrap();
+        let rules = Arc::new(CommandRuleStore::open(dir.path().join("execpolicy.toml")).unwrap());
+        let coordinator =
+            CommandApprovalCoordinator::new(Duration::from_secs(2)).with_command_rules(rules);
+        let task = tokio::spawn({
+            let coordinator = coordinator.clone();
+            async move {
+                coordinator
+                    .request(
+                        "cargo build".into(),
+                        PathBuf::from("."),
+                        "sandbox denied".into(),
+                        scope("unsafe"),
+                    )
+                    .await
+            }
+        });
+        tokio::task::yield_now().await;
+        let pending = coordinator.pending(None).await;
+        assert!(pending[0].suggested_prefix.is_none());
+        assert!(matches!(
+            coordinator
+                .resolve(&pending[0].approval_id, ApprovalDecision::ApproveGlobal)
+                .await,
+            Err(ApprovalResolveError::InvalidGlobalApproval)
+        ));
+        coordinator
+            .resolve(&pending[0].approval_id, ApprovalDecision::Reject)
+            .await
+            .unwrap();
+        assert_eq!(task.await.unwrap().1, CommandApprovalStatus::Rejected);
     }
 
     #[tokio::test]

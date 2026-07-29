@@ -28,6 +28,7 @@
 pub mod approval;
 #[cfg(any(feature = "approval", feature = "manager", feature = "orchestrator"))]
 pub mod approval_coordinator;
+pub mod command_rules;
 pub mod decision;
 pub mod error;
 #[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
@@ -59,6 +60,10 @@ pub use approval::{
 pub use approval_coordinator::{
     ApprovalDecision, ApprovalResolveError, CommandApprovalCoordinator, CommandApprovalRequest,
     CommandApprovalScope, CommandApprovalStatus, ResolveApprovalResponse,
+};
+pub use command_rules::{
+    safe_prefix_suggestion, CommandRule, CommandRuleError, CommandRuleSource, CommandRuleStore,
+    SafePrefixSuggestion,
 };
 pub use decision::{Decision, Evaluation, RuleMatch};
 pub use error::{SandboxError, SandboxResult};
