@@ -131,7 +131,10 @@ fn build_current_turn_message(text: &str, image_parts: &[MessageContentPart]) ->
     Message::user(MessageContent::Parts(parts))
 }
 
-fn replace_current_turn_message(messages: &mut Vec<Message>, current_turn_message: Message) {
+pub(super) fn replace_current_turn_message(
+    messages: &mut Vec<Message>,
+    current_turn_message: Message,
+) {
     if let Some(last) = messages.last_mut() {
         *last = current_turn_message;
     } else {
@@ -280,7 +283,7 @@ impl AgentLoop {
         normalize_generated_title(response.content.as_deref().unwrap_or_default())
     }
 
-    fn enforce_session_token_budget(
+    pub(super) fn enforce_session_token_budget(
         &self,
         session_key: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -898,131 +901,20 @@ impl AgentLoop {
             } else {
                 self.tools.get_definitions()
             };
-            // Call LLM with reactive context-overflow safety net.
-            // On context_length_exceeded, perform emergency compaction and retry once.
-            let mut reactive_retry_attempted = false;
-            let stream = loop {
-                self.enforce_session_token_budget(&session_key)?;
-                let tool_defs_for_call = if !tool_defs.is_empty() {
-                    Some(tool_defs.clone())
-                } else {
-                    None
-                };
-                crate::context::ContextBuilder::sanitize_messages_for_provider(&mut messages);
-                match self
-                    .provider
-                    .chat_stream(
-                        messages.clone(),
-                        tool_defs_for_call,
-                        if summary_only_pass {
-                            agent_diva_providers::ToolChoiceMode::Disabled
-                        } else if tool_defs.is_empty() {
-                            agent_diva_providers::ToolChoiceMode::Unspecified
-                        } else {
-                            agent_diva_providers::ToolChoiceMode::Auto
-                        },
-                        Some(model_to_use.clone()),
-                        4096,
-                        0.7,
-                    )
-                    .await
-                {
-                    Ok(s) => break s,
-                    Err(e) => {
-                        if !reactive_retry_attempted && is_context_overflow_error(&e) {
-                            warn!(
-                                "Context overflow detected from provider: {}. Triggering reactive compaction...",
-                                e
-                            );
-                            reactive_retry_attempted = true;
-
-                            // --- Reactive compaction ---
-                            let provider = self.provider.clone();
-                            let model = self.model.clone();
-                            let budget_config = self.tool_config.budget.clone();
-
-                            // Phase 1: call compact() with immutable session ref
-                            let compact_result = {
-                                if let Some(session) = self.sessions.get(&session_key) {
-                                    ContextCompactor::compact(
-                                        session,
-                                        &budget_config,
-                                        provider,
-                                        &model,
-                                        CompactTrigger::Reactive,
-                                        &session.compaction_history,
-                                    )
-                                    .await
-                                } else {
-                                    Err(anyhow::anyhow!(
-                                        "Session not found for reactive compaction"
-                                    ))
-                                }
-                            };
-
-                            // Phase 2: apply result and get updated history
-                            let (reactive_history, reactive_compaction_history) =
-                                match compact_result {
-                                    Ok(result) => {
-                                        let session = self.sessions.get_or_create(&session_key);
-                                        session.last_compacted = result.new_compacted_index;
-                                        session.compaction_history.push(result.summary);
-                                        let history = session.get_history(50);
-                                        (history, session.compaction_history.clone())
-                                    }
-                                    Err(e) => {
-                                        warn!("Reactive compaction failed (non-blocking): {}", e);
-                                        // Fallback: use existing session state without updating
-                                        let session = self.sessions.get_or_create(&session_key);
-                                        let history = session.get_history(50);
-                                        (history, session.compaction_history.clone())
-                                    }
-                                };
-
-                            // Persist compaction state
-                            if let Some(s) = self.sessions.get(&session_key) {
-                                if let Err(persist_err) = self.sessions.save(s) {
-                                    error!(
-                                        "Failed to persist reactive compaction state: {}",
-                                        persist_err
-                                    );
-                                }
-                            }
-
-                            // Rebuild messages with new compaction history
-                            messages = self.context.build_messages(
-                                reactive_history,
-                                message_content.clone(),
-                                Some(&msg.channel),
-                                Some(&msg.chat_id),
-                                &reactive_compaction_history,
-                            );
-                            if let Some(markdown) = approved_plan_markdown.as_deref() {
-                                messages.insert(1, prompt::approved_plan(markdown).system());
-                            }
-                            if is_cron_trigger {
-                                let current_message = messages.pop();
-                                messages.push(prompt::scheduled_turn().system());
-                                if let Some(current_message) = current_message {
-                                    messages.push(current_message);
-                                }
-                            }
-                            replace_current_turn_message(
-                                &mut messages,
-                                current_turn_message.clone(),
-                            );
-                            crate::context::ContextBuilder::sanitize_messages_for_provider(
-                                &mut messages,
-                            );
-
-                            info!("Reactive compaction complete, retrying provider call...");
-                            continue; // retry once
-                        } else {
-                            return Err(e.into());
-                        }
-                    }
-                }
-            };
+            let stream = self
+                .start_model_stream(
+                    &mut messages,
+                    &tool_defs,
+                    summary_only_pass,
+                    &session_key,
+                    &model_to_use,
+                    &msg,
+                    &message_content,
+                    approved_plan_markdown.as_deref(),
+                    is_cron_trigger,
+                    &current_turn_message,
+                )
+                .await?;
             let Some(model_step) = self
                 .collect_model_stream(stream, &session_key, &msg, event_tx)
                 .await?
@@ -1756,7 +1648,7 @@ fn derive_prefetch_intent(message: &str) -> String {
 /// Matches against known error patterns from various LLM providers
 /// (DeepSeek, OpenAI, Anthropic, etc.) that signal the request exceeded
 /// the model's maximum context window.
-fn is_context_overflow_error(err: &ProviderError) -> bool {
+pub(super) fn is_context_overflow_error(err: &ProviderError) -> bool {
     let msg = err.to_string().to_lowercase();
     msg.contains("context_length_exceeded")
         || msg.contains("prompt_too_long")

@@ -1,12 +1,18 @@
 use agent_diva_core::bus::{AgentEvent, InboundMessage};
-use agent_diva_core::session::TokenUsage;
-use agent_diva_providers::{LLMResponse, LLMStreamEvent, ProviderEventStream};
+use agent_diva_core::session::{CompactTrigger, TokenUsage};
+use agent_diva_providers::{
+    LLMResponse, LLMStreamEvent, Message, ProviderEventStream, ToolChoiceMode,
+};
 use futures::StreamExt;
+use serde_json::Value;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::debug;
+use tracing::{debug, error, info, warn};
 
+use super::super::loop_turn::{is_context_overflow_error, replace_current_turn_message};
 use super::super::AgentLoop;
+use super::prompt;
+use crate::compaction::ContextCompactor;
 
 const INTERNAL_PROTOCOL_MARKERS: &[&str] = &[
     "<｜DSML｜tool_calls>",
@@ -74,6 +80,109 @@ pub(crate) struct StreamedModelStep {
 }
 
 impl AgentLoop {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn start_model_stream(
+        &mut self,
+        messages: &mut Vec<Message>,
+        tool_definitions: &[Value],
+        summary_only: bool,
+        session_key: &str,
+        model: &str,
+        message: &InboundMessage,
+        message_content: &str,
+        approved_plan_markdown: Option<&str>,
+        scheduled: bool,
+        current_turn_message: &Message,
+    ) -> Result<ProviderEventStream, Box<dyn std::error::Error>> {
+        let mut reactive_retry_attempted = false;
+        loop {
+            self.enforce_session_token_budget(session_key)?;
+            let tools = (!tool_definitions.is_empty()).then(|| tool_definitions.to_vec());
+            crate::context::ContextBuilder::sanitize_messages_for_provider(messages);
+            match self
+                .provider
+                .chat_stream(
+                    messages.clone(),
+                    tools,
+                    if summary_only {
+                        ToolChoiceMode::Disabled
+                    } else if tool_definitions.is_empty() {
+                        ToolChoiceMode::Unspecified
+                    } else {
+                        ToolChoiceMode::Auto
+                    },
+                    Some(model.to_string()),
+                    4096,
+                    0.7,
+                )
+                .await
+            {
+                Ok(stream) => return Ok(stream),
+                Err(error) if !reactive_retry_attempted && is_context_overflow_error(&error) => {
+                    warn!(
+                        "Context overflow detected from provider: {}. Triggering reactive compaction...",
+                        error
+                    );
+                    reactive_retry_attempted = true;
+                    let compact_result = if let Some(session) = self.sessions.get(session_key) {
+                        ContextCompactor::compact(
+                            session,
+                            &self.tool_config.budget,
+                            self.provider.clone(),
+                            &self.model,
+                            CompactTrigger::Reactive,
+                            &session.compaction_history,
+                        )
+                        .await
+                    } else {
+                        Err(anyhow::anyhow!("Session not found for reactive compaction"))
+                    };
+
+                    let (history, compaction_history) = match compact_result {
+                        Ok(result) => {
+                            let session = self.sessions.get_or_create(session_key);
+                            session.last_compacted = result.new_compacted_index;
+                            session.compaction_history.push(result.summary);
+                            (session.get_history(50), session.compaction_history.clone())
+                        }
+                        Err(error) => {
+                            warn!("Reactive compaction failed (non-blocking): {}", error);
+                            let session = self.sessions.get_or_create(session_key);
+                            (session.get_history(50), session.compaction_history.clone())
+                        }
+                    };
+                    if let Some(session) = self.sessions.get(session_key) {
+                        if let Err(error) = self.sessions.save(session) {
+                            error!("Failed to persist reactive compaction state: {}", error);
+                        }
+                    }
+
+                    *messages = self.context.build_messages(
+                        history,
+                        message_content.to_string(),
+                        Some(&message.channel),
+                        Some(&message.chat_id),
+                        &compaction_history,
+                    );
+                    if let Some(markdown) = approved_plan_markdown {
+                        messages.insert(1, prompt::approved_plan(markdown).system());
+                    }
+                    if scheduled {
+                        let current_message = messages.pop();
+                        messages.push(prompt::scheduled_turn().system());
+                        if let Some(current_message) = current_message {
+                            messages.push(current_message);
+                        }
+                    }
+                    replace_current_turn_message(messages, current_turn_message.clone());
+                    crate::context::ContextBuilder::sanitize_messages_for_provider(messages);
+                    info!("Reactive compaction complete, retrying provider call...");
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+    }
+
     pub(crate) async fn collect_model_stream(
         &mut self,
         mut stream: ProviderEventStream,
