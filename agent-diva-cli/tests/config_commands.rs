@@ -153,6 +153,8 @@ fn provider_set_json_updates_model_and_credentials() {
             "deepseek",
             "--api-key",
             "sk-deepseek",
+            "--api-base",
+            "https://api.deepseek.com/v1",
             "--json",
         ])
         .output()
@@ -163,12 +165,20 @@ fn provider_set_json_updates_model_and_credentials() {
     let value: Value = serde_json::from_str(stdout.trim()).unwrap();
 
     assert_eq!(value["provider"], "deepseek");
-    assert_eq!(value["model"], "deepseek-chat");
+    assert_eq!(value["model"], "deepseek-v4-pro");
 
     let saved: Value = serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
     assert_eq!(saved["agents"]["defaults"]["provider"], "deepseek");
-    assert_eq!(saved["agents"]["defaults"]["model"], "deepseek-chat");
+    assert_eq!(saved["agents"]["defaults"]["model"], "deepseek-v4-pro");
     assert_eq!(saved["providers"]["deepseek"]["api_key"], "sk-deepseek");
+    assert_eq!(
+        saved["providers"]["deepseek"]["api_base"],
+        "https://api.deepseek.com/v1"
+    );
+    assert_ne!(
+        saved["agents"]["defaults"]["model"], "deepseek/deepseek-v4-pro",
+        "native DeepSeek endpoints must retain the raw model id"
+    );
 }
 
 #[test]
