@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { BookUser, Loader2, RefreshCw, Inbox, Network, Database, Brain, Sparkles, ChevronRight } from 'lucide-vue-next';
+import { BookUser, Loader2, RefreshCw, Inbox, Network, Database, Brain, Sparkles } from 'lucide-vue-next';
 import SectionGroupList from './persona-memory/SectionGroupList.vue';
 import SectionEditor from './persona-memory/SectionEditor.vue';
 import PersonaMemoryEmptyState from './persona-memory/PersonaMemoryEmptyState.vue';
