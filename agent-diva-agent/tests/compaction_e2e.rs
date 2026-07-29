@@ -398,9 +398,9 @@ async fn test_e2e_multi_compaction_chain() {
 
     // Verify all_summaries_text
     let all = session.all_summaries_text();
-    assert!(all.contains("压缩记录 1/3"));
-    assert!(all.contains("压缩记录 2/3"));
-    assert!(all.contains("压缩记录 3/3"));
+    assert!(all.contains("Compaction record 1/3"));
+    assert!(all.contains("Compaction record 2/3"));
+    assert!(all.contains("Compaction record 3/3"));
     assert!(all.contains("第一轮"));
     assert!(all.contains("第二轮"));
     assert!(all.contains("第三轮"));

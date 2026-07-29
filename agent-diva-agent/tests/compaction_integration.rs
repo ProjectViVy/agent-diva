@@ -629,9 +629,9 @@ fn test_multi_compaction_chain() {
 
     // 验证 all_summaries_text 包含所有摘要
     let all = session.all_summaries_text();
-    assert!(all.contains("压缩记录 1/3"), "应包含第 1 条标记");
-    assert!(all.contains("压缩记录 2/3"), "应包含第 2 条标记");
-    assert!(all.contains("压缩记录 3/3"), "应包含第 3 条标记");
+    assert!(all.contains("Compaction record 1/3"), "应包含第 1 条标记");
+    assert!(all.contains("Compaction record 2/3"), "应包含第 2 条标记");
+    assert!(all.contains("Compaction record 3/3"), "应包含第 3 条标记");
     assert!(all.contains("项目启动"), "应包含第 1 条内容");
     assert!(all.contains("核心模块"), "应包含第 2 条内容");
     assert!(all.contains("测试阶段"), "应包含第 3 条内容");
