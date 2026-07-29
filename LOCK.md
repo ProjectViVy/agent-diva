@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-07-30T02:22:52+08:00`
+- Last Heartbeat: `2026-07-30T02:45:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -29,6 +29,15 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-07-30T02:45:00+08:00`: Released GMH-23 stage 1. Laputa-backed
+  `sync_turn` now creates pending memory/history proposals with session evidence
+  while leaving applied authority unchanged; blank synchronization remains a
+  no-op and the legacy Markdown provider is unchanged. Focused Laputa tests,
+  Agent compilation, `just fmt-check`, `just check`, and the complete
+  294-second `just test` passed. Local commits: `15ad2f8f` and `99fde126`.
+  GUI/import proposalization and risk-policy auto-apply/HITL remain open. No
+  push was performed.
 
 - `2026-07-30T02:22:52+08:00`: Released AgentLoop G1.6. Runtime context,
   tool orchestration, and final response preparation now live in their owning
