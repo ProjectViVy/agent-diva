@@ -73,6 +73,7 @@ pub trait PlanningStore: Send + Sync {
     async fn create_step(&self, step: &PlanStep) -> crate::Result<()>;
     async fn get_steps(&self, plan_id: &PlanId) -> crate::Result<Vec<PlanStep>>;
     async fn update_step(&self, step: &PlanStep) -> crate::Result<()>;
+    async fn replace_steps(&self, plan_id: &PlanId, steps: &[PlanStep]) -> crate::Result<()>;
 
     async fn create_todo(&self, plan_id: &PlanId, todo: &TodoItem) -> crate::Result<()>;
     async fn get_todos(&self, plan_id: &PlanId) -> crate::Result<TodoList>;
@@ -497,6 +498,35 @@ impl PlanningStore for SqlitePlanningStore {
         Ok(())
     }
 
+    async fn replace_steps(&self, plan_id: &PlanId, steps: &[PlanStep]) -> crate::Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM plan_steps WHERE plan_id = ?")
+            .bind(&plan_id.0)
+            .execute(&mut *tx)
+            .await?;
+        for step in steps {
+            sqlx::query(
+                r#"INSERT INTO plan_steps
+                   (id, plan_id, ordinal, title, rationale, expected_output, status, evidence_ref, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            )
+            .bind(&step.id)
+            .bind(&plan_id.0)
+            .bind(step.ordinal)
+            .bind(&step.title)
+            .bind(&step.rationale)
+            .bind(&step.expected_output)
+            .bind(step.status.to_string())
+            .bind(&step.evidence_ref)
+            .bind(step.created_at.to_rfc3339())
+            .bind(step.updated_at.to_rfc3339())
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn create_todo(&self, plan_id: &PlanId, todo: &TodoItem) -> crate::Result<()> {
         sqlx::query(
             r#"INSERT INTO todo_items (id, plan_id, plan_step_id, title, detail, status, priority, evidence_ref, block_reason, updated_at)
@@ -575,6 +605,18 @@ impl PlanningStore for SqlitePlanningStore {
     }
 
     async fn delete_todos(&self, plan_id: &PlanId) -> crate::Result<()> {
+        let materialized = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM plan_approvals WHERE plan_id = ? AND todos_materialized = 1",
+        )
+        .bind(&plan_id.0)
+        .fetch_one(&self.pool)
+        .await?;
+        if materialized != 0 {
+            return Err(PlanningError::TodoAlreadyMaterialized {
+                plan_id: plan_id.0.clone(),
+            }
+            .into());
+        }
         sqlx::query("DELETE FROM todo_items WHERE plan_id = ?")
             .bind(&plan_id.0)
             .execute(&self.pool)
@@ -1384,6 +1426,28 @@ mod tests {
             PlanPhase::AwaitingApproval
         );
         assert_eq!(store.get_todos(&plan_id).await.unwrap().items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn materialized_execution_todos_cannot_be_deleted_wholesale() {
+        let store = test_store().await;
+        let plan_id = PlanId("p-protected-materialized-todos".to_string());
+        let revision = submit_ready_plan(&store, &plan_id.0).await;
+        store
+            .approve_plan(
+                &plan_id,
+                &ApprovalRequest {
+                    expected_revision: revision,
+                    approved_by: "user".to_string(),
+                    todo_policy: TodoPolicy::Always,
+                    materialize_todos: true,
+                },
+            )
+            .await
+            .unwrap();
+
+        assert!(store.delete_todos(&plan_id).await.is_err());
+        assert!(!store.get_todos(&plan_id).await.unwrap().items.is_empty());
     }
 
     #[tokio::test]
