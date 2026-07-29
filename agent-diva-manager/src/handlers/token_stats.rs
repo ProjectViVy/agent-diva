@@ -102,8 +102,12 @@ fn since_for_period(period: &str, tz_offset: Option<String>) -> Result<DateTime<
     let tz_offset: i32 = tz_offset.and_then(|s| s.parse().ok()).unwrap_or(0);
     let now = Utc::now();
     let local_now = now - Duration::minutes(tz_offset as i64);
-    let local_midnight = local_now.date_naive().and_hms_opt(0, 0, 0).expect("valid midnight");
-    let utc_midnight = (local_midnight.and_utc() + Duration::minutes(tz_offset as i64)).with_timezone(&Utc);
+    let local_midnight = local_now
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .expect("valid midnight");
+    let utc_midnight =
+        (local_midnight.and_utc() + Duration::minutes(tz_offset as i64)).with_timezone(&Utc);
 
     let duration_from_midnight = match period {
         "1d" => Duration::days(0),
@@ -185,7 +189,9 @@ pub async fn total_handler(
     State(state): State<AppState>,
     Query(query): Query<PeriodQuery>,
 ) -> Json<serde_json::Value> {
-    match since_for_period(&query.period, query.tz_offset.clone()).and_then(|since| read_entries(&state, Some(since))) {
+    match since_for_period(&query.period, query.tz_offset.clone())
+        .and_then(|since| read_entries(&state, Some(since)))
+    {
         Ok(entries) => ok(usage_total(&entries)),
         Err(message) => error(message),
     }
@@ -242,7 +248,7 @@ pub async fn timeline_handler(
         .and_then(|since| read_entries(&state, Some(since)).map(|entries| (since, entries)))
         .map(|(since, entries)| {
             let mut buckets: HashMap<String, UsageTotal> = HashMap::new();
-            
+
             // Pre-fill buckets from `since` to `now`
             let now = Utc::now();
             let mut current = if interval == "half_hour" {
@@ -276,7 +282,11 @@ pub async fn timeline_handler(
                 let bucket = if interval == "half_hour" {
                     entry
                         .timestamp
-                        .with_minute(if entry.timestamp.minute() >= 30 { 30 } else { 0 })
+                        .with_minute(if entry.timestamp.minute() >= 30 {
+                            30
+                        } else {
+                            0
+                        })
                         .and_then(|value| value.with_second(0))
                         .and_then(|value| value.with_nanosecond(0))
                         .expect("valid UTC half hour")
@@ -288,10 +298,19 @@ pub async fn timeline_handler(
                         .and_then(|value| value.with_nanosecond(0))
                         .expect("valid UTC hour")
                 } else {
-                let tz_offset: i32 = query.period.tz_offset.as_deref().and_then(|s| s.parse().ok()).unwrap_or(0);
+                    let tz_offset: i32 = query
+                        .period
+                        .tz_offset
+                        .as_deref()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
                     let local_ts = entry.timestamp - Duration::minutes(tz_offset as i64);
-                    let local_midnight = local_ts.date_naive().and_hms_opt(0, 0, 0).expect("valid midnight");
-                    (local_midnight.and_utc() + Duration::minutes(tz_offset as i64)).with_timezone(&Utc)
+                    let local_midnight = local_ts
+                        .date_naive()
+                        .and_hms_opt(0, 0, 0)
+                        .expect("valid midnight");
+                    (local_midnight.and_utc() + Duration::minutes(tz_offset as i64))
+                        .with_timezone(&Utc)
                 };
                 add_usage(buckets.entry(bucket.to_rfc3339()).or_default(), entry);
             }

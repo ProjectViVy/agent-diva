@@ -39,7 +39,11 @@ impl LlmReportNarrativeGenerator {
         &self.model
     }
 
-    fn build_messages(&self, bundle: &ReportFactBundle, options: &ReportNarrativeOptions) -> Vec<Message> {
+    fn build_messages(
+        &self,
+        bundle: &ReportFactBundle,
+        options: &ReportNarrativeOptions,
+    ) -> Vec<Message> {
         let system = format!(
             r#"你是 Agent Diva 的周期报告归纳器。只根据用户消息中提供的 JSON 事实生成中文结构化报告。
 硬性规则：
@@ -81,10 +85,7 @@ JSON schema:
 
         vec![
             Message::system(system),
-            Message::user(format!(
-                "请根据下列事实生成报告 JSON：\n{}",
-                user_payload
-            )),
+            Message::user(format!("请根据下列事实生成报告 JSON：\n{}", user_payload)),
         ]
     }
 }
@@ -109,7 +110,10 @@ impl ReportNarrativeGenerator for LlmReportNarrativeGenerator {
             .min(self.config.max_output_tokens)
             .max(1) as i32;
         let timeout = std::time::Duration::from_secs(
-            options.timeout_secs.max(1).min(self.config.timeout_secs.max(1)),
+            options
+                .timeout_secs
+                .max(1)
+                .min(self.config.timeout_secs.max(1)),
         );
 
         let started = Instant::now();

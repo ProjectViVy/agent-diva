@@ -288,7 +288,10 @@ impl AutoDreamService {
         };
         let mut last_error = None;
         for attempt in 1..=max_attempts {
-            match self.generate_report_for_trigger(&run.trigger, attempt).await {
+            match self
+                .generate_report_for_trigger(&run.trigger, attempt)
+                .await
+            {
                 Ok(result) => {
                     let now = Utc::now();
                     run.state = AutoDreamRunState::Completed;
@@ -489,7 +492,10 @@ impl AutoDreamService {
         attempt: u32,
     ) -> Result<crate::RhythmReportWriteResult> {
         if trigger == MONTHLY_REPORT_TRIGGER {
-            return self.monthly_generator().generate_current_month(attempt).await;
+            return self
+                .monthly_generator()
+                .generate_current_month(attempt)
+                .await;
         }
         self.rhythm_generator().generate_for_trigger(trigger).await
     }

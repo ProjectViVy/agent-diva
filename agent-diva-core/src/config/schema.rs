@@ -389,9 +389,7 @@ impl LlmCurationConfig {
             return Err("reports.llm_curation.max_output_tokens must be > 0".to_string());
         }
         if self.fallback != "deterministic" {
-            return Err(
-                "reports.llm_curation.fallback must be \"deterministic\"".to_string(),
-            );
+            return Err("reports.llm_curation.fallback must be \"deterministic\"".to_string());
         }
         Ok(())
     }

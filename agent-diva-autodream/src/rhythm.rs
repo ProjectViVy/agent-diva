@@ -1,8 +1,4 @@
-use std::{
-    collections::BTreeSet,
-    path::Path,
-    sync::Arc,
-};
+use std::{collections::BTreeSet, path::Path, sync::Arc};
 
 use agent_diva_core::config::LlmCurationConfig;
 use agent_diva_core::reports::{
@@ -44,7 +40,10 @@ impl AutoDreamRhythmReportGenerator {
         }
     }
 
-    pub async fn generate_daily_for_date(&self, date: NaiveDate) -> Result<RhythmReportWriteResult> {
+    pub async fn generate_daily_for_date(
+        &self,
+        date: NaiveDate,
+    ) -> Result<RhythmReportWriteResult> {
         let dates = BTreeSet::from([date]);
         let digest = collect_digest(self.storage.paths().workspace_root(), &dates)?;
         if digest.items.is_empty() {
@@ -90,8 +89,7 @@ impl AutoDreamRhythmReportGenerator {
             match read_rhythm_report(&path) {
                 Ok(document) => {
                     let path_display = path.to_string_lossy().to_string();
-                    let evidence =
-                        daily_report_evidence(*date, &path_display, &document.summary);
+                    let evidence = daily_report_evidence(*date, &path_display, &document.summary);
                     daily_inputs.push(DailyReportInput {
                         date: *date,
                         path_display,
@@ -136,7 +134,10 @@ impl AutoDreamRhythmReportGenerator {
 
     pub async fn generate_for_trigger(&self, trigger: &str) -> Result<RhythmReportWriteResult> {
         match trigger {
-            "notebook-daily" => self.generate_daily_for_date(Local::now().date_naive()).await,
+            "notebook-daily" => {
+                self.generate_daily_for_date(Local::now().date_naive())
+                    .await
+            }
             "notebook-weekly" => {
                 let now = Local::now().date_naive();
                 self.generate_weekly_for_week(now.iso_week().year(), now.iso_week().week())

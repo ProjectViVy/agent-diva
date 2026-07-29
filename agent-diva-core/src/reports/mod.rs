@@ -14,9 +14,9 @@ pub use digest::{
     read_rhythm_report, SessionDigestItem, SessionWindowDigest,
 };
 pub use fact_bundle::{
-    build_aggregate_fact_bundle, build_daily_fact_bundle, daily_report_evidence,
-    dates_in_iso_week, sanitize_report_id_component, DailyReportInput, FactBundleLimits,
-    ReportFact, ReportFactBundle, ReportFactKind, ReportSourceCoverage,
+    build_aggregate_fact_bundle, build_daily_fact_bundle, daily_report_evidence, dates_in_iso_week,
+    sanitize_report_id_component, DailyReportInput, FactBundleLimits, ReportFact, ReportFactBundle,
+    ReportFactKind, ReportSourceCoverage,
 };
 pub use frontmatter::{RhythmReportDocument, RhythmReportFrontmatter};
 pub use generator::{ReportNarrativeError, ReportNarrativeGenerator, ReportNarrativeOptions};

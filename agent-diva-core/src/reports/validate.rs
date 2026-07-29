@@ -102,8 +102,8 @@ fn validate_section(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::narrative::NarrativeItem;
+    use super::*;
 
     #[test]
     fn rejects_unknown_evidence_id() {

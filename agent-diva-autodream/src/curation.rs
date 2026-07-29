@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use agent_diva_core::config::LlmCurationConfig;
 use agent_diva_core::reports::{
-    render_curated_body, render_deterministic_fallback, ReportFactBundle, ReportNarrativeError,
-    ReportNarrativeGenerator, ReportNarrativeOptions, ReportPeriod, RenderedReportBody,
+    render_curated_body, render_deterministic_fallback, RenderedReportBody, ReportFactBundle,
+    ReportNarrativeError, ReportNarrativeGenerator, ReportNarrativeOptions, ReportPeriod,
 };
 use tracing::{info, warn};
 

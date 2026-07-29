@@ -118,10 +118,14 @@ impl AgentLoop {
                 let _ = reply_tx.send(result);
             }
             RuntimeControlCommand::ApproveActivePlan { reply_tx, .. } => {
-                let _ = reply_tx.send(Err("legacy global plan approval has been removed".to_string()));
+                let _ = reply_tx.send(Err(
+                    "legacy global plan approval has been removed".to_string()
+                ));
             }
             RuntimeControlCommand::ReturnActivePlanToDraft { reply_tx } => {
-                let _ = reply_tx.send(Err("legacy global plan drafts have been removed".to_string()));
+                let _ = reply_tx.send(Err(
+                    "legacy global plan drafts have been removed".to_string()
+                ));
             }
         }
     }

@@ -124,8 +124,7 @@ impl AutoDreamMonthlyReportGenerator {
             match read_rhythm_report(&path) {
                 Ok(document) => {
                     let path_display = path.to_string_lossy().to_string();
-                    let evidence =
-                        daily_report_evidence(*date, &path_display, &document.summary);
+                    let evidence = daily_report_evidence(*date, &path_display, &document.summary);
                     daily_inputs.push(DailyReportInput {
                         date: *date,
                         path_display,
@@ -139,9 +138,11 @@ impl AutoDreamMonthlyReportGenerator {
             }
         }
 
-        let fallback_digest =
-            collect_session_window_digest_for_dates(self.storage.paths().workspace_root(), &missing_dates)
-                .map_err(|error| format!("failed to collect monthly fallback sessions: {error}"))?;
+        let fallback_digest = collect_session_window_digest_for_dates(
+            self.storage.paths().workspace_root(),
+            &missing_dates,
+        )
+        .map_err(|error| format!("failed to collect monthly fallback sessions: {error}"))?;
         if daily_inputs.is_empty() && fallback_digest.items.is_empty() {
             return Err(format!(
                 "no daily reports or fallback sessions found for monthly report {month_key}"

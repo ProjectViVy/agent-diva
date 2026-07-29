@@ -532,7 +532,11 @@ impl Manager {
             model: model_to_use,
             reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
             reasoning_config: None,
-            response_protocol: config.providers.get(&provider_id).map(|provider| provider.response_protocol).unwrap_or_default(),
+            response_protocol: config
+                .providers
+                .get(&provider_id)
+                .map(|provider| provider.response_protocol)
+                .unwrap_or_default(),
         }) {
             Ok(provider) => provider,
             Err(error) => {

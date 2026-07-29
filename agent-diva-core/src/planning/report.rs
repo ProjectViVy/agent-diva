@@ -393,10 +393,10 @@ pub fn normalize_report_markdown(text: &str) -> String {
             if let Some(rest) = trimmed.strip_prefix("# ") {
                 if !trimmed.starts_with("## ") {
                     let cleaned_title = strip_replacement_chars(rest).trim().to_string();
-                    let title = if cleaned_title.contains('报') && cleaned_title.chars().count() < 4
+                    let title = if (cleaned_title.contains('报')
+                        && cleaned_title.chars().count() < 4)
+                        || cleaned_title.is_empty()
                     {
-                        "计划报告".to_string()
-                    } else if cleaned_title.is_empty() {
                         "计划报告".to_string()
                     } else {
                         cleaned_title

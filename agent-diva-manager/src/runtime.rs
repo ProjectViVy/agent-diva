@@ -19,8 +19,8 @@ use agent_diva_core::cron::CronService;
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
-    build_llm_provider, DynamicProvider, LLMProvider, LlmProviderBuildOptions, LlmReportNarrativeGenerator,
-    ProviderAccess, ProviderCatalogService, ProviderRegistry,
+    build_llm_provider, DynamicProvider, LLMProvider, LlmProviderBuildOptions,
+    LlmReportNarrativeGenerator, ProviderAccess, ProviderCatalogService, ProviderRegistry,
 };
 use anyhow::Result;
 use chrono::Local;
@@ -176,7 +176,11 @@ pub(crate) fn open_autodream_with_report_curation(
         .or_else(|| Some(config.agents.defaults.model.clone()))
         .unwrap_or_else(|| "deepseek-chat".to_string());
     // Prefer explicit report provider; otherwise resolve from model / defaults.
-    let provider_override = curation.provider.as_deref().or(config.agents.defaults.provider.as_deref());
+    let provider_override = curation.provider.as_deref().or(config
+        .agents
+        .defaults
+        .provider
+        .as_deref());
     let provider = match resolve_provider_name_for_model(&config, &model, provider_override)
         .ok_or_else(|| anyhow::anyhow!("No provider found for report model: {model}"))
         .and_then(|name| {
@@ -239,7 +243,11 @@ fn build_provider(config: &Config, model: &str) -> Result<Arc<dyn LLMProvider>> 
         model: model.to_string(),
         reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
         reasoning_config: None,
-        response_protocol: config.providers.get(&provider_name).map(|provider| provider.response_protocol).unwrap_or_default(),
+        response_protocol: config
+            .providers
+            .get(&provider_name)
+            .map(|provider| provider.response_protocol)
+            .unwrap_or_default(),
     })?)
 }
 

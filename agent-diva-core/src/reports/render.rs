@@ -32,7 +32,8 @@ pub fn render_curated_body(
     if let Some(section) = render_item_section("重点进展/主题", &narrative.themes) {
         sections.push(section);
     }
-    if let Some(section) = render_item_section("关键决策与产出", &narrative.accomplishments) {
+    if let Some(section) = render_item_section("关键决策与产出", &narrative.accomplishments)
+    {
         sections.push(section);
     }
     // decisions are separate when present
@@ -48,7 +49,11 @@ pub fn render_curated_body(
     } else if let Some(section) = render_item_section("下一步", &narrative.next_actions) {
         sections.push(section);
     }
-    sections.push(render_coverage_section(bundle, &metadata, &narrative.coverage_notes));
+    sections.push(render_coverage_section(
+        bundle,
+        &metadata,
+        &narrative.coverage_notes,
+    ));
 
     RenderedReportBody {
         title,
@@ -206,10 +211,10 @@ fn source_for_period(period: ReportPeriod) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::evolution::{EvidenceRef, EvidenceSource};
     use crate::reports::{
         build_daily_fact_bundle, FactBundleLimits, SessionDigestItem, SessionWindowDigest,
     };
-    use crate::evolution::{EvidenceRef, EvidenceSource};
     use chrono::{NaiveDate, TimeZone, Utc};
 
     #[test]

@@ -668,67 +668,67 @@ impl AgentLoop {
                 budget_report.total_estimated.saturating_sub(budget_report.system_estimated),
             );
 
-            let provider = self.provider.clone();
-            let model = self.model.clone();
-            let budget_config = self.tool_config.budget.clone();
+                let provider = self.provider.clone();
+                let model = self.model.clone();
+                let budget_config = self.tool_config.budget.clone();
 
-            // Use immutable get() to avoid holding &mut across .await
-            let compact_result = {
-                if let Some(session) = self.sessions.get(&session_key) {
-                    ContextCompactor::compact(
-                        session,
-                        &budget_config,
-                        provider,
-                        &model,
-                        CompactTrigger::Auto,
-                        &session.compaction_history,
-                    )
-                    .await
-                } else {
-                    Err(anyhow::anyhow!("Session not found for compaction"))
+                // Use immutable get() to avoid holding &mut across .await
+                let compact_result = {
+                    if let Some(session) = self.sessions.get(&session_key) {
+                        ContextCompactor::compact(
+                            session,
+                            &budget_config,
+                            provider,
+                            &model,
+                            CompactTrigger::Auto,
+                            &session.compaction_history,
+                        )
+                        .await
+                    } else {
+                        Err(anyhow::anyhow!("Session not found for compaction"))
+                    }
+                };
+
+                match compact_result {
+                    Ok(result) => {
+                        let session = self.sessions.get_or_create(&session_key);
+                        session.last_compacted = result.new_compacted_index;
+                        session.compaction_history.push(result.summary);
+                        let history = session.get_history(50);
+                        let history_len = history.len();
+                        (
+                            history,
+                            history_len,
+                            session.compaction_history.clone(),
+                            true,
+                        )
+                    }
+                    Err(e) => {
+                        warn!("Compaction failed (non-blocking): {}", e);
+                        // Carry forward existing compaction history as fallback
+                        let session = self.sessions.get_or_create(&session_key);
+                        let history = session.get_history(50);
+                        let history_len = history.len();
+                        (
+                            history,
+                            history_len,
+                            session.compaction_history.clone(),
+                            false,
+                        )
+                    }
                 }
+            } else {
+                // Carry forward any existing compaction history from a previous turn
+                let session = self.sessions.get_or_create(&session_key);
+                let history = session.get_history(50);
+                let history_len = history.len();
+                (
+                    history,
+                    history_len,
+                    session.compaction_history.clone(),
+                    false,
+                )
             };
-
-            match compact_result {
-                Ok(result) => {
-                    let session = self.sessions.get_or_create(&session_key);
-                    session.last_compacted = result.new_compacted_index;
-                    session.compaction_history.push(result.summary);
-                    let history = session.get_history(50);
-                    let history_len = history.len();
-                    (
-                        history,
-                        history_len,
-                        session.compaction_history.clone(),
-                        true,
-                    )
-                }
-                Err(e) => {
-                    warn!("Compaction failed (non-blocking): {}", e);
-                    // Carry forward existing compaction history as fallback
-                    let session = self.sessions.get_or_create(&session_key);
-                    let history = session.get_history(50);
-                    let history_len = history.len();
-                    (
-                        history,
-                        history_len,
-                        session.compaction_history.clone(),
-                        false,
-                    )
-                }
-            }
-        } else {
-            // Carry forward any existing compaction history from a previous turn
-            let session = self.sessions.get_or_create(&session_key);
-            let history = session.get_history(50);
-            let history_len = history.len();
-            (
-                history,
-                history_len,
-                session.compaction_history.clone(),
-                false,
-            )
-        };
 
         // Persist compaction state immediately when it just occurred
         if did_compact {
@@ -967,7 +967,13 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     .chat_stream(
                         messages.clone(),
                         tool_defs_for_call,
-                        if summary_only_pass { agent_diva_providers::ToolChoiceMode::Disabled } else if tool_defs.is_empty() { agent_diva_providers::ToolChoiceMode::Unspecified } else { agent_diva_providers::ToolChoiceMode::Auto },
+                        if summary_only_pass {
+                            agent_diva_providers::ToolChoiceMode::Disabled
+                        } else if tool_defs.is_empty() {
+                            agent_diva_providers::ToolChoiceMode::Unspecified
+                        } else {
+                            agent_diva_providers::ToolChoiceMode::Auto
+                        },
                         Some(model_to_use.clone()),
                         4096,
                         0.7,
@@ -1518,9 +1524,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     break;
                 }
                 // Treat blank content as missing so fallback synthesis can run.
-                final_content = response
-                    .content
-                    .filter(|s| !s.trim().is_empty());
+                final_content = response.content.filter(|s| !s.trim().is_empty());
                 final_reasoning = response.reasoning_content;
                 // Honor thinking mode: Off clears reasoning, Auto/On pass through
                 if self.thinking_mode == ThinkingMode::Off {
@@ -1571,8 +1575,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                             }
                             if final_content.trim().is_empty() {
                                 final_content =
-                                    "已生成计划报告，请在下方审批卡片中查看并批准。"
-                                        .to_string();
+                                    "已生成计划报告，请在下方审批卡片中查看并批准。".to_string();
                             }
                             if !soft_issues.is_empty() {
                                 let missing: Vec<String> =
@@ -1956,7 +1959,6 @@ fn save_turn(
             }
         }
     }
-
 }
 
 /// Extract token usage from the LLM response usage map.
@@ -2112,7 +2114,10 @@ fn contains_internal_protocol(text: &str) -> bool {
         .any(|marker| lower.contains(&marker.to_ascii_lowercase()))
 }
 
-fn synthesize_iteration_limit_summary(summaries: &[ToolRunSummary], pending_tools: &[&str]) -> String {
+fn synthesize_iteration_limit_summary(
+    summaries: &[ToolRunSummary],
+    pending_tools: &[&str],
+) -> String {
     let mut summary = format!(
         "任务已达到最大工具迭代次数。已执行 {} 个工具调用。",
         summaries.len()
@@ -2125,8 +2130,7 @@ fn synthesize_iteration_limit_summary(summaries: &[ToolRunSummary], pending_tool
 }
 
 const FALLBACK_EMPTY_REPLY_ZH: &str = "本轮处理已完成，但未生成可读回复。";
-const FALLBACK_PLAN_APPROVAL_ZH: &str =
-    "计划已提交审批，请在下方审批卡片中查看并批准。";
+const FALLBACK_PLAN_APPROVAL_ZH: &str = "计划已提交审批，请在下方审批卡片中查看并批准。";
 
 fn truncate_for_tool_summary(text: &str, max_chars: usize) -> String {
     let trimmed = text.trim();
@@ -2219,7 +2223,9 @@ mod tests {
 
     #[test]
     fn internal_protocol_detection_covers_dsml_and_xml() {
-        assert!(contains_internal_protocol("<｜｜DSML｜｜invoke name=\"write_file\">"));
+        assert!(contains_internal_protocol(
+            "<｜｜DSML｜｜invoke name=\"write_file\">"
+        ));
         assert!(contains_internal_protocol("<tool_calls><invoke>"));
         assert!(!contains_internal_protocol("正常的用户可见回复"));
     }

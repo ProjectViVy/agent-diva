@@ -12,9 +12,7 @@ use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusRepor
 use agent_diva_core::bus::PlanRuntimeState;
 use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
-use agent_diva_core::planning::{
-    normalize_report_markdown, revision_hash, ExecutionContextPolicy,
-};
+use agent_diva_core::planning::{normalize_report_markdown, revision_hash, ExecutionContextPolicy};
 use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
@@ -456,7 +454,10 @@ pub async fn get_active_plan(
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, String> {
     let reports = get_plan_reports(state).await?;
-    let session_key = sessionKey.as_deref().map(str::trim).filter(|key| !key.is_empty());
+    let session_key = sessionKey
+        .as_deref()
+        .map(str::trim)
+        .filter(|key| !key.is_empty());
     let active = reports
         .as_array()
         .and_then(|reports| {
@@ -2523,7 +2524,11 @@ pub async fn test_provider_model(
         model: model.clone(),
         reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
         reasoning_config: None,
-        response_protocol: config.providers.get(&provider).map(|provider| provider.response_protocol).unwrap_or_default(),
+        response_protocol: config
+            .providers
+            .get(&provider)
+            .map(|provider| provider.response_protocol)
+            .unwrap_or_default(),
     })
     .map_err(|error| error.to_string())?;
     let neuron = LlmNeuron::with_id(client, format!("provider-test:{provider}:{model}"));
