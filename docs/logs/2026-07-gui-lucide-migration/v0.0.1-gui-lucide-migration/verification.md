@@ -2,7 +2,7 @@
 
 ## Automated checks
 
-- `pnpm test`: passed, 53 test files and 426 tests.
+- `pnpm test`: passed on the migration branch with 53 files/426 tests and after G0 integration with 54 files/429 tests.
 - `pnpm build`: passed, including `vue-tsc --noEmit` and the Vite production bundle.
 - Repository search: no runtime GUI source, test, package manifest, or lockfile references to `lucide-vue-next` remain.
 

@@ -4,19 +4,15 @@
 
 ## Active Plan
 
-Governance Gate G0 is active. The current Agent/Manager contract fixtures, GUI capability ledger, structure snapshot, and proposed performance method are recorded under `docs/logs/2026-07-governance-g0/v0.0.1-g0-baseline/`. GMH-01/03 and G0.4 remain open; do not begin G1 until the wider authority/failure-path inventory, timing samples, and full workspace gate are complete.
+No active delivery plan is selected. Governance Gate G0, the governed Mentle prompt-rebuild contract, and the GUI Lucide migration are complete; integrated Rust and GUI gates pass.
 
 ## G0 Verified Backlog Reconciliation
 
 - [x] **JsonlTodoStore concurrent rewrites** All rewrite paths use the shared file lock; concurrent create/update and create/archive regression tests pass.
 - [x] **Todo API/CLI status and error contracts** Core owns shared status parsing; Manager returns 400 for invalid filters, 404 for missing IDs, and 500 for store failures.
-- [x] **Mentle prompt activation** The active Mentle prompt survives default-tool registry rebuilds; the focused feature-lane regression passes.
+- [x] **Mentle prompt rebuild boundary** Active Mentle retains provider-backed `Memory Startup Status` through tool rebuilds; inactive Mentle and the retired `L2 Palace Memory` route remain absent.
 
 Evidence: `docs/logs/2026-07-governance-g0/v0.0.1-g0-baseline/verification.md`.
-
-- [ ] **G0 blocker: Manager health benchmark has a load-sensitive fixed timeout** `just test` measured 5.102 seconds for 500 health requests and failed the existing fixed budget, while an immediate isolated rerun passed in 0.20 seconds. Expected: use a repeatable benchmark setup that does not fail solely from concurrent workspace-test load; do not merely widen the threshold without evidence.
-  - Related files: `agent-diva-manager/src/handlers/health.rs`, `docs/logs/2026-07-governance-g0/v0.0.1-g0-baseline/verification.md`
-  - Gate: collect isolated and representative-load warm-sample distributions, then rerun `just test`.
 
 ## Superseded Review Evidence
 

@@ -9,9 +9,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Scope: `none`
 - Owner: `none`
 - Session/Task: `none`
-- Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-29T14:25:00+08:00`
-- Last Heartbeat: `2026-07-29T18:15:00+08:00`
+- Branch/Worktree: `codex/gmh-g0-baseline / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
+- Started At: `2026-07-29T19:00:00+08:00`
+- Last Heartbeat: `2026-07-29T19:10:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Released the governance-priority parallel batch after integrating G0 contracts, governed Mentle prompt rebuild coverage, and the `@lucide/vue` migration. Final `just fmt-check`, `just check`, `just test`, GUI 429-test suite, and production build passed. No push was performed.
+
+- `2026-07-29`: Released the G0 root-worktree scope after Agent/Manager characterization fixtures and the GUI capability ledger landed. Focused tests, GUI 429-test suite/build, embedded gateway smoke, `just fmt-check`, and `just check` passed. Full `just test` exposed a load-sensitive Manager health benchmark failure (5.102 seconds for 500 requests); an isolated rerun passed in 0.20 seconds. The blocker is recorded in `TODOLIST.md`; GMH-01/03 and G0.4 remain open. Mentle and GUI icon isolated-worktree locks remain held. No push was performed.
 
 - `2026-07-29`: Released persistent validated command rules in `49d16ce5` and GUI management in `acbe39f9`, plus documentation closure. The shared store fails closed on invalid policy, global approval persists before execution, rules reuse only exact validated tokens, and revisioned API/Tauri/GUI controls support enable, disable, and delete. Real cross-session `git --version` smoke, full GUI tests/build, and `just fmt-check`, `just check`, `just test` passed. No push was performed.
 

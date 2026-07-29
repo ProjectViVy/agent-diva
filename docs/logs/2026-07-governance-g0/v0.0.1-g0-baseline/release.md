@@ -9,6 +9,6 @@ Release consists of three focused commits:
 2. GUI capability ledger and validation.
 3. G0 contract evidence and backlog reconciliation.
 
-No migration, deployment, remote push, or feature flag is required. G1 remains
-blocked until the full workspace gate is green. Rollback is the normal revert of
+No migration, deployment, remote push, or feature flag is required. The final
+integrated workspace and GUI gates are green. Rollback is the normal revert of
 the corresponding focused commit.
