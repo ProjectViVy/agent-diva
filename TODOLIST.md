@@ -10,6 +10,14 @@ No active delivery plan is selected. Governance Gate G0, the governed Mentle pro
 
 - [ ] **真实 API 测试使用桌面密钥文件** 当验证工作确实需要调用真实 API 时，使用桌面的 `keys.txt` 提供测试凭据；不得将该文件、其中的密钥或未脱敏内容复制进仓库、日志、错误输出、测试夹具或提交记录。
 
+- [ ] **QQ invalid-resume integration test is load-sensitive** A GMH-11
+  workspace gate intermittently observed opcode 6 before the expected opcode 2
+  in `qq_falls_back_to_identify_after_invalid_resume_session`; the immediately
+  isolated exact rerun passed. Expected: synchronize the fixture on the
+  invalid-session handshake so full-workspace load cannot reorder the observed
+  heartbeat/resume frame. Related:
+  `agent-diva-channels/tests/qq_reconnect_integration.rs`.
+
 ## G0 Verified Backlog Reconciliation
 
 - [x] **JsonlTodoStore concurrent rewrites** All rewrite paths use the shared file lock; concurrent create/update and create/archive regression tests pass.
@@ -427,7 +435,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 在 `agent-diva-core` 定义稳定的 `GovernanceSubject`、`Capability`、`ResourceScope`、`RiskClass`、`Decision`、`ApprovalRequest/Receipt`、`EvidenceRef`、`AuditCorrelation`。
   - 统一 Plan approval、Sandbox approval 与 Memory proposal 的公共信封，但保留各自领域 payload；禁止做“万能大枚举”耦合业务。
   - 所有请求包含 `request_id`、`turn_id/session_id`、actor、目标资源、内容摘要/哈希、策略版本和到期时间。
-- [ ] **GMH-11：纯函数策略评估器（W2 D3–W3 D2）**
+- [x] **GMH-11：纯函数策略评估器（W2 D3–W3 D2）**
   - 输入主体、能力、资源、风险、上下文和已有授权；输出 allow/deny/require-human，附 reason code、约束和可审计证据。
   - 规则优先级：硬禁止 > 显式用户拒绝 > 资源/模式限制 > 有效授权 > 安全默认值；未知项拒绝。
   - 为 Plan、Memory、shell/filesystem/network/MCP/spawn/schedule 建矩阵和全笛卡尔/属性测试。
