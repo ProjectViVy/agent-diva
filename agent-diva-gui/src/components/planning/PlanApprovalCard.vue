@@ -6,6 +6,7 @@ import { planReportValidationIssues } from '../../api/planning';
 import PlanDocument from './PlanDocument.vue';
 
 export type ExecutionContextPolicy = 'retain' | 'compact' | 'clear';
+export type TodoPolicy = 'Never' | 'Optional' | 'Always';
 
 const props = defineProps<{
   plan: PlanRuntimeState;
@@ -18,7 +19,11 @@ const validationIssues = computed(() => {
 });
 
 const emit = defineEmits<{
-  (event: 'approve', payload: { contextPolicy: ExecutionContextPolicy }): void;
+  (event: 'approve', payload: {
+    contextPolicy: ExecutionContextPolicy;
+    todoPolicy: TodoPolicy;
+    materializeTodos: boolean;
+  }): void;
   (event: 'revoke', feedback: string): void;
   (event: 'refresh'): void;
 }>();
@@ -27,12 +32,31 @@ const detailsOpen = ref(false);
 const editingFeedback = ref(false);
 const feedback = ref('');
 const contextPolicy = ref<ExecutionContextPolicy>('compact');
+const todoPolicy = ref<TodoPolicy>('Optional');
+const materializeTodos = ref(false);
 
 const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; detail: string }> = [
   { value: 'compact', title: '压缩上下文', detail: '保留批准计划，并把探索过程压缩后进入执行。' },
   { value: 'retain', title: '保留上下文', detail: '带着当前对话和批准计划直接执行。' },
   { value: 'clear', title: '清空探索', detail: '只带批准计划进入执行，丢弃探索阶段上下文。' },
 ];
+
+const todoChoices: Array<{ value: TodoPolicy; title: string; detail: string }> = [
+  { value: 'Never', title: '不生成执行 TODO', detail: '批准后直接执行，不创建任务清单。' },
+  { value: 'Optional', title: '按需生成 TODO', detail: '仅在下方明确勾选时从计划步骤生成。' },
+  { value: 'Always', title: '必须生成 TODO', detail: '批准时始终从计划步骤生成执行清单。' },
+];
+
+const approvalBlocked = computed(() => props.plan.revision == null || validationIssues.value.length > 0);
+
+function approve() {
+  emit('approve', {
+    contextPolicy: contextPolicy.value,
+    todoPolicy: todoPolicy.value,
+    materializeTodos: todoPolicy.value === 'Always'
+      || (todoPolicy.value === 'Optional' && materializeTodos.value),
+  });
+}
 </script>
 
 <template>
@@ -51,7 +75,7 @@ const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; deta
     <p class="plan-approval-goal">{{ plan.goal }}</p>
 
     <div v-if="validationIssues.length" class="plan-approval-warnings" role="status">
-      <strong>章节不完整，仍可批准或点编辑继续完善</strong>
+      <strong>计划不完整，请编辑补全后再批准</strong>
       <ul>
         <li v-for="issue in validationIssues" :key="issue">{{ issue }}</li>
       </ul>
@@ -75,10 +99,22 @@ const contextChoices: Array<{ value: ExecutionContextPolicy; title: string; deta
       </label>
     </fieldset>
 
+    <fieldset class="plan-context-choice" :disabled="approving">
+      <legend>执行 TODO 策略</legend>
+      <label v-for="choice in todoChoices" :key="choice.value" class="plan-context-option">
+        <input v-model="todoPolicy" type="radio" name="plan-todo-policy" :value="choice.value" />
+        <span><strong>{{ choice.title }}</strong><small>{{ choice.detail }}</small></span>
+      </label>
+      <label v-if="todoPolicy === 'Optional'" class="plan-context-option">
+        <input v-model="materializeTodos" type="checkbox" />
+        <span><strong>本次生成执行 TODO</strong><small>每个已批准步骤生成一个待办项。</small></span>
+      </label>
+    </fieldset>
+
     <div class="plan-approval-actions">
-      <button type="button" class="plan-approval-approve" :disabled="approving || plan.revision == null" @click="emit('approve', { contextPolicy })">
+      <button type="button" class="plan-approval-approve" :disabled="approving || approvalBlocked" @click="approve">
         <Loader2 v-if="approving" :size="15" class="plan-approval-spinner" /><Check v-else :size="15" />
-        {{ approving ? '正在批准...' : plan.revision == null ? '需要刷新 revision' : '批准并开始执行' }}
+        {{ approving ? '正在批准...' : plan.revision == null ? '需要刷新 revision' : validationIssues.length ? '请先补全计划' : '批准并开始执行' }}
       </button>
       <button type="button" class="plan-approval-revoke" :disabled="approving" @click="editingFeedback = !editingFeedback"><Pencil :size="15" /> 编辑计划</button>
       <button type="button" class="plan-approval-refresh" :disabled="approving" @click="emit('refresh')"><RefreshCw :size="15" /> 刷新</button>

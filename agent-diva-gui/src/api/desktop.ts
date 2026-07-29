@@ -159,7 +159,7 @@ export interface PlanApprovalRequest {
   plan_id?: string;
   expected_revision: number;
   markdown: string;
-  todo_policy: 'Optional';
+  todo_policy: 'Never' | 'Optional' | 'Always';
   materialize_todos: boolean;
   context_policy?: 'retain' | 'compact' | 'clear';
 }

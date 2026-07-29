@@ -967,7 +967,11 @@ function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null
   };
 }
 
-async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compact' | 'clear' }) {
+async function approvePlanExecution(payload: {
+  contextPolicy: 'retain' | 'compact' | 'clear';
+  todoPolicy: 'Never' | 'Optional' | 'Always';
+  materializeTodos: boolean;
+}) {
   if (approvingPlan.value) return;
   approvingPlan.value = true;
   try {
@@ -978,18 +982,13 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
       plan_id: pending.plan_id,
       expected_revision: pending.revision,
       markdown: pending.markdown || pending.summary || '',
-      todo_policy: 'Optional',
-      materialize_todos: false,
+      todo_policy: payload.todoPolicy,
+      materialize_todos: payload.materializeTodos,
       context_policy: payload.contextPolicy,
     });
-    // After approve, force execution UI even if projection is partial.
     const approved = {
       ...result.plan,
       plan_id: result.plan.plan_id || pending.plan_id,
-      phase: result.plan.phase === 'AwaitingApproval' ? 'Execute' : (result.plan.phase || 'Execute'),
-      status: result.plan.status === 'AwaitingApproval' || result.plan.status === 'Pending'
-        ? 'InProgress'
-        : (result.plan.status || 'InProgress'),
       markdown: result.plan.markdown || pending.markdown,
       summary: result.plan.summary || pending.summary || pending.markdown || '',
       strategy: result.plan.strategy ?? pending.strategy ?? pending.markdown ?? null,
@@ -997,25 +996,10 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
       todos: result.plan.todos ?? [],
     };
     syncPlanRuntime(approved);
-    const policyLabel =
-      payload.contextPolicy === 'retain'
-        ? '保留上下文'
-        : payload.contextPolicy === 'clear'
-          ? '清空探索上下文'
-          : '压缩上下文';
-    messages.value.push({
-      id: generateMessageId(),
-      role: 'system',
-      content: `计划已批准（revision ${result.receipt.revision}，${result.receipt.approved_at}）。上下文策略：${policyLabel}。已切换到 Agent 模式并开始执行…`,
-      timestamp: Date.now(),
-    });
-    // Always kick off in agent mode (never inherit the plan-mode selector).
-    // Runtime loads the approved markdown from the active execution session.
-    await sendMessage(
-      'Carry out the approved plan. Work independently and report the implementation result.\n开始执行已批准的计划：按计划逐步实现，完成后报告结果。',
-      undefined,
-      'agent',
-    );
+    if (!isExecutingPhase(approved)) {
+      throw new Error('Approval did not return an executing backend state; refresh and retry.');
+    }
+    await continueApprovedPlanExecution();
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),
@@ -1025,6 +1009,42 @@ async function approvePlanExecution(payload: { contextPolicy: 'retain' | 'compac
     });
   } finally {
     approvingPlan.value = false;
+  }
+}
+
+async function continueApprovedPlanExecution() {
+  if (isTyping.value) {
+    throw new Error('Another response is already streaming.');
+  }
+  if (!isTauri()) {
+    return;
+  }
+
+  isTyping.value = true;
+  suppressNextStopError.value = false;
+  closeStreamingPlaceholder(true);
+  const streamRequestId = generateStreamRequestId();
+  activeStreamRequestId.value = streamRequestId;
+  messages.value.push({
+    id: generateMessageId(),
+    role: 'agent',
+    content: '',
+    isStreaming: true,
+    timestamp: Date.now(),
+    emotion: currentEmotion.value,
+  });
+
+  try {
+    await invoke('continue_approved_plan_execution', {
+      channel: currentChannel.value,
+      chatId: currentChatId.value,
+      streamRequestId,
+    });
+  } catch (error) {
+    activeStreamRequestId.value = null;
+    removeStreamingAssistantPlaceholder();
+    isTyping.value = false;
+    throw error;
   }
 }
 

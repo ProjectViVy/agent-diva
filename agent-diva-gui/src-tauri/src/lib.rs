@@ -317,6 +317,7 @@ pub fn run() {
             set_splash_complete,
             commands::greet,
             commands::send_message,
+            commands::continue_approved_plan_execution,
             commands::stop_generation,
             commands::reset_session,
             commands::get_sessions,

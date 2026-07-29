@@ -1270,6 +1270,30 @@ pub async fn send_message(
     Ok(())
 }
 
+/// Continues a previously approved plan without requiring the frontend to
+/// synthesize a visible user chat message.
+#[tauri::command]
+pub async fn continue_approved_plan_execution(
+    channel: Option<String>,
+    #[allow(non_snake_case)] chatId: Option<String>,
+    #[allow(non_snake_case)] streamRequestId: String,
+    window: Window,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    send_message(
+        "Continue the approved plan execution from its persisted plan and execution context."
+            .to_string(),
+        channel,
+        chatId,
+        None,
+        Some("agent".to_string()),
+        streamRequestId,
+        window,
+        state,
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn approve_active_plan_execution(
     request: serde_json::Value,
@@ -1309,19 +1333,55 @@ pub async fn approve_active_plan_execution(
         "clear" | "Clear" => ExecutionContextPolicy::Clear,
         _ => ExecutionContextPolicy::Compact,
     };
+    let todo_policy = request
+        .get("todo_policy")
+        .or_else(|| request.get("todoPolicy"))
+        .and_then(|value| value.as_str())
+        .unwrap_or("Optional");
+    if !matches!(todo_policy, "Never" | "Optional" | "Always") {
+        return Err("todo_policy must be Never, Optional, or Always".to_string());
+    }
+    let materialize_todos = request
+        .get("materialize_todos")
+        .or_else(|| request.get("materializeTodos"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
     let payload = serde_json::json!({
         "session_key": session_key,
         "revision": revision,
         "revision_hash": revision_hash(&markdown),
         "context_policy": context_policy,
         "compacted_context": null,
+        "todo_policy": todo_policy,
+        "materialize_todos": materialize_todos,
     });
     let execution = approve_plan_report(report_id.to_string(), payload, state.clone()).await?;
+    let todos = if let Some(execution_id) = execution.get("id").and_then(|value| value.as_str()) {
+        let url = format!(
+            "{}/plan-executions/{}/todos",
+            state.api_base_url(),
+            execution_id
+        );
+        state
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|error| format!("Failed to load approved execution TODOs: {error}"))?
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|error| format!("Invalid execution TODO response: {error}"))?
+            .get("todos")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([]))
+    } else {
+        serde_json::json!([])
+    };
 
     let plan = serde_json::json!({
         "plan_id": report_id, "revision": revision, "phase": "Execute",
         "status": "InProgress", "markdown": markdown, "summary": markdown,
-        "strategy": markdown, "steps": [], "todos": []
+        "strategy": markdown, "steps": [], "todos": todos
     });
 
     let approved_at = execution
@@ -1336,8 +1396,9 @@ pub async fn approve_active_plan_execution(
             "revision": revision,
             "approved_by": "desktop-ui",
             "approved_at": approved_at,
-            "todo_policy": "Optional",
-            "todos_materialized": false,
+            "todo_policy": todo_policy,
+            "todos_materialized": todo_policy == "Always"
+                || (todo_policy == "Optional" && materialize_todos),
         },
     }))
 }

@@ -21,9 +21,18 @@ const markdown = [
   '## 目标',
   '完成发布前检查',
   '',
+  '## 范围',
+  '发布相关配置与验证流程',
+  '',
   '## 计划步骤',
   '1. 检查依赖',
   '2. 运行验证',
+  '',
+  '## 风险与假设',
+  '假设依赖源可用；失败时保留现有版本。',
+  '',
+  '## 验证方法',
+  '运行聚焦测试和发布 smoke test。',
 ].join('\n');
 
 const plan: PlanRuntimeState = {
@@ -62,7 +71,11 @@ describe('PlanApprovalCard', () => {
     await wrapper.get('.plan-approval-feedback textarea').setValue('补充验证方法');
     await wrapper.get('.plan-approval-feedback .plan-approval-revoke').trigger('click');
 
-    expect(wrapper.emitted('approve')?.[0]).toEqual([{ contextPolicy: 'compact' }]);
+    expect(wrapper.emitted('approve')?.[0]).toEqual([{
+      contextPolicy: 'compact',
+      todoPolicy: 'Optional',
+      materializeTodos: false,
+    }]);
     expect(wrapper.emitted('revoke')?.[0]).toEqual(['补充验证方法']);
   });
 
@@ -70,7 +83,11 @@ describe('PlanApprovalCard', () => {
     const wrapper = mount(PlanApprovalCard, { props: { plan } });
     await wrapper.get('input[value="clear"]').setValue();
     await wrapper.get('.plan-approval-approve').trigger('click');
-    expect(wrapper.emitted('approve')?.[0]).toEqual([{ contextPolicy: 'clear' }]);
+    expect(wrapper.emitted('approve')?.[0]).toEqual([{
+      contextPolicy: 'clear',
+      todoPolicy: 'Optional',
+      materializeTodos: false,
+    }]);
   });
 
   it('disables approval and requests a refresh when revision is unavailable', async () => {
@@ -80,7 +97,7 @@ describe('PlanApprovalCard', () => {
     expect(wrapper.emitted('refresh')).toHaveLength(1);
   });
 
-  it('still shows approve for incomplete freeform plan markdown', () => {
+  it('blocks approval for incomplete freeform plan markdown', () => {
     const incompleteMarkdown = [
       '# C++ 测试项目',
       '',
@@ -100,7 +117,18 @@ describe('PlanApprovalCard', () => {
       validation_issues: ['计划报告缺少章节：计划步骤', '计划报告缺少章节：风险与假设', '计划报告缺少章节：验证方法'],
     };
     const wrapper = mount(PlanApprovalCard, { props: { plan: incomplete } });
-    expect(wrapper.text()).toContain('章节不完整，仍可批准或点编辑继续完善');
-    expect(wrapper.get('.plan-approval-approve').attributes('disabled')).toBeUndefined();
+    expect(wrapper.text()).toContain('计划不完整，请编辑补全后再批准');
+    expect(wrapper.get('.plan-approval-approve').attributes('disabled')).toBeDefined();
+  });
+
+  it('passes explicit TODO materialization choices', async () => {
+    const wrapper = mount(PlanApprovalCard, { props: { plan } });
+    await wrapper.get('input[value="Always"]').setValue();
+    await wrapper.get('.plan-approval-approve').trigger('click');
+    expect(wrapper.emitted('approve')?.[0]).toEqual([{
+      contextPolicy: 'compact',
+      todoPolicy: 'Always',
+      materializeTodos: true,
+    }]);
   });
 });
