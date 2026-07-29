@@ -2,7 +2,7 @@ use super::turn::{
     admission::TurnAdmission,
     context::PreparedTurnContext,
     finalize::{FinalizationContext, FinalizationInput},
-    iteration::IterationOutcome,
+    iteration::{IterationBudget, IterationOutcome},
     policy::TurnSnapshot,
     prompt,
     tool_step::{ToolExecutionContext, ToolStepPolicy},
@@ -799,7 +799,7 @@ impl AgentLoop {
         let mut messages = prepared_context.messages;
 
         // Agent loop
-        let mut iteration = 0;
+        let mut iteration_budget = IterationBudget::default();
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
         let mut soul_files_changed: HashSet<String> = HashSet::new();
@@ -807,9 +807,6 @@ impl AgentLoop {
         // Codex-style follow-up: after tools, keep sampling until text or budget.
         let mut tool_run_summaries: Vec<ToolRunSummary> = Vec::new();
         let mut stopped_for_plan_approval = false;
-        // One extra text-only sampling pass after tools hit max_iterations.
-        let mut summary_bonus_remaining: usize = 0;
-        let mut summary_only_nudge_injected = false;
 
         // Intent-aware prefetch: run recall search before the first LLM call
         // when the user message provides a workable intent string.
@@ -846,19 +843,16 @@ impl AgentLoop {
         }
 
         // Allow at most one bonus summary-only iteration after tools exhaust max_iterations.
-        while iteration < self.max_iterations + summary_bonus_remaining {
+        while iteration_budget.can_continue(self.max_iterations) {
             self.drain_runtime_control_commands().await;
             if self.is_session_cancelled(&session_key) {
                 self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
                 return Ok(None);
             }
 
-            iteration += 1;
-            let summary_only_pass = iteration > self.max_iterations;
-            if summary_only_pass {
-                // Consume the single bonus pass budget.
-                summary_bonus_remaining = 0;
-            }
+            let iteration_pass = iteration_budget.begin_pass(self.max_iterations);
+            let iteration = iteration_pass.index;
+            let summary_only_pass = iteration_pass.summary_only;
             debug!(
                 "Agent iteration {}/{}{}",
                 iteration,
@@ -887,9 +881,8 @@ impl AgentLoop {
             // to prevent recursive schedule creation loops.
             // Summary-only pass: no tools (Codex-style final text after tool work).
             let tool_defs: Vec<serde_json::Value> = if summary_only_pass {
-                if !summary_only_nudge_injected {
+                if iteration_budget.take_summary_nudge() {
                     messages.push(agent_diva_providers::Message::system(SUMMARY_ONLY_NUDGE));
-                    summary_only_nudge_injected = true;
                 }
                 Vec::new()
             } else if msg.channel == "cron" || is_cron_trigger {
@@ -1418,8 +1411,7 @@ impl AgentLoop {
                 }
                 // Codex-style needs_follow_up: after tools, sample again.
                 // If this was the last normal iteration, grant one summary-only bonus.
-                if iteration >= self.max_iterations && summary_bonus_remaining == 0 {
-                    summary_bonus_remaining = 1;
+                if iteration_budget.grant_summary_bonus_if_exhausted(self.max_iterations) {
                     info!(
                         "tool-only at iteration {}/{}; granting one summary-only pass",
                         iteration, self.max_iterations
