@@ -480,9 +480,9 @@ mod tests {
             make_msg("user", "今天天气怎么样？"),
         ];
         let formatted = ContextCompactor::format_messages_for_compaction(&msgs);
-        assert!(formatted.contains("[1. 用户]"));
-        assert!(formatted.contains("[2. 助手]"));
-        assert!(formatted.contains("[3. 用户]"));
+        assert!(formatted.contains("[1. user]"));
+        assert!(formatted.contains("[2. assistant]"));
+        assert!(formatted.contains("[3. user]"));
         assert!(formatted.contains("你好"));
     }
 
