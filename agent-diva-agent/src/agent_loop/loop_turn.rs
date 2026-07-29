@@ -537,9 +537,11 @@ impl AgentLoop {
             if let (Some(planning), Some(execution)) =
                 (&self.tool_config.planning, active_execution.as_ref())
             {
-                if execution.initialization_status
-                    == agent_diva_core::planning::ExecutionInitializationStatus::Pending
-                {
+                if matches!(
+                    execution.initialization_status,
+                    agent_diva_core::planning::ExecutionInitializationStatus::Pending
+                        | agent_diva_core::planning::ExecutionInitializationStatus::Blocked
+                ) {
                     let boundary_count = self
                         .sessions
                         .get(&session_key)
