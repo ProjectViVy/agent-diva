@@ -490,6 +490,13 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 会话同步、AutoDream、GUI 直接编辑、导入/迁移统一生成 proposal；按分类和风险决定自动应用或 HITL。
   - 高风险类别（身份、关系、承诺、敏感事实、批量删除）必须人工确认；低风险可在可配置策略下自动应用。
   - apply 必须原子化并生成 changelog/audit；支持 edit-and-approve、冲突检测、撤销/补偿和遗忘请求。
+  - [x] 阶段 1：Laputa-backed `sync_turn` 将会话 consolidation 产物写为
+    `memory_patch` / `history_patch` 待审提案；不直接修改已应用 authority，
+    legacy Markdown provider 行为保持不变。
+  - [ ] 阶段 2：收口 GUI 直接编辑与导入入口，统一 proposal 分类、风险和
+    evidence 契约。
+  - [ ] 阶段 3：接入低风险可配置自动应用与高风险 HITL，并验证
+    edit-and-approve、冲突、撤销/补偿和遗忘请求。
 - [ ] **GMH-24：Memory 迁移与回归 Gate（W6 D3–D5）**
   - 影子读对比旧/新结果；建立召回准确性、错误注入率、重复率、延迟、token 成本、提案接受率基线。
   - Gate G2：fixture 迁移可回滚、authority 不丢失、旧配置兼容、Mentle/default lane 均通过；否则不切写路径。
