@@ -6,6 +6,10 @@
 
 No active delivery plan is selected. Governance Gate G0, the governed Mentle prompt-rebuild contract, and the GUI Lucide migration are complete; integrated Rust and GUI gates pass.
 
+## Operational Testing
+
+- [ ] **真实 API 测试使用桌面密钥文件** 当验证工作确实需要调用真实 API 时，使用桌面的 `keys.txt` 提供测试凭据；不得将该文件、其中的密钥或未脱敏内容复制进仓库、日志、错误输出、测试夹具或提交记录。
+
 ## G0 Verified Backlog Reconciliation
 
 - [x] **JsonlTodoStore concurrent rewrites** All rewrite paths use the shared file lock; concurrent create/update and create/archive regression tests pass.
