@@ -7,10 +7,8 @@ Delivered evidence:
 
 - AgentLoop normal-turn and Manager route/SSE characterization fixtures.
 - A typed GUI capability ledger.
-- A cross-domain authority inventory and frozen Memory, HITL, authorization, and autonomy decisions.
-- An explicit lifecycle, restart, concurrency, denial, and retry contract matrix.
 - Structure/dependency baselines and a repeatable performance measurement method.
 - Reconciliation of verified stale Todo backlog entries.
 
-G1 remains blocked until the full workspace gate is green; the current blocker is
-the load-sensitive Manager health benchmark recorded in `TODOLIST.md`.
+GMH-01/03 and G0.4 remain open. G1 remains blocked until the full workspace gate
+is green; the current blocker is recorded in `TODOLIST.md`.

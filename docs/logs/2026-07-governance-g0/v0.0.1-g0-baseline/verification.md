@@ -23,8 +23,8 @@ not preserve the retired `L2 Palace Memory` prompt route.
 
 - `just fmt-check`: passed.
 - `just check`: passed.
-- `just test`: failed only at `handlers::health::tests::health_benchmark_ci_gate_stays_within_budget`; the full run measured 7.5967751 seconds for 500 requests.
-- Focused health benchmark rerun twice: passed in 0.23 and 0.17 seconds, demonstrating load sensitivity.
+- `just test`: failed only at `handlers::health::tests::health_benchmark_ci_gate_stays_within_budget`; the full run measured 5.1021421 seconds for 500 requests.
+- Focused health benchmark rerun: passed in 0.20 seconds, demonstrating load sensitivity.
 - Full GUI test: 54 files and 429 tests passed before the Lucide integration.
 - GUI production build: passed with the existing large-chunk warning.
 - Embedded-gateway lifecycle smoke: 11 tests passed.
