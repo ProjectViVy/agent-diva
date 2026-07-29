@@ -1296,6 +1296,11 @@ pub async fn continue_approved_plan_execution(
         chatId,
         None,
         Some("agent".to_string()),
+        Some(serde_json::json!({
+            "plan_id": plan_id,
+            "revision": revision,
+            "execution_id": execution_id,
+        })),
         streamRequestId,
         window,
         state,
@@ -1392,7 +1397,10 @@ pub async fn approve_active_plan_execution(
     let plan = serde_json::json!({
         "plan_id": report_id, "revision": revision, "phase": "Execute",
         "status": "InProgress", "markdown": markdown, "summary": markdown,
-        "strategy": markdown, "steps": [], "todos": todos
+        "strategy": markdown, "steps": [], "todos": todos,
+        "execution_id": execution.get("id"),
+        "initialization_status": execution.get("initialization_status"),
+        "initialization_error": execution.get("initialization_error")
     });
 
     let approved_at = execution
