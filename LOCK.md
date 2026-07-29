@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `None`
-- Last Heartbeat: `2026-07-30T00:15:00+08:00`
+- Last Heartbeat: `2026-07-30T00:48:00+08:00`
 - Expires At: `None`
 
 ## Lock Rules
@@ -29,6 +29,16 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-30`: Released GMH-22 Recall v2 scope. Added stable candidate source,
+  fail-closed trust/sensitivity/scope/temporal filtering, deterministic ranking,
+  supersession/deduplication, replaceable hard token budgeting, escaped
+  rendering, raw-content-free traces and shadow reports, and an explicitly
+  untrusted Mentle adapter. Focused default/Mentle/Agent/Laputa tests,
+  `git diff --check`, `just fmt-check`, `just check`, and complete `just test`
+  passed. Production prefetch and prompt behavior remain unchanged. An
+  unrelated prompt-Englishization proposal and TODO appeared during this task
+  and were preserved outside the GMH-22 commit.
 
 - `2026-07-30`: Released GMH-21 normalized Memory record scope. Core now owns
   stable records, provenance, trust/sensitivity/scope, validation, digests,

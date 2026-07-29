@@ -16,6 +16,13 @@ use super::provider::{
     SyncTurnStatus, SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
 };
 use super::storage::Memory;
+use super::{
+    memory_content_digest, MemoryProvenance, MemoryProvenanceSource, MemoryRecord,
+    MemoryRecordKind, MemoryScope, MemorySensitivity, MemoryTrust, RecallCandidate,
+    RecallRetrievalSource,
+};
+use crate::governance::AuditCorrelation;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PalaceStatusSnapshot {
@@ -331,6 +338,56 @@ impl HybridMemoryProvider {
     }
 }
 
+/// Convert a Mentle/Hybrid search hit into an explicitly untrusted Recall v2
+/// candidate.
+///
+/// Search relevance cannot prove that indexed content came from applied
+/// authority. A future authority-aware index may replace this adapter only when
+/// it carries and validates the original record provenance.
+pub fn mentle_search_hit_candidate(
+    source_id: impl Into<String>,
+    content: impl Into<String>,
+    kind: MemoryRecordKind,
+    scope: MemoryScope,
+    correlation: AuditCorrelation,
+    retrieved_at: DateTime<Utc>,
+    relevance_bps: u16,
+) -> RecallCandidate {
+    let source_id = source_id.into();
+    let content = content.into();
+    let digest = memory_content_digest(content.as_bytes());
+    let id_binding = format!("mentle\0{source_id}\0{}", digest.value);
+    RecallCandidate {
+        record: MemoryRecord {
+            id: format!(
+                "memory-mentle-{}",
+                memory_content_digest(id_binding.as_bytes()).value
+            ),
+            kind,
+            content,
+            provenance: MemoryProvenance {
+                source: MemoryProvenanceSource::ToolResult,
+                source_id,
+                content_digest: digest,
+                captured_at: retrieved_at,
+                correlation,
+            },
+            evidence_refs: Vec::new(),
+            confidence_bps: 0,
+            sensitivity: MemorySensitivity::Private,
+            trust: MemoryTrust::Untrusted,
+            scope,
+            created_at: retrieved_at,
+            effective_at: retrieved_at,
+            expires_at: None,
+            supersedes: Vec::new(),
+            tombstone: None,
+        },
+        relevance_bps,
+        retrieval_source: RecallRetrievalSource::Mentle,
+    }
+}
+
 #[async_trait::async_trait]
 impl MemoryProvider for HybridMemoryProvider {
     fn system_prompt_block(
@@ -544,9 +601,12 @@ mod tests {
         diary_write_succeeded, history_diary_write_args, CachedPalaceSnapshot,
         HybridMemoryProvider, PalaceStatusSnapshot,
     };
+    use crate::governance::AuditCorrelation;
     use crate::memory::{
-        Memory, MemoryManager, MemoryProvider, PrefetchRequest, PrefetchStatus, SessionEndRequest,
-        SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnStatus, SystemPromptRequest,
+        Memory, MemoryManager, MemoryProvider, MemoryRecordKind, MemoryScope, MemoryTrust,
+        PrefetchRequest, PrefetchStatus, RecallPipeline, RecallPolicy, RecallRequest,
+        SessionEndRequest, SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnStatus,
+        SystemPromptRequest,
     };
 
     async fn open_toolkit(temp_dir: &TempDir) -> Arc<Mutex<MemtleToolkit>> {
@@ -594,6 +654,46 @@ mod tests {
         assert!(!diary_write_succeeded(&serde_json::json!({
             "entry_id": "entry-1"
         })));
+    }
+
+    #[test]
+    fn mentle_search_hit_cannot_self_promote_to_prompt_authority() {
+        let now = chrono::Utc::now();
+        let scope = MemoryScope {
+            tenant_id: "tenant-1".into(),
+            workspace_id: "workspace-1".into(),
+            session_id: Some("session-1".into()),
+        };
+        let correlation = AuditCorrelation {
+            request_id: "request-1".into(),
+            turn_id: "turn-1".into(),
+            session_id: "session-1".into(),
+            trace_id: None,
+        };
+        let candidate = super::mentle_search_hit_candidate(
+            "wing/room/hit-1",
+            "search result",
+            MemoryRecordKind::LongTerm,
+            scope.clone(),
+            correlation.clone(),
+            now,
+            10_000,
+        );
+        assert_eq!(candidate.record.trust, MemoryTrust::Untrusted);
+        let outcome = RecallPipeline.select(
+            &RecallRequest {
+                query: "search".into(),
+                scope,
+                correlation,
+                now,
+                token_budget: 1_000,
+                max_candidates: 5,
+                policy: RecallPolicy::default_prompt(),
+            },
+            vec![candidate],
+        );
+        assert!(outcome.selected_records.is_empty());
+        assert!(outcome.prompt_block.is_none());
     }
 
     #[tokio::test]

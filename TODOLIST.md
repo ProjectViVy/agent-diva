@@ -471,7 +471,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 定义记录 ID、类型、内容、来源、证据、置信度、敏感级别、创建/有效/过期时间、supersedes/tombstone、租户/会话范围。
   - 兼容旧 `MEMORY.md`/`HISTORY.md` 和 Laputa JSON；设计双读校验、一次性迁移、回滚和数据完整性报告。
   - 对 prompt injection 内容做信任标注和转义；用户输入、工具结果、AutoDream 推断不得直接升级为 authority。
-- [ ] **GMH-22：Recall 与上下文预算管线（W5 D1–D4）**
+- [x] **GMH-22：Recall 与上下文预算管线（W5 D1–D4）**
   - 分离候选召回、权限/敏感过滤、相关性排序、去重、时间衰减、token budget、最终渲染。
   - 每条注入内容可追踪到来源和选择理由；pending/rejected/expired/tombstoned 内容永不进入默认上下文。
   - 定义 degraded/fallback：检索失败时显式降级，不能静默使用陈旧或越权数据。

@@ -373,11 +373,11 @@ impl Default for SessionEndResponse {
 ///   startup prompt state or perform live-turn recall.
 /// - `on_session_end()` is shutdown-only and should remain idempotent when a
 ///   provider receives duplicate session-end hooks.
-/// - Markdown memory is the authoritative fallback. Optional backends must not
-///   block startup, live turns, or Markdown persistence when their open, query,
-///   or secondary write paths fail.
-/// - Backend open failure should disable backend-specific prompt routing and
-///   tools, then continue with the Markdown-backed `MemoryManager`.
+/// - Markdown memory is the legacy authority only when no Laputa workspace
+///   exists. Optional retrieval indexes must not become authority.
+/// - If a `.laputa` workspace exists but cannot be opened, implementations must
+///   return an explicit degraded status and must not silently fall back to a
+///   Markdown second source of truth.
 /// - All request/response types are Agent-Diva-owned domain structs; do not
 ///   leak MCP schemas, CLI arguments, HTTP routes, or backend model types.
 #[async_trait::async_trait]

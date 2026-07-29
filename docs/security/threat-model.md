@@ -24,3 +24,22 @@ Primary threats and controls:
 GMH-21 does not route records into prompts or production reads. GMH-22 owns
 recall filtering and rendering; GMH-23 owns proposal/apply writes; GMH-24 owns
 shadow comparison and cutover gates.
+
+## GMH-22 Recall v2 boundary
+
+Recall v2 treats retrieval as candidate discovery, never as authorization.
+Default prompt selection requires applied authority provenance and rejects
+restricted or unknown sensitivity.
+
+| Threat | Control |
+| --- | --- |
+| High search relevance promotes untrusted data | Relevance affects ranking only; trust is an independent allowlist filter |
+| Cross-tenant/workspace/session recall | Exact scope checks run before scoring |
+| Expired, tombstoned, or replaced data returns | Temporal, tombstone, supersedes, and digest-dedup stages precede budgeting |
+| Candidate floods consume context | Candidate limit, deterministic ordering, and hard token budget; records are skipped rather than truncated |
+| Recall text escapes its prompt boundary | GMH-21 length-delimited escaping is the only Recall v2 renderer |
+| Diagnostics leak Memory content | Trace and shadow reports contain IDs, digests, scores, token counts, and reason enums only |
+| Retrieval outage reuses stale data | Typed degraded result contains no prompt block and no cached fallback |
+
+Recall v2 remains shadow-capable only in GMH-22. The current production prefetch
+path is unchanged until GMH-24 validates comparison metrics and cutover.

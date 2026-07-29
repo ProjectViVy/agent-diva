@@ -246,9 +246,19 @@ Status: implemented without production cutover.
 
 ### GMH-22 — recall and context budget
 
-- Introduce the staged recall pipeline and traceable selection reasons.
-- Shadow-compare old and new rendered context without changing authority.
-- Fail closed on trust/sensitivity uncertainty and explicit retrieval failure.
+Status: implemented as a shadow-capable contract without production cutover.
+
+- `agent_diva_core::memory` owns the request, candidate source, filtering,
+  deterministic scoring, supersession/deduplication, token budgeting, escaped
+  rendering, raw-content-free trace, and shadow comparison contracts.
+- Default prompt policy accepts only applied authority and
+  public/internal/private sensitivity. Restricted, unknown, untrusted, expired,
+  tombstoned, cross-scope, duplicate, and superseded candidates fail closed.
+- Retrieval failure is typed degraded with no prompt block or stale cache.
+- Mentle/Hybrid search hits without original applied provenance are adapted as
+  untrusted candidates regardless of search relevance.
+- Existing `MemoryProvider::prefetch`, Hybrid injection, and AgentLoop behavior
+  remain unchanged. GMH-24 owns live shadow metrics and read cutover.
 
 ### GMH-23 — proposal-only writes
 
