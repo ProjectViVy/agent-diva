@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-07-30T02:45:00+08:00`
+- Last Heartbeat: `2026-07-30T03:25:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -29,6 +29,17 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-07-30T03:25:00+08:00`: Released GMH-23 stage 2. Persona/Memory
+  section edits now create risk-classified pending proposals through the
+  existing Manager/Tauri path, restore applied authority in the editor, and
+  refresh the Evolution badge; no changelog or authority write occurs before
+  explicit apply. Laputa/Manager focused tests, all 432 GUI tests, GUI build,
+  Tauri check, `just fmt-check`, `just check`, and the complete 287-second
+  `just test` passed. Local commits: `27789fe7`, `ded455fa`, `932251b5`, and
+  `a3b27b1f`. Real desktop smoke remains explicitly pending with instructions
+  in the iteration acceptance log. Migration cutover remains GMH-24. No push
+  was performed.
 
 - `2026-07-30T02:45:00+08:00`: Released GMH-23 stage 1. Laputa-backed
   `sync_turn` now creates pending memory/history proposals with session evidence
