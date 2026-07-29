@@ -6,6 +6,20 @@
 
 No active delivery plan is selected. Governance Gate G0, the governed Mentle prompt-rebuild contract, and the GUI Lucide migration are complete; integrated Rust and GUI gates pass.
 
+## Skill / SOP Unification
+
+- [ ] **Represent Agent Diva SOPs as backward-compatible Skills** Do not build
+  a separate SOP format, directory, loader, registry, or runtime. Extend
+  `SKILL.md` with optional `kind: sop` metadata (default `skill`), reuse the
+  complete existing Skill lifecycle, and show an `AGENT-DIVA SOP` label in the
+  agent Skill summary and GUI. Unknown or absent values must degrade to a
+  traditional Skill without blocking load; the label must not grant permissions
+  or trigger implicit execution. Update Notebook “solidify as SOP” semantics to
+  create a SOP Skill candidate rather than a second artifact type. Add focused
+  parser, summary, DTO, GUI, upload/install, compatibility, and regression
+  coverage. Decision and acceptance contract:
+  `docs/architecture/skill-sop-unification.md`.
+
 ## Operational Testing
 
 - [ ] **在需要真机验证的里程碑主动提醒用户** 当 GMH 路线图推进到必须使用真实设备、真实桌面环境或真实外部集成才能完成验收的节点时，先明确提醒用户，不得将模拟测试或自动化测试冒充真机验收。提醒需列出所需环境、操作步骤、预期观察点及失败时需要保留的诊断信息；获得用户配合后再完成对应里程碑验收。
