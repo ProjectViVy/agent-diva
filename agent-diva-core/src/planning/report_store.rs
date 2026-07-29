@@ -6,14 +6,19 @@
 
 use anyhow::anyhow;
 use chrono::Utc;
-use std::{collections::HashMap, sync::{Arc, OnceLock}};
+use std::{
+    collections::HashMap,
+    sync::{Arc, OnceLock},
+};
 use tokio::sync::RwLock;
 
 use super::{
     assert_report_ready_for_approval, revision_hash, ExecutionContextPolicy, ExecutionSession,
-    ExecutionSessionStatus, ExecutionTodo, PlanId, PlanReport,
-    PlanReportStatus, PlanRevision, PlanRevisionApproval, PlanRevisionAuthor,
+    ExecutionSessionStatus, ExecutionTodo, PlanId, PlanReport, PlanReportStatus, PlanRevision,
+    PlanRevisionApproval, PlanRevisionAuthor,
 };
+use super::{PlanPhase, PlanStatus, TodoPriority, TodoStatus};
+use crate::bus::{PlanRuntimeState, PlanRuntimeTodo};
 
 /// The draft currently available to a single session during this process.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -60,8 +65,13 @@ impl EphemeralPlanRegistry {
         // Both `new()` and `Default` must return handles to this same map;
         // Manager `PlanningService` historically constructed via Default while
         // the agent loop uses `new()`.
-        static PROCESS_REGISTRY: OnceLock<Arc<RwLock<HashMap<String, SessionPlanState>>>> = OnceLock::new();
-        Self { sessions: PROCESS_REGISTRY.get_or_init(|| Arc::new(RwLock::new(HashMap::new()))).clone() }
+        static PROCESS_REGISTRY: OnceLock<Arc<RwLock<HashMap<String, SessionPlanState>>>> =
+            OnceLock::new();
+        Self {
+            sessions: PROCESS_REGISTRY
+                .get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
+                .clone(),
+        }
     }
 
     /// Replace any existing draft/execution state for this session.
@@ -139,6 +149,31 @@ impl EphemeralPlanRegistry {
         Ok(draft.clone())
     }
 
+    /// Restores a persisted, still-pending report into the process-local
+    /// content cache. This is used after restart; the caller must source the
+    /// revision and phase from the canonical store.
+    pub async fn restore_report(
+        &self,
+        session_key: &str,
+        detail: PlanReportDetail,
+    ) -> anyhow::Result<()> {
+        if detail.report.session_key != session_key
+            || detail.report.id != detail.revision.report_id
+            || detail.report.current_revision != detail.revision.revision
+            || detail.report.status != PlanReportStatus::AwaitingApproval
+        {
+            return Err(anyhow!("invalid persisted plan report projection"));
+        }
+        self.sessions.write().await.insert(
+            session_key.to_string(),
+            SessionPlanState {
+                draft: Some(detail),
+                execution: None,
+            },
+        );
+        Ok(())
+    }
+
     /// Approve only the draft currently resident in `session_key`.
     pub async fn approve_revision(
         &self,
@@ -167,51 +202,165 @@ impl EphemeralPlanRegistry {
         if actual_hash != expected_hash {
             return Err(anyhow!("plan report revision conflict"));
         }
-        assert_report_ready_for_approval(&draft.revision.markdown).map_err(|error| anyhow!(error))?;
+        assert_report_ready_for_approval(&draft.revision.markdown)
+            .map_err(|error| anyhow!(error))?;
         let now = Utc::now();
         let approval = PlanRevisionApproval {
-            report_id: report_id.clone(), revision, revision_hash: actual_hash,
-            context_policy, approved_at: now,
+            report_id: report_id.clone(),
+            revision,
+            revision_hash: actual_hash,
+            context_policy,
+            approved_at: now,
         };
         let session = ExecutionSession {
-            id: uuid::Uuid::new_v4().to_string(), report_id: report_id.clone(), revision,
-            context_policy, status: ExecutionSessionStatus::Executing,
+            id: uuid::Uuid::new_v4().to_string(),
+            report_id: report_id.clone(),
+            revision,
+            context_policy,
+            status: ExecutionSessionStatus::Executing,
             compacted_context: compacted_context.map(ToOwned::to_owned),
-            created_at: now, updated_at: now,
+            created_at: now,
+            updated_at: now,
         };
         let markdown = draft.revision.markdown.clone();
         state.draft = None;
-        state.execution = Some(ExecutionState { session: session.clone(), markdown, todos: vec![] });
+        state.execution = Some(ExecutionState {
+            session: session.clone(),
+            markdown,
+            todos: vec![],
+        });
         Ok((approval, session))
     }
 
-    pub async fn active_execution_for_session(&self, session_key: &str) -> Option<ExecutionSession> {
-        self.sessions.read().await.get(session_key).and_then(|state| state.execution.as_ref())
+    pub async fn active_execution_for_session(
+        &self,
+        session_key: &str,
+    ) -> Option<ExecutionSession> {
+        self.sessions
+            .read()
+            .await
+            .get(session_key)
+            .and_then(|state| state.execution.as_ref())
             .map(|execution| execution.session.clone())
     }
 
-    pub async fn execution_markdown(&self, execution_session_id: &str) -> Option<String> {
-        self.sessions.read().await.values().find_map(|state| state.execution.as_ref()
-            .filter(|execution| execution.session.id == execution_session_id)
-            .map(|execution| execution.markdown.clone()))
+    /// Projects the session-scoped report state into the canonical runtime
+    /// shape used by capability policy. The report registry remains a content
+    /// and execution-context cache; lifecycle authorization consumes this
+    /// projection rather than inferring state from request mode.
+    pub async fn runtime_state_for_session(&self, session_key: &str) -> Option<PlanRuntimeState> {
+        let sessions = self.sessions.read().await;
+        let state = sessions.get(session_key)?;
+        if let Some(draft) = state.draft.as_ref() {
+            let goal = draft
+                .revision
+                .markdown
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty() && !line.starts_with('#'))
+                .unwrap_or(&draft.revision.title)
+                .to_string();
+            return Some(PlanRuntimeState {
+                plan_id: draft.report.id.0.clone(),
+                revision: Some(draft.revision.revision),
+                title: draft.revision.title.clone(),
+                goal,
+                phase: PlanPhase::AwaitingApproval,
+                status: PlanStatus::Pending,
+                strategy: Some(draft.revision.markdown.clone()),
+                summary: draft.revision.markdown.clone(),
+                steps: Vec::new(),
+                todos: Vec::new(),
+                created_at: draft.report.created_at,
+                updated_at: draft.report.updated_at,
+            });
+        }
+        let execution = state.execution.as_ref()?;
+        let (phase, status) = match execution.session.status {
+            ExecutionSessionStatus::Executing => (PlanPhase::Execute, PlanStatus::InProgress),
+            ExecutionSessionStatus::Verifying => (PlanPhase::Verify, PlanStatus::InProgress),
+            ExecutionSessionStatus::Completed => (PlanPhase::Completed, PlanStatus::Completed),
+            ExecutionSessionStatus::Failed => (PlanPhase::Failed, PlanStatus::Failed),
+            ExecutionSessionStatus::Partial => (PlanPhase::Partial, PlanStatus::Partial),
+        };
+        Some(PlanRuntimeState {
+            plan_id: execution.session.report_id.0.clone(),
+            revision: Some(execution.session.revision),
+            title: "Approved plan".to_string(),
+            goal: "Execute the approved plan".to_string(),
+            phase,
+            status,
+            strategy: Some(execution.markdown.clone()),
+            summary: execution.markdown.clone(),
+            steps: Vec::new(),
+            todos: execution
+                .todos
+                .iter()
+                .map(|todo| PlanRuntimeTodo {
+                    id: todo.id.clone(),
+                    plan_step_id: None,
+                    title: todo.title.clone(),
+                    detail: todo.detail.clone(),
+                    status: match todo.status {
+                        super::ExecutionTodoStatus::Pending => TodoStatus::Pending,
+                        super::ExecutionTodoStatus::InProgress => TodoStatus::InProgress,
+                        super::ExecutionTodoStatus::Blocked => TodoStatus::Blocked,
+                        super::ExecutionTodoStatus::Completed => TodoStatus::Completed,
+                        super::ExecutionTodoStatus::Canceled => TodoStatus::Canceled,
+                    },
+                    priority: match todo.priority {
+                        super::ExecutionTodoPriority::Low => TodoPriority::Low,
+                        super::ExecutionTodoPriority::Normal => TodoPriority::Normal,
+                        super::ExecutionTodoPriority::High => TodoPriority::High,
+                    },
+                    evidence_ref: todo.evidence_ref.clone(),
+                    block_reason: todo.block_reason.clone(),
+                    updated_at: todo.updated_at,
+                })
+                .collect(),
+            created_at: execution.session.created_at,
+            updated_at: execution.session.updated_at,
+        })
     }
 
-    pub async fn replace_execution_todos(&self, execution_session_id: &str, todos: &[ExecutionTodo]) -> anyhow::Result<()> {
+    pub async fn execution_markdown(&self, execution_session_id: &str) -> Option<String> {
+        self.sessions.read().await.values().find_map(|state| {
+            state
+                .execution
+                .as_ref()
+                .filter(|execution| execution.session.id == execution_session_id)
+                .map(|execution| execution.markdown.clone())
+        })
+    }
+
+    pub async fn replace_execution_todos(
+        &self,
+        execution_session_id: &str,
+        todos: &[ExecutionTodo],
+    ) -> anyhow::Result<()> {
         let mut sessions = self.sessions.write().await;
         let execution = find_execution_mut(&mut sessions, execution_session_id)?;
         execution.todos = todos.to_vec();
         Ok(())
     }
 
-    pub async fn execution_todos(&self, execution_session_id: &str) -> anyhow::Result<Vec<ExecutionTodo>> {
+    pub async fn execution_todos(
+        &self,
+        execution_session_id: &str,
+    ) -> anyhow::Result<Vec<ExecutionTodo>> {
         let sessions = self.sessions.read().await;
-        Ok(find_execution(&sessions, execution_session_id)?.todos.clone())
+        Ok(find_execution(&sessions, execution_session_id)?
+            .todos
+            .clone())
     }
 
     pub async fn update_execution_todo(&self, todo: &ExecutionTodo) -> anyhow::Result<()> {
         let mut sessions = self.sessions.write().await;
         let execution = find_execution_mut(&mut sessions, &todo.execution_session_id)?;
-        let item = execution.todos.iter_mut().find(|item| item.id == todo.id)
+        let item = execution
+            .todos
+            .iter_mut()
+            .find(|item| item.id == todo.id)
             .ok_or_else(|| anyhow!("execution todo not found"))?;
         *item = todo.clone();
         Ok(())
@@ -223,13 +372,33 @@ impl EphemeralPlanRegistry {
     }
 }
 
-fn find_execution<'a>(sessions: &'a HashMap<String, SessionPlanState>, id: &str) -> anyhow::Result<&'a ExecutionState> {
-    sessions.values().find_map(|state| state.execution.as_ref().filter(|execution| execution.session.id == id))
+fn find_execution<'a>(
+    sessions: &'a HashMap<String, SessionPlanState>,
+    id: &str,
+) -> anyhow::Result<&'a ExecutionState> {
+    sessions
+        .values()
+        .find_map(|state| {
+            state
+                .execution
+                .as_ref()
+                .filter(|execution| execution.session.id == id)
+        })
         .ok_or_else(|| anyhow!("execution session is not active"))
 }
 
-fn find_execution_mut<'a>(sessions: &'a mut HashMap<String, SessionPlanState>, id: &str) -> anyhow::Result<&'a mut ExecutionState> {
-    sessions.values_mut().find_map(|state| state.execution.as_mut().filter(|execution| execution.session.id == id))
+fn find_execution_mut<'a>(
+    sessions: &'a mut HashMap<String, SessionPlanState>,
+    id: &str,
+) -> anyhow::Result<&'a mut ExecutionState> {
+    sessions
+        .values_mut()
+        .find_map(|state| {
+            state
+                .execution
+                .as_mut()
+                .filter(|execution| execution.session.id == id)
+        })
         .ok_or_else(|| anyhow!("execution session is not active"))
 }
 
@@ -242,21 +411,11 @@ mod tests {
     async fn drafts_and_execution_are_isolated_by_session_and_replaced() {
         let registry = EphemeralPlanRegistry::new();
         let a = registry
-            .create_report(
-                "session-isolation-a",
-                "A",
-                PLAN,
-                PlanRevisionAuthor::Agent,
-            )
+            .create_report("session-isolation-a", "A", PLAN, PlanRevisionAuthor::Agent)
             .await
             .unwrap();
         registry
-            .create_report(
-                "session-isolation-b",
-                "B",
-                PLAN,
-                PlanRevisionAuthor::Agent,
-            )
+            .create_report("session-isolation-b", "B", PLAN, PlanRevisionAuthor::Agent)
             .await
             .unwrap();
         assert!(registry
@@ -332,5 +491,40 @@ mod tests {
             Some(PLAN)
         );
         agent_side.discard_session(session_key).await;
+    }
+
+    #[tokio::test]
+    async fn runtime_projection_keeps_awaiting_approval_fail_closed_then_enters_execute() {
+        let registry = EphemeralPlanRegistry::new();
+        let session_key = "gui:runtime-policy-projection";
+        registry.discard_session(session_key).await;
+        let draft = registry
+            .create_report(session_key, "Projected", PLAN, PlanRevisionAuthor::Agent)
+            .await
+            .unwrap();
+        let pending = registry
+            .runtime_state_for_session(session_key)
+            .await
+            .unwrap();
+        assert_eq!(pending.phase, PlanPhase::AwaitingApproval);
+        assert_eq!(pending.revision, Some(1));
+
+        registry
+            .approve_revision(
+                session_key,
+                &draft.report.id,
+                1,
+                &revision_hash(PLAN),
+                ExecutionContextPolicy::Compact,
+                None,
+            )
+            .await
+            .unwrap();
+        let executing = registry
+            .runtime_state_for_session(session_key)
+            .await
+            .unwrap();
+        assert_eq!(executing.phase, PlanPhase::Execute);
+        registry.discard_session(session_key).await;
     }
 }

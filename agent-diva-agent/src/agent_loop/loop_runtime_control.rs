@@ -352,15 +352,17 @@ impl AgentLoop {
     /// boundary even before a subsequent tool call can re-snapshot state.
     async fn rebuild_tools_for_active_phase(&mut self) {
         let active_mask = self.load_active_mask();
-        self.rebuild_tools_for_turn(
-            active_mask.as_ref(),
-            None,
-            None,
-            None,
-        );
+        self.rebuild_tools_for_turn(active_mask.as_ref(), None, None, None);
     }
 
-    pub(super) async fn snapshot_active_plan_runtime(&self) -> Option<PlanRuntimeState> {
-        None
+    pub(super) async fn snapshot_active_plan_runtime(
+        &self,
+        session_key: &str,
+    ) -> Option<PlanRuntimeState> {
+        let planning = self.tool_config.planning.as_ref()?;
+        planning
+            .registry
+            .runtime_state_for_session(session_key)
+            .await
     }
 }

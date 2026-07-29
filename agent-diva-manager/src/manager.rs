@@ -490,7 +490,9 @@ impl Manager {
         if let Some(ref svc) = self.planning_service {
             return Some(Arc::clone(svc));
         }
-        let arc = Arc::new(crate::planning_service::PlanningService::new());
+        let arc = Arc::new(crate::planning_service::PlanningService::new(
+            self.workspace.clone(),
+        ));
         self.planning_service = Some(Arc::clone(&arc));
         Some(arc)
     }
@@ -500,10 +502,10 @@ impl Manager {
         reply: oneshot::Sender<Result<Vec<agent_diva_core::planning::PlanReportDetail>, String>>,
     ) {
         let result = match self.ensure_planning_service().await {
-            // Legacy clients may still poll this endpoint. PLAN history is
-            // intentionally gone, so report an empty list rather than turn a
-            // harmless compatibility poll into a 500 loop.
-            Some(_) => Ok(Vec::new()),
+            Some(service) => service
+                .list_reports()
+                .await
+                .map_err(|error| error.to_string()),
             None => Err("Planning service unavailable".to_string()),
         };
         let _ = reply.send(result);

@@ -327,15 +327,16 @@ impl AgentLoop {
         // Plan safety is a runtime lifecycle property, not only a UI/request mode.
         // Once a plan is waiting for approval, an agent-mode follow-up must not
         // re-enable mutation tools before the explicit approval transition.
-        let active_plan = self.snapshot_active_plan_runtime().await;
         let session_key = format!("{}:{}", msg.channel, msg.chat_id);
+        let active_plan = self.snapshot_active_plan_runtime(&session_key).await;
         // Hydrate approved report execution (replacement plan runtime).
         let active_execution = match &self.tool_config.planning {
-            Some(planning) if !plan_mode => planning
-                .registry
-                .active_execution_for_session(&session_key)
-                .await
-                ,
+            Some(planning) if !plan_mode => {
+                planning
+                    .registry
+                    .active_execution_for_session(&session_key)
+                    .await
+            }
             _ => None,
         };
         // Kickoff turns that begin implementing an approved report.
@@ -349,14 +350,10 @@ impl AgentLoop {
                 || msg.content.contains("Carry out the approved plan")
                 || msg.content.contains("开始执行已批准");
         }
-        let active_execution_id = active_execution.as_ref().map(|execution| execution.id.clone());
-        // An active report execution session must not be blocked by a stale
-        // legacy plan phase (e.g. AwaitingApproval left in the old store).
-        let policy_phase = if active_execution_id.is_some() && !plan_mode {
-            None
-        } else {
-            policy_phase_for(active_plan.as_ref(), plan_mode)
-        };
+        let active_execution_id = active_execution
+            .as_ref()
+            .map(|execution| execution.id.clone());
+        let policy_phase = policy_phase_for(active_plan.as_ref(), plan_mode);
         let plan_guard_active = policy_phase.is_some();
         let execution_context_policy = active_execution
             .as_ref()
@@ -1104,7 +1101,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                         args_str.clone()
                     };
                     info!("Tool call: {}({})", tool_call.name, preview);
-                    let planning_before = self.snapshot_active_plan_runtime().await;
+                    let planning_before = self.snapshot_active_plan_runtime(&session_key).await;
                     let event = AgentEvent::ToolCallStarted {
                         name: tool_call.name.clone(),
                         args_preview: preview.clone(),
@@ -1123,13 +1120,8 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                 .as_ref()
                                 .is_some_and(ToolPolicy::is_read_only_mode)
                                 && !ToolPolicy::is_read_only_tool(&tool_call.name);
-                            // Active report execution must not be re-gated by a
-                            // stale legacy plan phase mid-turn.
-                            let policy_phase = if active_execution_id.is_some() && !plan_mode {
-                                None
-                            } else {
-                                policy_phase_for(planning_before.as_ref(), plan_mode)
-                            };
+                            let policy_phase =
+                                policy_phase_for(planning_before.as_ref(), plan_mode);
                             let capability = builtin_tool_capability(&tool_call.name);
                             let plan_mode_rejected = policy_phase
                                 .as_ref()
@@ -1213,7 +1205,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     trace!(trace_id = %trace_id, loop_index = iteration, step_name = "tool_completed", tool_name = %tool_call.name, "Tool completed");
 
                     let planning_after = if !is_error {
-                        self.snapshot_active_plan_runtime().await
+                        self.snapshot_active_plan_runtime(&session_key).await
                     } else {
                         None
                     };
@@ -1261,11 +1253,8 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                 .as_ref()
                                 .map(|plan| (plan.phase.clone(), plan.revision))
                         {
-                            let rebuild_phase = if active_execution_id.is_some() && !plan_mode {
-                                None
-                            } else {
-                                policy_phase_for(planning_after.as_ref(), plan_mode)
-                            };
+                            let rebuild_phase =
+                                policy_phase_for(planning_after.as_ref(), plan_mode);
                             self.rebuild_tools_for_turn(
                                 active_mask.as_ref(),
                                 rebuild_phase,
