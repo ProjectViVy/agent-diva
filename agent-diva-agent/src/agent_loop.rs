@@ -1251,6 +1251,81 @@ mod tests {
         }
     }
 
+    struct UnknownToolCallProvider {
+        calls: Mutex<usize>,
+    }
+
+    impl Default for UnknownToolCallProvider {
+        fn default() -> Self {
+            Self {
+                calls: Mutex::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for UnknownToolCallProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let call_index = {
+                let mut calls = self.calls.lock().unwrap();
+                let index = *calls;
+                *calls += 1;
+                index
+            };
+            let response = if call_index == 0 {
+                LLMResponse {
+                    content: None,
+                    tool_calls: vec![ToolCallRequest {
+                        id: "unknown-tool-call".to_string(),
+                        call_type: "function".to_string(),
+                        name: "missing_test_tool".to_string(),
+                        arguments: HashMap::new(),
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            } else {
+                LLMResponse {
+                    content: Some("recovered".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            };
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
     struct NamedTool {
         name: &'static str,
     }
@@ -1528,6 +1603,63 @@ mod tests {
                 "tool_finished",
                 "final_response"
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn characterization_tool_error_is_recorded_before_final_response() {
+        let bus = MessageBus::new();
+        let mut event_rx = bus.subscribe_events();
+        let provider = Arc::new(UnknownToolCallProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut agent = AgentLoop::new(bus, provider, temp_dir.path().to_path_buf(), None, Some(2))
+            .await
+            .unwrap();
+
+        let response = agent
+            .process_direct(
+                "Use the missing tool",
+                "session-tool-error",
+                "gui",
+                "chat-tool-error",
+            )
+            .await
+            .unwrap();
+        assert_eq!(response, "recovered");
+
+        let event_order = timeout(Duration::from_secs(2), async {
+            let mut event_order = Vec::new();
+            loop {
+                let event = event_rx.recv().await.unwrap().event;
+                match event {
+                    AgentEvent::ToolCallStarted { name, .. } if name == "missing_test_tool" => {
+                        event_order.push("tool_started");
+                    }
+                    AgentEvent::ToolCallFinished {
+                        name,
+                        is_error,
+                        result,
+                        ..
+                    } if name == "missing_test_tool" => {
+                        assert!(is_error);
+                        assert!(result.contains("Tool 'missing_test_tool' not found"));
+                        event_order.push("tool_finished");
+                    }
+                    AgentEvent::FinalResponse { content } => {
+                        assert_eq!(content, "recovered");
+                        event_order.push("final_response");
+                        break event_order;
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for tool error event sequence");
+
+        assert_eq!(
+            event_order,
+            vec!["tool_started", "tool_finished", "final_response"]
         );
     }
 
