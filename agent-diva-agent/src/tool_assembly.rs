@@ -10,6 +10,7 @@ use agent_diva_core::planning::policy::allows_for_phase;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::FileManager;
+use agent_diva_sandbox::CommandApprovalCoordinator;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::{
     load_mcp_tools_sync, BackgroundTaskContext, CronTool, EditFileTool, EnqueueBackgroundTaskTool,
@@ -49,6 +50,7 @@ pub struct ToolAssembly {
     planning_config: Option<PlanningConfig>,
     plan_phase: Option<PlanPhase>,
     execution_session_id: Option<String>,
+    command_approvals: Option<CommandApprovalCoordinator>,
 }
 
 impl ToolAssembly {
@@ -71,6 +73,7 @@ impl ToolAssembly {
             planning_config: None,
             plan_phase: None,
             execution_session_id: None,
+            command_approvals: None,
         }
     }
 
@@ -160,6 +163,14 @@ impl ToolAssembly {
         self
     }
 
+    pub fn with_command_approvals(
+        mut self,
+        coordinator: Option<CommandApprovalCoordinator>,
+    ) -> Self {
+        self.command_approvals = coordinator;
+        self
+    }
+
     pub fn build(self) -> ToolRegistry {
         self.build_internal(false)
     }
@@ -227,11 +238,14 @@ impl ToolAssembly {
         }
 
         if self.builtin_config.shell && !action_restricted {
-            registry.register(Arc::new(ExecTool::with_config(
-                self.exec_timeout,
-                Some(self.workspace.clone()),
-                self.restrict_to_workspace,
-            )));
+            registry.register(Arc::new(
+                ExecTool::with_config(
+                    self.exec_timeout,
+                    Some(self.workspace.clone()),
+                    self.restrict_to_workspace,
+                )
+                .with_approval_backend(self.command_approvals.clone()),
+            ));
         }
 
         if self.builtin_config.web_search

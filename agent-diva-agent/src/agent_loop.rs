@@ -15,6 +15,7 @@ use agent_diva_core::session::SessionManager;
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
+use agent_diva_sandbox::CommandApprovalCoordinator;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::BackgroundTaskContext;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -59,6 +60,8 @@ pub struct ToolConfig {
     pub exec_timeout: u64,
     /// Global wrapper timeout for tool registry execution in seconds.
     pub global_timeout_secs: u64,
+    /// Optional command approval backend shared with interactive transports.
+    pub command_approvals: Option<CommandApprovalCoordinator>,
     /// Whether to restrict file access to workspace
     pub restrict_to_workspace: bool,
     /// Configured MCP servers
@@ -86,6 +89,7 @@ impl Default for ToolConfig {
             planning: None,
             exec_timeout: 60,
             global_timeout_secs: 120,
+            command_approvals: None,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
             cron_service: None,
@@ -259,6 +263,7 @@ fn build_agent_tools(
         .with_planning_config(tool_config.planning.clone())
         .with_exec_timeout(tool_config.exec_timeout)
         .with_global_timeout(tool_config.global_timeout_secs)
+        .with_command_approvals(tool_config.command_approvals.clone())
         .restrict_to_workspace(tool_config.restrict_to_workspace)
         .mcp_servers(tool_config.mcp_servers.clone())
         .with_subagent_spawner(spawner)

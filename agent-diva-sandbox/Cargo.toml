@@ -30,6 +30,8 @@ globset = "0.4"
 shell-words = "1.1"  # Shell command parsing
 toml = "0.8"  # ExecPolicy rules file parsing
 parking_lot = "0.12"  # ArcSwap dependency (for ExecPolicy)
+chrono = { workspace = true }
+uuid = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [

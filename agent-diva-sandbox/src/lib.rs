@@ -26,6 +26,8 @@
 
 #[cfg(any(feature = "approval", feature = "manager", feature = "orchestrator"))]
 pub mod approval;
+#[cfg(any(feature = "approval", feature = "manager", feature = "orchestrator"))]
+pub mod approval_coordinator;
 pub mod decision;
 pub mod error;
 #[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
@@ -53,6 +55,11 @@ pub mod rules;
 pub use approval::{
     ApprovalStore, CommandApprovalKey, ExecApprovalRequirement, ReviewDecision, SharedApprovalStore,
 };
+#[cfg(any(feature = "approval", feature = "manager", feature = "orchestrator"))]
+pub use approval_coordinator::{
+    ApprovalDecision, ApprovalResolveError, CommandApprovalCoordinator, CommandApprovalRequest,
+    CommandApprovalScope, CommandApprovalStatus, ResolveApprovalResponse,
+};
 pub use decision::{Decision, Evaluation, RuleMatch};
 pub use error::{SandboxError, SandboxResult};
 #[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
@@ -76,7 +83,7 @@ pub use guardian::{
     GuardianRejectionCircuitBreaker, GuardianReviewer,
 };
 #[cfg(feature = "manager")]
-pub use manager::{SandboxCommand, SandboxExecRequest, SandboxManager};
+pub use manager::{SandboxCommand, SandboxConfig, SandboxExecRequest, SandboxManager};
 #[cfg(any(feature = "manager", feature = "orchestrator"))]
 pub use orchestrator::{
     Approvable, OrchestratorRunResult, SandboxAttempt, SandboxOverride, SandboxPermissions,

@@ -15,6 +15,11 @@ pub trait Tool: Send + Sync {
     /// Get the tool parameters schema (JSON Schema format).
     fn parameters(&self) -> Value;
 
+    /// Optional execution timeout override for long-lived interactive tools.
+    fn timeout_secs(&self) -> Option<u64> {
+        None
+    }
+
     /// Execute the tool with arguments.
     async fn execute(&self, args: Value) -> Result<String>;
 

@@ -85,6 +85,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     let bus_for_hotreload = bus.clone();
     let run_store_root = supervised_store_root_from_cron_store(&cron_store);
     let run_store = Arc::new(RunStore::new(&run_store_root).await?);
+    let command_approvals = CommandApprovalCoordinator::default();
 
     // Start config hot-reload background task.
     // The handle is intentionally dropped — the tokio runtime will clean up
@@ -115,6 +116,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         Arc::clone(&cron_service),
         Arc::clone(&file_manager),
         Arc::clone(&run_store),
+        command_approvals.clone(),
     )
     .await?;
     let (provider_api_key, provider_api_base) = resolve_provider_credentials(&config)?;
@@ -133,6 +135,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         agent,
         file_manager,
         run_store,
+        command_approvals,
     })
 }
 

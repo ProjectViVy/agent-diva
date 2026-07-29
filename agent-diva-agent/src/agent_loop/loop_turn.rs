@@ -1375,6 +1375,23 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                     }
                                 }
 
+                                if tool_call.name == "exec" {
+                                    if let Some(params_obj) = params_value.as_object_mut() {
+                                        params_obj.insert(
+                                            "_context_channel".to_string(),
+                                            serde_json::Value::String(msg.channel.clone()),
+                                        );
+                                        params_obj.insert(
+                                            "_context_chat_id".to_string(),
+                                            serde_json::Value::String(msg.chat_id.clone()),
+                                        );
+                                        params_obj.insert(
+                                            "_context_session_key".to_string(),
+                                            serde_json::Value::String(session_key.clone()),
+                                        );
+                                    }
+                                }
+
                                 if is_cron_trigger && tool_call.name == "cron" {
                                     ("Error: cron tool is disabled during cron-triggered execution to prevent recursive scheduling".to_string(), true)
                                 } else {

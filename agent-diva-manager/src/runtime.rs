@@ -22,6 +22,7 @@ use agent_diva_providers::{
     build_llm_provider, DynamicProvider, LLMProvider, LlmProviderBuildOptions,
     LlmReportNarrativeGenerator, ProviderAccess, ProviderCatalogService, ProviderRegistry,
 };
+use agent_diva_sandbox::CommandApprovalCoordinator;
 use anyhow::Result;
 use chrono::Local;
 use chrono::NaiveDate;
@@ -82,6 +83,7 @@ struct GatewayBootstrap {
     agent: AgentLoop,
     file_manager: Arc<FileManager>,
     run_store: Arc<RunStore>,
+    command_approvals: CommandApprovalCoordinator,
 }
 
 struct ChannelBootstrap {
@@ -466,6 +468,7 @@ async fn build_agent_loop(
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
     run_store: Arc<RunStore>,
+    command_approvals: CommandApprovalCoordinator,
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
@@ -476,6 +479,7 @@ async fn build_agent_loop(
         planning,
         exec_timeout: config.tools.exec.timeout,
         global_timeout_secs: 120,
+        command_approvals: Some(command_approvals),
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(cron_service),

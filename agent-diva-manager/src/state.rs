@@ -8,6 +8,7 @@ use agent_diva_core::config::schema::{
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_laputa::LaputaService;
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
+use agent_diva_sandbox::CommandApprovalCoordinator;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -67,6 +68,7 @@ pub struct AppState {
     pub health: HealthSignals,
     /// Server start time, used for uptime calculation in the health endpoint.
     pub started_at: Instant,
+    pub command_approvals: CommandApprovalCoordinator,
 }
 
 impl AppState {
@@ -74,6 +76,20 @@ impl AppState {
         api_tx: mpsc::Sender<ManagerCommand>,
         bus: MessageBus,
         workspace_root: impl Into<PathBuf>,
+    ) -> anyhow::Result<Self> {
+        Self::new_with_command_approvals(
+            api_tx,
+            bus,
+            workspace_root,
+            CommandApprovalCoordinator::default(),
+        )
+    }
+
+    pub fn new_with_command_approvals(
+        api_tx: mpsc::Sender<ManagerCommand>,
+        bus: MessageBus,
+        workspace_root: impl Into<PathBuf>,
+        command_approvals: CommandApprovalCoordinator,
     ) -> anyhow::Result<Self> {
         let workspace_root = workspace_root.into();
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
@@ -102,6 +118,7 @@ impl AppState {
             laputa,
             health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
+            command_approvals,
         })
     }
 }

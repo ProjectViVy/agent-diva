@@ -57,6 +57,7 @@ async fn start_runtime_tasks_inner(
         agent,
         file_manager,
         run_store,
+        command_approvals,
     } = bootstrap;
     let ChannelBootstrap {
         channel_manager,
@@ -106,8 +107,9 @@ async fn start_runtime_tasks_inner(
     );
     let agent_handle = spawn_agent_runtime(agent);
     let manager_handle = spawn_manager_runtime(manager);
-    let app_state = AppState::new(api_tx, bus.clone(), workspace)
-        .expect("manager AppState storage services initialize");
+    let app_state =
+        AppState::new_with_command_approvals(api_tx, bus.clone(), workspace, command_approvals)
+            .expect("manager AppState storage services initialize");
     app_state.health.mark_cron_ready();
     let (server_shutdown_tx, server_handle) = match server_runtime {
         ServerRuntime::BoundPort => spawn_server_runtime(port, app_state),

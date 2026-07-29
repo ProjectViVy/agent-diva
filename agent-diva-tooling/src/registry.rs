@@ -125,7 +125,7 @@ impl ToolRegistry {
             )));
         }
 
-        let timeout_secs = self.global_timeout_secs;
+        let timeout_secs = tool.timeout_secs().unwrap_or(self.global_timeout_secs);
         let start = Instant::now();
         let inner = tool.execute(params.clone());
 

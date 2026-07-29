@@ -1,11 +1,16 @@
 //! Shell execution tool
 
 use crate::sanitize::sanitize_for_json;
+use agent_diva_sandbox::{
+    CommandApprovalCoordinator, CommandApprovalKey, CommandApprovalScope, CommandApprovalStatus,
+    ReviewDecision, SandboxConfig, SandboxError, SandboxManager, ToolOrchestrator,
+};
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use regex::Regex;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -52,6 +57,8 @@ pub struct ExecTool {
     deny_patterns: Vec<Regex>,
     allow_patterns: Vec<Regex>,
     restrict_to_workspace: bool,
+    orchestrator: Option<Arc<ToolOrchestrator>>,
+    approval_coordinator: Option<CommandApprovalCoordinator>,
 }
 
 impl ExecTool {
@@ -63,6 +70,8 @@ impl ExecTool {
             deny_patterns: Self::default_deny_patterns(),
             allow_patterns: Vec::new(),
             restrict_to_workspace: false,
+            orchestrator: None,
+            approval_coordinator: None,
         }
     }
 
@@ -78,7 +87,40 @@ impl ExecTool {
             deny_patterns: Self::default_deny_patterns(),
             allow_patterns: Vec::new(),
             restrict_to_workspace,
+            orchestrator: None,
+            approval_coordinator: None,
         }
+    }
+
+    /// Route production execution through the sandbox orchestrator.
+    pub fn with_approval_backend(
+        mut self,
+        coordinator: Option<CommandApprovalCoordinator>,
+    ) -> Self {
+        let workspace = self
+            .working_dir
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("."));
+        let mut config = SandboxConfig::workspace_write(workspace);
+        config.timeout_seconds = self.timeout_secs;
+        let manager = Arc::new(SandboxManager::new(&config));
+        self.orchestrator = Some(Arc::new(ToolOrchestrator::new(
+            manager,
+            agent_diva_sandbox::AskForApproval::OnFailure,
+        )));
+        self.approval_coordinator = coordinator;
+        self
+    }
+
+    #[cfg(test)]
+    fn with_orchestrator(
+        mut self,
+        orchestrator: Arc<ToolOrchestrator>,
+        coordinator: Option<CommandApprovalCoordinator>,
+    ) -> Self {
+        self.orchestrator = Some(orchestrator);
+        self.approval_coordinator = coordinator;
+        self
     }
 
     /// Default dangerous command patterns
@@ -184,6 +226,12 @@ impl Tool for ExecTool {
         })
     }
 
+    fn timeout_secs(&self) -> Option<u64> {
+        self.orchestrator
+            .as_ref()
+            .map(|_| self.timeout_secs.saturating_add(315))
+    }
+
     async fn execute(&self, params: Value) -> Result<String, ToolError> {
         let command = params
             .get("command")
@@ -202,8 +250,12 @@ impl Tool for ExecTool {
             return Ok(format!("Error: {}", err));
         }
 
-        // Execute command
-        let result = self.execute_command(command, &working_dir).await;
+        let result = if let Some(orchestrator) = &self.orchestrator {
+            self.execute_orchestrated(orchestrator, command, &working_dir, &params)
+                .await
+        } else {
+            self.execute_command(command, &working_dir).await
+        };
 
         match result {
             Ok(output) => Ok(output),
@@ -213,6 +265,41 @@ impl Tool for ExecTool {
 }
 
 impl ExecTool {
+    async fn execute_orchestrated(
+        &self,
+        orchestrator: &ToolOrchestrator,
+        command: &str,
+        cwd: &Path,
+        params: &Value,
+    ) -> Result<String, String> {
+        match orchestrator.run(command, &cwd.to_path_buf()).await {
+            Ok(result) => Ok(sanitize_for_json(&result.output)),
+            Err(SandboxError::ApprovalRequired { reason }) => {
+                let coordinator = self.approval_coordinator.as_ref().ok_or_else(|| {
+                    "sandbox escalation requires approval, but no approval client is available"
+                        .to_string()
+                })?;
+                let scope = approval_scope_from_params(params)?;
+                let (_, status) = coordinator
+                    .request(command.to_string(), cwd.to_path_buf(), reason, scope)
+                    .await;
+                if status != CommandApprovalStatus::Approved {
+                    return Err(format!("command approval ended with status {status:?}"));
+                }
+                orchestrator.sandbox_manager().record_approval(
+                    CommandApprovalKey::new(command.to_string(), cwd.to_path_buf()),
+                    ReviewDecision::ApprovedOnce,
+                );
+                orchestrator
+                    .run(command, &cwd.to_path_buf())
+                    .await
+                    .map(|result| sanitize_for_json(&result.output))
+                    .map_err(|error| error.to_string())
+            }
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     /// Execute the command and return output
     async fn execute_command(&self, command: &str, cwd: &Path) -> Result<String, String> {
         info!("Executing command: '{}' in {:?}", command, cwd);
@@ -311,6 +398,27 @@ impl ExecTool {
     }
 }
 
+fn approval_scope_from_params(params: &Value) -> Result<CommandApprovalScope, String> {
+    let value = |name: &str| {
+        params
+            .get(name)
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    let channel = value("_context_channel")
+        .ok_or_else(|| "approval client context is unavailable".to_string())?;
+    let chat_id = value("_context_chat_id")
+        .ok_or_else(|| "approval client context is unavailable".to_string())?;
+    let session_key =
+        value("_context_session_key").unwrap_or_else(|| format!("{channel}:{chat_id}"));
+    Ok(CommandApprovalScope {
+        channel,
+        chat_id,
+        session_key,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,6 +459,43 @@ mod tests {
 
         let result = tool.execute(params).await.unwrap();
         assert!(result.contains("timed out"));
+    }
+
+    #[tokio::test]
+    async fn approval_resumes_the_same_exec_call_once() {
+        let coordinator = CommandApprovalCoordinator::new(std::time::Duration::from_secs(2));
+        let mut config = SandboxConfig::danger_full_access();
+        config.mode = agent_diva_sandbox::SandboxMode::WorkspaceWrite;
+        config.approval_policy = agent_diva_sandbox::AskForApproval::OnRequest;
+        config.writable_roots = vec![std::env::current_dir().unwrap()];
+        let manager = Arc::new(SandboxManager::new(&config));
+        let orchestrator = Arc::new(ToolOrchestrator::new(
+            manager,
+            agent_diva_sandbox::AskForApproval::OnRequest,
+        ));
+        let tool = ExecTool::new().with_orchestrator(orchestrator, Some(coordinator.clone()));
+        let task = tokio::spawn(async move {
+            tool.execute(json!({
+                "command": "echo approval-resumed",
+                "_context_channel": "api",
+                "_context_chat_id": "chat",
+                "_context_session_key": "api:chat"
+            }))
+            .await
+        });
+        tokio::task::yield_now().await;
+        let pending = coordinator.pending(None).await;
+        assert_eq!(pending.len(), 1);
+        coordinator
+            .resolve(
+                &pending[0].approval_id,
+                agent_diva_sandbox::ApprovalDecision::ApproveOnce,
+            )
+            .await
+            .unwrap();
+        let output = task.await.unwrap().unwrap();
+        assert!(output.contains("approval-resumed"));
+        assert!(coordinator.pending(None).await.is_empty());
     }
 
     #[test]
