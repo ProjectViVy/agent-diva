@@ -2,7 +2,7 @@
 use super::turn::iteration::{contains_internal_protocol, InternalProtocolGuard};
 use super::turn::{
     admission::AdmittedTurn,
-    finalize::{FinalizationContext, FinalizationInput},
+    finalize::{FinalizationContext, FinalizationPreparation},
     iteration::{IterationBudget, IterationOutcome},
     prompt,
     tool_step::{ToolExecutionContext, ToolStepPolicy},
@@ -14,10 +14,6 @@ use agent_diva_core::bus::{
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
 use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::planning::update_plan::UpdatePlanArgs;
-use agent_diva_core::planning::{
-    normalize_report_markdown, report_validation_issues, resolve_plan_report_body,
-    strip_proposed_plan_block, PlanRevisionAuthor,
-};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::session::{ChatMessage, Session, TokenUsage};
 use agent_diva_core::soul::SoulStateStore;
@@ -134,7 +130,7 @@ pub(super) fn replace_current_turn_message(
 }
 
 impl AgentLoop {
-    fn emit_agent_event(
+    pub(super) fn emit_agent_event(
         &self,
         msg: &InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
@@ -743,7 +739,7 @@ impl AgentLoop {
             }
         }
 
-        let mut final_content = final_content.unwrap_or_else(|| {
+        let final_content = final_content.unwrap_or_else(|| {
             resolve_empty_final_content(stopped_for_plan_approval, &tool_run_summaries)
         });
         let iteration_outcome = IterationOutcome {
@@ -757,67 +753,19 @@ impl AgentLoop {
             iteration_outcome.stopped_for_plan_approval,
             stopped_for_plan_approval
         );
-        if self.notify_on_soul_change && !soul_files_changed.is_empty() {
-            let frequent_hint = self.is_frequent_soul_change_turn();
-            let notice = format_soul_transparency_notice(
-                &soul_files_changed,
-                self.soul_governance.boundary_confirmation_hint,
-                frequent_hint,
-            );
-            final_content.push_str(&notice);
-        }
-
-        // Plan mode: demux a proposed plan into a durable report artifact so the
-        // GUI can show PlanApprovalCard. Prefer <proposed_plan> tags (Codex-style);
-        // fall back to freeform plan-like text. Section completeness is soft.
-        if plan_mode {
-            if let Some(planning) = &self.tool_config.planning {
-                if let Some(extracted) = resolve_plan_report_body(&final_content) {
-                    let markdown = normalize_report_markdown(&extracted.markdown);
-                    let title = markdown
-                        .lines()
-                        .find_map(|line| line.trim().strip_prefix("# "))
-                        .unwrap_or("Plan report");
-                    let soft_issues = report_validation_issues(&markdown);
-                    match planning
-                        .registry
-                        .create_report(&session_key, title, &markdown, PlanRevisionAuthor::Agent)
-                        .await
-                    {
-                        Ok(report) => {
-                            // Keep chat bubble short; the approval card owns the plan body.
-                            if extracted.tagged {
-                                final_content = strip_proposed_plan_block(&final_content);
-                            } else {
-                                // Freeform plans are the whole reply — do not leave a
-                                // second incomplete surface in the message list.
-                                final_content.clear();
-                            }
-                            if final_content.trim().is_empty() {
-                                final_content =
-                                    "已生成计划报告，请在下方审批卡片中查看并批准。".to_string();
-                            }
-                            if !soft_issues.is_empty() {
-                                let missing: Vec<String> =
-                                    soft_issues.iter().map(|issue| issue.to_string()).collect();
-                                final_content.push_str(&format!(
-                                    "\n\n> 计划已提交审批，但章节仍不完整（{}）。可直接批准，或点编辑继续完善。",
-                                    missing.join("；")
-                                ));
-                            }
-                            self.emit_agent_event(
-                                &msg,
-                                event_tx,
-                                AgentEvent::PlanReportReadyForApproval { report },
-                            );
-                        }
-                        Err(error) => warn!(%error, "failed to persist plan report"),
-                    }
-                }
-            }
-        }
-
-        let finalization = FinalizationInput::from(iteration_outcome);
+        let finalization = self
+            .prepare_finalization(
+                FinalizationPreparation {
+                    message: &msg,
+                    event_tx,
+                    session_key: &session_key,
+                    plan_mode,
+                    rendered_content: final_content,
+                    soul_files_changed: &soul_files_changed,
+                },
+                iteration_outcome,
+            )
+            .await;
         self.finalize_turn(
             FinalizationContext {
                 message: msg,
@@ -965,7 +913,7 @@ fn changed_soul_file(
         .find(|name| file_name.eq_ignore_ascii_case(name))
 }
 
-fn format_soul_transparency_notice(
+pub(super) fn format_soul_transparency_notice(
     changed_files: &HashSet<String>,
     boundary_confirmation_hint: bool,
     frequent_hint: bool,

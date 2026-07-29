@@ -1,10 +1,16 @@
 use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
+use agent_diva_core::planning::{
+    normalize_report_markdown, report_validation_issues, resolve_plan_report_body,
+    strip_proposed_plan_block, PlanRevisionAuthor,
+};
 use agent_diva_core::session::TokenUsage;
 use agent_diva_providers::Message;
+use std::collections::HashSet;
 use tokio::sync::mpsc;
-use tracing::{error, info, trace};
+use tracing::{error, info, trace, warn};
 
 use super::super::super::consolidation;
+use super::super::loop_turn::format_soul_transparency_notice;
 use super::super::loop_turn::{fallback_session_title, save_turn, should_generate_session_title};
 use super::super::AgentLoop;
 use super::iteration::IterationOutcome;
@@ -39,7 +45,87 @@ pub(crate) struct FinalizationContext {
     pub trace_id: String,
 }
 
+pub(crate) struct FinalizationPreparation<'a> {
+    pub message: &'a InboundMessage,
+    pub event_tx: Option<&'a mpsc::UnboundedSender<AgentEvent>>,
+    pub session_key: &'a str,
+    pub plan_mode: bool,
+    pub rendered_content: String,
+    pub soul_files_changed: &'a HashSet<String>,
+}
+
 impl AgentLoop {
+    pub(crate) async fn prepare_finalization(
+        &mut self,
+        preparation: FinalizationPreparation<'_>,
+        outcome: IterationOutcome,
+    ) -> FinalizationInput {
+        let FinalizationPreparation {
+            message,
+            event_tx,
+            session_key,
+            plan_mode,
+            mut rendered_content,
+            soul_files_changed,
+        } = preparation;
+        if self.notify_on_soul_change && !soul_files_changed.is_empty() {
+            let notice = format_soul_transparency_notice(
+                soul_files_changed,
+                self.soul_governance.boundary_confirmation_hint,
+                self.is_frequent_soul_change_turn(),
+            );
+            rendered_content.push_str(&notice);
+        }
+
+        if plan_mode {
+            if let Some(planning) = &self.tool_config.planning {
+                if let Some(extracted) = resolve_plan_report_body(&rendered_content) {
+                    let markdown = normalize_report_markdown(&extracted.markdown);
+                    let title = markdown
+                        .lines()
+                        .find_map(|line| line.trim().strip_prefix("# "))
+                        .unwrap_or("Plan report");
+                    let soft_issues = report_validation_issues(&markdown);
+                    match planning
+                        .registry
+                        .create_report(session_key, title, &markdown, PlanRevisionAuthor::Agent)
+                        .await
+                    {
+                        Ok(report) => {
+                            if extracted.tagged {
+                                rendered_content = strip_proposed_plan_block(&rendered_content);
+                            } else {
+                                rendered_content.clear();
+                            }
+                            if rendered_content.trim().is_empty() {
+                                rendered_content =
+                                    "已生成计划报告，请在下方审批卡片中查看并批准。".to_string();
+                            }
+                            if !soft_issues.is_empty() {
+                                let missing: Vec<String> =
+                                    soft_issues.iter().map(ToString::to_string).collect();
+                                rendered_content.push_str(&format!(
+                                    "\n\n> 计划已提交审批，但章节仍不完整（{}）。可直接批准，或点编辑继续完善。",
+                                    missing.join("；")
+                                ));
+                            }
+                            self.emit_agent_event(
+                                message,
+                                event_tx,
+                                AgentEvent::PlanReportReadyForApproval { report },
+                            );
+                        }
+                        Err(error) => warn!(%error, "failed to persist plan report"),
+                    }
+                }
+            }
+        }
+
+        // Preserve the pre-existing user-visible response contract: report
+        // demultiplexing affects the durable report/event surface only.
+        FinalizationInput::from(outcome)
+    }
+
     /// Persist and publish one completed turn after all policy-sensitive work.
     pub(crate) async fn finalize_turn(
         &mut self,
