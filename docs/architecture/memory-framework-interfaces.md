@@ -1,8 +1,12 @@
 # Memory Framework Interfaces Specification
 
-Status: GMH-20 frozen baseline
+Status: GMH-20 historical baseline, amended by GMH-23A on 2026-07-30
 Applies to: GMH-21 through GMH-24
 Runtime impact: none
+
+> Target architecture correction: Embedded Laputa is the only Diva-local
+> Memory store and retrieval layer. Mentle/MenPalace is a removal source, not a
+> target provider or fallback. See `laputa-memory-final-architecture.md`.
 
 ## 1. Purpose
 
@@ -30,7 +34,7 @@ The governing invariant is:
 | Evidence | Source-bound observation from a session, user, file, report, tool, AutoDream run, or compaction | No, unless selected as explicitly labelled transient context | No |
 | Proposal | Requested authority change with evidence, target, diff/content digest, risk, and lifecycle state | No while pending, rejected, expired, deferred, or failed | No |
 | Temporary recall | Turn/session-scoped retrieval candidate | Only after filtering, ranking, budgeting, and trust labelling | No |
-| Retrieval index | Mentle/Palace or another rebuildable search representation | Results may become temporary recall | No |
+| Retrieval index | Embedded Laputa SQLite FTS5, rebuildable from its typed records | Results may become temporary recall | No |
 | Applied Memory/Persona | Identity, relationship, commitment, preference, long-term memory, and history authority | Yes | Laputa only in a Laputa workspace |
 
 Memory classes retain the GMH-02 decisions:
@@ -53,21 +57,23 @@ needs-attention records are excluded from default prompt authority.
 
 | Component | Current role | Authority status | Target rule |
 | --- | --- | --- | --- |
-| `MemoryManager` | Reads and writes `MEMORY.md`/`HISTORY.md` | Legacy authority only when `.laputa/` is absent | Remains compatibility owner until GMH-24 cutover |
+| `MemoryManager` | Reads and writes `MEMORY.md`/`HISTORY.md` | Legacy import source only | Removed from authority after GMH-24 cutover |
 | `LaputaMemoryProvider` | Renders applied Laputa sections | Read projection of the long-term authority | Must never render pending proposals |
-| `LaputaService` | Proposal lifecycle, apply, changelog, rollback | Sole applied Memory/Persona owner in a Laputa workspace | All Memory v2 apply operations terminate here |
-| `HybridMemoryProvider` | Markdown continuity plus Mentle snapshot/search/secondary diary sync | Markdown is current compatibility authority; Mentle is auxiliary | Mentle writes remain rebuildable/non-authoritative |
-| Mentle/Palace | Retrieval and index maintenance | Never authority | Cannot promote search results or diary entries |
+| `LaputaService` | Proposal lifecycle, apply, changelog, rollback | Sole applied Memory/Persona owner | All Memory v2 apply operations terminate here |
+| Embedded Laputa store | Typed profile-local SQLite records and FTS5 retrieval | Sole Diva-local durable Memory store | Gateway-only mutation; retrieval never self-promotes |
+| `HybridMemoryProvider` | Current legacy Markdown/Mentle compatibility | Transitional only | Delete at GMH-24; must not shape the target interface |
+| Mentle/Palace | Current feature-gated legacy integration | No target role | Clean-break delete dependency, feature, runtime, tools, DTOs, GUI and CI lane |
 | AutoDream | Produces reports, evidence, and proposals | Never authority | Must use proposal submission |
 | AgentLoop | Calls lifecycle hooks and assembles context | Orchestrator only | Cannot write authority directly |
 | Manager/Tauri/GUI | Projects state and submits human decisions | Never a second truth | Hidden/visible controls are not authorization |
 
-Workspace selection is fail-closed:
+Workspace selection during transition is fail-closed:
 
-1. If `.laputa/` is absent, `MemoryManager` is the legacy compatibility owner.
-2. If `.laputa/` exists and opens, Laputa applied sections are authoritative.
-3. If `.laputa/` exists but fails to open, the provider is explicitly degraded.
-   It must not silently fall back to Markdown and create a second authority.
+1. Before cutover, existing selection behavior remains characterized, not
+   endorsed as the target.
+2. After cutover, the profile-local Embedded Laputa store is authoritative.
+3. Store open/integrity failure is explicitly degraded and never falls back to
+   Markdown or Mentle.
 
 ## 4. Lifecycle interfaces
 
@@ -118,15 +124,15 @@ Current entrypoint: `MemoryProvider::sync_turn`.
 | --- | --- |
 | Call timing | After a successful turn, outside model deliberation |
 | Input | Workspace and optional Memory/history evidence produced by the turn |
-| Current compatibility behavior | `MemoryManager` writes Markdown; Hybrid writes Markdown first and may perform best-effort Mentle diary sync |
+| Current compatibility behavior | `MemoryManager` writes Markdown; Hybrid may invoke legacy Mentle behavior |
 | Target behavior | Capture normalized evidence and submit proposals; no implicit long-term promotion |
 | Idempotency | GMH-23 must provide an idempotency key derived from correlation and content digest |
 | Failure | Authority/evidence persistence failure is typed failed; auxiliary index failure is degraded and cannot erase a successful owner write |
 | Audit | Correlate turn, session, evidence, proposal, policy decision, and eventual apply |
 
-The current direct Markdown write is frozen as legacy compatibility behavior,
-not the target Memory v2 write contract. GMH-23 replaces it only after GMH-21
-record compatibility and GMH-24 shadow verification are available.
+The current direct Markdown write is frozen only as a temporary import/cutover
+source, not a target compatibility promise. GMH-23D replaces it after the
+Embedded Laputa store and recall gates pass.
 
 ### 4.4 Session end
 
@@ -191,10 +197,10 @@ flowchart LR
     A --> L["Applied authority + changelog"]
     L --> S["Startup authority projection"]
     L --> R["Recall candidate source"]
-    M["Mentle / retrieval index"] --> R
+    M["Embedded Laputa FTS5 index"] --> R
     R --> F["Filter, rank, dedupe, budget, escape"]
     F --> C["Transient turn context"]
-    M -. "never promotes" .-> L
+    M -. "retrieval never self-promotes" .-> L
 ```
 
 Read and write ownership:
@@ -216,8 +222,8 @@ safe typed outcome. Expected operational failures use typed status:
 - blank recall intent: `skipped`, no query;
 - recall/index failure: `failed`, no recall block, normal turn continues;
 - legacy Markdown owner write failure: `failed`, never persisted;
-- auxiliary Mentle sync failure after owner write: degraded/logged, owner result
-  remains authoritative;
+- retrieval index refresh failure after owner write: degraded/logged, owner
+  transaction remains authoritative;
 - proposal validation/persistence failure: no pending proposal ID;
 - approval denied/expired/revoked/stale: no apply;
 - apply or audit/changelog failure: no success claim; enter needs-attention or
@@ -255,28 +261,33 @@ Status: implemented as a shadow-capable contract without production cutover.
   public/internal/private sensitivity. Restricted, unknown, untrusted, expired,
   tombstoned, cross-scope, duplicate, and superseded candidates fail closed.
 - Retrieval failure is typed degraded with no prompt block or stale cache.
-- Mentle/Hybrid search hits without original applied provenance are adapted as
-  untrusted candidates regardless of search relevance.
-- Existing `MemoryProvider::prefetch`, Hybrid injection, and AgentLoop behavior
-  remain unchanged. GMH-24 owns live shadow metrics and read cutover.
+- Existing Mentle/Hybrid search hits remain characterized as untrusted during
+  transition and are never a target source.
+- GMH-23C connects this pipeline to Embedded Laputa FTS5/BM25 candidates.
 
-### GMH-23 — proposal-only writes
+### GMH-23 — proposal-only writes and storage prerequisite
 
 - Route session sync, AutoDream, GUI edits, imports, and migrations through the
   independent proposal interface.
 - Apply only through policy, ledger, receipt, and Laputa transaction/changelog.
-- Preserve legacy writes behind a temporary compatibility flag until GMH-24.
+- Completed stages 1/2 are retained. Stage 3 is paused.
+- GMH-23A freezes the clean-break contract; GMH-23B ports the typed SQLite
+  store; GMH-23C connects recall; GMH-23D resumes apply/HITL.
 
-### GMH-24 — migration and regression gate
+### GMH-24 — Embedded Laputa cutover and Mentle clean-break gate
 
-- Run dual-read/shadow comparison and integrity/rollback fixtures.
+- Run bounded shadow comparison and integrity/rollback fixtures.
 - Measure accuracy, injection error, duplication, latency, tokens, and proposal
   acceptance.
 - Cut read first, then write. Never maintain indefinite dual-write authority.
+- Offline-import legacy Markdown/Laputa JSON when explicitly requested. Never
+  read an old Mentle database.
+- Delete `memtle`, the `mentle` feature/runtime/product surface, Mentle CI
+  recipes and LLVM requirements; enforce a deletion-proof gate.
 
-Until GMH-24 passes, current public Rust interfaces, CLI/Manager/Tauri DTOs,
-`MEMORY.md`, `HISTORY.md`, Laputa JSON, and Mentle activation behavior remain
-compatible.
+Until GMH-24 passes, current runtime behavior is a migration baseline only.
+No new functionality may depend on Mentle, its DTOs, tools, database, feature,
+or LLVM build lane.
 
 ## 8. Prohibited designs
 
@@ -285,8 +296,10 @@ compatible.
 - Adding proposal mutation to a read provider and treating provider access as
   write authority.
 - Rendering pending/rejected/expired/tombstoned/untrusted content as authority.
-- Treating Mentle, search relevance, context compaction, or AutoDream inference
-  as reviewed truth.
+- Retaining Mentle as a target provider, fallback, database reader, optional
+  feature, build lane, or compatibility layer.
+- Treating search relevance, context compaction, or AutoDream inference as
+  reviewed truth.
 - Falling back from a broken Laputa workspace to Markdown without an explicit
   migration or operator decision.
 - Copying raw Memory payloads into the governance ledger, logs, metrics, or
@@ -299,7 +312,9 @@ compatible.
 | --- | --- |
 | Lifecycle method shapes | `agent-diva-core/src/memory/provider.rs` |
 | Legacy Markdown startup/sync/session idempotency | `agent-diva-core/src/memory/manager.rs` tests |
-| Mentle recall and best-effort secondary diary behavior | `agent-diva-core/src/memory/hybrid.rs` tests |
+| Legacy Mentle behavior to delete | `agent-diva-core/src/memory/hybrid.rs`, `agent-diva-agent/src/mentle_runtime.rs` |
+| Embedded Laputa target contract | `docs/architecture/laputa-memory-final-architecture.md` |
+| Port source and deletion inventory | `refactor/deep-governance`; repatriated `docs/research/laputa-diva-garden-2026-07/` |
 | Laputa applied-only rendering | `agent-diva-laputa/src/memory_provider.rs` tests |
 | Laputa proposal/apply lifecycle | `agent-diva-laputa/src/proposals.rs` tests |
 | Broken Laputa does not silently fall back | Static selection branch in `agent-diva-agent/src/memory_boundary.rs`; focused characterization test remains a recorded gap |

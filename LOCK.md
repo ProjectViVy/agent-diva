@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-07-30T03:25:00+08:00`
+- Last Heartbeat: `2026-07-30T07:03:27+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -29,6 +29,15 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-07-30T07:03:27+08:00`: Released the Embedded Laputa roadmap correction
+  scope. GMH-23 stages 1/2 remain intact; stage 3 and the former GMH-24 are
+  paused. GMH-23A..23D now order architecture freeze, typed SQLite/FTS5 store
+  port, recall integration, and apply/HITL resumption; GMH-24 owns cutover and
+  Mentle/LLVM clean-break. Accepted architecture, research, deletion inventory,
+  and branch implementation evidence were repatriated from
+  `refactor/deep-governance` with provenance and without importing its runtime
+  rewrite. Documentation validation passed with `git diff --check`.
 
 - `2026-07-30T03:25:00+08:00`: Released GMH-23 stage 2. Persona/Memory
   section edits now create risk-classified pending proposals through the

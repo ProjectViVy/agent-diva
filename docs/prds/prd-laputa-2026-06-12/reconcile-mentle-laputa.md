@@ -1,5 +1,9 @@
 # Reconcile: mentle-laputa-memory-role-decision.md vs Laputa PRD (prd-laputa-2026-06-12)
 
+> **Superseded (2026-07-30):** this reconciliation describes the former
+> Mentle-retention option. Current execution uses Embedded Laputa local
+> retrieval and Mentle clean-break; retain this file only as decision history.
+
 > 来源输入: docs/dev/genericagent/mentle-laputa-memory-role-decision.md (2026-05-31, 295 行, 状态: accepted architecture direction)
 > 比对对象: docs/prds/prd-laputa-2026-06-12/prd.md (v0.0.3, 311 行)
 > 辅助参考: .decision-log.md (D-002/D-005/D-007) + 已存在的 reconcile-laputa-new-architecture.md

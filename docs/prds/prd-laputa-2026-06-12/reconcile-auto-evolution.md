@@ -1,5 +1,9 @@
 # Reconcile: autonomous-evolution-simplified-architecture-decision.md vs Laputa PRD (prd-laputa-2026-06-12)
 
+> **Superseded amendment (2026-07-30):** references below that retain Mentle
+> as recall are historical. Auto-Evolution targets proposal-governed Embedded
+> Laputa and gains no Mentle runtime dependency.
+
 > 来源输入: docs/dev/genericagent/autonomous-evolution-simplified-architecture-decision.md (2026-05-31, 749 行, 27 节, 状态: accepted working direction)
 > 比对对象: docs/prds/prd-laputa-2026-06-12/prd.md (v0.0.3, 311 行, 32 FRs)
 > 辅助参考: .decision-log.md (D-002/D-005/D-007) + 已存在的 reconcile-laputa-new-architecture.md / reconcile-mentle-laputa.md

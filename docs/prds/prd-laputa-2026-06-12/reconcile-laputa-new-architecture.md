@@ -1,5 +1,9 @@
 # Reconcile: laputa-new-architecture.md vs Laputa PRD (prd-laputa-2026-06-12)
 
+> **Superseded amendment (2026-07-30):** Mentle-retention conclusions below
+> no longer define the target. Embedded Laputa owns local storage/retrieval and
+> Mentle is removed cleanly under GMH-23A..24.
+
 > 来源输入: docs/dev/laputa-new-architecture.md (2026-05-28, 32 行设计索引)
 > 比对对象: docs/prds/prd-laputa-2026-06-12/prd.md (v0.0.3, ~310 行)
 > 辅助参考: .decision-log.md (D-002/D-003/D-005/D-007)

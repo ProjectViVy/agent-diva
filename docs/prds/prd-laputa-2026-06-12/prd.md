@@ -22,6 +22,12 @@ follow_up_prds:
 
 # PRD: Laputa — Agent-Diva 稀薄文档层
 
+> **Superseded target boundary (2026-07-30):** references below that retain
+> Mentle as a recall provider are historical. The current target is Embedded
+> Laputa as Diva's only local store/retrieval layer plus Mentle clean-break.
+> See `docs/architecture/laputa-memory-final-architecture.md` and GMH-23A..24
+> in the root `TODOLIST.md`.
+
 > **状态**: draft (Coaching path)
 > **本文档正在 John (PM) 与大湿 的 Coaching 协作中生成, 禁止直接落稿后即视为 final。**
 > **本 PRD 是从 0 定义 + 实接 Laputa: 0 真实现, 全字符串模板 + 注释 + 探测 stub。**

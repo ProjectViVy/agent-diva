@@ -27,6 +27,10 @@ inherits:
 
 # PRD: Self-Improve — Agent-Diva 自主进化用户可见层
 
+> **Memory boundary amendment (2026-07-30):** any Mentle recall integration
+> described below is superseded. Self-improvement evidence and proposals target
+> Embedded Laputa; Mentle/MenPalace has no target runtime role.
+
 > **状态**: draft (Coaching path)
 > **本文档正在 John (PM) 与大湿 的 Coaching 协作中生成，禁止直接落稿后即视为 final。**
 

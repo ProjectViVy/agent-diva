@@ -43,3 +43,22 @@ restricted or unknown sensitivity.
 
 Recall v2 remains shadow-capable only in GMH-22. The current production prefetch
 path is unchanged until GMH-24 validates comparison metrics and cutover.
+
+## GMH-23A Embedded Laputa and Mentle clean-break amendment
+
+The target Diva-local Memory store is Embedded Laputa: profile-local typed
+SQLite records with FTS5 retrieval and Gateway-only mutation. Mentle/MenPalace
+is not an allowed provider, fallback, migration reader, or optional backend.
+
+| Threat | Control |
+| --- | --- |
+| Native Mentle/LLVM dependency returns transitively | Deletion-proof manifest, lockfile, source, CI and active-doc scans |
+| Old Mentle database is silently trusted | No runtime reader or online migration; any future import requires a separately approved offline converter |
+| Broken Embedded Laputa falls back to Markdown/Mentle | Typed degraded state with no fallback authority |
+| SQLite mutation bypasses governance | Gateway-only mutation with proposal digest, valid receipt, transaction and audit correlation |
+| FTS results self-promote into authority | Retrieval remains transient; only applied records may enter authority projections |
+| Cross-profile leakage | Profile/workspace partition keys are mandatory in storage, retrieval and API contracts |
+| Long-lived dual write produces two truths | Shadow read only; bounded read/write cutover flags with mandatory removal dates |
+
+GMH-23 stage 3 and the previous GMH-24 plan are paused until the storage and
+retrieval prerequisites GMH-23A through GMH-23C pass.

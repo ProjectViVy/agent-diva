@@ -4,7 +4,12 @@
 
 ## Active Plan
 
-No active delivery plan is selected. Governance Gate G0, the governed Mentle prompt-rebuild contract, and the GUI Lucide migration are complete; integrated Rust and GUI gates pass.
+The active Memory delivery plan is the Embedded Laputa correction under
+GMH-23A..24. GMH-23 stage 3 is paused. Completed proposal stages 1/2 are
+preserved; no new Mentle work is authorized. The next implementation gate is
+GMH-23A architecture freeze, followed by the scoped typed-store and recall port.
+The previously completed Mentle prompt-rebuild work is only historical baseline
+evidence for deletion and does not define the target architecture.
 
 ## Skill / SOP Unification
 
@@ -487,11 +492,24 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 实现 CAS/version、TTL、幂等键、内容哈希绑定、审批后内容变更失效、并发首胜、拒绝/撤销优先。
   - Gate G1：领域模型、策略矩阵、迁移与账本恢复测试通过；尚未接入生产执行。
 
-### Phase 2 — Memory Framework 2.0（第 4–6 周）
+### Phase 2 — Embedded Laputa Memory Framework 2.0（重排中；GMH-23 阶段 3 暂停）
+
+> **架构纠偏（2026-07-30）**：`refactor/deep-governance` 已在
+> 2026-07-25 完成并验证 Embedded Laputa（profile-local typed
+> SQLite + FTS5、本地检索、Gateway-only mutate）与 Mentle clean-break。
+> 当前 `agent-diva-pro` 路线错误地把 Mentle 当作长期保留的检索层。
+> 自本决策起，Embedded Laputa 是 Diva 唯一内嵌 Memory 存储/检索层；
+> Mentle/MenPalace、`memtle`、LLVM/`clang-cl` 构建链及其产品面必须
+> clean-break 删除，不保留 runtime 兼容、双写、旧库在线读取或回退路径。
+> 已完成的 GMH-21/22 合同和 GMH-23 阶段 1/2 proposal 边界保留；
+> GMH-23 阶段 3 与旧 GMH-24 暂停，直至 GMH-23A..23C 通过。
+> 规范来源见 `docs/architecture/laputa-memory-final-architecture.md`，
+> 回迁研究见 `docs/research/laputa-diva-garden-2026-07/`。
 
 - [x] **GMH-20：发布当前基线 Memory Interfaces Spec（W4 D1–D2）**
   - 完成现有 backlog 中 `vrm-memory-test` 后续规格，将 `MemoryProvider` 生命周期拆清为 startup injection、prefetch/recall、turn sync、session end、proposal submission。
-  - 规定 provider 读能力与 authority 写能力分离；Laputa applied sections 是长期权威，Mentle/索引只做检索层，不得反向覆盖权威。
+  - 原规格中“Mentle/索引作为长期检索层”的目标已被 2026-07-30
+    架构纠偏取代；历史基线仍保留用于迁移盘点，不再指导目标实现。
 - [x] **GMH-21：规范化 Memory 记录与 provenance（W4 D2–W5 D1）**
   - 定义记录 ID、类型、内容、来源、证据、置信度、敏感级别、创建/有效/过期时间、supersedes/tombstone、租户/会话范围。
   - 兼容旧 `MEMORY.md`/`HISTORY.md` 和 Laputa JSON；设计双读校验、一次性迁移、回滚和数据完整性报告。
@@ -500,7 +518,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 分离候选召回、权限/敏感过滤、相关性排序、去重、时间衰减、token budget、最终渲染。
   - 每条注入内容可追踪到来源和选择理由；pending/rejected/expired/tombstoned 内容永不进入默认上下文。
   - 定义 degraded/fallback：检索失败时显式降级，不能静默使用陈旧或越权数据。
-- [ ] **GMH-23：Memory 写入全部提案化（W5 D4–W6 D3）**
+- [ ] **GMH-23：Memory 写入全部提案化（阶段 1/2 已完成；阶段 3 暂停）**
   - 会话同步、AutoDream、GUI 直接编辑、导入/迁移统一生成 proposal；按分类和风险决定自动应用或 HITL。
   - 高风险类别（身份、关系、承诺、敏感事实、批量删除）必须人工确认；低风险可在可配置策略下自动应用。
   - apply 必须原子化并生成 changelog/audit；支持 edit-and-approve、冲突检测、撤销/补偿和遗忘请求。
@@ -512,11 +530,47 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
     authority/changelog 保持不变。Migration 写路径按 GMH-24 Gate 延后切换。
     真实桌面提交/徽标/提案箱 smoke 仍需人工执行，步骤与诊断要求见
     `docs/logs/2026-07-gmh-23/v0.0.2-gui-edit-proposals/acceptance.md`。
-  - [ ] 阶段 3：接入低风险可配置自动应用与高风险 HITL，并验证
-    edit-and-approve、冲突、撤销/补偿和遗忘请求。
-- [ ] **GMH-24：Memory 迁移与回归 Gate（W6 D3–D5）**
-  - 影子读对比旧/新结果；建立召回准确性、错误注入率、重复率、延迟、token 成本、提案接受率基线。
-  - Gate G2：fixture 迁移可回滚、authority 不丢失、旧配置兼容、Mentle/default lane 均通过；否则不切写路径。
+  - [ ] 阶段 3：**暂停**。仅在 GMH-23A..23C 完成后恢复；接入低风险
+    可配置自动应用与高风险 HITL，并验证 edit-and-approve、冲突、
+    撤销/补偿和遗忘请求。不得继续绑定 legacy Markdown 或 Mentle。
+- [ ] **GMH-23A：冻结 Embedded Laputa / Mentle clean-break 合同（立即前置）**
+  - 将 `docs/architecture/laputa-memory-final-architecture.md` 纳入当前
+    `agent-diva-pro` 的权威架构：Embedded Laputa 是唯一 Diva-local
+    Memory store/retrieval；Garden/远程 MemoryOS 不在本轮范围。
+  - 冻结 profile-local SQLite + FTS5、typed records、Gateway-only mutate、
+    proposal/receipt/audit、tombstone、离线检索和 Persona/L1 投影合同。
+  - 冻结 Mentle clean-break：无依赖、feature、adapter、tool、route、DTO、
+    GUI setting、CI lane、LLVM 安装说明、旧库 reader 或双写。
+  - Gate G2A：ADR、威胁模型、删除清单、数据所有权图和迁移边界评审通过。
+- [ ] **GMH-23B：移植 Embedded Laputa typed store（GMH-23A 后）**
+  - 从 `refactor/deep-governance` 定向移植设计与最小实现，不合并其
+    clean-break runtime 重写；按当前 `agent-diva-laputa` API 适配。
+  - 实现 profile/workspace 隔离、SQLite schema/事务、FTS5、record
+    revision、tombstone、确定性 ID、备份/恢复和 Rust 1.80 兼容。
+  - Gate G2B：空库、升级、并发、崩溃恢复、损坏、回滚和 10k records
+    性能基线通过；无 LLVM/native Mentle 依赖。
+- [ ] **GMH-23C：接入 Embedded Laputa recall（GMH-23B 后）**
+  - 将 GMH-21 normalized records 与 GMH-22 filter/rank/dedupe/budget/escape
+    pipeline 接到 SQLite FTS5/BM25 候选源。
+  - 加 importance/recency/persona 重排、scope/policy/tombstone 过滤和
+    section diversity；检索失败显式 degraded，不回退 Mentle。
+  - Gate G2C：召回准确性、错误注入率、重复率、延迟、token 成本和
+    无原始敏感内容诊断通过。
+- [ ] **GMH-23D：恢复 proposal apply/HITL（原 GMH-23 阶段 3）**
+  - 将已完成的 session sync 与 GUI proposal 接到 Embedded Laputa；
+    补齐 AutoDream、import、低风险策略应用与高风险 HITL。
+  - apply 仅通过有效 receipt 与原子事务；产生 audit/changelog，支持
+    edit-and-approve、冲突、撤销/补偿和遗忘。
+- [ ] **GMH-24：Embedded Laputa cutover 与 Mentle clean-break Gate**
+  - 对 legacy Markdown/Laputa JSON 做一次性、显式、可回滚离线导入；
+    禁止读取旧 Mentle 数据库，禁止长期双读/双写。
+  - 先 shadow read，再 read cutover，最后 write cutover；每一步均有
+    完整性报告、性能门槛、回滚点和用户可见诊断。
+  - 删除 `memtle`、`mentle` feature/runtime/config/tools/API/GUI/tests、
+    `just mentle-*`、CI LLVM 安装和活跃文档承诺。
+  - Gate G2：default workspace 全门禁通过；deletion-proof 扫描证明
+    产品源码、manifest、lockfile、CI、GUI 与活跃文档无 Mentle/LLVM
+    运行依赖。历史资料仅允许位于明确的 archive/past 区域。
 
 ### Phase 3 — Human-in-the-loop 端到端闭环（第 5–7 周，可与 GMH-22 前半并行）
 
@@ -554,25 +608,32 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 ### Phase 5 — 迁移、灰度、验收与收口（第 9–10 周）
 
 - [ ] **GMH-50：兼容迁移与 feature flags（W9 D1–D3）**
-  - 分开控制 unified governance、memory-v2 read、memory-v2 write、HITL UI；默认先 shadow，再 read cutover，最后 write cutover。
-  - 每个 flag 有配置迁移、启动校验、降级路径和删除日期；禁止长期双写。
+  - 分开控制 unified governance、Embedded Laputa shadow/read/write 和
+    HITL UI；默认先 shadow，再 read cutover，最后 write cutover。
+  - flag 只服务于新旧 Diva authority 切换，不得重新引入 Mentle；
+    每个 flag 有配置迁移、启动校验、降级路径和删除日期，禁止长期双写。
 - [ ] **GMH-51：安全与数据恢复演练（W9 D3–D5）**
   - 覆盖恶意 Memory 注入、路径/命令混淆、scope 扩大、receipt 重放、审批竞态、数据库损坏、部分写入和时钟漂移。
   - 从备份恢复 authority/ledger，验证 pending/approved/executed 状态不重复执行。
 - [ ] **GMH-52：全量验收（W10 D1–D3）**
-  - 执行 `just fmt-check`、`just check`、`just test`、Mentle lane、GUI tests/build，以及 CLI/Manager/Tauri 最小真实路径 smoke。
+  - 执行 `just fmt-check`、`just check`、`just test`、Embedded Laputa
+    focused tests、deletion-proof gate、GUI tests/build，以及
+    CLI/Manager/Tauri 最小真实路径 smoke；不得安装或调用 LLVM。
   - 性能门槛：策略判定 p95、召回 p95、prompt token 增量、Manager 事件延迟不超过 Phase 0 约定预算。
   - 产品验收：用户能看懂“为什么问我、会改什么、授权多久、如何撤销”，并能从审计中心还原全过程。
 - [ ] **GMH-53：灰度与清理（W10 D3–D5）**
   - 小样本开启 → 观察 → 扩大；出现越权、数据丢失、重复执行、不可恢复审批时立即回滚。
-  - 删除旧审批布尔捷径、重复 store、废弃 DTO 与双写代码；更新运维手册、威胁模型、用户文档和 `TODOLIST.md`。
+  - 删除旧审批布尔捷径、重复 store、废弃 DTO、双写代码及所有残余
+    Mentle/LLVM 活跃配置和文档；更新运维手册、威胁模型、用户文档和
+    `TODOLIST.md`。
   - Gate G5：连续观察窗口内无 P0/P1，回滚演练成功，遗留项已分级并有 owner。
 
 ### 里程碑、依赖与并行建议
 
 - [x] **M0 / 第 1 周末：基线冻结** `GMH-01..03` 完成；没有 G0 不进入领域模型实现。
 - [x] **M1 / 第 3 周末：治理内核可用** `GMH-10..12` 完成；Memory/HITL 只能依赖该契约，不能各建策略引擎。
-- [ ] **M2 / 第 6 周末：Memory v2 可影子运行** `GMH-20..24` 完成；旧权威仍可回退。
+- [ ] **M2 / 重排后：Embedded Laputa 可影子运行** `GMH-20..23C`
+  完成；旧 Diva authority 仍可回退，但 Mentle 不属于回退路径。
 - [ ] **M3 / 第 7 周末：HITL 闭环可用** `GMH-30..33` 完成；批准、拒绝、超时、重启均有 E2E。
 - [ ] **M4 / 第 8 周末：Agent Loop 接入** `GMH-40..42` 完成；所有生产副作用经过统一 seam。
 - [ ] **M5 / 第 10 周末：灰度发布完成** `GMH-50..53` 完成。
