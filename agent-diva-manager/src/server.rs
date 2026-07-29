@@ -313,6 +313,8 @@ mod tests {
 
     use crate::state::{AppState, ManagerCommand};
 
+    const G0_RUNTIME_CONTRACT: &str = include_str!("../tests/fixtures/g0_runtime_contract.json");
+
     fn ts(seconds: u32) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(&format!("2026-06-14T00:03:{seconds:02}Z"))
             .unwrap()
@@ -382,6 +384,32 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(skills_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn g0_runtime_route_contract_matches_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(G0_RUNTIME_CONTRACT).unwrap();
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let app = build_router(state);
+
+        for route in fixture["routes"].as_array().unwrap() {
+            let request = Request::builder()
+                .method(route["method"].as_str().unwrap())
+                .uri(route["path"].as_str().unwrap())
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(
+                response.status().as_u16(),
+                route["status_without_runtime"].as_u64().unwrap() as u16,
+                "{} {}",
+                route["method"],
+                route["path"]
+            );
+        }
     }
 
     #[tokio::test]

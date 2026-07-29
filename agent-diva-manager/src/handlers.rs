@@ -1433,4 +1433,52 @@ mod tests {
         assert!(text.contains("bus step"), "step missing; got: {text}");
         assert!(text.contains("in_progress"), "status missing; got: {text}");
     }
+
+    #[tokio::test]
+    async fn g0_turn_plan_sse_contract_matches_fixture() {
+        use agent_diva_core::bus::AgentBusEvent;
+        use agent_diva_core::planning::update_plan::{PlanItem, PlanItemStatus, UpdatePlanArgs};
+        use std::convert::Infallible;
+
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/g0_runtime_contract.json"))
+                .unwrap();
+        let expected = &fixture["turn_plan_updated"];
+        let bus_event = AgentBusEvent {
+            channel: expected["channel"].as_str().unwrap().to_string(),
+            chat_id: expected["chat_id"].as_str().unwrap().to_string(),
+            event: AgentEvent::ChatPlanUpdate {
+                args: UpdatePlanArgs {
+                    explanation: Some(
+                        expected["args"]["explanation"]
+                            .as_str()
+                            .unwrap()
+                            .to_string(),
+                    ),
+                    plan: vec![PlanItem {
+                        step: expected["args"]["plan"][0]["step"]
+                            .as_str()
+                            .unwrap()
+                            .to_string(),
+                        status: PlanItemStatus::InProgress,
+                    }],
+                },
+            },
+        };
+
+        let event = agent_bus_event_to_sse(&bus_event).expect("turn plan event");
+        let response = Sse::new(futures::stream::once(
+            async move { Ok::<_, Infallible>(event) },
+        ))
+        .into_response();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+
+        assert!(text.contains(&format!("event: {}", expected["event"].as_str().unwrap())));
+        assert!(text.contains(expected["channel"].as_str().unwrap()));
+        assert!(text.contains(expected["chat_id"].as_str().unwrap()));
+        assert!(text.contains(expected["args"]["explanation"].as_str().unwrap()));
+        assert!(text.contains(expected["args"]["plan"][0]["step"].as_str().unwrap()));
+        assert!(text.contains(expected["args"]["plan"][0]["status"].as_str().unwrap()));
+    }
 }

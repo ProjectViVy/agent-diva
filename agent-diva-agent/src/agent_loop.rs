@@ -1421,6 +1421,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn characterization_normal_turn_emits_final_response_without_error() {
+        let bus = MessageBus::new();
+        let mut event_rx = bus.subscribe_events();
+        let provider = Arc::new(CapturingStreamProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut agent = AgentLoop::new(
+            bus.clone(),
+            provider,
+            temp_dir.path().to_path_buf(),
+            None,
+            Some(1),
+        )
+        .await
+        .unwrap();
+
+        agent
+            .handle_inbound(InboundMessage::new("gui", "user", "chat-g0", "Hello"))
+            .await;
+
+        let observed = timeout(Duration::from_secs(2), async {
+            let mut events = Vec::new();
+            loop {
+                let bus_event = event_rx.recv().await.unwrap();
+                if bus_event.channel != "gui" || bus_event.chat_id != "chat-g0" {
+                    continue;
+                }
+                match bus_event.event {
+                    AgentEvent::Error { message } => {
+                        events.push(format!("error:{message}"));
+                    }
+                    AgentEvent::FinalResponse { content } => {
+                        events.push(format!("final:{content}"));
+                        break events;
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for the final response");
+
+        assert_eq!(observed, vec!["final:done"]);
+    }
+
+    #[tokio::test]
     async fn update_plan_handler_emits_event() {
         let bus = MessageBus::new();
         let mut event_rx = bus.subscribe_events();

@@ -1,0 +1,33 @@
+{
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status_without_runtime": 503
+    },
+    {
+      "method": "POST",
+      "path": "/api/health",
+      "status_without_runtime": 405
+    },
+    {
+      "method": "GET",
+      "path": "/api/not-a-route",
+      "status_without_runtime": 404
+    }
+  ],
+  "turn_plan_updated": {
+    "event": "turn_plan_updated",
+    "channel": "gui",
+    "chat_id": "chat-g0",
+    "args": {
+      "explanation": "fixture plan",
+      "plan": [
+        {
+          "step": "freeze behavior",
+          "status": "in_progress"
+        }
+      ]
+    }
+  }
+}
