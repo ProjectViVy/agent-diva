@@ -681,6 +681,7 @@ impl ConfigMigrator {
                 budget: Default::default(),
             },
             mentle: MentleToolConfig::default(),
+            reports: ReportsConfig::default(),
             self_evolution: SelfEvolutionConfig::default(),
             logging: LoggingConfig::default(),
             sandbox: SandboxConfig::default(),
@@ -695,6 +696,7 @@ impl ConfigMigrator {
             extra_headers: py.extra_headers.clone(),
             custom_models: Vec::new(),
             reasoning_config: None,
+            response_protocol: ProviderResponseProtocol::default(),
         }
     }
 }

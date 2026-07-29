@@ -1,6 +1,7 @@
-﻿use agent_diva_neuron::{LlmNeuron, NeuronError, NeuronEvent, NeuronNode, NeuronRequest};
+use agent_diva_neuron::{LlmNeuron, NeuronError, NeuronEvent, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
     LLMProvider, LLMResponse, Message, ProviderError, ProviderResult, ToolCallRequest,
+    ToolChoiceMode,
 };
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -18,6 +19,7 @@ impl LLMProvider for MockProvider {
         &self,
         _messages: Vec<Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,
@@ -38,6 +40,7 @@ impl LLMProvider for ErrorProvider {
         &self,
         _messages: Vec<Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,

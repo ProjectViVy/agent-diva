@@ -158,7 +158,12 @@ mod tests {
         assert_eq!(spec.default_model(), Some("deepseek-v4-pro"));
         assert_eq!(
             spec.models.get(..2),
-            Some(&["deepseek-v4-pro".to_string(), "deepseek-v4-flash".to_string()][..])
+            Some(
+                &[
+                    "deepseek-v4-pro".to_string(),
+                    "deepseek-v4-flash".to_string()
+                ][..]
+            )
         );
     }
 

@@ -5,8 +5,8 @@
 pub mod anthropic;
 pub mod base;
 pub mod catalog;
-pub mod discovery;
 mod deepseek_v4_dsml;
+pub mod discovery;
 pub mod factory;
 mod http_util;
 pub mod ollama;

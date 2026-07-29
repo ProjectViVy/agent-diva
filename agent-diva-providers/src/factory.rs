@@ -26,8 +26,13 @@ pub fn build_llm_provider(
     let extra_headers = extra_headers(options.access.extra_headers);
     let provider_name = Some(options.spec.name.clone());
 
-    if options.response_protocol == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml
-        && !options.model.trim().to_ascii_lowercase().contains("deepseek-v4")
+    if options.response_protocol
+        == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml
+        && !options
+            .model
+            .trim()
+            .to_ascii_lowercase()
+            .contains("deepseek-v4")
     {
         return Err(ProviderError::ConfigError(
             "response_protocol=deepseek_v4_dsml requires a DeepSeek V4 model".to_string(),

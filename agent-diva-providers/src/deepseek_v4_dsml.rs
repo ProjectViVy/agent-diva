@@ -52,7 +52,9 @@ pub(crate) fn decode_completion(
     let calls_body = &after_open[..calls_end];
     let after = &after_open[calls_end + CALLS_CLOSE.len()..];
     if after.contains(CALLS_OPEN) || calls_body.contains(CALLS_OPEN) {
-        return Err(invalid("DSML completion contains multiple tool_calls blocks"));
+        return Err(invalid(
+            "DSML completion contains multiple tool_calls blocks",
+        ));
     }
 
     let tool_calls = parse_calls(calls_body, allowed_tools)?;
@@ -72,7 +74,9 @@ fn split_thinking(completion: &str) -> ProviderResult<(Option<String>, &str)> {
         return Ok((None, completion));
     };
     if !completion[..start].trim().is_empty() {
-        return Err(invalid("DSML thinking block must precede completion content"));
+        return Err(invalid(
+            "DSML thinking block must precede completion content",
+        ));
     }
     let remaining = &completion[start + THINK_OPEN.len()..];
     let end = remaining
@@ -81,10 +85,16 @@ fn split_thinking(completion: &str) -> ProviderResult<(Option<String>, &str)> {
     if remaining[end + THINK_CLOSE.len()..].contains(THINK_OPEN) {
         return Err(invalid("DSML completion contains multiple thinking blocks"));
     }
-    Ok((non_empty(&remaining[..end]), &remaining[end + THINK_CLOSE.len()..]))
+    Ok((
+        non_empty(&remaining[..end]),
+        &remaining[end + THINK_CLOSE.len()..],
+    ))
 }
 
-fn parse_calls(body: &str, allowed_tools: &HashSet<String>) -> ProviderResult<Vec<ToolCallRequest>> {
+fn parse_calls(
+    body: &str,
+    allowed_tools: &HashSet<String>,
+) -> ProviderResult<Vec<ToolCallRequest>> {
     let mut rest = body;
     let mut calls = Vec::new();
     while !rest.trim().is_empty() {
@@ -140,9 +150,15 @@ fn parse_parameters(body: &str) -> ProviderResult<HashMap<String, Value>> {
         let value = match string_value {
             "true" => Value::String(raw_value.to_string()),
             "false" => serde_json::from_str(raw_value).map_err(|error| {
-                invalid(format!("DSML parameter '{name}' is not valid JSON: {error}"))
+                invalid(format!(
+                    "DSML parameter '{name}' is not valid JSON: {error}"
+                ))
             })?,
-            _ => return Err(invalid("DSML parameter string attribute must be true or false")),
+            _ => {
+                return Err(invalid(
+                    "DSML parameter string attribute must be true or false",
+                ))
+            }
         };
         if parameters.insert(name.to_string(), value).is_some() {
             return Err(invalid(format!("DSML parameter '{name}' is duplicated")));
@@ -152,7 +168,10 @@ fn parse_parameters(body: &str) -> ProviderResult<HashMap<String, Value>> {
     Ok(parameters)
 }
 
-fn take_start_tag<'a>(input: &'a str, prefix: &str) -> ProviderResult<(HashMap<String, String>, &'a str)> {
+fn take_start_tag<'a>(
+    input: &'a str,
+    prefix: &str,
+) -> ProviderResult<(HashMap<String, String>, &'a str)> {
     let end = input
         .find('>')
         .ok_or_else(|| invalid("DSML start tag is not closed"))?;
@@ -167,7 +186,9 @@ fn parse_attributes(input: &str) -> ProviderResult<HashMap<String, String>> {
     let mut attrs = HashMap::new();
     let mut rest = input.trim();
     while !rest.is_empty() {
-        let equals = rest.find('=').ok_or_else(|| invalid("DSML attribute has no value"))?;
+        let equals = rest
+            .find('=')
+            .ok_or_else(|| invalid("DSML attribute has no value"))?;
         let key = rest[..equals].trim();
         if key.is_empty() || key.chars().any(char::is_whitespace) {
             return Err(invalid("DSML attribute name is invalid"));
@@ -179,7 +200,10 @@ fn parse_attributes(input: &str) -> ProviderResult<HashMap<String, String>> {
         let quote = value
             .find('"')
             .ok_or_else(|| invalid("DSML attribute quote is not closed"))?;
-        if attrs.insert(key.to_string(), value[..quote].to_string()).is_some() {
+        if attrs
+            .insert(key.to_string(), value[..quote].to_string())
+            .is_some()
+        {
             return Err(invalid(format!("DSML attribute '{key}' is duplicated")));
         }
         rest = value[quote + 1..].trim_start();

@@ -22,7 +22,7 @@ use agent_diva_core::session::{
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
-    ProviderResult,
+    ProviderResult, ToolChoiceMode,
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -64,6 +64,7 @@ impl LLMProvider for MockCompactionProvider {
         &self,
         _messages: Vec<agent_diva_providers::Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,
@@ -116,6 +117,7 @@ impl LLMProvider for RetryMockProvider {
         &self,
         _messages: Vec<agent_diva_providers::Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,
@@ -1007,6 +1009,7 @@ impl LLMProvider for OrderingStreamProvider {
         &self,
         _messages: Vec<Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,
@@ -1027,6 +1030,7 @@ impl LLMProvider for OrderingStreamProvider {
         &self,
         messages: Vec<Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,
@@ -1280,6 +1284,7 @@ impl LLMProvider for PromptCaptureProvider {
         &self,
         messages: Vec<Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,

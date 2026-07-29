@@ -338,7 +338,11 @@ pub fn build_provider(config: &Config, model: &str) -> Result<Arc<dyn LLMProvide
         model: model.to_string(),
         reasoning_effort: config.agents.defaults.reasoning_effort.clone(),
         reasoning_config: None,
-        response_protocol: config.providers.get(&provider_name).map(|provider| provider.response_protocol).unwrap_or_default(),
+        response_protocol: config
+            .providers
+            .get(&provider_name)
+            .map(|provider| provider.response_protocol)
+            .unwrap_or_default(),
     })?)
 }
 

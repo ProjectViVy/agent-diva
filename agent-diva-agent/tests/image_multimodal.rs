@@ -4,7 +4,7 @@ use agent_diva_files::handle::FileMetadata;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::{
     LLMProvider, LLMResponse, LLMStreamEvent, Message, MessageContent, MessageContentPart,
-    ProviderEventStream, ProviderResult,
+    ProviderEventStream, ProviderResult, ToolChoiceMode,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -22,6 +22,7 @@ impl LLMProvider for CapturingStreamProvider {
         &self,
         messages: Vec<Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,
@@ -40,6 +41,7 @@ impl LLMProvider for CapturingStreamProvider {
         &self,
         messages: Vec<Message>,
         _tools: Option<Vec<serde_json::Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,

@@ -10,7 +10,7 @@
 
 use crate::collector::CollectedEvents;
 use crate::types::E2EAssertion;
-use agent_diva_providers::{LLMProvider, Message};
+use agent_diva_providers::{LLMProvider, Message, ToolChoiceMode};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -259,7 +259,14 @@ or
     ];
 
     match provider
-        .chat(messages, None, Some(model.to_string()), 256, 0.0)
+        .chat(
+            messages,
+            None,
+            ToolChoiceMode::Unspecified,
+            Some(model.to_string()),
+            256,
+            0.0,
+        )
         .await
     {
         Ok(llm_response) => {
@@ -578,6 +585,7 @@ mod tests {
             &self,
             _messages: Vec<Message>,
             _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
             _model: Option<String>,
             _max_tokens: i32,
             _temperature: f64,

@@ -1,6 +1,6 @@
 //! Ollama tool calling integration tests
 
-use agent_diva_providers::base::{LLMProvider, Message};
+use agent_diva_providers::base::{LLMProvider, Message, ToolChoiceMode};
 use agent_diva_providers::ollama::OllamaProvider;
 use serde_json::json;
 
@@ -74,7 +74,16 @@ async fn test_tool_calling_basic() {
         }
     })];
 
-    let result = provider.chat(messages, Some(tools), None, 100, 0.7).await;
+    let result = provider
+        .chat(
+            messages,
+            Some(tools),
+            ToolChoiceMode::Unspecified,
+            None,
+            100,
+            0.7,
+        )
+        .await;
 
     match result {
         Ok(response) => {

@@ -8,7 +8,7 @@
 //! - AC2: HTTP 429 �?ProviderError::RateLimited with Retry-After
 //! - AC4: ProviderError::RateLimited variant with retry_after field
 
-use agent_diva_providers::{LLMProvider, LLMResponse, Message, ProviderError};
+use agent_diva_providers::{LLMProvider, LLMResponse, Message, ProviderError, ToolChoiceMode};
 use mockito::Server;
 
 /// Helper: build a OpenAiCompatibleClient for testing with a mock server URL.
@@ -66,8 +66,9 @@ async fn test_retry_on_503_then_success() {
     let client = test_client(&server.url());
 
     let messages = vec![Message::user("Hello")];
-    let result: Result<LLMResponse, ProviderError> =
-        client.chat(messages, None, None, 100, 0.7).await;
+    let result: Result<LLMResponse, ProviderError> = client
+        .chat(messages, None, ToolChoiceMode::Unspecified, None, 100, 0.7)
+        .await;
 
     assert!(
         result.is_ok(),
@@ -95,8 +96,9 @@ async fn test_retry_max_attempts_exceeded() {
     let client = test_client(&server.url());
 
     let messages = vec![Message::user("Hello")];
-    let result: Result<LLMResponse, ProviderError> =
-        client.chat(messages, None, None, 100, 0.7).await;
+    let result: Result<LLMResponse, ProviderError> = client
+        .chat(messages, None, ToolChoiceMode::Unspecified, None, 100, 0.7)
+        .await;
 
     assert!(result.is_err(), "Should fail after max retries");
     let err = result.unwrap_err();
@@ -125,8 +127,9 @@ async fn test_rate_limited_429_with_header() {
     let client = test_client(&server.url());
 
     let messages = vec![Message::user("Hello")];
-    let result: Result<LLMResponse, ProviderError> =
-        client.chat(messages, None, None, 100, 0.7).await;
+    let result: Result<LLMResponse, ProviderError> = client
+        .chat(messages, None, ToolChoiceMode::Unspecified, None, 100, 0.7)
+        .await;
 
     assert!(result.is_err(), "429 should return error immediately");
     let err = result.unwrap_err();
@@ -160,8 +163,9 @@ async fn test_rate_limited_429_no_header() {
     let client = test_client(&server.url());
 
     let messages = vec![Message::user("Hello")];
-    let result: Result<LLMResponse, ProviderError> =
-        client.chat(messages, None, None, 100, 0.7).await;
+    let result: Result<LLMResponse, ProviderError> = client
+        .chat(messages, None, ToolChoiceMode::Unspecified, None, 100, 0.7)
+        .await;
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -192,8 +196,9 @@ async fn test_non_retryable_400() {
     let client = test_client(&server.url());
 
     let messages = vec![Message::user("Hello")];
-    let result: Result<LLMResponse, ProviderError> =
-        client.chat(messages, None, None, 100, 0.7).await;
+    let result: Result<LLMResponse, ProviderError> = client
+        .chat(messages, None, ToolChoiceMode::Unspecified, None, 100, 0.7)
+        .await;
 
     assert!(result.is_err(), "400 should fail immediately without retry");
     let err = result.unwrap_err();

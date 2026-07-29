@@ -1,6 +1,6 @@
 //! Ollama streaming integration tests
 
-use agent_diva_providers::base::{LLMProvider, Message};
+use agent_diva_providers::base::{LLMProvider, Message, ToolChoiceMode};
 use agent_diva_providers::ollama::OllamaProvider;
 
 #[tokio::test]
@@ -23,7 +23,9 @@ async fn test_stream_basic_chat() {
         thinking_blocks: None,
     }];
 
-    let result = provider.chat_stream(messages, None, None, 100, 0.7).await;
+    let result = provider
+        .chat_stream(messages, None, ToolChoiceMode::Unspecified, None, 100, 0.7)
+        .await;
 
     // Just verify we can create the stream without errors
     // Actual streaming validation requires Ollama running
@@ -43,7 +45,9 @@ async fn test_stream_error_handling() {
         thinking_blocks: None,
     }];
 
-    let result = provider.chat_stream(messages, None, None, 100, 0.7).await;
+    let result = provider
+        .chat_stream(messages, None, ToolChoiceMode::Unspecified, None, 100, 0.7)
+        .await;
 
     // Should return an error for invalid host
     assert!(

@@ -176,7 +176,14 @@ impl ContextCompactor {
 
             // Call LLM (non-streaming, synchronous compaction)
             let response = match provider
-                .chat(messages, None, agent_diva_providers::ToolChoiceMode::Unspecified, Some(model.to_string()), 4096, 0.3)
+                .chat(
+                    messages,
+                    None,
+                    agent_diva_providers::ToolChoiceMode::Unspecified,
+                    Some(model.to_string()),
+                    4096,
+                    0.3,
+                )
                 .await
             {
                 Ok(resp) => resp,

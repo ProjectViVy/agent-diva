@@ -187,7 +187,10 @@ fn tool_names(tools: Option<&Vec<serde_json::Value>>) -> HashSet<String> {
     tools
         .into_iter()
         .flatten()
-        .filter_map(|tool| tool.pointer("/function/name").and_then(|name| name.as_str()))
+        .filter_map(|tool| {
+            tool.pointer("/function/name")
+                .and_then(|name| name.as_str())
+        })
         .map(ToString::to_string)
         .collect()
 }
@@ -253,6 +256,7 @@ impl OpenAiCompatibleClient {
     }
 
     /// Create a new openai_compatible client with optional reasoning configuration.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_config(
         api_key: Option<String>,
         api_base: Option<String>,
@@ -499,13 +503,19 @@ impl OpenAiCompatibleClient {
 
         Ok(LLMResponse {
             content: decoded.content,
-            tool_calls: if decoded.tool_calls.is_empty() { tool_calls } else { decoded.tool_calls },
+            tool_calls: if decoded.tool_calls.is_empty() {
+                tool_calls
+            } else {
+                decoded.tool_calls
+            },
             finish_reason: choice
                 .finish_reason
                 .clone()
                 .unwrap_or_else(|| "stop".to_string()),
             usage,
-            reasoning_content: decoded.reasoning_content.or_else(|| choice.message.reasoning_content.clone()),
+            reasoning_content: decoded
+                .reasoning_content
+                .or_else(|| choice.message.reasoning_content.clone()),
         })
     }
 
@@ -618,7 +628,9 @@ impl OpenAiCompatibleClient {
             ToolChoiceMode::Unspecified => None,
         };
         if matches!(tool_choice, ToolChoiceMode::Auto) && request.tools.is_none() {
-            tracing::warn!("tool mode Auto requested without tool definitions; omitting tool_choice");
+            tracing::warn!(
+                "tool mode Auto requested without tool definitions; omitting tool_choice"
+            );
             request.tool_choice = None;
         }
 
@@ -965,19 +977,46 @@ impl LLMProvider for OpenAiCompatibleClient {
                             return;
                         }
                         tracing::debug!("Stream received [DONE]");
-                        if response_protocol == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml {
+                        if response_protocol
+                            == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml
+                        {
                             match decode_completion(&content, &allowed_tools, 1024 * 1024) {
                                 Ok(decoded) => {
                                     if let Some(reasoning) = decoded.reasoning_content.clone() {
-                                        let _ = tx.send(Ok(LLMStreamEvent::ReasoningDelta(reasoning)));
+                                        let _ =
+                                            tx.send(Ok(LLMStreamEvent::ReasoningDelta(reasoning)));
                                     }
                                     for (index, call) in decoded.tool_calls.iter().enumerate() {
-                                        let arguments_delta = serde_json::to_string(&call.arguments).ok();
-                                        let _ = tx.send(Ok(LLMStreamEvent::ToolCallDelta { index, id: Some(call.id.clone()), name: Some(call.name.clone()), arguments_delta }));
+                                        let arguments_delta =
+                                            serde_json::to_string(&call.arguments).ok();
+                                        let _ = tx.send(Ok(LLMStreamEvent::ToolCallDelta {
+                                            index,
+                                            id: Some(call.id.clone()),
+                                            name: Some(call.name.clone()),
+                                            arguments_delta,
+                                        }));
                                     }
-                                    let _ = tx.send(Ok(LLMStreamEvent::Completed(LLMResponse { content: decoded.content, tool_calls: decoded.tool_calls, finish_reason: finish_reason.unwrap_or_else(|| "stop".to_string()), usage: Self::usage_map_with_fallback(usage.take(), &provider_name, &model), reasoning_content: decoded.reasoning_content.or_else(|| (!reasoning_content.is_empty()).then_some(reasoning_content.clone())) })));
+                                    let _ = tx.send(Ok(LLMStreamEvent::Completed(LLMResponse {
+                                        content: decoded.content,
+                                        tool_calls: decoded.tool_calls,
+                                        finish_reason: finish_reason
+                                            .unwrap_or_else(|| "stop".to_string()),
+                                        usage: Self::usage_map_with_fallback(
+                                            usage.take(),
+                                            &provider_name,
+                                            &model,
+                                        ),
+                                        reasoning_content: decoded.reasoning_content.or_else(
+                                            || {
+                                                (!reasoning_content.is_empty())
+                                                    .then_some(reasoning_content.clone())
+                                            },
+                                        ),
+                                    })));
                                 }
-                                Err(error) => { let _ = tx.send(Err(error)); }
+                                Err(error) => {
+                                    let _ = tx.send(Err(error));
+                                }
                             }
                             return;
                         }
@@ -1018,7 +1057,9 @@ impl LLMProvider for OpenAiCompatibleClient {
                         let delta = &choice.delta;
                         if let Some(delta_text) = &delta.content {
                             content.push_str(delta_text);
-                            if response_protocol != agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml {
+                            if response_protocol
+                                != agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml
+                            {
                                 let _ = tx.send(Ok(LLMStreamEvent::TextDelta(delta_text.clone())));
                             }
                         }
@@ -1067,17 +1108,36 @@ impl LLMProvider for OpenAiCompatibleClient {
                 return;
             }
 
-            if response_protocol == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml {
+            if response_protocol
+                == agent_diva_core::config::ProviderResponseProtocol::DeepseekV4Dsml
+            {
                 match decode_completion(&content, &allowed_tools, 1024 * 1024) {
                     Ok(decoded) => {
-                        if let Some(reasoning) = decoded.reasoning_content.clone() { let _ = tx.send(Ok(LLMStreamEvent::ReasoningDelta(reasoning))); }
+                        if let Some(reasoning) = decoded.reasoning_content.clone() {
+                            let _ = tx.send(Ok(LLMStreamEvent::ReasoningDelta(reasoning)));
+                        }
                         for (index, call) in decoded.tool_calls.iter().enumerate() {
                             let arguments_delta = serde_json::to_string(&call.arguments).ok();
-                            let _ = tx.send(Ok(LLMStreamEvent::ToolCallDelta { index, id: Some(call.id.clone()), name: Some(call.name.clone()), arguments_delta }));
+                            let _ = tx.send(Ok(LLMStreamEvent::ToolCallDelta {
+                                index,
+                                id: Some(call.id.clone()),
+                                name: Some(call.name.clone()),
+                                arguments_delta,
+                            }));
                         }
-                        let _ = tx.send(Ok(LLMStreamEvent::Completed(LLMResponse { content: decoded.content, tool_calls: decoded.tool_calls, finish_reason: finish_reason.unwrap_or_else(|| "stop".to_string()), usage: Self::usage_map_with_fallback(usage, &provider_name, &model), reasoning_content: decoded.reasoning_content.or_else(|| (!reasoning_content.is_empty()).then_some(reasoning_content)) })));
+                        let _ = tx.send(Ok(LLMStreamEvent::Completed(LLMResponse {
+                            content: decoded.content,
+                            tool_calls: decoded.tool_calls,
+                            finish_reason: finish_reason.unwrap_or_else(|| "stop".to_string()),
+                            usage: Self::usage_map_with_fallback(usage, &provider_name, &model),
+                            reasoning_content: decoded.reasoning_content.or_else(|| {
+                                (!reasoning_content.is_empty()).then_some(reasoning_content)
+                            }),
+                        })));
                     }
-                    Err(error) => { let _ = tx.send(Err(error)); }
+                    Err(error) => {
+                        let _ = tx.send(Err(error));
+                    }
                 }
                 return;
             }

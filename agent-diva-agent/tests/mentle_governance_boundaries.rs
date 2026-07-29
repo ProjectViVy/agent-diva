@@ -2,7 +2,7 @@ use agent_diva_agent::tool_config::mentle::{MentleToolMode, MentleToolRuntimeCon
 use agent_diva_agent::{AgentLoop, AgentLoopToolSet, ToolConfig};
 use agent_diva_core::bus::MessageBus;
 use agent_diva_files::{FileConfig, FileManager};
-use agent_diva_providers::{LLMProvider, LLMResponse, Message, ProviderResult};
+use agent_diva_providers::{LLMProvider, LLMResponse, Message, ProviderResult, ToolChoiceMode};
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use async_trait::async_trait;
 use serde_json::Value;
@@ -17,6 +17,7 @@ impl LLMProvider for NoopProvider {
         &self,
         _messages: Vec<Message>,
         _tools: Option<Vec<Value>>,
+        _tool_choice: ToolChoiceMode,
         _model: Option<String>,
         _max_tokens: i32,
         _temperature: f64,
