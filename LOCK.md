@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-29T14:25:00+08:00`
-- Last Heartbeat: `2026-07-29T15:14:00+08:00`
+- Last Heartbeat: `2026-07-29T15:42:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Released Sandbox command approval GUI closure in `63af4afb` plus its documentation closure. Tauri now proxies pending/resolve and bridges reconnecting approval SSE; the GUI reconciles a global GUI-session queue and only permits decisions in the source session. Full GUI tests/build, focused Tauri/Manager tests, repeated race coverage, and `just fmt-check`, `just check`, `just test` passed. Persistent global safe-prefix rules remain Phase 3; no push was performed.
 
 - `2026-07-29`: Released Sandbox command approval backend in `03cad9d1` and `3e712777`. Production exec now uses the sandbox orchestrator, recoverable escalation waits on scoped once/session/reject decisions, Manager exposes pending/SSE/resolve APIs, and chat stop cancels pending requests. `just fmt-check`, `just check`, and `just test` passed. GUI and persistent safe-prefix rules remain Phase 2; no push was performed.
 

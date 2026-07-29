@@ -4,10 +4,10 @@
 
 ## Active Plan
 
-- [ ] **Sandbox command approval GUI and persistent safe-prefix rules (Phase 2)** The backend closure now routes production `exec` through `ToolOrchestrator`, suspends recoverable escalations on a scoped coordinator, and exposes pending/SSE/resolve Manager APIs. The remaining phase must consume those contracts in the GUI and persist only validated, non-banned command prefixes globally.
-  - Expected behavior: Plan mode remains strictly read-only; GUI users can approve once, approve for the session, or reject; only safe parsed prefixes can enter the global default execution list and rules can be reviewed/removed.
-  - Related: `agent-diva-manager/src/handlers/command_approvals.rs`, `agent-diva-gui/src/components/ApprovalBanner.vue`, `agent-diva-sandbox/src/exec_policy.rs`
-  - Backend evidence: `docs/logs/2026-07-sandbox-command-approval/v0.0.1-command-approval-backend/`
+- [ ] **Sandbox persistent safe-prefix rules and management UI (Phase 3)** The backend coordinator and GUI approval workflow are complete. The remaining phase may persist only validated, non-banned parsed command prefixes globally and must provide review/removal controls.
+  - Expected behavior: Plan mode remains strictly read-only; persisted rules never broaden protected-path or forbidden-command policy; operators can inspect provenance, disable, and remove every rule.
+  - Related: `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-gui/src/components/settings/SandboxSettings.vue`
+  - Prior evidence: `docs/logs/2026-07-sandbox-command-approval/v0.0.1-command-approval-backend/`, `docs/logs/2026-07-sandbox-command-approval/v0.0.2-command-approval-gui/`
 
 ## Superseded Review Evidence
 
