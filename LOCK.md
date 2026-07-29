@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-07-30T07:03:27+08:00`
+- Last Heartbeat: `2026-07-30T07:30:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -29,6 +29,15 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-07-30T07:30:00+08:00`: Released GMH-23A/23B. GMH-23A froze the
+  current-branch Embedded Laputa contract in `ca36f92d`. GMH-23B added the
+  unregistered async `.laputa/memory.sqlite3` canonical record store, FTS5,
+  revision CAS, scope/capacity/tombstone controls, integrity and backup/restore
+  in `40423a3a`. The 10k top-8 search P95 was 62.8675ms; `just fmt-check`,
+  `just check`, and complete `just test` passed. Rust 1.80 lockfile validation
+  remains blocked by the legacy Mentle Edition-2024 dependency chain and is
+  recorded in `TODOLIST.md`. GMH-23C is the next Memory gate. No push occurred.
 
 - `2026-07-30T07:03:27+08:00`: Released the Embedded Laputa roadmap correction
   scope. GMH-23 stages 1/2 remain intact; stage 3 and the former GMH-24 are
