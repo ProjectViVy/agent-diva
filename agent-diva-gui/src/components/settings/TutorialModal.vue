@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { X, BookOpen, LoaderCircle } from 'lucide-vue-next';
+import { X, BookOpen, LoaderCircle } from '@lucide/vue';
 import type { ChannelPlatformInfo } from './channel-platforms';
 
 const props = defineProps<{

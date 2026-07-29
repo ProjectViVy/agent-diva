@@ -9,7 +9,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   ChevronDown: { name: 'ChevronDown', template: '<span class="chevron-down" />' },
   ChevronRight: { name: 'ChevronRight', template: '<span class="chevron-right" />' },
   FileText: { name: 'FileText', template: '<span class="file-text" />' },

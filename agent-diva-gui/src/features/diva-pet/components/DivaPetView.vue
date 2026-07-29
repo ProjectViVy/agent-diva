@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
-import { Send, Loader2, Settings, Monitor, Image, Menu, Plus, ChevronDown } from 'lucide-vue-next'
+import { Send, Loader2, Settings, Monitor, Image, Menu, Plus, ChevronDown } from '@lucide/vue'
 import MarkdownIt from 'markdown-it'
 import { useI18n } from 'vue-i18n'
 import EmbeddedPetFrame from './EmbeddedPetFrame.vue'

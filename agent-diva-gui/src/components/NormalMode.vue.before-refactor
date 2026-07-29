@@ -10,7 +10,7 @@ import {
   Server,
   Settings,
   Trash2,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import ChatView from './ChatView.vue';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';

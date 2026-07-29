@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, ChevronDown, ChevronUp, Clock, Loader2 } from 'lucide-vue-next'
+import { Check, ChevronDown, ChevronUp, Clock, Loader2 } from '@lucide/vue'
 import type { UiCard, TodoItem, ChecklistItem } from '../api/desktop'
 
 const props = defineProps<{

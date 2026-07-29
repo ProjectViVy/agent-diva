@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { ShieldCheck, LoaderCircle, AlertTriangle, Plus, X } from 'lucide-vue-next';
+import { ShieldCheck, LoaderCircle, AlertTriangle, Plus, X } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { showAppToast } from '../../utils/appToast';
 import { appConfirm } from '../../utils/appDialog';

@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Brain, ChevronDown } from 'lucide-vue-next'
+import { Brain, ChevronDown } from '@lucide/vue'
 
 defineProps<{
   content: string

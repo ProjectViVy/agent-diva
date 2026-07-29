@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AlertCircle, ExternalLink, FileDiff, FileSearch, ShieldAlert } from 'lucide-vue-next';
+import { AlertCircle, ExternalLink, FileDiff, FileSearch, ShieldAlert } from '@lucide/vue';
 import type { ChangelogRecord, EvolutionProposal, LaputaSection } from '../../api/desktop';
 import GovernanceActionBar from './GovernanceActionBar.vue';
 

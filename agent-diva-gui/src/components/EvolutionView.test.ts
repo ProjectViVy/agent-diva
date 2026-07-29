@@ -23,7 +23,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   AlertCircle: { name: 'AlertCircle', template: '<span class="AlertCircle" />' },
   AlertTriangle: { name: 'AlertTriangle', template: '<span class="AlertTriangle" />' },
   Archive: { name: 'Archive', template: '<span class="Archive" />' },

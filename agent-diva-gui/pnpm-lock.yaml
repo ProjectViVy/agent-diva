@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@lucide/vue':
+        specifier: ^1.27.0
+        version: 1.27.0(vue@3.5.39(typescript@5.6.3))
       '@morediva/shared-avatar-protocol':
         specifier: file:./shared-avatar-protocol
         version: file:shared-avatar-protocol
@@ -38,9 +41,6 @@ importers:
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
-      lucide-vue-next:
-        specifier: ^0.575.0
-        version: 0.575.0(vue@3.5.39(typescript@5.6.3))
       markdown-it:
         specifier: ^14.1.1
         version: 14.3.0
@@ -308,6 +308,11 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lucide/vue@1.27.0':
+    resolution: {integrity: sha512-LKDEZJ0Uo9UaT4vxBMYVwXeK/0dGcWCTdav1AK/aGD/jYsDPtiVvOgfM7jPlx9BVeyGZ1Uf0aQhHA++rmbe7rw==}
+    peerDependencies:
+      vue: '>=3.0.1'
 
   '@morediva/shared-avatar-protocol@file:shared-avatar-protocol':
     resolution: {directory: shared-avatar-protocol, type: directory}
@@ -1071,12 +1076,6 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
-  lucide-vue-next@0.575.0:
-    resolution: {integrity: sha512-UHzA3cYMCgBLyGay5R9IQaidwV0NLocx7cIBnFt8vJ9Xhl6IM/oKD0fUhoCUuouFta15SX1rLXVoko9s3TzWMA==}
-    deprecated: Package deprecated. Please use @lucide/vue instead.
-    peerDependencies:
-      vue: '>=3.0.1'
-
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -1657,6 +1656,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@lucide/vue@1.27.0(vue@3.5.39(typescript@5.6.3))':
+    dependencies:
+      vue: 3.5.39(typescript@5.6.3)
 
   '@morediva/shared-avatar-protocol@file:shared-avatar-protocol': {}
 
@@ -2371,10 +2374,6 @@ snapshots:
       uc.micro: 2.1.0
 
   lru-cache@10.4.3: {}
-
-  lucide-vue-next@0.575.0(vue@3.5.39(typescript@5.6.3)):
-    dependencies:
-      vue: 3.5.39(typescript@5.6.3)
 
   magic-string@0.30.21:
     dependencies:

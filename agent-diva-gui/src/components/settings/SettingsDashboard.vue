@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Bot, Cat, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, Sparkles, ShieldCheck, Minimize2, FileText } from 'lucide-vue-next';
+import { Bot, Cat, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, Sparkles, ShieldCheck, Minimize2, FileText } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

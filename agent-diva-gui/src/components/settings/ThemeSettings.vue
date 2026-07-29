@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { Palette, Heart, Moon, Sun, Music } from 'lucide-vue-next';
+import { Palette, Heart, Moon, Sun, Music } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

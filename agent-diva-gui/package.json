@@ -14,6 +14,7 @@
     "bundle:prepare": "python ../scripts/ci/prepare_gui_bundle.py --gui-root ."
   },
   "dependencies": {
+    "@lucide/vue": "^1.27.0",
     "@morediva/shared-avatar-protocol": "file:./shared-avatar-protocol",
     "@pixiv/three-vrm": "^3.5.2",
     "@pixiv/three-vrm-animation": "^3.5.2",
@@ -24,7 +25,6 @@
     "avatar-runtime-vrm": "file:./avatar-runtime-vrm",
     "fflate": "^0.8.2",
     "highlight.js": "^11.11.1",
-    "lucide-vue-next": "^0.575.0",
     "markdown-it": "^14.1.1",
     "pnpm": "^10.33.2",
     "three": "^0.184.0",

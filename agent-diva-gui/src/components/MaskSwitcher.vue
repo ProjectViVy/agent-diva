@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useMask, type MaskEntry } from '../composables/useMask';
-import { Settings } from 'lucide-vue-next';
+import { Settings } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

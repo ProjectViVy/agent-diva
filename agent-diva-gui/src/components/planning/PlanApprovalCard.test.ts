@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import PlanApprovalCard from './PlanApprovalCard.vue';
 import type { PlanRuntimeState } from '../../api/planning';
 
-vi.mock('lucide-vue-next', () => {
+vi.mock('@lucide/vue', () => {
   const icon = (name: string) => ({ name, template: `<span class="${name}" />` });
   return {
     Check: icon('Check'),

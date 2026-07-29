@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Globe, LoaderCircle } from 'lucide-vue-next';
+import { Globe, LoaderCircle } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { openExternalUrl } from '../../utils/openExternal';
 import type { ToolsConfigShape } from '../../types/toolsConfig';

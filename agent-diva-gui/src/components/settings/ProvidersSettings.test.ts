@@ -17,7 +17,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('lucide-vue-next', () => {
+vi.mock('@lucide/vue', () => {
   const icon = (name: string) => ({ name, template: `<span class="${name}" />` });
   return {
     Server: icon('Server'),

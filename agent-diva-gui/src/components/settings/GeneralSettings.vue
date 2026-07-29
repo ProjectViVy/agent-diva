@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue';
-import { SlidersHorizontal, MessageSquareText, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap, AlertTriangle } from 'lucide-vue-next';
+import { SlidersHorizontal, MessageSquareText, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap, AlertTriangle } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { getConfigStatus, startGateway, wipeLocalData, type ConfigStatusReport } from '../../api/desktop';
 import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES } from '../../utils/localStorageAgentDiva';

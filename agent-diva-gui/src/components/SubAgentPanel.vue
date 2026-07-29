@@ -6,7 +6,7 @@
  * summaries, and elapsed time. Uses polling via useSubAgents composable.
  */
 import { onMounted } from 'vue';
-import { Bot } from 'lucide-vue-next';
+import { Bot } from '@lucide/vue';
 import { useSubAgents } from '../composables/useSubAgents';
 import { useI18n } from 'vue-i18n';
 

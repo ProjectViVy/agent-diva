@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Check, Circle, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
+import { Check, Circle, Pencil, Plus, Trash2, X } from '@lucide/vue'
 import type { VrmAppearanceConfig, VrmModelInfo, VrmMotionInfo } from '../types'
 import {
   DEFAULT_APPEARANCE_ID,

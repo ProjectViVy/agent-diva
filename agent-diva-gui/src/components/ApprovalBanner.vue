@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Clock3, Folder, ShieldCheck, ShieldX, Terminal } from 'lucide-vue-next';
+import { Clock3, Folder, ShieldCheck, ShieldX, Terminal } from '@lucide/vue';
 import type { ApprovalDecision, CommandApprovalRequest } from '../api/desktop';
 
 const { t } = useI18n();

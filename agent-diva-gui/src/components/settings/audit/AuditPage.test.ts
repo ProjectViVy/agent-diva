@@ -20,7 +20,7 @@ vi.mock('../../../utils/appToast', () => ({
   showAppToast: vi.fn(),
 }));
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   Copy: { name: 'Copy', template: '<span class="Copy" />' },
   Activity: { name: 'Activity', template: '<span class="Activity" />' },
   Monitor: { name: 'Monitor', template: '<span class="Monitor" />' },

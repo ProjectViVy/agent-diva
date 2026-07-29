@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Import } from 'lucide-vue-next';
+import { Plus, Import } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import ProviderCard from './ProviderCard.vue';
 

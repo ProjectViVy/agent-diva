@@ -24,7 +24,7 @@ vi.mock('../utils/vrm-animation-scanner', () => ({
   buildKnownMotionInfo: vi.fn(() => []),
 }))
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   AlertCircle: { template: '<span />' },
   Check: { template: '<span />' },
   Circle: { template: '<span />' },

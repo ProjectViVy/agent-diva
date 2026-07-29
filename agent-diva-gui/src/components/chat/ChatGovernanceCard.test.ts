@@ -9,7 +9,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   AlertTriangle: { name: 'AlertTriangle', template: '<span />' },
   ArrowRight: { name: 'ArrowRight', template: '<span />' },
   CheckCircle2: { name: 'CheckCircle2', template: '<span />' },

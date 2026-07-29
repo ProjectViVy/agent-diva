@@ -18,7 +18,7 @@ import {
   Search,
   Link2,
   CheckSquare,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import { showAppToast } from '../utils/appToast';
 
 const { t } = useI18n();

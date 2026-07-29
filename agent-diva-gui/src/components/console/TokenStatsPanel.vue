@@ -9,7 +9,7 @@ import {
   Download,
   TrendingUp,
   Zap
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import {
   getTokenUsageTotal,
   getTokenUsageSummary,

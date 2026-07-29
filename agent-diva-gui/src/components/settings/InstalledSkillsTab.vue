@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCcw, Trash2, Upload, ShieldCheck, CircleOff, Search } from 'lucide-vue-next';
+import { RefreshCcw, Trash2, Upload, ShieldCheck, CircleOff, Search } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 import { deleteSkill, getSkills, isTauriRuntime, uploadSkill, type SkillDto } from '../../api/desktop';

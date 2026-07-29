@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Loader2, X } from 'lucide-vue-next';
+import { CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Loader2, X } from '@lucide/vue';
 import type { PlanRuntimeState, PlanSummary } from '../api/planning';
 import { isTauriRuntime } from '../api/desktop';
 

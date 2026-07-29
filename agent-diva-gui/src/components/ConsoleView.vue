@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Activity, Zap } from 'lucide-vue-next';
+import { Activity, Zap } from '@lucide/vue';
 
 import {
   checkHealth,

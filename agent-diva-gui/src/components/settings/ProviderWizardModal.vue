@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { X, ChevronRight, LoaderCircle, Check, CircleAlert, PlugZap, Eye, EyeOff } from 'lucide-vue-next';
+import { X, ChevronRight, LoaderCircle, Check, CircleAlert, PlugZap, Eye, EyeOff } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Globe } from 'lucide-vue-next';
+import { Globe } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { LOCALE_STORAGE_KEY } from '../../utils/localStorageAgentDiva';
 

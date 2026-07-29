@@ -7,7 +7,7 @@ import {
   Lock,
   CheckCircle2,
   ExternalLink,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import type { TodoDetail } from '../../api/planning';
 
 const { t } = useI18n();

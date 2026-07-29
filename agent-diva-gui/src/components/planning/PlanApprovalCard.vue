@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Check, ChevronDown, ChevronRight, Loader2, Pencil, RefreshCw } from 'lucide-vue-next';
+import { Check, ChevronDown, ChevronRight, Loader2, Pencil, RefreshCw } from '@lucide/vue';
 import type { PlanRuntimeState } from '../../api/planning';
 import { planReportValidationIssues } from '../../api/planning';
 import PlanDocument from './PlanDocument.vue';

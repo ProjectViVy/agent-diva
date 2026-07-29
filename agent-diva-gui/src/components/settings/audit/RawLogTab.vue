@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Copy, Activity } from 'lucide-vue-next';
+import { Copy, Activity } from '@lucide/vue';
 import { showAppToast } from '../../../utils/appToast';
 
 const { t } = useI18n();

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Cat, Clipboard, Mic, Play, RefreshCw, Square, Trash2, Upload, Volume2 } from 'lucide-vue-next'
+import { Cat, Clipboard, Mic, Play, RefreshCw, Square, Trash2, Upload, Volume2 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { usePetConfig, usePetConfigSaveState } from '../../features/diva-pet/services/pet-config'
 import {

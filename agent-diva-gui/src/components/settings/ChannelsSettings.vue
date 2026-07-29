@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { LoaderCircle, MessageSquare, LayoutGrid, List, Plus, RefreshCw } from 'lucide-vue-next';
+import { LoaderCircle, MessageSquare, LayoutGrid, List, Plus, RefreshCw } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { getConfigStatus, type ChannelStatusSummary } from '../../api/desktop';
 import ChannelCardView from './ChannelCardView.vue';

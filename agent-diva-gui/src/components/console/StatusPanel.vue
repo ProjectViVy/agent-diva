@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Activity, Play, Square, ShieldCheck, ShieldAlert, Server, Cpu } from 'lucide-vue-next';
+import { Activity, Play, Square, ShieldCheck, ShieldAlert, Server, Cpu } from '@lucide/vue';
 
 const { t } = useI18n();
 

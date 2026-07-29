@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Check, Clapperboard, Loader2, PackageOpen, Play, Square } from 'lucide-vue-next'
+import { Check, Clapperboard, Loader2, PackageOpen, Play, Square } from '@lucide/vue'
 import type { VrmMotionInfo } from '../types'
 
 interface Props {

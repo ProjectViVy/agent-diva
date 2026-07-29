@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ChevronDown, ChevronRight, FileText } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, FileText } from '@lucide/vue';
 import type { LaputaSectionName } from '../../api/desktop';
 
 const { t } = useI18n();

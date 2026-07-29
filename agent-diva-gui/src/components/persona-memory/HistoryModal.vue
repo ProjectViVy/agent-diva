@@ -7,7 +7,7 @@ import {
   watch,
 } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { X } from 'lucide-vue-next';
+import { X } from '@lucide/vue';
 import { listLaputaChangelog, type ChangelogRecord } from '../../api/desktop';
 
 const { t } = useI18n();

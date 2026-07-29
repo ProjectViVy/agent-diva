@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { Sparkles, LoaderCircle, BrainCircuit, ShieldQuestion } from 'lucide-vue-next';
+import { Sparkles, LoaderCircle, BrainCircuit, ShieldQuestion } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { showAppToast } from '../../utils/appToast';
 import { getSelfEvolutionConfig, saveSelfEvolutionConfig } from '../../api/desktop';

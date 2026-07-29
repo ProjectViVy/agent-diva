@@ -9,7 +9,7 @@ import {
   History,
   RefreshCw,
   ShieldCheck,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import {
   applyLaputaProposal,
   editLaputaProposal,

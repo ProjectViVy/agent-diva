@@ -24,7 +24,7 @@ vi.mock('../utils/appToast', () => ({
   showAppToast: vi.fn(),
 }));
 
-vi.mock('lucide-vue-next', () => {
+vi.mock('@lucide/vue', () => {
   const icon = (name: string) => ({ name, template: `<span class="${name}" />` });
   return {
     BookOpen: icon('BookOpen'),

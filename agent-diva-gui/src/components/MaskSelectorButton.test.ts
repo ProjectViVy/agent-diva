@@ -16,7 +16,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   Settings: { name: 'Settings', template: '<span class="Settings" />' },
 }));
 

@@ -16,7 +16,7 @@ import {
   Clock,
   Repeat,
   AlertCircle,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import { appConfirm } from '../utils/appDialog';
 
 const { t } = useI18n();

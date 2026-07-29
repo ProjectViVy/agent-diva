@@ -17,7 +17,7 @@ vi.mock('../../utils/appToast', () => ({
   showAppToast: vi.fn(),
 }));
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   Sparkles: { name: 'Sparkles', template: '<span />' },
   LoaderCircle: { name: 'LoaderCircle', template: '<span />' },
   BrainCircuit: { name: 'BrainCircuit', template: '<span />' },

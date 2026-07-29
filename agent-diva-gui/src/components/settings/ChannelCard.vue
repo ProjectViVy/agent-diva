@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue';
-import { Pencil, Trash2, Power, MessageSquare } from 'lucide-vue-next';
+import { Pencil, Trash2, Power, MessageSquare } from '@lucide/vue';
 import { PLATFORM_ICONS, PLATFORM_DISPLAY_NAMES } from './channel-icons';
 import type { ChannelStatusSummary } from '../../api/desktop';
 

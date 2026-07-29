@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Boxes, Store } from 'lucide-vue-next';
+import { Boxes, Store } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 import InstalledSkillsTab from './InstalledSkillsTab.vue';

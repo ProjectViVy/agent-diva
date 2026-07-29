@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
-import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff, MoreHorizontal, ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff, MoreHorizontal, ChevronDown, ChevronRight } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import {
   type ConfigStatusReport,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { History, LoaderCircle, ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import { History, LoaderCircle, ChevronLeft, ChevronRight } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 

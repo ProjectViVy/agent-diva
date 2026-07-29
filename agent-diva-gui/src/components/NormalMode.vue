@@ -19,7 +19,7 @@ import {
   Wrench,
   X,
   Zap,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import { invoke } from '@tauri-apps/api/core';
 import ChatView from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';

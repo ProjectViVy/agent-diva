@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AlertTriangle, Check, Edit3, RotateCcw, ShieldAlert, X } from 'lucide-vue-next';
+import { AlertTriangle, Check, Edit3, RotateCcw, ShieldAlert, X } from '@lucide/vue';
 import type { EvolutionProposal } from '../../api/desktop';
 
 const { t } = useI18n();

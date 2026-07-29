@@ -136,7 +136,7 @@ vi.mock('./subtitle-overlay', () => ({
 
 // ── Icon library stub ────────────────────────────────────────────
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   Mic: {
     name: 'Mic',
     template: '<span class="mic-icon"/>',

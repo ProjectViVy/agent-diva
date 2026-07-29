@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useMasks } from '../composables/useMasks';
 import MaskCard from './MaskCard.vue';
 import type { MaskEntryDto } from '../api/desktop';
-import { Search, Plus, Pencil, Trash2, Settings } from 'lucide-vue-next';
+import { Search, Plus, Pencil, Trash2, Settings } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

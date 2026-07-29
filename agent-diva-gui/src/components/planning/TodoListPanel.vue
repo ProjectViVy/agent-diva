@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ChevronDown, ChevronRight, List, ListChecks } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, List, ListChecks } from '@lucide/vue';
 import TodoItemRow from './TodoItemRow.vue';
 import type { TodoDetail } from '../../api/planning';
 

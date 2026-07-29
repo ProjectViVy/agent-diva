@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Server, LoaderCircle, Trash2 } from 'lucide-vue-next';
+import { Server, LoaderCircle, Trash2 } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

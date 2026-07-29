@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Plus, MessageSquarePlus } from 'lucide-vue-next';
+import { Plus, MessageSquarePlus } from '@lucide/vue';
 import ChannelCard from './ChannelCard.vue';
 import type { ChannelStatusSummary } from '../../api/desktop';
 

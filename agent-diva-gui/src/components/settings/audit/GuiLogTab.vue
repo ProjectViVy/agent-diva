@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, ref, watch } from 'vue';
-import { Activity, Copy, Monitor } from 'lucide-vue-next';
+import { Activity, Copy, Monitor } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { showAppToast } from '../../../utils/appToast';
 

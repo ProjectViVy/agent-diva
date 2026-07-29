@@ -9,7 +9,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   AlarmClock: { name: 'AlarmClock', template: '<span class="AlarmClock" />' },
   BookOpen: { name: 'BookOpen', template: '<span class="BookOpen" />' },
   Bot: { name: 'Bot', template: '<span class="Bot" />' },

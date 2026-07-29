@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bot } from 'lucide-vue-next';
+import { Bot } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 import McpManagementCard from './McpManagementCard.vue';

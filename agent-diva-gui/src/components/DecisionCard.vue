@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ChevronDown, ChevronUp, CheckCircle, XCircle } from 'lucide-vue-next';
+import { ChevronDown, ChevronUp, CheckCircle, XCircle } from '@lucide/vue';
 import type { UiCard } from '../api/desktop';
 
 const { t } = useI18n();

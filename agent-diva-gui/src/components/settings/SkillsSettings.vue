@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Package } from 'lucide-vue-next';
+import { Package } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 import SkillManagementCard from './SkillManagementCard.vue';

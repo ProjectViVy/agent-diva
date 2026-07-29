@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { ChevronLeft } from 'lucide-vue-next';
+import { ChevronLeft } from '@lucide/vue';
 import SettingsDashboard from './settings/SettingsDashboard.vue';
 import GeneralSettings from './settings/GeneralSettings.vue';
 import McpSettings from './settings/McpSettings.vue';

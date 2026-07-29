@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { AlertCircle, Check, FolderOpen, Loader2, PackageOpen, Settings, Trash2, Upload, X } from 'lucide-vue-next'
+import { AlertCircle, Check, FolderOpen, Loader2, PackageOpen, Settings, Trash2, Upload, X } from '@lucide/vue'
 import type { VrmAppearanceConfig, VrmModelInfo } from '../types'
 import { usePetConfig } from '../services/pet-config'
 import { useAppearanceConfig } from '../services/appearance-config'

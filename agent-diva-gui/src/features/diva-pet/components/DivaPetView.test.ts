@@ -91,7 +91,7 @@ vi.mock('../services/pet-config', () => ({
   }),
 }))
 
-vi.mock('lucide-vue-next', () => ({
+vi.mock('@lucide/vue', () => ({
   Menu: { name: 'Menu', template: '<span class="menu-icon" />' },
   Settings: { name: 'Settings', template: '<span class="settings-icon" />' },
   Send: { name: 'Send', template: '<span class="send-icon" />' },

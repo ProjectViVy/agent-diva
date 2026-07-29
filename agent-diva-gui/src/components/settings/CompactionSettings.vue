@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Minimize2, LoaderCircle, RotateCcw } from 'lucide-vue-next';
+import { Minimize2, LoaderCircle, RotateCcw } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { showAppToast } from '../../utils/appToast';

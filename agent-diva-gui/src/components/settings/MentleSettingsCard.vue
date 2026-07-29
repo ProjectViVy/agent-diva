@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { BrainCircuit, LoaderCircle, RotateCcw } from 'lucide-vue-next';
+import { BrainCircuit, LoaderCircle, RotateCcw } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { listMentleTools, type MentleToolConfigShape } from '../../api/desktop';
 import type { ToolsConfigShape } from '../../types/toolsConfig';

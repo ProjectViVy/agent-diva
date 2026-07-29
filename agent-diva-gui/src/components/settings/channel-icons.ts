@@ -1,7 +1,7 @@
 // 通道平台图标映射表
 // 用于在卡片视图和向导中显示各平台的专属图标
 
-import { Mail, Globe, Hash } from 'lucide-vue-next';
+import { Mail, Globe, Hash } from '@lucide/vue';
 import type { Component } from 'vue';
 import TelegramIcon from '../../assets/icons/channels/TelegramIcon.vue';
 import DiscordIcon from '../../assets/icons/channels/DiscordIcon.vue';

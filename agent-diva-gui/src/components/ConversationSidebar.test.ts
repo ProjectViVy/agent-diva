@@ -15,7 +15,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-vi.mock('lucide-vue-next', () => {
+vi.mock('@lucide/vue', () => {
   const stub = (name: string) => ({ name, template: `<span class="${name}" />` });
   return {
     Search: stub('Search'),
