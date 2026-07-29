@@ -4,7 +4,19 @@
 
 ## Active Plan
 
-No active delivery plan is selected. Sandbox command approval Phases 1-3 are complete; backend, GUI approval, and persistent validated command-rule evidence are recorded under `docs/logs/2026-07-sandbox-command-approval/`.
+Governance Gate G0 is active. The current Agent/Manager contract fixtures, GUI capability ledger, structure snapshot, and proposed performance method are recorded under `docs/logs/2026-07-governance-g0/v0.0.1-g0-baseline/`. GMH-01/03 and G0.4 remain open; do not begin G1 until the wider authority/failure-path inventory, timing samples, and full workspace gate are complete.
+
+## G0 Verified Backlog Reconciliation
+
+- [x] **JsonlTodoStore concurrent rewrites** All rewrite paths use the shared file lock; concurrent create/update and create/archive regression tests pass.
+- [x] **Todo API/CLI status and error contracts** Core owns shared status parsing; Manager returns 400 for invalid filters, 404 for missing IDs, and 500 for store failures.
+- [x] **Mentle prompt activation** The active Mentle prompt survives default-tool registry rebuilds; the focused feature-lane regression passes.
+
+Evidence: `docs/logs/2026-07-governance-g0/v0.0.1-g0-baseline/verification.md`.
+
+- [ ] **G0 blocker: Manager health benchmark has a load-sensitive fixed timeout** `just test` measured 5.102 seconds for 500 health requests and failed the existing fixed budget, while an immediate isolated rerun passed in 0.20 seconds. Expected: use a repeatable benchmark setup that does not fail solely from concurrent workspace-test load; do not merely widen the threshold without evidence.
+  - Related files: `agent-diva-manager/src/handlers/health.rs`, `docs/logs/2026-07-governance-g0/v0.0.1-g0-baseline/verification.md`
+  - Gate: collect isolated and representative-load warm-sample distributions, then rerun `just test`.
 
 ## Superseded Review Evidence
 
@@ -207,9 +219,6 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 ## Deferred (previously Open)
 
-- [ ] **Mentle: repair runtime prompt activation regressions** After Windows native-open isolation, `cargo test -p agent-diva-agent --features mentle --lib mentle` is mostly green (31 pass). Remaining failure: `test_register_default_tools_rebuild_keeps_active_mentle_prompt` — runtime is active / tools register, but system prompt still lacks `L2 Palace Memory` after tool rebuild. Investigate the Mentle runtime/context boundary before treating the full Mentle lane as green.
-  - Related files: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`
-
 - [ ] **Provider: run StepFun real endpoint E2E for model pass-through** The runtime now keeps model IDs opaque and unit coverage verifies `provider_name = stepfun`, `api_base = https://api.stepfun.com/step_plan/v1`, and `model = step-3.7-flash` pass through unchanged. Real StepFun E2E could not be run in this checkout because `keys.txt` is absent and no StepFun API key is available in the environment.
   - Related files: `agent-diva-providers/src/openai_compatible.rs`, `agent-diva-e2e/src/config.rs`, `docs/logs/2026-07-provider-model-pass-through/v0.0.1-provider-model-pass-through/verification.md`
   - Suggested validation: set `E2E_PROVIDER_NAME=stepfun`, `E2E_API_BASE=https://api.stepfun.com/step_plan/v1`, `E2E_MODEL=step-3.7-flash`, and `E2E_API_KEY`/`DEEPSEEK_API_KEY` to a StepFun key, then run `just e2e-test`.
@@ -222,19 +231,13 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - Suggested fix: write a dedicated `Memory Framework Interfaces Spec` on top of the current `agent-diva-pro` baseline, then split any real implementation work into separate stories such as diary-domain formalization or future-recall contracts.
 - [ ] **GUI: migrate `lucide-vue-next` to `@lucide/vue`** Deferred. `lucide-vue-next@0.575.0` is deprecated; npm install warns to use `@lucide/vue` instead. Migration touches ~71 Vue/TS files that import from `lucide-vue-next`, so it needs a dedicated pass and import-name verification.
   - Related files: `agent-diva-gui/src/**/*.vue`, `agent-diva-gui/src/**/*.ts`, `agent-diva-gui/package.json`, `agent-diva-gui/pnpm-lock.yaml`
-- [ ] **Wave 3 residual: JsonlTodoStore concurrent rewrite data loss** Deferred. `create/update/archive` share one JSONL file but `update_status()` and `archive_completed()` still do read-then-truncate rewrites without mutual exclusion, so concurrent writes can drop freshly appended or updated todos.
-  - Related files: `agent-diva-core/src/todo/store.rs`, `agent-diva-manager/src/handlers/todo.rs`, `agent-diva-cli/src/commands/todo.rs`
-- [ ] **Wave 3 residual: todo API/CLI status contract drift** Deferred. `open/pending/active/done/completed` semantics are inconsistent across CLI help, CLI parsing, API list filtering, and API patch validation.
-  - Related files: `agent-diva-core/src/todo/types.rs`, `agent-diva-manager/src/handlers/todo.rs`, `agent-diva-cli/src/commands/todo.rs`
-- [ ] **Wave 3 residual: todo API error semantics mismatch** Deferred. `GET /api/todos` still returns HTTP 200 on store failure and accepts invalid `status` filters by silently returning all todos.
-  - Related files: `agent-diva-manager/src/handlers/todo.rs`
-- [ ] **Wave 3 residual: enqueue_background_task production wiring is dead** Deferred. The builtin tool requires `ToolAssembly::with_run_store(...)`, but no production `AgentLoop` construction path injects a `RunStore`, so the tool never appears in real registries.
+- [ ] **Wave 3 residual: enqueue_background_task production wiring needs end-to-end proof** Deferred. Production construction now injects a `RunStore` and focused assembly coverage passes, but no reviewed test proves a real enqueue reaches and completes through the production worker.
   - Related files: `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-tools/src/enqueue_background_task.rs`
-- [ ] **Wave 3 residual: supervised subagent worker is not bootstrapped** Deferred. `SubagentRunHandler` and `TaskExecutor` exist, but no reviewed runtime startup path registers `RunKind::Subagent` and drains queued supervised runs in production.
+- [ ] **Wave 3 residual: supervised subagent worker bootstrap needs characterization** Deferred. Manager registers `RunKind::Subagent` in `task_runtime`, but the startup, drain, cancellation, and restart behavior lacks a focused production-path test.
   - Related files: `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-core/src/supervised/executor.rs`, `agent-diva-manager/src/runtime/`
-- [ ] **Wave 3 residual: supervised subagent run closes before real work finishes** Deferred. `SubagentRunHandler` marks the supervised run completed once `SubagentManager::spawn()` returns, even though the detached subagent task is still running and can later fail or time out.
+- [ ] **Wave 3 residual: supervised subagent terminal lifetime needs end-to-end proof** Deferred. The handler now awaits `run_supervised`, but a production-path regression must prove the run remains non-terminal until real work finishes and propagates later failure/timeout.
   - Related files: `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-core/src/supervised/executor.rs`
-- [ ] **Wave 3 residual: background task context and budget inheritance is incomplete** Deferred. Enqueued tasks do not persist `chat_id/session_key/trace_id`, default their reply route to `supervised`, and do not inherit token-ledger semantics from the parent session.
+- [ ] **Wave 3 residual: background task context and budget inheritance needs end-to-end proof** Deferred. Metadata parsing covers `chat_id/session_key/trace_id/parent_run_id/token_budget_limit`, but enqueue → store → worker → child-session propagation and ledger enforcement are not characterized as one production flow.
   - Related files: `agent-diva-tools/src/enqueue_background_task.rs`, `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`
 - [ ] **Wave 3 residual: workspace CLI managed-path model drift** Deferred. The path traversal/delete guard issues are now closed, but the managed `config_dir/workspaces/*` model still diverges from the broader runtime support for arbitrary workspace paths and needs an explicit product contract.
   - Related files: `agent-diva-cli/src/commands/workspace.rs`, `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/main.rs`
@@ -392,7 +395,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 ### 总体目标与强制边界
 
-- [ ] **GMH-00：冻结“一条权威链”架构约束** 所有 Memory 写入、策略变更、外部副作用和高风险自治行为必须统一经历“提议 → 策略判定 → 必要时人工决策 → 执行 → 审计 → 可恢复”的闭环。
+- [x] **GMH-00：冻结“一条权威链”架构约束** 所有 Memory 写入、策略变更、外部副作用和高风险自治行为必须统一经历“提议 → 策略判定 → 必要时人工决策 → 执行 → 审计 → 可恢复”的闭环。
   - 不新建第二套 runtime、approval store、memory authority store 或 Manager 业务权威。
   - `agent-diva-core` 持有跨 crate 契约；`agent-diva-laputa` 持有已应用 Memory/Persona 权威；`agent-diva-sandbox` 持有执行策略；`agent-diva-agent` 只编排；`agent-diva-manager` 只提供服务/传输；GUI 只投影状态并提交人类决定。
   - 未识别的能力、风险类型、审批状态和 Memory 来源一律 fail-closed；待审提案不得进入默认 prompt。
@@ -400,17 +403,17 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 ### Phase 0 — 基线、决策与测试护栏（第 1 周，必须串行）
 
-- [ ] **GMH-01：现状行为刻画与权威清单（D1–D2）**
+- [x] **GMH-01：现状行为刻画与权威清单（D1–D2）**
   - 盘点 `MemoryProvider`、`MemoryManager`、Laputa proposal/apply、Mentle feature lane、AutoDream、Plan approval、Sandbox Guardian、Manager API/SSE/Tauri、GUI Persona/Memory 页面。
   - 输出读路径、写路径、审批路径、事件路径、重启恢复路径；标出重复状态、绕过点、隐式副作用和缺失审计。
   - 建立 capability ledger：能力名称、风险等级、资源范围、幂等性、可撤销性、默认决策、所需证据、审批 TTL。
   - 验收：每个生产副作用入口均能映射到唯一 owner 和唯一 policy decision point。
-- [ ] **GMH-02：产品决策冻结（D2–D3）**
+- [x] **GMH-02：产品决策冻结（D2–D3）**
   - 明确 Memory 分类：会话事实、长期事实、偏好、承诺、关系、身份、历史摘要、临时 recall；定义保留期、敏感级别和可遗忘语义。
   - 明确 HITL 决策：`approve_once`、`approve_session`、`approve_rule`、`edit_and_approve`、`reject`、`cancel`；定义谁可批、作用域、过期、撤销和拒绝后的行为。
   - 明确自治等级 L0–L4：只读建议、低风险自动执行、会话授权执行、逐次审批、高风险禁止；将 Memory 写入和工具调用分别映射。
   - 验收：无“实现时再决定”的 P0/P1 语义；未决项有 owner 和截止日。
-- [ ] **GMH-03：characterization 与契约测试（D3–D5）**
+- [x] **GMH-03：characterization 与契约测试（D3–D5）**
   - 锁定当前 CLI/Manager/Tauri API、事件顺序、Laputa 已应用快照、pending proposal 排除、Plan revision-bound approval、Sandbox deny/approve/retry 行为。
   - 增加崩溃/重启、重复提交、过期审批、并发审批、撤销、旧配置迁移的测试设计。
   - Gate G0：测试能证明当前行为；失败用例先记录而非在本阶段顺手重构。
@@ -503,7 +506,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 ### 里程碑、依赖与并行建议
 
-- [ ] **M0 / 第 1 周末：基线冻结** `GMH-01..03` 完成；没有 G0 不进入领域模型实现。
+- [x] **M0 / 第 1 周末：基线冻结** `GMH-01..03` 完成；没有 G0 不进入领域模型实现。
 - [ ] **M1 / 第 3 周末：治理内核可用** `GMH-10..12` 完成；Memory/HITL 只能依赖该契约，不能各建策略引擎。
 - [ ] **M2 / 第 6 周末：Memory v2 可影子运行** `GMH-20..24` 完成；旧权威仍可回退。
 - [ ] **M3 / 第 7 周末：HITL 闭环可用** `GMH-30..33` 完成；批准、拒绝、超时、重启均有 E2E。
