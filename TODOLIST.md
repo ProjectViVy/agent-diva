@@ -21,11 +21,13 @@
   - Related: `docs/architecture/plan-execution-context-compaction-fix.md`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-core/src/planning/report.rs`, `agent-diva-core/src/planning/report_store.rs`, `agent-diva-gui/src-tauri/src/commands.rs`, `agent-diva-gui/src/App.vue`
   - Suggested validation: deterministic approval-to-execution integration tests for Compact/Clear/Retain, restart persistence, and reactive generic compaction rebuild.
 
-- [ ] **Plan/TODO architecture implementation** Execute the project-management plan in [09-project-management.md](docs/architecture/plan-todo/09-project-management.md), with the detailed architecture anchors in `docs/architecture/plan-todo/01-architecture-exploration.md` through `13-acceptance-criteria.md`. This is the only active stream.
+- [x] **Plan/TODO architecture implementation** Implemented the project-management plan in [09-project-management.md](docs/architecture/plan-todo/09-project-management.md), with `PlanStore` as the revision/approval authority, phase-projected runtime gates, optional TODO materialization, backend-authoritative GUI approval, pending-plan restart recovery, and P1–P5 iteration evidence.
   - Scope: P1 core state/capability policy → P2 revision-bound approval and optional TODO materialization → P3 agent-loop enforcement → P4 GUI projection → P5 regression and release validation.
   - Rule: before approval, file writes, shell execution, MCP, spawning, scheduling, and other external mutations remain denied by runtime policy.
   - Rule: TODO is optional and is materialized only after approval when selected by the user or plan.
   - Validation: `just fmt-check && just check && just test`, focused crate/GUI tests, and end-to-end denial/approval scenarios.
+  - Completion evidence: commits `82c25856`, `a1c1389e`, and `91be604b`; logs under `docs/logs/2026-07-plan-todo-closure/`.
+  - Validation note: format and Clippy gates passed; the full test run reached the already-recorded DeepSeek default-model fixture mismatch after all affected planning suites passed.
 
 ### Plan/TODO P1 core policy — triple-review follow-ups (2026-07-11)
 
