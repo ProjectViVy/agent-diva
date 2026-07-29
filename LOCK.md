@@ -9,9 +9,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Scope: `none`
 - Owner: `none`
 - Session/Task: `none`
-- Branch/Worktree: `codex/gmh-g0-baseline / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
+- Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-29T19:00:00+08:00`
-- Last Heartbeat: `2026-07-29T19:10:00+08:00`
+- Last Heartbeat: `2026-07-29T19:23:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Fast-forwarded `agent-diva-pro` to the completed governance-priority batch at `255b420b`; the G0, Mentle, and GUI Lucide branches are fully contained. Root worktree now uses `agent-diva-pro`. No push or branch/worktree deletion was performed.
 
 - `2026-07-29`: Released the governance-priority parallel batch after integrating G0 contracts, governed Mentle prompt rebuild coverage, and the `@lucide/vue` migration. Final `just fmt-check`, `just check`, `just test`, GUI 429-test suite, and production build passed. No push was performed.
 
