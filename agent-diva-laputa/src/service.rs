@@ -3,7 +3,10 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex, OnceLock,
+    },
     time::Duration,
 };
 
@@ -27,6 +30,7 @@ use crate::{
 const ROLLBACK_WINDOW: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 static LAPUTA_METRICS: OnceLock<LaputaMetrics> = OnceLock::new();
+static USER_EDIT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Stable Laputa service API used by Rust callers, manager routes, and Tauri commands.
 #[derive(Clone, Debug)]
@@ -124,19 +128,21 @@ impl LaputaService {
         Ok(outcome)
     }
 
-    pub fn create_and_apply_direct_edit(
+    pub fn create_user_edit_proposal(
         &self,
         section: LaputaSectionName,
         patch: impl Into<String>,
         actor: impl Into<String>,
+        summary: Option<String>,
         now: DateTime<Utc>,
-    ) -> Result<crate::ApplyOutcome> {
+    ) -> Result<EvolutionProposal> {
         let actor = actor.into();
         let patch = patch.into();
+        let sequence = USER_EDIT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let id = format!(
-            "direct-edit-{}-{}",
+            "user-edit-{}-{}-{sequence}",
             section.as_str(),
-            now.timestamp_millis()
+            now.timestamp_micros()
         );
 
         let proposal_type = match section {
@@ -169,6 +175,31 @@ impl LaputaService {
             });
         }
 
+        let risk_level = match section {
+            LaputaSectionName::Identity
+            | LaputaSectionName::Relationship
+            | LaputaSectionName::Commitment => RiskLevel::High,
+            LaputaSectionName::Changelog => RiskLevel::Critical,
+            LaputaSectionName::HistoryMd | LaputaSectionName::JournalReflective => RiskLevel::Low,
+            LaputaSectionName::Preferences
+            | LaputaSectionName::MemoryMd
+            | LaputaSectionName::Daily
+            | LaputaSectionName::Weekly
+            | LaputaSectionName::Monthly => RiskLevel::Medium,
+            _ => {
+                return Err(LaputaError::UnauthorizedTarget {
+                    id,
+                    proposal_type,
+                    target_section: section,
+                });
+            }
+        };
+        let evidence_excerpt = summary
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.chars().take(240).collect::<String>())
+            .unwrap_or_else(|| format!("user edit for {}", section.as_str()));
         let proposal = EvolutionProposal {
             id: id.clone(),
             created_at: now,
@@ -179,20 +210,18 @@ impl LaputaService {
             evidence_refs: vec![EvidenceRef {
                 id: format!("evidence-{id}"),
                 source: EvidenceSource::UserInput,
-                uri: format!("user-input://{section}"),
-                excerpt: Some("direct user edit".to_string()),
+                uri: format!("user-input://laputa-section/{section}"),
+                excerpt: Some(evidence_excerpt),
                 hash: None,
                 created_at: now,
             }],
             proposed_patch: patch,
-            risk_level: RiskLevel::Low,
+            risk_level,
             state: ProposalState::PendingReview,
             source_run_id: None,
         };
 
-        self.create_proposal(proposal)?;
-        self.transition_proposal(&id, ProposalState::Approved, now)?;
-        self.apply_proposal(&id, actor, now)
+        self.create_proposal(proposal)
     }
 
     pub fn read_snapshot(&self, since: Option<DateTime<Utc>>) -> Result<LaputaSnapshot> {

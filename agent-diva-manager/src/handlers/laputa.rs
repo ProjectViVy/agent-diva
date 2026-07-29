@@ -218,20 +218,25 @@ pub async fn write_laputa_section_handler(
         )
     })?;
 
-    let outcome = state
+    let proposal = state
         .laputa
-        .create_and_apply_direct_edit(
+        .create_user_edit_proposal(
             section,
             payload.content,
             payload.actor.unwrap_or_else(|| "api".to_string()),
+            payload.summary,
             Utc::now(),
         )
         .map_err(laputa_error_response)?;
 
     ok(serde_json::json!({
         "status": "ok",
-        "changelog_id": outcome.changelog.id,
-        "applied_at": outcome.changelog.created_at,
+        "proposal_id": proposal.id,
+        "proposal_type": proposal.proposal_type,
+        "risk_level": proposal.risk_level,
+        "state": proposal.state,
+        "changelog_id": null,
+        "applied_at": null,
     }))
 }
 

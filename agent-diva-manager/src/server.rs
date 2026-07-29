@@ -494,7 +494,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_laputa_section_success() {
+    async fn write_laputa_section_creates_pending_proposal_without_applying() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
         let state =
@@ -507,7 +507,9 @@ mod tests {
                     .method("POST")
                     .uri("/api/laputa/section/memory_md/write")
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"content":"{\"note\":\"hello\"}"}"#))
+                    .body(Body::from(
+                        r#"{"content":"{\"note\":\"hello\"}","summary":"GUI edit"}"#,
+                    ))
                     .unwrap(),
             )
             .await
@@ -517,21 +519,30 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["status"], "ok");
-        assert!(
-            value["changelog_id"]
-                .as_str()
-                .unwrap()
-                .starts_with("changelog-"),
-            "expected changelog id, got {}",
-            value["changelog_id"]
-        );
-        assert!(value["applied_at"].as_str().is_some());
+        assert!(value["proposal_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("user-edit-memory_md-"));
+        assert_eq!(value["proposal_type"], "memory_patch");
+        assert_eq!(value["risk_level"], "medium");
+        assert_eq!(value["state"], "pending_review");
+        assert!(value["changelog_id"].is_null());
+        assert!(value["applied_at"].is_null());
 
         let section = state
             .laputa
             .read_section(LaputaSectionName::MemoryMd)
             .unwrap();
-        assert_eq!(section.content, serde_json::json!({"note": "hello"}));
+        assert_eq!(section.content, serde_json::Value::Null);
+        let proposal = state
+            .laputa
+            .get_proposal(value["proposal_id"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(proposal.state, ProposalState::PendingReview);
+        assert_eq!(
+            proposal.evidence_refs[0].excerpt.as_deref(),
+            Some("GUI edit")
+        );
     }
 
     #[tokio::test]
