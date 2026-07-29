@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `2026-07-29T00:00:00+08:00`
-- Last Heartbeat: `2026-07-29T11:00:00+08:00`
+- Last Heartbeat: `2026-07-29T17:00:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Released persistent execution-context boundaries in `ad3dc531`, DeepSeek provider-set fixture alignment in `47972953`, and verification records in `5b88f46f`. `just fmt-check`, `just check`, focused Core/Manager/CLI tests, and GUI production build passed. Full `just test` passed the affected Plan/DeepSeek coverage but remained red on two pre-existing supervised-executor race assertions recorded in `TODOLIST.md`. No push was performed; unrelated dirty-work changes remain excluded.
 
 - `2026-07-29`: Released Plan/TODO P1-P5 closure in commits `82c25856`, `a1c1389e`, `91be604b`, and `52db71ac`. PlanStore now owns revision approval and materialized TODO protection; report state projects into runtime phase policy and pending approvals restore after restart; GUI approval is backend-authoritative and resumes without a visible synthetic user message. `just fmt-check` and `just check` passed; affected tests and GUI build passed. Full `just test` reached the pre-existing DeepSeek default-model fixture mismatch already recorded in `TODOLIST.md`. Unrelated dirty-work files were excluded.
 
