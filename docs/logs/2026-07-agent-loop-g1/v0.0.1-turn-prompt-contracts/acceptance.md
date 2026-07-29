@@ -7,10 +7,15 @@
 - Compaction and consolidation prompts are owned by their subsystems.
 - English and legacy Chinese Plan headings validate in Core and GUI.
 - Existing user-visible Chinese copy and stored Plan JSON remain unchanged.
+- Admission, context preparation, sampling/stream collection, tool execution,
+  and final persistence/events have explicit internal owners.
+- Cancellation is checked before executor entry and while collecting provider
+  stream events.
+- Focused AgentLoop, Clippy, full workspace, CLI, and gateway command gates pass.
 
 Deferred acceptance:
 
-- G1.3–G1.6 physical stage extraction and the ~500-line coordinator target.
-- Real CLI/Manager and desktop GUI Plan smoke for the completed full G1 cut.
+- G1.6 coordinator slimming from 865 lines toward the ~500-line review target.
+- Real desktop GUI Plan approval smoke for the completed full G1 cut.
 - Before that real-desktop milestone, remind the user with environment, steps,
   expected observations, and diagnostics to retain.

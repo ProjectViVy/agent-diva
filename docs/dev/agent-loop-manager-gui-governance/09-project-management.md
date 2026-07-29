@@ -24,9 +24,9 @@ LOC 只作为报警器，不是完成标准。
 
 - [x] G1.1 提取 `TurnSnapshot`，统一 policy phase
 - [x] G1.2 收口 tool execution seam
-- [ ] G1.3 拆 admission/context
-- [ ] G1.4 拆 model iteration/tool step
-- [ ] G1.5 拆 finalize/persistence/events
+- [x] G1.3 拆 admission/context
+- [x] G1.4 拆 model iteration/tool step
+- [x] G1.5 拆 finalize/persistence/events
 - [ ] G1.6 删除旧巨型实现并做全旅程 smoke
 
 ### G2：Manager
