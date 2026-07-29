@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `FREE`
-- Scope: `none`
-- Owner: `none`
-- Session/Task: `none`
+- Scope: `None`
+- Owner: `None`
+- Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-29T21:05:00+08:00`
-- Last Heartbeat: `2026-07-29T21:48:00+08:00`
-- Expires At: `none`
+- Started At: `None`
+- Last Heartbeat: `2026-07-29T22:40:00+08:00`
+- Expires At: `None`
 
 ## Lock Rules
 
@@ -26,9 +26,18 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- none
+- None.
 
 ## Handoff Notes
+
+- `2026-07-29`: Released GMH-20 current-baseline Memory interfaces scope.
+  Published the five-stage lifecycle, authority/trust boundaries, failure
+  semantics, governance proposal chain, compatibility matrix, and GMH-21..24
+  migration order. Focused Memory characterization, `git diff --check`,
+  `just fmt-check`, and `just check` passed. `just test` encountered a
+  load-sensitive Manager library failure; the immediate isolated 68-test
+  Manager rerun passed and the gap is recorded in `TODOLIST.md`. No runtime,
+  schema, storage, Manager/GUI API, or user-visible behavior changed.
 
 - `2026-07-29`: Released GMH-12 persistent approval ledger scope. Added the
   payload-free append-only SQLite ledger, replay-derived state, CAS,

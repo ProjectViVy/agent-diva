@@ -17,6 +17,22 @@ No active delivery plan is selected. Governance Gate G0, the governed Mentle pro
   invalid-session handshake so full-workspace load cannot reorder the observed
   heartbeat/resume frame. Related:
   `agent-diva-channels/tests/qq_reconnect_integration.rs`.
+- [ ] **Memory authority provider selection lacks focused characterization**
+  GMH-20 static inspection confirms `.laputa/` open failure selects
+  `DegradedMemoryProvider` instead of silently falling back to
+  `MemoryManager`, but `cargo test -p agent-diva-agent memory_boundary`
+  currently selects zero tests. Expected: add deterministic coverage for no
+  `.laputa/`, valid Laputa, and broken Laputa selection without changing the
+  frozen authority semantics. Related:
+  `agent-diva-agent/src/memory_boundary.rs` and
+  `docs/architecture/memory-framework-interfaces.md`.
+- [ ] **Manager library suite is load-sensitive under the workspace gate**
+  The GMH-20 documentation-only `just test` run failed while executing
+  `agent-diva-manager --lib`; the captured workspace output did not retain the
+  exact failing test, while the immediate isolated
+  `cargo test -p agent-diva-manager --lib` rerun passed all 68 tests.
+  Expected: identify and synchronize the load-sensitive Manager test so the
+  complete workspace gate is deterministic. Related: `agent-diva-manager`.
 
 ## G0 Verified Backlog Reconciliation
 
@@ -237,9 +253,9 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 - [ ] **Mask feature plan acceptance** Deferred while the Plan/TODO architecture is the sole active stream. The remaining acceptance items in `.sisyphus/plans/mask-feature-implementation.md` are preserved for later reactivation.
 
-- [ ] **Memory: publish a current-baseline interfaces spec after the `vrm-memory-test` audit** Deferred. The `origin/vrm-memory-test` branch does not contain an `agent-diva-memory` crate, but it does contain still-useful design intent around diary domain boundaries, future recall slots, and diary tool contracts. The current mainline preserves that intent only indirectly across legacy docs and evolved runtime code, so a fresh spec is needed to map those ideas onto today's `MemoryProvider` / `MemoryManager` / `memory_boundary` / Laputa-Mentle architecture without reviving a nonexistent crate.
+- [x] **Memory: publish a current-baseline interfaces spec after the `vrm-memory-test` audit** Completed by GMH-20. The current contract maps the useful diary/recall intent onto today's `MemoryProvider` / `MemoryManager` / `memory_boundary` / Laputa-Mentle architecture without reviving a nonexistent crate.
   - Related files: `agent-diva-core/src/memory/`, `agent-diva-agent/src/memory_boundary.rs`, `docs/dev/past/legacy-docs/dev/archive/memory-evolution/`, `docs/logs/2026-07-vrm-memory-audit/v0.0.1-vrm-memory-test-audit/summary.md`
-  - Suggested fix: write a dedicated `Memory Framework Interfaces Spec` on top of the current `agent-diva-pro` baseline, then split any real implementation work into separate stories such as diary-domain formalization or future-recall contracts.
+  - Specification: `docs/architecture/memory-framework-interfaces.md`; implementation remains split across GMH-21 through GMH-24.
 - [x] **GUI: migrate `lucide-vue-next` to `@lucide/vue`** Completed 2026-07-29. Replaced the deprecated package across GUI source and test mocks; all existing icon export names remain compatible with `@lucide/vue@1.27.0`, and the full Vitest suite plus production build passed.
   - Related files: `agent-diva-gui/src/**/*.vue`, `agent-diva-gui/src/**/*.ts`, `agent-diva-gui/package.json`, `agent-diva-gui/pnpm-lock.yaml`
 - [ ] **Wave 3 residual: enqueue_background_task production wiring needs end-to-end proof** Deferred. Production construction now injects a `RunStore` and focused assembly coverage passes, but no reviewed test proves a real enqueue reaches and completes through the production worker.
@@ -446,7 +462,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 ### Phase 2 — Memory Framework 2.0（第 4–6 周）
 
-- [ ] **GMH-20：发布当前基线 Memory Interfaces Spec（W4 D1–D2）**
+- [x] **GMH-20：发布当前基线 Memory Interfaces Spec（W4 D1–D2）**
   - 完成现有 backlog 中 `vrm-memory-test` 后续规格，将 `MemoryProvider` 生命周期拆清为 startup injection、prefetch/recall、turn sync、session end、proposal submission。
   - 规定 provider 读能力与 authority 写能力分离；Laputa applied sections 是长期权威，Mentle/索引只做检索层，不得反向覆盖权威。
 - [ ] **GMH-21：规范化 Memory 记录与 provenance（W4 D2–W5 D1）**
@@ -518,7 +534,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 ### 里程碑、依赖与并行建议
 
 - [x] **M0 / 第 1 周末：基线冻结** `GMH-01..03` 完成；没有 G0 不进入领域模型实现。
-- [ ] **M1 / 第 3 周末：治理内核可用** `GMH-10..12` 完成；Memory/HITL 只能依赖该契约，不能各建策略引擎。
+- [x] **M1 / 第 3 周末：治理内核可用** `GMH-10..12` 完成；Memory/HITL 只能依赖该契约，不能各建策略引擎。
 - [ ] **M2 / 第 6 周末：Memory v2 可影子运行** `GMH-20..24` 完成；旧权威仍可回退。
 - [ ] **M3 / 第 7 周末：HITL 闭环可用** `GMH-30..33` 完成；批准、拒绝、超时、重启均有 E2E。
 - [ ] **M4 / 第 8 周末：Agent Loop 接入** `GMH-40..42` 完成；所有生产副作用经过统一 seam。
