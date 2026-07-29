@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-29T19:00:00+08:00`
-- Last Heartbeat: `2026-07-29T19:23:00+08:00`
+- Started At: `2026-07-29T19:46:00+08:00`
+- Last Heartbeat: `2026-07-29T20:04:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Released GMH-10 Core governance contract scope. Added fail-closed generic approval envelopes and receipts, frozen legacy Plan/Sandbox JSON fixtures, architecture/threat-model documentation, and iteration evidence. Focused tests plus `just fmt-check`, `just check`, and `just test` passed. No push was performed.
 
 - `2026-07-29`: Fast-forwarded `agent-diva-pro` to the completed governance-priority batch at `255b420b`; the G0, Mentle, and GUI Lucide branches are fully contained. Root worktree now uses `agent-diva-pro`. No push or branch/worktree deletion was performed.
 

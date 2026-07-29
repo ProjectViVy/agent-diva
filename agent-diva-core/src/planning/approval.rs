@@ -54,3 +54,30 @@ pub struct ApprovalReceipt {
     pub todo_policy: TodoPolicy,
     pub todos_materialized: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn legacy_plan_approval_request_json_contract_is_unchanged() {
+        let request = ApprovalRequest {
+            expected_revision: 7,
+            approved_by: "user".into(),
+            todo_policy: TodoPolicy::Optional,
+            materialize_todos: true,
+        };
+
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            json!({
+                "expected_revision": 7,
+                "approved_by": "user",
+                "todo_policy": "Optional",
+                "materialize_todos": true
+            })
+        );
+    }
+}

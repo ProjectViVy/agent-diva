@@ -423,7 +423,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
 
 ### Phase 1 — 统一治理契约与决策引擎（第 2–3 周）
 
-- [ ] **GMH-10：核心治理领域模型（W2 D1–D3）**
+- [x] **GMH-10：核心治理领域模型（W2 D1–D3）**
   - 在 `agent-diva-core` 定义稳定的 `GovernanceSubject`、`Capability`、`ResourceScope`、`RiskClass`、`Decision`、`ApprovalRequest/Receipt`、`EvidenceRef`、`AuditCorrelation`。
   - 统一 Plan approval、Sandbox approval 与 Memory proposal 的公共信封，但保留各自领域 payload；禁止做“万能大枚举”耦合业务。
   - 所有请求包含 `request_id`、`turn_id/session_id`、actor、目标资源、内容摘要/哈希、策略版本和到期时间。

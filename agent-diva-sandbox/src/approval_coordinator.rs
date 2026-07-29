@@ -316,6 +316,7 @@ impl CommandApprovalCoordinator {
 mod tests {
     use super::*;
     use crate::command_rules::CommandRuleStore;
+    use serde_json::json;
 
     fn scope(chat: &str) -> CommandApprovalScope {
         CommandApprovalScope {
@@ -323,6 +324,39 @@ mod tests {
             chat_id: chat.into(),
             session_key: format!("api:{chat}"),
         }
+    }
+
+    #[test]
+    fn legacy_command_approval_request_json_contract_is_unchanged() {
+        let request = CommandApprovalRequest {
+            approval_id: "approval-1".into(),
+            command: "echo ok".into(),
+            cwd: PathBuf::from("."),
+            reason: "sandbox denied".into(),
+            scope: scope("one"),
+            created_at: DateTime::parse_from_rfc3339("2026-07-29T12:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            timeout_seconds: 300,
+            suggested_prefix: None,
+        };
+
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            json!({
+                "approval_id": "approval-1",
+                "command": "echo ok",
+                "cwd": ".",
+                "reason": "sandbox denied",
+                "scope": {
+                    "channel": "api",
+                    "chat_id": "one",
+                    "session_key": "api:one"
+                },
+                "created_at": "2026-07-29T12:00:00Z",
+                "timeout_seconds": 300
+            })
+        );
     }
 
     #[tokio::test]
