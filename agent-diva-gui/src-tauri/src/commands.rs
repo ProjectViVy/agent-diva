@@ -2431,6 +2431,13 @@ pub struct CommandApprovalRequestDto {
     pub scope: CommandApprovalScopeDto,
     pub created_at: String,
     pub timeout_seconds: u64,
+    pub suggested_prefix: Option<SafePrefixSuggestionDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafePrefixSuggestionDto {
+    pub pattern: Vec<String>,
+    pub justification: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2500,7 +2507,7 @@ pub async fn resolve_command_approval(
 ) -> Result<CommandApprovalResolutionDto, CommandApprovalApiError> {
     if !matches!(
         decision.as_str(),
-        "approve_once" | "approve_session" | "reject"
+        "approve_once" | "approve_session" | "approve_global" | "reject"
     ) {
         return Err(CommandApprovalApiError {
             status: 422,
@@ -2545,6 +2552,128 @@ pub async fn resolve_command_approval(
             status: 0,
             code: format!("invalid_response:{error}"),
         })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandRuleDto {
+    pub id: String,
+    pub pattern: Vec<String>,
+    pub decision: String,
+    pub enabled: bool,
+    pub source: String,
+    pub justification: String,
+    pub created_at: String,
+    pub revision: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct CommandRuleListResponse {
+    rules: Vec<CommandRuleDto>,
+}
+
+#[tauri::command]
+pub async fn get_command_rules(
+    state: State<'_, AgentState>,
+) -> Result<Vec<CommandRuleDto>, String> {
+    let response = state
+        .client
+        .get(format!("{}/command-rules", state.api_base_url()))
+        .send()
+        .await
+        .map_err(|error| format!("Failed to query command rules: {error}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Command rule query failed with HTTP {}",
+            response.status().as_u16()
+        ));
+    }
+    response
+        .json::<CommandRuleListResponse>()
+        .await
+        .map(|body| body.rules)
+        .map_err(|error| format!("Invalid command rule response: {error}"))
+}
+
+#[tauri::command]
+pub async fn set_command_rule_enabled(
+    state: State<'_, AgentState>,
+    rule_id: String,
+    revision: u64,
+    enabled: bool,
+) -> Result<CommandRuleDto, CommandApprovalApiError> {
+    let response = state
+        .client
+        .patch(format!(
+            "{}/command-rules/{}",
+            state.api_base_url(),
+            rule_id
+        ))
+        .json(&serde_json::json!({ "revision": revision, "enabled": enabled }))
+        .send()
+        .await
+        .map_err(command_rule_transport_error)?;
+    parse_command_rule_response(response).await
+}
+
+#[tauri::command]
+pub async fn delete_command_rule(
+    state: State<'_, AgentState>,
+    rule_id: String,
+    revision: u64,
+) -> Result<(), CommandApprovalApiError> {
+    let response = state
+        .client
+        .delete(format!(
+            "{}/command-rules/{}?revision={}",
+            state.api_base_url(),
+            rule_id,
+            revision
+        ))
+        .send()
+        .await
+        .map_err(command_rule_transport_error)?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(command_rule_api_error(response).await)
+    }
+}
+
+fn command_rule_transport_error(error: reqwest::Error) -> CommandApprovalApiError {
+    CommandApprovalApiError {
+        status: 0,
+        code: format!("transport_error:{error}"),
+    }
+}
+
+async fn parse_command_rule_response(
+    response: reqwest::Response,
+) -> Result<CommandRuleDto, CommandApprovalApiError> {
+    if !response.status().is_success() {
+        return Err(command_rule_api_error(response).await);
+    }
+    response
+        .json()
+        .await
+        .map_err(|error| CommandApprovalApiError {
+            status: 0,
+            code: format!("invalid_response:{error}"),
+        })
+}
+
+async fn command_rule_api_error(response: reqwest::Response) -> CommandApprovalApiError {
+    let status = response.status().as_u16();
+    let code = response
+        .json::<serde_json::Value>()
+        .await
+        .ok()
+        .and_then(|body| {
+            body.get("error")
+                .and_then(|value| value.as_str())
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| format!("http_{status}"));
+    CommandApprovalApiError { status, code }
 }
 
 #[tauri::command]

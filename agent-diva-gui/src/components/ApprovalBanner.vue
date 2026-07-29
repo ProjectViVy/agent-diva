@@ -49,6 +49,10 @@ onBeforeUnmount(() => {
     <div class="meta"><Folder :size="13" /><span>{{ request.cwd }}</span></div>
     <div class="reason">{{ request.reason }}</div>
     <div class="source">{{ t('approval.sourceSession', { session: request.scope.session_key }) }}</div>
+    <div v-if="request.suggested_prefix" class="global-suggestion">
+      <span>{{ t('approval.globalSuggestion') }}</span>
+      <code>{{ request.suggested_prefix.pattern.join(' ') }}</code>
+    </div>
     <div v-if="error" class="error" role="alert">{{ error }}</div>
     <div v-if="!active" class="inactive-action">
       <button @click="emit('locate', request.scope.session_key)">{{ t('approval.openSession') }}</button>
@@ -62,6 +66,14 @@ onBeforeUnmount(() => {
       </button>
       <button :disabled="submitting || expired" class="primary" @click="respond('approve_session')">
         <ShieldCheck :size="14" />{{ t('approval.approveSession') }}
+      </button>
+      <button
+        v-if="request.suggested_prefix"
+        :disabled="submitting || expired"
+        class="global"
+        @click="respond('approve_global')"
+      >
+        <ShieldCheck :size="14" />{{ t('approval.approveGlobal') }}
       </button>
     </div>
   </section>
@@ -82,8 +94,11 @@ header { justify-content: space-between; gap: 12px; }
 .actions { justify-content: flex-end; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-solid); color: var(--text); cursor: pointer; }
 button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+button.global { background: var(--success); border-color: var(--success); color: white; }
 button.reject:hover { color: var(--danger); border-color: var(--danger); }
 button:disabled { cursor: not-allowed; opacity: .55; }
 .inactive-action { margin-top: 10px; text-align: right; }
 .error { margin-top: 8px; color: var(--danger); font-size: .78rem; }
+.global-suggestion { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--text-muted); font-size: .75rem; flex-wrap: wrap; }
+.global-suggestion code { color: var(--text); background: var(--bg); border-radius: 4px; padding: 2px 6px; }
 </style>

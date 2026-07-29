@@ -498,6 +498,62 @@ mod tests {
         assert!(coordinator.pending(None).await.is_empty());
     }
 
+    #[tokio::test]
+    async fn global_rule_reuses_a_real_command_across_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let rules = Arc::new(
+            agent_diva_sandbox::CommandRuleStore::open(dir.path().join("execpolicy.toml")).unwrap(),
+        );
+        let coordinator = CommandApprovalCoordinator::new(std::time::Duration::from_secs(2))
+            .with_command_rules(rules.clone());
+        let mut config = SandboxConfig::danger_full_access();
+        config.mode = agent_diva_sandbox::SandboxMode::WorkspaceWrite;
+        config.approval_policy = agent_diva_sandbox::AskForApproval::OnRequest;
+        config.writable_roots = vec![std::env::current_dir().unwrap()];
+        let manager = Arc::new(SandboxManager::new(&config));
+        let orchestrator = Arc::new(ToolOrchestrator::new(
+            manager,
+            agent_diva_sandbox::AskForApproval::OnRequest,
+        ));
+        let first_tool =
+            ExecTool::new().with_orchestrator(orchestrator.clone(), Some(coordinator.clone()));
+        let first = tokio::spawn(async move {
+            first_tool
+                .execute(json!({
+                    "command": "git --version",
+                    "_context_channel": "api",
+                    "_context_chat_id": "first",
+                    "_context_session_key": "api:first"
+                }))
+                .await
+        });
+        tokio::task::yield_now().await;
+        let pending = coordinator.pending(None).await;
+        coordinator
+            .resolve(
+                &pending[0].approval_id,
+                agent_diva_sandbox::ApprovalDecision::ApproveGlobal,
+            )
+            .await
+            .unwrap();
+        assert!(first.await.unwrap().unwrap().contains("git version"));
+
+        let second_tool =
+            ExecTool::new().with_orchestrator(orchestrator, Some(coordinator.clone()));
+        let second = second_tool
+            .execute(json!({
+                "command": "git --version",
+                "_context_channel": "api",
+                "_context_chat_id": "second",
+                "_context_session_key": "api:second"
+            }))
+            .await
+            .unwrap();
+        assert!(second.contains("git version"));
+        assert!(coordinator.pending(None).await.is_empty());
+        assert_eq!(rules.list().len(), 1);
+    }
+
     #[test]
     fn test_guard_dangerous_patterns() {
         let tool = ExecTool::new();

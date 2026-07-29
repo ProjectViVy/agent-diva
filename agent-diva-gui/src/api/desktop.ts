@@ -607,7 +607,12 @@ export interface CommandApprovalScope {
   session_key: string;
 }
 
-export type ApprovalDecision = 'approve_once' | 'approve_session' | 'reject';
+export type ApprovalDecision = 'approve_once' | 'approve_session' | 'approve_global' | 'reject';
+
+export interface SafePrefixSuggestion {
+  pattern: string[];
+  justification: string;
+}
 
 export interface CommandApprovalRequest {
   approval_id: string;
@@ -617,12 +622,45 @@ export interface CommandApprovalRequest {
   scope: CommandApprovalScope;
   timeout_seconds: number;
   created_at: string;
+  suggested_prefix?: SafePrefixSuggestion;
 }
 
 export interface CommandApprovalResolution {
   approval_id: string;
   decision: ApprovalDecision;
   status: 'approved' | 'rejected' | 'expired' | 'cancelled';
+}
+
+export interface CommandRule {
+  id: string;
+  pattern: string[];
+  decision: string;
+  enabled: boolean;
+  source: 'legacy' | 'approval';
+  justification: string;
+  created_at: string;
+  revision: number;
+}
+
+export async function getCommandRules(): Promise<CommandRule[]> {
+  return invoke<CommandRule[]>('get_command_rules');
+}
+
+export async function setCommandRuleEnabled(
+  rule: Pick<CommandRule, 'id' | 'revision'>,
+  enabled: boolean,
+): Promise<CommandRule> {
+  return invoke<CommandRule>('set_command_rule_enabled', {
+    ruleId: rule.id,
+    revision: rule.revision,
+    enabled,
+  });
+}
+
+export async function deleteCommandRule(
+  rule: Pick<CommandRule, 'id' | 'revision'>,
+): Promise<void> {
+  return invoke('delete_command_rule', { ruleId: rule.id, revision: rule.revision });
 }
 
 // ============================================================

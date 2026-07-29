@@ -22,6 +22,10 @@ const request: CommandApprovalRequest = {
   },
   created_at: '2026-07-29T08:00:00.000Z',
   timeout_seconds: 300,
+  suggested_prefix: {
+    pattern: ['echo', 'harmless'],
+    justification: 'validated',
+  },
 };
 
 afterEach(() => {
@@ -29,7 +33,7 @@ afterEach(() => {
 });
 
 describe('ApprovalBanner', () => {
-  it('renders command context and emits all three explicit decisions', async () => {
+  it('renders command context and emits all explicit decisions', async () => {
     vi.setSystemTime(new Date('2026-07-29T08:01:00.000Z'));
     const wrapper = mount(ApprovalBanner, { props: { request, active: true } });
 
@@ -42,11 +46,20 @@ describe('ApprovalBanner', () => {
     await buttons[0].trigger('click');
     await buttons[1].trigger('click');
     await buttons[2].trigger('click');
+    await buttons[3].trigger('click');
     expect(wrapper.emitted('respond')).toEqual([
       [{ approval_id: request.approval_id, decision: 'reject' }],
       [{ approval_id: request.approval_id, decision: 'approve_once' }],
       [{ approval_id: request.approval_id, decision: 'approve_session' }],
+      [{ approval_id: request.approval_id, decision: 'approve_global' }],
     ]);
+  });
+
+  it('hides global approval when the backend provides no safe suggestion', () => {
+    const wrapper = mount(ApprovalBanner, {
+      props: { request: { ...request, suggested_prefix: undefined }, active: true },
+    });
+    expect(wrapper.find('button.global').exists()).toBe(false);
   });
 
   it('requires locating the source session before approval', async () => {

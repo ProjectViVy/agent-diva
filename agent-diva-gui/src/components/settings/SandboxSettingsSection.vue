@@ -3,7 +3,16 @@ import { ref, computed, onMounted } from 'vue';
 import { ShieldCheck, LoaderCircle, AlertTriangle, Plus, X } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { showAppToast } from '../../utils/appToast';
-import { getSandboxConfig, saveSandboxConfig, type SandboxConfig } from '../../api/desktop';
+import { appConfirm } from '../../utils/appDialog';
+import {
+  deleteCommandRule,
+  getCommandRules,
+  getSandboxConfig,
+  saveSandboxConfig,
+  setCommandRuleEnabled,
+  type CommandRule,
+  type SandboxConfig,
+} from '../../api/desktop';
 
 const { t } = useI18n();
 
@@ -35,6 +44,10 @@ const originalMode = ref('');
 
 const newWritableRoot = ref('');
 const newProtectedPath = ref('');
+const commandRules = ref<CommandRule[]>([]);
+const rulesLoading = ref(true);
+const rulesError = ref<string | null>(null);
+const updatingRuleIds = ref<string[]>([]);
 
 const isDirty = computed(() => JSON.stringify(config.value) !== originalSnapshot.value);
 const modeChanged = computed(() => config.value.mode !== originalMode.value);
@@ -112,7 +125,51 @@ const removeProtectedPath = (idx: number) => {
   config.value.protected_paths.splice(idx, 1);
 };
 
-onMounted(loadConfig);
+const loadCommandRules = async () => {
+  rulesLoading.value = true;
+  rulesError.value = null;
+  try {
+    commandRules.value = await getCommandRules();
+  } catch (error) {
+    rulesError.value = String(error);
+  } finally {
+    rulesLoading.value = false;
+  }
+};
+
+const setRuleEnabled = async (rule: CommandRule, enabled: boolean) => {
+  if (updatingRuleIds.value.includes(rule.id)) return;
+  updatingRuleIds.value = [...updatingRuleIds.value, rule.id];
+  try {
+    const updated = await setCommandRuleEnabled(rule, enabled);
+    commandRules.value = commandRules.value.map((item) => item.id === rule.id ? updated : item);
+  } catch {
+    showAppToast(t('sandbox.rulesUpdateFailed'), 'error');
+    await loadCommandRules();
+  } finally {
+    updatingRuleIds.value = updatingRuleIds.value.filter((id) => id !== rule.id);
+  }
+};
+
+const removeCommandRule = async (rule: CommandRule) => {
+  if (!(await appConfirm(t('sandbox.rulesDeleteConfirm')))) return;
+  if (updatingRuleIds.value.includes(rule.id)) return;
+  updatingRuleIds.value = [...updatingRuleIds.value, rule.id];
+  try {
+    await deleteCommandRule(rule);
+    commandRules.value = commandRules.value.filter((item) => item.id !== rule.id);
+  } catch {
+    showAppToast(t('sandbox.rulesDeleteFailed'), 'error');
+    await loadCommandRules();
+  } finally {
+    updatingRuleIds.value = updatingRuleIds.value.filter((id) => id !== rule.id);
+  }
+};
+
+onMounted(() => {
+  void loadConfig();
+  void loadCommandRules();
+});
 </script>
 
 <template>
@@ -257,6 +314,55 @@ onMounted(loadConfig);
         </div>
       </div>
 
+      <div class="settings-section space-y-3">
+        <div class="settings-section-header flex items-center justify-between">
+          <span>{{ t('sandbox.commandRules') }}</span>
+          <button type="button" class="settings-btn settings-btn-secondary" @click="loadCommandRules">
+            {{ t('sandbox.rulesRefresh') }}
+          </button>
+        </div>
+        <p class="text-xs settings-muted">{{ t('sandbox.commandRulesHint') }}</p>
+        <div v-if="rulesLoading" class="settings-muted text-sm">{{ t('sandbox.rulesLoading') }}</div>
+        <div v-else-if="rulesError" class="text-sm" :style="{ color: 'var(--danger)' }">
+          {{ t('sandbox.rulesLoadFailed') }}: {{ rulesError }}
+        </div>
+        <div v-else-if="commandRules.length === 0" class="settings-muted text-sm">
+          {{ t('sandbox.rulesEmpty') }}
+        </div>
+        <div v-else class="command-rule-list">
+          <div v-for="rule in commandRules" :key="rule.id" class="command-rule-row">
+            <div class="min-w-0">
+              <code>{{ rule.pattern.join(' ') }}</code>
+              <div class="text-xs settings-muted">
+                {{ t(`sandbox.ruleSource.${rule.source}`) }} · {{ new Date(rule.created_at).toLocaleString() }}
+              </div>
+              <div v-if="rule.justification" class="text-xs settings-muted">{{ rule.justification }}</div>
+            </div>
+            <div class="rule-actions">
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="rule.enabled"
+                :disabled="updatingRuleIds.includes(rule.id)"
+                class="sandbox-toggle"
+                :class="{ active: rule.enabled }"
+                @click="setRuleEnabled(rule, !rule.enabled)"
+              >
+                <span class="sandbox-toggle-thumb" />
+              </button>
+              <button
+                type="button"
+                class="sandbox-tag-remove"
+                :disabled="updatingRuleIds.includes(rule.id)"
+                @click="removeCommandRule(rule)"
+              >
+                <X :size="14" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Protected Paths -->
       <div class="settings-section space-y-3">
         <div class="settings-section-header">
@@ -342,6 +448,11 @@ onMounted(loadConfig);
   background: var(--line);
   flex-shrink: 0;
 }
+
+.command-rule-list { display: grid; gap: 8px; }
+.command-rule-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.command-rule-row code { color: var(--text); overflow-wrap: anywhere; }
+.rule-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
 .sandbox-toggle.active {
   background: var(--accent);
