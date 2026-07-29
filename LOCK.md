@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-29T13:08:17+08:00`
-- Last Heartbeat: `2026-07-29T13:27:00+08:00`
+- Started At: `2026-07-29T13:31:00+08:00`
+- Last Heartbeat: `2026-07-29T14:13:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Released supervised executor terminal-state stabilization (`0d8bf1be`). SQLite claims now commit before executor observation, first heartbeat writes are delayed, terminal persistence errors propagate, and external terminal-state tests synchronize on `Running`. `just fmt-check`, `just check`, and the complete `just test` gate passed; no push was performed.
 
 - `2026-07-29`: Released embedded gateway lifecycle stabilization (`3bc9ea45`) and reconciled stale test-health backlog evidence. GUI lifecycle tests, all 420 Vitest tests, and the production build passed; `just fmt-check` and `just check` passed. Two `cargo test --all` runs reproduced load-sensitive supervised-executor terminal-state races, retained as one current TODO. No push was performed.
 

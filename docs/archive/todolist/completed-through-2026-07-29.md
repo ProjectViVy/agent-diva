@@ -53,7 +53,8 @@
 
 - [x] **Embedded gateway 生命周期稳定化** 服务等待明确关闭信号后才进入 Manager shutdown，并对 Tokio runtime 回收设置上限；health、启动中关闭、Drop 和幂等状态测试通过。Commit：`3bc9ea45`。
 - [x] **GUI 旧回归项复核** `evolution.test.ts` 与 `NormalMode.test.ts` 共 8 项通过；当前 locale 无重复顶层 `mode`，`/miku.svg` 也不再作为模块导入。
-- [x] **Core supervised executor 旧竞态项复核** external-cancel 聚焦测试通过且保持调用方取消原因；no-handler 和 lost-run 在 full-workspace 负载下仍可间歇复现，已合并回主清单为一个当前基线 TODO。
+- [x] **Core supervised executor 终态竞态关闭** SQLite claim 在执行器观察前显式提交，首次 heartbeat 延迟到正常周期，终态持久化失败不再被吞掉，外部 cancel/lost 测试等待可观察的 `Running` 状态。`just fmt-check`、`just check` 和完整 `just test` 均通过。
+  - 证据：`docs/logs/2026-07-supervised-executor-race/v0.0.1-supervised-run-finalization/`
 - [x] **Agent compaction harness 复核** `compaction_real_test` 已使用当前 `ContextCompactor::compact` API，`cargo test -p agent-diva-agent --test compaction_real_test --no-run` 通过。
 - [x] **Workspace rustfmt 复核** `cargo fmt --all -- --check` 通过，旧 `agent-diva-e2e` drift 不再存在。
 - [x] **Plan/TODO P1–P3 旧评审基线归档** 旧 tool-oriented review packet 已被 revision-bound report/store/runtime closure 取代；主清单保留原文作为审计证据，但不再把其中复选框解释为当前 backlog。
