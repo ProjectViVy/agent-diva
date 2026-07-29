@@ -1,3 +1,5 @@
+#[cfg(test)]
+use super::turn::iteration::{contains_internal_protocol, InternalProtocolGuard};
 use super::turn::{
     admission::TurnAdmission,
     context::PreparedTurnContext,
@@ -31,16 +33,13 @@ use agent_diva_core::soul::SoulStateStore;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
 use agent_diva_providers::{
-    supports_vision_model, ImageUrl, LLMResponse, LLMStreamEvent, Message, MessageContent,
-    MessageContentPart, ProviderError,
+    supports_vision_model, ImageUrl, Message, MessageContent, MessageContentPart, ProviderError,
 };
 use agent_diva_tools::BackgroundTaskContext;
 use anyhow;
 use base64::Engine;
-use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
@@ -902,7 +901,7 @@ impl AgentLoop {
             // Call LLM with reactive context-overflow safety net.
             // On context_length_exceeded, perform emergency compaction and retry once.
             let mut reactive_retry_attempted = false;
-            let mut stream = loop {
+            let stream = loop {
                 self.enforce_session_token_budget(&session_key)?;
                 let tool_defs_for_call = if !tool_defs.is_empty() {
                     Some(tool_defs.clone())
@@ -1024,112 +1023,14 @@ impl AgentLoop {
                     }
                 }
             };
-            let mut streamed_content = String::new();
-            let mut streamed_reasoning = String::new();
-            let mut output_guard = InternalProtocolGuard::default();
-            let mut response: Option<LLMResponse> = None;
-            loop {
-                self.drain_runtime_control_commands().await;
-                if self.is_session_cancelled(&session_key) {
-                    self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
-                    return Ok(None);
-                }
-
-                let stream_event =
-                    match tokio::time::timeout(Duration::from_millis(250), stream.next()).await {
-                        Ok(Some(event)) => event,
-                        Ok(None) => break,
-                        Err(_) => continue,
-                    };
-
-                match stream_event? {
-                    LLMStreamEvent::TextDelta(delta) => {
-                        streamed_content.push_str(&delta);
-                        if let Some(safe_delta) = output_guard.push(delta) {
-                            let event = AgentEvent::AssistantDelta { text: safe_delta };
-                            if let Some(tx) = event_tx {
-                                let _ = tx.send(event.clone());
-                            }
-                            let _ = self.bus.publish_event(
-                                msg.channel.clone(),
-                                msg.chat_id.clone(),
-                                event,
-                            );
-                        }
-                    }
-                    LLMStreamEvent::ReasoningDelta(delta) => {
-                        debug!("Stream ReasoningDelta: {:?}", delta);
-                        streamed_reasoning.push_str(&delta);
-                        let event = AgentEvent::ReasoningDelta { text: delta };
-                        if let Some(tx) = event_tx {
-                            let _ = tx.send(event.clone());
-                        }
-                        let _ =
-                            self.bus
-                                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-                    }
-                    LLMStreamEvent::ToolCallDelta {
-                        name,
-                        arguments_delta,
-                        ..
-                    } => {
-                        if let Some(delta) = arguments_delta {
-                            let event = AgentEvent::ToolCallDelta {
-                                name,
-                                args_delta: delta,
-                            };
-                            if let Some(tx) = event_tx {
-                                let _ = tx.send(event.clone());
-                            }
-                            let _ = self.bus.publish_event(
-                                msg.channel.clone(),
-                                msg.chat_id.clone(),
-                                event,
-                            );
-                        }
-                    }
-                    LLMStreamEvent::Completed(done) => {
-                        response = Some(done);
-                        break;
-                    }
-                }
-            }
-            let response = response.unwrap_or_else(|| LLMResponse {
-                content: if streamed_content.is_empty() {
-                    None
-                } else {
-                    Some(streamed_content)
-                },
-                tool_calls: Vec::new(),
-                finish_reason: "stop".to_string(),
-                usage: std::collections::HashMap::new(),
-                reasoning_content: if streamed_reasoning.is_empty() {
-                    None
-                } else {
-                    Some(streamed_reasoning)
-                },
-            });
-
-            let protocol_leak_detected = output_guard.detected()
-                || response
-                    .content
-                    .as_deref()
-                    .is_some_and(contains_internal_protocol);
-
-            // `push` retains a short suffix to detect protocol markers split
-            // across provider chunks. Once the response is known to be safe,
-            // publish that suffix so the streamed UI receives the full reply.
-            if !protocol_leak_detected {
-                if let Some(safe_tail) = output_guard.finish() {
-                    let event = AgentEvent::AssistantDelta { text: safe_tail };
-                    if let Some(tx) = event_tx {
-                        let _ = tx.send(event.clone());
-                    }
-                    let _ = self
-                        .bus
-                        .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
-                }
-            }
+            let Some(model_step) = self
+                .collect_model_stream(stream, &session_key, &msg, event_tx)
+                .await?
+            else {
+                return Ok(None);
+            };
+            let response = model_step.response;
+            let protocol_leak_detected = model_step.protocol_leak_detected;
 
             // Emit TokenUsed if usage data is available
             if let Some(tokens) = response.usage.get("total_tokens") {
@@ -1877,68 +1778,6 @@ struct ToolRunSummary {
 }
 
 const SUMMARY_ONLY_NUDGE: &str = "You already executed tools in this turn. Based on the tool results above, write a concise final reply for the user in their language. Do not call any tools.";
-
-const INTERNAL_PROTOCOL_MARKERS: &[&str] = &[
-    "<｜DSML｜tool_calls>",
-    "<｜DSML｜invoke",
-    "<｜DSML｜parameter",
-    "<｜｜DSML｜｜tool_calls>",
-    "<｜｜DSML｜｜invoke",
-    "<｜｜DSML｜｜parameter",
-    "<tool_calls>",
-    "<function_calls>",
-];
-
-/// Prevent internal tool protocols from reaching either streaming or final UI output.
-/// A short suffix is withheld so a marker split over stream chunks cannot leak.
-#[derive(Default)]
-struct InternalProtocolGuard {
-    pending: String,
-    detected: bool,
-}
-
-impl InternalProtocolGuard {
-    fn push(&mut self, delta: String) -> Option<String> {
-        if self.detected {
-            return None;
-        }
-        self.pending.push_str(&delta);
-        if contains_internal_protocol(&self.pending) {
-            self.detected = true;
-            self.pending.clear();
-            return None;
-        }
-
-        const RETAINED_CHARS: usize = 32;
-        let chars: Vec<char> = self.pending.chars().collect();
-        if chars.len() <= RETAINED_CHARS {
-            return None;
-        }
-        let split_at = chars.len() - RETAINED_CHARS;
-        let safe: String = chars[..split_at].iter().collect();
-        self.pending = chars[split_at..].iter().collect();
-        Some(safe)
-    }
-
-    fn detected(&self) -> bool {
-        self.detected
-    }
-
-    /// Returns the withheld safe suffix after the provider stream ends.
-    fn finish(&mut self) -> Option<String> {
-        if self.detected || self.pending.is_empty() {
-            return None;
-        }
-        Some(std::mem::take(&mut self.pending))
-    }
-}
-
-fn contains_internal_protocol(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    INTERNAL_PROTOCOL_MARKERS
-        .iter()
-        .any(|marker| lower.contains(&marker.to_ascii_lowercase()))
-}
 
 fn synthesize_iteration_limit_summary(
     summaries: &[ToolRunSummary],
