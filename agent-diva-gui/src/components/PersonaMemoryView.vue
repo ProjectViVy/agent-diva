@@ -12,6 +12,9 @@ import { showAppToast } from '../utils/appToast';
 import { appConfirm } from '../utils/appDialog';
 
 const { t } = useI18n();
+const emit = defineEmits<{
+  (event: 'proposal-created', proposalId: string): void;
+}>();
 
 interface LaputaSnapshot {
   sections: Record<string, {
@@ -32,6 +35,7 @@ const sectionContent = ref<LaputaSection | null>(null);
 const draftContent = ref('');
 const originalContent = ref('');
 const isDirty = ref(false);
+const editorRevision = ref(0);
 
 const displayName = computed(() => t('laputa.sections.' + selectedSection.value));
 
@@ -148,10 +152,15 @@ async function onRefresh(): Promise<void> {
   }
 }
 
-async function onSaved(_name: LaputaSectionName): Promise<void> {
+async function onProposalCreated(
+  _name: LaputaSectionName,
+  result: import('../api/desktop').WriteLaputaSectionResult,
+): Promise<void> {
   await loadSection(selectedSection.value);
   await loadSnapshot();
-  showAppToast(t('laputa.saved'), 'success');
+  editorRevision.value += 1;
+  emit('proposal-created', result.proposal_id);
+  showAppToast(t('laputa.proposalCreated'), 'success');
 }
 
 function onSaveFailed(_name: LaputaSectionName, message: string): void {
@@ -301,13 +310,14 @@ onMounted(() => {
 
             <template v-else>
               <SectionEditor
+                :key="`${selectedSection}-${editorRevision}`"
                 v-model="draftContent"
                 :section-name="selectedSection"
                 :display-name="displayName"
                 :initial-content="originalContent"
                 :status="selectedSectionStatus"
                 :last-updated="selectedSectionLastUpdated"
-                @saved="onSaved"
+                @proposal-created="onProposalCreated"
                 @save-failed="onSaveFailed"
                 @update:dirty="onDirtyUpdate"
               />

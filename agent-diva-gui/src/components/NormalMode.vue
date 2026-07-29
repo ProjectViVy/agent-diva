@@ -1069,7 +1069,7 @@ defineExpose({
         </div>
         <!-- Persona & Memory 视图 -->
         <div v-else-if="activeMenu === 'persona-memory'" class="h-full">
-          <PersonaMemoryView />
+          <PersonaMemoryView @proposal-created="refreshEvolutionBadge" />
         </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">

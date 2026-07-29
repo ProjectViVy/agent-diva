@@ -8,7 +8,7 @@ import 'highlight.js/styles/github-dark.css';
 import { writeLaputaSection } from '../../api/desktop';
 import { appConfirm } from '../../utils/appDialog';
 import HistoryModal from './HistoryModal.vue';
-import type { LaputaSectionName } from '../../api/desktop';
+import type { LaputaSectionName, WriteLaputaSectionResult } from '../../api/desktop';
 
 const { t } = useI18n();
 
@@ -31,7 +31,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
   (e: 'update:dirty', isDirty: boolean): void;
-  (e: 'saved', sectionName: LaputaSectionName): void;
+  (e: 'proposal-created', sectionName: LaputaSectionName, result: WriteLaputaSectionResult): void;
   (e: 'save-failed', sectionName: LaputaSectionName, message: string): void;
 }>();
 
@@ -79,6 +79,7 @@ watch(
   () => props.initialContent,
   (next) => {
     originalContent.value = next ?? '';
+    draftContent.value = next ?? '';
     saveError.value = null;
   },
 );
@@ -129,9 +130,10 @@ async function handleSave(): Promise<void> {
   saving.value = true;
   saveError.value = null;
   try {
-    await writeLaputaSection(props.sectionName, draftContent.value);
-    originalContent.value = draftContent.value;
-    emit('saved', props.sectionName);
+    const result = await writeLaputaSection(props.sectionName, draftContent.value);
+    draftContent.value = originalContent.value;
+    emit('update:modelValue', originalContent.value);
+    emit('proposal-created', props.sectionName, result);
   } catch (err: unknown) {
     const message = formatError(err);
     saveError.value = message;
@@ -193,7 +195,7 @@ function onKeyDown(event: KeyboardEvent): void {
             @click="handleSave"
           >
             <Loader2 v-if="saving" :size="14" class="spin" />
-            <span>{{ saving ? t('laputa.saving') : t('laputa.save') }}</span>
+            <span>{{ saving ? t('laputa.submitting') : t('laputa.submitProposal') }}</span>
           </button>
         </slot>
       </div>

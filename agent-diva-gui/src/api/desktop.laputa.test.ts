@@ -23,6 +23,12 @@ describe('getLaputaSnapshot', () => {
 
 describe('writeLaputaSection', () => {
   it('calls laputa_write_section with name, content and null summary', async () => {
+    invoke.mockResolvedValue({
+      proposal_id: 'proposal-1',
+      proposal_type: 'identity_patch',
+      risk_level: 'high',
+      state: 'pending_review',
+    });
     await writeLaputaSection('identity', '# Identity\n\nHello', undefined);
     expect(invoke).toHaveBeenCalledWith('laputa_write_section', {
       name: 'identity',
@@ -32,6 +38,12 @@ describe('writeLaputaSection', () => {
   });
 
   it('forwards the optional summary', async () => {
+    invoke.mockResolvedValue({
+      proposal_id: 'proposal-2',
+      proposal_type: 'memory_patch',
+      risk_level: 'medium',
+      state: 'pending_review',
+    });
     await writeLaputaSection('memory_md', '{"note":"x"}', 'Quick edit');
     expect(invoke).toHaveBeenCalledWith('laputa_write_section', {
       name: 'memory_md',

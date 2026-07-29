@@ -80,8 +80,15 @@ describe('PersonaMemoryView', () => {
     (desktop.getLaputaSnapshot as ReturnType<typeof vi.fn>).mockResolvedValue(makeSnapshot());
   });
 
-  it('reloads section, snapshot, and shows success toast after a successful save', async () => {
-    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue({ changelog_id: '1' });
+  it('reloads authority and emits badge refresh after creating a pending proposal', async () => {
+    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue({
+      proposal_id: 'proposal-1',
+      proposal_type: 'identity_patch',
+      risk_level: 'high',
+      state: 'pending_review',
+      changelog_id: null,
+      applied_at: null,
+    });
 
     const wrapper = factory();
     await flushPromises();
@@ -96,7 +103,9 @@ describe('PersonaMemoryView', () => {
     expect(desktop.writeLaputaSection).toHaveBeenCalledWith('identity', 'updated content');
     expect(desktop.getLaputaSection).toHaveBeenCalledWith('identity');
     expect(desktop.getLaputaSnapshot).toHaveBeenCalled();
-    expect(appToast.showAppToast).toHaveBeenCalledWith(en.laputa.saved, 'success');
+    expect(appToast.showAppToast).toHaveBeenCalledWith(en.laputa.proposalCreated, 'success');
+    expect(wrapper.emitted('proposal-created')).toEqual([['proposal-1']]);
+    expect(wrapper.find('textarea').element.value).toBe('identity content');
 
     const saveButton = wrapper.find('.section-editor-save-btn');
     expect(saveButton.attributes('disabled')).toBeDefined();

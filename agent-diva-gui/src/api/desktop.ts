@@ -253,6 +253,10 @@ export type ProposalType =
   | 'identity_patch'
   | 'relationship_update'
   | 'commitment_set'
+  | 'history_patch'
+  | 'daily_patch'
+  | 'weekly_patch'
+  | 'monthly_patch'
   | 'sop_create'
   | 'deprecation';
 
@@ -467,8 +471,12 @@ export const applyLaputaProposal = (id: string, payload: ApplyProposalPayload = 
   invoke<ProposalApplyResult>("laputa_apply_proposal", { id, payload });
 
 export interface WriteLaputaSectionResult {
-  changelog_id: string;
-  applied_at: string;
+  proposal_id: string;
+  proposal_type: ProposalType;
+  risk_level: RiskLevel;
+  state: ProposalState;
+  changelog_id?: string | null;
+  applied_at?: string | null;
   status?: string;
 }
 

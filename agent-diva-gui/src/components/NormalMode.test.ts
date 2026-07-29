@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import NormalMode from './NormalMode.vue';
+import { listLaputaProposals } from '../api/desktop';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -83,6 +84,14 @@ vi.mock('./EvolutionView.vue', () => ({
         tooltip: '3 pending reviews',
       });
     },
+  },
+}));
+
+vi.mock('./PersonaMemoryView.vue', () => ({
+  default: {
+    name: 'PersonaMemoryView',
+    template: '<button class="persona-proposal-stub" @click="$emit(\'proposal-created\', \'proposal-4\')" />',
+    emits: ['proposal-created'],
   },
 }));
 
@@ -227,6 +236,18 @@ describe('NormalMode pet focus layout', () => {
 
     expect(wrapper.findComponent({ name: 'EvolutionView' }).exists()).toBe(true);
     expect(wrapper.find('.evolution-nav-badge').text()).toBe('3');
+  });
+
+  it('refreshes the Evolution badge after Persona Memory creates a proposal', async () => {
+    const wrapper = mountNormalMode();
+    await flushPromises();
+    const callsAfterMount = vi.mocked(listLaputaProposals).mock.calls.length;
+
+    await clickNav(wrapper, 'nav.personaMemory');
+    await wrapper.find('.persona-proposal-stub').trigger('click');
+    await flushPromises();
+
+    expect(listLaputaProposals).toHaveBeenCalledTimes(callsAfterMount + 1);
   });
 
   it('includes Evolution in the pet overlay navigation', async () => {
