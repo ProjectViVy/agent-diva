@@ -4,10 +4,7 @@
 
 ## Active Plan
 
-- [ ] **Sandbox persistent safe-prefix rules and management UI (Phase 3)** The backend coordinator and GUI approval workflow are complete. The remaining phase may persist only validated, non-banned parsed command prefixes globally and must provide review/removal controls.
-  - Expected behavior: Plan mode remains strictly read-only; persisted rules never broaden protected-path or forbidden-command policy; operators can inspect provenance, disable, and remove every rule.
-  - Related: `agent-diva-sandbox/src/exec_policy.rs`, `agent-diva-gui/src/components/settings/SandboxSettings.vue`
-  - Prior evidence: `docs/logs/2026-07-sandbox-command-approval/v0.0.1-command-approval-backend/`, `docs/logs/2026-07-sandbox-command-approval/v0.0.2-command-approval-gui/`
+No active delivery plan is selected. Sandbox command approval Phases 1-3 are complete; backend, GUI approval, and persistent validated command-rule evidence are recorded under `docs/logs/2026-07-sandbox-command-approval/`.
 
 ## Superseded Review Evidence
 
