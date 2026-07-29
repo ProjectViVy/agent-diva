@@ -493,8 +493,11 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - [x] 阶段 1：Laputa-backed `sync_turn` 将会话 consolidation 产物写为
     `memory_patch` / `history_patch` 待审提案；不直接修改已应用 authority，
     legacy Markdown provider 行为保持不变。
-  - [ ] 阶段 2：收口 GUI 直接编辑与导入入口，统一 proposal 分类、风险和
-    evidence 契约。
+  - [x] 阶段 2：Persona/Memory GUI 编辑经原 Manager/Tauri 路由创建
+    `pending_review` 提案，统一 proposal 分类、风险和 UserInput evidence；
+    authority/changelog 保持不变。Migration 写路径按 GMH-24 Gate 延后切换。
+    真实桌面提交/徽标/提案箱 smoke 仍需人工执行，步骤与诊断要求见
+    `docs/logs/2026-07-gmh-23/v0.0.2-gui-edit-proposals/acceptance.md`。
   - [ ] 阶段 3：接入低风险可配置自动应用与高风险 HITL，并验证
     edit-and-approve、冲突、撤销/补偿和遗忘请求。
 - [ ] **GMH-24：Memory 迁移与回归 Gate（W6 D3–D5）**
