@@ -533,7 +533,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - [ ] 阶段 3：**暂停**。仅在 GMH-23A..23C 完成后恢复；接入低风险
     可配置自动应用与高风险 HITL，并验证 edit-and-approve、冲突、
     撤销/补偿和遗忘请求。不得继续绑定 legacy Markdown 或 Mentle。
-- [ ] **GMH-23A：冻结 Embedded Laputa / Mentle clean-break 合同（立即前置）**
+- [x] **GMH-23A：冻结 Embedded Laputa / Mentle clean-break 合同（立即前置）**
   - 将 `docs/architecture/laputa-memory-final-architecture.md` 纳入当前
     `agent-diva-pro` 的权威架构：Embedded Laputa 是唯一 Diva-local
     Memory store/retrieval；Garden/远程 MemoryOS 不在本轮范围。

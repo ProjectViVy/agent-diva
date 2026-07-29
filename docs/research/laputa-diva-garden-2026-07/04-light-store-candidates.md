@@ -4,6 +4,12 @@
 > 权威决策：[`laputa-memory-final-architecture.md`](../../architecture/laputa-memory-final-architecture.md)
 > 日期：2026-07-24
 
+> **GMH-23A 主线校准（2026-07-30）：** 本报告最初来自
+> `refactor/deep-governance`，其中 `agent-diva-state`、`agent-diva-local`
+> 与 `rusqlite` 路径不属于当前 `agent-diva-pro`。当前实现必须在
+> `agent-diva-laputa` 内复用 workspace `sqlx`，数据库固定为
+> `<workspace>/.laputa/memory.sqlite3`。下文相关旧路径只保留为研究来源。
+
 ## 1. 当前事实（Diva clean-break 基线）
 
 | 事实 | 源码位置 |
@@ -152,9 +158,9 @@ profiles/<id>/laputa/
 | Gateway 绕过 | 所有 mutate 经 Laputa command → Gateway tool adapter，不暴露 raw SQL 给 UI |
 | Schema 漂移 | `schema_version` + fail-closed open（对齐 `agent-diva-state`） |
 
-## 6. 推荐结论（**非最终裁定**，供 synthesis 裁决）
+## 6. 推荐结论（GMH-23A 已裁定）
 
-**推荐路径：候选 A 为主，候选 B 的评分层为叠加（A+B hybrid）**
+**裁定路径：候选 A（SQLite + FTS5）用于 GMH-23B；候选 B 的重排思想延后到 GMH-23C。**
 
 理由：
 
@@ -195,10 +201,10 @@ profiles/<id>/laputa/
 
 ## 9. 开放假设
 
-- [ ] Windows release 构建下 `CREATE VIRTUAL TABLE … USING fts5` 实测通过
-- [ ] `laputa.sqlite3` 与现有 registry blob **共存迁移** 的一次性 upgrade 脚本行为
-- [ ] 单 profile Laputa 记录量级上限（建议初始 **≤10k records / ≤32MiB**）需 stakeholder 确认
-- [ ] 是否与 session/context DB **物理合并** 为单文件 — 运维 vs 隔离 tradeoff 未决
+- [ ] Windows 构建下 `CREATE VIRTUAL TABLE … USING fts5` 由 GMH-23B 实测
+- [x] 现有 file-first state 不在线迁移、不双写；GMH-24 才允许显式离线导入
+- [x] 初始容量冻结为 **≤10k records / ≤32MiB content**
+- [x] 使用独立 `.laputa/memory.sqlite3`，不与 session/context DB 合并
 - [ ] Garden 下行 replication 是否写入同一 DB 或独立 `sync_inbox` 命名空间
 
 ## 10. 研究问题 Q8 回答

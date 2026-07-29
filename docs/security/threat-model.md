@@ -59,6 +59,14 @@ is not an allowed provider, fallback, migration reader, or optional backend.
 | FTS results self-promote into authority | Retrieval remains transient; only applied records may enter authority projections |
 | Cross-profile leakage | Profile/workspace partition keys are mandatory in storage, retrieval and API contracts |
 | Long-lived dual write produces two truths | Shadow read only; bounded read/write cutover flags with mandatory removal dates |
+| A row representation diverges from the core contract | Canonical `MemoryRecord` JSON is validated on write and read; indexed columns are projections only |
+| Concurrent writers lose updates | Store and record expected revisions are checked in the same immediate transaction |
+| A tombstone leaks deleted content into search | Tombstones require empty content and are removed from FTS in the committing transaction |
+| A database is copied into another workspace | Stored workspace identity and every record scope must match the opener-selected workspace |
+| Corruption is “repaired” by overwriting evidence | Open and integrity checks fail closed; backup/restore is explicit and never replaces the source on validation failure |
 
 GMH-23 stage 3 and the previous GMH-24 plan are paused until the storage and
 retrieval prerequisites GMH-23A through GMH-23C pass.
+
+GMH-23B may expose a Rust storage API only. It must not register a model tool,
+route, GUI command, production provider, or fallback.

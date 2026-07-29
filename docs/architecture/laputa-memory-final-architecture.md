@@ -9,7 +9,51 @@
 - Status: **Accepted**
 - Date: 2026-07-24
 - Decision scope: Laputa-Garden, Laputa-Diva, embedded long-term memory, synchronization, Mentle clean break
-- Implementation status: **Research required; not yet implemented**
+- Implementation status: **GMH-23A contract frozen; GMH-23B implementation pending**
+
+## GMH-23A frozen implementation contract
+
+The following choices are final for the current `agent-diva-pro` implementation:
+
+- The canonical local database is `<workspace>/.laputa/memory.sqlite3`.
+  Workspace placement is the physical profile boundary; every record also
+  carries mandatory tenant/workspace and optional session scope.
+- `agent_diva_core::memory::MemoryRecord` is the only canonical typed record.
+  SQLite columns are indexes over that contract, never a competing domain model.
+- The store uses the workspace `sqlx` SQLite runtime, schema versioning, WAL,
+  transactions, expected-revision CAS, and tombstones. It must not silently
+  overwrite or physically delete authority records.
+- FTS5 with `unicode61` and BM25 produces bounded candidates only. Retrieval
+  cannot grant trust or authority and is not connected to Recall v2 until
+  GMH-23C.
+- Existing file-first proposals, sections, changelog, audit, rollback, and
+  Manager/Tauri APIs remain unchanged during GMH-23B. There is no dual write or
+  production cutover.
+- Legacy Markdown and Laputa JSON are eligible only for a separately invoked,
+  reversible offline import at GMH-24. Old Mentle databases are never read.
+- Garden, synchronization, persona capsule, GUI product work, and remote
+  MemoryOS protocols are outside GMH-23A/23B.
+
+### Data ownership and flow
+
+```text
+evidence / user edit
+        |
+        v
+file-first pending proposal ----X----> typed authority
+        |                    no GMH-23B apply path
+        v
+future governed apply (GMH-23D)
+        |
+        v
+MemoryRecord transaction -> .laputa/memory.sqlite3 -> FTS candidate index
+                                                        |
+                                                        v
+                                           Recall v2 adapter (GMH-23C)
+```
+
+Only a future governed apply path may mutate typed authority. FTS, AgentLoop,
+Manager, Tauri, GUI, AutoDream, and imported evidence are not owners.
 
 ## Decision
 
@@ -90,7 +134,11 @@ The implementation must be rewritten under Diva's clean-break constraints:
 
 The canonical online store must not be a loose Markdown directory. A human-readable Memory Pack may be designed as an explicit import/export projection, not a second live authority.
 
-The concrete database, schema, FTS strategy, scoring, compression algorithm, and crate boundary are intentionally **not decided by this ADR**. Dedicated research must evaluate them before implementation. SQLite/FTS5 is a leading candidate because it matches the existing Rust 1.80 and profile-local runtime, but it is not accepted here without evidence.
+GMH-23A closes the local-store questions left open by the original ADR:
+SQLite/FTS5 is owned by `agent-diva-laputa`, uses the workspace `sqlx` runtime,
+and stores canonical core records. Recall scoring beyond FTS5/BM25,
+compression, and Garden synchronization remain intentionally undecided and
+out of scope.
 
 ## Core personality replica
 

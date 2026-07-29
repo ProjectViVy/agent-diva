@@ -3,13 +3,20 @@
 > **RG-RSCH-08a / RG-E8-S4a** · 对应研究问题 **Q26、Q27**
 > 权威决策：[`laputa-memory-final-architecture.md`](../../architecture/laputa-memory-final-architecture.md) §Mentle clean break
 > 历史 MSRV 证据：[`docs/logs/2026-07-e8-mentle/v0.6.0-dependency-gate/summary.md`](../../logs/2026-07-e8-mentle/v0.6.0-dependency-gate/summary.md)
-> 日期：2026-07-24
+> 日期：2026-07-24；GMH-23A 主线复核：2026-07-30
 
 ---
 
 ## 1. 执行摘要
 
-**Rust runtime（workspace crates）已无 `memtle` 依赖、无 `mentle` feature、无 Mentle DB reader。** clean-break 在 **编译与执行路径** 上已 Mentle-free。
+> **主线纠正：** “Rust runtime 已无 Mentle”只描述原
+> `refactor/deep-governance` 快照。当前 `agent-diva-pro` 仍含发布的
+> `memtle = 0.1.2`、`mentle` feature/runtime、工具、GUI 和 CI lane。
+> GMH-24 前不得声称 clean-break 已完成。
+
+当前主线的删除范围包括 Cargo dependency/lockfile、feature、Core/Agent
+adapter、tool、Manager/Tauri route/DTO、GUI setting、测试、`just mentle-*`
+以及 LLVM/`clang-cl` 活跃说明。GMH-23B 不删除这些内容，只禁止新增依赖。
 
 **产品与技术债仍集中在 GUI 与文档**：设置卡片、config shape、Tauri legacy command、`list_mentle_tools` binding、以及 **242 个文件** 的历史 Mentle 引用（多为 `docs/dev/archive*` 与 pro 迭代日志）。`C:\Users\Administrator\Desktop\morediva\memtle` 为 **独立 sibling 仓库**（crates.io `memtle 0.1.2`，MSRV 1.88），与 deep-governance **无 Cargo 耦合**，但 Garden 仍内嵌 Mentle 作为 MemoryOS 后端（见 `03-garden-contract-audit.md`）— 属 Garden 边界，**非** Diva runtime 接回。
 

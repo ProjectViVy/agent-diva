@@ -75,6 +75,18 @@ Workspace selection during transition is fail-closed:
 3. Store open/integrity failure is explicitly degraded and never falls back to
    Markdown or Mentle.
 
+### 3.1 GMH-23B storage boundary
+
+- Physical identity: `<workspace>/.laputa/memory.sqlite3`.
+- Logical identity: exact tenant/workspace scope and optional session scope.
+- Canonical payload: `agent_diva_core::memory::MemoryRecord`.
+- Mutation: async Rust API with expected store and record revisions; it is not
+  registered as a model, Manager, Tauri, or GUI capability.
+- Search: bounded FTS5/BM25 candidates only; GMH-22 performs every authority,
+  sensitivity, temporal, deduplication, budget, and rendering decision later.
+- Compatibility: file-first authority remains untouched until GMH-24; no
+  online import, dual write, Mentle reader, or fallback is permitted.
+
 ## 4. Lifecycle interfaces
 
 ### 4.1 Startup injection
