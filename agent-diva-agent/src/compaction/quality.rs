@@ -184,7 +184,10 @@ fn score_length(summary: &str) -> (f64, Option<String>) {
         (s, None)
     } else if len > 0 {
         let s = (len as f64 / 50.0) * 0.6;
-        (s, Some(format!("summary too short ({len} chars; minimum 50)")))
+        (
+            s,
+            Some(format!("summary too short ({len} chars; minimum 50)")),
+        )
     } else {
         (0.0, Some("summary is empty".to_string()))
     }

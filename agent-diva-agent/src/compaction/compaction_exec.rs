@@ -298,13 +298,7 @@ impl ContextCompactor {
     fn format_messages_for_compaction(messages: &[ChatMessage]) -> String {
         let mut out = String::new();
         for (i, msg) in messages.iter().enumerate() {
-            let role_label = match msg.role.as_str() {
-                "user" => "user",
-                "assistant" => "assistant",
-                "tool" => "tool",
-                "system" => "system",
-                other => other,
-            };
+            let role_label = msg.role.as_str();
 
             // Truncate very long messages to avoid blowing the compaction prompt
             let content = if msg.content.len() > 2000 {
