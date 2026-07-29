@@ -40,6 +40,8 @@ pub mod exec_policy;
     feature = "platform"
 ))]
 pub mod filesystem;
+#[cfg(any(feature = "approval", feature = "manager", feature = "orchestrator"))]
+pub mod governance_adapter;
 #[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
 pub mod guardian;
 #[cfg(feature = "manager")]
@@ -82,6 +84,8 @@ pub use filesystem::{
     default_protected_paths, FileSystemAccessMode, FileSystemSandboxEntry, FileSystemSandboxKind,
     FileSystemSandboxPolicy, WritableRoot,
 };
+#[cfg(any(feature = "approval", feature = "manager", feature = "orchestrator"))]
+pub use governance_adapter::*;
 #[cfg(any(feature = "guardian", feature = "manager", feature = "orchestrator"))]
 pub use guardian::{
     DefaultGuardianReviewer, GuardianConfig, GuardianDecision, GuardianManager,

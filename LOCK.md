@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-29T20:20:00+08:00`
-- Last Heartbeat: `2026-07-29T20:38:00+08:00`
+- Started At: `2026-07-29T21:05:00+08:00`
+- Last Heartbeat: `2026-07-29T21:48:00+08:00`
 - Expires At: `none`
 
 ## Lock Rules
@@ -29,6 +29,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 - none
 
 ## Handoff Notes
+
+- `2026-07-29`: Released GMH-12 persistent approval ledger scope. Added the
+  payload-free append-only SQLite ledger, replay-derived state, CAS,
+  idempotency, TTL, revocation, once consumption, and explicit non-production
+  Plan/Sandbox adapters. Focused tests, `just fmt-check`, `just check`, and
+  `just test` passed. No production path was switched and no push was performed.
 
 - `2026-07-29`: Released GMH-11 pure policy evaluator scope. Added typed
   precedence, autonomy, restriction, authorization, reason, constraint, and

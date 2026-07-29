@@ -5,6 +5,7 @@
 
 pub mod approval;
 pub mod events;
+pub mod governance_adapter;
 pub mod ids;
 pub mod model;
 pub mod policy;
@@ -16,6 +17,7 @@ pub mod update_plan;
 
 pub use approval::*;
 pub use events::*;
+pub use governance_adapter::*;
 pub use ids::*;
 pub use model::*;
 pub use policy::*;

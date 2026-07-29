@@ -439,7 +439,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 输入主体、能力、资源、风险、上下文和已有授权；输出 allow/deny/require-human，附 reason code、约束和可审计证据。
   - 规则优先级：硬禁止 > 显式用户拒绝 > 资源/模式限制 > 有效授权 > 安全默认值；未知项拒绝。
   - 为 Plan、Memory、shell/filesystem/network/MCP/spawn/schedule 建矩阵和全笛卡尔/属性测试。
-- [ ] **GMH-12：持久化审批账本与状态机（W3 D2–D5）**
+- [x] **GMH-12：持久化审批账本与状态机（W3 D2–D5）**
   - 建立 append-only decision ledger；派生当前状态，禁止 Manager/GUI 维护第二份真相。
   - 实现 CAS/version、TTL、幂等键、内容哈希绑定、审批后内容变更失效、并发首胜、拒绝/撤销优先。
   - Gate G1：领域模型、策略矩阵、迁移与账本恢复测试通过；尚未接入生产执行。
