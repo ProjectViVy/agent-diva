@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `FREE`
-- Scope: `None`
-- Owner: `None`
-- Session/Task: `None`
+- Scope: `NONE`
+- Owner: `NONE`
+- Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `None`
-- Last Heartbeat: `2026-07-30T01:49:12+08:00`
-- Expires At: `None`
+- Started At: `N/A`
+- Last Heartbeat: `2026-07-30T02:22:52+08:00`
+- Expires At: `N/A`
 
 ## Lock Rules
 
@@ -26,9 +26,23 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- None.
+- No active lock.
 
 ## Handoff Notes
+
+- `2026-07-30T02:22:52+08:00`: Released AgentLoop G1.6. Runtime context,
+  tool orchestration, and final response preparation now live in their owning
+  `turn` modules; the sole coordinator is 350 lines. Focused characterization
+  tests, `just fmt-check`, `just check`, the complete 302-second `just test`,
+  and CLI/gateway command smoke passed. Local commits: `732fba28`,
+  `f38c5fcd`, `02132f09`, `f0bb70b4`, and `f368ca0e`. Real desktop Plan
+  approve/reject/stop acceptance remains an explicit manual operational check.
+  No push was performed.
+
+- `2026-07-30T02:02:51+08:00`: Claimed the focused G1.6 coordinator,
+  turn-stage, characterization-test, and iteration-log scope. Baseline:
+  `process_inbound_message_inner` is 865 lines and the worktree is otherwise
+  clean.
 
 - `2026-07-30T01:49:12+08:00`: Released the AgentLoop G1 continuation.
   G1.1-G1.5 now have explicit admission/context/iteration/tool/finalization
