@@ -1,45 +1,54 @@
-//! Compaction system prompt — instructs the LLM to produce a dense,
-//! lossy summary of the conversation that preserves all actionable context.
+//! Versioned LLM-facing prompt contracts for context compaction.
 
-/// System prompt used when calling the LLM for context compaction.
-///
-/// The prompt requires a structured `<analysis>` / `<summary>` output
-/// so the compactor can extract the summary portion deterministically.
-pub const COMPACTION_SYSTEM_PROMPT: &str = r#"你是一个对话压缩器。你的任务是将以下对话压缩为一份密集、有损的摘要，保留所有可执行上下文。
+pub const COMPACTION_PROMPT_ID: &str = "compaction.summary";
+pub const COMPACTION_PROMPT_VERSION: u16 = 2;
 
-请严格按照以下结构输出：
+pub const COMPACTION_SYSTEM_PROMPT: &str = r#"You are a conversation compactor. Compress the supplied conversation into a dense, lossy summary while preserving all actionable context.
+
+Output exactly this structure:
 
 <analysis>
-（简要分析对话的关键主题、决策、操作和当前状态。用第三人称过去时。）
+Briefly analyze the key topics, decisions, actions, and current state in third-person past tense.
 </analysis>
 
 <summary>
-（压缩后的摘要。必须保留以下信息：
-- 项目状态、活跃任务、已做出的决策
-- 用户偏好、身份、约束条件
-- 工具调用：做了什么、为什么做
-- 编辑过的文件路径、执行过的命令、产生的结果
-- 待解决问题、阻塞项、下一步计划
-用第三人称过去时书写。信息密度高。最多 2000 字符。）
+Write a dense summary preserving project state, tasks, decisions, user constraints, tool calls, edited paths, commands, results, blockers, and next steps. Use third-person past tense and no more than 2,000 characters.
 </summary>
 
-重要规则：
-- 只输出上述结构，不要有任何前言、后记或元评论
-- 不要编造对话中不存在的信息
-- 对不确定的内容标注 [不确定]
-- 用中文撰写摘要（对话原文若是英文，保留关键术语）
-"#;
+Rules:
+- Emit only the structure above.
+- Do not invent information.
+- Mark uncertain information as [uncertain].
+- Preserve important domain terms in their original language."#;
 
-/// User-prompt prefix injected when prior compaction summaries exist.
-///
-/// The `{prior_summaries}` placeholder is replaced with the concatenated
-/// summaries from earlier compactions before being passed to the LLM.
 pub const PRIOR_SUMMARIES_PREFIX: &str = "\
-以下是之前多次压缩的摘要记录，反映了更早期的对话上下文：
+The following summaries preserve context from earlier portions of the conversation:
 
 {prior_summaries}
 
-请在生成新摘要时融合之前的摘要内容，形成连贯的层级摘要。
-新摘要应覆盖以下新消息，同时与之前的摘要保持一致性和连续性。
+Merge them with the new messages into one coherent hierarchical summary. Preserve continuity and resolve no uncertainty by guessing.
 
 ";
+
+pub fn compaction_request(message_count: usize, formatted: &str) -> String {
+    format!("Compact the following {message_count} conversation messages:\n\n{formatted}")
+}
+
+pub fn quality_retry(score: f64, issues: &[String], base: &str) -> String {
+    format!(
+        "The previous summary failed the quality gate ({score:.2}/1.0). Issues: {}.\nProduce a more complete summary covering every material fact.\n\n{base}",
+        issues.join("; ")
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prompt_contract_is_versioned_and_structured() {
+        assert_eq!(COMPACTION_PROMPT_ID, "compaction.summary");
+        assert_eq!(COMPACTION_PROMPT_VERSION, 2);
+        assert!(COMPACTION_SYSTEM_PROMPT.contains("<summary>"));
+    }
+}

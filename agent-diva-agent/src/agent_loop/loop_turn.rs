@@ -1,3 +1,7 @@
+use super::turn::{
+    admission::TurnAdmission, context::PreparedTurnContext, finalize::FinalizationInput,
+    iteration::IterationOutcome, policy::TurnSnapshot, prompt, tool_step::ToolStepPolicy,
+};
 use super::{policy_phase_for, AgentLoop};
 use crate::compaction::ContextCompactor;
 use crate::consolidation;
@@ -46,13 +50,6 @@ const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
 struct ProcessedInboundMedia {
     prompt_text: String,
     image_parts: Vec<MessageContentPart>,
-}
-
-fn is_plan_mode(msg: &InboundMessage) -> bool {
-    msg.metadata
-        .get("exec_mode")
-        .and_then(|value| value.as_str())
-        .is_some_and(|mode| mode.eq_ignore_ascii_case("plan"))
 }
 
 async fn persist_execution_context(
@@ -267,20 +264,11 @@ impl AgentLoop {
             return None;
         }
 
-        let prompt = format!(
-            "Generate a concise conversation title.\nReturn only the title with no quotes, no markdown, and no explanation.\nKeep it under 12 words.\n\nFirst user message:\n{}\n\nFirst assistant message:\n{}",
-            first_user_message,
-            first_assistant_message
-        );
+        let user_prompt = prompt::session_title_user(&first_user_message, &first_assistant_message);
         let response = self
             .provider
             .chat(
-                vec![
-                    Message::system(
-                        "You write short chat titles. Output only a short title with no punctuation wrapper.",
-                    ),
-                    Message::user(prompt),
-                ],
+                vec![prompt::session_title_system().system(), user_prompt.user()],
                 None,
                 agent_diva_providers::ToolChoiceMode::Unspecified,
                 Some(model.to_string()),
@@ -343,8 +331,9 @@ impl AgentLoop {
             msg.channel, msg.sender_id, preview, model_to_use
         );
 
-        let is_cron_trigger = msg.sender_id == "cron" || msg.metadata.contains_key("cron_job_id");
-        let plan_mode = is_plan_mode(&msg);
+        let admission = TurnAdmission::classify(&msg);
+        let is_cron_trigger = admission.scheduled;
+        let plan_mode = admission.plan_mode;
         let mut execution_start = msg
             .metadata
             .get("execution_start")
@@ -353,7 +342,7 @@ impl AgentLoop {
         // Plan safety is a runtime lifecycle property, not only a UI/request mode.
         // Once a plan is waiting for approval, an agent-mode follow-up must not
         // re-enable mutation tools before the explicit approval transition.
-        let session_key = format!("{}:{}", msg.channel, msg.chat_id);
+        let session_key = admission.session_key;
         let active_plan = self.snapshot_active_plan_runtime(&session_key).await;
         if let Some(planning) = &self.tool_config.planning {
             if planning
@@ -452,8 +441,15 @@ impl AgentLoop {
         let active_execution_id = active_execution
             .as_ref()
             .map(|execution| execution.id.clone());
-        let policy_phase = policy_phase_for(active_plan.as_ref(), plan_mode);
-        let plan_guard_active = policy_phase.is_some();
+        let mut turn_snapshot = TurnSnapshot::capture(
+            session_key.clone(),
+            model_to_use.clone(),
+            plan_mode,
+            active_plan.as_ref(),
+            trace_id.clone(),
+        );
+        let policy_phase = turn_snapshot.policy_phase.clone();
+        let plan_guard_active = turn_snapshot.plan_guard_active();
         let approved_plan_markdown = if let Some(markdown) = msg
             .metadata
             .get("approved_plan_markdown")
@@ -789,41 +785,18 @@ impl AgentLoop {
             &compaction_history,
         );
         if plan_guard_active {
-            messages.insert(
-                1,
-                agent_diva_providers::Message::system(
-                    "You are in Plan mode until the user leaves it. Explore with read-only tools only: do not modify files, run mutating shell commands, call planning/TODO tools, or begin implementation.\n\n\
-When you have enough information for a complete plan, end the turn with exactly one line-oriented XML block (tags alone on their lines, tags untranslated):\n\
-<proposed_plan>\n\
-# short title\n\
-## 目标\n\
-...\n\
-## 范围\n\
-...\n\
-## 计划步骤\n\
-...\n\
-## 风险与假设\n\
-...\n\
-## 验证方法\n\
-...\n\
-</proposed_plan>\n\n\
-Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风险与假设, 验证方法. Put any preface outside the tags. At most one <proposed_plan> per turn; revisions must be a full replacement. Do not ask whether to implement — the user uses the approval UI.",
-                ),
-            );
+            messages.insert(1, prompt::plan_mode().system());
         }
         if let Some(markdown) = approved_plan_markdown.as_deref() {
-            messages.insert(
-                1,
-                agent_diva_providers::Message::system(format!(
-                    "You are implementing this approved plan. It remains authoritative throughout execution. Do not re-plan; execute and report results.\n\n{markdown}"
-                )),
-            );
+            messages.insert(1, prompt::approved_plan(markdown).system());
         }
         // Drop any history-shaped orphans before the first provider call.
         crate::context::ContextBuilder::sanitize_messages_for_provider(&mut messages);
         // Prefix (system / plan notes / history / current user) ends here.
         // Agent-loop assistant/tool messages are appended after this index.
-        let turn_messages_start = messages.len();
+        let prepared_context = PreparedTurnContext::new(messages);
+        let turn_messages_start = prepared_context.turn_messages_start;
+        let mut messages = prepared_context.messages;
         if let Some(mask) = active_mask.as_ref() {
             if let Some(first) = messages.first_mut() {
                 *first = agent_diva_providers::Message::system(
@@ -834,9 +807,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
         if is_cron_trigger {
             // Make trigger origin explicit so the model does not treat it as a fresh user request.
             let current_message = messages.pop();
-            messages.push(agent_diva_providers::Message::system(
-                "This turn is triggered automatically by a scheduled cron job, not by a real-time user input. Do not schedule new reminders/jobs from this turn unless explicitly required by prior task design.",
-            ));
+            messages.push(prompt::scheduled_turn().system());
             if let Some(current_message) = current_message {
                 messages.push(current_message);
             }
@@ -1051,18 +1022,11 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                 &reactive_compaction_history,
                             );
                             if let Some(markdown) = approved_plan_markdown.as_deref() {
-                                messages.insert(
-                                    1,
-                                    agent_diva_providers::Message::system(format!(
-                                        "You are implementing this approved plan. It remains authoritative throughout execution. Do not re-plan; execute and report results.\n\n{markdown}"
-                                    )),
-                                );
+                                messages.insert(1, prompt::approved_plan(markdown).system());
                             }
                             if is_cron_trigger {
                                 let current_message = messages.pop();
-                                messages.push(agent_diva_providers::Message::system(
-                                    "This turn is triggered automatically by a scheduled cron job, not by a real-time user input. Do not schedule new reminders/jobs from this turn unless explicitly required by prior task design.",
-                                ));
+                                messages.push(prompt::scheduled_turn().system());
                                 if let Some(current_message) = current_message {
                                     messages.push(current_message);
                                 }
@@ -1311,6 +1275,15 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                     };
                     info!("Tool call: {}({})", tool_call.name, preview);
                     let planning_before = self.snapshot_active_plan_runtime(&session_key).await;
+                    turn_snapshot.refresh_policy(planning_before.as_ref());
+                    let tool_step_policy = ToolStepPolicy {
+                        phase: turn_snapshot.policy_phase.clone(),
+                        cancelled: self.is_session_cancelled(&session_key),
+                    };
+                    if !tool_step_policy.may_enter_executor() {
+                        self.emit_error_event(&msg, event_tx, "Generation stopped by user.");
+                        return Ok(None);
+                    }
                     let event = AgentEvent::ToolCallStarted {
                         name: tool_call.name.clone(),
                         args_preview: preview.clone(),
@@ -1329,8 +1302,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
                                 .as_ref()
                                 .is_some_and(ToolPolicy::is_read_only_mode)
                                 && !ToolPolicy::is_read_only_tool(&tool_call.name);
-                            let policy_phase =
-                                policy_phase_for(planning_before.as_ref(), plan_mode);
+                            let policy_phase = tool_step_policy.phase.clone();
                             let capability = builtin_tool_capability(&tool_call.name);
                             let plan_mode_rejected = policy_phase
                                 .as_ref()
@@ -1554,6 +1526,12 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
         let mut final_content = final_content.unwrap_or_else(|| {
             resolve_empty_final_content(stopped_for_plan_approval, &tool_run_summaries)
         });
+        let iteration_outcome = IterationOutcome {
+            content: Some(final_content.clone()),
+            reasoning: final_reasoning.clone(),
+            token_usage: turn_token_usage.clone(),
+            stopped_for_plan_approval,
+        };
         if self.notify_on_soul_change && !soul_files_changed.is_empty() {
             let frequent_hint = self.is_frequent_soul_change_turn();
             let notice = format_soul_transparency_notice(
@@ -1614,7 +1592,18 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
             }
         }
 
-        trace!(trace_id = %trace_id, step_name = "response_generated", "Response generated");
+        let finalization = FinalizationInput {
+            content: final_content.clone(),
+            reasoning: iteration_outcome.reasoning,
+            usage: iteration_outcome.token_usage,
+        };
+        trace!(
+            trace_id = %turn_snapshot.trace_id,
+            prompt_model = %turn_snapshot.model,
+            session_key = %turn_snapshot.session_key,
+            step_name = "response_generated",
+            "Response generated"
+        );
 
         // Log response preview - use char indices to handle multi-byte UTF-8 characters safely
         let preview = if final_content.chars().count() > 120 {
@@ -1624,7 +1613,7 @@ Preferred Markdown sections inside the block: 目标, 范围, 计划步骤, 风�
         };
         info!("Response to {}:{}: {}", msg.channel, msg.sender_id, preview);
         let event = AgentEvent::FinalResponse {
-            content: final_content.clone(),
+            content: finalization.content.clone(),
         };
         if let Some(tx) = event_tx {
             let _ = tx.send(event.clone());

@@ -8,16 +8,10 @@ use std::path::Path;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
+mod prompt;
+
 /// Default number of messages before consolidation triggers
 pub const DEFAULT_MEMORY_WINDOW: usize = 100;
-
-const CONSOLIDATION_PROMPT: &str = r#"You are a memory consolidation assistant. Analyze the conversation below and extract important information.
-
-You MUST call the `save_memory` tool with your findings. Do not respond with text.
-
-Guidelines:
-- `memory_update`: Updated long-term memory in Markdown. Merge new facts with existing memory. Remove outdated info.
-- `history_entry`: A one-line timestamped summary of what happened in this conversation segment."#;
 
 fn save_memory_tool_schema() -> serde_json::Value {
     serde_json::json!({
@@ -150,15 +144,15 @@ pub async fn consolidate_with_gate(
             base_user_content.clone()
         } else {
             // On retry, prepend quality feedback
-            format!(
-                "注意：上一次整合质量不合格（得分 {:.2}/1.0），原因：{}。\n请生成更详细、更完整的记忆更新，确保覆盖所有关键信息。\n\n{}",
-                best_score,
-                best_issues.join("；"),
-                base_user_content
-            )
+            prompt::retry(best_score, &best_issues, &base_user_content)
         };
 
-        let system_msg = Message::system(CONSOLIDATION_PROMPT);
+        debug!(
+            prompt_id = prompt::PROMPT_ID,
+            prompt_version = prompt::PROMPT_VERSION,
+            "building consolidation prompt"
+        );
+        let system_msg = Message::system(prompt::SYSTEM);
         let user_msg = Message::user(user_content);
 
         let response = match provider

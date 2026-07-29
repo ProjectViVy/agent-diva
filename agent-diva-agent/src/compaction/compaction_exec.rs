@@ -13,7 +13,9 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use super::meta::MetaCompactor;
-use super::prompt::{COMPACTION_SYSTEM_PROMPT, PRIOR_SUMMARIES_PREFIX};
+use super::prompt::{
+    compaction_request, quality_retry, COMPACTION_SYSTEM_PROMPT, PRIOR_SUMMARIES_PREFIX,
+};
 use super::quality::{validate_summary, QualityGate};
 use crate::context_budget::BudgetConfig;
 use crate::token_estimate::estimate_total_tokens;
@@ -140,8 +142,9 @@ impl ContextCompactor {
 
         // Build the base user prompt
         let base_user_prompt = format!(
-            "{}请压缩以下 {} 条对话消息：\n\n{}",
-            prior_context, pre_compact_message_count, formatted
+            "{}{}",
+            prior_context,
+            compaction_request(pre_compact_message_count, &formatted)
         );
 
         // Retry loop: up to 3 attempts (1 initial + 2 retries)
@@ -160,12 +163,7 @@ impl ContextCompactor {
             let user_prompt = if attempt == 0 {
                 base_user_prompt.clone()
             } else {
-                format!(
-                    "注意：上一次生成的摘要质量不合格（得分 {:.2}/1.0），原因：{}。\n请生成更详细、更完整的摘要，确保覆盖所有关键信息。\n\n{}",
-                    best_score,
-                    best_report_issues.join("；"),
-                    base_user_prompt
-                )
+                quality_retry(best_score, &best_report_issues, &base_user_prompt)
             };
 
             // Build messages for the LLM call
@@ -301,10 +299,10 @@ impl ContextCompactor {
         let mut out = String::new();
         for (i, msg) in messages.iter().enumerate() {
             let role_label = match msg.role.as_str() {
-                "user" => "用户",
-                "assistant" => "助手",
-                "tool" => "工具",
-                "system" => "系统",
+                "user" => "user",
+                "assistant" => "assistant",
+                "tool" => "tool",
+                "system" => "system",
                 other => other,
             };
 

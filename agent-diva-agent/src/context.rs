@@ -16,6 +16,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::warn;
 
+mod prompt;
+
 const DEFAULT_AGENT_NAME: &str = "agent-diva";
 const DEFAULT_AGENT_EMOJI: &str = "🐈";
 const DEFAULT_AGENT_ROLE: &str = "helpful AI assistant";
@@ -277,15 +279,10 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
             }
             if i == 0 {
                 // First compaction: full boundary markers
-                messages.push(Message::system(
-                    "## Context Compaction Boundary\n以下早期对话已被压缩为摘要。摘要可能有失真，如需精确信息请询问用户。\n[compacted context start]",
-                ));
+                messages.push(Message::system(prompt::COMPACTION_BOUNDARY));
             } else {
                 // Subsequent compactions: shorter markers
-                messages.push(Message::system(format!(
-                    "## Context Compaction #{}\n[compacted context start]",
-                    i + 1
-                )));
+                messages.push(Message::system(prompt::subsequent_compaction(i + 1)));
             }
             messages.push(Message::system(&compaction.summary));
             messages.push(Message::system("[compacted context end]"));

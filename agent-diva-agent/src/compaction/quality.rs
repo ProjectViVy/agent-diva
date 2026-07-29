@@ -184,9 +184,9 @@ fn score_length(summary: &str) -> (f64, Option<String>) {
         (s, None)
     } else if len > 0 {
         let s = (len as f64 / 50.0) * 0.6;
-        (s, Some(format!("摘要过短（{} 字符，至少需要 50）", len)))
+        (s, Some(format!("summary too short ({len} chars; minimum 50)")))
     } else {
-        (0.0, Some("摘要为空".to_string()))
+        (0.0, Some("summary is empty".to_string()))
     }
 }
 
@@ -214,7 +214,7 @@ fn score_keywords(summary: &str, source_messages: &[ChatMessage]) -> (f64, Optio
         (
             ratio,
             Some(format!(
-                "关键词覆盖率过低（{:.0}%，至少需要 30%）",
+                "keyword coverage too low ({:.0}%; minimum 30%)",
                 ratio * 100.0
             )),
         )
@@ -226,7 +226,7 @@ fn score_keywords(summary: &str, source_messages: &[ChatMessage]) -> (f64, Optio
 fn score_completeness(summary: &str) -> (f64, Option<String>) {
     // Empty summary has no completeness at all
     if summary.is_empty() {
-        return (0.0, Some("摘要为空".to_string()));
+        return (0.0, Some("summary is empty".to_string()));
     }
 
     // Check for sentence-ending punctuation (Chinese + English)
@@ -257,7 +257,7 @@ fn score_completeness(summary: &str) -> (f64, Option<String>) {
     } else {
         (
             0.2,
-            Some("摘要缺少完整句子（无句号/问号/感叹号）".to_string()),
+            Some("summary has no complete sentence terminator".to_string()),
         )
     }
 }

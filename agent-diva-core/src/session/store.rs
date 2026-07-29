@@ -260,7 +260,7 @@ impl Session {
         self.compaction_history
             .iter()
             .enumerate()
-            .map(|(i, s)| format!("[压缩记录 {}/{}]\n{}", i + 1, total, s.summary))
+            .map(|(i, s)| format!("[Compaction record {}/{}]\n{}", i + 1, total, s.summary))
             .collect::<Vec<_>>()
             .join("\n\n")
     }

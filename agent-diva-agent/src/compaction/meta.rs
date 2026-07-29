@@ -154,7 +154,7 @@ impl MetaCompactor {
                 let mut retries = 0;
                 while !passed && retries < self.quality_gate.max_retry {
                     // Retry: append a hint and re-merge with more aggressive truncation
-                    let hint = "[压缩摘要]";
+                    let hint = "[Compacted summary]";
                     let retry_merged =
                         Self::merge_pair(&truncate_chars(left, 250), &truncate_chars(right, 250));
                     accepted = format!("{} {}", hint, retry_merged);
