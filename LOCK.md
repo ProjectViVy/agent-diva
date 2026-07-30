@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 
-- Lock State: `FREE`
-- Scope: `NONE`
-- Owner: `NONE`
-- Session/Task: `NONE`
+- Lock State: `RELEASED`
+- Scope: `None`
+- Owner: `None`
+- Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `N/A`
-- Last Heartbeat: `2026-07-30T15:00:31+08:00`
+- Started At: `2026-07-30T16:28:16+08:00`
+- Last Heartbeat: `2026-07-30T17:01:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -26,9 +26,19 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- No active lock.
+- None.
 
 ## Handoff Notes
+
+- `2026-07-30T17:01:00+08:00`: Released GMH-23D implementation scope.
+  Commits `06b38ff4`, `e03e56e0`, `f9248d06`, `7b070a39`, and `d65df9f8`
+  add the governance coordinator, receipt-gated Manager API, GUI decision
+  path, and non-production typed apply journal. Focused tests, GUI build,
+  `just fmt-check`, and `just check` passed. The bounded full `just test`
+  runner closed its pipe after 120 seconds without an assertion failure;
+  Rust 1.80 remains blocked by the existing Edition-2024 lockfile chain.
+  G2D remains open for real desktop acceptance and the documented legacy
+  post-commit/pre-consume crash-window hardening. No push occurred.
 
 - `2026-07-30T15:00:31+08:00`: Released GMH-23C. Commit `053a9cd6`
   connects Embedded Laputa FTS5/BM25 to Recall v2 through an explicit
