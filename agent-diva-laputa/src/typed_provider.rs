@@ -3,14 +3,16 @@ use std::{path::Path, sync::Arc};
 use agent_diva_core::governance::AuditCorrelation;
 use agent_diva_core::memory::{
     escape_memory_for_prompt, memory_content_digest, MemoryProvider, MemoryScope, MemoryTrust,
-    PrefetchRequest, PrefetchResponse, PrefetchStatus, RecallPolicy, RecallRequest,
-    SessionEndRequest, SessionEndResponse, StartupInjectionShape, SyncTurnRequest,
-    SyncTurnResponse, SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
+    PrefetchRequest, PrefetchResponse, PrefetchStatus, RecallOutcomeRequest, RecallPolicy,
+    RecallRequest, RecallTurnOutcome, SessionEndRequest, SessionEndResponse, StartupInjectionShape,
+    SyncTurnRequest, SyncTurnResponse, SystemPromptBlock, SystemPromptRequest,
+    SystemPromptResponse,
 };
 use chrono::Utc;
 
 use crate::{
-    LaputaMemoryProvider, LaputaRecallService, TypedMemoryStore, TypedMemoryStoreError,
+    LaputaMemoryProvider, LaputaRecallService, LaputaStorage, PendingRecallFeedback,
+    RecallFeedbackStore, RecallTaskOutcome, TypedMemoryStore, TypedMemoryStoreError,
     MAX_MEMORY_RECORDS,
 };
 
@@ -20,6 +22,8 @@ pub struct TypedLaputaMemoryProvider {
     startup_markdown: Option<String>,
     recall: LaputaRecallService,
     proposal_sink: Arc<LaputaMemoryProvider>,
+    feedback: RecallFeedbackStore,
+    pending_feedback: tokio::sync::Mutex<Vec<PendingRecallFeedback>>,
 }
 
 impl TypedLaputaMemoryProvider {
@@ -49,11 +53,16 @@ impl TypedLaputaMemoryProvider {
             .then(|| format!("## Embedded Laputa Typed Memory\n\n{rendered}"));
         let proposal_sink = LaputaMemoryProvider::open(workspace)
             .map_err(|_| TypedMemoryStoreError::CorruptRecord)?;
+        let feedback = RecallFeedbackStore::new(
+            LaputaStorage::open(workspace).map_err(|_| TypedMemoryStoreError::CorruptRecord)?,
+        );
         Ok(Self {
             workspace_id,
             startup_markdown,
             recall: LaputaRecallService::new(store),
             proposal_sink: Arc::new(proposal_sink),
+            feedback,
+            pending_feedback: tokio::sync::Mutex::new(Vec::new()),
         })
     }
 
@@ -110,15 +119,32 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
         if request.intent.trim().is_empty() {
             return Ok(PrefetchResponse::default());
         }
-        match self
-            .recall
-            .recall_shadow(&self.recall_request(&request))
-            .await
-        {
-            Ok(shadow) => Ok(PrefetchResponse {
-                status: PrefetchStatus::Ready,
-                prompt_block: shadow.outcome.prompt_block,
-            }),
+        let recall_request = self.recall_request(&request);
+        let request_id = recall_request.correlation.request_id.clone();
+        match self.recall.recall_shadow(&recall_request).await {
+            Ok(shadow) => {
+                let injected = shadow.outcome.prompt_block.is_some();
+                self.pending_feedback
+                    .lock()
+                    .await
+                    .push(PendingRecallFeedback {
+                        request_id,
+                        selected: shadow
+                            .outcome
+                            .selected_records
+                            .iter()
+                            .map(|record| {
+                                (record.id.clone(), record.provenance.content_digest.clone())
+                            })
+                            .collect(),
+                        injected,
+                        selected_at: Utc::now(),
+                    });
+                Ok(PrefetchResponse {
+                    status: PrefetchStatus::Ready,
+                    prompt_block: shadow.outcome.prompt_block,
+                })
+            }
             Err(error) => Ok(PrefetchResponse {
                 status: PrefetchStatus::Failed {
                     reason: format!("typed_recall_degraded:{error}"),
@@ -133,6 +159,30 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
         request: SyncTurnRequest,
     ) -> agent_diva_core::Result<SyncTurnResponse> {
         self.proposal_sink.sync_turn(request).await
+    }
+
+    async fn record_recall_outcome(
+        &self,
+        request: RecallOutcomeRequest,
+    ) -> agent_diva_core::Result<()> {
+        let pending = std::mem::take(&mut *self.pending_feedback.lock().await);
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let outcome = match request.outcome {
+            RecallTurnOutcome::Succeeded => RecallTaskOutcome::Succeeded,
+            RecallTurnOutcome::Failed => RecallTaskOutcome::Failed,
+        };
+        if let Err(error) =
+            self.feedback
+                .commit_pending(pending.clone(), outcome, request.corrected, Utc::now())
+        {
+            self.pending_feedback.lock().await.extend(pending);
+            return Err(agent_diva_core::Error::Internal(format!(
+                "recall_feedback_persistence_failed:{error}"
+            )));
+        }
+        Ok(())
     }
 
     async fn on_session_end(

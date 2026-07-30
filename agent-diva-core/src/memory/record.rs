@@ -257,6 +257,7 @@ impl MemoryRecord {
                 self.provenance.source,
                 MemoryProvenanceSource::LaputaAppliedSection
                     | MemoryProvenanceSource::LegacyMarkdownOwner
+                    | MemoryProvenanceSource::AutoDream
             ) {
                 return Err(MemoryRecordValidationError::InvalidAuthoritySource);
             }
@@ -449,7 +450,7 @@ mod tests {
         ));
 
         let mut inferred = record();
-        inferred.provenance.source = MemoryProvenanceSource::AutoDream;
+        inferred.provenance.source = MemoryProvenanceSource::ToolResult;
         cases.push((
             inferred,
             MemoryRecordValidationError::InvalidAuthoritySource,

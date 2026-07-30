@@ -10,10 +10,11 @@ pub mod storage;
 
 pub use manager::MemoryManager;
 pub use provider::{
-    MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, RhythmTrigger,
-    SessionEndRequest, SessionEndResponse, SessionEndStatus, StartupContextSnapshot,
-    StartupInjectionShape, StartupStatus, SyncTurnRequest, SyncTurnResponse, SyncTurnStatus,
-    SystemPromptBlock, SystemPromptRequest, SystemPromptResponse, WakeupPackSummary,
+    MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, RecallOutcomeRequest,
+    RecallTurnOutcome, RhythmTrigger, SessionEndRequest, SessionEndResponse, SessionEndStatus,
+    StartupContextSnapshot, StartupInjectionShape, StartupStatus, SyncTurnRequest,
+    SyncTurnResponse, SyncTurnStatus, SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
+    WakeupPackSummary,
 };
 pub use recall::{
     compare_recall_shadow, estimate_recall_tokens, ConservativeRecallTokenEstimator,

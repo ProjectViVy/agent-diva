@@ -48,8 +48,12 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     PendingReview；Memory 决策继续使用 core Governance Ledger，编辑后旧 request/receipt
     失效；决策已提交但 proposal 状态未落盘时可重试补齐；拒绝内容以 90 天、1000 条、
     payload-free digest suppression 抑制原样重提，显著变化可重新进入 gate。
-  - [ ] **E5–E7**：typed
-    apply/Recall feedback、一体化 GUI、恢复与发布门。
+  - [x] **E5 typed apply、Recall 与反馈**：批准后的 AutoDream 提案映射为 canonical
+    `MemoryRecord` 并保留 run/evidence/governance provenance；AgentLoop 在唯一 turn
+    终态 seam 提交 payload-free Recall 成功/失败/纠错反馈；下一次 Reflection 可把
+    纠错转为 governed deprecation，apply 时生成 content-free tombstone/supersedes，
+    无效或缺失 target fail closed。
+  - [ ] **E6–E7**：一体化 GUI、恢复与发布门。
     E7 必须在关闭占用 debug 二进制的桌面进程后复跑 `just test`，并解决或规避当前
     Windows GUI lib test 的 MSVC `LNK1140` PDB 限制，不能以 `cargo check` 代替。
 

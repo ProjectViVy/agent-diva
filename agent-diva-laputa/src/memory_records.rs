@@ -12,7 +12,7 @@ use agent_diva_core::{
     memory::{
         memory_content_digest, MemoryIntegrityFinding, MemoryIntegrityReport,
         MemoryIntegritySeverity, MemoryProvenance, MemoryProvenanceSource, MemoryRecord,
-        MemoryRecordKind, MemoryScope, MemorySensitivity, MemoryTrust,
+        MemoryRecordKind, MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust,
     },
 };
 
@@ -21,14 +21,31 @@ pub fn adapt_governed_proposal(
     proposal: &EvolutionProposal,
     context: &MemoryAdapterContext,
 ) -> MemoryRecord {
-    let digest = memory_content_digest(proposal.proposed_patch.as_bytes());
+    let proposal_digest = memory_content_digest(proposal.proposed_patch.as_bytes());
+    let deprecation = (proposal.proposal_type
+        == agent_diva_core::evolution::ProposalType::Deprecation)
+        .then(|| parse_deprecation_patch(&proposal.proposed_patch))
+        .flatten();
+    let content = if deprecation.is_some() {
+        String::new()
+    } else {
+        proposal.proposed_patch.clone()
+    };
+    let digest = memory_content_digest(content.as_bytes());
     MemoryRecord {
         id: deterministic_record_id("proposal", &proposal.id, &digest),
         kind: record_kind_for_section(&proposal.target_section),
-        content: proposal.proposed_patch.clone(),
+        content,
         provenance: MemoryProvenance {
-            source: MemoryProvenanceSource::LaputaAppliedSection,
-            source_id: proposal.id.clone(),
+            source: if proposal.source_run_id.is_some() {
+                MemoryProvenanceSource::AutoDream
+            } else {
+                MemoryProvenanceSource::LaputaAppliedSection
+            },
+            source_id: proposal
+                .source_run_id
+                .clone()
+                .unwrap_or_else(|| proposal.id.clone()),
             content_digest: digest,
             captured_at: context.captured_at,
             correlation: context.correlation.clone(),
@@ -41,9 +58,34 @@ pub fn adapt_governed_proposal(
         created_at: proposal.created_at,
         effective_at: context.captured_at,
         expires_at: None,
-        supersedes: Vec::new(),
-        tombstone: None,
+        supersedes: deprecation
+            .as_ref()
+            .map(|patch| vec![patch.target_record_id.clone()])
+            .unwrap_or_default(),
+        tombstone: deprecation.map(|patch| MemoryTombstone {
+            target_record_id: patch.target_record_id,
+            reason_digest: proposal_digest,
+            actor_id: proposal.created_by.clone(),
+            created_at: context.captured_at,
+        }),
     }
+}
+
+#[derive(Deserialize)]
+struct DeprecationPatch {
+    schema_version: u32,
+    target_record_id: String,
+    reason: String,
+}
+
+fn parse_deprecation_patch(value: &str) -> Option<DeprecationPatch> {
+    serde_json::from_str::<DeprecationPatch>(value)
+        .ok()
+        .filter(|patch| {
+            patch.schema_version == 1
+                && !patch.target_record_id.trim().is_empty()
+                && !patch.reason.trim().is_empty()
+        })
 }
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

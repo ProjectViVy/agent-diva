@@ -31,6 +31,7 @@ pub enum EvidenceSource {
     File,
     ContextCompaction,
     ExperienceJournal,
+    RecallFeedback,
 }
 
 /// Typed pointer to bounded evidence used by governance review.

@@ -444,11 +444,35 @@ pub async fn apply_laputa_proposal_handler(
                                 captured_at: journal.applied_at,
                             },
                         );
+                        if proposal.proposal_type
+                            == agent_diva_core::evolution::ProposalType::Deprecation
+                            && record.tombstone.is_none()
+                        {
+                            return Err(error_response(
+                                StatusCode::UNPROCESSABLE_ENTITY,
+                                "typed_deprecation_invalid",
+                                "deprecation patch is invalid",
+                            ));
+                        }
                         let expected_record_revision = store
                             .get(&record.id)
                             .await
                             .map_err(typed_store_error_response)?
                             .map(|stored| stored.revision);
+                        if let Some(tombstone) = &record.tombstone {
+                            if store
+                                .get(&tombstone.target_record_id)
+                                .await
+                                .map_err(typed_store_error_response)?
+                                .is_none()
+                            {
+                                return Err(error_response(
+                                    StatusCode::CONFLICT,
+                                    "typed_tombstone_target_missing",
+                                    "deprecation target does not exist in typed authority",
+                                ));
+                            }
+                        }
                         store
                             .put_governed(
                                 record,

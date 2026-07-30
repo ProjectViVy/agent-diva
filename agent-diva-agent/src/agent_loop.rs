@@ -7,7 +7,9 @@ use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
-use agent_diva_core::memory::{MemoryProvider, SessionEndRequest};
+use agent_diva_core::memory::{
+    MemoryProvider, RecallOutcomeRequest, RecallTurnOutcome, SessionEndRequest,
+};
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::SecurityConfig;
@@ -743,12 +745,67 @@ impl AgentLoop {
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
         let trace_id = Uuid::new_v4().to_string();
+        let corrected = signals_memory_correction(&msg.content);
+        let workspace_root = self.workspace.clone();
+        let feedback_request_id = trace_id.clone();
         use tracing::Instrument;
         let span = tracing::info_span!("AgentSpan", trace_id = %trace_id);
 
-        self.process_inbound_message_inner(msg, event_tx, trace_id)
+        enum TerminalTurn {
+            Succeeded(Option<OutboundMessage>),
+            Failed(String),
+        }
+        let terminal = match self
+            .process_inbound_message_inner(msg, event_tx, trace_id)
             .instrument(span)
             .await
+        {
+            Ok(response) => TerminalTurn::Succeeded(response),
+            Err(error) => TerminalTurn::Failed(error.to_string()),
+        };
+        match terminal {
+            TerminalTurn::Succeeded(response) => {
+                self.commit_recall_outcome(
+                    workspace_root,
+                    feedback_request_id,
+                    RecallTurnOutcome::Succeeded,
+                    corrected,
+                )
+                .await;
+                Ok(response)
+            }
+            TerminalTurn::Failed(error_message) => {
+                self.commit_recall_outcome(
+                    workspace_root,
+                    feedback_request_id,
+                    RecallTurnOutcome::Failed,
+                    corrected,
+                )
+                .await;
+                Err(error_message.into())
+            }
+        }
+    }
+
+    async fn commit_recall_outcome(
+        &self,
+        workspace_root: PathBuf,
+        request_id: String,
+        outcome: RecallTurnOutcome,
+        corrected: bool,
+    ) {
+        if let Err(error) = self
+            .memory_provider
+            .record_recall_outcome(RecallOutcomeRequest {
+                workspace_root,
+                request_id,
+                outcome,
+                corrected,
+            })
+            .await
+        {
+            warn!(%error, "failed to persist payload-free Recall outcome");
+        }
     }
 
     /// Process a message directly (for CLI or testing)
@@ -818,6 +875,22 @@ impl AgentLoop {
         }
         self.soul_change_turns.len() >= self.soul_governance.frequent_change_threshold.max(1)
     }
+}
+
+fn signals_memory_correction(content: &str) -> bool {
+    let normalized = content.to_ascii_lowercase();
+    [
+        "correction",
+        "actually",
+        "that's wrong",
+        "that is wrong",
+        "更正",
+        "纠正",
+        "记错了",
+        "不是这样",
+    ]
+    .iter()
+    .any(|marker| normalized.contains(marker))
 }
 
 #[cfg(test)]

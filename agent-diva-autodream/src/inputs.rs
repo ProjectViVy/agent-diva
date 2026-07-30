@@ -29,6 +29,7 @@ const DEFAULT_CAPSULE_BYTES: usize = 2048;
 const DEFAULT_TOTAL_BYTES: usize = 8192;
 const SESSION_SOURCE: &str = "recent_sessions";
 const EXPERIENCE_SOURCE: &str = "experience_journal";
+const RECALL_FEEDBACK_SOURCE: &str = "recall_feedback";
 const LAPUTA_SOURCE: &str = "laputa";
 const CAPSULE_SOURCE: &str = "source_capsules";
 const COMPACTION_SECONDARY_EVIDENCE_MARKER: &str =
@@ -120,6 +121,18 @@ impl AutoDreamInputCollector {
         items.extend(included);
         source_summaries.push(summary);
 
+        let feedback_items = self.collect_recall_feedback(&mut omissions)?;
+        if !feedback_items.is_empty() {
+            let (included, summary, truncated) = apply_budget(
+                RECALL_FEEDBACK_SOURCE,
+                feedback_items,
+                &mut remaining_budget,
+            );
+            any_truncated |= truncated;
+            items.extend(included);
+            source_summaries.push(summary);
+        }
+
         let session_items = self.collect_recent_sessions(&mut omissions)?;
         let (included, summary, truncated) =
             apply_budget(SESSION_SOURCE, session_items, &mut remaining_budget);
@@ -158,6 +171,53 @@ impl AutoDreamInputCollector {
 
         let _ = run_id;
         Ok(AutoDreamCollectedInputs { items, summary })
+    }
+
+    fn collect_recall_feedback(
+        &self,
+        omissions: &mut Vec<AutoDreamInputOmission>,
+    ) -> Result<Vec<AutoDreamCollectedInput>> {
+        let storage =
+            agent_diva_laputa::LaputaStorage::open(self.storage.paths().workspace_root())?;
+        let events = match agent_diva_laputa::RecallFeedbackStore::new(storage).recent(64) {
+            Ok(events) => events,
+            Err(_) => {
+                omissions.push(AutoDreamInputOmission {
+                    source: RECALL_FEEDBACK_SOURCE.to_string(),
+                    detail: "feedback_store_invalid".to_string(),
+                });
+                return Ok(Vec::new());
+            }
+        };
+        Ok(events
+            .into_iter()
+            .map(|event| {
+                let summary = format!(
+                    "record={} selected={} injected={} corrected={} outcome={:?}",
+                    event.record_id,
+                    event.selected,
+                    event.injected,
+                    event.corrected,
+                    event.task_outcome
+                );
+                let evidence = EvidenceRef {
+                    id: event.event_id.clone(),
+                    source: EvidenceSource::RecallFeedback,
+                    uri: format!("recall-feedback://{}", event.event_id),
+                    excerpt: Some(summary.clone()),
+                    hash: Some(format!("sha256:{}", event.content_digest.value)),
+                    created_at: event.recorded_at,
+                };
+                AutoDreamCollectedInput {
+                    source: RECALL_FEEDBACK_SOURCE.to_string(),
+                    uri: evidence.uri.clone(),
+                    bytes: summary.len(),
+                    truncated: false,
+                    excerpt: summary,
+                    evidence,
+                }
+            })
+            .collect())
     }
 
     fn collect_experience(

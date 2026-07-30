@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 
-- Lock State: `FREE`
+- Lock State: `RELEASED`
 - Scope: `none`
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `n/a`
-- Last Heartbeat: `2026-07-31T01:55:00+08:00`
-- Expires At: `n/a`
+- Started At: `2026-07-31T02:00:00+08:00`
+- Last Heartbeat: `2026-07-31T02:45:00+08:00`
+- Expires At: `released`
 
 ## Lock Rules
 
@@ -29,6 +29,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-31T02:45:00+08:00`: Released E5 typed Recall feedback closure.
+  Governed AutoDream records preserve run/evidence provenance; the unique
+  AgentLoop terminal seam commits payload-free success/failure/correction
+  outcomes; corrected feedback can produce a governed deprecation that applies
+  as a content-free tombstone/supersedes edge with missing targets fail closed.
+  Focused Laputa, AutoDream and AgentLoop tests, fmt, and full clippy passed.
+  Full test and manual desktop gates remain E7/G2D+; no push occurred.
 
 - `2026-07-31T01:55:00+08:00`: Released E4 proposal governance and
   suppression. Edited proposal digests revoke old authorization, decision

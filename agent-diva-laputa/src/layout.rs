@@ -84,6 +84,10 @@ impl LaputaPaths {
         self.laputa_dir.join("candidate-suppression.json")
     }
 
+    pub fn recall_feedback_json(&self) -> PathBuf {
+        self.laputa_dir.join("recall-feedback.json")
+    }
+
     /// Canonical GMH-23B typed Memory database.
     pub fn memory_database(&self) -> PathBuf {
         self.laputa_dir.join("memory.sqlite3")

@@ -5,6 +5,7 @@
 
 pub mod atomic;
 pub mod error;
+pub mod feedback;
 pub mod governed_apply;
 pub mod layout;
 pub mod lock;
@@ -21,6 +22,9 @@ pub mod typed_store;
 
 pub use atomic::{atomic_write, atomic_write_json};
 pub use error::{LaputaError, Result};
+pub use feedback::{
+    PendingRecallFeedback, RecallFeedbackEvent, RecallFeedbackStore, RecallTaskOutcome,
+};
 pub use governed_apply::{
     proposal_digest, MemoryGovernanceCoordinator, MemoryGovernanceDecision, MemoryGovernanceError,
     MemoryGovernanceView,

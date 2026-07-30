@@ -330,6 +330,23 @@ impl Default for SyncTurnResponse {
     }
 }
 
+/// Terminal outcome for one live turn that may have consumed recalled records.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecallTurnOutcome {
+    Succeeded,
+    Failed,
+}
+
+/// Payload-free terminal signal correlating prefetch selections with their
+/// consuming turn.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecallOutcomeRequest {
+    pub workspace_root: PathBuf,
+    pub request_id: String,
+    pub outcome: RecallTurnOutcome,
+    pub corrected: bool,
+}
+
 /// Input for session shutdown rhythm handling.
 ///
 /// This maps to the `on_session_end()` hook requested by checklist item 5.6,
@@ -405,6 +422,11 @@ pub trait MemoryProvider: Send + Sync {
     /// write failures after Markdown persistence should be logged and treated as
     /// degraded persistence, not as loss of the authoritative Markdown write.
     async fn sync_turn(&self, request: SyncTurnRequest) -> crate::Result<SyncTurnResponse>;
+
+    /// Persist a payload-free outcome for the immediately preceding Recall.
+    async fn record_recall_outcome(&self, _request: RecallOutcomeRequest) -> crate::Result<()> {
+        Ok(())
+    }
 
     /// Trigger shutdown/session-end rhythm work if needed.
     ///

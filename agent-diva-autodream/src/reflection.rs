@@ -88,7 +88,31 @@ impl ReflectionEngine for DeterministicReflectionEngine {
                 diagnostic_codes: vec!["no_primary_evidence".to_string()],
             });
         };
-        let content = format!("Observed durable evidence: {}", evidence.summary);
+        let (proposal_type, content) = if evidence.evidence.source == EvidenceSource::RecallFeedback
+            && evidence.summary.contains("corrected=true")
+        {
+            let Some(record_id) = feedback_record_id(&evidence.summary) else {
+                return Ok(ReflectionOutput {
+                    schema_version: 1,
+                    candidates: Vec::new(),
+                    diagnostic_codes: vec!["corrected_feedback_missing_record_id".to_string()],
+                });
+            };
+            (
+                ProposalType::Deprecation,
+                serde_json::json!({
+                    "schema_version": 1,
+                    "target_record_id": record_id,
+                    "reason": "user_correction"
+                })
+                .to_string(),
+            )
+        } else {
+            (
+                ProposalType::MemoryPatch,
+                format!("Observed durable evidence: {}", evidence.summary),
+            )
+        };
         let candidate_id = format!(
             "candidate-{:x}",
             sha2::Sha256::digest(format!("{}\0{content}", input.run_id).as_bytes())
@@ -97,7 +121,7 @@ impl ReflectionEngine for DeterministicReflectionEngine {
             schema_version: 1,
             candidates: vec![MemoryCandidate {
                 candidate_id,
-                proposal_type: ProposalType::MemoryPatch,
+                proposal_type,
                 content,
                 evidence_refs: vec![evidence.evidence.clone()],
                 confidence: 80,
@@ -113,4 +137,11 @@ impl ReflectionEngine for DeterministicReflectionEngine {
             diagnostic_codes: Vec::new(),
         })
     }
+}
+
+fn feedback_record_id(summary: &str) -> Option<&str> {
+    summary
+        .split_whitespace()
+        .find_map(|item| item.strip_prefix("record="))
+        .filter(|value| !value.is_empty())
 }

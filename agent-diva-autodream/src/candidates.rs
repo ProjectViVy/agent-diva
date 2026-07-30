@@ -29,6 +29,7 @@ pub enum CandidateRejectionCode {
     SensitiveContent,
     Contradiction,
     UnsupportedType,
+    InvalidDeprecation,
     Suppressed,
 }
 
@@ -121,6 +122,11 @@ impl CandidateGate {
         if candidate.proposal_type == agent_diva_core::evolution::ProposalType::SopCreate {
             return Some(CandidateRejectionCode::UnsupportedType);
         }
+        if candidate.proposal_type == agent_diva_core::evolution::ProposalType::Deprecation
+            && !valid_deprecation_patch(content)
+        {
+            return Some(CandidateRejectionCode::InvalidDeprecation);
+        }
         if candidate.scope.workspace_id != input.workspace_id {
             return Some(CandidateRejectionCode::WorkspaceMismatch);
         }
@@ -180,6 +186,20 @@ impl CandidateGate {
         }
         None
     }
+}
+
+fn valid_deprecation_patch(content: &str) -> bool {
+    #[derive(Deserialize)]
+    struct Patch {
+        schema_version: u32,
+        target_record_id: String,
+        reason: String,
+    }
+    serde_json::from_str::<Patch>(content).is_ok_and(|patch| {
+        patch.schema_version == 1
+            && !patch.target_record_id.trim().is_empty()
+            && !patch.reason.trim().is_empty()
+    })
 }
 
 fn are_direct_negations(left: &str, right: &str) -> bool {
