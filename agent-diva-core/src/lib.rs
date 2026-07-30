@@ -14,6 +14,7 @@ pub mod error;
 pub mod error_category;
 pub mod error_context;
 pub mod evolution;
+pub mod experience;
 pub mod governance;
 pub mod heartbeat;
 pub mod logging;

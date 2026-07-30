@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 
-- Lock State: `RELEASED`
-- Scope: `NONE`
-- Owner: `NONE`
-- Session/Task: `NONE`
+- Lock State: `HELD`
+- Scope: `Cargo.toml`, `agent-diva-core/Cargo.toml`, `agent-diva-core/src/{lib,experience}.rs`, `agent-diva-core/src/evolution/types.rs`, `agent-diva-agent/src/agent_loop/turn/tool_step.rs`, `agent-diva-autodream/src/{inputs,layout,lib}.rs`, `agent-diva-autodream/tests/`, `TODOLIST.md`, `docs/logs/2026-07-autodream-laputa-e1/`, `LOCK.md`
+- Owner: `Codex / root`
+- Session/Task: `E1 Experience Journal`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `N/A`
-- Last Heartbeat: `2026-07-31T00:33:34+08:00`
-- Expires At: `N/A`
+- Started At: `2026-07-31T00:36:00+08:00`
+- Last Heartbeat: `2026-07-31T00:36:00+08:00`
+- Expires At: `2026-07-31T01:36:00+08:00`
 
 ## Lock Rules
 
@@ -26,7 +26,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- No active lock.
+- E1 Experience Journal domain, append seam, collection, tests, and iteration records.
 
 ## Handoff Notes
 

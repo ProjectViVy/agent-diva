@@ -30,6 +30,11 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     尚未形成可用闭环。
   - [ ] **E1：Experience Journal**：把真实任务执行结果、工具结果与错误转成有界、
     可追溯、可脱敏的反思输入。
+    - [x] **E1A 在线执行证据**：AgentLoop 唯一工具 seam 记录 payload-free 结果，
+      具备确定性 ID、幂等、workspace 隔离、物理 retention 和损坏行拒绝；AutoDream
+      优先收集该证据。
+    - [ ] **E1B 离线回填与回滚**：从已有 session tool-result 生成 dry-run manifest，
+      显式 apply，按 manifest 回滚；不得读取或复制完整工具输出。
   - [ ] **E2–E7**：可恢复调度、Reflection/Candidate Gate、统一提案治理、typed
     apply/Recall feedback、一体化 GUI、恢复与发布门。
     E7 必须在关闭占用 debug 二进制的桌面进程后复跑 `just test`，并解决或规避当前

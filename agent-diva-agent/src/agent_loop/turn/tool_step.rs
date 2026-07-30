@@ -1,4 +1,5 @@
 use agent_diva_core::bus::{AgentEvent, InboundMessage};
+use agent_diva_core::experience::{ExperienceJournal, OutcomeKind};
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
 use agent_diva_core::soul::SoulStateStore;
@@ -263,6 +264,40 @@ impl AgentLoop {
                 )
             }
         };
+
+        let experience_outcome = if !is_error {
+            OutcomeKind::Succeeded
+        } else if result.contains(" is disabled ")
+            || result.contains(" is denied ")
+            || result.contains("disabled during cron-triggered")
+        {
+            OutcomeKind::Denied
+        } else {
+            OutcomeKind::Failed
+        };
+        let journal = ExperienceJournal::open(self.workspace.clone());
+        let evidence = journal.tool_evidence(
+            context.session_key,
+            context.trace_id,
+            &tool_call.id,
+            &tool_call.name,
+            experience_outcome,
+        );
+        match tokio::task::spawn_blocking(move || journal.append(&evidence)).await {
+            Ok(Ok(_)) => {}
+            Ok(Err(error)) => warn!(
+                trace_id = %context.trace_id,
+                call_id = %tool_call.id,
+                %error,
+                "experience journal append failed"
+            ),
+            Err(error) => warn!(
+                trace_id = %context.trace_id,
+                call_id = %tool_call.id,
+                %error,
+                "experience journal task failed"
+            ),
+        }
 
         if self.notify_on_soul_change && !is_error {
             if let Some(changed_file) =

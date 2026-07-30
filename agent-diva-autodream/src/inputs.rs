@@ -9,6 +9,7 @@ use agent_diva_core::{
         AutoDreamInputOmission, AutoDreamInputSourceSummary, AutoDreamInputSummary, EvidenceRef,
         EvidenceSource, LaputaSectionName,
     },
+    experience::ExperienceJournal,
     session::{Session, SessionManager},
 };
 use agent_diva_laputa::LaputaService;
@@ -18,6 +19,8 @@ use uuid::Uuid;
 use crate::{AutoDreamError, AutoDreamStorage, Result};
 
 const DEFAULT_SESSION_LIMIT: usize = 3;
+const DEFAULT_EXPERIENCE_LIMIT: usize = 32;
+const DEFAULT_EXPERIENCE_BYTES: usize = 4096;
 const DEFAULT_SESSION_BYTES: usize = 4096;
 const DEFAULT_LAPUTA_SECTION_LIMIT: usize = 3;
 const DEFAULT_LAPUTA_SECTION_BYTES: usize = 2048;
@@ -25,6 +28,7 @@ const DEFAULT_CAPSULE_LIMIT: usize = 2;
 const DEFAULT_CAPSULE_BYTES: usize = 2048;
 const DEFAULT_TOTAL_BYTES: usize = 8192;
 const SESSION_SOURCE: &str = "recent_sessions";
+const EXPERIENCE_SOURCE: &str = "experience_journal";
 const LAPUTA_SOURCE: &str = "laputa";
 const CAPSULE_SOURCE: &str = "source_capsules";
 const COMPACTION_SECONDARY_EVIDENCE_MARKER: &str =
@@ -32,6 +36,8 @@ const COMPACTION_SECONDARY_EVIDENCE_MARKER: &str =
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutoDreamInputCollectorConfig {
+    pub experience_limit: usize,
+    pub experience_bytes: usize,
     pub recent_session_limit: usize,
     pub recent_session_bytes: usize,
     pub laputa_section_limit: usize,
@@ -45,6 +51,8 @@ pub struct AutoDreamInputCollectorConfig {
 impl Default for AutoDreamInputCollectorConfig {
     fn default() -> Self {
         Self {
+            experience_limit: DEFAULT_EXPERIENCE_LIMIT,
+            experience_bytes: DEFAULT_EXPERIENCE_BYTES,
             recent_session_limit: DEFAULT_SESSION_LIMIT,
             recent_session_bytes: DEFAULT_SESSION_BYTES,
             laputa_section_limit: DEFAULT_LAPUTA_SECTION_LIMIT,
@@ -105,6 +113,13 @@ impl AutoDreamInputCollector {
         let mut remaining_budget = self.config.total_bytes_budget;
         let mut any_truncated = false;
 
+        let experience_items = self.collect_experience(&mut omissions)?;
+        let (included, summary, truncated) =
+            apply_budget(EXPERIENCE_SOURCE, experience_items, &mut remaining_budget);
+        any_truncated |= truncated;
+        items.extend(included);
+        source_summaries.push(summary);
+
         let session_items = self.collect_recent_sessions(&mut omissions)?;
         let (included, summary, truncated) =
             apply_budget(SESSION_SOURCE, session_items, &mut remaining_budget);
@@ -143,6 +158,51 @@ impl AutoDreamInputCollector {
 
         let _ = run_id;
         Ok(AutoDreamCollectedInputs { items, summary })
+    }
+
+    fn collect_experience(
+        &self,
+        omissions: &mut Vec<AutoDreamInputOmission>,
+    ) -> Result<Vec<AutoDreamCollectedInput>> {
+        let batch = ExperienceJournal::open(self.storage.paths().workspace_root())
+            .read_recent(self.config.experience_limit)
+            .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?;
+        if batch.items.is_empty() {
+            omissions.push(omission(EXPERIENCE_SOURCE, "no execution evidence found"));
+            return Ok(Vec::new());
+        }
+        if batch.rejected_lines > 0 {
+            omissions.push(omission(
+                EXPERIENCE_SOURCE,
+                format!(
+                    "{} invalid or foreign records rejected",
+                    batch.rejected_lines
+                ),
+            ));
+        }
+
+        Ok(batch
+            .items
+            .into_iter()
+            .map(|item| {
+                let excerpt = truncate_text(&item.summary, self.config.experience_bytes);
+                AutoDreamCollectedInput {
+                    source: EXPERIENCE_SOURCE.to_string(),
+                    uri: format!("experience://{}", item.id),
+                    bytes: excerpt.len(),
+                    truncated: excerpt.len() < item.summary.len(),
+                    evidence: EvidenceRef {
+                        id: item.id.clone(),
+                        source: EvidenceSource::ExperienceJournal,
+                        uri: format!("experience://{}", item.id),
+                        excerpt: Some(excerpt.clone()),
+                        hash: Some(item.digest),
+                        created_at: item.occurred_at,
+                    },
+                    excerpt,
+                }
+            })
+            .collect())
     }
 
     fn collect_recent_sessions(
@@ -453,6 +513,7 @@ fn omission(source: &str, detail: impl Into<String>) -> AutoDreamInputOmission {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::experience::{ExperienceJournal, OutcomeKind};
     use agent_diva_core::session::SessionManager;
     use agent_diva_laputa::LaputaService;
     use serde_json::Value;
@@ -476,6 +537,8 @@ mod tests {
         let collector =
             AutoDreamInputCollector::new(storage, LaputaService::open(temp.path()).unwrap())
                 .with_config(AutoDreamInputCollectorConfig {
+                    experience_limit: 0,
+                    experience_bytes: 40,
                     total_bytes_budget: 50,
                     recent_session_limit: 2,
                     recent_session_bytes: 40,
@@ -490,8 +553,40 @@ mod tests {
 
         assert_eq!(result.items.first().unwrap().source, SESSION_SOURCE);
         assert!(result.summary.truncated);
-        assert_eq!(result.summary.included_sources[0].source, SESSION_SOURCE);
-        assert_eq!(result.summary.included_sources[1].source, LAPUTA_SOURCE);
+        assert_eq!(result.summary.included_sources[0].source, EXPERIENCE_SOURCE);
+        assert_eq!(result.summary.included_sources[1].source, SESSION_SOURCE);
+        assert_eq!(result.summary.included_sources[2].source, LAPUTA_SOURCE);
+    }
+
+    #[test]
+    fn collector_prioritizes_payload_free_execution_evidence() {
+        let temp = tempdir().unwrap();
+        let journal = ExperienceJournal::open(temp.path());
+        let evidence = journal.tool_evidence(
+            "chat:1",
+            "trace-1",
+            "call-1",
+            "exec",
+            OutcomeKind::Succeeded,
+        );
+        journal.append(&evidence).unwrap();
+        seed_session(temp.path(), "chat:1", "session fallback");
+
+        let result = AutoDreamInputCollector::new(
+            AutoDreamStorage::open(temp.path()).unwrap(),
+            LaputaService::open(temp.path()).unwrap(),
+        )
+        .collect("run-1")
+        .unwrap();
+
+        let first = result.items.first().unwrap();
+        assert_eq!(first.source, EXPERIENCE_SOURCE);
+        assert_eq!(first.evidence.source, EvidenceSource::ExperienceJournal);
+        assert_eq!(first.evidence.id, evidence.id);
+        assert_eq!(
+            first.evidence.hash.as_deref(),
+            Some(evidence.digest.as_str())
+        );
     }
 
     #[test]

@@ -41,6 +41,7 @@ cron = { workspace = true }
 
 # Utilities
 uuid = { workspace = true }
+sha2 = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = "0.12"
