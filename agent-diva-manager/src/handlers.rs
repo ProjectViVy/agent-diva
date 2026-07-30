@@ -25,8 +25,9 @@ pub use laputa::{
     apply_laputa_proposal_handler, create_laputa_proposal_handler, decide_laputa_proposal_handler,
     edit_laputa_proposal_handler, get_laputa_changelog_handler, get_laputa_proposal_handler,
     get_laputa_section_handler, get_laputa_snapshot_handler, list_laputa_changelog_handler,
-    list_laputa_proposals_handler, poll_laputa_events_handler, rollback_laputa_changelog_handler,
-    stream_laputa_events_handler, transition_laputa_proposal_handler, write_laputa_section_handler,
+    list_laputa_proposals_handler, list_recall_feedback_handler, poll_laputa_events_handler,
+    rollback_laputa_changelog_handler, stream_laputa_events_handler,
+    transition_laputa_proposal_handler, write_laputa_section_handler,
 };
 
 pub use provider_companion::{

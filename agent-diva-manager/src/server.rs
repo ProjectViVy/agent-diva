@@ -21,8 +21,8 @@ use crate::handlers::{
     get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
     get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
     health_handler, heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
-    list_laputa_changelog_handler, list_laputa_proposals_handler, logs_routes,
-    poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
+    list_laputa_changelog_handler, list_laputa_proposals_handler, list_recall_feedback_handler,
+    logs_routes, poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
     resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, todo_routes, token_stats_routes,
@@ -141,6 +141,10 @@ fn laputa_routes() -> Router<AppState> {
             post(write_laputa_section_handler),
         )
         .route("/api/laputa/changelog", get(list_laputa_changelog_handler))
+        .route(
+            "/api/laputa/recall-feedback",
+            get(list_recall_feedback_handler),
+        )
         .route(
             "/api/laputa/changelog/:id",
             get(get_laputa_changelog_handler),
@@ -438,6 +442,27 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn evolution_workspace_exposes_payload_free_recall_feedback() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let response = build_router(state)
+            .oneshot(
+                Request::builder()
+                    .uri("/api/laputa/recall-feedback?limit=10")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["feedback"], serde_json::json!([]));
     }
 
     #[tokio::test]

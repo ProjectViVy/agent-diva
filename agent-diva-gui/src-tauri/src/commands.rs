@@ -869,6 +869,36 @@ pub async fn list_autodream_run_records(
 }
 
 #[tauri::command]
+pub async fn list_recall_feedback(
+    limit: Option<usize>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/laputa/recall-feedback?limit={}",
+        state.api_base_url(),
+        limit.unwrap_or(50).min(200)
+    );
+    get_laputa_payload(&state, &url, "feedback").await
+}
+
+#[tauri::command]
+pub async fn get_evolution_health(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/health", state.api_base_url());
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| laputa_string_error(format!("health request failed: {error}")))?;
+    response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|error| laputa_string_error(format!("health response invalid: {error}")))
+}
+
+#[tauri::command]
 pub async fn get_self_evolution_config(
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, serde_json::Value> {

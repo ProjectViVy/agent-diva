@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-07-31T02:00:00+08:00`
-- Last Heartbeat: `2026-07-31T02:45:00+08:00`
+- Started At: `2026-07-31T02:50:00+08:00`
+- Last Heartbeat: `2026-07-31T03:15:00+08:00`
 - Expires At: `released`
 
 ## Lock Rules
@@ -29,6 +29,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-31T03:15:00+08:00`: Released E6 integrated Evolution Workspace.
+  The page now shows typed health/revision, AutoDream phase/input coverage,
+  proposal governance, audit/rollback and payload-free Recall feedback, with
+  real trigger/cancel/run-proposal navigation and visual proposal revision
+  editing. GUI tests/build, Manager/Tauri checks, focused route test, fmt and
+  full clippy passed. Final automated reliability/release gates remain E7; no
+  manual desktop test or push occurred.
 
 - `2026-07-31T02:45:00+08:00`: Released E5 typed Recall feedback closure.
   Governed AutoDream records preserve run/evidence provenance; the unique

@@ -402,6 +402,8 @@ pub fn run() {
             commands::get_autodream_run_status,
             commands::cancel_autodream_run,
             commands::list_autodream_run_records,
+            commands::list_recall_feedback,
+            commands::get_evolution_health,
             commands::get_self_evolution_config,
             commands::save_self_evolution_config,
             commands::get_channels,

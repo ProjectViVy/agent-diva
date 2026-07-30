@@ -235,7 +235,9 @@ export type EvidenceSource =
   | 'laputa_section'
   | 'user_input'
   | 'file'
-  | 'context_compaction';
+  | 'context_compaction'
+  | 'experience_journal'
+  | 'recall_feedback';
 
 export interface EvidenceRef {
   id: string;
@@ -465,8 +467,49 @@ export interface AutoDreamRunRecord {
   summary?: string | null;
   input_summary?: AutoDreamInputSummary | null;
   proposal_ids: string[];
+  orchestration?: {
+    schema_version: number;
+    phase:
+      | 'queued'
+      | 'gathering'
+      | 'reflecting'
+      | 'validating'
+      | 'publishing'
+      | 'completed'
+      | 'failed'
+      | 'cancelled';
+    attempt: number;
+    deadline_at: string;
+    updated_at: string;
+  } | null;
   failure_code?: AutoDreamFailureCode | null;
   error?: string | null;
+}
+
+export interface RecallFeedbackEvent {
+  schema_version: number;
+  event_id: string;
+  request_id: string;
+  record_id: string;
+  content_digest: { algorithm: string; value: string };
+  selected: boolean;
+  injected: boolean;
+  corrected: boolean;
+  task_outcome: 'succeeded' | 'failed' | 'unknown';
+  recorded_at: string;
+}
+
+export interface EvolutionHealth {
+  status: string;
+  version: string;
+  memory: {
+    authority_mode: 'legacy' | 'shadow' | 'typed';
+    status: string;
+    degraded_reason?: string | null;
+    store_revision?: number | null;
+    record_count?: number | null;
+    tombstone_count?: number | null;
+  };
 }
 
 export interface SelfEvolutionConfig {
@@ -584,6 +627,12 @@ export const cancelAutoDreamRun = (id: string) =>
 
 export const listAutoDreamRunRecords = () =>
   invoke<AutoDreamRunRecord[]>("list_autodream_run_records");
+
+export const listRecallFeedback = (limit = 50) =>
+  invoke<RecallFeedbackEvent[]>("list_recall_feedback", { limit });
+
+export const getEvolutionHealth = () =>
+  invoke<EvolutionHealth>("get_evolution_health");
 
 export const getSelfEvolutionConfig = () =>
   invoke<SelfEvolutionConfig>("get_self_evolution_config");

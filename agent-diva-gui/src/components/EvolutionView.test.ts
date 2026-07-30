@@ -3,16 +3,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EvolutionView from './EvolutionView.vue';
 import {
   applyLaputaProposal,
+  cancelAutoDreamRun,
   decideLaputaProposal,
   editLaputaProposal,
   getLaputaSection,
+  getEvolutionHealth,
   getSelfEvolutionConfig,
   listAutoDreamRunRecords,
   listLaputaChangelog,
   listLaputaProposals,
+  listRecallFeedback,
   pollLaputaEvents,
   rollbackLaputaChangelog,
   transitionLaputaProposal,
+  triggerAutoDream,
 } from '../api/desktop';
 import { appConfirm } from '../utils/appDialog';
 import { showAppToast } from '../utils/appToast';
@@ -73,6 +77,10 @@ vi.mock('../api/desktop', () => ({
   applyLaputaProposal: vi.fn(),
   editLaputaProposal: vi.fn(),
   rollbackLaputaChangelog: vi.fn(),
+  getEvolutionHealth: vi.fn(),
+  listRecallFeedback: vi.fn(),
+  triggerAutoDream: vi.fn(),
+  cancelAutoDreamRun: vi.fn(),
 }));
 
 const baseProposal = {
@@ -143,6 +151,33 @@ describe('EvolutionView governance detail', () => {
     window.localStorage.clear();
     vi.mocked(listLaputaProposals).mockResolvedValue([baseProposal]);
     vi.mocked(listAutoDreamRunRecords).mockRejectedValue(new Error('not implemented'));
+    vi.mocked(getEvolutionHealth).mockResolvedValue({
+      status: 'ok',
+      version: '0.5.0',
+      memory: {
+        authority_mode: 'typed',
+        status: 'ready',
+        store_revision: 7,
+        record_count: 3,
+        tombstone_count: 1,
+      },
+    });
+    vi.mocked(listRecallFeedback).mockResolvedValue([]);
+    vi.mocked(triggerAutoDream).mockResolvedValue({
+      id: 'run-new',
+      started_at: '2026-06-14T00:00:00Z',
+      state: 'pending',
+      trigger: 'manual',
+      proposal_ids: [],
+    });
+    vi.mocked(cancelAutoDreamRun).mockImplementation(async (id) => ({
+      id,
+      started_at: '2026-06-14T00:00:00Z',
+      completed_at: '2026-06-14T00:01:00Z',
+      state: 'cancelled',
+      trigger: 'manual',
+      proposal_ids: [],
+    }));
     vi.mocked(getSelfEvolutionConfig).mockResolvedValue({
       enabled: true,
       autodream_frequency: 'weekly',
@@ -205,13 +240,47 @@ describe('EvolutionView governance detail', () => {
     });
   });
 
-  it('labels the current reflection pipeline as under construction', async () => {
+  it('labels the automated vertical pipeline honestly', async () => {
     const wrapper = mountView();
     await flushPromises();
 
     const notice = wrapper.get('[data-testid="evolution-stage-notice"]');
     expect(notice.text()).toContain('evolution.stageNotice.title');
     expect(notice.text()).toContain('evolution.stageNotice.desc');
+  });
+
+  it('shows typed workspace status and triggers a manual run', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="evolution-workspace-status"]').text()).toContain('typed');
+    expect(wrapper.find('[data-testid="evolution-workspace-status"]').text()).toContain('7');
+
+    await wrapper.find('[data-testid="evolution-tab-runs"]').trigger('click');
+    await flushPromises();
+    await wrapper.find('[data-testid="trigger-autodream"]').trigger('click');
+    await flushPromises();
+
+    expect(triggerAutoDream).toHaveBeenCalledWith('manual');
+    expect(showAppToast).toHaveBeenCalledWith('evolution.runs.triggerSuccess', 'success');
+  });
+
+  it('edits proposal content and invalidates the prior revision through backend edit', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('evolution.actions.edit'));
+    await editButton?.trigger('click');
+    await wrapper.find('[data-testid="proposal-edit-textarea"]').setValue('revised memory');
+    await wrapper.find('[data-testid="proposal-edit-save"]').trigger('click');
+    await flushPromises();
+
+    expect(editLaputaProposal).toHaveBeenCalledWith('proposal-1', {
+      proposed_patch: 'revised memory',
+      updated_at: '2026-06-14T00:00:00Z',
+    });
   });
 
   it('disables approval for high-risk proposal with missing evidence', async () => {

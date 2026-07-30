@@ -12,24 +12,30 @@ import {
 } from '@lucide/vue';
 import {
   applyLaputaProposal,
+  cancelAutoDreamRun,
   decideLaputaProposal,
   editLaputaProposal,
   getLaputaSection,
+  getEvolutionHealth,
   getSelfEvolutionConfig,
   listAutoDreamRunRecords,
   listLaputaChangelog,
   listLaputaProposals,
+  listRecallFeedback,
   pollLaputaEvents,
   rollbackLaputaChangelog,
   transitionLaputaProposal,
+  triggerAutoDream,
 } from '../api/desktop';
 import type {
   ChangelogRecord,
   AutoDreamRunRecord,
   EvolutionProposal,
+  EvolutionHealth,
   LaputaEvent,
   LaputaSection,
   SelfEvolutionConfig,
+  RecallFeedbackEvent,
 } from '../api/desktop';
 import ProposalDetail from './evolution/ProposalDetail.vue';
 import ProposalInbox from './evolution/ProposalInbox.vue';
@@ -100,6 +106,9 @@ const runs = ref<AutoDreamRunRecord[]>([]);
 const runsLoading = ref(false);
 const runsError = ref<string | null>(null);
 const runsLoaded = ref(false);
+const recallFeedback = ref<RecallFeedbackEvent[]>([]);
+const evolutionHealth = ref<EvolutionHealth | null>(null);
+const workspaceError = ref<string | null>(null);
 const policyConfig = ref<SelfEvolutionConfig | null>(null);
 const policyLoading = ref(false);
 const policyError = ref<string | null>(null);
@@ -371,6 +380,46 @@ async function loadRuns() {
   }
 }
 
+async function loadWorkspaceStatus() {
+  workspaceError.value = null;
+  try {
+    const [health, feedback] = await Promise.all([
+      getEvolutionHealth(),
+      listRecallFeedback(50),
+    ]);
+    evolutionHealth.value = health;
+    recallFeedback.value = feedback;
+  } catch (error) {
+    evolutionHealth.value = null;
+    recallFeedback.value = [];
+    workspaceError.value = normalizeError(error);
+  }
+}
+
+async function handleTriggerRun() {
+  await withAction('trigger-run', async () => {
+    const run = await triggerAutoDream('manual');
+    runs.value = [run, ...runs.value.filter((item) => item.id !== run.id)];
+    runsLoaded.value = true;
+    activeTab.value = 'runs';
+    showAppToast(t('evolution.runs.triggerSuccess'), 'success');
+  });
+}
+
+async function handleCancelRun(run: AutoDreamRunRecord) {
+  await withAction(`cancel-run-${run.id}`, async () => {
+    const next = await cancelAutoDreamRun(run.id);
+    runs.value = runs.value.map((item) => (item.id === next.id ? next : item));
+    showAppToast(t('evolution.runs.cancelSuccess'), 'success');
+  });
+}
+
+function openRunProposals(run: AutoDreamRunRecord) {
+  activeSourceRunId.value = run.id;
+  selectedProposalId.value = run.proposal_ids[0] ?? null;
+  activeTab.value = 'inbox';
+}
+
 async function loadPolicy() {
   policyLoading.value = true;
   policyError.value = null;
@@ -473,6 +522,7 @@ async function refresh() {
     emitCount();
   }
 
+  await loadWorkspaceStatus();
   if (activeTab.value !== 'inbox') {
     await ensureActiveTabLoaded(activeTab.value);
   }
@@ -662,10 +712,12 @@ async function handleRollback() {
   });
 }
 
-async function handleEdit() {
+async function handleEdit(proposedPatch?: string) {
   if (!selectedProposal.value) return;
+  if (proposedPatch === undefined) return;
   await withAction('edit', async () => {
     const next = await editLaputaProposal(selectedProposal.value!.id, {
+      proposed_patch: proposedPatch,
       updated_at: selectedProposal.value!.updated_at,
     });
     updateLocalProposal(next);
@@ -734,6 +786,32 @@ onMounted(async () => {
         <p>{{ t('evolution.stageNotice.desc') }}</p>
       </div>
     </div>
+
+    <section class="evolution-workspace-status" data-testid="evolution-workspace-status">
+      <div>
+        <span>{{ t('evolution.workspace.authority') }}</span>
+        <strong>{{ evolutionHealth?.memory.authority_mode ?? '-' }}</strong>
+      </div>
+      <div>
+        <span>{{ t('evolution.workspace.storeRevision') }}</span>
+        <strong>{{ evolutionHealth?.memory.store_revision ?? '-' }}</strong>
+      </div>
+      <div>
+        <span>{{ t('evolution.workspace.records') }}</span>
+        <strong>{{ evolutionHealth?.memory.record_count ?? '-' }}</strong>
+      </div>
+      <div>
+        <span>{{ t('evolution.workspace.feedback') }}</span>
+        <strong>{{ recallFeedback.length }}</strong>
+      </div>
+      <div
+        v-if="workspaceError || evolutionHealth?.memory.status === 'degraded'"
+        class="evolution-workspace-degraded"
+      >
+        <span>{{ t('evolution.workspace.degraded') }}</span>
+        <strong>{{ workspaceError || evolutionHealth?.memory.degraded_reason }}</strong>
+      </div>
+    </section>
 
     <div class="evolution-tabs" role="tablist">
       <button
@@ -811,6 +889,7 @@ onMounted(async () => {
               @approve-apply="handleApproveAndApply"
               @approve-only="handleApproveOnly"
               @edit="handleEdit"
+              @save-edit="handleEdit"
               @reject="handleReject"
               @defer="handleDefer"
               @rollback="handleRollback"
@@ -827,6 +906,15 @@ onMounted(async () => {
             <h2>{{ t('evolution.runs.title') }}</h2>
             <p>{{ t('evolution.runs.desc') }}</p>
           </div>
+          <button
+            type="button"
+            class="evolution-refresh"
+            data-testid="trigger-autodream"
+            :disabled="busyAction !== null"
+            @click="handleTriggerRun"
+          >
+            {{ t('evolution.runs.trigger') }}
+          </button>
         </div>
 
         <div v-if="runsLoading" class="evolution-detail-loading">{{ t('evolution.runs.loading') }}</div>
@@ -848,6 +936,14 @@ onMounted(async () => {
             </div>
             <dl class="evolution-record-grid">
               <div>
+                <dt>{{ t('evolution.runs.phase') }}</dt>
+                <dd>{{ run.orchestration?.phase || run.state }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('evolution.runs.attempt') }}</dt>
+                <dd>{{ run.orchestration?.attempt ?? 0 }}</dd>
+              </div>
+              <div>
                 <dt>{{ t('evolution.runs.startedAt') }}</dt>
                 <dd>{{ run.started_at }}</dd>
               </div>
@@ -867,6 +963,16 @@ onMounted(async () => {
                 <dt>{{ t('evolution.runs.inputs') }}</dt>
                 <dd>{{ runInputSummary(run) }}</dd>
               </div>
+              <div v-if="run.input_summary?.included_sources?.length">
+                <dt>{{ t('evolution.runs.inputSources') }}</dt>
+                <dd>
+                  {{
+                    run.input_summary.included_sources
+                      .map((source) => `${source.source}:${source.included_items}`)
+                      .join(', ')
+                  }}
+                </dd>
+              </div>
               <div>
                 <dt>{{ t('evolution.runs.outputs') }}</dt>
                 <dd>{{ runOutputSummary(run) }}</dd>
@@ -876,7 +982,37 @@ onMounted(async () => {
                 <dd>{{ run.error || t('evolution.runs.noErrors') }}</dd>
               </div>
             </dl>
+            <div class="evolution-run-actions">
+              <button
+                v-if="run.state === 'pending' || run.state === 'running'"
+                type="button"
+                :disabled="busyAction !== null"
+                :data-testid="`cancel-autodream-${run.id}`"
+                @click="handleCancelRun(run)"
+              >
+                {{ t('evolution.runs.cancel') }}
+              </button>
+              <button
+                v-if="run.proposal_ids.length > 0"
+                type="button"
+                :data-testid="`open-run-proposals-${run.id}`"
+                @click="openRunProposals(run)"
+              >
+                {{ t('evolution.runs.openProposals') }}
+              </button>
+            </div>
           </article>
+        </div>
+        <div class="evolution-feedback-summary" data-testid="recall-feedback-summary">
+          <h3>{{ t('evolution.feedback.title') }}</h3>
+          <p>{{ t('evolution.feedback.desc', { count: recallFeedback.length }) }}</p>
+          <ul v-if="recallFeedback.length > 0">
+            <li v-for="event in recallFeedback.slice(0, 8)" :key="event.event_id">
+              <code>{{ event.record_id }}</code>
+              <span>{{ event.task_outcome }}</span>
+              <span v-if="event.corrected">{{ t('evolution.feedback.corrected') }}</span>
+            </li>
+          </ul>
         </div>
       </section>
     </div>
@@ -976,6 +1112,55 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.evolution-workspace-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.evolution-workspace-status > div,
+.evolution-feedback-summary {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+}
+
+.evolution-workspace-status span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.evolution-workspace-degraded strong {
+  color: var(--color-danger);
+}
+
+.evolution-run-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.evolution-feedback-summary {
+  margin-top: 14px;
+}
+
+.evolution-feedback-summary ul {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evolution-feedback-summary li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .evolution-view {
   display: flex;
   height: 100%;

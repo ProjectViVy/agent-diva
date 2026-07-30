@@ -53,7 +53,13 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     终态 seam 提交 payload-free Recall 成功/失败/纠错反馈；下一次 Reflection 可把
     纠错转为 governed deprecation，apply 时生成 content-free tombstone/supersedes，
     无效或缺失 target fail closed。
-  - [ ] **E6–E7**：一体化 GUI、恢复与发布门。
+  - [x] **E6 一体化 Evolution Workspace**：单一页面汇总 typed authority/revision、
+    AutoDream phase/attempt/输入覆盖、候选提案、治理动作、changelog/rollback 与
+    payload-free Recall feedback；支持立即反思、取消、查看 run 提案、可视化编辑后
+    生成新 proposal revision、批准并应用、拒绝、暂缓与回滚；typed degraded 原因
+    显式展示。
+  - [ ] **E7 恢复与发布门**：完成 canonical workspace identity、单一副作用 seam、
+    observability、恢复演练、全测试与发布候选自动化 E2E。
     E7 必须在关闭占用 debug 二进制的桌面进程后复跑 `just test`，并解决或规避当前
     Windows GUI lib test 的 MSVC `LNK1140` PDB 限制，不能以 `cargo check` 代替。
 

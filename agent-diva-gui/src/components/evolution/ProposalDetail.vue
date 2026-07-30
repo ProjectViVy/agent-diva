@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { AlertCircle, ExternalLink, FileDiff, FileSearch, ShieldAlert } from '@lucide/vue';
 import type { ChangelogRecord, EvolutionProposal, LaputaSection } from '../../api/desktop';
@@ -25,6 +25,7 @@ const emit = defineEmits<{
   (event: 'approve-apply'): void;
   (event: 'approve-only'): void;
   (event: 'edit'): void;
+  (event: 'save-edit', content: string): void;
   (event: 'reject'): void;
   (event: 'defer'): void;
   (event: 'rollback'): void;
@@ -49,6 +50,29 @@ const currentContent = computed(() => {
 });
 
 const proposedContent = computed(() => props.proposal?.proposed_patch ?? '');
+const editing = ref(false);
+const editDraft = ref('');
+
+watch(
+  () => props.proposal?.id,
+  () => {
+    editing.value = false;
+    editDraft.value = props.proposal?.proposed_patch ?? '';
+  },
+  { immediate: true },
+);
+
+function beginEdit() {
+  editDraft.value = props.proposal?.proposed_patch ?? '';
+  editing.value = true;
+  emit('edit');
+}
+
+function saveEdit() {
+  if (!editDraft.value.trim()) return;
+  emit('save-edit', editDraft.value);
+  editing.value = false;
+}
 
 const safetyChecks = computed(() => {
   if (!props.proposal) return [];
@@ -153,7 +177,16 @@ const safetyChecks = computed(() => {
       </article>
       <article class="proposal-detail__column">
         <h4>{{ t('evolution.detail.proposed') }}</h4>
-        <pre class="proposal-detail__code">{{ proposedContent || t('evolution.detail.emptyPatch') }}</pre>
+        <div v-if="editing" class="proposal-detail__editor">
+          <textarea v-model="editDraft" data-testid="proposal-edit-textarea" />
+          <div>
+            <button type="button" data-testid="proposal-edit-save" @click="saveEdit">
+              {{ t('evolution.actions.saveEdit') }}
+            </button>
+            <button type="button" @click="editing = false">{{ t('evolution.actions.cancelEdit') }}</button>
+          </div>
+        </div>
+        <pre v-else class="proposal-detail__code">{{ proposedContent || t('evolution.detail.emptyPatch') }}</pre>
       </article>
     </section>
 
@@ -166,7 +199,7 @@ const safetyChecks = computed(() => {
       :rollback-reason="rollbackReason"
       @approve-apply="emit('approve-apply')"
       @approve-only="emit('approve-only')"
-      @edit="emit('edit')"
+      @edit="beginEdit"
       @reject="emit('reject')"
       @defer="emit('defer')"
       @rollback="emit('rollback')"
@@ -337,6 +370,18 @@ const safetyChecks = computed(() => {
   padding: 12px;
   max-height: 260px;
   overflow: auto;
+}
+
+.proposal-detail__editor textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+}
+
+.proposal-detail__editor > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 @media (max-width: 880px) {

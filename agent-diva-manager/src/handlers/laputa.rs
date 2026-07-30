@@ -118,6 +118,11 @@ pub struct EventQuery {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct RecallFeedbackQuery {
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct WriteLaputaSectionPayload {
     pub content: String,
     pub actor: Option<String>,
@@ -155,6 +160,18 @@ pub async fn list_laputa_proposals_handler(
         "proposals": proposals,
         "governance": governance,
     }))
+}
+
+pub async fn list_recall_feedback_handler(
+    State(state): State<AppState>,
+    Query(query): Query<RecallFeedbackQuery>,
+) -> JsonResult {
+    let storage = agent_diva_laputa::LaputaStorage::open(&state.workspace_root)
+        .map_err(laputa_error_response)?;
+    let events = agent_diva_laputa::RecallFeedbackStore::new(storage)
+        .recent(query.limit.unwrap_or(50).min(200))
+        .map_err(laputa_error_response)?;
+    ok(serde_json::json!({ "feedback": events }))
 }
 
 pub async fn create_laputa_proposal_handler(
