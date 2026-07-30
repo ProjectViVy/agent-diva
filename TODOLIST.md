@@ -43,6 +43,12 @@ Evolution development or release acceptance resumes.
 
 ## Operational Testing
 
+- [x] **Migration apply reported inconsistent before/after revisions during
+  G2D preflight** Fixed by separating expected and resulting revisions,
+  validating replayed manifest/store identity, and recording rollback state so
+  the same deterministic migration can be safely reapplied. Evidence:
+  `docs/logs/2026-07-g2d-migration-report/v0.0.1-revision-contract/`.
+
 - [ ] **在需要真机验证的里程碑主动提醒用户** 当 GMH 路线图推进到必须使用真实设备、真实桌面环境或真实外部集成才能完成验收的节点时，先明确提醒用户，不得将模拟测试或自动化测试冒充真机验收。提醒需列出所需环境、操作步骤、预期观察点及失败时需要保留的诊断信息；获得用户配合后再完成对应里程碑验收。
 
 - [ ] **真实 API 测试使用桌面密钥文件** 当验证工作确实需要调用真实 API 时，使用桌面的 `keys.txt` 提供测试凭据；不得将该文件、其中的密钥或未脱敏内容复制进仓库、日志、错误输出、测试夹具或提交记录。

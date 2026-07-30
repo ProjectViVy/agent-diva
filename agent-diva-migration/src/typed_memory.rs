@@ -52,6 +52,8 @@ struct AppliedMigrationManifest {
     backup_path: PathBuf,
     store_revision_before: i64,
     store_revision_after: i64,
+    #[serde(default)]
+    rolled_back: bool,
 }
 
 pub async fn dry_run(request: &MemoryImportRequest) -> Result<MemoryImportReport> {
@@ -69,7 +71,11 @@ pub async fn dry_run(request: &MemoryImportRequest) -> Result<MemoryImportReport
             workspace_id: request.workspace_id.clone(),
         }
     };
-    Ok(prepared.report(metadata, None))
+    Ok(prepared.report(
+        metadata.store_revision,
+        metadata.store_revision + prepared.records.len() as i64,
+        None,
+    ))
 }
 
 pub async fn apply(request: &MemoryImportRequest) -> Result<MemoryImportReport> {
@@ -82,6 +88,7 @@ pub async fn apply(request: &MemoryImportRequest) -> Result<MemoryImportReport> 
         .join("migrations")
         .join(&prepared.migration_id);
     let manifest_path = migration_dir.join("applied-manifest.json");
+    let mut reuse_existing_backup = false;
     if manifest_path.exists() {
         let existing: AppliedMigrationManifest =
             serde_json::from_slice(&fs::read(&manifest_path)?)?;
@@ -91,15 +98,26 @@ pub async fn apply(request: &MemoryImportRequest) -> Result<MemoryImportReport> 
         {
             bail!("migration id conflicts with an existing manifest");
         }
-        let integrity = store.integrity().await?;
-        return Ok(prepared.report(
-            MemoryStoreMetadata {
-                schema_version: integrity.schema_version,
-                store_revision: existing.store_revision_after,
-                workspace_id: request.workspace_id.clone(),
-            },
-            Some(integrity),
-        ));
+        if !existing.rolled_back {
+            let integrity = store.integrity().await?;
+            if integrity.store_revision != existing.store_revision_after {
+                bail!("migration manifest and typed store revision disagree");
+            }
+            for record in &prepared.records {
+                if store.get(&record.id).await?.is_none() {
+                    bail!("migration manifest references a missing typed record");
+                }
+            }
+            return Ok(prepared.report(
+                existing.store_revision_before,
+                existing.store_revision_after,
+                Some(integrity),
+            ));
+        }
+        if before.store_revision != existing.store_revision_before {
+            bail!("rolled-back migration no longer matches the typed store revision");
+        }
+        reuse_existing_backup = true;
     }
 
     fs::create_dir_all(&migration_dir)?;
@@ -113,7 +131,9 @@ pub async fn apply(request: &MemoryImportRequest) -> Result<MemoryImportReport> 
     artifacts.execute(&artifact_plan)?;
 
     let backup_path = migration_dir.join("memory-before.sqlite3");
-    store.backup(&backup_path).await?;
+    if !reuse_existing_backup {
+        store.backup(&backup_path).await?;
+    }
     let after = match store
         .import_records(prepared.records.clone(), before.store_revision)
         .await
@@ -143,9 +163,10 @@ pub async fn apply(request: &MemoryImportRequest) -> Result<MemoryImportReport> 
             backup_path,
             store_revision_before: before.store_revision,
             store_revision_after: after.store_revision,
+            rolled_back: false,
         },
     )?;
-    Ok(prepared.report(after, Some(integrity)))
+    Ok(prepared.report(before.store_revision, after.store_revision, Some(integrity)))
 }
 
 pub async fn rollback(
@@ -159,7 +180,7 @@ pub async fn rollback(
         .join("migrations")
         .join(migration_id);
     let manifest_path = migration_dir.join("applied-manifest.json");
-    let manifest: AppliedMigrationManifest =
+    let mut manifest: AppliedMigrationManifest =
         serde_json::from_slice(&fs::read(&manifest_path).context("migration manifest not found")?)?;
     if manifest.migration_id != migration_id || manifest.workspace_id != workspace_id {
         bail!("migration manifest identity mismatch");
@@ -167,6 +188,8 @@ pub async fn rollback(
     let store = TypedMemoryStore::open(workspace, workspace_id).await?;
     let restored = store.restore(&manifest.backup_path).await?;
     let integrity = restored.integrity().await?;
+    manifest.rolled_back = true;
+    atomic_write_json(&manifest_path, &manifest)?;
     Ok(MemoryImportReport {
         migration_id: migration_id.into(),
         manifest_path,
@@ -197,7 +220,8 @@ struct PreparedImport {
 impl PreparedImport {
     fn report(
         &self,
-        metadata: MemoryStoreMetadata,
+        expected_store_revision: i64,
+        resulting_store_revision: i64,
         integrity: Option<MemoryStoreIntegrity>,
     ) -> MemoryImportReport {
         MemoryImportReport {
@@ -218,8 +242,8 @@ impl PreparedImport {
             conflict_count: 0,
             input_digest: self.input_digest.clone(),
             records_digest: self.records_digest.clone(),
-            expected_store_revision: metadata.store_revision,
-            resulting_store_revision: metadata.store_revision + self.records.len() as i64,
+            expected_store_revision,
+            resulting_store_revision,
             integrity,
         }
     }
@@ -387,9 +411,17 @@ mod tests {
         let request = request(temp.path(), source);
 
         let applied = apply(&request).await.unwrap();
+        assert_eq!(applied.expected_store_revision, 0);
+        assert_eq!(applied.resulting_store_revision, 1);
+        assert_eq!(
+            applied.integrity.as_ref().unwrap().store_revision,
+            applied.resulting_store_revision
+        );
         let replayed = apply(&request).await.unwrap();
         assert_eq!(applied.migration_id, replayed.migration_id);
-        assert_eq!(replayed.integrity.unwrap().record_count, 1);
+        assert_eq!(replayed.expected_store_revision, 0);
+        assert_eq!(replayed.resulting_store_revision, 1);
+        assert_eq!(replayed.integrity.as_ref().unwrap().record_count, 1);
 
         let rolled_back = rollback(
             &request.workspace,
@@ -399,6 +431,11 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(rolled_back.integrity.unwrap().record_count, 0);
+
+        let reapplied = apply(&request).await.unwrap();
+        assert_eq!(reapplied.expected_store_revision, 0);
+        assert_eq!(reapplied.resulting_store_revision, 1);
+        assert_eq!(reapplied.integrity.unwrap().record_count, 1);
     }
 
     #[tokio::test]
