@@ -21,7 +21,7 @@ use crate::{
     metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot},
     AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
     AutoDreamMonthlyReportGenerator, AutoDreamRhythmReportGenerator, AutoDreamStorage,
-    AutoDreamWorker, AutoDreamWorkerReport, MonthlyReportErrorMarker, Result,
+    AutoDreamWorker, AutoDreamWorkerReport, MonthlyReportErrorMarker, ReflectionEngine, Result,
 };
 
 const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
@@ -88,6 +88,7 @@ pub struct AutoDreamService {
     storage: AutoDreamStorage,
     stale_lock_after: Duration,
     narrative_generator: Option<Arc<dyn ReportNarrativeGenerator>>,
+    reflection_engine: Option<Arc<dyn ReflectionEngine>>,
     llm_curation: LlmCurationConfig,
 }
 
@@ -116,6 +117,7 @@ impl AutoDreamService {
             storage,
             stale_lock_after: Duration::from_secs(DEFAULT_STALE_LOCK_SECS),
             narrative_generator: None,
+            reflection_engine: None,
             llm_curation: LlmCurationConfig::default(),
         }
     }
@@ -133,6 +135,11 @@ impl AutoDreamService {
     ) -> Self {
         self.narrative_generator = narrative_generator;
         self.llm_curation = llm_curation;
+        self
+    }
+
+    pub fn with_reflection_engine(mut self, engine: Option<Arc<dyn ReflectionEngine>>) -> Self {
+        self.reflection_engine = engine;
         self
     }
 
@@ -319,13 +326,14 @@ impl AutoDreamService {
         Ok(collected)
     }
 
-    pub fn execute_reflection_worker(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
+    pub async fn execute_reflection_worker(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
         let worker = AutoDreamWorker::new(
             self.storage.clone(),
             agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
                 .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
-        );
-        worker.execute(run_id).inspect_err(|_| {
+        )
+        .with_reflection_engine(self.reflection_engine.clone());
+        worker.execute(run_id).await.inspect_err(|_| {
             Self::metrics().record_failure();
         })
     }

@@ -2,13 +2,15 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::Path,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use agent_diva_core::evolution::{
     AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState,
-    EvidenceRef, RiskLevel,
+    MemoryCandidate, RiskLevel,
 };
+use agent_diva_core::experience::ExperienceJournal;
 use agent_diva_laputa::LaputaService;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -18,7 +20,8 @@ use crate::{
     atomic::atomic_write_json, AutoDreamArtifactSummary, AutoDreamCheckpoint,
     AutoDreamCollectedInputs, AutoDreamError, AutoDreamEvent, AutoDreamLockRecord,
     AutoDreamOutputEmitter, AutoDreamOutputRequest, AutoDreamProposalCandidateDraft,
-    AutoDreamStorage, Result,
+    AutoDreamStorage, BoundedReflectionInput, CandidateGate, ReflectionEngine, ReflectionEvidence,
+    Result,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -148,11 +151,12 @@ impl Default for AutoDreamWorkerConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AutoDreamWorker {
     storage: AutoDreamStorage,
     laputa: LaputaService,
     config: AutoDreamWorkerConfig,
+    reflection_engine: Option<Arc<dyn ReflectionEngine>>,
 }
 
 impl AutoDreamWorker {
@@ -161,6 +165,7 @@ impl AutoDreamWorker {
             storage,
             laputa,
             config: AutoDreamWorkerConfig::default(),
+            reflection_engine: None,
         }
     }
 
@@ -169,11 +174,16 @@ impl AutoDreamWorker {
         self
     }
 
+    pub fn with_reflection_engine(mut self, engine: Option<Arc<dyn ReflectionEngine>>) -> Self {
+        self.reflection_engine = engine;
+        self
+    }
+
     pub fn restricted_profile(&self) -> &AutoDreamRestrictedProfile {
         &self.config.profile
     }
 
-    pub fn execute(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
+    pub async fn execute(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
         let started = Instant::now();
         let mut stages = AutoDreamReflectionStage::all()
             .into_iter()
@@ -203,6 +213,7 @@ impl AutoDreamWorker {
         self.start_attempt(run_id)?;
         let mut diagnostics = Vec::new();
         let mut collected = None;
+        let mut candidates = None;
 
         for index in 0..stages.len() {
             if let Some(report) =
@@ -224,7 +235,9 @@ impl AutoDreamWorker {
                 }),
                 AutoDreamReflectionStage::Consolidate => {
                     self.transition_phase(run_id, AutoDreamOrchestrationPhase::Reflecting)?;
-                    let result = self.consolidate(collected.as_ref());
+                    let result = self.reflect(run_id, collected.as_ref()).await.map(|value| {
+                        candidates = Some(value);
+                    });
                     if result.is_ok() {
                         self.transition_phase(run_id, AutoDreamOrchestrationPhase::Validating)?;
                     }
@@ -232,7 +245,7 @@ impl AutoDreamWorker {
                 }
                 AutoDreamReflectionStage::Propose => {
                     self.transition_phase(run_id, AutoDreamOrchestrationPhase::Publishing)?;
-                    self.propose(run_id, collected.as_ref())
+                    self.propose(run_id, collected.as_ref(), candidates.as_ref())
                 }
             };
 
@@ -326,7 +339,11 @@ impl AutoDreamWorker {
         Ok(collected)
     }
 
-    fn consolidate(&self, collected: Option<&AutoDreamCollectedInputs>) -> Result<()> {
+    async fn reflect(
+        &self,
+        run_id: &str,
+        collected: Option<&AutoDreamCollectedInputs>,
+    ) -> Result<Vec<MemoryCandidate>> {
         let collected = collected.ok_or_else(|| {
             AutoDreamError::InvalidState("cannot consolidate before gather stage".to_string())
         })?;
@@ -335,10 +352,72 @@ impl AutoDreamWorker {
                 "cannot consolidate empty reflection inputs".to_string(),
             ));
         }
-        Ok(())
+        let engine = self.reflection_engine.as_ref().ok_or_else(|| {
+            AutoDreamError::InvalidState("reflection provider unavailable".to_string())
+        })?;
+        let workspace_id =
+            ExperienceJournal::open(self.storage.paths().workspace_root()).workspace_id();
+        let input = BoundedReflectionInput {
+            schema_version: 1,
+            workspace_id,
+            run_id: run_id.to_string(),
+            evidence: collected
+                .items
+                .iter()
+                .map(|item| {
+                    let is_existing_memory = item.source == "laputa";
+                    let mut evidence = item.evidence.clone();
+                    let summary = if is_existing_memory {
+                        evidence.excerpt = None;
+                        format!(
+                            "existing_memory_digest:{}",
+                            crate::content_digest(&item.excerpt)
+                        )
+                    } else {
+                        let redacted = agent_diva_core::security::redact_pii(
+                            &item.excerpt,
+                            &agent_diva_core::security::PiiConfig::default(),
+                        )
+                        .redacted;
+                        evidence.excerpt = Some(redacted.clone());
+                        redacted
+                    };
+                    ReflectionEvidence { evidence, summary }
+                })
+                .collect(),
+            existing_memory_digests: collected
+                .items
+                .iter()
+                .filter(|item| item.source == "laputa")
+                .map(|item| crate::content_digest(&item.excerpt))
+                .collect(),
+            max_candidates: 8,
+        };
+        let output = engine
+            .reflect(input.clone())
+            .await
+            .map_err(|error| AutoDreamError::InvalidState(format!("reflection failed: {error}")))?;
+        let local_existing_memory = collected
+            .items
+            .iter()
+            .filter(|item| item.source == "laputa")
+            .map(|item| item.excerpt.clone())
+            .collect::<Vec<_>>();
+        let gated = CandidateGate.evaluate(&input, output.candidates, &local_existing_memory);
+        if !gated.rejected.is_empty() {
+            let rejection_summary = serde_json::to_string(&gated.rejected)
+                .unwrap_or_else(|_| "candidate_gate_diagnostics_unavailable".to_string());
+            self.append_event(run_id, "candidates_rejected", &rejection_summary)?;
+        }
+        Ok(gated.accepted)
     }
 
-    fn propose(&self, run_id: &str, collected: Option<&AutoDreamCollectedInputs>) -> Result<()> {
+    fn propose(
+        &self,
+        run_id: &str,
+        collected: Option<&AutoDreamCollectedInputs>,
+        candidates: Option<&Vec<MemoryCandidate>>,
+    ) -> Result<()> {
         self.config
             .profile
             .validate_request(AutoDreamRestrictedAction::WriteAutoDreamOutput)?;
@@ -348,34 +427,55 @@ impl AutoDreamWorker {
         let collected = collected.ok_or_else(|| {
             AutoDreamError::InvalidState("cannot propose before gather stage".to_string())
         })?;
+        let candidates = candidates.ok_or_else(|| {
+            AutoDreamError::InvalidState("cannot propose before reflection stage".to_string())
+        })?;
+        if candidates.is_empty() {
+            self.append_event(
+                run_id,
+                "no_candidates",
+                "reflection completed without eligible candidates",
+            )?;
+            return Ok(());
+        }
         let run = self.read_run(run_id)?;
-        let evidence_refs = collected
-            .items
+        let evidence_refs = candidates
             .iter()
-            .map(|item| item.evidence.clone())
-            .collect::<Vec<EvidenceRef>>();
+            .flat_map(|candidate| candidate.evidence_refs.clone())
+            .collect::<Vec<_>>();
         let summary = AutoDreamArtifactSummary {
-            headline: "AutoDream restricted reflection generated one review proposal".to_string(),
+            headline: format!(
+                "AutoDream restricted reflection generated {} review candidates",
+                candidates.len()
+            ),
             details: vec![
                 format!("inputs: {}", collected.summary.total_items),
                 format!("omissions: {}", collected.summary.omissions.len()),
                 "proposal persisted through Laputa proposal API".to_string(),
             ],
         };
-        let draft = AutoDreamProposalCandidateDraft {
-            proposal_type: "journal_note".to_string(),
-            proposed_patch: render_proposed_patch(collected),
-            risk_level: RiskLevel::Low,
-            evidence_refs: evidence_refs.clone(),
-        };
+        let drafts = candidates
+            .iter()
+            .map(|candidate| AutoDreamProposalCandidateDraft {
+                proposal_type: candidate.proposal_type.to_string(),
+                proposed_patch: candidate.content.clone(),
+                risk_level: risk_for_candidate(candidate),
+                evidence_refs: candidate.evidence_refs.clone(),
+                metadata: Some(candidate.clone()),
+            })
+            .collect();
         AutoDreamOutputEmitter::new(self.storage.clone(), self.laputa.clone()).emit_outputs(
             AutoDreamOutputRequest {
                 run,
                 generated_at: Utc::now(),
-                confidence: 60,
+                confidence: candidates
+                    .iter()
+                    .map(|candidate| candidate.confidence)
+                    .max()
+                    .unwrap_or_default(),
                 evidence_refs,
                 output_summary: summary,
-                proposal_candidates: vec![draft],
+                proposal_candidates: drafts,
             },
         )?;
         Ok(())
@@ -462,7 +562,11 @@ impl AutoDreamWorker {
         let mut run = self.read_run(run_id)?;
         run.state = AutoDreamRunState::Completed;
         run.completed_at = Some(now);
-        run.summary = Some("AutoDream restricted reflection completed".to_string());
+        run.summary = Some(if run.proposal_ids.is_empty() {
+            "AutoDream reflection completed with no eligible candidates".to_string()
+        } else {
+            "AutoDream restricted reflection completed".to_string()
+        });
         run.error = None;
         run.failure_code = None;
         if let Some(orchestration) = run.orchestration.as_mut() {
@@ -586,15 +690,14 @@ impl AutoDreamWorker {
     }
 }
 
-fn render_proposed_patch(collected: &AutoDreamCollectedInputs) -> String {
-    let evidence = collected
-        .items
-        .iter()
-        .take(3)
-        .map(|item| format!("- {}: {}", item.uri, item.excerpt))
-        .collect::<Vec<_>>()
-        .join("\n");
-    format!("Restricted AutoDream reflection candidate:\n{evidence}")
+fn risk_for_candidate(candidate: &MemoryCandidate) -> RiskLevel {
+    if candidate.sensitivity == agent_diva_core::memory::MemorySensitivity::Restricted {
+        RiskLevel::High
+    } else if candidate.confidence < 75 {
+        RiskLevel::Medium
+    } else {
+        RiskLevel::Low
+    }
 }
 
 fn worker_failure_code(
@@ -610,6 +713,34 @@ fn worker_failure_code(
                 .any(|item| item.contains("all mandatory inputs omitted")) =>
         {
             AutoDreamFailureCode::InputUnavailable
+        }
+        AutoDreamWorkerOutcome::Failure
+            if diagnostics
+                .iter()
+                .any(|item| item.contains("reflection provider unavailable")) =>
+        {
+            AutoDreamFailureCode::ProviderUnavailable
+        }
+        AutoDreamWorkerOutcome::Failure
+            if diagnostics
+                .iter()
+                .any(|item| item.contains("provider timed out")) =>
+        {
+            AutoDreamFailureCode::ProviderTimeout
+        }
+        AutoDreamWorkerOutcome::Failure
+            if diagnostics
+                .iter()
+                .any(|item| item.contains("reflection provider failed")) =>
+        {
+            AutoDreamFailureCode::ProviderFailed
+        }
+        AutoDreamWorkerOutcome::Failure
+            if diagnostics
+                .iter()
+                .any(|item| item.contains("invalid schema") || item.contains("candidate gate")) =>
+        {
+            AutoDreamFailureCode::InvalidCandidate
         }
         AutoDreamWorkerOutcome::Failure | AutoDreamWorkerOutcome::Success => {
             AutoDreamFailureCode::WorkerFailed

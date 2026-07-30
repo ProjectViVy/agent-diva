@@ -302,6 +302,7 @@ fn misc_routes() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::build_router;
+    use agent_diva_autodream::DeterministicReflectionEngine;
     use agent_diva_core::evolution::{
         AutoDreamFailureCode, AutoDreamRunState, EvidenceRef, EvidenceSource, EvolutionProposal,
         LaputaSectionName, ProposalState, ProposalType, RiskLevel,
@@ -313,6 +314,7 @@ mod tests {
     use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
     use chrono::{DateTime, Utc};
+    use std::sync::Arc;
     use tower::util::ServiceExt;
 
     use crate::state::{AppState, ManagerCommand};
@@ -653,8 +655,14 @@ mod tests {
         session.add_message("user", "verified local E0 session evidence");
         let saved = session.clone();
         sessions.save(&saved).unwrap();
-        let state =
+        let mut state =
             AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        state.autodream = state
+            .autodream
+            .clone()
+            .with_reflection_engine(Some(Arc::new(
+                DeterministicReflectionEngine::evidence_echo(),
+            )));
         let app = build_router(state.clone());
 
         let response = app

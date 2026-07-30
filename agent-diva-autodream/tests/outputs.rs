@@ -84,6 +84,7 @@ fn emit_outputs_persists_artifact_links_run_and_appends_events() {
                 proposed_patch: "Remember that the user prefers concise changelogs.".to_string(),
                 risk_level: RiskLevel::Low,
                 evidence_refs: vec![sample_evidence()],
+                metadata: None,
             }],
         })
         .unwrap();
@@ -152,6 +153,7 @@ fn emit_outputs_replay_returns_the_persisted_result_without_duplicate_proposals(
             proposed_patch: "Remember deterministic replay evidence.".to_string(),
             risk_level: RiskLevel::Low,
             evidence_refs: vec![sample_evidence()],
+            metadata: None,
         }],
     };
 
@@ -202,6 +204,7 @@ fn emit_outputs_uses_laputa_service_without_direct_proposal_directory_writes() {
                 proposed_patch: "Reflect on the latest user interaction.".to_string(),
                 risk_level: RiskLevel::Medium,
                 evidence_refs: vec![sample_evidence()],
+                metadata: None,
             }],
         })
         .unwrap();
@@ -244,6 +247,7 @@ fn emit_outputs_rejects_unknown_proposal_type_before_persistence() {
                 proposed_patch: "x".to_string(),
                 risk_level: RiskLevel::Low,
                 evidence_refs: vec![sample_evidence()],
+                metadata: None,
             }],
         })
         .unwrap_err();
@@ -288,6 +292,7 @@ fn emit_outputs_rejects_compaction_only_proposal_evidence_before_persistence() {
                 proposed_patch: "Persist a durable memory from compaction alone.".to_string(),
                 risk_level: RiskLevel::Low,
                 evidence_refs: vec![compaction_evidence()],
+                metadata: None,
             }],
         })
         .unwrap_err();

@@ -1,6 +1,7 @@
 //! Manual AutoDream run lifecycle and file-first storage.
 
 mod atomic;
+mod candidates;
 mod curation;
 mod error;
 mod inputs;
@@ -8,11 +9,15 @@ mod layout;
 mod metrics;
 mod monthly;
 mod outputs;
+mod reflection;
 mod reports;
 mod rhythm;
 mod service;
 mod worker;
 
+pub use candidates::{
+    content_digest, CandidateGate, CandidateGateResult, CandidateRejection, CandidateRejectionCode,
+};
 pub use error::{AutoDreamError, Result};
 pub use inputs::{
     AutoDreamCollectedInput, AutoDreamCollectedInputs, AutoDreamInputCollector,
@@ -25,6 +30,10 @@ pub use outputs::{
     AutoDreamArtifactSummary, AutoDreamOutputEmitter, AutoDreamOutputEvent,
     AutoDreamOutputEventKind, AutoDreamOutputRequest, AutoDreamProposalCandidateDraft,
     AutoDreamRunArtifact, EmitOutputsResult, EmittedProposalCandidate,
+};
+pub use reflection::{
+    BoundedReflectionInput, DeterministicReflectionEngine, ReflectionEngine, ReflectionError,
+    ReflectionEvidence, ReflectionOutput,
 };
 pub use reports::{
     AutoDreamReportWriter, RhythmReportContent, RhythmReportPeriod, RhythmReportWriteRequest,

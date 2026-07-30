@@ -5,6 +5,8 @@ use std::{fmt, str::FromStr};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::memory::{MemoryScope, MemorySensitivity};
+
 /// Errors returned by governance domain helpers.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum EvolutionError {
@@ -386,6 +388,10 @@ pub enum AutoDreamFailureCode {
     ReportGenerationFailed,
     StaleRunRecovered,
     LegacyIncomplete,
+    ProviderUnavailable,
+    ProviderTimeout,
+    ProviderFailed,
+    InvalidCandidate,
 }
 
 /// AutoDream run summary referenced by proposals, reports, and audit trails.
@@ -405,6 +411,29 @@ pub struct AutoDreamRunRecord {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub failure_code: Option<AutoDreamFailureCode>,
     pub error: Option<String>,
+}
+
+/// Expected durable value of a reflected Memory candidate.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateValue {
+    Low,
+    Medium,
+    High,
+}
+
+/// Provider-neutral, review-only output of AutoDream reflection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemoryCandidate {
+    pub candidate_id: String,
+    pub proposal_type: ProposalType,
+    pub content: String,
+    pub evidence_refs: Vec<EvidenceRef>,
+    pub confidence: u8,
+    pub scope: MemoryScope,
+    pub sensitivity: MemorySensitivity,
+    pub expected_value: CandidateValue,
+    pub invalidation_conditions: Vec<String>,
 }
 
 /// Bounded AutoDream input collection summary persisted on the run record.

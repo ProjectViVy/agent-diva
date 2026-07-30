@@ -101,18 +101,7 @@ pub(crate) fn spawn_autodream_runs(
             ) {
                 service.execute_report_trigger(&run_id).await.map(|_| ())
             } else {
-                let worker_service = service.clone();
-                let worker_run_id = run_id.clone();
-                match tokio::task::spawn_blocking(move || {
-                    worker_service.execute_reflection_worker(&worker_run_id)
-                })
-                .await
-                {
-                    Ok(result) => result.map(|_| ()),
-                    Err(error) => Err(AutoDreamError::InvalidState(format!(
-                        "AutoDream worker task failed: {error}"
-                    ))),
-                }
+                service.execute_reflection_worker(&run_id).await.map(|_| ())
             };
             if let Err(error) = result {
                 tracing::error!(%run_id, %error, "AutoDream orchestrator run failed");

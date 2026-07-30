@@ -2,7 +2,7 @@ use std::{fs, fs::OpenOptions, io::Write, path::Path};
 
 use agent_diva_core::evolution::{
     validate_governance_evidence, AuditEvent, AuditEventKind, AutoDreamRunRecord, EvidenceRef,
-    EvolutionProposal, ProposalState, ProposalType, RiskLevel,
+    EvolutionProposal, MemoryCandidate, ProposalState, ProposalType, RiskLevel,
 };
 use agent_diva_laputa::{LaputaError, LaputaService};
 use chrono::{DateTime, Utc};
@@ -26,6 +26,7 @@ pub struct AutoDreamProposalCandidateDraft {
     pub proposed_patch: String,
     pub risk_level: RiskLevel,
     pub evidence_refs: Vec<EvidenceRef>,
+    pub metadata: Option<MemoryCandidate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,6 +35,8 @@ pub struct EmittedProposalCandidate {
     pub proposal_type: ProposalType,
     pub target_section: agent_diva_core::evolution::LaputaSectionName,
     pub risk_level: RiskLevel,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<MemoryCandidate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,11 +189,13 @@ impl AutoDreamOutputEmitter {
             output_summary: request.output_summary,
             proposal_candidates: persisted
                 .iter()
-                .map(|proposal| EmittedProposalCandidate {
+                .zip(request.proposal_candidates.iter())
+                .map(|(proposal, draft)| EmittedProposalCandidate {
                     proposal_id: proposal.id.clone(),
                     proposal_type: proposal.proposal_type.clone(),
                     target_section: proposal.target_section.clone(),
                     risk_level: proposal.risk_level.clone(),
+                    metadata: draft.metadata.clone(),
                 })
                 .collect(),
             proposal_ids: proposal_ids.clone(),

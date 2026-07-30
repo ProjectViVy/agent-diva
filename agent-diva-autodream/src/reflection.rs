@@ -1,0 +1,116 @@
+use agent_diva_core::{
+    evolution::{CandidateValue, EvidenceRef, EvidenceSource, MemoryCandidate, ProposalType},
+    memory::{MemoryScope, MemorySensitivity},
+};
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use sha2::Digest;
+use thiserror::Error;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReflectionEvidence {
+    pub evidence: EvidenceRef,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BoundedReflectionInput {
+    pub schema_version: u32,
+    pub workspace_id: String,
+    pub run_id: String,
+    pub evidence: Vec<ReflectionEvidence>,
+    pub existing_memory_digests: Vec<String>,
+    pub max_candidates: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReflectionOutput {
+    pub schema_version: u32,
+    pub candidates: Vec<MemoryCandidate>,
+    #[serde(default)]
+    pub diagnostic_codes: Vec<String>,
+}
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum ReflectionError {
+    #[error("reflection provider is unavailable")]
+    ProviderUnavailable,
+    #[error("reflection provider timed out")]
+    ProviderTimeout,
+    #[error("reflection provider returned an invalid schema")]
+    InvalidSchema,
+    #[error("reflection provider failed")]
+    ProviderFailed,
+}
+
+#[async_trait]
+pub trait ReflectionEngine: Send + Sync {
+    async fn reflect(
+        &self,
+        input: BoundedReflectionInput,
+    ) -> std::result::Result<ReflectionOutput, ReflectionError>;
+}
+
+#[derive(Debug, Clone)]
+pub struct DeterministicReflectionEngine {
+    output: Option<ReflectionOutput>,
+}
+
+impl DeterministicReflectionEngine {
+    pub fn new(output: ReflectionOutput) -> Self {
+        Self {
+            output: Some(output),
+        }
+    }
+
+    pub fn evidence_echo() -> Self {
+        Self { output: None }
+    }
+}
+
+#[async_trait]
+impl ReflectionEngine for DeterministicReflectionEngine {
+    async fn reflect(
+        &self,
+        input: BoundedReflectionInput,
+    ) -> std::result::Result<ReflectionOutput, ReflectionError> {
+        if let Some(output) = &self.output {
+            return Ok(output.clone());
+        }
+        let Some(evidence) = input
+            .evidence
+            .iter()
+            .find(|item| item.evidence.source != EvidenceSource::ContextCompaction)
+        else {
+            return Ok(ReflectionOutput {
+                schema_version: 1,
+                candidates: Vec::new(),
+                diagnostic_codes: vec!["no_primary_evidence".to_string()],
+            });
+        };
+        let content = format!("Observed durable evidence: {}", evidence.summary);
+        let candidate_id = format!(
+            "candidate-{:x}",
+            sha2::Sha256::digest(format!("{}\0{content}", input.run_id).as_bytes())
+        );
+        Ok(ReflectionOutput {
+            schema_version: 1,
+            candidates: vec![MemoryCandidate {
+                candidate_id,
+                proposal_type: ProposalType::MemoryPatch,
+                content,
+                evidence_refs: vec![evidence.evidence.clone()],
+                confidence: 80,
+                scope: MemoryScope {
+                    tenant_id: "local".to_string(),
+                    workspace_id: input.workspace_id,
+                    session_id: None,
+                },
+                sensitivity: MemorySensitivity::Private,
+                expected_value: CandidateValue::Medium,
+                invalidation_conditions: vec!["contradicted_by_verified_evidence".to_string()],
+            }],
+            diagnostic_codes: Vec::new(),
+        })
+    }
+}

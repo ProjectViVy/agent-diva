@@ -1,9 +1,10 @@
-use std::{fs, time::Duration};
+use std::{fs, sync::Arc, time::Duration};
 
 use agent_diva_autodream::{
     AutoDreamReflectionStage, AutoDreamRestrictedAction, AutoDreamRestrictedProfile,
     AutoDreamService, AutoDreamStorage, AutoDreamWorker, AutoDreamWorkerConfig,
-    AutoDreamWorkerOutcome, AutoDreamWorkerStageStatus, ManualRunTriggerRequest,
+    AutoDreamWorkerOutcome, AutoDreamWorkerStageStatus, DeterministicReflectionEngine,
+    ManualRunTriggerRequest, ReflectionOutput,
 };
 use agent_diva_core::evolution::{
     AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState,
@@ -12,10 +13,18 @@ use agent_diva_core::evolution::{
 use agent_diva_laputa::{atomic_write_json, LaputaService, LaputaStorage};
 use serde_json::Value;
 
-#[test]
-fn worker_executes_four_stages_in_order_and_completes_run() {
+fn test_service(path: &std::path::Path) -> AutoDreamService {
+    AutoDreamService::open(path)
+        .unwrap()
+        .with_reflection_engine(Some(Arc::new(
+            DeterministicReflectionEngine::evidence_echo(),
+        )))
+}
+
+#[tokio::test]
+async fn worker_executes_four_stages_in_order_and_completes_run() {
     let temp = tempfile::tempdir().unwrap();
-    let service = AutoDreamService::open(temp.path()).unwrap();
+    let service = test_service(temp.path());
     seed_session(
         temp.path(),
         "chat:1",
@@ -26,7 +35,10 @@ fn worker_executes_four_stages_in_order_and_completes_run() {
         .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
         .unwrap();
 
-    let report = service.execute_reflection_worker(&status.run.id).unwrap();
+    let report = service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
 
     assert_eq!(report.outcome, AutoDreamWorkerOutcome::Success);
     assert_eq!(
@@ -61,10 +73,10 @@ fn worker_executes_four_stages_in_order_and_completes_run() {
     assert!(checkpoint.contains(&status.run.id));
 }
 
-#[test]
-fn publishing_checkpoint_recovery_reuses_the_existing_proposal() {
+#[tokio::test]
+async fn publishing_checkpoint_recovery_reuses_the_existing_proposal() {
     let temp = tempfile::tempdir().unwrap();
-    let service = AutoDreamService::open(temp.path()).unwrap();
+    let service = test_service(temp.path());
     seed_session(temp.path(), "chat:1", "stable retry evidence");
     seed_laputa(
         temp.path(),
@@ -74,7 +86,10 @@ fn publishing_checkpoint_recovery_reuses_the_existing_proposal() {
     let status = service
         .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
         .unwrap();
-    let first = service.execute_reflection_worker(&status.run.id).unwrap();
+    let first = service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
     let mut interrupted = read_run(temp.path(), &status.run.id);
     interrupted.state = AutoDreamRunState::Running;
     interrupted.completed_at = None;
@@ -88,7 +103,10 @@ fn publishing_checkpoint_recovery_reuses_the_existing_proposal() {
     )
     .unwrap();
 
-    let recovered = service.execute_reflection_worker(&status.run.id).unwrap();
+    let recovered = service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
 
     assert_eq!(recovered.outcome, AutoDreamWorkerOutcome::Success);
     assert_eq!(recovered.proposal_ids, first.proposal_ids);
@@ -118,10 +136,10 @@ fn restricted_profile_denies_shell_and_direct_authority_writes() {
     assert!(!profile.is_allowed(AutoDreamRestrictedAction::WriteMonthlyReport));
 }
 
-#[test]
-fn worker_timeout_records_failure_and_does_not_update_checkpoint() {
+#[tokio::test]
+async fn worker_timeout_records_failure_and_does_not_update_checkpoint() {
     let temp = tempfile::tempdir().unwrap();
-    let service = AutoDreamService::open(temp.path()).unwrap();
+    let service = test_service(temp.path());
     seed_session(temp.path(), "chat:1", "session evidence");
     seed_laputa(
         temp.path(),
@@ -133,12 +151,15 @@ fn worker_timeout_records_failure_and_does_not_update_checkpoint() {
         .unwrap();
     let storage = AutoDreamStorage::open(temp.path()).unwrap();
     let worker = AutoDreamWorker::new(storage, LaputaService::open(temp.path()).unwrap())
+        .with_reflection_engine(Some(Arc::new(
+            DeterministicReflectionEngine::evidence_echo(),
+        )))
         .with_config(AutoDreamWorkerConfig {
             timeout: Some(Duration::ZERO),
             ..AutoDreamWorkerConfig::default()
         });
 
-    let report = worker.execute(&status.run.id).unwrap();
+    let report = worker.execute(&status.run.id).await.unwrap();
 
     assert_eq!(report.outcome, AutoDreamWorkerOutcome::Timeout);
     assert_eq!(
@@ -164,10 +185,10 @@ fn worker_timeout_records_failure_and_does_not_update_checkpoint() {
     assert!(checkpoint.contains("\"last_completed_run_id\": null"));
 }
 
-#[test]
-fn worker_observes_cancellation_and_does_not_mark_completed() {
+#[tokio::test]
+async fn worker_observes_cancellation_and_does_not_mark_completed() {
     let temp = tempfile::tempdir().unwrap();
-    let service = AutoDreamService::open(temp.path()).unwrap();
+    let service = test_service(temp.path());
     seed_session(temp.path(), "chat:1", "session evidence");
     seed_laputa(
         temp.path(),
@@ -179,7 +200,10 @@ fn worker_observes_cancellation_and_does_not_mark_completed() {
         .unwrap();
     service.cancel_run(&status.run.id).unwrap();
 
-    let report = service.execute_reflection_worker(&status.run.id).unwrap();
+    let report = service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
 
     assert_eq!(report.outcome, AutoDreamWorkerOutcome::Cancelled);
     assert_eq!(
@@ -194,15 +218,18 @@ fn worker_observes_cancellation_and_does_not_mark_completed() {
     assert!(checkpoint.contains("\"last_completed_run_id\": null"));
 }
 
-#[test]
-fn worker_failure_records_user_visible_diagnostics_and_keeps_checkpoint() {
+#[tokio::test]
+async fn worker_failure_records_user_visible_diagnostics_and_keeps_checkpoint() {
     let temp = tempfile::tempdir().unwrap();
-    let service = AutoDreamService::open(temp.path()).unwrap();
+    let service = test_service(temp.path());
     let status = service
         .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
         .unwrap();
 
-    let report = service.execute_reflection_worker(&status.run.id).unwrap();
+    let report = service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
 
     assert_eq!(report.outcome, AutoDreamWorkerOutcome::Failure);
     assert!(report
@@ -228,10 +255,99 @@ fn worker_failure_records_user_visible_diagnostics_and_keeps_checkpoint() {
     assert!(checkpoint.contains("\"last_completed_run_id\": null"));
 }
 
-#[test]
-fn worker_creates_proposals_through_laputa_api_without_direct_authority_writes() {
+#[tokio::test]
+async fn worker_fails_closed_when_reflection_provider_is_unavailable() {
     let temp = tempfile::tempdir().unwrap();
     let service = AutoDreamService::open(temp.path()).unwrap();
+    seed_session(temp.path(), "chat:provider", "verified session evidence");
+    let status = service
+        .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
+        .unwrap();
+
+    let report = service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
+
+    assert_eq!(report.outcome, AutoDreamWorkerOutcome::Failure);
+    let record = read_run(temp.path(), &status.run.id);
+    assert_eq!(
+        record.failure_code,
+        Some(AutoDreamFailureCode::ProviderUnavailable)
+    );
+    assert!(record.proposal_ids.is_empty());
+}
+
+#[tokio::test]
+async fn worker_completes_honestly_when_reflection_has_no_candidates() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path())
+        .unwrap()
+        .with_reflection_engine(Some(Arc::new(DeterministicReflectionEngine::new(
+            ReflectionOutput {
+                schema_version: 1,
+                candidates: Vec::new(),
+                diagnostic_codes: vec!["no_durable_fact".to_string()],
+            },
+        ))));
+    seed_session(
+        temp.path(),
+        "chat:none",
+        "verified but non-durable evidence",
+    );
+    let status = service
+        .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
+        .unwrap();
+
+    let report = service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
+
+    assert_eq!(report.outcome, AutoDreamWorkerOutcome::Success);
+    assert!(report.proposal_ids.is_empty());
+    let record = read_run(temp.path(), &status.run.id);
+    assert_eq!(record.state, AutoDreamRunState::Completed);
+    assert!(record
+        .summary
+        .as_deref()
+        .unwrap_or_default()
+        .contains("no eligible candidates"));
+}
+
+#[tokio::test]
+async fn reflection_redacts_sensitive_session_evidence_before_provider_output() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = test_service(temp.path());
+    seed_session(
+        temp.path(),
+        "chat:redaction",
+        "credential key=sk-abcdefghijklmnopqrstuvwx",
+    );
+    let status = service
+        .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
+        .unwrap();
+
+    service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
+
+    let artifact = fs::read_to_string(
+        temp.path()
+            .join(".agent-diva/autodream/runs")
+            .join(&status.run.id)
+            .join("autodream_run.json"),
+    )
+    .unwrap();
+    assert!(!artifact.contains("sk-abcdefghijklmnopqrstuvwx"));
+    assert!(artifact.contains("[REDACTED:ApiKey]"));
+}
+
+#[tokio::test]
+async fn worker_creates_proposals_through_laputa_api_without_direct_authority_writes() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = test_service(temp.path());
     seed_session(temp.path(), "chat:1", "session evidence");
     seed_laputa(
         temp.path(),
@@ -247,12 +363,33 @@ fn worker_creates_proposals_through_laputa_api_without_direct_authority_writes()
         .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
         .unwrap();
 
-    let report = service.execute_reflection_worker(&status.run.id).unwrap();
+    let report = service
+        .execute_reflection_worker(&status.run.id)
+        .await
+        .unwrap();
 
     assert_eq!(report.outcome, AutoDreamWorkerOutcome::Success);
     assert_eq!(report.proposal_ids.len(), 1);
     assert_eq!(fs::read_to_string(&authority_path).unwrap(), before);
     assert!(temp.path().join(".laputa/proposals").exists());
+    let artifact: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(
+            temp.path()
+                .join(".agent-diva/autodream/runs")
+                .join(&status.run.id)
+                .join("autodream_run.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        artifact["proposal_candidates"][0]["proposal_type"],
+        "memory_patch"
+    );
+    assert_eq!(
+        artifact["proposal_candidates"][0]["metadata"]["expected_value"],
+        "medium"
+    );
 }
 
 fn read_run(workspace: &std::path::Path, run_id: &str) -> AutoDreamRunRecord {

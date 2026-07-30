@@ -288,6 +288,7 @@ dependencies = [
  "agent-diva-sandbox",
  "agent-diva-tools",
  "anyhow",
+ "async-trait",
  "axum",
  "base64 0.22.1",
  "chrono",

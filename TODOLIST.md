@@ -39,7 +39,12 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     `queued → gathering → reflecting → validating → publishing → completed` 阶段、
     attempt 和 deadline；Manager 异步派发并在启动时恢复中断任务；发布重放复用
     确定性提案，旧版不完整运行 fail closed。
-  - [ ] **E3–E7**：Reflection/Candidate Gate、统一提案治理、typed
+  - [x] **E3 Reflection/Candidate Gate**：生产 Reflection 复用现有 provider resolver，
+    使用有界、PII 脱敏输入与无工具 JSON schema；候选包含真实 proposal type、scope、
+    sensitivity、confidence、value 与失效条件，并在发布前拒绝无证据、仅 compaction、
+    forged evidence、重复、直接矛盾、低价值、越 workspace/容量、prompt injection
+    和敏感内容。无 provider 明确失败，无合格候选诚实完成为 `no_candidates`。
+  - [ ] **E4–E7**：统一提案治理、typed
     apply/Recall feedback、一体化 GUI、恢复与发布门。
     E7 必须在关闭占用 debug 二进制的桌面进程后复跑 `just test`，并解决或规避当前
     Windows GUI lib test 的 MSVC `LNK1140` PDB 限制，不能以 `cargo check` 代替。
