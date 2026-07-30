@@ -12,6 +12,10 @@
 当前主线：在 **typed Laputa clean-break（GMH-24）之后**，完成 **G2D 真实桌面验收**，
 然后才能解冻 Evolution / 进入发布验收。GMH-00..24 架构工作已完成并归档。
 
+全量执行顺序、依赖、人工暂停点和项目级完成定义见
+[`docs/architecture/todolist-master-execution-plan.md`](docs/architecture/todolist-master-execution-plan.md)。
+Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。
+
 - [ ] **G2D：typed authority 真实桌面六场景验收** `sev-P0`
   必须在**重启并加载新二进制**后的真实桌面环境执行，不得以自动化测试冒充。
   场景：批准、拒绝、编辑后批准、重复点击、重启恢复、回滚。
@@ -21,6 +25,12 @@
 - [ ] **Evolution 功能开发冻结（直至 G2D）** `sev-P0`
   在六场景通过前，不修复/扩展 AutoDream/Evolution 产品功能；仅允许安全与
   数据完整性修复，以及明确的不可用/降级 UX。通过后基于 typed Laputa 再定基线。
+
+- [ ] **G2D 后 Evolution/产品基线重新盘点** `sev-P1`
+  G2D 通过仅把 Evolution 改为“允许盘点”，不直接宣告功能可用。逐一验证真实 GUI
+  入口，将能力标记为 `WORKING / DEGRADED / HIDDEN / REMOVE / REDESIGN`，同步
+  PRD、架构、界面承诺、威胁模型和 MVP；用户批准新基线后才创建实现 story。
+  相关：执行蓝图 B1、`docs/dev/evo-diva/README.md`。
 
 完成索引（已归档）：Ask 只读边界、GMH-24A/B/C、G2D migration revision 修复等见
 [`docs/archive/todolist/completed-through-2026-07-30.md`](docs/archive/todolist/completed-through-2026-07-30.md)。
@@ -95,6 +105,12 @@ standing policy（非功能债，执行相关验证时遵守）：
 `docs/logs` 四件套；单 concern Conventional Commit；不擅自 push。
 
 ### Reliability / Test Debt
+
+- [ ] **跨平台 canonical workspace identity 与 identity-only migration** `sev-P1`
+  Windows 路径分隔符差异曾使 Migration 与 Manager 对同一 workspace 计算出不同
+  identity，并由 typed fail-closed 检出。统一 CLI/Manager/GUI/Migration 的 canonical
+  规则，提供只迁 identity、不复制或改写 Memory 内容的可验证迁移与回滚。
+  相关：执行蓝图 B2、GMH-24 Migration/typed authority。
 
 - [ ] **QQ invalid-resume 集成测试 load-sensitive** `sev-P2`
   全量 gate 偶发 opcode 乱序；隔离重跑通过。

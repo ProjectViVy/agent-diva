@@ -30,6 +30,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-30T23:10:00+08:00`: Released documentation-only TODOLIST master
+  execution planning. Added the B0-B8 dependency blueprint, Goal execution and
+  human-pause protocol, project completion definition, Evolution re-baseline
+  gate, and canonical workspace identity backlog item. No runtime, config, or
+  user-data changes.
+
 - `2026-07-30T22:45:00+08:00`: Released TODOLIST triage archive. Documentation
   only: slimmed `TODOLIST.md`, added
   `docs/archive/todolist/completed-through-2026-07-30.md`,
