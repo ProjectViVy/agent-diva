@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-07-30T07:30:00+08:00`
+- Last Heartbeat: `2026-07-30T15:00:31+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -29,6 +29,16 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-07-30T15:00:31+08:00`: Released GMH-23C. Commit `053a9cd6`
+  connects Embedded Laputa FTS5/BM25 to Recall v2 through an explicit
+  shadow-only service with bounded quoted queries, global-plus-session
+  visibility, derived importance/persona/recency reranking, kind diversity,
+  fail-closed errors and payload-free metrics. The labelled fixture reached
+  recall@8 100% with zero restricted injection and duplicates; Windows debug
+  10k top-8 P95 was 71.1659 ms. `just fmt-check`, `just check`, and the final
+  complete `just test` passed. Production prefetch/prompt and
+  Manager/Tauri/GUI remain unchanged; GMH-23D is next. No push occurred.
 
 - `2026-07-30T07:30:00+08:00`: Released GMH-23A/23B. GMH-23A froze the
   current-branch Embedded Laputa contract in `ca36f92d`. GMH-23B added the
