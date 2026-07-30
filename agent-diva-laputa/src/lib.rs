@@ -12,6 +12,7 @@ pub mod memory_records;
 pub mod metrics;
 pub mod migration;
 pub mod proposals;
+pub mod recall;
 pub mod service;
 pub mod typed_store;
 
@@ -33,6 +34,10 @@ pub use migration::{
 pub use proposals::{
     ApplyFailurePoint, ApplyOptions, ApplyOutcome, ProposalEdit, ProposalFilter,
     ProposalRepository, ProposalSummary,
+};
+pub use recall::{
+    LaputaRecallCandidateSource, LaputaRecallMetrics, LaputaRecallService, LaputaRecallShadow,
+    RecallReasonCount,
 };
 pub use service::{
     ChangelogFilter, ChangelogPage, LaputaEvent, LaputaEventKind, LaputaSection, LaputaService,

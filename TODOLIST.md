@@ -7,7 +7,8 @@
 The active Memory delivery plan is the Embedded Laputa correction under
 GMH-23A..24. GMH-23 stage 3 is paused. Completed proposal stages 1/2 are
 preserved; no new Mentle work is authorized. The next implementation gate is
-GMH-23A architecture freeze, followed by the scoped typed-store and recall port.
+GMH-23D proposal apply/HITL resumption, followed by the GMH-24 cutover and
+Mentle clean-break.
 The previously completed Mentle prompt-rebuild work is only historical baseline
 evidence for deletion and does not define the target architecture.
 
@@ -56,10 +57,19 @@ evidence for deletion and does not define the target architecture.
   complete workspace gate is deterministic. Related: `agent-diva-manager`.
 - [ ] **Workspace Rust 1.80 lockfile gate is blocked by legacy Mentle**
   `cargo +1.80.0 check -p agent-diva-laputa` cannot parse the locked
-  `time-core 0.1.8` Edition-2024 chain required through
-  `memtle -> ureq -> cookie_store -> time ^0.3.47`. GMH-23B uses the existing
-  Rust-1.80-compatible `sqlx 0.7` API; the workspace gate becomes enforceable
-  after GMH-24 removes Mentle and refreshes the lockfile.
+  Edition-2024 manifests in the legacy dependency closure (currently first
+  observed at `base64ct 1.8.3`; the same closure also includes the previously
+  observed `time-core 0.1.8` path through
+  `memtle -> ureq -> cookie_store -> time ^0.3.47`). GMH-23B/23C use the
+  existing Rust-1.80-compatible `sqlx 0.7` API; the workspace gate becomes
+  enforceable after GMH-24 removes Mentle and refreshes the lockfile.
+- [ ] **MSRV probing can contaminate the shared default target cache**
+  After the failed `cargo +1.80.0 check`, one immediate `just test` run emitted
+  widespread Tauri macro/type-resolution errors. An isolated default-toolchain
+  GUI rebuild passed, followed by a complete successful `just test`. Expected:
+  run future MSRV probes with a dedicated `CARGO_TARGET_DIR` so incompatible
+  compiler artifacts cannot affect the default workspace gate. Related:
+  workspace validation scripts and GMH-24 deletion-proof gate.
 - [ ] **Stable clippy flags pre-existing Laputa service assertions**
   `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` reports four
   `clippy::int_plus_one` findings in `agent-diva-laputa/tests/service.rs`.
@@ -560,13 +570,19 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
     revision、tombstone、确定性 ID、备份/恢复和 Rust 1.80 兼容。
   - Gate G2B：空库、升级、并发、崩溃恢复、损坏、回滚和 10k records
     性能基线通过；无 LLVM/native Mentle 依赖。
-- [ ] **GMH-23C：接入 Embedded Laputa recall（GMH-23B 后）**
+- [x] **GMH-23C：接入 Embedded Laputa recall（GMH-23B 后）**
   - 将 GMH-21 normalized records 与 GMH-22 filter/rank/dedupe/budget/escape
     pipeline 接到 SQLite FTS5/BM25 候选源。
   - 加 importance/recency/persona 重排、scope/policy/tombstone 过滤和
     section diversity；检索失败显式 degraded，不回退 Mentle。
   - Gate G2C：召回准确性、错误注入率、重复率、延迟、token 成本和
     无原始敏感内容诊断通过。
+  - 完成：公开 shadow-only `LaputaRecallService` 已连接 typed FTS5/BM25
+    与 Recall v2；派生 importance/persona、recency、section diversity、
+    payload-free 指标和 degraded 无回退均有自动化覆盖。固定标注集
+    recall@8 为 100%，restricted 注入率与重复率为 0；Windows debug
+    10,000 条 fixture 的完整 Recall top-8 P95 为 71.1659 ms。生产
+    prefetch/prompt 未切换，read cutover 仍属于 GMH-24。
 - [ ] **GMH-23D：恢复 proposal apply/HITL（原 GMH-23 阶段 3）**
   - 将已完成的 session sync 与 GUI proposal 接到 Embedded Laputa；
     补齐 AutoDream、import、低风险策略应用与高风险 HITL。

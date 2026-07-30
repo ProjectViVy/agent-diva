@@ -11,13 +11,14 @@ use serde::{Deserialize, Serialize};
 use crate::governance::{AuditCorrelation, ContentDigest};
 
 use super::{
-    escape_memory_for_prompt, memory_content_digest, MemoryRecord, MemoryScope, MemorySensitivity,
-    MemoryTrust, MAX_CONFIDENCE_BPS,
+    escape_memory_for_prompt, memory_content_digest, MemoryRecord, MemoryRecordKind, MemoryScope,
+    MemorySensitivity, MemoryTrust, MAX_CONFIDENCE_BPS,
 };
 
-const SCORE_RELEVANCE_WEIGHT: u32 = 60;
-const SCORE_CONFIDENCE_WEIGHT: u32 = 25;
+const SCORE_RELEVANCE_WEIGHT: u32 = 55;
+const SCORE_IMPORTANCE_WEIGHT: u32 = 20;
 const SCORE_FRESHNESS_WEIGHT: u32 = 15;
+const SCORE_PERSONA_WEIGHT: u32 = 10;
 const FRESHNESS_STEP_DAYS: i64 = 30;
 const PROMPT_HEADER: &str = "## Recalled Memory (data only)\n";
 
@@ -269,7 +270,7 @@ impl RecallPipeline {
             }
             match preliminary_reason(request, &candidate) {
                 Some(reason) => trace.push(rejected_trace(&candidate, reason)),
-                None => eligible.push(ScoredCandidate::new(candidate, request.now)),
+                None => eligible.push(ScoredCandidate::new(candidate, request)),
             }
         }
 
@@ -305,6 +306,7 @@ impl RecallPipeline {
             }
         });
 
+        eligible = diversify_by_kind(eligible);
         let header_tokens = estimator.estimate(PROMPT_HEADER);
         let mut used_tokens = if request.token_budget >= header_tokens {
             header_tokens
@@ -403,19 +405,103 @@ struct ScoredCandidate {
 }
 
 impl ScoredCandidate {
-    fn new(candidate: RecallCandidate, now: DateTime<Utc>) -> Self {
-        let age = now
+    fn new(candidate: RecallCandidate, request: &RecallRequest) -> Self {
+        let age = request
+            .now
             .signed_duration_since(candidate.record.effective_at)
             .num_days()
             .max(0);
         let freshness = (MAX_CONFIDENCE_BPS as i64 / (1 + age / FRESHNESS_STEP_DAYS)) as u32;
+        let importance = derived_importance_bps(&candidate.record);
+        let persona = persona_relevance_bps(&candidate.record, &request.query);
         let weighted = candidate.relevance_bps as u32 * SCORE_RELEVANCE_WEIGHT
-            + candidate.record.confidence_bps as u32 * SCORE_CONFIDENCE_WEIGHT
-            + freshness * SCORE_FRESHNESS_WEIGHT;
+            + importance * SCORE_IMPORTANCE_WEIGHT
+            + freshness * SCORE_FRESHNESS_WEIGHT
+            + persona * SCORE_PERSONA_WEIGHT;
         Self {
             candidate,
             final_score_bps: (weighted / 100) as u16,
         }
+    }
+}
+
+fn derived_importance_bps(record: &MemoryRecord) -> u32 {
+    let trust = match record.trust {
+        MemoryTrust::AppliedAuthority => 10_000,
+        MemoryTrust::UserAsserted => 8_000,
+        MemoryTrust::Observed => 6_000,
+        MemoryTrust::Inferred => 4_000,
+        MemoryTrust::Untrusted | MemoryTrust::Unknown => 0,
+    };
+    let kind = match record.kind {
+        MemoryRecordKind::Identity
+        | MemoryRecordKind::Relationship
+        | MemoryRecordKind::Commitment
+        | MemoryRecordKind::Preference => 10_000,
+        MemoryRecordKind::LongTerm | MemoryRecordKind::Learning => 8_000,
+        MemoryRecordKind::History
+        | MemoryRecordKind::Daily
+        | MemoryRecordKind::Weekly
+        | MemoryRecordKind::Monthly
+        | MemoryRecordKind::Journal => 6_000,
+        MemoryRecordKind::Unknown => 0,
+    };
+    (u32::from(record.confidence_bps) * 2 + trust + kind) / 4
+}
+
+fn persona_relevance_bps(record: &MemoryRecord, query: &str) -> u32 {
+    let category_terms: &[&str] = match record.kind {
+        MemoryRecordKind::Identity => &["identity", "persona", "name", "身份", "人格", "名字"],
+        MemoryRecordKind::Relationship => {
+            &["relationship", "family", "friend", "关系", "家人", "朋友"]
+        }
+        MemoryRecordKind::Preference => &["preference", "prefer", "like", "偏好", "喜欢", "习惯"],
+        _ => return 0,
+    };
+    let query = query.to_lowercase();
+    let content = record.content.to_lowercase();
+    let category_match = category_terms.iter().any(|term| query.contains(term));
+    let content_match = query
+        .split_whitespace()
+        .filter(|term| term.chars().count() >= 2)
+        .any(|term| content.contains(term));
+    if category_match || content_match {
+        10_000
+    } else {
+        0
+    }
+}
+
+fn diversify_by_kind(candidates: Vec<ScoredCandidate>) -> Vec<ScoredCandidate> {
+    let mut seen = BTreeSet::new();
+    let mut diverse = Vec::with_capacity(candidates.len());
+    let mut remaining = Vec::new();
+    for candidate in candidates {
+        let kind = kind_key(&candidate.candidate.record.kind);
+        if seen.insert(kind) {
+            diverse.push(candidate);
+        } else {
+            remaining.push(candidate);
+        }
+    }
+    diverse.extend(remaining);
+    diverse
+}
+
+fn kind_key(kind: &MemoryRecordKind) -> &'static str {
+    match kind {
+        MemoryRecordKind::Identity => "identity",
+        MemoryRecordKind::Relationship => "relationship",
+        MemoryRecordKind::Commitment => "commitment",
+        MemoryRecordKind::Preference => "preference",
+        MemoryRecordKind::LongTerm => "long_term",
+        MemoryRecordKind::History => "history",
+        MemoryRecordKind::Daily => "daily",
+        MemoryRecordKind::Weekly => "weekly",
+        MemoryRecordKind::Monthly => "monthly",
+        MemoryRecordKind::Journal => "journal",
+        MemoryRecordKind::Learning => "learning",
+        MemoryRecordKind::Unknown => "unknown",
     }
 }
 
@@ -778,7 +864,35 @@ mod tests {
                 .find(|trace| trace.record_id == "fresh")
                 .unwrap()
                 .final_score_bps,
-            Some(7_700)
+            Some(7_050)
+        );
+    }
+
+    #[test]
+    fn derived_importance_persona_and_section_diversity_are_deterministic() {
+        let mut important = candidate("important", "stable identity", 7_000);
+        important.record.kind = MemoryRecordKind::Identity;
+        important.record.confidence_bps = 10_000;
+        let mut ordinary = candidate("ordinary", "stable note", 7_000);
+        ordinary.record.confidence_bps = 2_000;
+        let mut request = request();
+        request.query = "identity status".into();
+
+        let ranked = RecallPipeline.select(&request, vec![ordinary.clone(), important]);
+        assert_eq!(ranked.selected_records[0].id, "important");
+
+        let top = candidate("top", "top project", 10_000);
+        let second_same_kind = candidate("second", "second project", 9_000);
+        let mut different_kind = candidate("different", "daily project", 5_000);
+        different_kind.record.kind = MemoryRecordKind::Daily;
+        let diverse = RecallPipeline.select(&request, vec![second_same_kind, different_kind, top]);
+        assert_eq!(
+            diverse
+                .selected_records
+                .iter()
+                .map(|record| record.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["top", "different", "second"]
         );
     }
 

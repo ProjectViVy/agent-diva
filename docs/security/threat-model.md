@@ -70,3 +70,20 @@ retrieval prerequisites GMH-23A through GMH-23C pass.
 
 GMH-23B may expose a Rust storage API only. It must not register a model tool,
 route, GUI command, production provider, or fallback.
+
+## GMH-23C Embedded Laputa shadow Recall amendment
+
+| Threat | Control |
+| --- | --- |
+| Raw user text becomes an FTS program | Query input is character/term bounded, control characters are removed, every term is quoted, and terms are joined by a fixed operator |
+| Session retrieval hides global authority or leaks another session | Recall visibility is exactly workspace-global plus the requesting session; tenant and workspace predicates remain mandatory |
+| BM25 becomes authority | BM25 is normalized only into a relevance signal; trust, sensitivity, canonical validation, and scope filters run independently |
+| Persona relevance self-promotes inferred data | Persona boost is derived only for identity/relationship/preference kinds after query-category matching and never changes record trust |
+| One section crowds out all context | Deterministic two-pass selection takes one highest-scored record per kind before filling remaining positions |
+| Store failure exposes details or falls back | All store failures map to a payload-free degraded outcome with no prompt block, stale cache, Markdown read, or Mentle fallback |
+| Shadow telemetry leaks content or queries | Metrics contain counts, enums, timings, IDs, digests, and token use only |
+
+GMH-23C exposes an explicit Rust shadow service but does not call it from the
+production provider or AgentLoop. A returned `RecallOutcome` is available to
+the explicit caller for evaluation; only its separate metrics object is safe
+for routine diagnostics.

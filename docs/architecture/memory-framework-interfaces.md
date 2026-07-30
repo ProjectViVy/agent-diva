@@ -275,7 +275,28 @@ Status: implemented as a shadow-capable contract without production cutover.
 - Retrieval failure is typed degraded with no prompt block or stale cache.
 - Existing Mentle/Hybrid search hits remain characterized as untrusted during
   transition and are never a target source.
-- GMH-23C connects this pipeline to Embedded Laputa FTS5/BM25 candidates.
+- GMH-23C connects this pipeline to Embedded Laputa FTS5/BM25 candidates
+  through the public, shadow-only `LaputaRecallService`.
+
+### GMH-23C — Embedded Laputa shadow recall
+
+Status: implemented without production read cutover.
+
+- The candidate source quotes and bounds Unicode FTS terms, reads only
+  workspace-global plus exact-session rows, normalizes BM25 into basis points,
+  and maps every store failure to the content-free degraded Recall contract.
+- Recall scoring combines relevance with derived importance, deterministic
+  effective-time decay, and query-matched identity/relationship/preference
+  boosts. Importance is derived from canonical confidence, trust, and kind; no
+  competing record fields or persona table exist.
+- Selection takes the highest-scored record from each represented kind before
+  filling remaining budget positions. Policy, scope, tombstone, supersession,
+  digest deduplication, escaping, and token limits remain authoritative.
+- `LaputaRecallMetrics` contains counts, reason enums, timings, IDs, digests,
+  and token use only. It contains neither Memory bodies nor query text.
+- `LaputaMemoryProvider::prefetch`, AgentLoop prompt assembly, Manager, Tauri,
+  GUI, and legacy authority behavior remain unchanged. GMH-24 owns shadow-read
+  activation and production read cutover.
 
 ### GMH-23 — proposal-only writes and storage prerequisite
 

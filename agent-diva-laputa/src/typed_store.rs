@@ -536,6 +536,51 @@ impl TypedMemoryStore {
             .collect()
     }
 
+    /// Return workspace-global records plus records owned by the exact session.
+    ///
+    /// This is the visibility shape required by Recall. It intentionally does
+    /// not change the exact-scope semantics of [`Self::search`].
+    pub async fn search_visible(
+        &self,
+        query: &str,
+        scope: &MemoryScope,
+        limit: u32,
+    ) -> Result<Vec<MemorySearchHit>, TypedMemoryStoreError> {
+        if scope.workspace_id != self.workspace_id {
+            return Err(TypedMemoryStoreError::WorkspaceMismatch {
+                expected: self.workspace_id.clone(),
+                actual: scope.workspace_id.clone(),
+            });
+        }
+        let rows = sqlx::query(
+            "SELECT r.record_revision, r.record_json, bm25(memory_fts) AS rank
+             FROM memory_fts
+             JOIN memory_records r ON r.memory_id = memory_fts.memory_id
+             WHERE memory_fts MATCH ?
+               AND memory_fts.tenant_id = ?
+               AND memory_fts.workspace_id = ?
+               AND (memory_fts.session_id IS NULL OR memory_fts.session_id = ?)
+               AND r.tombstone = 0
+             ORDER BY rank, r.effective_at DESC, r.memory_id
+             LIMIT ?",
+        )
+        .bind(query)
+        .bind(&scope.tenant_id)
+        .bind(&scope.workspace_id)
+        .bind(&scope.session_id)
+        .bind(i64::from(limit.min(100)))
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(MemorySearchHit {
+                    stored: decode_stored(&row)?,
+                    bm25: row.get("rank"),
+                })
+            })
+            .collect()
+    }
+
     pub async fn integrity(&self) -> Result<MemoryStoreIntegrity, TypedMemoryStoreError> {
         let metadata = self.metadata().await?;
         let record_count = scalar(&self.pool, "SELECT COUNT(*) FROM memory_records").await?;
