@@ -1,4 +1,10 @@
-use std::{convert::Infallible, str::FromStr};
+use std::{
+    convert::Infallible,
+    fs,
+    path::{Path as FsPath, PathBuf},
+    str::FromStr,
+    sync::OnceLock,
+};
 
 use agent_diva_core::evolution::{
     ChangelogAction, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType,
@@ -18,12 +24,36 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use futures::{stream, StreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::state::AppState;
 
 type JsonResult = Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)>;
+static LEGACY_APPLY_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LegacyApplyState {
+    Prepared,
+    AuthorityCommitted,
+    ReceiptConsumed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LegacyApplyJournal {
+    governance_request_id: String,
+    proposal_id: String,
+    idempotency_key: String,
+    proposal_digest: String,
+    expected_version: u64,
+    applied_at: DateTime<Utc>,
+    consume_at: DateTime<Utc>,
+    state: LegacyApplyState,
+    outcome: Option<agent_diva_laputa::ApplyOutcome>,
+    governance: Option<agent_diva_core::governance::ApprovalState>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ProposalQuery {
@@ -270,10 +300,56 @@ pub async fn apply_laputa_proposal_handler(
     Path(id): Path<String>,
     Json(payload): Json<ApplyProposalPayload>,
 ) -> JsonResult {
+    let _apply_guard = LEGACY_APPLY_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .await;
     let proposal = state
         .laputa
         .get_proposal(&id)
         .map_err(laputa_error_response)?;
+    let journal_path = legacy_apply_journal_path(&state.workspace_root, &payload.idempotency_key);
+    let existing_journal =
+        read_legacy_apply_journal(&journal_path).map_err(legacy_apply_journal_error_response)?;
+    if let Some(existing) = existing_journal.as_ref() {
+        let current_digest = agent_diva_laputa::proposal_digest(&proposal).value;
+        if existing.governance_request_id != payload.governance_request_id
+            || existing.proposal_id != id
+            || existing.idempotency_key != payload.idempotency_key
+            || existing.proposal_digest != current_digest
+            || existing.expected_version != payload.expected_version
+        {
+            return Err(error_response(
+                StatusCode::CONFLICT,
+                "apply_idempotency_conflict",
+                "apply idempotency key is bound to another proposal or governance revision",
+            ));
+        }
+        if existing.state == LegacyApplyState::ReceiptConsumed {
+            let outcome = existing.outcome.as_ref().ok_or_else(|| {
+                error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "apply_recovery_incomplete",
+                    "durable apply journal has no committed outcome",
+                )
+            })?;
+            let governance = existing.governance.as_ref().ok_or_else(|| {
+                error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "apply_recovery_incomplete",
+                    "durable apply journal has no consumed governance result",
+                )
+            })?;
+            return ok(serde_json::json!({
+                "status": "ok",
+                "proposal": outcome.proposal,
+                "changelog": outcome.changelog,
+                "audit_event": outcome.audit_event,
+                "rollback_request": outcome.rollback_request,
+                "governance": governance,
+            }));
+        }
+    }
     let (approval, receipt) = state
         .memory_governance
         .allowed_receipt(&proposal, Utc::now())
@@ -288,20 +364,96 @@ pub async fn apply_laputa_proposal_handler(
             "approval request or version changed",
         ));
     }
-    let outcome = state
-        .laputa
-        .apply_proposal(&id, receipt.decided_by.id, Utc::now())
-        .map_err(laputa_error_response)?;
-    let governance = state
-        .memory_governance
-        .consume_once(
-            &payload.governance_request_id,
-            payload.expected_version,
-            &payload.idempotency_key,
-            Utc::now(),
-        )
-        .await
-        .map_err(memory_governance_error_response)?;
+    let mut journal = match existing_journal {
+        Some(existing) => {
+            if existing.governance_request_id != payload.governance_request_id
+                || existing.proposal_id != id
+                || existing.idempotency_key != payload.idempotency_key
+                || existing.proposal_digest != approval.request.content_digest.value
+                || existing.expected_version != payload.expected_version
+            {
+                return Err(error_response(
+                    StatusCode::CONFLICT,
+                    "apply_idempotency_conflict",
+                    "apply idempotency key is bound to another proposal or governance revision",
+                ));
+            }
+            existing
+        }
+        None => {
+            let prepared = LegacyApplyJournal {
+                governance_request_id: payload.governance_request_id.clone(),
+                proposal_id: id.clone(),
+                idempotency_key: payload.idempotency_key.clone(),
+                proposal_digest: approval.request.content_digest.value.clone(),
+                expected_version: payload.expected_version,
+                applied_at: Utc::now(),
+                consume_at: Utc::now(),
+                state: LegacyApplyState::Prepared,
+                outcome: None,
+                governance: None,
+            };
+            write_legacy_apply_journal(&journal_path, &prepared)
+                .map_err(legacy_apply_journal_error_response)?;
+            prepared
+        }
+    };
+    let outcome = match journal.state {
+        LegacyApplyState::Prepared => {
+            let outcome = match state
+                .laputa
+                .recover_apply_outcome(&id, journal.applied_at)
+                .map_err(laputa_error_response)?
+            {
+                Some(recovered) => recovered,
+                None => state
+                    .laputa
+                    .apply_proposal(&id, receipt.decided_by.id.clone(), journal.applied_at)
+                    .map_err(laputa_error_response)?,
+            };
+            journal.state = LegacyApplyState::AuthorityCommitted;
+            journal.outcome = Some(outcome.clone());
+            write_legacy_apply_journal(&journal_path, &journal)
+                .map_err(legacy_apply_journal_error_response)?;
+            outcome
+        }
+        LegacyApplyState::AuthorityCommitted | LegacyApplyState::ReceiptConsumed => {
+            journal.outcome.clone().ok_or_else(|| {
+                error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "apply_recovery_incomplete",
+                    "durable apply journal has no committed outcome",
+                )
+            })?
+        }
+    };
+    let governance = match journal.state {
+        LegacyApplyState::ReceiptConsumed => journal.governance.clone().ok_or_else(|| {
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "apply_recovery_incomplete",
+                "durable apply journal has no consumed governance result",
+            )
+        })?,
+        LegacyApplyState::Prepared | LegacyApplyState::AuthorityCommitted => {
+            let governance = state
+                .memory_governance
+                .consume_once(
+                    &payload.governance_request_id,
+                    payload.expected_version,
+                    &payload.idempotency_key,
+                    journal.consume_at,
+                )
+                .await
+                .map_err(memory_governance_error_response)?;
+            journal.state = LegacyApplyState::ReceiptConsumed;
+            journal.outcome = Some(outcome.clone());
+            journal.governance = Some(governance.clone());
+            write_legacy_apply_journal(&journal_path, &journal)
+                .map_err(legacy_apply_journal_error_response)?;
+            governance
+        }
+    };
     ok(serde_json::json!({
         "status": "ok",
         "proposal": outcome.proposal,
@@ -310,6 +462,47 @@ pub async fn apply_laputa_proposal_handler(
         "rollback_request": outcome.rollback_request,
         "governance": governance,
     }))
+}
+
+fn legacy_apply_journal_path(workspace_root: &FsPath, idempotency_key: &str) -> PathBuf {
+    let mut digest = 0xcbf29ce484222325_u64;
+    for byte in idempotency_key.as_bytes() {
+        digest ^= u64::from(*byte);
+        digest = digest.wrapping_mul(0x100000001b3);
+    }
+    workspace_root
+        .join(".laputa")
+        .join("legacy-apply-journal")
+        .join(format!("{digest:016x}.json"))
+}
+
+fn read_legacy_apply_journal(path: &FsPath) -> Result<Option<LegacyApplyJournal>, std::io::Error> {
+    match fs::read(path) {
+        Ok(bytes) => serde_json::from_slice(&bytes)
+            .map(Some)
+            .map_err(std::io::Error::other),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn write_legacy_apply_journal(
+    path: &FsPath,
+    journal: &LegacyApplyJournal,
+) -> Result<(), std::io::Error> {
+    let bytes = serde_json::to_vec_pretty(journal).map_err(std::io::Error::other)?;
+    agent_diva_laputa::atomic_write(path, &bytes)
+        .map_err(|error| std::io::Error::other(error.to_string()))
+}
+
+fn legacy_apply_journal_error_response(
+    error: std::io::Error,
+) -> (StatusCode, Json<serde_json::Value>) {
+    error_response(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "apply_recovery_persistence_failed",
+        format!("failed to persist apply recovery state: {error}"),
+    )
 }
 
 pub async fn get_laputa_snapshot_handler(
@@ -548,6 +741,128 @@ fn memory_governance_error_response(
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "governance_failure"),
     };
     error_response(status, code, error.to_string())
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+    use agent_diva_core::{
+        bus::MessageBus,
+        evolution::{
+            EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState,
+            ProposalType, RiskLevel,
+        },
+        governance::{ApprovalGrant, GovernanceSubject, GovernanceSubjectKind},
+    };
+    use chrono::TimeZone;
+
+    fn proposal() -> EvolutionProposal {
+        let now = Utc.with_ymd_and_hms(2026, 7, 30, 12, 0, 0).unwrap();
+        EvolutionProposal {
+            id: "crash-recovery".into(),
+            created_at: now,
+            updated_at: now,
+            created_by: "test".into(),
+            proposal_type: ProposalType::MemoryPatch,
+            target_section: LaputaSectionName::MemoryMd,
+            evidence_refs: vec![EvidenceRef {
+                id: "evidence-1".into(),
+                source: EvidenceSource::Session,
+                uri: "session://recovery".into(),
+                excerpt: None,
+                hash: Some("hash".into()),
+                created_at: now,
+            }],
+            proposed_patch: r#"{"facts":[]}"#.into(),
+            risk_level: RiskLevel::Medium,
+            state: ProposalState::PendingReview,
+            source_run_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn prepared_journal_recovers_commit_then_consumes_receipt() {
+        let temp = tempfile::tempdir().unwrap();
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let state = AppState::new(api_tx, MessageBus::new(), temp.path()).unwrap();
+        let proposal = state.laputa.create_proposal(proposal()).unwrap();
+        let now = Utc.with_ymd_and_hms(2026, 7, 30, 12, 1, 0).unwrap();
+        let pending = state
+            .memory_governance
+            .submit(&proposal, None, now)
+            .await
+            .unwrap();
+        let allowed = state
+            .memory_governance
+            .decide(
+                &proposal,
+                pending.request_version,
+                MemoryGovernanceDecision {
+                    decision: Decision::Allow,
+                    grant: ApprovalGrant::Once,
+                    actor: GovernanceSubject {
+                        kind: GovernanceSubjectKind::User,
+                        id: "reviewer".into(),
+                    },
+                    idempotency_key: "decision-crash",
+                    decided_at: now,
+                },
+            )
+            .await
+            .unwrap();
+        state
+            .laputa
+            .transition_proposal(&proposal.id, ProposalState::Approved, now)
+            .unwrap();
+        let applied_at = Utc.with_ymd_and_hms(2026, 7, 30, 12, 2, 0).unwrap();
+        let committed = state
+            .laputa
+            .apply_proposal(&proposal.id, "reviewer", applied_at)
+            .unwrap();
+        let path = legacy_apply_journal_path(temp.path(), "apply-crash");
+        write_legacy_apply_journal(
+            &path,
+            &LegacyApplyJournal {
+                governance_request_id: allowed.request_id.clone(),
+                proposal_id: proposal.id.clone(),
+                idempotency_key: "apply-crash".into(),
+                proposal_digest: agent_diva_laputa::proposal_digest(&proposal).value,
+                expected_version: allowed.request_version,
+                applied_at,
+                consume_at: Utc.with_ymd_and_hms(2026, 7, 30, 12, 3, 0).unwrap(),
+                state: LegacyApplyState::Prepared,
+                outcome: None,
+                governance: None,
+            },
+        )
+        .unwrap();
+
+        let response = apply_laputa_proposal_handler(
+            State(state.clone()),
+            Path(proposal.id.clone()),
+            Json(ApplyProposalPayload {
+                governance_request_id: allowed.request_id,
+                expected_version: allowed.request_version,
+                idempotency_key: "apply-crash".into(),
+            }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.0["changelog"]["id"], committed.changelog.id);
+        assert_eq!(
+            state
+                .laputa
+                .list_changelog(ChangelogFilter::default())
+                .unwrap()
+                .total,
+            1
+        );
+        let journal = read_legacy_apply_journal(&path).unwrap().unwrap();
+        assert_eq!(journal.state, LegacyApplyState::ReceiptConsumed);
+        assert!(journal.outcome.is_some());
+        assert!(journal.governance.is_some());
+    }
 }
 
 fn laputa_error_response(error: LaputaError) -> (StatusCode, Json<serde_json::Value>) {

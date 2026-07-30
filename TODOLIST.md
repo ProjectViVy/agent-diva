@@ -52,7 +52,8 @@ evidence for deletion and does not define the target architecture.
   The GMH-20 documentation-only `just test` run failed while executing
   `agent-diva-manager --lib`; the captured workspace output did not retain the
   exact failing test, while the immediate isolated
-  `cargo test -p agent-diva-manager --lib` rerun passed all 68 tests.
+  `cargo test -p agent-diva-manager --lib` rerun passed all tests (70 as of
+  GMH-23D crash recovery).
   Expected: identify and synchronize the load-sensitive Manager test so the
   complete workspace gate is deterministic. Related: `agent-diva-manager`.
 - [ ] **Workspace Rust 1.80 lockfile gate is blocked by legacy Mentle**
@@ -594,7 +595,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - G2D 尚待真实桌面验收：批准、拒绝、编辑后批准、并发重复点击、
     重启恢复和回滚；验收时保留 request/proposal/audit ID。
   - 后续加固：legacy 文件 apply 的“事务已提交但 receipt 消费前崩溃”
-    需持久化幂等恢复结果；低风险自动 apply 仍保持关闭，待明确配置和
+    已增加持久化幂等恢复结果与自动化覆盖；低风险自动 apply 仍保持关闭，待明确配置和
     session/rule authorization 接口完成后才可启用。
 - [ ] **GMH-24：Embedded Laputa cutover 与 Mentle clean-break Gate**
   - 对 legacy Markdown/Laputa JSON 做一次性、显式、可回滚离线导入；

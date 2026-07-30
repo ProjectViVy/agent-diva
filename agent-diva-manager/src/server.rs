@@ -512,6 +512,86 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn laputa_apply_replays_consumed_result_without_duplicate_execution() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        state
+            .laputa
+            .create_proposal(laputa_proposal("proposal-replay", r#"{"facts":[]}"#))
+            .unwrap();
+        let proposal = state.laputa.get_proposal("proposal-replay").unwrap();
+        let now = Utc::now();
+        let pending = state
+            .memory_governance
+            .submit(&proposal, None, now)
+            .await
+            .unwrap();
+        let authorized = state
+            .memory_governance
+            .decide(
+                &proposal,
+                pending.request_version,
+                MemoryGovernanceDecision {
+                    decision: Decision::Allow,
+                    grant: ApprovalGrant::Once,
+                    actor: GovernanceSubject {
+                        kind: GovernanceSubjectKind::User,
+                        id: "reviewer".to_string(),
+                    },
+                    idempotency_key: "decision-replay",
+                    decided_at: now,
+                },
+            )
+            .await
+            .unwrap();
+        state
+            .laputa
+            .transition_proposal("proposal-replay", ProposalState::Approved, now)
+            .unwrap();
+
+        let app = build_router(state.clone());
+        let body = serde_json::json!({
+            "governance_request_id": authorized.request_id,
+            "expected_version": authorized.request_version,
+            "idempotency_key": "apply-replay"
+        })
+        .to_string();
+        let request = || {
+            Request::builder()
+                .method("POST")
+                .uri("/api/laputa/proposals/proposal-replay/apply")
+                .header("content-type", "application/json")
+                .body(Body::from(body.clone()))
+                .unwrap()
+        };
+
+        let first = app.clone().oneshot(request()).await.unwrap();
+        assert_eq!(first.status(), StatusCode::OK);
+        let first: serde_json::Value =
+            serde_json::from_slice(&to_bytes(first.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let second = app.oneshot(request()).await.unwrap();
+        assert_eq!(second.status(), StatusCode::OK);
+        let second: serde_json::Value =
+            serde_json::from_slice(&to_bytes(second.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+
+        assert_eq!(first["changelog"]["id"], second["changelog"]["id"]);
+        assert_eq!(first["audit_event"]["id"], second["audit_event"]["id"]);
+        assert_eq!(first["governance"], second["governance"]);
+        assert_eq!(
+            state
+                .laputa
+                .list_changelog(agent_diva_laputa::ChangelogFilter::default())
+                .unwrap()
+                .total,
+            1
+        );
+    }
+
+    #[tokio::test]
     async fn build_router_exposes_autodream_manual_run_route() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();

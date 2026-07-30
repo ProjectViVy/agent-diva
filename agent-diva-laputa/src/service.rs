@@ -128,6 +128,46 @@ impl LaputaService {
         Ok(outcome)
     }
 
+    /// Recover the durable outcome of a legacy apply that committed before its
+    /// caller persisted the surrounding governance-consumption result.
+    pub fn recover_apply_outcome(
+        &self,
+        id: &str,
+        applied_at: DateTime<Utc>,
+    ) -> Result<Option<crate::ApplyOutcome>> {
+        let proposal = self.get_proposal(id)?;
+        if proposal.state != ProposalState::Applied || proposal.updated_at != applied_at {
+            return Ok(None);
+        }
+
+        let changelog_id = format!("changelog-{id}-{}", applied_at.timestamp());
+        let audit_event_id = format!("audit-{id}-{}", applied_at.timestamp());
+        let changelog = read_json_file(
+            self.storage
+                .paths()
+                .changelog_dir()
+                .join(format!("{changelog_id}.json")),
+        )?;
+        let audit_event = read_json_file(
+            self.storage
+                .paths()
+                .audit_dir()
+                .join(format!("{audit_event_id}.json")),
+        )?;
+        let rollback_request = read_json_file(
+            self.storage
+                .paths()
+                .rollback_dir()
+                .join(format!("{changelog_id}.json")),
+        )?;
+        Ok(Some(crate::ApplyOutcome {
+            proposal,
+            changelog,
+            audit_event,
+            rollback_request,
+        }))
+    }
+
     pub fn create_user_edit_proposal(
         &self,
         section: LaputaSectionName,

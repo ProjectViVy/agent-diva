@@ -72,6 +72,33 @@ fn section_reads_return_explicit_tbd_status_without_file() {
 }
 
 #[test]
+fn committed_apply_outcome_is_recovered_without_reapplying() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = LaputaService::open(temp.path()).unwrap();
+    service.create_proposal(proposal("proposal-1")).unwrap();
+    service
+        .transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+        .unwrap();
+
+    let committed = service
+        .apply_proposal("proposal-1", "reviewer", ts(4))
+        .unwrap();
+    let recovered = service
+        .recover_apply_outcome("proposal-1", ts(4))
+        .unwrap()
+        .expect("committed outcome should be recoverable");
+
+    assert_eq!(recovered, committed);
+    assert_eq!(
+        service
+            .list_changelog(ChangelogFilter::default())
+            .unwrap()
+            .total,
+        1
+    );
+}
+
+#[test]
 fn apply_changelog_rollback_and_polling_events_are_available() {
     let temp = tempfile::tempdir().unwrap();
     LaputaService::reset_metrics_for_test();
@@ -140,8 +167,8 @@ fn apply_changelog_rollback_and_polling_events_are_available() {
         .diff
         .starts_with("--- before\n+++ after\n@@"));
     let metrics = LaputaService::metrics_snapshot();
-    assert!(metrics.laputa_writes_total >= before.laputa_writes_total + 1);
-    assert!(metrics.laputa_rollbacks_total >= before.laputa_rollbacks_total + 1);
+    assert!(metrics.laputa_writes_total > before.laputa_writes_total);
+    assert!(metrics.laputa_rollbacks_total > before.laputa_rollbacks_total);
     assert!(metrics.laputa_write_errors_total >= before.laputa_write_errors_total);
 }
 
@@ -227,10 +254,8 @@ fn recovery_apply_failure_emits_error_diagnostic_event() {
             && event.error_type.as_deref() == Some("apply_recovery_failure")
     }));
     let metrics = LaputaService::metrics_snapshot();
-    assert!(metrics.laputa_write_errors_total >= before.laputa_write_errors_total + 1);
-    assert!(
-        metrics.laputa_governance_failures_total >= before.laputa_governance_failures_total + 1
-    );
+    assert!(metrics.laputa_write_errors_total > before.laputa_write_errors_total);
+    assert!(metrics.laputa_governance_failures_total > before.laputa_governance_failures_total);
 }
 
 #[test]

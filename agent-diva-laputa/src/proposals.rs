@@ -60,7 +60,7 @@ pub enum ApplyFailurePoint {
 }
 
 /// Durable result produced by a successful proposal apply.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApplyOutcome {
     pub proposal: EvolutionProposal,
     pub changelog: ChangelogRecord,
