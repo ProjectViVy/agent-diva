@@ -10,7 +10,10 @@ use std::{
     time::Duration as StdDuration,
 };
 
-use agent_diva_core::memory::{MemoryRecord, MemoryRecordValidationError, MemoryScope};
+use agent_diva_core::{
+    governance::{ApprovalReceipt, ApprovalRequest, GovernanceValidationError},
+    memory::{MemoryRecord, MemoryRecordValidationError, MemoryScope},
+};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::{
@@ -68,6 +71,10 @@ pub enum TypedMemoryStoreError {
     },
     #[error("stored Memory row is corrupt")]
     CorruptRecord,
+    #[error("governed apply receipt is invalid: {0}")]
+    InvalidReceipt(#[from] GovernanceValidationError),
+    #[error("governed apply idempotency key conflicts with an existing operation")]
+    ApplyIdempotencyConflict,
 }
 
 /// Current database identity and optimistic concurrency revision.
@@ -104,6 +111,16 @@ pub struct MemoryStoreIntegrity {
     pub supersedes_edge_count: i64,
     pub corrupt_record_ids: Vec<String>,
     pub orphan_fts_rows: i64,
+}
+
+/// Receipt-bound metadata for one non-production typed apply.
+#[derive(Debug, Clone)]
+pub struct GovernedMemoryApply<'a> {
+    pub proposal_id: &'a str,
+    pub idempotency_key: &'a str,
+    pub request: &'a ApprovalRequest<()>,
+    pub receipt: &'a ApprovalReceipt,
+    pub applied_at: chrono::DateTime<Utc>,
 }
 
 /// Replaceable async store scoped to exactly one workspace.
@@ -197,6 +214,21 @@ impl TypedMemoryStore {
                superseded_id TEXT NOT NULL,
                PRIMARY KEY(memory_id, superseded_id),
                FOREIGN KEY(memory_id) REFERENCES memory_records(memory_id) ON DELETE CASCADE
+             )",
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS memory_apply_journal (
+               idempotency_key TEXT PRIMARY KEY,
+               proposal_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               content_digest TEXT NOT NULL,
+               record_id TEXT NOT NULL,
+               store_revision INTEGER NOT NULL,
+               record_revision INTEGER NOT NULL,
+               actor_id TEXT NOT NULL,
+               applied_at TEXT NOT NULL
              )",
         )
         .execute(&mut *tx)
@@ -311,6 +343,42 @@ impl TypedMemoryStore {
         expected_store_revision: i64,
         expected_record_revision: Option<i64>,
     ) -> Result<StoredMemoryRecord, TypedMemoryStoreError> {
+        self.put_inner(
+            record,
+            expected_store_revision,
+            expected_record_revision,
+            None,
+        )
+        .await
+    }
+
+    /// Apply one canonical record and payload-free journal row atomically.
+    ///
+    /// This seam remains unregistered until the GMH-24 write cutover.
+    pub async fn put_governed(
+        &self,
+        record: MemoryRecord,
+        expected_store_revision: i64,
+        expected_record_revision: Option<i64>,
+        governed: GovernedMemoryApply<'_>,
+    ) -> Result<StoredMemoryRecord, TypedMemoryStoreError> {
+        governed.receipt.validate_approve_once(governed.request)?;
+        self.put_inner(
+            record,
+            expected_store_revision,
+            expected_record_revision,
+            Some(governed),
+        )
+        .await
+    }
+
+    async fn put_inner(
+        &self,
+        record: MemoryRecord,
+        expected_store_revision: i64,
+        expected_record_revision: Option<i64>,
+        governed: Option<GovernedMemoryApply<'_>>,
+    ) -> Result<StoredMemoryRecord, TypedMemoryStoreError> {
         let _write_guard = self.write_lock.lock().await;
         record.validate_at(Utc::now(), chrono::Duration::minutes(5))?;
         record.validate_workspace(&self.workspace_id).map_err(|_| {
@@ -321,6 +389,33 @@ impl TypedMemoryStore {
         })?;
 
         let mut tx = self.pool.begin().await?;
+        if let Some(governed) = governed.as_ref() {
+            let existing = sqlx::query(
+                "SELECT proposal_id, request_id, content_digest, record_id
+                 FROM memory_apply_journal WHERE idempotency_key = ?",
+            )
+            .bind(governed.idempotency_key)
+            .fetch_optional(&mut *tx)
+            .await?;
+            if let Some(existing) = existing {
+                if existing.get::<String, _>("proposal_id") != governed.proposal_id
+                    || existing.get::<String, _>("request_id")
+                        != governed.request.correlation.request_id
+                    || existing.get::<String, _>("content_digest")
+                        != governed.request.content_digest.value
+                    || existing.get::<String, _>("record_id") != record.id
+                {
+                    return Err(TypedMemoryStoreError::ApplyIdempotencyConflict);
+                }
+                let row = sqlx::query(
+                    "SELECT record_revision, record_json FROM memory_records WHERE memory_id = ?",
+                )
+                .bind(&record.id)
+                .fetch_one(&mut *tx)
+                .await?;
+                return decode_stored(&row);
+            }
+        }
         let actual_store: i64 =
             sqlx::query_scalar("SELECT store_revision FROM schema_meta WHERE component = ?")
                 .bind(COMPONENT)
@@ -486,6 +581,25 @@ impl TypedMemoryStore {
         .bind(COMPONENT)
         .execute(&mut *tx)
         .await?;
+        if let Some(governed) = governed {
+            sqlx::query(
+                "INSERT INTO memory_apply_journal(
+                   idempotency_key, proposal_id, request_id, content_digest,
+                   record_id, store_revision, record_revision, actor_id, applied_at
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(governed.idempotency_key)
+            .bind(governed.proposal_id)
+            .bind(&governed.request.correlation.request_id)
+            .bind(&governed.request.content_digest.value)
+            .bind(&record.id)
+            .bind(expected_store_revision + 1)
+            .bind(next_record_revision)
+            .bind(&governed.receipt.decided_by.id)
+            .bind(governed.applied_at.to_rfc3339())
+            .execute(&mut *tx)
+            .await?;
+        }
         tx.commit().await?;
         Ok(StoredMemoryRecord {
             record,

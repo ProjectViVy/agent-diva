@@ -85,6 +85,11 @@ impl LaputaPaths {
         self.laputa_dir.join("memory.sqlite3")
     }
 
+    /// Payload-free governance ledger for Memory proposal decisions.
+    pub fn governance_database(&self) -> PathBuf {
+        self.laputa_dir.join("governance.sqlite3")
+    }
+
     pub fn lock_file(&self, name: &str) -> PathBuf {
         self.locks_dir().join(format!("{name}.lock"))
     }
