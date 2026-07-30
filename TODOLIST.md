@@ -116,7 +116,7 @@ standing policy（非功能债，执行相关验证时遵守）：
 - [ ] **GMH-33：CLI/headless 行为** `sev-P2`
   交互可批；非交互 fail/queue，绝不默认放行。Gate G3：shell / Memory 高风险 /
   Plan 各一条 E2E。
-- [ ] **GMH-40：Agent Loop 单一副作用 seam** `sev-P1`
+- [x] **GMH-40：Agent Loop 单一副作用 seam** `sev-P1`
   组装/pre-call/执行同一治理快照；turn 分段可取消可度量；子代理/cron 禁止提权。
 - [ ] **GMH-41：自治预算与熔断** `sev-P2`
   turn/session/day 限额；拒绝风暴熔断；离线高风险排队或拒绝。
@@ -173,23 +173,23 @@ standing policy（非功能债，执行相关验证时遵守）：
 对照当前代码保留；完整历史处置表见
 [`docs/archive/todolist/plan-todo-p1-p3-disposition-2026-07-30.md`](docs/archive/todolist/plan-todo-p1-p3-disposition-2026-07-30.md)。
 
-- [ ] **扩展 phase×capability / transition 矩阵与 denial 副作用测试** `sev-P2`
+- [x] **扩展 phase×capability / transition 矩阵与 denial 副作用测试** `sev-P2`
   policy 已 fail-closed，但缺完整非法迁移笛卡尔与 denial 前后 store 快照断言；
   assembly 仅子集工具。
   相关：`agent-diva-core/src/planning/policy.rs`、
   `agent-diva-agent/src/tool_assembly.rs`、agent-loop 集成夹具。
-- [ ] **runtime 配置热更新后按 phase 重建工具表** `sev-P2`
+- [x] **runtime 配置热更新后按 phase 重建工具表** `sev-P2`
   `rebuild_tools_for_active_phase` 当前 `rebuild_tools_for_turn(..., None, ...)`，
   网络/MCP 更新可能短暂丢掉 phase 边界。
   `agent-diva-agent/src/agent_loop/loop_runtime_control.rs`。
-- [ ] **空 execution TODO 列表的 Verify 门闩** `sev-P2`
+- [x] **空 execution TODO 列表的 Verify 门闩** `sev-P2`
   `PlanVerifier::verify` 在 `total == 0` 时直接 Pass，可能让无步骤计划误完成。
   `agent-diva-agent/src/planning/verifier.rs`。
-- [ ] **预存在 TODO 与 materialize 策略文档化/修复** `sev-P2`
+- [x] **预存在 TODO 与 materialize 策略文档化/修复** `sev-P2`
   `TodoAlreadyMaterialized` 仍可永久卡住 Always 路径；需产品决策：视为已物化
   成功、禁止预批准写入、或提供清理 API。
   `agent-diva-core/src/planning/store.rs`。
-- [ ] **删除 orchestrator 内注释掉的死迁移矩阵** `sev-P3`
+- [x] **删除 orchestrator 内注释掉的死迁移矩阵** `sev-P3`
   `agent-diva-agent/src/planning/orchestrator.rs` 大段注释旧表；core 已是唯一真相。
 
 ### Deferred Product

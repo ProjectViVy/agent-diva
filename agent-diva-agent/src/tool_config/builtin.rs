@@ -107,3 +107,22 @@ impl Default for BuiltInToolsConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::BuiltInToolsConfig;
+
+    #[test]
+    fn subagent_configuration_removes_recursive_and_control_plane_tools() {
+        let config = BuiltInToolsConfig::all().for_subagent();
+        assert!(!config.spawn);
+        assert!(!config.cron);
+        assert!(!config.enqueue_background_task);
+        assert!(!config.update_plan);
+        assert!(!config.attachment);
+        assert!(config.filesystem);
+        assert!(config.shell);
+        assert!(config.web_search);
+        assert!(config.web_fetch);
+    }
+}

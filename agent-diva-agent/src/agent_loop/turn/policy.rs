@@ -10,6 +10,8 @@ pub(crate) struct TurnSnapshot {
     pub model: String,
     pub plan_mode: bool,
     pub policy_phase: Option<PlanPhase>,
+    pub reviewer_read_only: bool,
+    pub scheduled: bool,
     pub trace_id: String,
 }
 
@@ -19,6 +21,8 @@ impl TurnSnapshot {
         model: String,
         plan_mode: bool,
         active_plan: Option<&PlanRuntimeState>,
+        reviewer_read_only: bool,
+        scheduled: bool,
         trace_id: String,
     ) -> Self {
         Self {
@@ -26,6 +30,8 @@ impl TurnSnapshot {
             model,
             plan_mode,
             policy_phase: policy_phase_for(active_plan, plan_mode),
+            reviewer_read_only,
+            scheduled,
             trace_id,
         }
     }
@@ -51,9 +57,13 @@ mod tests {
             "model".into(),
             true,
             None,
+            true,
+            false,
             "trace".into(),
         );
         assert_eq!(snapshot.policy_phase, Some(PlanPhase::Plan));
         assert!(snapshot.plan_guard_active());
+        assert!(snapshot.reviewer_read_only);
+        assert!(!snapshot.scheduled);
     }
 }

@@ -930,22 +930,36 @@ impl PlanningStore for SqlitePlanningStore {
                     .bind(&plan_id.0)
                     .fetch_one(&mut *tx)
                     .await?;
-            if count != 0 {
-                return Err(PlanningError::TodoAlreadyMaterialized {
-                    plan_id: plan_id.0.clone(),
-                }
-                .into());
-            }
             let steps = sqlx::query_as::<_, StepRow>(
                 "SELECT * FROM plan_steps WHERE plan_id = ? ORDER BY ordinal",
             )
             .bind(&plan_id.0)
             .fetch_all(&mut *tx)
             .await?;
-            for step in steps {
-                sqlx::query("INSERT INTO todo_items (id, plan_id, plan_step_id, title, detail, status, priority, evidence_ref, block_reason, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)")
-                    .bind(TodoId::new().0).bind(&plan_id.0).bind(step.id).bind(step.title).bind(step.expected_output)
-                    .bind(TodoStatus::Pending.to_string()).bind(TodoPriority::Normal.to_string()).bind(now.to_rfc3339()).execute(&mut *tx).await?;
+            if count != 0 {
+                let matched = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(DISTINCT t.plan_step_id)
+                     FROM todo_items t
+                     JOIN plan_steps s ON s.id = t.plan_step_id AND s.plan_id = t.plan_id
+                     WHERE t.plan_id = ?",
+                )
+                .bind(&plan_id.0)
+                .fetch_one(&mut *tx)
+                .await?;
+                let already_materialized =
+                    !steps.is_empty() && count == steps.len() as i64 && matched == count;
+                if !already_materialized {
+                    return Err(PlanningError::TodoAlreadyMaterialized {
+                        plan_id: plan_id.0.clone(),
+                    }
+                    .into());
+                }
+            } else {
+                for step in steps {
+                    sqlx::query("INSERT INTO todo_items (id, plan_id, plan_step_id, title, detail, status, priority, evidence_ref, block_reason, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)")
+                        .bind(TodoId::new().0).bind(&plan_id.0).bind(step.id).bind(step.title).bind(step.expected_output)
+                        .bind(TodoStatus::Pending.to_string()).bind(TodoPriority::Normal.to_string()).bind(now.to_rfc3339()).execute(&mut *tx).await?;
+                }
             }
         }
         let receipt = ApprovalReceipt {
@@ -1539,6 +1553,50 @@ mod tests {
             PlanPhase::AwaitingApproval
         );
         assert_eq!(store.get_todos(&plan_id).await.unwrap().items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn materialization_accepts_exact_preexisting_step_todos_without_duplicates() {
+        let store = test_store().await;
+        let plan_id = PlanId("p-pre-materialized".to_string());
+        let revision = submit_ready_plan(&store, &plan_id.0).await;
+        store
+            .create_todo(
+                &plan_id,
+                &TodoItem {
+                    id: TodoId::new(),
+                    plan_step_id: Some("p-pre-materialized-step".to_string()),
+                    title: "Implement".to_string(),
+                    detail: Some("verified".to_string()),
+                    status: TodoStatus::Pending,
+                    priority: TodoPriority::Normal,
+                    evidence_ref: None,
+                    block_reason: None,
+                    updated_at: Utc::now(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let receipt = store
+            .approve_plan(
+                &plan_id,
+                &ApprovalRequest {
+                    expected_revision: revision,
+                    approved_by: "user".to_string(),
+                    todo_policy: TodoPolicy::Always,
+                    materialize_todos: true,
+                },
+            )
+            .await
+            .unwrap();
+
+        assert!(receipt.todos_materialized);
+        assert_eq!(store.get_todos(&plan_id).await.unwrap().items.len(), 1);
+        assert_eq!(
+            store.get_plan(&plan_id).await.unwrap().phase,
+            PlanPhase::Execute
+        );
     }
 
     #[tokio::test]

@@ -558,12 +558,10 @@ impl AgentLoop {
                     trace_id: &trace_id,
                     iteration,
                     plan_mode,
-                    read_only,
                     plan_guard_active,
                     active_mask: active_mask.as_ref(),
                     active_execution_id: active_execution_id.clone(),
                     background_task_context: background_task_context.clone(),
-                    scheduled: is_cron_trigger,
                 };
                 for tool_call in &response.tool_calls {
                     let Some(result) = self

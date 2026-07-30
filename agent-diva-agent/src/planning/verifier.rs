@@ -52,8 +52,12 @@ impl PlanVerifier {
             }
         }
 
-        let verdict = if total == 0 || completed == total {
-            // All non-canceled items are completed (or no items at all).
+        let verdict = if total == 0 {
+            // An execution with no verifiable work items has no positive
+            // completion evidence and must not be promoted to Completed.
+            VerificationVerdict::Fail
+        } else if completed == total {
+            // All non-canceled items are completed.
             VerificationVerdict::Pass
         } else if pending > 0 || in_progress > 0 {
             // The verify-gate should have prevented this, but be safe.
@@ -261,6 +265,26 @@ mod tests {
                 ..
             }
         )));
+    }
+
+    #[tokio::test]
+    async fn test_verify_empty_execution_fails_closed() {
+        let store = make_store().await;
+        let plan_id = PlanId::new();
+        let plan = make_plan(
+            &plan_id,
+            "No execution evidence",
+            PlanPhase::Verify,
+            PlanStatus::InProgress,
+        );
+        create_plan_in_store(&store, &plan).await;
+
+        let verdict = PlanVerifier::verify(&store, &plan_id).await.unwrap();
+        assert_eq!(verdict, VerificationVerdict::Fail);
+        assert_eq!(
+            store.get_plan(&plan_id).await.unwrap().verification_verdict,
+            Some(VerificationVerdict::Fail)
+        );
     }
 
     #[tokio::test]

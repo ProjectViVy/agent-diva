@@ -116,25 +116,6 @@ impl PlanOrchestrator {
     /// Check whether a phase transition is valid.
     pub fn is_valid_transition(from: &PlanPhase, to: &PlanPhase) -> bool {
         agent_diva_core::planning::policy::is_valid_transition(from, to)
-        /*
-            // Any phase → Failed is always valid (emergency bail-out)
-            if *to == PlanPhase::Failed {
-                return true;
-            }
-
-            matches!(
-                (from, to),
-                (PlanPhase::Explore, PlanPhase::Plan)
-                    | (PlanPhase::Plan, PlanPhase::AwaitingApproval)
-                    | (PlanPhase::AwaitingApproval, PlanPhase::Execute)
-                    | (PlanPhase::Execute, PlanPhase::Verify)
-                    | (PlanPhase::Execute, PlanPhase::Completed)
-                    | (PlanPhase::Verify, PlanPhase::Completed)
-                    | (PlanPhase::Verify, PlanPhase::Failed)
-                    | (PlanPhase::Verify, PlanPhase::Partial)
-            )
-        }
-        */
     }
 
     /// Gate: transitioning to Execute requires prior approval.

@@ -347,9 +347,15 @@ impl AgentLoop {
 
     /// Re-assemble after runtime mutations so registration remains a phase
     /// boundary even before a subsequent tool call can re-snapshot state.
-    async fn rebuild_tools_for_active_phase(&mut self) {
+    pub(crate) async fn rebuild_tools_for_active_phase(&mut self) {
+        let surface = self.active_tool_surface.clone();
         let active_mask = self.load_active_mask();
-        self.rebuild_tools_for_turn(active_mask.as_ref(), None, None, None);
+        self.rebuild_tools_for_turn(
+            active_mask.as_ref(),
+            surface.plan_phase,
+            surface.execution_session_id,
+            surface.background_task_context,
+        );
     }
 
     pub(super) async fn snapshot_active_plan_runtime(

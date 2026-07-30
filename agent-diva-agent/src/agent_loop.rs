@@ -148,6 +148,7 @@ pub struct AgentLoop {
     custom_tools: Vec<Arc<dyn Tool>>,
     /// Current thinking mode (auto/on/off), modifiable at runtime via SetThinking.
     thinking_mode: ThinkingMode,
+    active_tool_surface: ActiveToolSurface,
 }
 
 pub struct AgentLoopToolSet {
@@ -217,6 +218,13 @@ impl SubagentSpawner for SubagentManagerSpawner {
 #[derive(Clone, Default)]
 struct ToolTurnOptions<'a> {
     active_mask: Option<&'a MaskFile>,
+    plan_phase: Option<PlanPhase>,
+    execution_session_id: Option<String>,
+    background_task_context: Option<BackgroundTaskContext>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ActiveToolSurface {
     plan_phase: Option<PlanPhase>,
     execution_session_id: Option<String>,
     background_task_context: Option<BackgroundTaskContext>,
@@ -312,6 +320,11 @@ impl AgentLoop {
         execution_session_id: Option<String>,
         background_task_context: Option<BackgroundTaskContext>,
     ) {
+        self.active_tool_surface = ActiveToolSurface {
+            plan_phase: plan_phase.clone(),
+            execution_session_id: execution_session_id.clone(),
+            background_task_context: background_task_context.clone(),
+        };
         self.tools = build_agent_tools(
             self.workspace.clone(),
             &self.tool_config,
@@ -401,6 +414,7 @@ impl AgentLoop {
             memory_provider,
             custom_tools: Vec::new(),
             thinking_mode: ThinkingMode::default(),
+            active_tool_surface: ActiveToolSurface::default(),
         })
     }
 
@@ -553,6 +567,7 @@ impl AgentLoop {
             memory_provider,
             custom_tools,
             thinking_mode: ThinkingMode::default(),
+            active_tool_surface: ActiveToolSurface::default(),
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -635,6 +650,7 @@ impl AgentLoop {
             memory_provider,
             custom_tools: Vec::new(),
             thinking_mode: ThinkingMode::default(),
+            active_tool_surface: ActiveToolSurface::default(),
         })
     }
 
@@ -1746,6 +1762,80 @@ mod tests {
         // Verify the provider is the one we injected (Arc pointer identity).
         // Agent, context, inner component, and test handle = 4
         assert_eq!(Arc::strong_count(&memory_provider), 4);
+    }
+
+    #[tokio::test]
+    async fn runtime_tool_rebuild_preserves_active_turn_surface() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut agent = AgentLoop::with_tools_and_memory_provider(
+            bus,
+            provider,
+            workspace,
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            None,
+        )
+        .await
+        .unwrap();
+        let context = BackgroundTaskContext {
+            channel: Some("gui".into()),
+            chat_id: Some("chat-e7".into()),
+            session_key: Some("gui:chat-e7".into()),
+            trace_id: Some("trace-e7".into()),
+            parent_run_id: Some("run-e7".into()),
+            token_budget_limit: Some(4_000),
+        };
+        agent.rebuild_tools_for_turn(
+            None,
+            Some(PlanPhase::Plan),
+            Some("execution-e7".into()),
+            Some(context),
+        );
+        let mut before = agent
+            .tools
+            .get_definitions()
+            .into_iter()
+            .filter_map(|definition| definition["function"]["name"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        before.sort();
+
+        agent.rebuild_tools_for_active_phase().await;
+        let mut after = agent
+            .tools
+            .get_definitions()
+            .into_iter()
+            .filter_map(|definition| definition["function"]["name"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        after.sort();
+        assert_eq!(before, after);
+        assert!(!after.iter().any(|name| name == "exec"));
+        assert!(!after.iter().any(|name| name == "spawn"));
+        assert!(!after.iter().any(|name| name == "cron"));
+        assert_eq!(
+            agent.active_tool_surface.execution_session_id.as_deref(),
+            Some("execution-e7")
+        );
+        assert_eq!(
+            agent
+                .active_tool_surface
+                .background_task_context
+                .as_ref()
+                .and_then(|context| context.trace_id.as_deref()),
+            Some("trace-e7")
+        );
     }
 
     #[tokio::test]

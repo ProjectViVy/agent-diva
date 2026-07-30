@@ -141,12 +141,10 @@ pub(crate) struct ToolOrchestrationContext<'a> {
     pub trace_id: &'a str,
     pub iteration: usize,
     pub plan_mode: bool,
-    pub read_only: bool,
     pub plan_guard_active: bool,
     pub active_mask: Option<&'a MaskFile>,
     pub active_execution_id: Option<String>,
     pub background_task_context: BackgroundTaskContext,
-    pub scheduled: bool,
 }
 
 pub(crate) struct ToolOrchestrationResult {
@@ -205,10 +203,7 @@ impl AgentLoop {
             cancelled: self.is_session_cancelled(context.session_key),
             plan_guard_active: context.plan_guard_active,
             persisted_plan_present: planning_before.is_some(),
-            reviewer_read_only: context.read_only
-                || context
-                    .active_mask
-                    .is_some_and(ToolPolicy::is_read_only_mode),
+            reviewer_read_only: turn_snapshot.reviewer_read_only,
         };
         if !policy.may_enter_executor() {
             self.emit_error_event(
@@ -244,7 +239,7 @@ impl AgentLoop {
                             channel: &context.message.channel,
                             chat_id: &context.message.chat_id,
                             session_key: context.session_key,
-                            cron_trigger: context.message.channel == "cron" || context.scheduled,
+                            cron_trigger: turn_snapshot.scheduled,
                         },
                     )
                     .await;
@@ -399,6 +394,60 @@ impl AgentLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_tooling::Tool;
+    use async_trait::async_trait;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    struct CountingExec {
+        calls: Arc<AtomicUsize>,
+    }
+
+    struct CountingCron {
+        calls: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl Tool for CountingExec {
+        fn name(&self) -> &str {
+            "exec"
+        }
+
+        fn description(&self) -> &str {
+            "test-only side effect"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({"type":"object","properties":{}})
+        }
+
+        async fn execute(&self, _args: Value) -> agent_diva_tooling::Result<String> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok("mutated".into())
+        }
+    }
+
+    #[async_trait]
+    impl Tool for CountingCron {
+        fn name(&self) -> &str {
+            "cron"
+        }
+
+        fn description(&self) -> &str {
+            "test-only recursive scheduler"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({"type":"object","properties":{}})
+        }
+
+        async fn execute(&self, _args: Value) -> agent_diva_tooling::Result<String> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok("scheduled".into())
+        }
+    }
 
     #[test]
     fn cancellation_denies_executor_entry() {
@@ -469,5 +518,76 @@ mod tests {
                 "{tool} must remain available"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn denied_policy_never_enters_registry_executor() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(CountingExec {
+            calls: calls.clone(),
+        }));
+        for policy in [
+            ToolStepPolicy {
+                phase: None,
+                cancelled: false,
+                plan_guard_active: false,
+                persisted_plan_present: true,
+                reviewer_read_only: true,
+            },
+            ToolStepPolicy {
+                phase: Some(PlanPhase::Plan),
+                cancelled: false,
+                plan_guard_active: true,
+                persisted_plan_present: false,
+                reviewer_read_only: false,
+            },
+        ] {
+            let result = policy
+                .execute(
+                    "exec",
+                    &serde_json::json!({"command":"side-effect"}),
+                    ToolExecutionContext {
+                        registry: &registry,
+                        channel: "gui",
+                        chat_id: "chat-e7",
+                        session_key: "gui:chat-e7",
+                        cron_trigger: false,
+                    },
+                )
+                .await;
+            assert!(result.is_error);
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn cron_trigger_never_enters_recursive_scheduler() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(CountingCron {
+            calls: calls.clone(),
+        }));
+        let result = ToolStepPolicy {
+            phase: None,
+            cancelled: false,
+            plan_guard_active: false,
+            persisted_plan_present: true,
+            reviewer_read_only: false,
+        }
+        .execute(
+            "cron",
+            &serde_json::json!({}),
+            ToolExecutionContext {
+                registry: &registry,
+                channel: "cron",
+                chat_id: "job-e7",
+                session_key: "cron:job-e7",
+                cron_trigger: true,
+            },
+        )
+        .await;
+        assert!(result.is_error);
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
 }

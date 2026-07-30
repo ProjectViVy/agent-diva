@@ -226,6 +226,11 @@ impl AgentLoop {
             model.clone(),
             plan_mode,
             active_plan.as_ref(),
+            admission.mode.is_read_only()
+                || active_mask
+                    .as_ref()
+                    .is_some_and(crate::mask::ToolPolicy::is_read_only_mode),
+            admission.scheduled,
             trace_id.to_string(),
         );
         let plan_guard_active = snapshot.plan_guard_active();
