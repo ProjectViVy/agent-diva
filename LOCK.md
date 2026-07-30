@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `None`
 - Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-30T20:05:31+08:00`
-- Last Heartbeat: `2026-07-30T20:20:00+08:00`
+- Started At: `2026-07-30T20:21:26+08:00`
+- Last Heartbeat: `2026-07-30T20:23:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -29,6 +29,15 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-30T20:23:00+08:00`: Released roadmap-priority update. Commit
+  `0d2d34e9` marks GMH-23D implementation/recovery hardening complete, defers
+  the six real-desktop G2D scenarios so they no longer block GMH-24, freezes
+  Evolution feature work, and makes typed Laputa cutover plus Mentle
+  clean-break the next architecture gate. G2D remains mandatory after the
+  clean-break and before Evolution development or release acceptance resumes.
+  Documentation diff validation passed; no runtime code changed and no push
+  occurred.
 
 - `2026-07-30T20:20:00+08:00`: Released Ask-mode read-only authority
   boundary. Commit `766279a7` makes Ask a stable fail-closed turn mode, hides
