@@ -30,6 +30,11 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-30T23:25:00+08:00`: Released documentation-only Skill product
+  boundary update. SOP is no longer a distinct type or planned product; future
+  work is a deferred visual CRUD lifecycle for all Skills and is removed from
+  the default B5 route. No runtime, config, or user-data changes.
+
 - `2026-07-30T23:10:00+08:00`: Released documentation-only TODOLIST master
   execution planning. Added the B0-B8 dependency blueprint, Goal execution and
   human-pause protocol, project completion definition, Evolution re-baseline

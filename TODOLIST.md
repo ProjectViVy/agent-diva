@@ -52,12 +52,6 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Product / Architecture
 
-- [ ] **Skill / SOP 统一为兼容 Skills** `sev-P1`
-  不建第二套 SOP 格式/目录/运行时。扩展 `SKILL.md` 可选 `kind: sop`（默认
-  `skill`），复用完整 Skill 生命周期；GUI/摘要显示 `AGENT-DIVA SOP` 标签且不授
-  权。Notebook「固化为 SOP」应生成 SOP Skill 候选。
-  契约：`docs/architecture/skill-sop-unification.md`。
-
 - [ ] **RG-CODE-GOV 后续分期（可选实现入口）** `sev-P2`
   原位治理设计完成；**禁止**回迁 deep-governance 大爆炸。
   已完成并归档：G0 characterization、G1 AgentLoop 瘦身。
@@ -157,6 +151,13 @@ standing policy（非功能债，执行相关验证时遵守）：
   `agent-diva-agent/src/planning/orchestrator.rs` 大段注释旧表；core 已是唯一真相。
 
 ### Deferred Product
+
+- [ ] **Skill 可视化全生命周期编辑器（延期）** `sev-P3`
+  产品对象只有 Skill；SOP 不建立独立类型、标签、入口、DTO、存储或运行时，
+  “SOP”仅是用户对某类 Skill 内容的称呼。未来若启动，统一为全部 Skill 提供
+  可视化创建、读取、编辑、删除、校验、预览与安全审查，而不是只做 SOP 编辑器。
+  当前不在预期范围，须由用户明确恢复后再设计/实现。
+  决策：`docs/architecture/skill-sop-unification.md`。
 
 - [ ] **Mask feature 验收** `sev-P2`
   `.sisyphus/plans/mask-feature-implementation.md` 剩余项，待独立恢复。

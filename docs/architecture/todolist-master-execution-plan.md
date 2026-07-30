@@ -34,7 +34,8 @@
 - 可恢复：持久化操作必须具有幂等键、阶段状态、审计链和重启恢复测试。
 - Payload-free observability：诊断可包含 ID、摘要、计数、原因码和延迟，不含
   Memory 原文、密钥或未脱敏用户数据。
-- 不重建第二套系统：SOP 复用 Skills；RG-CODE-GOV 不回迁 deep-governance；
+- 不重建第二套系统：SOP 不成为产品类型，相关编辑能力归入统一 Skill 管理；
+  RG-CODE-GOV 不回迁 deep-governance；
   Mentle/LLVM 运行链不得恢复。
 
 ## 3. 工作流与硬依赖
@@ -137,16 +138,18 @@ G2D 通过只把状态改为“允许盘点”，不等于功能可用。盘点�
 
 顺序由 B1 基线决定，默认建议：
 
-1. Skill/SOP 统一；
-2. Mask 独立验收；
-3. background task / supervised subagent 四个 Wave 3 E2E；
-4. workspace CLI managed-path 契约；
-5. Evolution MVP；
-6. UX-DR-3/4/7；
-7. StepFun 真实 endpoint E2E（仅在用户提供环境并授权时）。
+1. Mask 独立验收；
+2. background task / supervised subagent 四个 Wave 3 E2E；
+3. workspace CLI managed-path 契约；
+4. Evolution MVP；
+5. UX-DR-3/4/7；
+6. StepFun 真实 endpoint E2E（仅在用户提供环境并授权时）。
 
 每一项都必须先有可观察的用户旅程，再实现内部能力。真实 API 不得作为无人值守
 目标的默认步骤。
+
+Skill 可视化全生命周期编辑器不属于默认 B5 路线。只有用户明确恢复该延期项后，
+才允许先做产品设计，再把它加入新的产品批次。
 
 ### B6：结构治理
 
