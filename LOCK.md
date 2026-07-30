@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `None`
-- Owner: `None`
-- Session/Task: `None`
+- Scope: `NONE`
+- Owner: `none`
+- Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-30T20:21:26+08:00`
-- Last Heartbeat: `2026-07-30T20:23:00+08:00`
-- Expires At: `N/A`
+- Started At: `2026-07-30T20:24:40+08:00`
+- Last Heartbeat: `2026-07-30T21:32:08+08:00`
+- Expires At: `released`
 
 ## Lock Rules
 
@@ -29,6 +29,16 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-30T21:32:08+08:00`: Released GMH-24A/B/C architecture closure.
+  Commits `e0760897`, `36009ede`, and `af453d93` add offline typed import,
+  shadow/typed read authority, governed typed writes and rollback, and remove
+  the legacy runtime product/build surface. Focused Rust and GUI suites,
+  `just fmt-check`, `just check`, and the clean-break gate passed. Full
+  `just test` reached the known running-desktop binary replacement block
+  without an assertion failure. Rust 1.80 remains a broader unrelated
+  dependency-MSRV backlog item. Deferred G2D desktop acceptance must restart
+  onto the new binary before Evolution is unfrozen. No push occurred.
 
 - `2026-07-30T20:23:00+08:00`: Released roadmap-priority update. Commit
   `0d2d34e9` marks GMH-23D implementation/recovery hardening complete, defers
