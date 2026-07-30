@@ -6,7 +6,7 @@ use agent_diva_core::config::schema::{
     WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
-use agent_diva_laputa::LaputaService;
+use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use serde::{Deserialize, Serialize};
@@ -65,6 +65,7 @@ pub struct AppState {
     pub audit_root: PathBuf,
     pub autodream: AutoDreamService,
     pub laputa: LaputaService,
+    pub memory_governance: MemoryGovernanceCoordinator,
     pub health: HealthSignals,
     /// Server start time, used for uptime calculation in the health endpoint.
     pub started_at: Instant,
@@ -109,6 +110,10 @@ impl AppState {
             }
         };
         let laputa = LaputaService::open(workspace_root.clone())?;
+        let memory_governance = MemoryGovernanceCoordinator::open_lazy(
+            &workspace_root,
+            workspace_root.to_string_lossy().to_string(),
+        )?;
         Ok(Self {
             api_tx,
             bus,
@@ -116,6 +121,7 @@ impl AppState {
             audit_root,
             autodream,
             laputa,
+            memory_governance,
             health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
             command_approvals,

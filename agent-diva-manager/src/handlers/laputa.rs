@@ -3,9 +3,12 @@ use std::{convert::Infallible, str::FromStr};
 use agent_diva_core::evolution::{
     ChangelogAction, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType,
 };
+use agent_diva_core::governance::{
+    ApprovalGrant, ApprovalLedgerError, Decision, GovernanceSubject, GovernanceSubjectKind,
+};
 use agent_diva_laputa::{
-    ChangelogFilter, LaputaError, LaputaEventKind, ProposalEdit, ProposalFilter,
-    RollbackChangelogRequest,
+    ChangelogFilter, LaputaError, LaputaEventKind, MemoryGovernanceError, ProposalEdit,
+    ProposalFilter, RollbackChangelogRequest,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -47,8 +50,17 @@ pub struct ProposalTransitionPayload {
 
 #[derive(Debug, Deserialize)]
 pub struct ApplyProposalPayload {
-    pub actor: Option<String>,
-    pub applied_at: Option<DateTime<Utc>>,
+    pub governance_request_id: String,
+    pub expected_version: u64,
+    pub idempotency_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProposalDecisionPayload {
+    pub decision: Decision,
+    pub grant: ApprovalGrant,
+    pub expected_version: u64,
+    pub idempotency_key: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,7 +105,23 @@ pub async fn list_laputa_proposals_handler(
             since: query.since,
         })
         .map_err(laputa_error_response)?;
-    ok(serde_json::json!({ "status": "ok", "proposals": proposals }))
+    let mut governance = serde_json::Map::new();
+    for proposal in &proposals {
+        let view = state
+            .memory_governance
+            .submit(proposal, None, Utc::now())
+            .await
+            .map_err(memory_governance_error_response)?;
+        governance.insert(
+            proposal.id.clone(),
+            serde_json::to_value(view).unwrap_or_default(),
+        );
+    }
+    ok(serde_json::json!({
+        "status": "ok",
+        "proposals": proposals,
+        "governance": governance,
+    }))
 }
 
 pub async fn create_laputa_proposal_handler(
@@ -104,7 +132,12 @@ pub async fn create_laputa_proposal_handler(
         .laputa
         .create_proposal(payload)
         .map_err(laputa_error_response)?;
-    ok(serde_json::json!({ "status": "ok", "proposal": proposal }))
+    let governance = state
+        .memory_governance
+        .submit(&proposal, None, Utc::now())
+        .await
+        .map_err(memory_governance_error_response)?;
+    ok(serde_json::json!({ "status": "ok", "proposal": proposal, "governance": governance }))
 }
 
 pub async fn get_laputa_proposal_handler(
@@ -115,7 +148,12 @@ pub async fn get_laputa_proposal_handler(
         .laputa
         .get_proposal(&id)
         .map_err(laputa_error_response)?;
-    ok(serde_json::json!({ "status": "ok", "proposal": proposal }))
+    let governance = state
+        .memory_governance
+        .submit(&proposal, None, Utc::now())
+        .await
+        .map_err(memory_governance_error_response)?;
+    ok(serde_json::json!({ "status": "ok", "proposal": proposal, "governance": governance }))
 }
 
 pub async fn edit_laputa_proposal_handler(
@@ -135,7 +173,12 @@ pub async fn edit_laputa_proposal_handler(
             },
         )
         .map_err(laputa_error_response)?;
-    ok(serde_json::json!({ "status": "ok", "proposal": proposal }))
+    let governance = state
+        .memory_governance
+        .submit(&proposal, None, Utc::now())
+        .await
+        .map_err(memory_governance_error_response)?;
+    ok(serde_json::json!({ "status": "ok", "proposal": proposal, "governance": governance }))
 }
 
 pub async fn transition_laputa_proposal_handler(
@@ -143,6 +186,16 @@ pub async fn transition_laputa_proposal_handler(
     Path(id): Path<String>,
     Json(payload): Json<ProposalTransitionPayload>,
 ) -> JsonResult {
+    if matches!(
+        payload.state,
+        ProposalState::Approved | ProposalState::Rejected
+    ) {
+        return Err(error_response(
+            StatusCode::CONFLICT,
+            "governance_decision_required",
+            "approve and reject must use the governed decision endpoint",
+        ));
+    }
     let proposal = state
         .laputa
         .transition_proposal(
@@ -154,25 +207,106 @@ pub async fn transition_laputa_proposal_handler(
     ok(serde_json::json!({ "status": "ok", "proposal": proposal }))
 }
 
+pub async fn decide_laputa_proposal_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<ProposalDecisionPayload>,
+) -> JsonResult {
+    let proposal = state
+        .laputa
+        .get_proposal(&id)
+        .map_err(laputa_error_response)?;
+    let current = state
+        .memory_governance
+        .submit(&proposal, None, Utc::now())
+        .await
+        .map_err(memory_governance_error_response)?;
+    if current.request_version != payload.expected_version {
+        return Err(error_response(
+            StatusCode::CONFLICT,
+            "governance_version_conflict",
+            "governance request version changed",
+        ));
+    }
+    let governance = state
+        .memory_governance
+        .decide(
+            &proposal,
+            payload.expected_version,
+            payload.decision.clone(),
+            payload.grant,
+            GovernanceSubject {
+                kind: GovernanceSubjectKind::User,
+                id: "local-user".into(),
+            },
+            &payload.idempotency_key,
+            Utc::now(),
+        )
+        .await
+        .map_err(memory_governance_error_response)?;
+    let proposal = state
+        .laputa
+        .transition_proposal(
+            &id,
+            if payload.decision == Decision::Allow {
+                ProposalState::Approved
+            } else {
+                ProposalState::Rejected
+            },
+            Utc::now(),
+        )
+        .map_err(laputa_error_response)?;
+    ok(serde_json::json!({
+        "status": "ok",
+        "proposal": proposal,
+        "governance": governance,
+    }))
+}
+
 pub async fn apply_laputa_proposal_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(payload): Json<ApplyProposalPayload>,
 ) -> JsonResult {
+    let proposal = state
+        .laputa
+        .get_proposal(&id)
+        .map_err(laputa_error_response)?;
+    let (approval, receipt) = state
+        .memory_governance
+        .allowed_receipt(&proposal, Utc::now())
+        .await
+        .map_err(memory_governance_error_response)?;
+    if approval.request.correlation.request_id != payload.governance_request_id
+        || approval.version != payload.expected_version
+    {
+        return Err(error_response(
+            StatusCode::CONFLICT,
+            "governance_version_conflict",
+            "approval request or version changed",
+        ));
+    }
     let outcome = state
         .laputa
-        .apply_proposal(
-            &id,
-            payload.actor.unwrap_or_else(|| "api".to_string()),
-            payload.applied_at.unwrap_or_else(Utc::now),
-        )
+        .apply_proposal(&id, receipt.decided_by.id, Utc::now())
         .map_err(laputa_error_response)?;
+    let governance = state
+        .memory_governance
+        .consume_once(
+            &payload.governance_request_id,
+            payload.expected_version,
+            &payload.idempotency_key,
+            Utc::now(),
+        )
+        .await
+        .map_err(memory_governance_error_response)?;
     ok(serde_json::json!({
         "status": "ok",
         "proposal": outcome.proposal,
         "changelog": outcome.changelog,
         "audit_event": outcome.audit_event,
         "rollback_request": outcome.rollback_request,
+        "governance": governance,
     }))
 }
 
@@ -228,6 +362,11 @@ pub async fn write_laputa_section_handler(
             Utc::now(),
         )
         .map_err(laputa_error_response)?;
+    let governance = state
+        .memory_governance
+        .submit(&proposal, None, Utc::now())
+        .await
+        .map_err(memory_governance_error_response)?;
 
     ok(serde_json::json!({
         "status": "ok",
@@ -237,6 +376,7 @@ pub async fn write_laputa_section_handler(
         "state": proposal.state,
         "changelog_id": null,
         "applied_at": null,
+        "governance": governance,
     }))
 }
 
@@ -381,6 +521,31 @@ fn error_response(
             "message": message.into()
         })),
     )
+}
+
+fn memory_governance_error_response(
+    error: MemoryGovernanceError,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let (status, code) = match &error {
+        MemoryGovernanceError::ApprovalRequired => (StatusCode::CONFLICT, "approval_required"),
+        MemoryGovernanceError::StaleProposal => (StatusCode::CONFLICT, "stale_proposal"),
+        MemoryGovernanceError::InvalidGrant => {
+            (StatusCode::UNPROCESSABLE_ENTITY, "invalid_approval_grant")
+        }
+        MemoryGovernanceError::Ledger(ApprovalLedgerError::NotFound) => {
+            (StatusCode::NOT_FOUND, "governance_not_found")
+        }
+        MemoryGovernanceError::Ledger(
+            ApprovalLedgerError::VersionConflict
+            | ApprovalLedgerError::IdempotencyConflict
+            | ApprovalLedgerError::AlreadyConsumed,
+        ) => (StatusCode::CONFLICT, "governance_conflict"),
+        MemoryGovernanceError::Ledger(
+            ApprovalLedgerError::Expired | ApprovalLedgerError::InvalidTransition,
+        ) => (StatusCode::UNPROCESSABLE_ENTITY, "governance_invalid_state"),
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, "governance_failure"),
+    };
+    error_response(status, code, error.to_string())
 }
 
 fn laputa_error_response(error: LaputaError) -> (StatusCode, Json<serde_json::Value>) {

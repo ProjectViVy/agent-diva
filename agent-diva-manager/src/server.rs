@@ -11,18 +11,18 @@ use tower_http::trace::TraceLayer;
 use crate::handlers::{
     add_provider_model_handler, apply_laputa_proposal_handler, cancel_autodream_run_handler,
     chat_handler, create_cron_job_handler, create_laputa_proposal_handler, create_mcp_handler,
-    create_provider_handler, delete_cron_job_handler, delete_mcp_handler, delete_provider_handler,
-    delete_provider_model_handler, delete_session_handler, delete_skill_handler,
-    edit_laputa_proposal_handler, events_handler, generate_session_title_handler,
-    get_audit_events_handler, get_audit_log_handler, get_autodream_run_handler,
-    get_channels_handler, get_config_handler, get_cron_job_handler, get_laputa_changelog_handler,
-    get_laputa_proposal_handler, get_laputa_section_handler, get_laputa_snapshot_handler,
-    get_mcps_handler, get_provider_handler, get_provider_models_handler, get_providers_handler,
-    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
-    get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
-    list_autodream_runs_handler, list_cron_jobs_handler, list_laputa_changelog_handler,
-    list_laputa_proposals_handler, list_mentle_tools_handler, logs_routes,
-    poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
+    create_provider_handler, decide_laputa_proposal_handler, delete_cron_job_handler,
+    delete_mcp_handler, delete_provider_handler, delete_provider_model_handler,
+    delete_session_handler, delete_skill_handler, edit_laputa_proposal_handler, events_handler,
+    generate_session_title_handler, get_audit_events_handler, get_audit_log_handler,
+    get_autodream_run_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
+    get_laputa_changelog_handler, get_laputa_proposal_handler, get_laputa_section_handler,
+    get_laputa_snapshot_handler, get_mcps_handler, get_provider_handler,
+    get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
+    get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
+    health_handler, heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
+    list_laputa_changelog_handler, list_laputa_proposals_handler, list_mentle_tools_handler,
+    logs_routes, poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
     resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, todo_routes, token_stats_routes,
@@ -129,6 +129,10 @@ fn laputa_routes() -> Router<AppState> {
         .route(
             "/api/laputa/proposals/:id/apply",
             post(apply_laputa_proposal_handler),
+        )
+        .route(
+            "/api/laputa/proposals/:id/decision",
+            post(decide_laputa_proposal_handler),
         )
         .route("/api/laputa/snapshot", get(get_laputa_snapshot_handler))
         .route("/api/laputa/section/:name", get(get_laputa_section_handler))
@@ -306,6 +310,9 @@ mod tests {
         EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState,
         ProposalType, RiskLevel,
     };
+    use agent_diva_core::governance::{
+        ApprovalGrant, Decision, GovernanceSubject, GovernanceSubjectKind,
+    };
     use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
     use chrono::{DateTime, Utc};
@@ -444,19 +451,51 @@ mod tests {
             .laputa
             .create_proposal(laputa_proposal("proposal-1", "not-json"))
             .unwrap();
+        let proposal = state.laputa.get_proposal("proposal-1").unwrap();
+        let now = Utc::now();
+        let pending = state
+            .memory_governance
+            .submit(&proposal, None, now)
+            .await
+            .unwrap();
+        let authorized = state
+            .memory_governance
+            .decide(
+                &proposal,
+                pending.request_version,
+                Decision::Allow,
+                ApprovalGrant::Once,
+                GovernanceSubject {
+                    kind: GovernanceSubjectKind::User,
+                    id: "reviewer".to_string(),
+                },
+                "test-decision",
+                now,
+            )
+            .await
+            .unwrap();
         state
             .laputa
-            .transition_proposal("proposal-1", ProposalState::Approved, ts(3))
+            .transition_proposal("proposal-1", ProposalState::Approved, now)
             .unwrap();
 
         let app = build_router(state);
+        let request_id = authorized.request_id;
+        let expected_version = authorized.request_version;
         let response = app
             .oneshot(
                 Request::builder()
                     .method("POST")
                     .uri("/api/laputa/proposals/proposal-1/apply")
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"actor":"reviewer"}"#))
+                    .body(Body::from(
+                        serde_json::json!({
+                            "governance_request_id": request_id,
+                            "expected_version": expected_version,
+                            "idempotency_key": "apply-test"
+                        })
+                        .to_string(),
+                    ))
                     .unwrap(),
             )
             .await
