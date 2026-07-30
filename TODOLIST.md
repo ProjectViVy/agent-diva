@@ -148,7 +148,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   规则，提供只迁 identity、不复制或改写 Memory 内容的可验证迁移与回滚。
   相关：执行蓝图 B2、GMH-24 Migration/typed authority。
 
-- [ ] **QQ invalid-resume 集成测试 load-sensitive** `sev-P2`
+- [x] **QQ invalid-resume 集成测试 load-sensitive** `sev-P2`
   全量 gate 偶发 opcode 乱序；隔离重跑通过。
   `agent-diva-channels/tests/qq_reconnect_integration.rs`。
 - [ ] **Memory authority provider 选择缺 focused characterization** `sev-P2`
