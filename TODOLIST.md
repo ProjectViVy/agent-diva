@@ -44,7 +44,11 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     sensitivity、confidence、value 与失效条件，并在发布前拒绝无证据、仅 compaction、
     forged evidence、重复、直接矛盾、低价值、越 workspace/容量、prompt injection
     和敏感内容。无 provider 明确失败，无合格候选诚实完成为 `no_candidates`。
-  - [ ] **E4–E7**：统一提案治理、typed
+  - [x] **E4 提案治理与 rejection suppression**：AutoDream 候选一对一进入
+    PendingReview；Memory 决策继续使用 core Governance Ledger，编辑后旧 request/receipt
+    失效；决策已提交但 proposal 状态未落盘时可重试补齐；拒绝内容以 90 天、1000 条、
+    payload-free digest suppression 抑制原样重提，显著变化可重新进入 gate。
+  - [ ] **E5–E7**：typed
     apply/Recall feedback、一体化 GUI、恢复与发布门。
     E7 必须在关闭占用 debug 二进制的桌面进程后复跑 `just test`，并解决或规避当前
     Windows GUI lib test 的 MSVC `LNK1140` PDB 限制，不能以 `cargo check` 代替。

@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `n/a`
-- Last Heartbeat: `2026-07-31T01:38:00+08:00`
+- Last Heartbeat: `2026-07-31T01:55:00+08:00`
 - Expires At: `n/a`
 
 ## Lock Rules
@@ -29,6 +29,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-31T01:55:00+08:00`: Released E4 proposal governance and
+  suppression. Edited proposal digests revoke old authorization, decision
+  retries recover the ledger-to-proposal crash window, rejected content enters
+  payload-free 90-day/1000-entry suppression with rejected-proposal recovery,
+  and Manager exposes specific governance reason codes. Laputa and AutoDream
+  suites, focused Manager recovery, fmt, and full clippy passed. No push or
+  manual desktop test was performed.
 
 - `2026-07-31T01:38:00+08:00`: Released E3 Reflection Engine and Candidate
   Gate. Production reflection reuses the configured provider with raw model

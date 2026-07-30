@@ -5,7 +5,7 @@ use std::{fmt, str::FromStr};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::memory::{MemoryScope, MemorySensitivity};
+use crate::memory::{memory_content_digest, MemoryScope, MemorySensitivity};
 
 /// Errors returned by governance domain helpers.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -434,6 +434,13 @@ pub struct MemoryCandidate {
     pub sensitivity: MemorySensitivity,
     pub expected_value: CandidateValue,
     pub invalidation_conditions: Vec<String>,
+}
+
+/// Canonical content-only digest used for candidate deduplication and suppression.
+pub fn memory_candidate_content_digest(content: &str) -> String {
+    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    let digest = memory_content_digest(normalized.as_bytes());
+    format!("sha256:{}", digest.value)
 }
 
 /// Bounded AutoDream input collection summary persisted on the run record.

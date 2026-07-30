@@ -441,6 +441,86 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn proposal_decision_retry_finishes_transition_after_decision_crash_window() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        state
+            .laputa
+            .create_proposal(laputa_proposal(
+                "proposal-decision-recovery",
+                r#"{"facts":[]}"#,
+            ))
+            .unwrap();
+        let proposal = state
+            .laputa
+            .get_proposal("proposal-decision-recovery")
+            .unwrap();
+        let pending = state
+            .memory_governance
+            .submit(&proposal, None, Utc::now())
+            .await
+            .unwrap();
+        state
+            .memory_governance
+            .decide(
+                &proposal,
+                pending.request_version,
+                MemoryGovernanceDecision {
+                    decision: Decision::Allow,
+                    grant: ApprovalGrant::Once,
+                    actor: GovernanceSubject {
+                        kind: GovernanceSubjectKind::User,
+                        id: "reviewer".to_string(),
+                    },
+                    idempotency_key: "decision-before-crash",
+                    decided_at: Utc::now(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            state
+                .laputa
+                .get_proposal("proposal-decision-recovery")
+                .unwrap()
+                .state,
+            ProposalState::PendingReview
+        );
+        let app = build_router(state.clone());
+        let request = || {
+            Request::builder()
+                .method("POST")
+                .uri("/api/laputa/proposals/proposal-decision-recovery/decision")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "decision": "allow",
+                        "grant": "once",
+                        "expected_version": pending.request_version,
+                        "idempotency_key": "decision-before-crash"
+                    })
+                    .to_string(),
+                ))
+                .unwrap()
+        };
+
+        let recovered = app.clone().oneshot(request()).await.unwrap();
+        assert_eq!(recovered.status(), StatusCode::OK);
+        let replay = app.oneshot(request()).await.unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(
+            state
+                .laputa
+                .get_proposal("proposal-decision-recovery")
+                .unwrap()
+                .state,
+            ProposalState::Approved
+        );
+    }
+
+    #[tokio::test]
     async fn laputa_apply_preserves_typed_schema_incompatible_error_code() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();

@@ -95,6 +95,14 @@ async fn governance_requires_human_and_rebinds_after_edit() {
         .unwrap();
     assert_ne!(replacement.request_id, allowed.request_id);
     assert_eq!(replacement.status, ApprovalStatus::Pending);
+    assert!(matches!(
+        coordinator
+            .allowed_receipt(&original, edited.updated_at)
+            .await
+            .unwrap_err(),
+        agent_diva_laputa::MemoryGovernanceError::ApprovalRequired
+            | agent_diva_laputa::MemoryGovernanceError::StaleProposal
+    ));
 }
 
 #[tokio::test]

@@ -15,6 +15,7 @@ pub mod migration;
 pub mod proposals;
 pub mod recall;
 pub mod service;
+pub mod suppression;
 pub mod typed_provider;
 pub mod typed_store;
 
@@ -49,6 +50,7 @@ pub use service::{
     ChangelogFilter, ChangelogPage, LaputaEvent, LaputaEventKind, LaputaSection, LaputaService,
     LaputaSnapshot, RollbackChangelogRequest, RollbackOutcome, SectionStatus,
 };
+pub use suppression::{CandidateSuppression, CandidateSuppressionStore};
 pub use typed_provider::TypedLaputaMemoryProvider;
 pub use typed_store::{
     GovernedMemoryApply, MemorySearchHit, MemoryStoreIntegrity, MemoryStoreMetadata,

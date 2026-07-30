@@ -61,6 +61,7 @@ fn gate_accepts_supported_non_placeholder_candidate() {
             "The user prefers concise release summaries.",
         )],
         &[],
+        &[],
     );
 
     assert_eq!(result.accepted.len(), 1);
@@ -96,6 +97,7 @@ fn gate_rejects_secondary_only_unknown_and_injected_candidates() {
     let result = CandidateGate.evaluate(
         &reflection_input,
         vec![secondary, unknown, injected, sensitive, unsupported],
+        &[],
         &[],
     );
     let codes = result
@@ -134,6 +136,7 @@ fn gate_rejects_existing_duplicate_workspace_mismatch_and_capacity_overflow() {
         &reflection_input,
         vec![duplicate, accepted, overflow, wrong_workspace],
         &[],
+        &[],
     );
 
     assert_eq!(result.accepted.len(), 1);
@@ -161,6 +164,7 @@ fn gate_rejects_direct_contradiction_against_local_memory_without_exposing_it() 
             "The user is not available for release reviews.",
         )],
         &["The user is available for release reviews.".to_string()],
+        &[],
     );
 
     assert!(result.accepted.is_empty());
@@ -168,4 +172,25 @@ fn gate_rejects_direct_contradiction_against_local_memory_without_exposing_it() 
         result.rejected[0].code,
         CandidateRejectionCode::Contradiction
     );
+}
+
+#[test]
+fn gate_rejects_exactly_suppressed_content_but_allows_significant_change() {
+    let primary = evidence("primary", EvidenceSource::ExperienceJournal);
+    let suppressed = "The user prefers concise release summaries.";
+    let result = CandidateGate.evaluate(
+        &input(primary.clone()),
+        vec![
+            candidate(primary.clone(), suppressed),
+            candidate(
+                primary,
+                "The user prefers concise release summaries with verification IDs.",
+            ),
+        ],
+        &[],
+        &[content_digest(suppressed)],
+    );
+
+    assert_eq!(result.accepted.len(), 1);
+    assert_eq!(result.rejected[0].code, CandidateRejectionCode::Suppressed);
 }

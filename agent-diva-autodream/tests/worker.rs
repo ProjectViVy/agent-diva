@@ -345,6 +345,47 @@ async fn reflection_redacts_sensitive_session_evidence_before_provider_output() 
 }
 
 #[tokio::test]
+async fn rejected_candidate_is_not_reproposed_until_content_changes() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = test_service(temp.path());
+    seed_session(
+        temp.path(),
+        "chat:suppression",
+        "stable preference evidence",
+    );
+    let first = service
+        .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
+        .unwrap();
+    let first_report = service
+        .execute_reflection_worker(&first.run.id)
+        .await
+        .unwrap();
+    assert_eq!(first_report.proposal_ids.len(), 1);
+    LaputaService::open(temp.path())
+        .unwrap()
+        .transition_proposal(
+            &first_report.proposal_ids[0],
+            agent_diva_core::evolution::ProposalState::Rejected,
+            chrono::Utc::now(),
+        )
+        .unwrap();
+
+    let second = service
+        .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
+        .unwrap();
+    let second_report = service
+        .execute_reflection_worker(&second.run.id)
+        .await
+        .unwrap();
+
+    assert_eq!(second_report.outcome, AutoDreamWorkerOutcome::Success);
+    assert!(second_report.proposal_ids.is_empty());
+    let events =
+        fs::read_to_string(temp.path().join(".agent-diva/autodream/events.jsonl")).unwrap();
+    assert!(events.contains("suppressed"));
+}
+
+#[tokio::test]
 async fn worker_creates_proposals_through_laputa_api_without_direct_authority_writes() {
     let temp = tempfile::tempdir().unwrap();
     let service = test_service(temp.path());

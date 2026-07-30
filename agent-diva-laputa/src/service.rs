@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -95,8 +95,33 @@ impl LaputaService {
         updated_at: DateTime<Utc>,
     ) -> Result<EvolutionProposal> {
         let proposal = self.proposals.transition_proposal(id, to, updated_at)?;
+        if proposal.state == ProposalState::Rejected {
+            if let Err(error) = crate::CandidateSuppressionStore::new(self.storage.clone())
+                .record_rejection(&proposal, updated_at)
+            {
+                let _ = self.record_error_event(&error, None, Some(proposal.id.clone()));
+            }
+        }
         self.record_proposal_event(&proposal)?;
         Ok(proposal)
+    }
+
+    pub fn active_candidate_suppression_digests(&self, now: DateTime<Utc>) -> Result<Vec<String>> {
+        let mut digests = crate::CandidateSuppressionStore::new(self.storage.clone())
+            .active_digests(now)?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        for proposal in self.list_proposals(ProposalFilter {
+            state: Some(ProposalState::Rejected),
+            ..ProposalFilter::default()
+        })? {
+            if proposal.updated_at + chrono::Duration::days(90) > now {
+                digests.insert(agent_diva_core::evolution::memory_candidate_content_digest(
+                    &proposal.proposed_patch,
+                ));
+            }
+        }
+        Ok(digests.into_iter().collect())
     }
 
     pub fn apply_proposal(

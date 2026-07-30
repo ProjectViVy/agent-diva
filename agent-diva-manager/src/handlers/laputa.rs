@@ -11,7 +11,8 @@ use agent_diva_core::evolution::{
     ChangelogAction, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType,
 };
 use agent_diva_core::governance::{
-    ApprovalGrant, ApprovalLedgerError, Decision, GovernanceSubject, GovernanceSubjectKind,
+    ApprovalGrant, ApprovalLedgerError, ApprovalStatus, Decision, GovernanceSubject,
+    GovernanceSubjectKind,
 };
 use agent_diva_laputa::{
     adapt_governed_proposal, ChangelogFilter, GovernedMemoryApply, LaputaError, LaputaEventKind,
@@ -253,43 +254,58 @@ pub async fn decide_laputa_proposal_handler(
         .submit(&proposal, None, Utc::now())
         .await
         .map_err(memory_governance_error_response)?;
-    if current.request_version != payload.expected_version {
-        return Err(error_response(
-            StatusCode::CONFLICT,
-            "governance_version_conflict",
-            "governance request version changed",
-        ));
-    }
-    let governance = state
-        .memory_governance
-        .decide(
-            &proposal,
-            payload.expected_version,
-            MemoryGovernanceDecision {
-                decision: payload.decision.clone(),
-                grant: payload.grant,
-                actor: GovernanceSubject {
-                    kind: GovernanceSubjectKind::User,
-                    id: "local-user".into(),
+    let governance = if matches!(
+        current.status,
+        ApprovalStatus::Allowed | ApprovalStatus::Denied
+    ) {
+        if current.receipt.as_ref().map(|receipt| &receipt.decision) != Some(&payload.decision) {
+            return Err(error_response(
+                StatusCode::CONFLICT,
+                "governance_decision_conflict",
+                "governance request already has a different decision",
+            ));
+        }
+        current
+    } else {
+        if current.request_version != payload.expected_version {
+            return Err(error_response(
+                StatusCode::CONFLICT,
+                "governance_version_conflict",
+                "governance request version changed",
+            ));
+        }
+        state
+            .memory_governance
+            .decide(
+                &proposal,
+                payload.expected_version,
+                MemoryGovernanceDecision {
+                    decision: payload.decision.clone(),
+                    grant: payload.grant,
+                    actor: GovernanceSubject {
+                        kind: GovernanceSubjectKind::User,
+                        id: "local-user".into(),
+                    },
+                    idempotency_key: &payload.idempotency_key,
+                    decided_at: Utc::now(),
                 },
-                idempotency_key: &payload.idempotency_key,
-                decided_at: Utc::now(),
-            },
-        )
-        .await
-        .map_err(memory_governance_error_response)?;
-    let proposal = state
-        .laputa
-        .transition_proposal(
-            &id,
-            if payload.decision == Decision::Allow {
-                ProposalState::Approved
-            } else {
-                ProposalState::Rejected
-            },
-            Utc::now(),
-        )
-        .map_err(laputa_error_response)?;
+            )
+            .await
+            .map_err(memory_governance_error_response)?
+    };
+    let desired_state = if payload.decision == Decision::Allow {
+        ProposalState::Approved
+    } else {
+        ProposalState::Rejected
+    };
+    let proposal = if proposal.state == desired_state {
+        proposal
+    } else {
+        state
+            .laputa
+            .transition_proposal(&id, desired_state, Utc::now())
+            .map_err(laputa_error_response)?
+    };
     ok(serde_json::json!({
         "status": "ok",
         "proposal": proposal,
@@ -823,14 +839,26 @@ fn memory_governance_error_response(
         MemoryGovernanceError::Ledger(ApprovalLedgerError::NotFound) => {
             (StatusCode::NOT_FOUND, "governance_not_found")
         }
-        MemoryGovernanceError::Ledger(
-            ApprovalLedgerError::VersionConflict
-            | ApprovalLedgerError::IdempotencyConflict
-            | ApprovalLedgerError::AlreadyConsumed,
-        ) => (StatusCode::CONFLICT, "governance_conflict"),
-        MemoryGovernanceError::Ledger(
-            ApprovalLedgerError::Expired | ApprovalLedgerError::InvalidTransition,
-        ) => (StatusCode::UNPROCESSABLE_ENTITY, "governance_invalid_state"),
+        MemoryGovernanceError::Ledger(ApprovalLedgerError::VersionConflict) => {
+            (StatusCode::CONFLICT, "governance_version_conflict")
+        }
+        MemoryGovernanceError::Ledger(ApprovalLedgerError::IdempotencyConflict) => {
+            (StatusCode::CONFLICT, "governance_idempotency_conflict")
+        }
+        MemoryGovernanceError::Ledger(ApprovalLedgerError::AlreadyConsumed) => {
+            (StatusCode::CONFLICT, "governance_already_consumed")
+        }
+        MemoryGovernanceError::Ledger(ApprovalLedgerError::Expired) => {
+            (StatusCode::UNPROCESSABLE_ENTITY, "governance_expired")
+        }
+        MemoryGovernanceError::Ledger(ApprovalLedgerError::InvalidTransition) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "governance_invalid_transition",
+        ),
+        MemoryGovernanceError::Ledger(ApprovalLedgerError::Validation(_)) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "governance_validation_failed",
+        ),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "governance_failure"),
     };
     error_response(status, code, error.to_string())

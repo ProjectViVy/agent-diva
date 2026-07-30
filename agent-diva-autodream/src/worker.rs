@@ -403,7 +403,15 @@ impl AutoDreamWorker {
             .filter(|item| item.source == "laputa")
             .map(|item| item.excerpt.clone())
             .collect::<Vec<_>>();
-        let gated = CandidateGate.evaluate(&input, output.candidates, &local_existing_memory);
+        let suppressed = self
+            .laputa
+            .active_candidate_suppression_digests(Utc::now())?;
+        let gated = CandidateGate.evaluate(
+            &input,
+            output.candidates,
+            &local_existing_memory,
+            &suppressed,
+        );
         if !gated.rejected.is_empty() {
             let rejection_summary = serde_json::to_string(&gated.rejected)
                 .unwrap_or_else(|_| "candidate_gate_diagnostics_unavailable".to_string());

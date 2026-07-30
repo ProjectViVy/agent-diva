@@ -5,7 +5,6 @@ use agent_diva_core::{
     memory::MemorySensitivity,
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::BoundedReflectionInput;
 
@@ -30,6 +29,7 @@ pub enum CandidateRejectionCode {
     SensitiveContent,
     Contradiction,
     UnsupportedType,
+    Suppressed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,6 +53,7 @@ impl CandidateGate {
         input: &BoundedReflectionInput,
         candidates: Vec<MemoryCandidate>,
         local_existing_memory: &[String],
+        suppressed_content_digests: &[String],
     ) -> CandidateGateResult {
         let allowed_evidence = input
             .evidence
@@ -65,6 +66,10 @@ impl CandidateGate {
             .cloned()
             .collect::<HashSet<_>>();
         let mut accepted_digests = HashSet::new();
+        let suppressed = suppressed_content_digests
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
         let mut accepted = Vec::new();
         let mut rejected = Vec::new();
 
@@ -82,6 +87,7 @@ impl CandidateGate {
                 &accepted_digests,
                 accepted.len(),
                 local_existing_memory,
+                &suppressed,
             );
             if let Some(code) = code {
                 rejected.push(CandidateRejection {
@@ -106,6 +112,7 @@ impl CandidateGate {
         accepted_digests: &HashSet<String>,
         accepted_count: usize,
         local_existing_memory: &[String],
+        suppressed: &HashSet<String>,
     ) -> Option<CandidateRejectionCode> {
         let content = candidate.content.trim();
         if content.is_empty() || content.len() > MAX_CONTENT_BYTES {
@@ -156,6 +163,9 @@ impl CandidateGate {
             return Some(CandidateRejectionCode::SensitiveContent);
         }
         let digest = content_digest(content);
+        if suppressed.contains(&digest) {
+            return Some(CandidateRejectionCode::Suppressed);
+        }
         if existing.contains(&digest) || accepted_digests.contains(&digest) {
             return Some(CandidateRejectionCode::Duplicate);
         }
@@ -204,8 +214,7 @@ fn strip_negation(value: &str) -> (bool, String) {
 }
 
 pub fn content_digest(content: &str) -> String {
-    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
-    format!("sha256:{:x}", Sha256::digest(normalized.as_bytes()))
+    agent_diva_core::evolution::memory_candidate_content_digest(content)
 }
 
 fn contains_prompt_injection(content: &str) -> bool {
