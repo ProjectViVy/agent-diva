@@ -14,7 +14,7 @@ use agent_diva_core::{
 };
 use agent_diva_laputa::LaputaService;
 use chrono::Utc;
-use uuid::Uuid;
+use sha2::{Digest, Sha256};
 
 use crate::{AutoDreamError, AutoDreamStorage, Result};
 
@@ -493,13 +493,20 @@ fn truncate_text(value: &str, max_bytes: usize) -> String {
 }
 
 fn evidence_ref(source: EvidenceSource, uri: String, excerpt: Option<String>) -> EvidenceRef {
+    let mut digest = Sha256::new();
+    digest.update(format!("{source:?}").as_bytes());
+    digest.update([0]);
+    digest.update(uri.as_bytes());
+    digest.update([0]);
+    digest.update(excerpt.as_deref().unwrap_or_default().as_bytes());
+    let hash = format!("{:x}", digest.finalize());
     EvidenceRef {
-        id: format!("evidence-{}", Uuid::new_v4()),
+        id: format!("evidence-{}", &hash[..32]),
         source,
         uri,
         excerpt,
-        hash: None,
-        created_at: Utc::now(),
+        hash: Some(hash),
+        created_at: chrono::DateTime::from_timestamp(0, 0).unwrap_or_else(Utc::now),
     }
 }
 

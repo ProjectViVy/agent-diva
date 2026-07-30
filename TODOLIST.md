@@ -35,7 +35,11 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
       优先收集该证据。
     - [x] **E1B 离线回填与回滚**：从已有 session tool-result 生成 dry-run manifest，
       显式 apply，按 manifest 回滚；不得读取或复制完整工具输出。
-  - [ ] **E2–E7**：可恢复调度、Reflection/Candidate Gate、统一提案治理、typed
+  - [x] **E2 可恢复 AutoDream 编排器**：手动与报告触发统一持久化
+    `queued → gathering → reflecting → validating → publishing → completed` 阶段、
+    attempt 和 deadline；Manager 异步派发并在启动时恢复中断任务；发布重放复用
+    确定性提案，旧版不完整运行 fail closed。
+  - [ ] **E3–E7**：Reflection/Candidate Gate、统一提案治理、typed
     apply/Recall feedback、一体化 GUI、恢复与发布门。
     E7 必须在关闭占用 debug 二进制的桌面进程后复跑 `just test`，并解决或规避当前
     Windows GUI lib test 的 MSVC `LNK1140` PDB 限制，不能以 `cargo check` 代替。

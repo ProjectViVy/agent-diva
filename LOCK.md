@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 
-- Lock State: `RELEASED`
-- Scope: `NONE`
-- Owner: `NONE`
-- Session/Task: `NONE`
+- Lock State: `FREE`
+- Scope: `none`
+- Owner: `none`
+- Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `N/A`
-- Last Heartbeat: `2026-07-31T00:52:00+08:00`
-- Expires At: `N/A`
+- Started At: `n/a`
+- Last Heartbeat: `2026-07-31T01:43:00+08:00`
+- Expires At: `n/a`
 
 ## Lock Rules
 
@@ -26,9 +26,17 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- No active lock.
+- None.
 
 ## Handoff Notes
+
+- `2026-07-31T01:43:00+08:00`: Released E2 recoverable AutoDream
+  orchestrator. Runs persist phase/attempt/deadline, Manager dispatches queued
+  work asynchronously and recovers interrupted runs at startup, publishing is
+  deterministic and replay-safe, and legacy incomplete runs fail closed.
+  AutoDream and Manager focused tests, fmt, and full clippy passed. Full
+  `just test` remains the documented E7 release gate; no real desktop test was
+  performed.
 
 - `2026-07-31T00:52:00+08:00`: Released E1B reversible session evidence
   backfill. Migration CLI now exposes explicit experience dry-run/apply/rollback

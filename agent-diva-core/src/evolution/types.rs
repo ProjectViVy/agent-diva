@@ -353,6 +353,28 @@ pub enum AutoDreamRunState {
     Failed,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoDreamOrchestrationPhase {
+    Queued,
+    Gathering,
+    Reflecting,
+    Validating,
+    Publishing,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutoDreamOrchestrationRecord {
+    pub schema_version: u32,
+    pub phase: AutoDreamOrchestrationPhase,
+    pub attempt: u32,
+    pub deadline_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// Stable, payload-free reason code for a terminal AutoDream run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -363,6 +385,7 @@ pub enum AutoDreamFailureCode {
     WorkerFailed,
     ReportGenerationFailed,
     StaleRunRecovered,
+    LegacyIncomplete,
 }
 
 /// AutoDream run summary referenced by proposals, reports, and audit trails.
@@ -377,6 +400,8 @@ pub struct AutoDreamRunRecord {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub input_summary: Option<AutoDreamInputSummary>,
     pub proposal_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub orchestration: Option<AutoDreamOrchestrationRecord>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub failure_code: Option<AutoDreamFailureCode>,
     pub error: Option<String>,

@@ -24,6 +24,7 @@ fn sample_run() -> AutoDreamRunRecord {
         summary: None,
         input_summary: None,
         proposal_ids: Vec::new(),
+        orchestration: None,
         failure_code: None,
         error: None,
     }
@@ -119,6 +120,54 @@ fn emit_outputs_persists_artifact_links_run_and_appends_events() {
         fs::read_to_string(temp.path().join(".agent-diva/autodream/events.jsonl")).unwrap();
     assert!(events.contains("proposal_created"));
     assert!(events.contains("outputs_persisted"));
+}
+
+#[test]
+fn emit_outputs_replay_returns_the_persisted_result_without_duplicate_proposals() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = AutoDreamStorage::open(temp.path()).unwrap();
+    let laputa = LaputaService::open(temp.path()).unwrap();
+    let emitter = AutoDreamOutputEmitter::new(storage, laputa.clone());
+    let run = sample_run();
+    fs::create_dir_all(temp.path().join(".agent-diva/autodream/runs").join(&run.id)).unwrap();
+    fs::write(
+        temp.path()
+            .join(".agent-diva/autodream/runs")
+            .join(&run.id)
+            .join("record.json"),
+        serde_json::to_vec_pretty(&run).unwrap(),
+    )
+    .unwrap();
+    let request = AutoDreamOutputRequest {
+        run,
+        generated_at: sample_time(),
+        confidence: 87,
+        evidence_refs: vec![sample_evidence()],
+        output_summary: AutoDreamArtifactSummary {
+            headline: "Replay-safe reflection".to_string(),
+            details: vec!["bounded output only".to_string()],
+        },
+        proposal_candidates: vec![AutoDreamProposalCandidateDraft {
+            proposal_type: "memory_patch".to_string(),
+            proposed_patch: "Remember deterministic replay evidence.".to_string(),
+            risk_level: RiskLevel::Low,
+            evidence_refs: vec![sample_evidence()],
+        }],
+    };
+
+    let first = emitter.emit_outputs(request.clone()).unwrap();
+    let second = emitter.emit_outputs(request).unwrap();
+
+    assert_eq!(first.artifact, second.artifact);
+    assert_eq!(first.proposals, second.proposals);
+    assert!(second.events.is_empty());
+    assert_eq!(
+        laputa
+            .list_proposals(agent_diva_laputa::ProposalFilter::default())
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[test]

@@ -6,7 +6,8 @@ use agent_diva_autodream::{
     AutoDreamWorkerOutcome, AutoDreamWorkerStageStatus, ManualRunTriggerRequest,
 };
 use agent_diva_core::evolution::{
-    AutoDreamFailureCode, AutoDreamRunRecord, AutoDreamRunState, LaputaSectionName,
+    AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState,
+    LaputaSectionName,
 };
 use agent_diva_laputa::{atomic_write_json, LaputaService, LaputaStorage};
 use serde_json::Value;
@@ -52,9 +53,55 @@ fn worker_executes_four_stages_in_order_and_completes_run() {
     assert_eq!(record.failure_code, None);
     assert_eq!(record.proposal_ids, report.proposal_ids);
     assert!(record.completed_at.is_some());
+    let orchestration = record.orchestration.as_ref().unwrap();
+    assert_eq!(orchestration.phase, AutoDreamOrchestrationPhase::Completed);
+    assert_eq!(orchestration.attempt, 1);
     let checkpoint =
         fs::read_to_string(temp.path().join(".agent-diva/autodream/checkpoint")).unwrap();
     assert!(checkpoint.contains(&status.run.id));
+}
+
+#[test]
+fn publishing_checkpoint_recovery_reuses_the_existing_proposal() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path()).unwrap();
+    seed_session(temp.path(), "chat:1", "stable retry evidence");
+    seed_laputa(
+        temp.path(),
+        LaputaSectionName::MemoryMd,
+        "authority evidence",
+    );
+    let status = service
+        .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
+        .unwrap();
+    let first = service.execute_reflection_worker(&status.run.id).unwrap();
+    let mut interrupted = read_run(temp.path(), &status.run.id);
+    interrupted.state = AutoDreamRunState::Running;
+    interrupted.completed_at = None;
+    interrupted.orchestration.as_mut().unwrap().phase = AutoDreamOrchestrationPhase::Publishing;
+    atomic_write_json(
+        temp.path()
+            .join(".agent-diva/autodream/runs")
+            .join(&status.run.id)
+            .join("record.json"),
+        &interrupted,
+    )
+    .unwrap();
+
+    let recovered = service.execute_reflection_worker(&status.run.id).unwrap();
+
+    assert_eq!(recovered.outcome, AutoDreamWorkerOutcome::Success);
+    assert_eq!(recovered.proposal_ids, first.proposal_ids);
+    assert_eq!(
+        LaputaService::open(temp.path())
+            .unwrap()
+            .list_proposals(agent_diva_laputa::ProposalFilter::default())
+            .unwrap()
+            .len(),
+        1
+    );
+    let record = read_run(temp.path(), &status.run.id);
+    assert_eq!(record.orchestration.unwrap().attempt, 2);
 }
 
 #[test]
@@ -109,6 +156,9 @@ fn worker_timeout_records_failure_and_does_not_update_checkpoint() {
         .as_deref()
         .unwrap_or_default()
         .contains("timed out"));
+    let orchestration = record.orchestration.as_ref().unwrap();
+    assert_eq!(orchestration.phase, AutoDreamOrchestrationPhase::Failed);
+    assert_eq!(orchestration.attempt, 1);
     let checkpoint =
         fs::read_to_string(temp.path().join(".agent-diva/autodream/checkpoint")).unwrap();
     assert!(checkpoint.contains("\"last_completed_run_id\": null"));

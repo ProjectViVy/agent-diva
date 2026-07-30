@@ -6,7 +6,8 @@ use std::{
 };
 
 use agent_diva_core::evolution::{
-    AutoDreamFailureCode, AutoDreamRunRecord, AutoDreamRunState, EvidenceRef, RiskLevel,
+    AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState,
+    EvidenceRef, RiskLevel,
 };
 use agent_diva_laputa::LaputaService;
 use chrono::{DateTime, Utc};
@@ -184,6 +185,22 @@ impl AutoDreamWorker {
                 diagnostic: None,
             })
             .collect::<Vec<_>>();
+        let existing = self.read_run(run_id)?;
+        if existing.state == AutoDreamRunState::Cancelled {
+            let message = "AutoDream worker observed cancellation".to_string();
+            stages[0].status = AutoDreamWorkerStageStatus::Cancelled;
+            stages[0].started_at = Some(Utc::now());
+            stages[0].completed_at = Some(Utc::now());
+            stages[0].diagnostic = Some(message.clone());
+            return Ok(AutoDreamWorkerReport {
+                run_id: run_id.to_string(),
+                outcome: AutoDreamWorkerOutcome::Cancelled,
+                stages,
+                diagnostics: vec![message],
+                proposal_ids: existing.proposal_ids,
+            });
+        }
+        self.start_attempt(run_id)?;
         let mut diagnostics = Vec::new();
         let mut collected = None;
 
@@ -198,12 +215,25 @@ impl AutoDreamWorker {
             stages[index].started_at = Some(Utc::now());
 
             let stage_result = match stages[index].stage {
-                AutoDreamReflectionStage::Orient => self.orient(),
+                AutoDreamReflectionStage::Orient => {
+                    self.transition_phase(run_id, AutoDreamOrchestrationPhase::Gathering)?;
+                    self.orient()
+                }
                 AutoDreamReflectionStage::Gather => self.gather(run_id).map(|inputs| {
                     collected = Some(inputs);
                 }),
-                AutoDreamReflectionStage::Consolidate => self.consolidate(collected.as_ref()),
-                AutoDreamReflectionStage::Propose => self.propose(run_id, collected.as_ref()),
+                AutoDreamReflectionStage::Consolidate => {
+                    self.transition_phase(run_id, AutoDreamOrchestrationPhase::Reflecting)?;
+                    let result = self.consolidate(collected.as_ref());
+                    if result.is_ok() {
+                        self.transition_phase(run_id, AutoDreamOrchestrationPhase::Validating)?;
+                    }
+                    result
+                }
+                AutoDreamReflectionStage::Propose => {
+                    self.transition_phase(run_id, AutoDreamOrchestrationPhase::Publishing)?;
+                    self.propose(run_id, collected.as_ref())
+                }
             };
 
             match stage_result {
@@ -228,6 +258,35 @@ impl AutoDreamWorker {
         }
 
         self.finish_success(run_id, stages, diagnostics)
+    }
+
+    fn start_attempt(&self, run_id: &str) -> Result<()> {
+        let mut run = self.read_run(run_id)?;
+        if matches!(
+            run.state,
+            AutoDreamRunState::Completed | AutoDreamRunState::Failed | AutoDreamRunState::Cancelled
+        ) {
+            return Err(AutoDreamError::InvalidState(format!(
+                "cannot execute terminal run {run_id}"
+            )));
+        }
+        run.state = AutoDreamRunState::Running;
+        if let Some(orchestration) = run.orchestration.as_mut() {
+            orchestration.attempt = orchestration.attempt.saturating_add(1);
+            orchestration.deadline_at = Utc::now() + chrono::Duration::seconds(60);
+            orchestration.updated_at = Utc::now();
+        }
+        self.write_run(&run)
+    }
+
+    fn transition_phase(&self, run_id: &str, phase: AutoDreamOrchestrationPhase) -> Result<()> {
+        let mut run = self.read_run(run_id)?;
+        let orchestration = run.orchestration.as_mut().ok_or_else(|| {
+            AutoDreamError::InvalidState("run lacks orchestration record".to_string())
+        })?;
+        orchestration.phase = phase;
+        orchestration.updated_at = Utc::now();
+        self.write_run(&run)
     }
 
     fn orient(&self) -> Result<()> {
@@ -353,6 +412,26 @@ impl AutoDreamWorker {
         }
 
         let run = self.read_run(run_id)?;
+        if run
+            .orchestration
+            .as_ref()
+            .is_some_and(|state| Utc::now() >= state.deadline_at)
+        {
+            let message = "AutoDream worker deadline expired before stage completion".to_string();
+            stages[index].status = AutoDreamWorkerStageStatus::TimedOut;
+            stages[index].started_at.get_or_insert_with(Utc::now);
+            stages[index].completed_at = Some(Utc::now());
+            stages[index].diagnostic = Some(message.clone());
+            diagnostics.push(message);
+            return self
+                .finish_failure(
+                    run_id,
+                    AutoDreamWorkerOutcome::Timeout,
+                    stages.to_vec(),
+                    diagnostics.clone(),
+                )
+                .map(Some);
+        }
         if run.state == AutoDreamRunState::Cancelled {
             let message = "AutoDream worker observed cancellation".to_string();
             stages[index].status = AutoDreamWorkerStageStatus::Cancelled;
@@ -386,6 +465,10 @@ impl AutoDreamWorker {
         run.summary = Some("AutoDream restricted reflection completed".to_string());
         run.error = None;
         run.failure_code = None;
+        if let Some(orchestration) = run.orchestration.as_mut() {
+            orchestration.phase = AutoDreamOrchestrationPhase::Completed;
+            orchestration.updated_at = now;
+        }
         let proposal_ids = run.proposal_ids.clone();
         self.write_run(&run)?;
         self.write_checkpoint_success(&run, now)?;
@@ -418,6 +501,14 @@ impl AutoDreamWorker {
         run.summary = Some(render_failure_summary(&outcome));
         run.error = Some(diagnostics.join("; "));
         run.failure_code = Some(worker_failure_code(&outcome, &diagnostics));
+        if let Some(orchestration) = run.orchestration.as_mut() {
+            orchestration.phase = if outcome == AutoDreamWorkerOutcome::Cancelled {
+                AutoDreamOrchestrationPhase::Cancelled
+            } else {
+                AutoDreamOrchestrationPhase::Failed
+            };
+            orchestration.updated_at = now;
+        }
         let proposal_ids = run.proposal_ids.clone();
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;

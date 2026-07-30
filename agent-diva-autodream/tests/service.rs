@@ -3,13 +3,15 @@ use std::{fs, time::Duration};
 use agent_diva_autodream::{
     AutoDreamService, ManualRunTriggerRequest, ScheduledMonthlyReportOutcome,
 };
-use agent_diva_core::evolution::{AutoDreamRunRecord, AutoDreamRunState, LaputaSectionName};
+use agent_diva_core::evolution::{
+    AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState, LaputaSectionName,
+};
 use agent_diva_laputa::{atomic_write_json, LaputaStorage};
 use chrono::NaiveDate;
 use serde_json::Value;
 
 #[test]
-fn manual_run_creation_persists_record_and_lock() {
+fn manual_run_creation_persists_queued_record_and_lock() {
     let temp = tempfile::tempdir().unwrap();
     AutoDreamService::reset_metrics_for_test();
     let before = AutoDreamService::metrics_snapshot();
@@ -19,7 +21,10 @@ fn manual_run_creation_persists_record_and_lock() {
         .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
         .unwrap();
 
-    assert_eq!(status.run.state, AutoDreamRunState::Running);
+    assert_eq!(status.run.state, AutoDreamRunState::Pending);
+    let orchestration = status.run.orchestration.as_ref().unwrap();
+    assert_eq!(orchestration.phase, AutoDreamOrchestrationPhase::Queued);
+    assert_eq!(orchestration.attempt, 0);
     assert_eq!(status.run.trigger, "manual");
     assert!(status.lock.is_some());
     assert!(!status.auto_mode_enabled);
@@ -68,7 +73,7 @@ fn cancellation_updates_terminal_state_and_removes_lock() {
 }
 
 #[test]
-fn stale_lock_recovery_marks_previous_run_failed_and_allows_new_run() {
+fn stale_lock_recovery_requeues_previous_run_and_allows_new_run() {
     let temp = tempfile::tempdir().unwrap();
     AutoDreamService::reset_metrics_for_test();
     let before = AutoDreamService::metrics_snapshot();
@@ -86,12 +91,60 @@ fn stale_lock_recovery_marks_previous_run_failed_and_allows_new_run() {
         .unwrap();
     let previous = service.get_run_status(&first.run.id).unwrap();
 
-    assert_eq!(previous.run.state, AutoDreamRunState::Failed);
-    assert_eq!(second.run.state, AutoDreamRunState::Running);
+    assert_eq!(previous.run.state, AutoDreamRunState::Pending);
+    assert_eq!(
+        previous
+            .run
+            .orchestration
+            .as_ref()
+            .map(|state| &state.phase),
+        Some(&AutoDreamOrchestrationPhase::Queued)
+    );
+    assert_eq!(second.run.state, AutoDreamRunState::Pending);
     assert_ne!(first.run.id, second.run.id);
+    let resumable = service
+        .resumable_runs()
+        .unwrap()
+        .into_iter()
+        .map(|run| run.0)
+        .collect::<Vec<_>>();
+    assert!(resumable.contains(&first.run.id));
+    assert!(resumable.contains(&second.run.id));
     let metrics = AutoDreamService::metrics_snapshot();
     assert!(metrics.autodream_runs_total >= before.autodream_runs_total + 2);
-    assert!(metrics.autodream_failures_total >= before.autodream_failures_total + 1);
+    assert!(metrics.autodream_failures_total >= before.autodream_failures_total);
+}
+
+#[test]
+fn legacy_incomplete_run_fails_closed_instead_of_being_resumed() {
+    let temp = tempfile::tempdir().unwrap();
+    let service = AutoDreamService::open(temp.path()).unwrap();
+    let run = AutoDreamRunRecord {
+        id: "legacy-incomplete".to_string(),
+        started_at: chrono::Utc::now(),
+        completed_at: None,
+        state: AutoDreamRunState::Pending,
+        trigger: "manual".to_string(),
+        summary: None,
+        input_summary: None,
+        proposal_ids: Vec::new(),
+        orchestration: None,
+        failure_code: None,
+        error: None,
+    };
+    let path = temp
+        .path()
+        .join(".agent-diva/autodream/runs/legacy-incomplete/record.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    atomic_write_json(&path, &run).unwrap();
+
+    assert!(service.resumable_runs().unwrap().is_empty());
+    let recovered = service.get_run_status(&run.id).unwrap();
+    assert_eq!(recovered.run.state, AutoDreamRunState::Failed);
+    assert_eq!(
+        recovered.run.failure_code,
+        Some(agent_diva_core::evolution::AutoDreamFailureCode::LegacyIncomplete)
+    );
 }
 
 #[test]

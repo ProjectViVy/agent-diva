@@ -303,8 +303,8 @@ fn misc_routes() -> Router<AppState> {
 mod tests {
     use super::build_router;
     use agent_diva_core::evolution::{
-        EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState,
-        ProposalType, RiskLevel,
+        AutoDreamFailureCode, AutoDreamRunState, EvidenceRef, EvidenceSource, EvolutionProposal,
+        LaputaSectionName, ProposalState, ProposalType, RiskLevel,
     };
     use agent_diva_core::governance::{
         ApprovalGrant, Decision, GovernanceSubject, GovernanceSubjectKind,
@@ -397,7 +397,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let state =
             AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
-        let app = build_router(state);
+        let app = build_router(state.clone());
 
         for route in fixture["routes"].as_array().unwrap() {
             let request = Request::builder()
@@ -423,7 +423,7 @@ mod tests {
         let state =
             AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
 
-        let app = build_router(state);
+        let app = build_router(state.clone());
 
         let response = app
             .oneshot(
@@ -594,7 +594,7 @@ mod tests {
         let state =
             AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
 
-        let app = build_router(state);
+        let app = build_router(state.clone());
 
         let response = app
             .oneshot(
@@ -612,10 +612,34 @@ mod tests {
         let body: serde_json::Value =
             serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
-        assert_eq!(body["run"]["state"], "failed");
-        assert_eq!(body["run"]["failure_code"], "input_unavailable");
-        assert!(body["run"]["error"]
-            .as_str()
+        assert_eq!(body["run"]["state"], "pending");
+        assert_eq!(body["run"]["orchestration"]["phase"], "queued");
+        let run_id = body["run"]["id"].as_str().unwrap();
+        let terminal = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let status = state.autodream.get_run_status(run_id).unwrap();
+                if matches!(
+                    status.run.state,
+                    AutoDreamRunState::Completed
+                        | AutoDreamRunState::Failed
+                        | AutoDreamRunState::Cancelled
+                ) {
+                    break status;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(terminal.run.state, AutoDreamRunState::Failed);
+        assert_eq!(
+            terminal.run.failure_code,
+            Some(AutoDreamFailureCode::InputUnavailable)
+        );
+        assert!(terminal
+            .run
+            .error
+            .as_deref()
             .unwrap_or_default()
             .contains("all mandatory inputs omitted"));
     }
@@ -649,14 +673,27 @@ mod tests {
         let body: serde_json::Value =
             serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
-        assert_eq!(body["run"]["state"], "completed");
-        assert_eq!(
-            body["run"]["proposal_ids"]
-                .as_array()
-                .map(Vec::len)
-                .unwrap_or_default(),
-            1
-        );
+        assert_eq!(body["run"]["state"], "pending");
+        assert_eq!(body["run"]["orchestration"]["phase"], "queued");
+        let run_id = body["run"]["id"].as_str().unwrap();
+        let terminal = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let status = state.autodream.get_run_status(run_id).unwrap();
+                if matches!(
+                    status.run.state,
+                    AutoDreamRunState::Completed
+                        | AutoDreamRunState::Failed
+                        | AutoDreamRunState::Cancelled
+                ) {
+                    break status;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(terminal.run.state, AutoDreamRunState::Completed);
+        assert_eq!(terminal.run.proposal_ids.len(), 1);
         assert_eq!(
             state
                 .laputa

@@ -7,7 +7,10 @@ use std::{
 };
 
 use agent_diva_core::config::LlmCurationConfig;
-use agent_diva_core::evolution::{AutoDreamFailureCode, AutoDreamRunRecord, AutoDreamRunState};
+use agent_diva_core::evolution::{
+    AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamOrchestrationRecord,
+    AutoDreamRunRecord, AutoDreamRunState,
+};
 use agent_diva_core::reports::ReportNarrativeGenerator;
 use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use serde::{Deserialize, Serialize};
@@ -155,11 +158,18 @@ impl AutoDreamService {
             id: run_id.clone(),
             started_at: now,
             completed_at: None,
-            state: AutoDreamRunState::Running,
+            state: AutoDreamRunState::Pending,
             trigger: trigger.clone(),
             summary: Some("manual run started".to_string()),
             input_summary: None,
             proposal_ids: Vec::new(),
+            orchestration: Some(AutoDreamOrchestrationRecord {
+                schema_version: 1,
+                phase: AutoDreamOrchestrationPhase::Queued,
+                attempt: 0,
+                deadline_at: now + chrono::Duration::minutes(5),
+                updated_at: now,
+            }),
             failure_code: None,
             error: None,
         };
@@ -208,6 +218,10 @@ impl AutoDreamService {
         run.completed_at = Some(now);
         run.summary = Some("manual run cancelled".to_string());
         run.failure_code = Some(AutoDreamFailureCode::Cancelled);
+        if let Some(orchestration) = run.orchestration.as_mut() {
+            orchestration.phase = AutoDreamOrchestrationPhase::Cancelled;
+            orchestration.updated_at = now;
+        }
         run.error = Some("cancelled".to_string());
         self.write_run(&run)?;
 
@@ -244,6 +258,41 @@ impl AutoDreamService {
             auto_mode_enabled: checkpoint.auto_mode_enabled,
             session_threshold_enabled: checkpoint.session_threshold_enabled,
         })
+    }
+
+    pub fn resumable_runs(&self) -> Result<Vec<(String, String)>> {
+        self.recover_stale_lock_if_needed()?;
+        let active = self.read_lock()?.map(|lock| lock.run_id);
+        let mut resumable = Vec::new();
+        for mut run in self.read_all_runs()? {
+            if !matches!(
+                run.state,
+                AutoDreamRunState::Pending | AutoDreamRunState::Running
+            ) || active.as_deref() == Some(run.id.as_str())
+            {
+                continue;
+            }
+            if run.orchestration.is_none() {
+                let now = Utc::now();
+                run.state = AutoDreamRunState::Failed;
+                run.completed_at = Some(now);
+                run.failure_code = Some(AutoDreamFailureCode::LegacyIncomplete);
+                run.error =
+                    Some("legacy incomplete AutoDream run cannot be recovered safely".to_string());
+                self.write_run(&run)?;
+                Self::metrics().record_failure();
+                self.append_event(AutoDreamEvent {
+                    id: format!("evt-{}", Uuid::new_v4()),
+                    run_id: Some(run.id.clone()),
+                    kind: "legacy_incomplete_run_rejected".to_string(),
+                    message: "legacy incomplete AutoDream run rejected during recovery".to_string(),
+                    created_at: now,
+                })?;
+                continue;
+            }
+            resumable.push((run.id, run.trigger));
+        }
+        Ok(resumable)
     }
 
     pub fn checkpoint(&self) -> Result<AutoDreamCheckpoint> {
@@ -283,6 +332,8 @@ impl AutoDreamService {
 
     pub async fn execute_report_trigger(&self, run_id: &str) -> Result<AutoDreamRunStatus> {
         let mut run = self.read_run(run_id)?;
+        begin_report_attempt(&mut run)?;
+        self.write_run(&run)?;
         let max_attempts = if run.trigger == MONTHLY_REPORT_TRIGGER {
             REPORT_TRIGGER_MAX_ATTEMPTS
         } else {
@@ -304,6 +355,7 @@ impl AutoDreamService {
                     ));
                     run.failure_code = None;
                     run.error = None;
+                    mark_orchestration(&mut run, AutoDreamOrchestrationPhase::Completed, now);
                     self.write_run(&run)?;
                     self.write_checkpoint_success(&run, now)?;
                     self.remove_active_lock(run_id)?;
@@ -343,6 +395,7 @@ impl AutoDreamService {
         run.summary = Some("rhythm report generation failed".to_string());
         run.failure_code = Some(AutoDreamFailureCode::ReportGenerationFailed);
         run.error = Some(error.to_string());
+        mark_orchestration(&mut run, AutoDreamOrchestrationPhase::Failed, now);
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;
         Self::metrics().record_failure();
@@ -406,6 +459,8 @@ impl AutoDreamService {
                 run.id
             )));
         }
+        begin_report_attempt(&mut run)?;
+        self.write_run(&run)?;
 
         let generator = self.monthly_generator();
         let mut last_error = None;
@@ -424,6 +479,7 @@ impl AutoDreamService {
                     ));
                     run.failure_code = None;
                     run.error = None;
+                    mark_orchestration(&mut run, AutoDreamOrchestrationPhase::Completed, now);
                     self.write_run(&run)?;
                     self.write_checkpoint_success(&run, now)?;
                     self.remove_active_lock(run_id)?;
@@ -463,6 +519,7 @@ impl AutoDreamService {
         run.summary = Some("rhythm report generation failed".to_string());
         run.failure_code = Some(AutoDreamFailureCode::ReportGenerationFailed);
         run.error = Some(error.to_string());
+        mark_orchestration(&mut run, AutoDreamOrchestrationPhase::Failed, now);
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;
         Self::metrics().record_failure();
@@ -533,7 +590,11 @@ impl AutoDreamService {
         let age = SystemTime::now()
             .duration_since(modified)
             .unwrap_or(Duration::ZERO);
-        if age < self.stale_lock_after {
+        let foreign_process = self
+            .read_lock()?
+            .and_then(|lock| lock.pid)
+            .is_some_and(|pid| pid != std::process::id());
+        if age < self.stale_lock_after && !foreign_process {
             return Ok(());
         }
 
@@ -544,18 +605,22 @@ impl AutoDreamService {
                     AutoDreamRunState::Pending | AutoDreamRunState::Running
                 ) {
                     let now = Utc::now();
-                    run.state = AutoDreamRunState::Failed;
-                    run.completed_at = Some(now);
-                    run.summary = Some("stale lock recovered".to_string());
-                    run.failure_code = Some(AutoDreamFailureCode::StaleRunRecovered);
-                    run.error = Some("stale lock recovered".to_string());
+                    run.state = AutoDreamRunState::Pending;
+                    run.completed_at = None;
+                    run.summary = Some("interrupted run queued for recovery".to_string());
+                    run.failure_code = None;
+                    run.error = None;
+                    if let Some(orchestration) = run.orchestration.as_mut() {
+                        orchestration.deadline_at = now + chrono::Duration::minutes(5);
+                        orchestration.updated_at = now;
+                    }
                     self.write_run(&run)?;
                     Self::metrics().record_failure();
                     self.append_event(AutoDreamEvent {
                         id: format!("evt-{}", Uuid::new_v4()),
                         run_id: Some(run.id.clone()),
-                        kind: "stale_lock_recovered".to_string(),
-                        message: "stale AutoDream lock recovered".to_string(),
+                        kind: "interrupted_run_requeued".to_string(),
+                        message: "interrupted AutoDream run queued for recovery".to_string(),
                         created_at: now,
                     })?;
                 }
@@ -661,6 +726,42 @@ impl AutoDreamService {
             .map_err(|source| AutoDreamError::io(&path, source))?;
         Ok(())
     }
+}
+
+fn mark_orchestration(
+    run: &mut AutoDreamRunRecord,
+    phase: AutoDreamOrchestrationPhase,
+    now: DateTime<Utc>,
+) {
+    if let Some(orchestration) = run.orchestration.as_mut() {
+        orchestration.phase = phase;
+        orchestration.updated_at = now;
+    }
+}
+
+fn begin_report_attempt(run: &mut AutoDreamRunRecord) -> Result<()> {
+    if matches!(
+        run.state,
+        AutoDreamRunState::Completed | AutoDreamRunState::Failed | AutoDreamRunState::Cancelled
+    ) {
+        return Err(AutoDreamError::InvalidState(format!(
+            "cannot execute terminal run {}",
+            run.id
+        )));
+    }
+    let now = Utc::now();
+    let orchestration = run.orchestration.as_mut().ok_or_else(|| {
+        AutoDreamError::InvalidState(format!(
+            "run {} has no recoverable orchestration record",
+            run.id
+        ))
+    })?;
+    run.state = AutoDreamRunState::Running;
+    orchestration.phase = AutoDreamOrchestrationPhase::Publishing;
+    orchestration.attempt = orchestration.attempt.saturating_add(1);
+    orchestration.deadline_at = now + chrono::Duration::seconds(60);
+    orchestration.updated_at = now;
+    Ok(())
 }
 
 fn should_attempt_scheduled_monthly_report(

@@ -4,7 +4,7 @@ use agent_diva_core::evolution::{
     validate_governance_evidence, AuditEvent, AuditEventKind, AutoDreamRunRecord, EvidenceRef,
     EvolutionProposal, ProposalState, ProposalType, RiskLevel,
 };
-use agent_diva_laputa::LaputaService;
+use agent_diva_laputa::{LaputaError, LaputaService};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -98,18 +98,45 @@ impl AutoDreamOutputEmitter {
 
     pub fn emit_outputs(&self, request: AutoDreamOutputRequest) -> Result<EmitOutputsResult> {
         validate_request(&request)?;
+        let artifact_path = self.storage.paths().run_artifact_file(&request.run.id);
+        if artifact_path.exists() {
+            let artifact: AutoDreamRunArtifact = serde_json::from_slice(
+                &fs::read(&artifact_path)
+                    .map_err(|source| AutoDreamError::io(&artifact_path, source))?,
+            )?;
+            if artifact.run_id != request.run.id {
+                return Err(AutoDreamError::InvalidState(
+                    "AutoDream artifact run identity mismatch".to_string(),
+                ));
+            }
+            let proposals = artifact
+                .proposal_ids
+                .iter()
+                .map(|id| self.laputa.get_proposal(id).map_err(AutoDreamError::from))
+                .collect::<Result<Vec<_>>>()?;
+            let mut run = request.run;
+            run.proposal_ids = artifact.proposal_ids.clone();
+            run.summary = Some(render_run_summary(&artifact));
+            self.write_run_record(&run)?;
+            return Ok(EmitOutputsResult {
+                run,
+                artifact,
+                events: Vec::new(),
+                proposals,
+            });
+        }
 
         let mut persisted = Vec::with_capacity(request.proposal_candidates.len());
         let mut proposal_ids = Vec::with_capacity(request.proposal_candidates.len());
         let mut events = Vec::new();
 
-        for candidate in &request.proposal_candidates {
+        for (index, candidate) in request.proposal_candidates.iter().enumerate() {
             let proposal_type = candidate
                 .proposal_type
                 .parse::<ProposalType>()
                 .map_err(|err| AutoDreamError::InvalidState(err.to_string()))?;
             let proposal = EvolutionProposal {
-                id: format!("proposal-{}", Uuid::new_v4()),
+                id: format!("proposal-{}-{index}", request.run.id),
                 created_at: request.generated_at,
                 updated_at: request.generated_at,
                 created_by: AUTODREAM_ACTOR.to_string(),
@@ -121,16 +148,31 @@ impl AutoDreamOutputEmitter {
                 state: ProposalState::PendingReview,
                 source_run_id: Some(request.run.id.clone()),
             };
-            let proposal = self.laputa.create_proposal(proposal)?;
+            let proposal = match self.laputa.create_proposal(proposal.clone()) {
+                Ok(created) => {
+                    events.push(AutoDreamOutputEvent {
+                        id: format!("evt-{}", Uuid::new_v4()),
+                        run_id: request.run.id.clone(),
+                        kind: AutoDreamOutputEventKind::ProposalCreated,
+                        proposal_id: Some(created.id.clone()),
+                        message: format!("proposal {} created for autodream run", created.id),
+                        created_at: request.generated_at,
+                    });
+                    created
+                }
+                Err(LaputaError::ProposalAlreadyExists { .. }) => {
+                    let existing = self.laputa.get_proposal(&proposal.id)?;
+                    if !same_proposal_content(&existing, &proposal) {
+                        return Err(AutoDreamError::InvalidState(format!(
+                            "deterministic proposal {} conflicts with persisted content",
+                            proposal.id
+                        )));
+                    }
+                    existing
+                }
+                Err(error) => return Err(error.into()),
+            };
             proposal_ids.push(proposal.id.clone());
-            events.push(AutoDreamOutputEvent {
-                id: format!("evt-{}", Uuid::new_v4()),
-                run_id: request.run.id.clone(),
-                kind: AutoDreamOutputEventKind::ProposalCreated,
-                proposal_id: Some(proposal.id.clone()),
-                message: format!("proposal {} created for autodream run", proposal.id),
-                created_at: request.generated_at,
-            });
             persisted.push(proposal);
         }
 
@@ -210,6 +252,17 @@ impl AutoDreamOutputEmitter {
             .map_err(|source| AutoDreamError::io(&path, source))?;
         Ok(())
     }
+}
+
+fn same_proposal_content(left: &EvolutionProposal, right: &EvolutionProposal) -> bool {
+    left.id == right.id
+        && left.created_by == right.created_by
+        && left.proposal_type == right.proposal_type
+        && left.target_section == right.target_section
+        && left.evidence_refs == right.evidence_refs
+        && left.proposed_patch == right.proposed_patch
+        && left.risk_level == right.risk_level
+        && left.source_run_id == right.source_run_id
 }
 
 fn validate_request(request: &AutoDreamOutputRequest) -> Result<()> {

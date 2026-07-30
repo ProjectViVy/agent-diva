@@ -17,30 +17,10 @@ pub async fn trigger_autodream_run_handler(
         .autodream
         .trigger_manual_run(payload.clone())
         .map_err(autodream_error_response)?;
-    let status = match payload.trigger.as_deref() {
-        Some("notebook-daily" | "notebook-weekly" | "notebook-monthly") => state
-            .autodream
-            .execute_report_trigger(&status.run.id)
-            .await
-            .map_err(autodream_error_response)?,
-        _ => {
-            let service = state.autodream.clone();
-            let run_id = status.run.id.clone();
-            tokio::task::spawn_blocking(move || service.execute_reflection_worker(&run_id))
-                .await
-                .map_err(|error| {
-                    internal_error_response(
-                        "autodream_worker_join_failed",
-                        format!("AutoDream worker task failed: {error}"),
-                    )
-                })?
-                .map_err(autodream_error_response)?;
-            state
-                .autodream
-                .get_run_status(&status.run.id)
-                .map_err(autodream_error_response)?
-        }
-    };
+    spawn_autodream_runs(
+        state.autodream.clone(),
+        vec![(status.run.id.clone(), status.run.trigger.clone())],
+    );
     ok(
         serde_json::json!({ "status": "ok", "run": status.run, "lock": status.lock, "auto_mode_enabled": status.auto_mode_enabled, "session_threshold_enabled": status.session_threshold_enabled }),
     )
@@ -109,18 +89,36 @@ fn autodream_error_response(error: AutoDreamError) -> (StatusCode, Json<serde_js
     )
 }
 
-fn internal_error_response(
-    code: &'static str,
-    message: String,
-) -> (StatusCode, Json<serde_json::Value>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({
-            "status": "error",
-            "code": code,
-            "message": message,
-        })),
-    )
+pub(crate) fn spawn_autodream_runs(
+    service: agent_diva_autodream::AutoDreamService,
+    runs: Vec<(String, String)>,
+) {
+    tokio::spawn(async move {
+        for (run_id, trigger) in runs {
+            let result = if matches!(
+                trigger.as_str(),
+                "notebook-daily" | "notebook-weekly" | "notebook-monthly"
+            ) {
+                service.execute_report_trigger(&run_id).await.map(|_| ())
+            } else {
+                let worker_service = service.clone();
+                let worker_run_id = run_id.clone();
+                match tokio::task::spawn_blocking(move || {
+                    worker_service.execute_reflection_worker(&worker_run_id)
+                })
+                .await
+                {
+                    Ok(result) => result.map(|_| ()),
+                    Err(error) => Err(AutoDreamError::InvalidState(format!(
+                        "AutoDream worker task failed: {error}"
+                    ))),
+                }
+            };
+            if let Err(error) = result {
+                tracing::error!(%run_id, %error, "AutoDream orchestrator run failed");
+            }
+        }
+    });
 }
 
 fn ok(value: serde_json::Value) -> JsonResult {

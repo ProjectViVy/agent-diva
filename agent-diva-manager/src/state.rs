@@ -131,7 +131,7 @@ impl AppState {
             &workspace_root,
             workspace_root.to_string_lossy().to_string(),
         )?;
-        Ok(Self {
+        let state = Self {
             api_tx,
             bus,
             workspace_root,
@@ -143,7 +143,15 @@ impl AppState {
             health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
             command_approvals,
-        })
+        };
+        match state.autodream.resumable_runs() {
+            Ok(runs) if !runs.is_empty() => {
+                crate::handlers::autodream::spawn_autodream_runs(state.autodream.clone(), runs);
+            }
+            Ok(_) => {}
+            Err(error) => tracing::error!(%error, "failed to recover AutoDream runs at startup"),
+        }
+        Ok(state)
     }
 }
 
