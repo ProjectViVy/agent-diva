@@ -1,737 +1,169 @@
 # TODOLIST
 
-项目级待办、延期项、评审计划与已完成事项记录。
+项目级**活跃**待办与延期项。已完成历史见 Archive Index。
+
+**严重度标签**使用 `sev-P0`（阻断）…`sev-P3`（琐碎），与已归档的
+「Plan 阶段 P1/P2/P3」命名无关。
+
+---
 
 ## Active Plan
 
-The active Memory delivery plan is the Embedded Laputa correction under
-GMH-23A..24. GMH-23D implementation and automated recovery hardening are
-complete; its six-scenario real-desktop G2D acceptance is explicitly deferred.
-GMH-24A/B/C have now closed the Embedded Laputa architecture and removed the
-legacy runtime. G2D must still pass on a restarted real desktop before
-Evolution development or release acceptance resumes.
-
-- [x] **Ask mode must be an enforced read-only authority boundary** Fixed in
-  AgentLoop admission and the unique tool-execution seam. GUI/Manager
-  `exec_mode=ask` now selects a stable read-only turn mode, hides every tool
-  outside the five-tool inspection allowlist, rejects forged mutating calls,
-  does not restore approved execution sessions, and treats unknown explicit
-  modes as Ask. Evidence:
-  `docs/logs/2026-07-ask-mode-read-only/v0.0.1-authority-boundary/`.
-
-- [ ] **Evolution feature development remains frozen pending deferred G2D**
-  Do not repair or extend AutoDream/Evolution product functions until the six
-  real-desktop proposal scenarios pass. During the freeze, only
-  security/data-integrity fixes and an explicit unavailable/degraded UX are
-  allowed. Rebaseline Evolution against typed Laputa only after G2D evidence
-  confirms approve, reject, edit-approve, duplicate click, restart recovery,
-  and rollback.
-
-## Skill / SOP Unification
-
-- [ ] **Represent Agent Diva SOPs as backward-compatible Skills** Do not build
-  a separate SOP format, directory, loader, registry, or runtime. Extend
-  `SKILL.md` with optional `kind: sop` metadata (default `skill`), reuse the
-  complete existing Skill lifecycle, and show an `AGENT-DIVA SOP` label in the
-  agent Skill summary and GUI. Unknown or absent values must degrade to a
-  traditional Skill without blocking load; the label must not grant permissions
-  or trigger implicit execution. Update Notebook “solidify as SOP” semantics to
-  create a SOP Skill candidate rather than a second artifact type. Add focused
-  parser, summary, DTO, GUI, upload/install, compatibility, and regression
-  coverage. Decision and acceptance contract:
-  `docs/architecture/skill-sop-unification.md`.
-
-## Operational Testing
-
-- [ ] **Typed workspace identity needs one canonical path encoding**
-  Real-profile G2D preflight showed that `C:\...\workspace` and the runtime's
-  mixed-separator `C:\.../workspace` are treated as different identities.
-  Fail-closed behavior worked, but Migration operators should not need to infer
-  the runtime string representation. Define one cross-platform canonical
-  workspace-ID function, use it in runtime, health, governed apply and
-  Migration, and provide an explicit identity-only migration for existing
-  empty/non-empty stores. Current G2D profile was re-imported with the exact
-  runtime identity and is healthy; do not silently rewrite other profiles.
-
-- [x] **Windows gateway stack reserve was incorrectly removed during
-  clean-break** Real G2D startup reproduced a main-thread overflow before the
-  HTTP API became ready. Restored backend-neutral PE and Tokio worker stack
-  sizing; the real gateway now serves ready typed health without restoring a
-  removed runtime. Evidence:
-  `docs/logs/2026-07-g2d-gateway-stack/v0.0.1-windows-bootstrap/`.
-
-- [x] **Migration apply reported inconsistent before/after revisions during
-  G2D preflight** Fixed by separating expected and resulting revisions,
-  validating replayed manifest/store identity, and recording rollback state so
-  the same deterministic migration can be safely reapplied. Evidence:
-  `docs/logs/2026-07-g2d-migration-report/v0.0.1-revision-contract/`.
-
-- [ ] **在需要真机验证的里程碑主动提醒用户** 当 GMH 路线图推进到必须使用真实设备、真实桌面环境或真实外部集成才能完成验收的节点时，先明确提醒用户，不得将模拟测试或自动化测试冒充真机验收。提醒需列出所需环境、操作步骤、预期观察点及失败时需要保留的诊断信息；获得用户配合后再完成对应里程碑验收。
-
-- [ ] **真实 API 测试使用桌面密钥文件** 当验证工作确实需要调用真实 API 时，使用桌面的 `keys.txt` 提供测试凭据；不得将该文件、其中的密钥或未脱敏内容复制进仓库、日志、错误输出、测试夹具或提交记录。
-
-- [ ] **QQ invalid-resume integration test is load-sensitive** A GMH-11
-  workspace gate intermittently observed opcode 6 before the expected opcode 2
-  in `qq_falls_back_to_identify_after_invalid_resume_session`; the immediately
-  isolated exact rerun passed. Expected: synchronize the fixture on the
-  invalid-session handshake so full-workspace load cannot reorder the observed
-  heartbeat/resume frame. Related:
-  `agent-diva-channels/tests/qq_reconnect_integration.rs`.
-- [ ] **Memory authority provider selection lacks focused characterization**
-  GMH-20 static inspection confirms `.laputa/` open failure selects
-  `DegradedMemoryProvider` instead of silently falling back to
-  `MemoryManager`, but `cargo test -p agent-diva-agent memory_boundary`
-  currently selects zero tests. Expected: add deterministic coverage for no
-  `.laputa/`, valid Laputa, and broken Laputa selection without changing the
-  frozen authority semantics. Related:
-  `agent-diva-agent/src/memory_boundary.rs` and
-  `docs/architecture/memory-framework-interfaces.md`.
-- [ ] **Manager library suite is load-sensitive under the workspace gate**
-  The GMH-20 documentation-only `just test` run failed while executing
-  `agent-diva-manager --lib`; the captured workspace output did not retain the
-  exact failing test, while the immediate isolated
-  `cargo test -p agent-diva-manager --lib` rerun passed all tests (70 as of
-  GMH-23D crash recovery).
-  Expected: identify and synchronize the load-sensitive Manager test so the
-  complete workspace gate is deterministic. Related: `agent-diva-manager`.
-- [ ] **Workspace Rust 1.80 lockfile still has unrelated newer-MSRV dependencies**
-  `cargo +1.80.0 check -p agent-diva-laputa` cannot parse the locked
-  Edition-2024 manifests in the legacy dependency closure (currently first
-  observed at `base64ct 1.8.3`; the same closure also includes the previously
-  observed `time-core 0.1.8` path through
-  `memtle -> ureq -> cookie_store -> time ^0.3.47`). GMH-23B/23C use the
-  GMH-24 removed that dependency closure and refreshed the lockfile, so the
-  original Memory backend blocker is gone. A dedicated-target probe now
-  exposes broader unrelated dependencies (including current ICU, Darling,
-  Pest, CRC and Tauri transitive releases) whose declared MSRV exceeds 1.80.
-  Pin or upgrade those product dependencies in a separate workspace-wide MSRV
-  slice; do not weaken the Embedded Laputa clean-break gate.
-- [ ] **MSRV probing can contaminate the shared default target cache**
-  After the failed `cargo +1.80.0 check`, one immediate `just test` run emitted
-  widespread Tauri macro/type-resolution errors. An isolated default-toolchain
-  GUI rebuild passed, followed by a complete successful `just test`. Expected:
-  run future MSRV probes with a dedicated `CARGO_TARGET_DIR` so incompatible
-  compiler artifacts cannot affect the default workspace gate. Related:
-  workspace validation scripts and GMH-24 deletion-proof gate.
-- [ ] **Stable clippy flags pre-existing Laputa service assertions**
-  `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` reports four
-  `clippy::int_plus_one` findings in `agent-diva-laputa/tests/service.rs`.
-  The GMH-23B-specific `--lib --test typed_store` gate passes; update the
-  unrelated assertions in a focused cleanup.
-
-## G0 Verified Backlog Reconciliation
-
-- [x] **JsonlTodoStore concurrent rewrites** All rewrite paths use the shared file lock; concurrent create/update and create/archive regression tests pass.
-- [x] **Todo API/CLI status and error contracts** Core owns shared status parsing; Manager returns 400 for invalid filters, 404 for missing IDs, and 500 for store failures.
-- [x] **Mentle prompt rebuild boundary** Active Mentle retains provider-backed `Memory Startup Status` through tool rebuilds; inactive Mentle and the retired `L2 Palace Memory` route remain absent.
-
-Evidence: `docs/logs/2026-07-governance-g0/v0.0.1-g0-baseline/verification.md`.
-
-## Superseded Review Evidence
-
-The following Plan/TODO P1–P3 review packets are retained for audit only. Their 2026-07-11 tool-oriented baseline was superseded by the revision-bound report/store/runtime implementation completed in commits `82c25856`, `a1c1389e`, `91be604b`, and `52db71ac`. They are not active backlog entries; any regression against the current architecture must be recorded as a new, reproducible TODO.
-
-### Plan/TODO P1 core policy — historical triple-review findings (2026-07-11)
-
-Source reviews (forced packet process):
-
-- `_bmad-output/implementation-artifacts/review-result-todo-p1-blind-hunter.md` (verdict: approve-with-nits; 0 bug / 3 suggestion / 1 nit)
-- `_bmad-output/implementation-artifacts/review-result-todo-p1-edge-case-hunter.md` (verdict: conditional / request-changes; 2 bug / 5 suggestion / 1 nit)
-- `_bmad-output/implementation-artifacts/review-result-todo-p1-acceptance-auditor.md` (verdict: partial; 1 bug / 0 suggestion / 0 nit)
-
-Related implementation: `agent-diva-core/src/planning/policy.rs`, `agent-diva-core/src/planning/mod.rs`, compatibility target `agent-diva-agent/src/planning/orchestrator.rs`, frozen spec `_bmad-output/implementation-artifacts/spec-plan-todo-p1-core-policy.md`.
-
-**P0 — merge blockers / AC deviations**
-
-- [ ] **P1 policy: Executing must fail-closed for future ToolCapability variants (AC5)** Acceptance auditor bug. `(PlanModeState::Executing, _) => true` open-by-default permits any new enum arm that is not yet matrix-listed. Expected: explicit operational allowlist + unified `_ => false` so “no matrix entry ⇒ denied”.
-  - Related: `agent-diva-core/src/planning/policy.rs` (~65-66), AC5 / I/O matrix “unknown capability denied”
-  - Suggested fix: allow only Inspect|PlanningRecord|WorkItem|WorkspaceWrite|Execute|External under Executing; keep Unknown denied; optionally assert exhaustiveness in tests.
-
-- [ ] **P1 policy: Verifying capability set vs legal Verify exits (lifecycle trap)** Edge-case hunter bug. Legal edges include `Verify → Completed|Partial|Failed`, but `allows(Verifying, …)` only permits Inspect|Execute; PlanningRecord/WorkItem are denied. If P3 gates `plan_transition` / todo tools solely via `allows`, plans can stick in Verify.
-  - Related: `agent-diva-core/src/planning/policy.rs` (~67-87), `agent-diva-agent/src/planning/tools.rs` (PlanTransitionTool)
-  - Suggested fix: either extend Verifying allows with PlanningRecord (and WorkItem if todos update during verify), or document/enforce that phase exits use a privileged path not subject to the capability matrix; add a test that every legal edge has a capability path for the tool that performs it.
-
-**P1 — correctness / single source of truth**
-
-- [ ] **P1 policy: dual transition matrix vs PlanOrchestrator not cross-checked** Edge-case hunter bug. Core `is_valid_transition` duplicates orchestrator edges but is not delegated from `PlanOrchestrator::is_valid_transition`; unit tests hardcode a local allow-list only. Later one-sided edits will desync pure policy from runtime.
-  - Related: `agent-diva-core/src/planning/policy.rs` (~73-87), `agent-diva-agent/src/planning/orchestrator.rs` (~117-133)
-  - Suggested fix: orchestrator calls core (or share one table); add full `PlanPhase` cartesian equality test between both functions.
-
-- [ ] **P1 policy: expand invalid-transition / terminal-reentry test coverage** Blind + edge suggestion. Happy-path + any→Failed + single invalid pair leave reverse edges, self-transitions, skips, and terminal re-entry unenforced.
-  - Related: `agent-diva-core/src/planning/policy.rs` tests (~169-210)
-  - Suggested fix: table-drive full 8×8 product (or all illegal edges); assert `!is_valid_transition` and typed `InvalidTransition` errors.
-
-- [ ] **P1 policy: document or tighten Failed bailout / identity edges** Blind + edge suggestion. `to == Failed` accepts `Completed|Partial|Failed → Failed` (including self-loop) while other identity edges are rejected; capability side maps terminals to Closed and denies all caps—lifecycle vs capability disagree on “closed means done”.
-  - Related: `agent-diva-core/src/planning/policy.rs` (~73-76, ~30, ~68)
-  - Suggested fix: either restrict Failed bailout to non-terminal `from`, or keep emergency semantics with explicit docs + tests for terminal×targets.
-
-**P2 — product policy / API ergonomics (confirm before P2/P3 contracts freeze)**
-
-- [ ] **P1 policy: decide AwaitingApproval freeze for PlanningRecord** Blind + edge suggestion. Exploring/Drafting/AwaitingApproval all allow PlanningRecord; if approval freezes submitted revision, plan content can still change pre-`plan_approve`.
-  - Related: `policy.rs` (~61-64), architecture acceptance/revision freeze language
-  - Suggested fix: deny PlanningRecord under AwaitingApproval (Inspect only), or document revision-bound invalidation of approval on edit; lock with matrix tests.
-
-- [ ] **P1 policy: Closed projection collapses Completed|Failed|Partial** Edge suggestion. Single `Closed` mode cannot authorize “Partial may Inspect residual work” without re-reading raw `PlanPhase`.
-  - Related: `policy.rs` (~30), `From<&PlanPhase> for PlanModeState`
-  - Suggested fix: authorize from `PlanPhase` overload, split terminal variants, or allow Inspect on Closed if product needs it.
-
-- [ ] **P1 policy: Unknown-during-Execute vs architecture edge table** Edge suggestion. Module fail-closed denies Unknown even in Executing; `docs/architecture/plan-todo/06-error-handling-edge-cases.md` may describe unknown tools as Execute-class during Execute. Align docs and mapping-completeness tests.
-  - Related: `policy.rs` (~65-66), `docs/architecture/plan-todo/06-error-handling-edge-cases.md`
-
-- [ ] **P1 policy: API usability helpers** Edge nit. Only `From<&PlanPhase>`; no `allows_for_phase`; easy stale mode cache after transition.
-  - Related: `policy.rs` (~22-32, ~59)
-  - Suggested fix: `impl From<PlanPhase>`, `allows_for_phase(phase, cap)`.
-
-- [ ] **P1 policy: simplify Executing match arms** Blind nit. Dedicated `(Executing, Unknown) => false` is redundant once allowlist/fail-closed rewrite lands.
-  - Related: `policy.rs` (~65-66)
-
-### Plan/TODO P2 approval materialization — historical triple-review findings (2026-07-11)
-
-Source reviews (independent sessions; forced packet process):
-
-- `_bmad-output/implementation-artifacts/review-result-todo-p2-blind-hunter.md` (verdict: request-changes; 8 bug / 3 suggestion / 2 nit)
-- `_bmad-output/implementation-artifacts/review-result-todo-p2-edge-case-hunter.md` (verdict: not ready; 9 bug / 3 suggestion / 2 nit)
-- `_bmad-output/implementation-artifacts/review-result-todo-p2-acceptance-auditor.md` (verdict: fails-spec; 8 bug / 2 suggestion / 2 nit)
-
-Baseline: `4f3168e`. Related implementation (working tree at review time): `agent-diva-core/src/planning/{approval,store,policy,mod}.rs`, `agent-diva-agent/src/planning/{orchestrator,tools}.rs`, `agent-diva-agent/src/{runtime_control,agent_loop/loop_runtime_control}.rs`, `agent-diva-tools/src/planning/mod.rs`, `agent-diva-manager/src/{handlers/planning,manager,state}.rs`. Spec: `_bmad-output/implementation-artifacts/spec-plan-todo-p2-approval-materialization.md`.
-
-**P0 — merge blockers / fails-spec**
-
-- [ ] **P2: register `plan_submit` and allow it in plan mode** Blind + edge + acceptance. `PlanSubmitTool` exists but is not registered in `tool_assembly.rs`; `is_plan_mode_allowed_tool` also omits `plan_submit`. Completeness + revision freeze never run on the live agent path.
-  - Related: `agent-diva-agent/src/tool_assembly.rs` (~280-292), `agent-diva-agent/src/agent_loop/loop_turn.rs` (~49-60), `agent-diva-tools/src/planning/mod.rs`
-  - Suggested fix: register `PlanSubmitTool`; add `"plan_submit"` to plan-mode allowlist; optionally expose manager submit API for GUI parity.
-
-- [ ] **P2: close dual lifecycle path into AwaitingApproval/Execute** Blind + edge + acceptance. `plan_transition` can still move `Plan → AwaitingApproval` without `submit_plan` (no completeness, no `plan_submissions` revision) while emitting ready-for-approval; `store.approve_plan` is a second authority vs orchestrator memory gate.
-  - Related: `agent-diva-agent/src/planning/tools.rs` (~126-139), `orchestrator.rs`, `store.rs` approve/submit, `loop_runtime_control.rs`
-  - Suggested fix: only `submit_plan`/`approve_plan` write AwaitingApproval/Execute; narrow or block agent transitions into those phases; single source of truth for approval (store CAS).
-
-- [ ] **P2: freeze content or reopen-on-edit (revision++ → Plan)** Acceptance AC failed; blind + edge. After submit, `update_plan`/steps can change body without bumping revision; `approve_plan` only CASes revision number + phase. Edit-after-submit/approve (revision++, back to Plan, old rev dead) is not implemented; re-submit from AwaitingApproval is blocked.
-  - Related: `agent-diva-core/src/planning/store.rs` (submit/approve/update_plan/steps), AC “Scope edit” / frozen revision
-  - Suggested fix: reject mutations under AwaitingApproval (or auto-reopen: revision++, phase→Plan); allow controlled re-submit/withdraw; ensure old `expected_revision` cannot authorize.
-
-- [ ] **P2: enforce AwaitingApproval inspect-only at store/tool dispatch** Edge + acceptance. Policy matrix is inspect-only but nothing calls `allows_for_phase` on the hot path; agents can still mutate plans/todos while awaiting approval.
-  - Related: `policy.rs`, tool dispatch / mutating store methods
-  - Suggested fix: gate mutating planning tools and store writes by phase; freeze or reopen as above.
-
-- [ ] **P2: approve API compatibility + surface revision** Blind. `POST .../approve-execute` now requires `Json<ApprovalRequest>`; GUI still empty-POST; `PlanRuntimeState` has no revision field for clients to supply `expected_revision`.
-  - Related: `agent-diva-manager/src/handlers/planning.rs` (~224-227), GUI approve client, `PlanRuntimeState` / snapshot APIs
-  - Suggested fix: temporary body-less compat or update GUI+snapshot together; return revision (and ideally receipt) on approve/list.
-
-**P1 — correctness / audit / materialization**
-
-- [ ] **P2: Always/Optional materialize vs pre-existing TODOs** Blind + edge. Non-empty `todo_items` + materialize aborts with `TodoAlreadyMaterialized` forever; draft `todo_write` is still allowed pre-approve. No silent overwrite (good) but Always path can be permanently stuck.
-  - Related: `store.rs` approve materialize (~736-747), `todo_write` / `replace_todos`
-  - Suggested fix: treat pre-existing as already-materialized success under explicit policy, or forbid work-item writes until Execute, or clear API for pre-approve cleanup.
-
-- [ ] **P2: approval/submit audit events visible and typed** Blind + edge + acceptance. `event_type = 'PlanApproval'` is filtered out by `get_events` (`LIKE 'PlanEvent::%'`); submit/approve omit `PhaseTransition`/`StatusChanged`/`TodoGenerated`.
-  - Related: `store.rs` get_events / approve_plan / submit_plan, `events.rs`
-  - Suggested fix: emit first-class `PlanEvent` variants; include phase + receipt in event stream or document `plan_approvals` as sole audit API and stop orphan rows.
-
-- [ ] **P2: collapse dual transition authority (orchestrator vs policy)** Acceptance + blind nit/edge. `PlanOrchestrator::is_valid_transition` still diverges (any→Failed including terminals) while `transition_to` uses policy; public dead/divergent API.
-  - Related: `orchestrator.rs` (~116-134), `policy.rs`
-  - Suggested fix: delete or thin-wrap to `policy::is_valid_transition` only.
-
-- [ ] **P2: submit_plan phase CAS must not skip Plan phase** Blind. Conditional update allows Explore|Plan → AwaitingApproval; shared policy only documents Plan → AwaitingApproval.
-  - Related: `store.rs` submit_plan (~671-679), `policy.rs` transitions
-  - Suggested fix: restrict to `phase = Plan` (or validate_transition first).
-
-- [ ] **P2: AC matrix tests incomplete** Acceptance. Missing tests for incomplete multi-field submit, Always/Optional+true one-TODO-per-step, stale approve snapshot equality, edit-after-submit, existing-TODO materialize reject without side effects.
-  - Related: `agent-diva-core` planning tests; manager/agent transport tests
-  - Suggested fix: table-drive frozen I/O matrix from `spec-plan-todo-p2-approval-materialization.md`.
-
-- [ ] **P2: stop silent full-replace of TODOs while materialization invariants apply** Acceptance. `todo_write`/`replace_todos` can still wipe lists; contradicts Always “never silently delete/overwrite” for execution lists.
-  - Related: `agent-diva-tools/src/planning/mod.rs`, store replace path
-  - Suggested fix: refuse full-delete when materialized execution list exists; prefer revision-bearing patch APIs.
-
-- [ ] **P2: empty TODO Execute→Verify/Completed gate** Edge. Never/Optional without materialize leaves zero todos; verify gate passes on empty lists.
-  - Related: orchestrator verify gate, todo policy product intent
-  - Suggested fix: force materialize when steps exist, or explicit plan-only execution policy in gates.
-
-**P2 — nits / ergonomics**
-
-- [ ] **P2: wrong-phase submit surfaces as `ApprovalConflict { expected_revision: 0 }`** Mislabels phase/state errors as revision conflicts.
-  - Related: `store.rs` (~681-687)
-  - Suggested fix: dedicated `InvalidPhase` / `NotSubmittable` with current phase.
-
-- [ ] **P2: persist `todo_policy` with stable string/serde, not `Debug`**
-  - Related: `store.rs` (~769)
-
-- [ ] **P2: unregister or reword dead `plan_approve` tool** Still registered with approve description but hard-fails (Never self-approve).
-  - Related: `tools.rs`, `tool_assembly.rs`
-
-- [ ] **P2: return ApprovalReceipt on approve-execute transport** Tasks say snapshot/receipt; response is still `{ status, plan }` only.
-  - Related: `loop_runtime_control.rs`, manager planning handler
-
-### Plan/TODO P3 runtime capability gate — historical triple-review findings (2026-07-11)
-
-Source reviews (independent sessions; forced packet process):
-
-- `_bmad-output/implementation-artifacts/review-result-todo-p3-blind-hunter.md` (verdict: request-changes; 2 bug / 2 suggestion / 1 nit)
-- `_bmad-output/implementation-artifacts/review-result-todo-p3-edge-case-hunter.md` (verdict: not-ready; 2 bug / 2 suggestion / 2 nit)
-- `_bmad-output/implementation-artifacts/review-result-todo-p3-acceptance-auditor.md` (verdict: fails-spec; 2 bug / 5 missing-verification / 1 quality)
-
-Baseline: `a0e80ba`. Related implementation (working tree at review time): `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/agent_loop/loop_runtime_control.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`, `agent-diva-agent/src/planning/{mod,orchestrator,verifier}.rs`, `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-core/src/planning/policy.rs`. Spec: `_bmad-output/implementation-artifacts/spec-plan-todo-p3-runtime-gate.md`. Review packets: `review-plan-todo-p3-{blind-hunter,edge-case-hunter,acceptance-auditor}.md`.
-
-**P0 — merge blockers / fails-spec**
-
-- [ ] **P3: terminal active plan must not deny all tools (Closed lockdown)** Blind + edge + acceptance. Any active plan phase becomes `policy_phase`, including `Completed`/`Failed`/`Partial` → `PlanModeState::Closed`, which denies **all** capabilities (including Inspect / `plan_create`). Active slot is not cleared when no non-terminal successor exists (`promote_next_active_plan` / orchestrator terminal transition). Pre-P3 only guarded `plan_mode || AwaitingApproval`.
-  - Related: `agent-diva-agent/src/agent_loop/loop_turn.rs` (~290-295, ~1012-1023), `agent-diva-core/src/planning/policy.rs` (~30-37, ~64-85), `agent-diva-agent/src/planning/verifier.rs` (~147-160)
-  - Suggested fix: treat terminal/`Closed` as `policy_phase = None`, or `clear_active_plan` on terminal entry when no successor; apply same helper at turn start and mid-turn rebuild; add regression test (active Completed + ordinary message still exposes normal tools).
-
-- [ ] **P3: rebuild registry after runtime ApproveActivePlan → Execute** Edge + acceptance (AC2/AC3). `handle_approve_active_plan` persists Execute but never calls `rebuild_tools_for_turn`. Mid-turn approval leaves inspect-only registry while invoke checks may already allow Execute tools that are not registered.
-  - Related: `agent-diva-agent/src/agent_loop/loop_runtime_control.rs` (~339-362), `loop_turn.rs` (~553-554, ~861, ~1012-1023), store approve path
-  - Suggested fix: rebuild with `Some(PlanPhase::Execute)` after successful approve (or on any drain-detected phase change); integration test approve → next iteration Execute tools visible.
-
-- [ ] **P3: mid-turn rebuild must use same policy_phase derivation as turn start** Blind. Post-tool rebuild passes raw `planning_after.phase` only — drops `plan_mode` synthetic `Plan` fallback and re-applies terminal freeze.
-  - Related: `loop_turn.rs` (~292-294 vs ~1019-1022, ~904-909)
-  - Suggested fix: shared `policy_phase_for(active_snapshot, plan_mode)` used at turn start, mid-turn rebuild, and invoke gate.
-
-**P1 — verification / AC proof (missing-verification)**
-
-- [ ] **P3: agent-loop integration fixture for AC1/AC2** Acceptance Tasks failed. No fixture proves: plan-mode + ordinary follow-up under AwaitingApproval deny write/exec/MCP/custom/todo; denied call has no persistence side effects; submit → Inspect-only next iteration; matching runtime-control approve → Execute next iteration.
-  - Related: `agent-diva-agent/tests/` (missing), `loop_turn.rs` / `tool_assembly.rs` unit coverage only
-  - Suggested fix: preload AwaitingApproval plan; assert registry + invoke denial + unchanged revision/events; cover submit/approve refresh paths.
-
-- [ ] **P3: iteration log at required path** Acceptance Tasks failed. Spec requires `docs/logs/2026-07-runtime-plan-gate/v0.0.1-runtime-gate-closure/` with summary/verification/release/acceptance; directory absent (existing P2/P3 mixed log does not satisfy path).
-  - Related: `_bmad-output/implementation-artifacts/spec-plan-todo-p3-runtime-gate.md` Tasks
-  - Suggested fix: create four required docs; record command outputs and AC matrix.
-
-- [ ] **P3: full phase×tool I/O matrix assertions in assembly tests** Acceptance. Current test only checks subset (`read_file`/`write_file`/`exec`/`plan_submit`/`todo_write`/`custom_tool`) and omits terminal phases and web/spawn/cron/enqueue/plan_create/edit_file.
-  - Related: `agent-diva-agent/src/tool_assembly.rs` (~516-541)
-  - Suggested fix: table-drive allow/deny per phase matching frozen I/O matrix; include Completed/Failed/Partial expectations after P0 terminal rule is chosen.
-
-- [ ] **P3: prove denied invoke has no side effects** Acceptance AC1. Policy denial returns error string but no test asserts denial happens before `tools.execute` and leaves plan revision/todos/events unchanged.
-  - Related: `loop_turn.rs` (~919-923)
-  - Suggested fix: unit/integration assert store snapshot equality on denied call.
-
-- [ ] **P3: record verification command evidence** Acceptance Verification. Required `cargo test -p agent-diva-core planning::policy`, agent planning/tool_assembly/loop_turn tests, and `just fmt-check && just check && just test` lack recorded evidence for this wave.
-  - Related: spec Verification; iteration `verification.md`
-  - Suggested fix: run and log results; separate pre-existing failures into TODOLIST.
-
-**P2 — product edges / defense-in-depth**
-
-- [ ] **P3: document or tighten plan_mode vs active-plan precedence** Blind + edge suggestion. Priority flipped from plan_mode-first to active-plan-first; `exec_mode=plan` while active Execute still allows mutations.
-  - Related: `loop_turn.rs` (~292-294, ~897-899)
-  - Suggested fix: document "persisted phase wins", or intersect with Plan when plan_mode is set if product wants a hard non-mutating switch.
-
-- [ ] **P3: runtime MCP/network/custom re-register must re-apply phase filter** Edge suggestion. `drain_runtime_control_commands` can re-inject tools without phase unregister; invoke still fail-closes Unknown, but registry is not a true capability boundary until full rebuild.
-  - Related: `loop_tools.rs` (~28-64), `tool_assembly.rs` (~264-325), `loop_turn.rs` (~861)
-  - Suggested fix: route tool-config updates through `rebuild_tools_for_turn(..., current_policy_phase, ...)`.
-
-- [ ] **P3: align plan-guard system prompt with WorkItem policy** Edge nit. Prompt mentions `todo_write` under plan guard, but WorkItem is only allowed in Execute — rejected under synthetic Plan.
-  - Related: `loop_turn.rs` (~476-479), `policy.rs` WorkItem matrix
-  - Suggested fix: prompt only Inspect/PlanningRecord tools in draft/await, or product decision to allow draft WorkItem.
-
-- [ ] **P3: delete dead commented orchestrator transition matrix** Blind nit + acceptance quality. Core delegation is correct; large commented former matrix remains.
-  - Related: `agent-diva-agent/src/planning/orchestrator.rs` (~117-137)
-  - Suggested fix: delete comment block; keep single-line core delegate + docs.
-
-## Deferred (previously Open)
-
-- [x] **Mentle: repair runtime prompt activation regressions** Resolved against the current governed-memory baseline. `L2 Palace Memory` is intentionally no longer injected by runtime flags after `fix(epic5): harden runtime authority boundaries`; prompt assembly now comes exclusively from the active `MemoryProvider`. Regression coverage verifies that `register_default_tools` and per-turn rebuilds retain the active Mentle provider's `Memory Startup Status`, while inactive Mentle remains absent and legacy `L2 Palace Memory` routing is not reintroduced. See `docs/logs/2026-07-mentle-prompt-rebuild/v0.0.1-mentle-prompt-rebuild/`.
-  - Related files: `agent-diva-agent/src/agent_loop.rs`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/agent_loop/loop_tools.rs`
-
-- [ ] **Provider: run StepFun real endpoint E2E for model pass-through** The runtime now keeps model IDs opaque and unit coverage verifies `provider_name = stepfun`, `api_base = https://api.stepfun.com/step_plan/v1`, and `model = step-3.7-flash` pass through unchanged. Real StepFun E2E could not be run in this checkout because `keys.txt` is absent and no StepFun API key is available in the environment.
-  - Related files: `agent-diva-providers/src/openai_compatible.rs`, `agent-diva-e2e/src/config.rs`, `docs/logs/2026-07-provider-model-pass-through/v0.0.1-provider-model-pass-through/verification.md`
-  - Suggested validation: set `E2E_PROVIDER_NAME=stepfun`, `E2E_API_BASE=https://api.stepfun.com/step_plan/v1`, `E2E_MODEL=step-3.7-flash`, and `E2E_API_KEY`/`DEEPSEEK_API_KEY` to a StepFun key, then run `just e2e-test`.
-## Deferred (existing backlog)
-
-- [x] **Agent main-runtime prompt Englishization** Completed 2026-07-30. LLM-facing compaction, consolidation retry, context boundary, Plan/title/cron prompts and downstream compaction labels use subsystem-local English prompt contracts. Core and GUI accept English and legacy Chinese Plan headings without changing persisted Plan JSON.
-  - Proposal: `docs/architecture/agent-prompt-englishization-proposal.md`
-  - Primary files: `agent-diva-agent/src/compaction/`, `agent-diva-agent/src/context.rs`, `agent-diva-agent/src/consolidation.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-core/src/planning/report.rs` (aliases only), `agent-diva-core/src/session/store.rs`
-  - Suggested landing order: Phase 1 compaction → Phase 2 quality/context/consolidation → Phase 3 Plan prompt + parser aliases → Phase 4 meta/session labels
-
-- [x] **AgentLoop G1 coordinator slimming remains after stage extraction** Completed 2026-07-30. `turn/context.rs`, `turn/tool_step.rs`, and `turn/finalize.rs` now own the remaining runtime preparation, tool orchestration, and finalization responsibilities. `process_inbound_message_inner` is 350 lines, with no feature flag or parallel runtime.
-  - Related files: `agent-diva-agent/src/agent_loop/loop_turn.rs`, `agent-diva-agent/src/agent_loop/turn/`, `docs/dev/agent-loop-manager-gui-governance/09-project-management.md`
-
-- [x] **AgentLoop G1 full workspace test gate exceeds the command window** Resolved by allowing a 360-second validation window. Final `just test` completed successfully in 350.3 seconds after the stage extraction; focused AgentLoop tests, formatting, Clippy, CLI, and gateway command smoke also pass.
-  - Evidence: `docs/logs/2026-07-agent-loop-g1/v0.0.1-turn-prompt-contracts/verification.md`
-
-- [ ] **Mask feature plan acceptance** Deferred while the Plan/TODO architecture is the sole active stream. The remaining acceptance items in `.sisyphus/plans/mask-feature-implementation.md` are preserved for later reactivation.
-
-- [x] **Memory: publish a current-baseline interfaces spec after the `vrm-memory-test` audit** Completed by GMH-20. The current contract maps the useful diary/recall intent onto today's `MemoryProvider` / `MemoryManager` / `memory_boundary` / Laputa-Mentle architecture without reviving a nonexistent crate.
-  - Related files: `agent-diva-core/src/memory/`, `agent-diva-agent/src/memory_boundary.rs`, `docs/dev/past/legacy-docs/dev/archive/memory-evolution/`, `docs/logs/2026-07-vrm-memory-audit/v0.0.1-vrm-memory-test-audit/summary.md`
-  - Specification: `docs/architecture/memory-framework-interfaces.md`; implementation remains split across GMH-21 through GMH-24.
-- [x] **GUI: migrate `lucide-vue-next` to `@lucide/vue`** Completed 2026-07-29. Replaced the deprecated package across GUI source and test mocks; all existing icon export names remain compatible with `@lucide/vue@1.27.0`, and the full Vitest suite plus production build passed.
-  - Related files: `agent-diva-gui/src/**/*.vue`, `agent-diva-gui/src/**/*.ts`, `agent-diva-gui/package.json`, `agent-diva-gui/pnpm-lock.yaml`
-- [ ] **Wave 3 residual: enqueue_background_task production wiring needs end-to-end proof** Deferred. Production construction now injects a `RunStore` and focused assembly coverage passes, but no reviewed test proves a real enqueue reaches and completes through the production worker.
-  - Related files: `agent-diva-agent/src/tool_assembly.rs`, `agent-diva-agent/src/agent_loop.rs`, `agent-diva-tools/src/enqueue_background_task.rs`
-- [ ] **Wave 3 residual: supervised subagent worker bootstrap needs characterization** Deferred. Manager registers `RunKind::Subagent` in `task_runtime`, but the startup, drain, cancellation, and restart behavior lacks a focused production-path test.
-  - Related files: `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-core/src/supervised/executor.rs`, `agent-diva-manager/src/runtime/`
-- [ ] **Wave 3 residual: supervised subagent terminal lifetime needs end-to-end proof** Deferred. The handler now awaits `run_supervised`, but a production-path regression must prove the run remains non-terminal until real work finishes and propagates later failure/timeout.
-  - Related files: `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-core/src/supervised/executor.rs`
-- [ ] **Wave 3 residual: background task context and budget inheritance needs end-to-end proof** Deferred. Metadata parsing covers `chat_id/session_key/trace_id/parent_run_id/token_budget_limit`, but enqueue → store → worker → child-session propagation and ledger enforcement are not characterized as one production flow.
-  - Related files: `agent-diva-tools/src/enqueue_background_task.rs`, `agent-diva-agent/src/subagent_run_handler.rs`, `agent-diva-agent/src/subagent.rs`, `agent-diva-agent/src/agent_loop/loop_turn.rs`
-- [ ] **Wave 3 residual: workspace CLI managed-path model drift** Deferred. The path traversal/delete guard issues are now closed, but the managed `config_dir/workspaces/*` model still diverges from the broader runtime support for arbitrary workspace paths and needs an explicit product contract.
-  - Related files: `agent-diva-cli/src/commands/workspace.rs`, `agent-diva-cli/src/cli_runtime.rs`, `agent-diva-cli/src/main.rs`
-- [ ] **UX-DR-3/4/7** Deferred. UX gaps from sprint review remain postponed until a dedicated design pass.
-  - Context: Sprint closure review items 3, 4, and 7
-
-## Deferred Review Program
-
-### Scope
-
-- Range: `94baa4b..HEAD`
-- Exclude: `docs:*`, research/archive-only changes, `cbab379`, `ba1d17b`
-- Include: `feat:*`, `merge:*`, behavior-relevant `refactor:*`, validation-relevant `chore:*`, and `style:*` only for semantic-risk sampling
-
-### Wave Plan
-
-- [x] **Wave A - 基础设施与 Harness 基线**
-  - Commits: `e3cd30c`, `3322aac`, `1627ea3`, `0183c3c`
-  - Focus: `ToolRegistry::execute()` 调用链迁移、`PokeEvent` 广播安全、Harness 与真实运行语义一致性、E2E 迁移后的断言与环境假设
-- [x] **Wave B - 安全 / 监督运行 / 预算治理**
-  - Commits: `45b6aa6`, `9242579`, `ce70902`, `7ca1c92`, `f43ff96`, `0c1d1bd`, `8ecf041`
-  - Focus: Token ledger 记账时机、subagent budget 强制生效、`UsageRecord`/`ContextBudgetPolicy`/`OverflowAction` 落点、安全收口默认行为、merge 带来的逻辑分叉
-- [x] **Wave C - 观测性 / Audit 主线**
-  - Commits: `c58054c`, `28b00ce`, `41c829a`, `bd96dd2`, `de031fa`, `0851c4c`, `6ac4056`, `166fd16`, `b3fd4e8`
-  - Focus: Audit schema 一致性、`GLOBAL_SINK` 初始化和线程安全、JSONL rolling 并发写、`/api/logs` 查询闭环、parser refactor 兼容性
-- [x] **Wave D - 上下文压缩 / 限流**
-  - Commits: `0eb0cce`, `e2e2ad3`
-  - Focus: TokenBucket refill/burst 边界、MetaCompactor 语义保持、触发顺序、失败路径稳定性
-- [x] **Wave E - Todo 数据面**
-  - Commits: `909a573`, `84c5803`, `2445984`
-  - Focus: API/CLI/store 状态机一致、archive/purge 误删风险、并发写入与重复 ID 边界
-- [x] **Wave F - 后台任务 / 子代理 / workspace CLI**
-  - Commits: `c0f2712`, `c705538`, `b633b0d`
-  - Focus: background task 生命周期、`SubagentRunHandler` 覆盖度、预算/权限/审计继承、workspace 路径隔离
-- [x] **Wave G - 横切补强**
-  - Commits: `11728fa`, `9438b25`, `48dd875`, `e9336d9`, `e2941a8`
-  - Focus: usage fallback 统计准确性、`ErrorCategory` 分类失真、timeout wrapper 语义变化、feature gate 漏检、rustfmt 大提交夹带逻辑改动
-
-### Execution Order
-
-- [x] **Priority 1** Review `Wave B`
-- [x] **Priority 2** Review `Wave C`
-- [x] **Priority 3** Review `Wave F`
-- [x] **Priority 4** Review `Wave E`
-- [x] **Priority 5** Review `Wave D`
-- [x] **Priority 6** Review `Wave A`
-- [x] **Priority 7** Review `Wave G`
-
-### Wave 1 Parallel Review
-
-- [x] **Wave 1 scope lock**
-  - Coverage: `Wave A` and `Priority 1` (`Wave B`)
-  - Goal: launch parallel review for the foundation path and the first release-risk path together
-  - Output: one `Wave A` report, one `Wave B` report, and one cross-wave risk matrix
-- [x] **Lead-Agent**
-  - Responsibilities: freeze commit map, assign tasks, deduplicate findings, arbitrate overlaps, publish final summary
-  - Required outputs: commit-to-owner table, merged findings list, release/block recommendation
-- [x] **A1-Infrastructure**
-  - Commits: `e3cd30c`, `3322aac`
-  - Focus: `PokeEvent` fan-out, subscriber lifecycle, backpressure, `ToolRegistry::execute()` error propagation and caller migration completeness
-- [x] **A2-Harness**
-  - Commits: `1627ea3`, `0183c3c`
-  - Focus: Harness V2 entrypoints, fixture realism, CI baseline assumptions, E2E migration assertion drift and environment contract changes
-- [x] **B1-Budget**
-  - Commits: `45b6aa6`, `9242579`, `7ca1c92`
-  - Focus: token ledger write timing, budget enforcement on hot paths, subagent per-task budget coverage, policy definitions vs real execution
-- [x] **B2-SupervisedRun**
-  - Commits: `ce70902`
-  - Focus: supervised-run state transitions, persistence, cancellation ownership, budget/audit/security wiring
-- [x] **B3-SecurityMerge**
-  - Commits: `f43ff96`, `0c1d1bd`, `8ecf041`
-  - Focus: `SecurityDecision`, `check_security()`, audit emissions, default policy semantics, merge regression risk, high-risk drift sampling
-- [x] **Wave 1 execution flow**
-  - Phase 0: `Lead-Agent` publishes commit map and review packet
-  - Phase 1: `A1`, `A2`, `B1`, `B2`, `B3` review in parallel
-  - Phase 2: `Lead-Agent` runs cross-checks for budget/security, harness/supervised-run, and error propagation gaps
-  - Phase 3: `Lead-Agent` publishes `Wave A` and `Wave B` summaries plus one shared priority pool
-- [x] **Wave 1 report template**
-  - Required sections: `Scope`, `Findings`, `No-finding checks`, `Open questions`, `Verdict`
-  - Required finding fields: severity, title, commit, files, why it matters, reasoning or repro, expected behavior, suggested fix direction, test gap
-  - Verdict format: `Block release: yes|no`, `Confidence: high|medium|low`
-
-### Standard Checklist
-
-- [ ] **接口契约** Public types, traits, and APIs changed in the wave do not break downstream callers.
-- [ ] **状态一致性** In-memory state, persisted state, and event state remain aligned.
-- [ ] **并发/异步安全** Channels, background jobs, globals, locks, cancellation, and task ownership are safe.
-- [ ] **错误传播** Errors preserve context and classification; no silent swallowing or lossy wrapping.
-- [ ] **测试覆盖** Success paths, failure paths, boundaries, and regressions are covered.
-- [ ] **集成闭环** Producer, storage, consumer, CLI/API/UI links are fully wired.
-
-### Commit Checklist
-
-- [x] **Wave A / `e3cd30c`** Verify `PokeEvent` broadcast fan-out, subscriber lifecycle, and backpressure assumptions.
-- [x] **Wave A / `3322aac`** Verify every `ToolRegistry::execute()` caller correctly handles `Result<ToolError>`.
-- [x] **Wave A / `1627ea3`** Review Harness V2 entrypoints, fixture realism, and CI baseline assumptions.
-- [x] **Wave A / `0183c3c`** Review E2E migration for assertion drift and environment contract changes.
-- [x] **Wave B / `45b6aa6`** Verify token ledger writes exactly once per billable usage and enforces budgets on the real hot path.
-- [x] **Wave B / `9242579`** Verify per-task subagent budget is enforced, not merely logged.
-- [x] **Wave B / `ce70902`** Review supervised-run MVP state transitions, persistence, and cancellation ownership.
-- [x] **Wave B / `7ca1c92`** Verify usage source mapping and context budget policy integration points.
-- [x] **Wave B / `f43ff96`** Review `SecurityDecision`, `check_security()`, audit emissions, and default-deny/default-allow semantics.
-- [x] **Wave B / `0c1d1bd`** Audit merge integration for duplicate paths, stale gates, and branch-resolution regressions.
-- [x] **Wave B / `8ecf041`** Sample high-risk files for accidental behavior drift in the pre-merge catch-up commit.
-- [x] **Wave C / `c58054c`** Verify skill upload/delete/block audit events are emitted on all outcome paths.
-- [x] **Wave C / `28b00ce`** Verify cron start/completion/failure events do not double-fire or miss failures.
-- [x] **Wave C / `41c829a`** Review `ProviderTap` timing, streaming accumulation, and token accounting correctness.
-- [x] **Wave C / `bd96dd2`** Review `ToolExecutionTap` around success/error/timeout and nested tool calls.
-- [x] **Wave C / `de031fa`** Verify JSONL daily rolling, concurrent writes, and write-error swallowing behavior are intentional.
-- [x] **Wave C / `0851c4c`** Review `AuditSink` registration, `GLOBAL_SINK` initialization ordering, and no-op fallback behavior.
-- [x] **Wave C / `6ac4056`** Verify `/api/logs` query fields match persisted audit schema exactly.
-- [x] **Wave C / `166fd16`** Review parser refactor for GUI/manager compatibility and malformed-line handling.
-- [x] **Wave C / `b3fd4e8`** Verify health endpoint criteria and benchmark assumptions are stable and meaningful.
-- [x] **Wave D / `0eb0cce`** Review token bucket refill math, monotonic-time assumptions, and burst depletion edges.
-- [x] **Wave D / `e2e2ad3`** Review MetaCompactor summary fidelity, fallback behavior, and serialization compatibility.
-- [x] **Wave E / `909a573`** Verify todo CRUD routes, filters, 404 paths, and store integration.
-- [x] **Wave E / `84c5803`** Verify todo CLI behavior matches HTTP and store semantics.
-- [x] **Wave E / `2445984`** Review archive/purge for active-item safety, historical retention, and concurrent update behavior.
-- [x] **Wave F / `c0f2712`** Review enqueue background task lifetime, observability, cancellation, and error return path.
-- [x] **Wave F / `c705538`** Verify `RunKind::Subagent` dispatch covers every subagent execution path.
-- [x] **Wave F / `b633b0d`** Review workspace CLI path resolution, isolation, and failure output quality.
-- [x] **Wave G / `11728fa`** Verify usage fallback metrics/warnings neither double-report nor mask real provider usage.
-- [x] **Wave G / `9438b25`** Review `ErrorCategory` trait adoption and risk of over-generalized classification.
-- [x] **Wave G / `48dd875`** Verify timeout wrapper preserves cancellation, retry, and tool-specific error identity.
-- [x] **Wave G / `e9336d9`** Review feature-gate CI script for missing crate/feature combinations.
-- [x] **Wave G / `e2941a8`** Sample rustfmt-only commit for accidental semantic edits in touched modules.
-
-### Deliverables
-
-- [ ] **Wave reports** Each wave should end with scope, risk summary, findings, and release/block recommendation.
-- [ ] **Cross-wave matrix** Aggregate findings by security, observability, persistence, concurrency, CLI/API consistency, and test gaps.
-- [ ] **Priority pool** Classify review findings into `P0`/`P1`/`P2`/`P3`.
-
-### Timebox (Deferred)
-
-- [ ] **Day 1** `Wave B` + `Wave C`
-- [ ] **Day 2** `Wave F` + `Wave E`
-- [ ] **Day 3** `Wave D` + `Wave A` + `Wave G`
-- [ ] **Day 4** Cross-wave regression pass, unified conclusion, and priority-pool cleanup
-
-## Active Governance Research Program
-
-- [ ] **RG-CODE-GOV: Agent Loop / Manager / GUI 原位治理** 深度治理分支的 clean-break 产品替代路线已判定失败；仅保留其单一副作用权威链、薄 Manager、GUI Host 边界和 fail-closed 能力登记原则。后续治理必须以当前 `agent-diva-pro` 的 crate、`/api`、存储、事件和产品能力为唯一基线，采用先刻画行为、再按 seam 分阶段收口的方式，不得回迁 deep crates、另建第二套 runtime/API/store 或大爆炸重写。
-  - 状态：研究/设计完成；实现未授权。
-  - 第一实施入口：G0 characterization tests 与 capability ledger；未完成 G0 不得开始拆 AgentLoop。
-  - 分期：G1 AgentLoop turn pipeline；G2 Manager handler/service；G3 GUI API/Tauri Host；G4 GUI state/composables；G5 DTO contract 与清理。
-  - 预期结果：AgentLoop 唯一 turn 入口和工具执行 seam 可定位；Manager handler 变薄；GUI domain/Host/local state 权威清晰；既有 API、schema 和用户旅程保持兼容。
-  - 退出标准：`docs/dev/agent-loop-manager-gui-governance/13-acceptance-criteria.md` 全部运行时条目通过，并有真实 CLI/Manager/Tauri smoke 与性能回归证据。
-  - 相关设计：`docs/dev/agent-loop-manager-gui-governance/`
-  - 本次文档日志：`docs/logs/2026-07-current-design-governance/v0.0.1-agent-loop-manager-gui-plan/`
-
-## Governance × Memory × Human-in-the-loop 核心重构排期
-
-> 目标周期：10 周；建议配置为 2 名 Rust 核心开发、1 名前端/桌面开发、1 名 QA/安全兼职。若只有 1 名核心开发，按依赖顺序执行并将周期调整为 14–16 周。所有时间均为净开发周，不包含等待产品决策或外部安全评审的时间。
-
-### 总体目标与强制边界
-
-- [x] **GMH-00：冻结“一条权威链”架构约束** 所有 Memory 写入、策略变更、外部副作用和高风险自治行为必须统一经历“提议 → 策略判定 → 必要时人工决策 → 执行 → 审计 → 可恢复”的闭环。
-  - 不新建第二套 runtime、approval store、memory authority store 或 Manager 业务权威。
-  - `agent-diva-core` 持有跨 crate 契约；`agent-diva-laputa` 持有已应用 Memory/Persona 权威；`agent-diva-sandbox` 持有执行策略；`agent-diva-agent` 只编排；`agent-diva-manager` 只提供服务/传输；GUI 只投影状态并提交人类决定。
-  - 未识别的能力、风险类型、审批状态和 Memory 来源一律 fail-closed；待审提案不得进入默认 prompt。
-  - 完成定义：ADR、术语表、能力/风险矩阵、数据所有权图和兼容性清单评审通过。
-
-### Phase 0 — 基线、决策与测试护栏（第 1 周，必须串行）
-
-- [x] **GMH-01：现状行为刻画与权威清单（D1–D2）**
-  - 盘点 `MemoryProvider`、`MemoryManager`、Laputa proposal/apply、Mentle feature lane、AutoDream、Plan approval、Sandbox Guardian、Manager API/SSE/Tauri、GUI Persona/Memory 页面。
-  - 输出读路径、写路径、审批路径、事件路径、重启恢复路径；标出重复状态、绕过点、隐式副作用和缺失审计。
-  - 建立 capability ledger：能力名称、风险等级、资源范围、幂等性、可撤销性、默认决策、所需证据、审批 TTL。
-  - 验收：每个生产副作用入口均能映射到唯一 owner 和唯一 policy decision point。
-- [x] **GMH-02：产品决策冻结（D2–D3）**
-  - 明确 Memory 分类：会话事实、长期事实、偏好、承诺、关系、身份、历史摘要、临时 recall；定义保留期、敏感级别和可遗忘语义。
-  - 明确 HITL 决策：`approve_once`、`approve_session`、`approve_rule`、`edit_and_approve`、`reject`、`cancel`；定义谁可批、作用域、过期、撤销和拒绝后的行为。
-  - 明确自治等级 L0–L4：只读建议、低风险自动执行、会话授权执行、逐次审批、高风险禁止；将 Memory 写入和工具调用分别映射。
-  - 验收：无“实现时再决定”的 P0/P1 语义；未决项有 owner 和截止日。
-- [x] **GMH-03：characterization 与契约测试（D3–D5）**
-  - 锁定当前 CLI/Manager/Tauri API、事件顺序、Laputa 已应用快照、pending proposal 排除、Plan revision-bound approval、Sandbox deny/approve/retry 行为。
-  - 增加崩溃/重启、重复提交、过期审批、并发审批、撤销、旧配置迁移的测试设计。
-  - Gate G0：测试能证明当前行为；失败用例先记录而非在本阶段顺手重构。
-
-### Phase 1 — 统一治理契约与决策引擎（第 2–3 周）
-
-- [x] **GMH-10：核心治理领域模型（W2 D1–D3）**
-  - 在 `agent-diva-core` 定义稳定的 `GovernanceSubject`、`Capability`、`ResourceScope`、`RiskClass`、`Decision`、`ApprovalRequest/Receipt`、`EvidenceRef`、`AuditCorrelation`。
-  - 统一 Plan approval、Sandbox approval 与 Memory proposal 的公共信封，但保留各自领域 payload；禁止做“万能大枚举”耦合业务。
-  - 所有请求包含 `request_id`、`turn_id/session_id`、actor、目标资源、内容摘要/哈希、策略版本和到期时间。
-- [x] **GMH-11：纯函数策略评估器（W2 D3–W3 D2）**
-  - 输入主体、能力、资源、风险、上下文和已有授权；输出 allow/deny/require-human，附 reason code、约束和可审计证据。
-  - 规则优先级：硬禁止 > 显式用户拒绝 > 资源/模式限制 > 有效授权 > 安全默认值；未知项拒绝。
-  - 为 Plan、Memory、shell/filesystem/network/MCP/spawn/schedule 建矩阵和全笛卡尔/属性测试。
-- [x] **GMH-12：持久化审批账本与状态机（W3 D2–D5）**
-  - 建立 append-only decision ledger；派生当前状态，禁止 Manager/GUI 维护第二份真相。
-  - 实现 CAS/version、TTL、幂等键、内容哈希绑定、审批后内容变更失效、并发首胜、拒绝/撤销优先。
-  - Gate G1：领域模型、策略矩阵、迁移与账本恢复测试通过；尚未接入生产执行。
-
-### Phase 2 — Embedded Laputa Memory Framework 2.0（重排中；GMH-23 阶段 3 暂停）
-
-> **架构纠偏（2026-07-30）**：`refactor/deep-governance` 已在
-> 2026-07-25 完成并验证 Embedded Laputa（profile-local typed
-> SQLite + FTS5、本地检索、Gateway-only mutate）与 Mentle clean-break。
-> 当前 `agent-diva-pro` 路线错误地把 Mentle 当作长期保留的检索层。
-> 自本决策起，Embedded Laputa 是 Diva 唯一内嵌 Memory 存储/检索层；
-> Mentle/MenPalace、`memtle`、LLVM/`clang-cl` 构建链及其产品面必须
-> clean-break 删除，不保留 runtime 兼容、双写、旧库在线读取或回退路径。
-> 已完成的 GMH-21/22 合同和 GMH-23 阶段 1/2 proposal 边界保留；
-> GMH-23 阶段 3 与旧 GMH-24 暂停，直至 GMH-23A..23C 通过。
-> 规范来源见 `docs/architecture/laputa-memory-final-architecture.md`，
-> 回迁研究见 `docs/research/laputa-diva-garden-2026-07/`。
-
-- [x] **GMH-20：发布当前基线 Memory Interfaces Spec（W4 D1–D2）**
-  - 完成现有 backlog 中 `vrm-memory-test` 后续规格，将 `MemoryProvider` 生命周期拆清为 startup injection、prefetch/recall、turn sync、session end、proposal submission。
-  - 原规格中“Mentle/索引作为长期检索层”的目标已被 2026-07-30
-    架构纠偏取代；历史基线仍保留用于迁移盘点，不再指导目标实现。
-- [x] **GMH-21：规范化 Memory 记录与 provenance（W4 D2–W5 D1）**
-  - 定义记录 ID、类型、内容、来源、证据、置信度、敏感级别、创建/有效/过期时间、supersedes/tombstone、租户/会话范围。
-  - 兼容旧 `MEMORY.md`/`HISTORY.md` 和 Laputa JSON；设计双读校验、一次性迁移、回滚和数据完整性报告。
-  - 对 prompt injection 内容做信任标注和转义；用户输入、工具结果、AutoDream 推断不得直接升级为 authority。
-- [x] **GMH-22：Recall 与上下文预算管线（W5 D1–D4）**
-  - 分离候选召回、权限/敏感过滤、相关性排序、去重、时间衰减、token budget、最终渲染。
-  - 每条注入内容可追踪到来源和选择理由；pending/rejected/expired/tombstoned 内容永不进入默认上下文。
-  - 定义 degraded/fallback：检索失败时显式降级，不能静默使用陈旧或越权数据。
-- [ ] **GMH-23：Memory 写入全部提案化（阶段 1/2 已完成；阶段 3 暂停）**
-  - 会话同步、AutoDream、GUI 直接编辑、导入/迁移统一生成 proposal；按分类和风险决定自动应用或 HITL。
-  - 高风险类别（身份、关系、承诺、敏感事实、批量删除）必须人工确认；低风险可在可配置策略下自动应用。
-  - apply 必须原子化并生成 changelog/audit；支持 edit-and-approve、冲突检测、撤销/补偿和遗忘请求。
-  - [x] 阶段 1：Laputa-backed `sync_turn` 将会话 consolidation 产物写为
-    `memory_patch` / `history_patch` 待审提案；不直接修改已应用 authority，
-    legacy Markdown provider 行为保持不变。
-  - [x] 阶段 2：Persona/Memory GUI 编辑经原 Manager/Tauri 路由创建
-    `pending_review` 提案，统一 proposal 分类、风险和 UserInput evidence；
-    authority/changelog 保持不变。Migration 写路径按 GMH-24 Gate 延后切换。
-    真实桌面提交/徽标/提案箱 smoke 仍需人工执行，步骤与诊断要求见
-    `docs/logs/2026-07-gmh-23/v0.0.2-gui-edit-proposals/acceptance.md`。
-  - [ ] 阶段 3：**暂停**。仅在 GMH-23A..23C 完成后恢复；接入低风险
-    可配置自动应用与高风险 HITL，并验证 edit-and-approve、冲突、
-    撤销/补偿和遗忘请求。不得继续绑定 legacy Markdown 或 Mentle。
-- [x] **GMH-23A：冻结 Embedded Laputa / Mentle clean-break 合同（立即前置）**
-  - 将 `docs/architecture/laputa-memory-final-architecture.md` 纳入当前
-    `agent-diva-pro` 的权威架构：Embedded Laputa 是唯一 Diva-local
-    Memory store/retrieval；Garden/远程 MemoryOS 不在本轮范围。
-  - 冻结 profile-local SQLite + FTS5、typed records、Gateway-only mutate、
-    proposal/receipt/audit、tombstone、离线检索和 Persona/L1 投影合同。
-  - 冻结 Mentle clean-break：无依赖、feature、adapter、tool、route、DTO、
-    GUI setting、CI lane、LLVM 安装说明、旧库 reader 或双写。
-  - Gate G2A：ADR、威胁模型、删除清单、数据所有权图和迁移边界评审通过。
-- [x] **GMH-23B：移植 Embedded Laputa typed store（GMH-23A 后）**
-  - 从 `refactor/deep-governance` 定向移植设计与最小实现，不合并其
-    clean-break runtime 重写；按当前 `agent-diva-laputa` API 适配。
-  - 实现 profile/workspace 隔离、SQLite schema/事务、FTS5、record
-    revision、tombstone、确定性 ID、备份/恢复和 Rust 1.80 兼容。
-  - Gate G2B：空库、升级、并发、崩溃恢复、损坏、回滚和 10k records
-    性能基线通过；无 LLVM/native Mentle 依赖。
-- [x] **GMH-23C：接入 Embedded Laputa recall（GMH-23B 后）**
-  - 将 GMH-21 normalized records 与 GMH-22 filter/rank/dedupe/budget/escape
-    pipeline 接到 SQLite FTS5/BM25 候选源。
-  - 加 importance/recency/persona 重排、scope/policy/tombstone 过滤和
-    section diversity；检索失败显式 degraded，不回退 Mentle。
-  - Gate G2C：召回准确性、错误注入率、重复率、延迟、token 成本和
-    无原始敏感内容诊断通过。
-  - 完成：公开 shadow-only `LaputaRecallService` 已连接 typed FTS5/BM25
-    与 Recall v2；派生 importance/persona、recency、section diversity、
-    payload-free 指标和 degraded 无回退均有自动化覆盖。固定标注集
-    recall@8 为 100%，restricted 注入率与重复率为 0；Windows debug
-    10,000 条 fixture 的完整 Recall top-8 P95 为 71.1659 ms。生产
-    prefetch/prompt 未切换，read cutover 仍属于 GMH-24。
-- [x] **GMH-23D：恢复 proposal apply/HITL（原 GMH-23 阶段 3）**
-  - 已完成 session sync 与 GUI proposal 的 receipt-gated HITL/apply
-    治理边界及崩溃恢复。AutoDream 接入随 Evolution 开发冻结；import
-    写入切换归入 GMH-24；低风险自动 apply 在本阶段保持关闭。
-  - apply 仅通过有效 receipt 与原子事务；产生 audit/changelog，支持
-    edit-and-approve、冲突、撤销/补偿和遗忘。
-  - 已完成治理接缝：proposal digest/version 绑定、编辑撤销、HITL
-    decision、once receipt、Manager/Tauri/GUI receipt-gated legacy apply，
-    以及非生产 typed-store 原子 apply journal。生产 typed write 未切换。
-  - G2D 真实桌面验收已按用户决策 deferred，不再阻断 GMH-24 架构闭环：
-    批准、拒绝、编辑后批准、并发重复点击、重启恢复和回滚。Mentle
-    clean-break 后、恢复 Evolution 开发或发布验收前必须执行，并保留
-    request/proposal/audit/rollback ID、界面结果及 Manager/Tauri 日志。
-  - 后续加固：legacy 文件 apply 的“事务已提交但 receipt 消费前崩溃”
-    已增加持久化幂等恢复结果与自动化覆盖；低风险自动 apply 仍保持关闭，待明确配置和
-    session/rule authorization 接口完成后才可启用。
-- [x] **GMH-24：Embedded Laputa cutover 与 clean-break Gate**
-  - 当前最高优先级；G2D 桌面验收不再作为进入本 Gate 的前置条件。
-  - 对 legacy Markdown/Laputa JSON 做一次性、显式、可回滚离线导入；
-    禁止读取旧 Mentle 数据库，禁止长期双读/双写。
-  - 先 shadow read，再 read cutover，最后 write cutover；每一步均有
-    完整性报告、性能门槛、回滚点和用户可见诊断。
-  - 删除 `memtle`、`mentle` feature/runtime/config/tools/API/GUI/tests、
-    `just mentle-*`、CI LLVM 安装和活跃文档承诺。
-  - Gate G2：default workspace 全门禁通过；deletion-proof 扫描证明
-    产品源码、manifest、lockfile、CI、GUI 与活跃文档无 Mentle/LLVM
-    运行依赖。历史资料仅允许位于明确的 archive/past 区域。
-  - GMH-24A、24B、24C 分别由提交 `e0760897`、`36009ede` 和本切片提交
-    关闭；G2D 真实桌面六项仍是发布及 Evolution 解冻前置验收。
-
-### Phase 3 — Human-in-the-loop 端到端闭环（第 5–7 周，可与 GMH-22 前半并行）
-
-- [ ] **GMH-30：统一审批协调器（W5 D1–W5 D5）**
-  - 将 Plan、Sandbox 与 Memory 请求接入同一协调接口；领域执行器只消费有效 receipt，不直接询问 UI。
-  - 支持 suspend/resume、进程重启恢复、取消传播、超时、重复响应、失联客户端和多客户端并发。
-  - 审批 receipt 必须绑定请求哈希、策略版本、资源 scope 和执行次数；禁止用布尔值表达长期授权。
-- [ ] **GMH-31：Manager API / SSE / Tauri 契约（W6 D1–D4）**
-  - 提供 pending 列表、详情、approve/edit/reject/cancel、审计查询；所有 mutation 使用幂等键和版本前置条件。
-  - 定义稳定 DTO、typed reason codes 和事件序列：requested → awaiting_human → decided → executing → succeeded/failed/compensated。
-  - 权限校验在服务端完成；GUI 隐藏按钮不构成安全边界。
-- [ ] **GMH-32：GUI 决策中心与就地审批（W6 D3–W7 D3）**
-  - 展示动作、目标、风险、证据、diff、命令/路径/网络范围、授权持续时间和拒绝影响。
-  - 支持 Memory diff 编辑后批准、一次/会话/规则授权、批量操作限制、倒计时、撤销与失败重试。
-  - 无障碍、窄窗、离线/重连、重复事件去重、跨页面 pending badge 纳入测试。
-- [ ] **GMH-33：CLI/headless 行为（W7 D2–D4）**
-  - 交互 CLI 可审批；非交互环境按配置明确 fail/queue，绝不默认放行。
-  - 给服务模式定义 webhook/外部审批扩展点，但本轮不绑定具体第三方平台。
-  - Gate G3：真实 shell、Memory 高风险写入、Plan 执行各完成一条 approve/reject/timeout/restart E2E。
-
-### Phase 4 — 接入 Agent Loop、自治治理与可观测性（第 7–8 周）
-
-- [ ] **GMH-40：Agent Loop 单一副作用 seam（W7 D4–W8 D2）**
-  - 工具组装、pre-call 和实际执行均引用同一治理快照；消除“已登记但可绕过”和“批准后 registry 未刷新”。
-  - turn pipeline 明确 prepare → recall → deliberate → propose → decide → execute → sync → audit；每段可取消、可度量。
-  - subagent、cron、heartbeat、AutoDream 继承父授权的方式必须显式，禁止权限放大。
-- [ ] **GMH-41：自治预算与熔断（W8 D1–D3）**
-  - 按 turn/session/day 限制工具次数、费用、写入量、审批数量和连续失败；拒绝风暴触发熔断。
-  - 用户在场/离线作为上下文信号，不作为绕过审批的授权；高风险离线动作必须排队或拒绝。
-- [ ] **GMH-42：治理可观测性与审计（W8 D2–D5）**
-  - 指标：decision latency、人工等待、approve/reject、policy deny、stale receipt、Memory proposal/apply/rollback、recall quality。
-  - 日志统一 correlation ID 并 redact 敏感内容；提供从用户决定到最终副作用的证据链。
-  - Gate G4：故障注入证明执行失败、审计失败、UI 断线、存储冲突均不会绕过策略或丢失恢复线索。
-
-### Phase 5 — 迁移、灰度、验收与收口（第 9–10 周）
-
-- [ ] **GMH-50：兼容迁移与 feature flags（W9 D1–D3）**
-  - 分开控制 unified governance、Embedded Laputa shadow/read/write 和
-    HITL UI；默认先 shadow，再 read cutover，最后 write cutover。
-  - flag 只服务于新旧 Diva authority 切换，不得重新引入 Mentle；
-    每个 flag 有配置迁移、启动校验、降级路径和删除日期，禁止长期双写。
-- [ ] **GMH-51：安全与数据恢复演练（W9 D3–D5）**
-  - 覆盖恶意 Memory 注入、路径/命令混淆、scope 扩大、receipt 重放、审批竞态、数据库损坏、部分写入和时钟漂移。
-  - 从备份恢复 authority/ledger，验证 pending/approved/executed 状态不重复执行。
-- [ ] **GMH-52：全量验收（W10 D1–D3）**
-  - 执行 `just fmt-check`、`just check`、`just test`、Embedded Laputa
-    focused tests、deletion-proof gate、GUI tests/build，以及
-    CLI/Manager/Tauri 最小真实路径 smoke；不得安装或调用 LLVM。
-  - 性能门槛：策略判定 p95、召回 p95、prompt token 增量、Manager 事件延迟不超过 Phase 0 约定预算。
-  - 产品验收：用户能看懂“为什么问我、会改什么、授权多久、如何撤销”，并能从审计中心还原全过程。
-- [ ] **GMH-53：灰度与清理（W10 D3–D5）**
-  - 小样本开启 → 观察 → 扩大；出现越权、数据丢失、重复执行、不可恢复审批时立即回滚。
-  - 删除旧审批布尔捷径、重复 store、废弃 DTO、双写代码及所有残余
-    Mentle/LLVM 活跃配置和文档；更新运维手册、威胁模型、用户文档和
-    `TODOLIST.md`。
-  - Gate G5：连续观察窗口内无 P0/P1，回滚演练成功，遗留项已分级并有 owner。
-
-### 里程碑、依赖与并行建议
-
-- [x] **M0 / 第 1 周末：基线冻结** `GMH-01..03` 完成；没有 G0 不进入领域模型实现。
-- [x] **M1 / 第 3 周末：治理内核可用** `GMH-10..12` 完成；Memory/HITL 只能依赖该契约，不能各建策略引擎。
-- [ ] **M2 / 重排后：Embedded Laputa 可影子运行** `GMH-20..23C`
-  完成；旧 Diva authority 仍可回退，但 Mentle 不属于回退路径。
-- [ ] **M3 / 第 7 周末：HITL 闭环可用** `GMH-30..33` 完成；批准、拒绝、超时、重启均有 E2E。
-- [ ] **M4 / 第 8 周末：Agent Loop 接入** `GMH-40..42` 完成；所有生产副作用经过统一 seam。
-- [ ] **M5 / 第 10 周末：灰度发布完成** `GMH-50..53` 完成。
-- 并行规则：W4 后 Memory 数据模型与 HITL 传输/UI 可并行；共享 `agent-diva-core` 契约、Manager state、事件 DTO 时必须先拆文件级 story 并在 `LOCK.md` 声明；迁移、全 workspace 格式化和 schema 变更使用 `GLOBAL` 锁。
-
-### 每个 Story 的统一完成定义（DoD）
-
-- [ ] 设计/ADR 与 threat model 更新；API/schema/配置兼容性明确。
-- [ ] 成功、拒绝、超时、并发、重启、降级和回滚路径均有确定性测试。
-- [ ] 用户可见变更有 CLI/GUI/Channel 至少一条真实 smoke；GUI 变更另做 GUI smoke。
-- [ ] `summary.md`、`verification.md`、`release.md`、`acceptance.md` 齐全；发现但未修问题回填本 `TODOLIST.md`。
-- [ ] 每个 story 独立 Conventional Commit，只暂存本 story 文件；不推送，除非用户明确要求。
-
-## Completed Archive
-
-- 历史已完成项目已迁移至 [`docs/archive/todolist/completed-through-2026-07-29.md`](docs/archive/todolist/completed-through-2026-07-29.md)。
-- 主 `TODOLIST.md` 只保留活动计划、未完成/延期事项，以及仍服务于开放验收工作的 review execution evidence。
+当前主线：在 **typed Laputa clean-break（GMH-24）之后**，完成 **G2D 真实桌面验收**，
+然后才能解冻 Evolution / 进入发布验收。GMH-00..24 架构工作已完成并归档。
+
+- [ ] **G2D：typed authority 真实桌面六场景验收** `sev-P0`
+  必须在**重启并加载新二进制**后的真实桌面环境执行，不得以自动化测试冒充。
+  场景：批准、拒绝、编辑后批准、重复点击、重启恢复、回滚。
+  保留 request/proposal/audit/rollback ID、界面结果、Manager/Tauri 日志。
+  相关：`docs/logs/2026-07-gmh-24c/`、GMH-23D HITL 路径。
+
+- [ ] **Evolution 功能开发冻结（直至 G2D）** `sev-P0`
+  在六场景通过前，不修复/扩展 AutoDream/Evolution 产品功能；仅允许安全与
+  数据完整性修复，以及明确的不可用/降级 UX。通过后基于 typed Laputa 再定基线。
+
+完成索引（已归档）：Ask 只读边界、GMH-24A/B/C、G2D migration revision 修复等见
+[`docs/archive/todolist/completed-through-2026-07-30.md`](docs/archive/todolist/completed-through-2026-07-30.md)。
+
+---
+
+## Operational Rules
+
+standing policy（非功能债，执行相关验证时遵守）：
+
+- [ ] **真机里程碑须先提醒用户** 需要真实设备/桌面/外部集成时，先列出环境、步骤、
+  观察点与失败诊断物，获配合后再验收；禁止用模拟冒充真机。
+- [ ] **真实 API 使用桌面 `keys.txt`** 不得把密钥或未脱敏内容写入仓库、日志、
+  夹具或提交。
+
+---
+
+## Open Backlog
+
+### Product / Architecture
+
+- [ ] **Skill / SOP 统一为兼容 Skills** `sev-P1`
+  不建第二套 SOP 格式/目录/运行时。扩展 `SKILL.md` 可选 `kind: sop`（默认
+  `skill`），复用完整 Skill 生命周期；GUI/摘要显示 `AGENT-DIVA SOP` 标签且不授
+  权。Notebook「固化为 SOP」应生成 SOP Skill 候选。
+  契约：`docs/architecture/skill-sop-unification.md`。
+
+- [ ] **RG-CODE-GOV 后续分期（可选实现入口）** `sev-P2`
+  原位治理设计完成；**禁止**回迁 deep-governance 大爆炸。
+  已完成并归档：G0 characterization、G1 AgentLoop 瘦身。
+  未做：G2 Manager handler 变薄、G3–G5 GUI Host/state/DTO。
+  设计：`docs/dev/agent-loop-manager-gui-governance/`。
+  与 GMH-40 副作用 seam 有交集时优先走 GMH 故事，避免双轨。
+
+### GMH 未完成（Phase 3–5）
+
+> Phase 0–2（GMH-00..24）已完成，详见 archive。以下为仍开放 story。
+
+- [ ] **GMH-30：统一审批协调器** `sev-P1`
+  Plan / Sandbox / Memory 经同一协调接口；执行器只消费有效 receipt。
+  suspend/resume、重启恢复、取消、超时、重复响应、多客户端。
+- [ ] **GMH-31：Manager API / SSE / Tauri 契约** `sev-P1`
+  pending/详情/approve/edit/reject/cancel/审计；幂等键与版本前置条件；
+  typed reason codes 与事件序列。
+- [ ] **GMH-32：GUI 决策中心与就地审批** `sev-P1`
+  风险/证据/diff/授权时长；Memory edit-and-approve；badge 与重连去重。
+- [ ] **GMH-33：CLI/headless 行为** `sev-P2`
+  交互可批；非交互 fail/queue，绝不默认放行。Gate G3：shell / Memory 高风险 /
+  Plan 各一条 E2E。
+- [ ] **GMH-40：Agent Loop 单一副作用 seam** `sev-P1`
+  组装/pre-call/执行同一治理快照；turn 分段可取消可度量；子代理/cron 禁止提权。
+- [ ] **GMH-41：自治预算与熔断** `sev-P2`
+  turn/session/day 限额；拒绝风暴熔断；离线高风险排队或拒绝。
+- [ ] **GMH-42：治理可观测性与审计** `sev-P2`
+  decision latency、人工等待、deny/stale receipt、Memory apply/rollback 指标与
+  correlation 证据链。
+- [ ] **GMH-50：兼容迁移与 feature flags** `sev-P2`
+  不得重新引入 Mentle；禁止长期双写。
+- [ ] **GMH-51：安全与数据恢复演练** `sev-P1`
+- [ ] **GMH-52：全量验收** `sev-P1`
+  `just fmt-check` / `check` / `test`、deletion-proof、GUI、真实 smoke。
+- [ ] **GMH-53：灰度与清理** `sev-P2`
+
+里程碑（更新后）：
+
+- [x] M0 / M1 / M2 — 见 archive（含 GMH-24 clean-break）
+- [ ] **M3** HITL 闭环（GMH-30..33）
+- [ ] **M4** Agent Loop 接入（GMH-40..42）
+- [ ] **M5** 灰度发布（GMH-50..53）
+
+统一 DoD：设计/威胁模型；成功/拒绝/超时/并发/重启测试；用户可见路径 smoke；
+`docs/logs` 四件套；单 concern Conventional Commit；不擅自 push。
+
+### Reliability / Test Debt
+
+- [ ] **QQ invalid-resume 集成测试 load-sensitive** `sev-P2`
+  全量 gate 偶发 opcode 乱序；隔离重跑通过。
+  `agent-diva-channels/tests/qq_reconnect_integration.rs`。
+- [ ] **Memory authority provider 选择缺 focused characterization** `sev-P2`
+  `.laputa/` 打开失败应选 `DegradedMemoryProvider`；
+  `cargo test -p agent-diva-agent memory_boundary` 当前 0 测。
+  `agent-diva-agent/src/memory_boundary.rs`。
+- [ ] **Manager library suite 在 workspace gate 下 load-sensitive** `sev-P2`
+  隔离 `cargo test -p agent-diva-manager --lib` 可通过。
+  需定位并同步不稳定用例。
+- [ ] **Workspace Rust 1.80 MSRV 与无关新依赖冲突** `sev-P2`
+  GMH-24 已移除 Mentle 链；仍有 ICU/Darling/Pest/CRC/Tauri 等声明 MSRV >1.80。
+  独立 pin/升级切片；勿削弱 clean-break gate。
+- [ ] **MSRV 探测污染默认 target cache** `sev-P2`
+  未来 `cargo +1.80` 须用独立 `CARGO_TARGET_DIR`。
+- [ ] **Laputa service 预存 clippy `int_plus_one`** `sev-P3`
+  `agent-diva-laputa/tests/service.rs` 四处断言风格问题。
+- [ ] **StepFun 真实 endpoint E2E（model pass-through）** `sev-P3`
+  单测已覆盖透传；缺真实 key 时的 E2E。使用桌面 `keys.txt`，勿入库。
+
+### Plan Residual（2026-07-30 重评后仍 open）
+
+对照当前代码保留；完整历史处置表见
+[`docs/archive/todolist/plan-todo-p1-p3-disposition-2026-07-30.md`](docs/archive/todolist/plan-todo-p1-p3-disposition-2026-07-30.md)。
+
+- [ ] **扩展 phase×capability / transition 矩阵与 denial 副作用测试** `sev-P2`
+  policy 已 fail-closed，但缺完整非法迁移笛卡尔与 denial 前后 store 快照断言；
+  assembly 仅子集工具。
+  相关：`agent-diva-core/src/planning/policy.rs`、
+  `agent-diva-agent/src/tool_assembly.rs`、agent-loop 集成夹具。
+- [ ] **runtime 配置热更新后按 phase 重建工具表** `sev-P2`
+  `rebuild_tools_for_active_phase` 当前 `rebuild_tools_for_turn(..., None, ...)`，
+  网络/MCP 更新可能短暂丢掉 phase 边界。
+  `agent-diva-agent/src/agent_loop/loop_runtime_control.rs`。
+- [ ] **空 execution TODO 列表的 Verify 门闩** `sev-P2`
+  `PlanVerifier::verify` 在 `total == 0` 时直接 Pass，可能让无步骤计划误完成。
+  `agent-diva-agent/src/planning/verifier.rs`。
+- [ ] **预存在 TODO 与 materialize 策略文档化/修复** `sev-P2`
+  `TodoAlreadyMaterialized` 仍可永久卡住 Always 路径；需产品决策：视为已物化
+  成功、禁止预批准写入、或提供清理 API。
+  `agent-diva-core/src/planning/store.rs`。
+- [ ] **删除 orchestrator 内注释掉的死迁移矩阵** `sev-P3`
+  `agent-diva-agent/src/planning/orchestrator.rs` 大段注释旧表；core 已是唯一真相。
+
+### Deferred Product
+
+- [ ] **Mask feature 验收** `sev-P2`
+  `.sisyphus/plans/mask-feature-implementation.md` 剩余项，待独立恢复。
+- [ ] **Wave 3 residual：enqueue_background_task 生产路径 E2E 证明** `sev-P2`
+  `agent-diva-tools/src/enqueue_background_task.rs`、assembly / agent_loop。
+- [ ] **Wave 3 residual：supervised subagent worker bootstrap 刻画** `sev-P2`
+  启动/排空/取消/重启缺生产路径测试。
+- [ ] **Wave 3 residual：subagent 终态生命周期 E2E** `sev-P2`
+- [ ] **Wave 3 residual：background task 上下文与预算继承 E2E** `sev-P2`
+- [ ] **Wave 3 residual：workspace CLI managed-path 与任意路径产品契约** `sev-P3`
+  路径穿越已修；managed `config_dir/workspaces/*` 与 runtime 任意路径模型仍分歧。
+- [ ] **UX-DR-3/4/7** `sev-P3`
+  Sprint 评审 UX 缺口，待专项设计。
+
+---
+
+## Archive Index
+
+| 文档 | 内容 |
+|------|------|
+| [`docs/archive/todolist/completed-through-2026-07-29.md`](docs/archive/todolist/completed-through-2026-07-29.md) | 早期完成项与 P2/P3 boundary 实现索引 |
+| [`docs/archive/todolist/completed-through-2026-07-30.md`](docs/archive/todolist/completed-through-2026-07-30.md) | G0、GMH-00..24、Deferred Review Program 关闭、G1 等 |
+| [`docs/archive/todolist/plan-todo-p1-p3-disposition-2026-07-30.md`](docs/archive/todolist/plan-todo-p1-p3-disposition-2026-07-30.md) | 2026-07-11 Plan P1–P3 评审逐条 CLOSED/SUPERSEDED/OBSOLETE/OPEN-RESIDUAL |
+| [`docs/logs/2026-07-todolist-triage/v0.0.1-archive-and-residual/`](docs/logs/2026-07-todolist-triage/v0.0.1-archive-and-residual/) | 本次瘦身迭代日志 |
+
+**原则：** 主清单只保留本阶段 Active Plan 与真实未完成项；完成项迁 archive，不静默删除。
