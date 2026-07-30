@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `None`
 - Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-30T16:28:16+08:00`
-- Last Heartbeat: `2026-07-30T17:01:00+08:00`
+- Started At: `2026-07-30T19:21:07+08:00`
+- Last Heartbeat: `2026-07-30T19:48:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -29,6 +29,15 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-30T19:48:00+08:00`: Released GMH-23D crash-window recovery
+  hardening. Commit `cc2d98ed` persists prepared, authority-committed, and
+  receipt-consumed legacy apply results and replays them without duplicate
+  changelog/audit effects. Focused recovery tests, `just fmt-check`, and
+  `just check` passed. The full `just test` reproduced the existing
+  load-sensitive Manager-suite failure; the immediate isolated 70-test Manager
+  suite passed. GMH-24A remains blocked on the six required real desktop G2D
+  scenarios. No push occurred.
 
 - `2026-07-30T17:01:00+08:00`: Released GMH-23D implementation scope.
   Commits `06b38ff4`, `e03e56e0`, `f9248d06`, `7b070a39`, and `d65df9f8`
