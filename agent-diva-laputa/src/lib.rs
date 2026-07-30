@@ -20,7 +20,8 @@ pub mod typed_store;
 pub use atomic::{atomic_write, atomic_write_json};
 pub use error::{LaputaError, Result};
 pub use governed_apply::{
-    proposal_digest, MemoryGovernanceCoordinator, MemoryGovernanceError, MemoryGovernanceView,
+    proposal_digest, MemoryGovernanceCoordinator, MemoryGovernanceDecision, MemoryGovernanceError,
+    MemoryGovernanceView,
 };
 pub use layout::{LaputaPaths, LaputaStorage};
 pub use lock::{LaputaLock, LockOptions};

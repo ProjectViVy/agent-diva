@@ -14,8 +14,8 @@ use agent_diva_core::{
     },
 };
 use agent_diva_laputa::{
-    proposal_digest, GovernedMemoryApply, MemoryGovernanceCoordinator, TypedMemoryStore,
-    TypedMemoryStoreError,
+    proposal_digest, GovernedMemoryApply, MemoryGovernanceCoordinator, MemoryGovernanceDecision,
+    TypedMemoryStore, TypedMemoryStoreError,
 };
 use chrono::{Duration, TimeZone, Utc};
 
@@ -65,14 +65,16 @@ async fn governance_requires_human_and_rebinds_after_edit() {
         .decide(
             &original,
             pending.request_version,
-            Decision::Allow,
-            ApprovalGrant::Once,
-            GovernanceSubject {
-                kind: GovernanceSubjectKind::User,
-                id: "reviewer".into(),
+            MemoryGovernanceDecision {
+                decision: Decision::Allow,
+                grant: ApprovalGrant::Once,
+                actor: GovernanceSubject {
+                    kind: GovernanceSubjectKind::User,
+                    id: "reviewer".into(),
+                },
+                idempotency_key: "decision-1",
+                decided_at: now() + Duration::minutes(1),
             },
-            "decision-1",
-            now() + Duration::minutes(1),
         )
         .await
         .unwrap();
@@ -105,14 +107,16 @@ async fn high_risk_rejects_reusable_grants_and_versions_conflict() {
         .decide(
             &proposal,
             pending.request_version,
-            Decision::Allow,
-            ApprovalGrant::Session,
-            GovernanceSubject {
-                kind: GovernanceSubjectKind::User,
-                id: "reviewer".into(),
+            MemoryGovernanceDecision {
+                decision: Decision::Allow,
+                grant: ApprovalGrant::Session,
+                actor: GovernanceSubject {
+                    kind: GovernanceSubjectKind::User,
+                    id: "reviewer".into(),
+                },
+                idempotency_key: "decision-invalid",
+                decided_at: now() + Duration::minutes(1),
             },
-            "decision-invalid",
-            now() + Duration::minutes(1),
         )
         .await
         .unwrap_err();

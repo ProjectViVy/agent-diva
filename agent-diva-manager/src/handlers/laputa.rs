@@ -7,8 +7,8 @@ use agent_diva_core::governance::{
     ApprovalGrant, ApprovalLedgerError, Decision, GovernanceSubject, GovernanceSubjectKind,
 };
 use agent_diva_laputa::{
-    ChangelogFilter, LaputaError, LaputaEventKind, MemoryGovernanceError, ProposalEdit,
-    ProposalFilter, RollbackChangelogRequest,
+    ChangelogFilter, LaputaError, LaputaEventKind, MemoryGovernanceDecision, MemoryGovernanceError,
+    ProposalEdit, ProposalFilter, RollbackChangelogRequest,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -233,14 +233,16 @@ pub async fn decide_laputa_proposal_handler(
         .decide(
             &proposal,
             payload.expected_version,
-            payload.decision.clone(),
-            payload.grant,
-            GovernanceSubject {
-                kind: GovernanceSubjectKind::User,
-                id: "local-user".into(),
+            MemoryGovernanceDecision {
+                decision: payload.decision.clone(),
+                grant: payload.grant,
+                actor: GovernanceSubject {
+                    kind: GovernanceSubjectKind::User,
+                    id: "local-user".into(),
+                },
+                idempotency_key: &payload.idempotency_key,
+                decided_at: Utc::now(),
             },
-            &payload.idempotency_key,
-            Utc::now(),
         )
         .await
         .map_err(memory_governance_error_response)?;

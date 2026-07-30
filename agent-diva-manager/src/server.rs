@@ -313,6 +313,7 @@ mod tests {
     use agent_diva_core::governance::{
         ApprovalGrant, Decision, GovernanceSubject, GovernanceSubjectKind,
     };
+    use agent_diva_laputa::MemoryGovernanceDecision;
     use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
     use chrono::{DateTime, Utc};
@@ -463,14 +464,16 @@ mod tests {
             .decide(
                 &proposal,
                 pending.request_version,
-                Decision::Allow,
-                ApprovalGrant::Once,
-                GovernanceSubject {
-                    kind: GovernanceSubjectKind::User,
-                    id: "reviewer".to_string(),
+                MemoryGovernanceDecision {
+                    decision: Decision::Allow,
+                    grant: ApprovalGrant::Once,
+                    actor: GovernanceSubject {
+                        kind: GovernanceSubjectKind::User,
+                        id: "reviewer".to_string(),
+                    },
+                    idempotency_key: "test-decision",
+                    decided_at: now,
                 },
-                "test-decision",
-                now,
             )
             .await
             .unwrap();

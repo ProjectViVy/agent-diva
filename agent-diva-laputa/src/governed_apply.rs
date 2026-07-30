@@ -53,6 +53,15 @@ pub struct MemoryGovernanceView {
     pub receipt: Option<ApprovalReceipt>,
 }
 
+/// Caller-supplied fields for one governed proposal decision.
+pub struct MemoryGovernanceDecision<'a> {
+    pub decision: Decision,
+    pub grant: ApprovalGrant,
+    pub actor: GovernanceSubject,
+    pub idempotency_key: &'a str,
+    pub decided_at: DateTime<Utc>,
+}
+
 #[derive(Clone)]
 pub struct MemoryGovernanceCoordinator {
     workspace_id: String,
@@ -187,20 +196,16 @@ impl MemoryGovernanceCoordinator {
         &self,
         proposal: &EvolutionProposal,
         expected_version: u64,
-        decision: Decision,
-        grant: ApprovalGrant,
-        actor: GovernanceSubject,
-        idempotency_key: &str,
-        now: DateTime<Utc>,
+        input: MemoryGovernanceDecision<'_>,
     ) -> Result<MemoryGovernanceView, MemoryGovernanceError> {
         let request = self.request_for(proposal, None, proposal.updated_at);
-        let current = self.mapped_state(proposal, now).await?;
+        let current = self.mapped_state(proposal, input.decided_at).await?;
         if current.request.content_digest != request.content_digest {
             return Err(MemoryGovernanceError::StaleProposal);
         }
-        if decision == Decision::Allow
-            && (proposal.risk_level != RiskLevel::Low || grant == ApprovalGrant::Unknown)
-            && grant != ApprovalGrant::Once
+        if input.decision == Decision::Allow
+            && (proposal.risk_level != RiskLevel::Low || input.grant == ApprovalGrant::Unknown)
+            && input.grant != ApprovalGrant::Once
         {
             return Err(MemoryGovernanceError::InvalidGrant);
         }
@@ -210,11 +215,11 @@ impl MemoryGovernanceCoordinator {
             policy_version: current.request.policy_version.clone(),
             capability: Capability::MemoryApply,
             resource: current.request.resource.clone(),
-            decision,
-            decided_by: actor,
-            decided_at: now,
+            decision: input.decision,
+            decided_by: input.actor,
+            decided_at: input.decided_at,
             expires_at: current.request.expires_at,
-            grant,
+            grant: input.grant,
         };
         let state = self
             .ledger()
@@ -222,11 +227,11 @@ impl MemoryGovernanceCoordinator {
             .decide(
                 &current.request.correlation.request_id,
                 expected_version,
-                idempotency_key,
+                input.idempotency_key,
                 receipt,
             )
             .await?;
-        Ok(self.view(proposal, &request, state, now))
+        Ok(self.view(proposal, &request, state, input.decided_at))
     }
 
     pub async fn allowed_receipt(
