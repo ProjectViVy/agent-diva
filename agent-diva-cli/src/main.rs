@@ -384,8 +384,16 @@ enum ConfigCommands {
     },
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    const WORKER_STACK_BYTES: usize = 16 * 1024 * 1024;
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(WORKER_STACK_BYTES)
+        .build()?
+        .block_on(async_main())
+}
+
+async fn async_main() -> Result<()> {
     let cli = Cli::parse();
     let structured_output = is_structured_output(&cli.command);
     let enable_terminal_logs = command_writes_logs_to_terminal(&cli.command);

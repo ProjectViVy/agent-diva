@@ -43,6 +43,23 @@ Evolution development or release acceptance resumes.
 
 ## Operational Testing
 
+- [ ] **Typed workspace identity needs one canonical path encoding**
+  Real-profile G2D preflight showed that `C:\...\workspace` and the runtime's
+  mixed-separator `C:\.../workspace` are treated as different identities.
+  Fail-closed behavior worked, but Migration operators should not need to infer
+  the runtime string representation. Define one cross-platform canonical
+  workspace-ID function, use it in runtime, health, governed apply and
+  Migration, and provide an explicit identity-only migration for existing
+  empty/non-empty stores. Current G2D profile was re-imported with the exact
+  runtime identity and is healthy; do not silently rewrite other profiles.
+
+- [x] **Windows gateway stack reserve was incorrectly removed during
+  clean-break** Real G2D startup reproduced a main-thread overflow before the
+  HTTP API became ready. Restored backend-neutral PE and Tokio worker stack
+  sizing; the real gateway now serves ready typed health without restoring a
+  removed runtime. Evidence:
+  `docs/logs/2026-07-g2d-gateway-stack/v0.0.1-windows-bootstrap/`.
+
 - [x] **Migration apply reported inconsistent before/after revisions during
   G2D preflight** Fixed by separating expected and resulting revisions,
   validating replayed manifest/store identity, and recording rollback state so
