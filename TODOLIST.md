@@ -5,10 +5,11 @@
 ## Active Plan
 
 The active Memory delivery plan is the Embedded Laputa correction under
-GMH-23A..24. GMH-23 stage 3 is paused. Completed proposal stages 1/2 are
-preserved; no new Mentle work is authorized. The next implementation gate is
-GMH-23D proposal apply/HITL resumption, followed by the GMH-24 cutover and
-Mentle clean-break.
+GMH-23A..24. GMH-23D implementation and automated recovery hardening are
+complete; its six-scenario real-desktop G2D acceptance is explicitly deferred
+and no longer blocks architecture work. The next implementation gate is GMH-24
+cutover and Mentle clean-break. G2D must still pass after that closure and
+before Evolution development or release acceptance resumes.
 The previously completed Mentle prompt-rebuild work is only historical baseline
 evidence for deletion and does not define the target architecture.
 
@@ -19,6 +20,14 @@ evidence for deletion and does not define the target architecture.
   does not restore approved execution sessions, and treats unknown explicit
   modes as Ask. Evidence:
   `docs/logs/2026-07-ask-mode-read-only/v0.0.1-authority-boundary/`.
+
+- [ ] **Evolution feature development is frozen until Laputa architecture
+  closure** Do not repair or extend AutoDream/Evolution product functions while
+  GMH-24 cutover and Mentle clean-break remain open. During the freeze, only
+  security/data-integrity fixes and an explicit unavailable/degraded UX are
+  allowed. After GMH-24 completes, rebaseline Evolution against typed Laputa,
+  execute the deferred G2D desktop scenarios, and only then resume feature
+  development.
 
 ## Skill / SOP Unification
 
@@ -592,20 +601,24 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
     recall@8 为 100%，restricted 注入率与重复率为 0；Windows debug
     10,000 条 fixture 的完整 Recall top-8 P95 为 71.1659 ms。生产
     prefetch/prompt 未切换，read cutover 仍属于 GMH-24。
-- [ ] **GMH-23D：恢复 proposal apply/HITL（原 GMH-23 阶段 3）**
-  - 将已完成的 session sync 与 GUI proposal 接到 Embedded Laputa；
-    补齐 AutoDream、import、低风险策略应用与高风险 HITL。
+- [x] **GMH-23D：恢复 proposal apply/HITL（原 GMH-23 阶段 3）**
+  - 已完成 session sync 与 GUI proposal 的 receipt-gated HITL/apply
+    治理边界及崩溃恢复。AutoDream 接入随 Evolution 开发冻结；import
+    写入切换归入 GMH-24；低风险自动 apply 在本阶段保持关闭。
   - apply 仅通过有效 receipt 与原子事务；产生 audit/changelog，支持
     edit-and-approve、冲突、撤销/补偿和遗忘。
   - 已完成治理接缝：proposal digest/version 绑定、编辑撤销、HITL
     decision、once receipt、Manager/Tauri/GUI receipt-gated legacy apply，
     以及非生产 typed-store 原子 apply journal。生产 typed write 未切换。
-  - G2D 尚待真实桌面验收：批准、拒绝、编辑后批准、并发重复点击、
-    重启恢复和回滚；验收时保留 request/proposal/audit ID。
+  - G2D 真实桌面验收已按用户决策 deferred，不再阻断 GMH-24 架构闭环：
+    批准、拒绝、编辑后批准、并发重复点击、重启恢复和回滚。Mentle
+    clean-break 后、恢复 Evolution 开发或发布验收前必须执行，并保留
+    request/proposal/audit/rollback ID、界面结果及 Manager/Tauri 日志。
   - 后续加固：legacy 文件 apply 的“事务已提交但 receipt 消费前崩溃”
     已增加持久化幂等恢复结果与自动化覆盖；低风险自动 apply 仍保持关闭，待明确配置和
     session/rule authorization 接口完成后才可启用。
 - [ ] **GMH-24：Embedded Laputa cutover 与 Mentle clean-break Gate**
+  - 当前最高优先级；G2D 桌面验收不再作为进入本 Gate 的前置条件。
   - 对 legacy Markdown/Laputa JSON 做一次性、显式、可回滚离线导入；
     禁止读取旧 Mentle 数据库，禁止长期双读/双写。
   - 先 shadow read，再 read cutover，最后 write cutover；每一步均有
