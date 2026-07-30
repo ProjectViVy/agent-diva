@@ -307,6 +307,24 @@ Status: implemented without production read cutover.
 - GMH-23A freezes the clean-break contract; GMH-23B ports the typed SQLite
   store; GMH-23C connects recall; GMH-23D resumes apply/HITL.
 
+### GMH-23D — governed apply seam
+
+Status: implemented behind the existing proposal surface; production typed
+write cutover remains excluded.
+
+- `MemoryGovernanceCoordinator` binds proposal digest, workspace/session,
+  target section, risk, evidence, policy version, and correlation to a
+  `MemoryApply` request in the payload-free SQLite approval ledger.
+- Editing a proposal revokes the previous digest-bound request and creates a
+  new versioned request. General proposal transitions cannot approve or reject.
+- Manager-generated user identity and time are authoritative. Tauri and GUI
+  carry only request ID, expected version, decision/grant, and idempotency key.
+- The legacy section executor is receipt-gated but remains the sole production
+  write path. The typed executor is Rust-only and atomically commits record,
+  relations, FTS, revisions, and a payload-free apply journal.
+- `LaputaMemoryProvider`, Recall prompt assembly, and typed authority selection
+  are unchanged. GMH-24 owns write cutover and prohibits dual-write.
+
 ### GMH-24 — Embedded Laputa cutover and Mentle clean-break gate
 
 - Run bounded shadow comparison and integrity/rollback fixtures.

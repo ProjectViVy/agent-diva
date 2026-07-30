@@ -87,3 +87,16 @@ GMH-23C exposes an explicit Rust shadow service but does not call it from the
 production provider or AgentLoop. A returned `RecallOutcome` is available to
 the explicit caller for evaluation; only its separate metrics object is safe
 for routine diagnostics.
+
+## GMH-23D governed apply amendment
+
+| Threat | Control |
+| --- | --- |
+| Client self-reports actor or apply time | Manager creates actor/time; clients send only decision, grant, request version, and idempotency metadata |
+| Proposal changes after approval | The canonical patch digest is mapped to one request; editing revokes the old request and creates a new request |
+| Direct transition bypasses HITL | Generic transitions to approved/rejected return a stable conflict; only the governance decision endpoint can decide |
+| Receipt replay or scope substitution | Receipt validation binds request ID, digest, policy version, Memory resource scope, expiry, decision, and grant |
+| Critical authorization persists | High and critical proposals accept approve-once only; reusable grants fail closed |
+| Typed record and FTS diverge | Record, supersedes, FTS, revisions, and apply journal commit in one SQLite transaction |
+| Transitional dual-write creates two authorities | Production continues legacy section apply only; the typed executor has no Manager, Tauri, GUI, provider, or model-tool registration |
+| Ledger leaks proposal content | Governance mapping and ledger store identifiers, digest, policy/evidence metadata, and decisions only |

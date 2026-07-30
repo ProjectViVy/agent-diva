@@ -588,6 +588,14 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
     补齐 AutoDream、import、低风险策略应用与高风险 HITL。
   - apply 仅通过有效 receipt 与原子事务；产生 audit/changelog，支持
     edit-and-approve、冲突、撤销/补偿和遗忘。
+  - 已完成治理接缝：proposal digest/version 绑定、编辑撤销、HITL
+    decision、once receipt、Manager/Tauri/GUI receipt-gated legacy apply，
+    以及非生产 typed-store 原子 apply journal。生产 typed write 未切换。
+  - G2D 尚待真实桌面验收：批准、拒绝、编辑后批准、并发重复点击、
+    重启恢复和回滚；验收时保留 request/proposal/audit ID。
+  - 后续加固：legacy 文件 apply 的“事务已提交但 receipt 消费前崩溃”
+    需持久化幂等恢复结果；低风险自动 apply 仍保持关闭，待明确配置和
+    session/rule authorization 接口完成后才可启用。
 - [ ] **GMH-24：Embedded Laputa cutover 与 Mentle clean-break Gate**
   - 对 legacy Markdown/Laputa JSON 做一次性、显式、可回滚离线导入；
     禁止读取旧 Mentle 数据库，禁止长期双读/双写。
