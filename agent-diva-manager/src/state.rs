@@ -2,8 +2,8 @@ use agent_diva_agent::AgentEvent;
 use agent_diva_autodream::AutoDreamService;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
-    ChannelsConfig, MCPServerConfig, MentleToolConfig, SelfEvolutionConfig, WebFetchConfig,
-    WebSearchConfig, WebToolsConfig,
+    ChannelsConfig, MCPServerConfig, MemoryAuthorityMode, MentleToolConfig, SelfEvolutionConfig,
+    WebFetchConfig, WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator};
@@ -66,6 +66,7 @@ pub struct AppState {
     pub autodream: AutoDreamService,
     pub laputa: LaputaService,
     pub memory_governance: MemoryGovernanceCoordinator,
+    pub memory_authority_mode: MemoryAuthorityMode,
     pub health: HealthSignals,
     /// Server start time, used for uptime calculation in the health endpoint.
     pub started_at: Instant,
@@ -91,6 +92,22 @@ impl AppState {
         bus: MessageBus,
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
+    ) -> anyhow::Result<Self> {
+        Self::new_with_runtime_memory(
+            api_tx,
+            bus,
+            workspace_root,
+            command_approvals,
+            MemoryAuthorityMode::Legacy,
+        )
+    }
+
+    pub fn new_with_runtime_memory(
+        api_tx: mpsc::Sender<ManagerCommand>,
+        bus: MessageBus,
+        workspace_root: impl Into<PathBuf>,
+        command_approvals: CommandApprovalCoordinator,
+        memory_authority_mode: MemoryAuthorityMode,
     ) -> anyhow::Result<Self> {
         let workspace_root = workspace_root.into();
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
@@ -122,6 +139,7 @@ impl AppState {
             autodream,
             laputa,
             memory_governance,
+            memory_authority_mode,
             health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
             command_approvals,

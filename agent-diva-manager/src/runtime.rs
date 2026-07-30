@@ -498,27 +498,13 @@ async fn build_agent_loop(
         budget: config.tools.budget.clone().into(),
     };
 
-    let laputa_state_dir = workspace.join(".laputa");
-    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
-        if laputa_state_dir.is_dir() {
-            tracing::info!(
-                "Laputa state directory detected at {}; injecting read-only LaputaMemoryProvider",
-                laputa_state_dir.display()
-            );
-            match agent_diva_laputa::LaputaMemoryProvider::open(&workspace) {
-                Ok(provider) => Some(Arc::new(provider)),
-                Err(error) => {
-                    tracing::warn!(
-                        "LaputaMemoryProvider unavailable for {}: {}; falling back to default MemoryManager",
-                        workspace.display(),
-                        error
-                    );
-                    None
-                }
-            }
-        } else {
-            None
-        };
+    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> = Some(
+        agent_diva_agent::memory_boundary::memory_provider_for_mode(
+            &workspace,
+            config.memory.authority_mode,
+        )
+        .await,
+    );
 
     AgentLoop::with_tools_and_memory_provider(
         bus,

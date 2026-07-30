@@ -6,6 +6,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 
 use crate::state::AppState;
+use agent_diva_core::config::schema::MemoryAuthorityMode;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HealthResponse {
@@ -13,6 +14,17 @@ pub struct HealthResponse {
     pub version: &'static str,
     pub uptime_secs: u64,
     pub components: BTreeMap<&'static str, ComponentHealth>,
+    pub memory: MemoryHealth,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MemoryHealth {
+    pub authority_mode: MemoryAuthorityMode,
+    pub status: &'static str,
+    pub degraded_reason: Option<&'static str>,
+    pub store_revision: Option<i64>,
+    pub record_count: Option<i64>,
+    pub tombstone_count: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -29,12 +41,20 @@ pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse 
     let audit_sink_ready = state.audit_root.exists() && state.health.audit_sink_ready();
     let event_bus_ready = true;
     let cron_ready = state.health.cron_ready();
+    let memory = memory_health(&state).await;
 
     let mut components = BTreeMap::new();
     components.insert("audit_sink", component_from_bool(audit_sink_ready, true));
     components.insert("cron", component_from_option(cron_ready, true));
     components.insert("event_bus", component_from_bool(event_bus_ready, true));
     components.insert("workspace", component_from_bool(workspace_ready, true));
+    components.insert(
+        "memory",
+        component_from_bool(
+            memory.status == "ready",
+            state.memory_authority_mode != MemoryAuthorityMode::Legacy,
+        ),
+    );
 
     let all_critical_ready = components
         .values()
@@ -54,8 +74,64 @@ pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse 
             version: env!("CARGO_PKG_VERSION"),
             uptime_secs,
             components,
+            memory,
         }),
     )
+}
+
+async fn memory_health(state: &AppState) -> MemoryHealth {
+    if state.memory_authority_mode == MemoryAuthorityMode::Legacy {
+        return MemoryHealth {
+            authority_mode: state.memory_authority_mode,
+            status: "ready",
+            degraded_reason: None,
+            store_revision: None,
+            record_count: None,
+            tombstone_count: None,
+        };
+    }
+    let store = match agent_diva_laputa::TypedMemoryStore::open_existing(
+        &state.workspace_root,
+        state.workspace_root.to_string_lossy().to_string(),
+    )
+    .await
+    {
+        Ok(store) => store,
+        Err(agent_diva_laputa::TypedMemoryStoreError::DatabaseWorkspaceMismatch { .. }) => {
+            return degraded_memory(state, "workspace_mismatch")
+        }
+        Err(agent_diva_laputa::TypedMemoryStoreError::FtsUnavailable) => {
+            return degraded_memory(state, "fts_unavailable")
+        }
+        Err(_) => return degraded_memory(state, "typed_store_unavailable"),
+    };
+    match store.integrity().await {
+        Ok(integrity)
+            if integrity.corrupt_record_ids.is_empty() && integrity.orphan_fts_rows == 0 =>
+        {
+            MemoryHealth {
+                authority_mode: state.memory_authority_mode,
+                status: "ready",
+                degraded_reason: None,
+                store_revision: Some(integrity.store_revision),
+                record_count: Some(integrity.record_count),
+                tombstone_count: Some(integrity.tombstone_count),
+            }
+        }
+        Ok(_) => degraded_memory(state, "integrity_failed"),
+        Err(_) => degraded_memory(state, "integrity_unavailable"),
+    }
+}
+
+fn degraded_memory(state: &AppState, reason: &'static str) -> MemoryHealth {
+    MemoryHealth {
+        authority_mode: state.memory_authority_mode,
+        status: "degraded",
+        degraded_reason: Some(reason),
+        store_revision: None,
+        record_count: None,
+        tombstone_count: None,
+    }
 }
 
 fn component_from_bool(ready: bool, critical: bool) -> ComponentHealth {
@@ -115,6 +191,24 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn shadow_health_reports_payload_free_store_failure() {
+        let (api_tx, _api_rx) = mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state = AppState::new_with_runtime_memory(
+            api_tx,
+            MessageBus::new(),
+            temp.path(),
+            agent_diva_sandbox::CommandApprovalCoordinator::default(),
+            MemoryAuthorityMode::Shadow,
+        )
+        .unwrap();
+        let health = memory_health(&state).await;
+        assert_eq!(health.status, "degraded");
+        assert_eq!(health.degraded_reason, Some("typed_store_unavailable"));
+        assert_eq!(health.store_revision, None);
     }
 
     #[tokio::test]
