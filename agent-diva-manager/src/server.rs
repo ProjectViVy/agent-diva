@@ -818,6 +818,208 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn vertical_autodream_typed_memory_recall_feedback_and_rollback_closes() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let journal = agent_diva_core::experience::ExperienceJournal::open(temp.path());
+        journal
+            .append(&journal.tool_evidence(
+                "gui:e7",
+                "trace-e7",
+                "tool-e7",
+                "exec",
+                agent_diva_core::experience::OutcomeKind::Succeeded,
+            ))
+            .unwrap();
+
+        let mut state = AppState::new_with_runtime_memory(
+            api_tx,
+            agent_diva_core::bus::MessageBus::new(),
+            temp.path(),
+            agent_diva_sandbox::CommandApprovalCoordinator::default(),
+            agent_diva_core::config::schema::MemoryAuthorityMode::Typed,
+        )
+        .unwrap();
+        state.autodream = state
+            .autodream
+            .clone()
+            .with_reflection_engine(Some(Arc::new(
+                DeterministicReflectionEngine::evidence_echo(),
+            )));
+        let app = build_router(state.clone());
+
+        let triggered = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/autodream/runs")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"trigger":"manual"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(triggered.status(), StatusCode::OK);
+        let triggered: serde_json::Value =
+            serde_json::from_slice(&to_bytes(triggered.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let run_id = triggered["run"]["id"].as_str().unwrap();
+        let terminal = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let status = state.autodream.get_run_status(run_id).unwrap();
+                if matches!(
+                    status.run.state,
+                    AutoDreamRunState::Completed
+                        | AutoDreamRunState::Failed
+                        | AutoDreamRunState::Cancelled
+                ) {
+                    break status;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(terminal.run.state, AutoDreamRunState::Completed);
+        let proposal_id = terminal.run.proposal_ids.first().unwrap();
+        let proposal = state.laputa.get_proposal(proposal_id).unwrap();
+        assert_eq!(proposal.source_run_id.as_deref(), Some(run_id));
+
+        let now = Utc::now();
+        let pending = state
+            .memory_governance
+            .submit(&proposal, None, now)
+            .await
+            .unwrap();
+        let authorized = state
+            .memory_governance
+            .decide(
+                &proposal,
+                pending.request_version,
+                MemoryGovernanceDecision {
+                    decision: Decision::Allow,
+                    grant: ApprovalGrant::Once,
+                    actor: GovernanceSubject {
+                        kind: GovernanceSubjectKind::User,
+                        id: "e7-reviewer".into(),
+                    },
+                    idempotency_key: "e7-decision",
+                    decided_at: now,
+                },
+            )
+            .await
+            .unwrap();
+        state
+            .laputa
+            .transition_proposal(proposal_id, ProposalState::Approved, now)
+            .unwrap();
+        let applied = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/laputa/proposals/{proposal_id}/apply"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "governance_request_id": authorized.request_id,
+                            "expected_version": authorized.request_version,
+                            "idempotency_key": "e7-apply"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let applied_status = applied.status();
+        let applied: serde_json::Value =
+            serde_json::from_slice(&to_bytes(applied.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(applied_status, StatusCode::OK, "{applied}");
+        let changelog_id = applied["changelog"]["id"].as_str().unwrap();
+
+        let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(temp.path());
+        let store = agent_diva_laputa::TypedMemoryStore::open_existing_canonical(temp.path())
+            .await
+            .unwrap();
+        let recall = agent_diva_laputa::LaputaRecallService::new(store);
+        let recall_request = agent_diva_core::memory::RecallRequest {
+            query: "command action succeeded".into(),
+            scope: agent_diva_core::memory::MemoryScope {
+                tenant_id: "local".into(),
+                workspace_id,
+                session_id: None,
+            },
+            correlation: agent_diva_core::governance::AuditCorrelation {
+                request_id: "e7-recall".into(),
+                turn_id: "e7-turn".into(),
+                session_id: "gui:e7".into(),
+                trace_id: Some("trace-e7".into()),
+            },
+            now: Utc::now(),
+            token_budget: 4_000,
+            max_candidates: 8,
+            policy: agent_diva_core::memory::RecallPolicy::default_prompt(),
+        };
+        let recalled = recall.recall_shadow(&recall_request).await.unwrap();
+        assert_eq!(
+            recalled.outcome.status,
+            agent_diva_core::memory::RecallStatus::Ready
+        );
+        assert_eq!(recalled.outcome.selected_records.len(), 1);
+        let selected = &recalled.outcome.selected_records[0];
+        agent_diva_laputa::RecallFeedbackStore::new(
+            agent_diva_laputa::LaputaStorage::open(temp.path()).unwrap(),
+        )
+        .commit_pending(
+            vec![agent_diva_laputa::PendingRecallFeedback {
+                request_id: "e7-recall".into(),
+                selected: vec![(
+                    selected.id.clone(),
+                    selected.provenance.content_digest.clone(),
+                )],
+                injected: true,
+                selected_at: now,
+            }],
+            agent_diva_laputa::RecallTaskOutcome::Succeeded,
+            false,
+            Utc::now(),
+        )
+        .unwrap();
+
+        let rolled_back = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/laputa/changelog/{changelog_id}/rollback"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"e7 automated recovery"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let rollback_status = rolled_back.status();
+        let rollback_body = serde_json::from_slice::<serde_json::Value>(
+            &to_bytes(rolled_back.into_body(), usize::MAX).await.unwrap(),
+        )
+        .unwrap();
+        assert_eq!(rollback_status, StatusCode::OK, "{rollback_body}");
+        let after_rollback = recall.recall_shadow(&recall_request).await.unwrap();
+        assert!(after_rollback.outcome.selected_records.is_empty());
+        assert_eq!(
+            agent_diva_laputa::RecallFeedbackStore::new(
+                agent_diva_laputa::LaputaStorage::open(temp.path()).unwrap()
+            )
+            .recent(10)
+            .unwrap()
+            .len(),
+            1
+        );
+    }
+
+    #[tokio::test]
     async fn write_laputa_section_creates_pending_proposal_without_applying() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();

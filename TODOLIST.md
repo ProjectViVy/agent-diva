@@ -151,7 +151,7 @@ standing policy（非功能债，执行相关验证时遵守）：
 - [x] **QQ invalid-resume 集成测试 load-sensitive** `sev-P2`
   全量 gate 偶发 opcode 乱序；隔离重跑通过。
   `agent-diva-channels/tests/qq_reconnect_integration.rs`。
-- [ ] **Memory authority provider 选择缺 focused characterization** `sev-P2`
+- [x] **Memory authority provider 选择缺 focused characterization** `sev-P2`
   `.laputa/` 打开失败应选 `DegradedMemoryProvider`；
   `cargo test -p agent-diva-agent memory_boundary` 当前 0 测。
   `agent-diva-agent/src/memory_boundary.rs`。

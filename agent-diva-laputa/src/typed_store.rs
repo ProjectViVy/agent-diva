@@ -179,8 +179,12 @@ impl TypedMemoryStore {
         workspace_root: impl AsRef<Path>,
     ) -> Result<Self, TypedMemoryStoreError> {
         let workspace_root = workspace_root.as_ref();
+        let path = LaputaPaths::new(workspace_root).memory_database();
+        if !path.is_file() {
+            return Err(TypedMemoryStoreError::InvalidBackup);
+        }
         let canonical = agent_diva_core::workspace_identity::canonical_workspace_id(workspace_root);
-        match Self::open_existing(workspace_root, canonical.clone()).await {
+        match Self::open_path(path, canonical.clone()).await {
             Ok(store) => Ok(store),
             Err(TypedMemoryStoreError::DatabaseWorkspaceMismatch { actual, .. })
                 if actual

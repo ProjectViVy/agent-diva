@@ -211,7 +211,7 @@ impl ProposalRepository {
         let mut proposal = self.get_proposal(id)?;
 
         ensure_transition_allowed(&proposal.state, &ProposalState::Applied)?;
-        if let Err(error) = validate_apply_contract(&proposal) {
+        if let Err(error) = validate_apply_contract(&proposal, options.write_authority) {
             if matches!(error, LaputaError::UnresolvedConflict { .. }) {
                 proposal.state = ProposalState::NeedsAttention;
                 proposal.updated_at = applied_at;
@@ -570,7 +570,10 @@ fn validate_new_proposal(proposal: &EvolutionProposal) -> Result<()> {
     Ok(())
 }
 
-fn validate_apply_contract(proposal: &EvolutionProposal) -> Result<()> {
+fn validate_apply_contract(
+    proposal: &EvolutionProposal,
+    legacy_projection_write: bool,
+) -> Result<()> {
     if proposal.target_section != proposal.proposal_type.target_section() {
         return Err(LaputaError::UnauthorizedTarget {
             id: proposal.id.clone(),
@@ -587,7 +590,10 @@ fn validate_apply_contract(proposal: &EvolutionProposal) -> Result<()> {
         });
     }
 
-    if !is_raw_apply_target(&proposal.target_section) {
+    // JSON is a legacy section-projection storage contract, not a typed Memory
+    // content contract. Typed authority stores a validated MemoryRecord and may
+    // legitimately contain durable plain text.
+    if legacy_projection_write && !is_raw_apply_target(&proposal.target_section) {
         parse_json_patch(proposal)?;
         reject_unresolved_conflicts(proposal)?;
     }
