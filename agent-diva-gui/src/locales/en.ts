@@ -290,6 +290,10 @@ export default {
     title: 'Evolution',
     subtitle: 'Review autonomous learning proposals, run diagnostics, audit records, and policy boundaries',
     refresh: 'Refresh',
+    stageNotice: {
+      title: 'The core reflection pipeline is still under construction',
+      desc: 'Manual runs now execute the restricted worker, but outputs are still legacy rule-based candidates and do not represent final reflection quality. Every durable change still requires human review.',
+    },
     tabs: {
       inbox: 'Inbox',
       runs: 'Runs',

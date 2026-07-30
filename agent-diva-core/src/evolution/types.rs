@@ -352,6 +352,18 @@ pub enum AutoDreamRunState {
     Failed,
 }
 
+/// Stable, payload-free reason code for a terminal AutoDream run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoDreamFailureCode {
+    Cancelled,
+    InputUnavailable,
+    WorkerTimeout,
+    WorkerFailed,
+    ReportGenerationFailed,
+    StaleRunRecovered,
+}
+
 /// AutoDream run summary referenced by proposals, reports, and audit trails.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AutoDreamRunRecord {
@@ -364,6 +376,8 @@ pub struct AutoDreamRunRecord {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub input_summary: Option<AutoDreamInputSummary>,
     pub proposal_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub failure_code: Option<AutoDreamFailureCode>,
     pub error: Option<String>,
 }
 

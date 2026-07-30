@@ -290,6 +290,10 @@ export default {
     title: '进化',
     subtitle: '审查自主学习提案、运行诊断、审计记录和策略边界',
     refresh: '刷新',
+    stageNotice: {
+      title: '核心反思链仍在建设中',
+      desc: '当前手动运行已接入受限 worker，但生成内容仍是 legacy 规则候选，不代表最终智能蒸馏质量。所有持久变更仍需人工审查。',
+    },
     tabs: {
       inbox: '收件箱',
       runs: '运行',

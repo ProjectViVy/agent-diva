@@ -588,7 +588,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn build_router_exposes_autodream_manual_run_route() {
+    async fn autodream_manual_run_executes_worker_and_returns_terminal_failure() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
         let state =
@@ -609,6 +609,62 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(body["run"]["state"], "failed");
+        assert_eq!(body["run"]["failure_code"], "input_unavailable");
+        assert!(body["run"]["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("all mandatory inputs omitted"));
+    }
+
+    #[tokio::test]
+    async fn autodream_manual_run_executes_worker_and_publishes_proposal() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let mut sessions = agent_diva_core::session::SessionManager::new(temp.path());
+        let session = sessions.get_or_create("chat:e0");
+        session.add_message("user", "verified local E0 session evidence");
+        let saved = session.clone();
+        sessions.save(&saved).unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let app = build_router(state.clone());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/autodream/runs")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"trigger":"manual"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(body["run"]["state"], "completed");
+        assert_eq!(
+            body["run"]["proposal_ids"]
+                .as_array()
+                .map(Vec::len)
+                .unwrap_or_default(),
+            1
+        );
+        assert_eq!(
+            state
+                .laputa
+                .list_proposals(agent_diva_laputa::ProposalFilter::default())
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[tokio::test]

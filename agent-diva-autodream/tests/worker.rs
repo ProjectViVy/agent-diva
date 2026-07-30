@@ -5,7 +5,9 @@ use agent_diva_autodream::{
     AutoDreamService, AutoDreamStorage, AutoDreamWorker, AutoDreamWorkerConfig,
     AutoDreamWorkerOutcome, AutoDreamWorkerStageStatus, ManualRunTriggerRequest,
 };
-use agent_diva_core::evolution::{AutoDreamRunRecord, AutoDreamRunState, LaputaSectionName};
+use agent_diva_core::evolution::{
+    AutoDreamFailureCode, AutoDreamRunRecord, AutoDreamRunState, LaputaSectionName,
+};
 use agent_diva_laputa::{atomic_write_json, LaputaService, LaputaStorage};
 use serde_json::Value;
 
@@ -47,6 +49,7 @@ fn worker_executes_four_stages_in_order_and_completes_run() {
 
     let record = read_run(temp.path(), &status.run.id);
     assert_eq!(record.state, AutoDreamRunState::Completed);
+    assert_eq!(record.failure_code, None);
     assert_eq!(record.proposal_ids, report.proposal_ids);
     assert!(record.completed_at.is_some());
     let checkpoint =
@@ -97,6 +100,10 @@ fn worker_timeout_records_failure_and_does_not_update_checkpoint() {
     );
     let record = read_run(temp.path(), &status.run.id);
     assert_eq!(record.state, AutoDreamRunState::Failed);
+    assert_eq!(
+        record.failure_code,
+        Some(AutoDreamFailureCode::WorkerTimeout)
+    );
     assert!(record
         .error
         .as_deref()
@@ -131,6 +138,7 @@ fn worker_observes_cancellation_and_does_not_mark_completed() {
     );
     let record = read_run(temp.path(), &status.run.id);
     assert_eq!(record.state, AutoDreamRunState::Cancelled);
+    assert_eq!(record.failure_code, Some(AutoDreamFailureCode::Cancelled));
     let checkpoint =
         fs::read_to_string(temp.path().join(".agent-diva/autodream/checkpoint")).unwrap();
     assert!(checkpoint.contains("\"last_completed_run_id\": null"));
@@ -153,6 +161,10 @@ fn worker_failure_records_user_visible_diagnostics_and_keeps_checkpoint() {
         .any(|item| item.contains("all mandatory inputs omitted")));
     let record = read_run(temp.path(), &status.run.id);
     assert_eq!(record.state, AutoDreamRunState::Failed);
+    assert_eq!(
+        record.failure_code,
+        Some(AutoDreamFailureCode::InputUnavailable)
+    );
     assert!(record
         .error
         .as_deref()

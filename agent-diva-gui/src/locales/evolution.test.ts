@@ -143,6 +143,8 @@ const evolutionKeys = [
   'evolution.policy.title',
   'evolution.policy.unavailableValue',
   'evolution.refresh',
+  'evolution.stageNotice.desc',
+  'evolution.stageNotice.title',
   'evolution.retry',
   'evolution.runs.completedAt',
   'evolution.runs.desc',

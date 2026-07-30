@@ -428,6 +428,13 @@ export interface RollbackChangelogPayload {
 }
 
 export type AutoDreamRunState = 'pending' | 'running' | 'cancelled' | 'completed' | 'failed';
+export type AutoDreamFailureCode =
+  | 'cancelled'
+  | 'input_unavailable'
+  | 'worker_timeout'
+  | 'worker_failed'
+  | 'report_generation_failed'
+  | 'stale_run_recovered';
 
 export interface AutoDreamInputSourceSummary {
   source: string;
@@ -458,6 +465,7 @@ export interface AutoDreamRunRecord {
   summary?: string | null;
   input_summary?: AutoDreamInputSummary | null;
   proposal_ids: string[];
+  failure_code?: AutoDreamFailureCode | null;
   error?: string | null;
 }
 

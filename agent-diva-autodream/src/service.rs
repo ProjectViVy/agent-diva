@@ -7,7 +7,7 @@ use std::{
 };
 
 use agent_diva_core::config::LlmCurationConfig;
-use agent_diva_core::evolution::{AutoDreamRunRecord, AutoDreamRunState};
+use agent_diva_core::evolution::{AutoDreamFailureCode, AutoDreamRunRecord, AutoDreamRunState};
 use agent_diva_core::reports::ReportNarrativeGenerator;
 use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use serde::{Deserialize, Serialize};
@@ -160,6 +160,7 @@ impl AutoDreamService {
             summary: Some("manual run started".to_string()),
             input_summary: None,
             proposal_ids: Vec::new(),
+            failure_code: None,
             error: None,
         };
         self.write_run(&run)?;
@@ -206,6 +207,7 @@ impl AutoDreamService {
         run.state = AutoDreamRunState::Cancelled;
         run.completed_at = Some(now);
         run.summary = Some("manual run cancelled".to_string());
+        run.failure_code = Some(AutoDreamFailureCode::Cancelled);
         run.error = Some("cancelled".to_string());
         self.write_run(&run)?;
 
@@ -300,6 +302,7 @@ impl AutoDreamService {
                         "generated rhythm report at {}",
                         result.path.display()
                     ));
+                    run.failure_code = None;
                     run.error = None;
                     self.write_run(&run)?;
                     self.write_checkpoint_success(&run, now)?;
@@ -338,6 +341,7 @@ impl AutoDreamService {
         run.state = AutoDreamRunState::Failed;
         run.completed_at = Some(now);
         run.summary = Some("rhythm report generation failed".to_string());
+        run.failure_code = Some(AutoDreamFailureCode::ReportGenerationFailed);
         run.error = Some(error.to_string());
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;
@@ -418,6 +422,7 @@ impl AutoDreamService {
                         "generated rhythm report at {}",
                         result.path.display()
                     ));
+                    run.failure_code = None;
                     run.error = None;
                     self.write_run(&run)?;
                     self.write_checkpoint_success(&run, now)?;
@@ -456,6 +461,7 @@ impl AutoDreamService {
         run.state = AutoDreamRunState::Failed;
         run.completed_at = Some(now);
         run.summary = Some("rhythm report generation failed".to_string());
+        run.failure_code = Some(AutoDreamFailureCode::ReportGenerationFailed);
         run.error = Some(error.to_string());
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;
@@ -541,6 +547,7 @@ impl AutoDreamService {
                     run.state = AutoDreamRunState::Failed;
                     run.completed_at = Some(now);
                     run.summary = Some("stale lock recovered".to_string());
+                    run.failure_code = Some(AutoDreamFailureCode::StaleRunRecovered);
                     run.error = Some("stale lock recovered".to_string());
                     self.write_run(&run)?;
                     Self::metrics().record_failure();

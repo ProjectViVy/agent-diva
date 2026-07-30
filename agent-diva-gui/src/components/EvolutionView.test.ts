@@ -205,6 +205,15 @@ describe('EvolutionView governance detail', () => {
     });
   });
 
+  it('labels the current reflection pipeline as under construction', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const notice = wrapper.get('[data-testid="evolution-stage-notice"]');
+    expect(notice.text()).toContain('evolution.stageNotice.title');
+    expect(notice.text()).toContain('evolution.stageNotice.desc');
+  });
+
   it('disables approval for high-risk proposal with missing evidence', async () => {
     const wrapper = mountView();
     await flushPromises();

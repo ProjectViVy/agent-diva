@@ -5,7 +5,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use agent_diva_core::evolution::{AutoDreamRunRecord, AutoDreamRunState, EvidenceRef, RiskLevel};
+use agent_diva_core::evolution::{
+    AutoDreamFailureCode, AutoDreamRunRecord, AutoDreamRunState, EvidenceRef, RiskLevel,
+};
 use agent_diva_laputa::LaputaService;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -383,6 +385,7 @@ impl AutoDreamWorker {
         run.completed_at = Some(now);
         run.summary = Some("AutoDream restricted reflection completed".to_string());
         run.error = None;
+        run.failure_code = None;
         let proposal_ids = run.proposal_ids.clone();
         self.write_run(&run)?;
         self.write_checkpoint_success(&run, now)?;
@@ -414,6 +417,7 @@ impl AutoDreamWorker {
         run.completed_at = Some(now);
         run.summary = Some(render_failure_summary(&outcome));
         run.error = Some(diagnostics.join("; "));
+        run.failure_code = Some(worker_failure_code(&outcome, &diagnostics));
         let proposal_ids = run.proposal_ids.clone();
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;
@@ -500,6 +504,26 @@ fn render_proposed_patch(collected: &AutoDreamCollectedInputs) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     format!("Restricted AutoDream reflection candidate:\n{evidence}")
+}
+
+fn worker_failure_code(
+    outcome: &AutoDreamWorkerOutcome,
+    diagnostics: &[String],
+) -> AutoDreamFailureCode {
+    match outcome {
+        AutoDreamWorkerOutcome::Cancelled => AutoDreamFailureCode::Cancelled,
+        AutoDreamWorkerOutcome::Timeout => AutoDreamFailureCode::WorkerTimeout,
+        AutoDreamWorkerOutcome::Failure
+            if diagnostics
+                .iter()
+                .any(|item| item.contains("all mandatory inputs omitted")) =>
+        {
+            AutoDreamFailureCode::InputUnavailable
+        }
+        AutoDreamWorkerOutcome::Failure | AutoDreamWorkerOutcome::Success => {
+            AutoDreamFailureCode::WorkerFailed
+        }
+    }
 }
 
 fn render_failure_summary(outcome: &AutoDreamWorkerOutcome) -> String {

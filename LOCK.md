@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 
-- Lock State: `FREE`
-- Scope: —
-- Owner: —
-- Session/Task: —
-- Branch/Worktree: —
-- Started At: —
-- Last Heartbeat: —
-- Expires At: —
+- Lock State: `RELEASED`
+- Scope: `NONE`
+- Owner: `NONE`
+- Session/Task: `NONE`
+- Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Started At: `N/A`
+- Last Heartbeat: `2026-07-31T00:33:34+08:00`
+- Expires At: `N/A`
 
 ## Lock Rules
 
@@ -26,9 +26,18 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- None.
+- No active lock.
 
 ## Handoff Notes
+
+- `2026-07-31T00:33:34+08:00`: Released E0 AutoDream runtime
+  characterization. Manual triggers now execute the restricted worker to a
+  terminal state, run records expose payload-free failure codes, and the
+  Evolution UI explicitly reports that candidate generation remains a
+  rule-based construction-stage implementation. Focused Rust/GUI tests,
+  frontend build, Tauri check, fmt, and clippy passed. Full `just test` remains
+  an E7 gate: the active desktop binary caused Windows `os error 5`, and an
+  isolated target reached the GUI lib test before MSVC `LNK1140`.
 
 - `2026-07-31T00:08:00+08:00`: Released documentation-only GenericAgent-informed
   AutoDream–Laputa product closure plan. G2D is now the final G2D+ acceptance

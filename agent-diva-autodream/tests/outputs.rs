@@ -24,6 +24,7 @@ fn sample_run() -> AutoDreamRunRecord {
         summary: None,
         input_summary: None,
         proposal_ids: Vec::new(),
+        failure_code: None,
         error: None,
     }
 }

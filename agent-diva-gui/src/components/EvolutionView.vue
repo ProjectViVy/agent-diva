@@ -727,6 +727,14 @@ onMounted(async () => {
       </button>
     </header>
 
+    <div class="evolution-stage-notice" data-testid="evolution-stage-notice" role="status">
+      <AlertTriangle :size="17" />
+      <div>
+        <strong>{{ t('evolution.stageNotice.title') }}</strong>
+        <p>{{ t('evolution.stageNotice.desc') }}</p>
+      </div>
+    </div>
+
     <div class="evolution-tabs" role="tablist">
       <button
         v-for="tab in tabs"
@@ -975,6 +983,26 @@ onMounted(async () => {
   flex-direction: column;
   background: var(--panel);
   color: var(--text);
+}
+
+.evolution-stage-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-warning, #d99a35) 42%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-warning, #d99a35) 10%, transparent);
+  color: var(--color-text-secondary);
+}
+
+.evolution-stage-notice strong {
+  color: var(--color-text-primary);
+}
+
+.evolution-stage-notice p {
+  margin: 3px 0 0;
 }
 
 .evolution-header {

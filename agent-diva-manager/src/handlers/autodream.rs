@@ -23,7 +23,23 @@ pub async fn trigger_autodream_run_handler(
             .execute_report_trigger(&status.run.id)
             .await
             .map_err(autodream_error_response)?,
-        _ => status,
+        _ => {
+            let service = state.autodream.clone();
+            let run_id = status.run.id.clone();
+            tokio::task::spawn_blocking(move || service.execute_reflection_worker(&run_id))
+                .await
+                .map_err(|error| {
+                    internal_error_response(
+                        "autodream_worker_join_failed",
+                        format!("AutoDream worker task failed: {error}"),
+                    )
+                })?
+                .map_err(autodream_error_response)?;
+            state
+                .autodream
+                .get_run_status(&status.run.id)
+                .map_err(autodream_error_response)?
+        }
     };
     ok(
         serde_json::json!({ "status": "ok", "run": status.run, "lock": status.lock, "auto_mode_enabled": status.auto_mode_enabled, "session_threshold_enabled": status.session_threshold_enabled }),
@@ -89,6 +105,20 @@ fn autodream_error_response(error: AutoDreamError) -> (StatusCode, Json<serde_js
             "status": "error",
             "code": code,
             "message": error.to_string(),
+        })),
+    )
+}
+
+fn internal_error_response(
+    code: &'static str,
+    message: String,
+) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "status": "error",
+            "code": code,
+            "message": message,
         })),
     )
 }
