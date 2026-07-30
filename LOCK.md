@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `None`
 - Session/Task: `None`
 - Branch/Worktree: `agent-diva-pro / C:\\Users\\Administrator\\Desktop\\morediva\\agent-diva`
-- Started At: `2026-07-30T19:21:07+08:00`
-- Last Heartbeat: `2026-07-30T19:48:00+08:00`
+- Started At: `2026-07-30T20:05:31+08:00`
+- Last Heartbeat: `2026-07-30T20:20:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -29,6 +29,16 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-07-30T20:20:00+08:00`: Released Ask-mode read-only authority
+  boundary. Commit `766279a7` makes Ask a stable fail-closed turn mode, hides
+  mutating tools, prevents approved-execution inheritance, and rejects forged
+  mutations at the unique executor seam. Agent 377-test and Manager 70-test
+  library suites, `just fmt-check`, `just check`, all 432 GUI tests, and the
+  GUI production build passed. Full `just test` could not replace
+  `target/debug/agent-diva.exe` because the user's running desktop process held
+  the binary; no assertion failure preceded that block. Real desktop smoke
+  remains required after restarting onto the new build. No push occurred.
 
 - `2026-07-30T19:48:00+08:00`: Released GMH-23D crash-window recovery
   hardening. Commit `cc2d98ed` persists prepared, authority-committed, and
