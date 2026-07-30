@@ -58,6 +58,7 @@ pub use suppression::{CandidateSuppression, CandidateSuppressionStore};
 pub use typed_provider::TypedLaputaMemoryProvider;
 pub use typed_store::{
     GovernedMemoryApply, MemorySearchHit, MemoryStoreIntegrity, MemoryStoreMetadata,
-    StoredMemoryRecord, TypedMemoryStore, TypedMemoryStoreError, MAX_MEMORY_CONTENT_BYTES,
+    StoredMemoryRecord, TypedMemoryStore, TypedMemoryStoreError,
+    WorkspaceIdentityMigrationManifest, WorkspaceIdentityMigrationState, MAX_MEMORY_CONTENT_BYTES,
     MAX_MEMORY_RECORDS,
 };

@@ -62,6 +62,54 @@ async fn open_store(temp: &TempDir) -> TypedMemoryStore {
 }
 
 #[tokio::test]
+async fn canonical_open_migrates_only_workspace_identity_and_keeps_verified_backup() {
+    let temp = TempDir::new().unwrap();
+    let legacy = agent_diva_core::workspace_identity::legacy_path_workspace_id(temp.path());
+    let canonical = agent_diva_core::workspace_identity::canonical_workspace_id(temp.path());
+    let store = TypedMemoryStore::open(temp.path(), &legacy).await.unwrap();
+    let original = record("legacy-one", &legacy, "identity migration payload");
+    let digest = original.provenance.content_digest.clone();
+    store.put(original, 0, None).await.unwrap();
+    drop(store);
+
+    let migrated = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+    let metadata = migrated.metadata().await.unwrap();
+    let stored = migrated.get("legacy-one").await.unwrap().unwrap();
+    assert_eq!(metadata.workspace_id, canonical);
+    assert_eq!(metadata.store_revision, 1);
+    assert_eq!(stored.revision, 1);
+    assert_eq!(stored.record.scope.workspace_id, canonical);
+    assert_eq!(stored.record.content, "identity migration payload");
+    assert_eq!(stored.record.provenance.content_digest, digest);
+    assert!(temp
+        .path()
+        .join(".laputa/migrations/workspace-identity-v1/memory-before.sqlite3")
+        .is_file());
+    assert!(migrated
+        .integrity()
+        .await
+        .unwrap()
+        .corrupt_record_ids
+        .is_empty());
+    drop(migrated);
+
+    let rollback = TypedMemoryStore::rollback_canonical_identity(temp.path())
+        .await
+        .unwrap();
+    assert_eq!(
+        rollback.state,
+        agent_diva_laputa::WorkspaceIdentityMigrationState::RolledBack
+    );
+    let restored = TypedMemoryStore::open_existing(temp.path(), &legacy)
+        .await
+        .unwrap();
+    let restored_record = restored.get("legacy-one").await.unwrap().unwrap();
+    assert_eq!(restored_record.record.scope.workspace_id, legacy);
+    assert_eq!(restored_record.record.content, "identity migration payload");
+    assert_eq!(restored_record.record.provenance.content_digest, digest);
+}
+
+#[tokio::test]
 async fn initializes_idempotently_with_fts5_on_windows_paths() {
     let temp = tempfile::Builder::new()
         .prefix("embedded laputa ")

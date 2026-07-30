@@ -443,19 +443,19 @@ pub async fn apply_laputa_proposal_handler(
                 Some(recovered) => recovered,
                 None => {
                     if state.memory_authority_mode == MemoryAuthorityMode::Typed {
-                        let store = TypedMemoryStore::open_existing(
-                            &state.workspace_root,
-                            state.workspace_root.to_string_lossy().to_string(),
-                        )
-                        .await
-                        .map_err(typed_store_error_response)?;
+                        let store = TypedMemoryStore::open_canonical(&state.workspace_root)
+                            .await
+                            .map_err(typed_store_error_response)?;
                         let metadata =
                             store.metadata().await.map_err(typed_store_error_response)?;
                         let record = adapt_governed_proposal(
                             &proposal,
                             &MemoryAdapterContext {
                                 tenant_id: "local".into(),
-                                workspace_id: state.workspace_root.to_string_lossy().to_string(),
+                                workspace_id:
+                                    agent_diva_core::workspace_identity::canonical_workspace_id(
+                                        &state.workspace_root,
+                                    ),
                                 session_id: None,
                                 correlation: approval.request.correlation.clone(),
                                 captured_at: journal.applied_at,
@@ -732,12 +732,9 @@ pub async fn rollback_laputa_changelog_handler(
                 "typed changelog is not bound to a proposal",
             )
         })?;
-        let store = TypedMemoryStore::open_existing(
-            &state.workspace_root,
-            state.workspace_root.to_string_lossy().to_string(),
-        )
-        .await
-        .map_err(typed_store_error_response)?;
+        let store = TypedMemoryStore::open_canonical(&state.workspace_root)
+            .await
+            .map_err(typed_store_error_response)?;
         let revision = store
             .metadata()
             .await

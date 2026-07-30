@@ -7,6 +7,7 @@ use clap::{Args, Parser, Subcommand};
 
 mod experience;
 mod typed_memory;
+mod workspace_identity;
 
 #[derive(Parser)]
 #[command(name = "agent-diva-migrate", version)]
@@ -63,6 +64,28 @@ enum MemoryOperation {
     Apply(ImportArgs),
     /// Restore the pre-import database recorded by a migration manifest.
     Rollback(RollbackArgs),
+    /// Normalize the store's workspace identity without changing Memory content.
+    Identity {
+        #[command(subcommand)]
+        operation: IdentityOperation,
+    },
+}
+
+#[derive(Subcommand)]
+enum IdentityOperation {
+    /// Report whether an identity-only migration is required.
+    DryRun(IdentityArgs),
+    /// Create a verified backup and apply the canonical identity.
+    Apply(IdentityArgs),
+    /// Restore the verified pre-migration identity from its manifest.
+    Rollback(IdentityArgs),
+}
+
+#[derive(Debug, Args)]
+struct IdentityArgs {
+    /// Target Agent Diva workspace.
+    #[arg(long)]
+    workspace: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -81,7 +104,7 @@ struct ImportArgs {
     tenant_id: String,
     /// Stable workspace identifier stored in Embedded Laputa.
     #[arg(long)]
-    workspace_id: String,
+    workspace_id: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -89,7 +112,7 @@ struct RollbackArgs {
     #[arg(long)]
     workspace: PathBuf,
     #[arg(long)]
-    workspace_id: String,
+    workspace_id: Option<String>,
     #[arg(long)]
     migration_id: String,
 }
@@ -99,14 +122,34 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
     let report = match cli.command {
-        Command::Memory { operation } => serde_json::to_value(match operation {
-            MemoryOperation::DryRun(args) => typed_memory::dry_run(&request(args)).await?,
-            MemoryOperation::Apply(args) => typed_memory::apply(&request(args)).await?,
-            MemoryOperation::Rollback(args) => {
-                typed_memory::rollback(&args.workspace, &args.workspace_id, &args.migration_id)
-                    .await?
+        Command::Memory { operation } => match operation {
+            MemoryOperation::DryRun(args) => {
+                serde_json::to_value(typed_memory::dry_run(&request(args)).await?)?
             }
-        })?,
+            MemoryOperation::Apply(args) => {
+                serde_json::to_value(typed_memory::apply(&request(args)).await?)?
+            }
+            MemoryOperation::Rollback(args) => {
+                let workspace_id = args.workspace_id.unwrap_or_else(|| {
+                    agent_diva_core::workspace_identity::canonical_workspace_id(&args.workspace)
+                });
+                serde_json::to_value(
+                    typed_memory::rollback(&args.workspace, &workspace_id, &args.migration_id)
+                        .await?,
+                )?
+            }
+            MemoryOperation::Identity { operation } => match operation {
+                IdentityOperation::DryRun(args) => {
+                    serde_json::to_value(workspace_identity::dry_run(&args.workspace).await?)?
+                }
+                IdentityOperation::Apply(args) => {
+                    serde_json::to_value(workspace_identity::apply(&args.workspace).await?)?
+                }
+                IdentityOperation::Rollback(args) => {
+                    serde_json::to_value(workspace_identity::rollback(&args.workspace).await?)?
+                }
+            },
+        },
         Command::Experience { operation } => serde_json::to_value(match operation {
             ExperienceOperation::DryRun(args) => experience::dry_run(&args.workspace)?,
             ExperienceOperation::Apply(args) => experience::apply(&args.workspace)?,
@@ -120,11 +163,14 @@ async fn main() -> Result<()> {
 }
 
 fn request(args: ImportArgs) -> typed_memory::MemoryImportRequest {
+    let workspace_id = args.workspace_id.unwrap_or_else(|| {
+        agent_diva_core::workspace_identity::canonical_workspace_id(&args.workspace)
+    });
     typed_memory::MemoryImportRequest {
         source_root: args.source_root,
         sources: args.sources,
         workspace: args.workspace,
         tenant_id: args.tenant_id,
-        workspace_id: args.workspace_id,
+        workspace_id,
     }
 }

@@ -33,6 +33,7 @@ pub mod supervised;
 pub mod todo;
 pub mod token_ledger;
 pub mod utils;
+pub mod workspace_identity;
 
 pub use attachment::FileAttachment;
 pub use audit::emit;

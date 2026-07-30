@@ -83,7 +83,7 @@ impl ExperienceJournal {
     }
 
     pub fn workspace_id(&self) -> String {
-        workspace_digest(&self.workspace_root)
+        crate::workspace_identity::canonical_workspace_id(&self.workspace_root)
     }
 
     pub fn path(&self) -> &Path {
@@ -306,14 +306,6 @@ fn read_locked(file: &File, workspace_id: &str, limit: usize) -> std::io::Result
         rejected_lines,
         truncated,
     })
-}
-
-fn workspace_digest(path: &Path) -> String {
-    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    format!(
-        "workspace-{}",
-        &sha256(canonical.to_string_lossy().as_bytes())[..32]
-    )
 }
 
 fn sha256(value: &[u8]) -> String {

@@ -26,12 +26,12 @@ pub async fn memory_provider_for_mode(
     if mode == MemoryAuthorityMode::Legacy {
         return Arc::new(MemoryManager::new(workspace));
     }
-    let existing_store = match agent_diva_laputa::TypedMemoryStore::open_existing(
-        workspace,
-        workspace.to_string_lossy().to_string(),
-    )
-    .await
-    {
+    let store_result = if mode == MemoryAuthorityMode::Shadow {
+        agent_diva_laputa::TypedMemoryStore::open_existing_canonical(workspace).await
+    } else {
+        agent_diva_laputa::TypedMemoryStore::open_canonical(workspace).await
+    };
+    let existing_store = match store_result {
         Ok(store) => store,
         Err(error) => {
             return Arc::new(DegradedMemoryProvider::new(
@@ -61,7 +61,7 @@ pub async fn memory_provider_for_mode(
     if mode == MemoryAuthorityMode::Typed {
         return match agent_diva_laputa::TypedLaputaMemoryProvider::open(
             workspace,
-            workspace.to_string_lossy().to_string(),
+            agent_diva_core::workspace_identity::canonical_workspace_id(workspace),
         )
         .await
         {
@@ -100,7 +100,9 @@ impl CutoverMemoryProvider {
             query,
             scope: MemoryScope {
                 tenant_id: "local".into(),
-                workspace_id: self.workspace.to_string_lossy().to_string(),
+                workspace_id: agent_diva_core::workspace_identity::canonical_workspace_id(
+                    &self.workspace,
+                ),
                 session_id: None,
             },
             correlation: AuditCorrelation {

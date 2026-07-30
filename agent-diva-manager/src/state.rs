@@ -128,7 +128,7 @@ impl AppState {
         let laputa = LaputaService::open(workspace_root.clone())?;
         let memory_governance = MemoryGovernanceCoordinator::open_lazy(
             &workspace_root,
-            workspace_root.to_string_lossy().to_string(),
+            agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root),
         )?;
         let state = Self {
             api_tx,

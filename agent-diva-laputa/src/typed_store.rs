@@ -77,6 +77,10 @@ pub enum TypedMemoryStoreError {
     ApplyIdempotencyConflict,
     #[error("imported Memory record {record_id} conflicts with existing content")]
     ImportConflict { record_id: String },
+    #[error("workspace identity migration only accepts the recognized legacy path identity")]
+    IdentityMigrationRejected,
+    #[error("workspace identity migration manifest failed: {0}")]
+    IdentityManifest(String),
 }
 
 /// Current database identity and optimistic concurrency revision.
@@ -115,6 +119,27 @@ pub struct MemoryStoreIntegrity {
     pub orphan_fts_rows: i64,
 }
 
+/// Payload-free recovery record for the canonical workspace identity upgrade.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceIdentityMigrationManifest {
+    pub version: u32,
+    pub state: WorkspaceIdentityMigrationState,
+    pub legacy_workspace_id: String,
+    pub canonical_workspace_id: String,
+    pub backup_path: PathBuf,
+    pub store_revision: i64,
+    pub record_count: i64,
+}
+
+/// Durable identity migration phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceIdentityMigrationState {
+    Prepared,
+    Applied,
+    RolledBack,
+}
+
 /// Receipt-bound metadata for one non-production typed apply.
 #[derive(Debug, Clone)]
 pub struct GovernedMemoryApply<'a> {
@@ -135,6 +160,195 @@ pub struct TypedMemoryStore {
 }
 
 impl TypedMemoryStore {
+    /// Open the canonical store identity, upgrading the one recognized legacy
+    /// path identity through a verified, content-preserving SQLite backup.
+    pub async fn open_canonical(
+        workspace_root: impl AsRef<Path>,
+    ) -> Result<Self, TypedMemoryStoreError> {
+        let workspace_root = workspace_root.as_ref();
+        if LaputaPaths::new(workspace_root).memory_database().is_file() {
+            return Self::open_existing_canonical(workspace_root).await;
+        }
+        let canonical = agent_diva_core::workspace_identity::canonical_workspace_id(workspace_root);
+        Self::open(workspace_root, canonical).await
+    }
+
+    /// Open an existing canonical store, permitting only the recognized
+    /// identity-only legacy upgrade. Missing stores remain fail-closed.
+    pub async fn open_existing_canonical(
+        workspace_root: impl AsRef<Path>,
+    ) -> Result<Self, TypedMemoryStoreError> {
+        let workspace_root = workspace_root.as_ref();
+        let canonical = agent_diva_core::workspace_identity::canonical_workspace_id(workspace_root);
+        match Self::open_existing(workspace_root, canonical.clone()).await {
+            Ok(store) => Ok(store),
+            Err(TypedMemoryStoreError::DatabaseWorkspaceMismatch { actual, .. })
+                if actual
+                    == agent_diva_core::workspace_identity::legacy_path_workspace_id(
+                        workspace_root,
+                    ) =>
+            {
+                Self::migrate_legacy_workspace_identity(workspace_root, &actual, &canonical).await
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn migrate_legacy_workspace_identity(
+        workspace_root: &Path,
+        legacy: &str,
+        canonical: &str,
+    ) -> Result<Self, TypedMemoryStoreError> {
+        let path = LaputaPaths::new(workspace_root).memory_database();
+        let store = Self::open_path(path, legacy.to_string()).await?;
+        let migration_dir = workspace_root
+            .join(".laputa")
+            .join("migrations")
+            .join("workspace-identity-v1");
+        tokio::fs::create_dir_all(&migration_dir)
+            .await
+            .map_err(|source| TypedMemoryStoreError::Io {
+                path: migration_dir.clone(),
+                source,
+            })?;
+        let backup = migration_dir.join("memory-before.sqlite3");
+        let manifest_path = migration_dir.join("manifest.json");
+        if !backup.exists() {
+            store.backup(&backup).await?;
+        } else {
+            let validation = Self::open_path(backup.clone(), legacy.to_string()).await?;
+            validation.pool.close().await;
+        }
+        let integrity = store.integrity().await?;
+        let mut manifest = WorkspaceIdentityMigrationManifest {
+            version: 1,
+            state: WorkspaceIdentityMigrationState::Prepared,
+            legacy_workspace_id: legacy.to_string(),
+            canonical_workspace_id: canonical.to_string(),
+            backup_path: backup.clone(),
+            store_revision: integrity.store_revision,
+            record_count: integrity.record_count,
+        };
+        crate::atomic_write_json(&manifest_path, &manifest)
+            .map_err(|error| TypedMemoryStoreError::IdentityManifest(error.to_string()))?;
+
+        let mut tx = store.pool.begin().await?;
+        let rows = sqlx::query("SELECT memory_id, record_json FROM memory_records")
+            .fetch_all(&mut *tx)
+            .await?;
+        for row in rows {
+            let memory_id: String = row.get("memory_id");
+            let record_json: String = row.get("record_json");
+            let mut record: MemoryRecord = serde_json::from_str(&record_json)
+                .map_err(|_| TypedMemoryStoreError::CorruptRecord)?;
+            if record.scope.workspace_id != legacy {
+                return Err(TypedMemoryStoreError::IdentityMigrationRejected);
+            }
+            record.scope.workspace_id = canonical.to_string();
+            let migrated_json =
+                serde_json::to_string(&record).map_err(|_| TypedMemoryStoreError::CorruptRecord)?;
+            sqlx::query(
+                "UPDATE memory_records SET workspace_id = ?, record_json = ? WHERE memory_id = ?",
+            )
+            .bind(canonical)
+            .bind(migrated_json)
+            .bind(memory_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+        sqlx::query("UPDATE memory_fts SET workspace_id = ?")
+            .bind(canonical)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE schema_meta SET workspace_id = ? WHERE component = ?")
+            .bind(canonical)
+            .bind(COMPONENT)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        store.pool.close().await;
+        let migrated = Self::open_path(store.path, canonical.to_string()).await?;
+        let migrated_integrity = migrated.integrity().await?;
+        if migrated_integrity.store_revision != manifest.store_revision
+            || migrated_integrity.record_count != manifest.record_count
+            || !migrated_integrity.corrupt_record_ids.is_empty()
+            || migrated_integrity.orphan_fts_rows != 0
+        {
+            return Err(TypedMemoryStoreError::CorruptRecord);
+        }
+        manifest.state = WorkspaceIdentityMigrationState::Applied;
+        crate::atomic_write_json(&manifest_path, &manifest)
+            .map_err(|error| TypedMemoryStoreError::IdentityManifest(error.to_string()))?;
+        Ok(migrated)
+    }
+
+    /// Restore the verified pre-identity-migration database from its manifest.
+    pub async fn rollback_canonical_identity(
+        workspace_root: impl AsRef<Path>,
+    ) -> Result<WorkspaceIdentityMigrationManifest, TypedMemoryStoreError> {
+        let workspace_root = workspace_root.as_ref();
+        let migration_dir = workspace_root
+            .join(".laputa")
+            .join("migrations")
+            .join("workspace-identity-v1");
+        let manifest_path = migration_dir.join("manifest.json");
+        let bytes =
+            tokio::fs::read(&manifest_path)
+                .await
+                .map_err(|source| TypedMemoryStoreError::Io {
+                    path: manifest_path.clone(),
+                    source,
+                })?;
+        let mut manifest: WorkspaceIdentityMigrationManifest = serde_json::from_slice(&bytes)
+            .map_err(|error| TypedMemoryStoreError::IdentityManifest(error.to_string()))?;
+        if manifest.version != 1
+            || manifest.state != WorkspaceIdentityMigrationState::Applied
+            || manifest.canonical_workspace_id
+                != agent_diva_core::workspace_identity::canonical_workspace_id(workspace_root)
+            || manifest.legacy_workspace_id
+                != agent_diva_core::workspace_identity::legacy_path_workspace_id(workspace_root)
+            || manifest.backup_path != migration_dir.join("memory-before.sqlite3")
+        {
+            return Err(TypedMemoryStoreError::IdentityMigrationRejected);
+        }
+        let current = Self::open_path(
+            LaputaPaths::new(workspace_root).memory_database(),
+            manifest.canonical_workspace_id.clone(),
+        )
+        .await?;
+        let current_integrity = current.integrity().await?;
+        if current_integrity.store_revision != manifest.store_revision
+            || current_integrity.record_count != manifest.record_count
+        {
+            return Err(TypedMemoryStoreError::IdentityMigrationRejected);
+        }
+        current.pool.close().await;
+        let backup_validation = Self::open_path(
+            manifest.backup_path.clone(),
+            manifest.legacy_workspace_id.clone(),
+        )
+        .await?;
+        let backup_integrity = backup_validation.integrity().await?;
+        backup_validation.pool.close().await;
+        if backup_integrity.store_revision != manifest.store_revision
+            || backup_integrity.record_count != manifest.record_count
+            || !backup_integrity.corrupt_record_ids.is_empty()
+        {
+            return Err(TypedMemoryStoreError::InvalidBackup);
+        }
+        let database = LaputaPaths::new(workspace_root).memory_database();
+        tokio::fs::copy(&manifest.backup_path, &database)
+            .await
+            .map_err(|source| TypedMemoryStoreError::Io {
+                path: database,
+                source,
+            })?;
+        manifest.state = WorkspaceIdentityMigrationState::RolledBack;
+        crate::atomic_write_json(&manifest_path, &manifest)
+            .map_err(|error| TypedMemoryStoreError::IdentityManifest(error.to_string()))?;
+        Ok(manifest)
+    }
+
     /// Open or initialize `<workspace>/.laputa/memory.sqlite3`.
     pub async fn open(
         workspace_root: impl AsRef<Path>,

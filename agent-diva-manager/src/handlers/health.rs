@@ -92,7 +92,7 @@ async fn memory_health(state: &AppState) -> MemoryHealth {
     }
     let store = match agent_diva_laputa::TypedMemoryStore::open_existing(
         &state.workspace_root,
-        state.workspace_root.to_string_lossy().to_string(),
+        agent_diva_core::workspace_identity::canonical_workspace_id(&state.workspace_root),
     )
     .await
     {

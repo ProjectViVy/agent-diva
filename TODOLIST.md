@@ -142,7 +142,7 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
-- [ ] **跨平台 canonical workspace identity 与 identity-only migration** `sev-P1`
+- [x] **跨平台 canonical workspace identity 与 identity-only migration** `sev-P1`
   Windows 路径分隔符差异曾使 Migration 与 Manager 对同一 workspace 计算出不同
   identity，并由 typed fail-closed 检出。统一 CLI/Manager/GUI/Migration 的 canonical
   规则，提供只迁 identity、不复制或改写 Memory 内容的可验证迁移与回滚。
