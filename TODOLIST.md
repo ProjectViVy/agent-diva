@@ -125,7 +125,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   correlation 证据链。
 - [ ] **GMH-50：兼容迁移与 feature flags** `sev-P2`
   不得重新引入 Mentle；禁止长期双写。
-- [ ] **GMH-51：安全与数据恢复演练** `sev-P1`
+- [x] **GMH-51：安全与数据恢复演练** `sev-P1`
 - [ ] **GMH-52：全量验收** `sev-P1`
   `just fmt-check` / `check` / `test`、deletion-proof、GUI、真实 smoke。
 - [ ] **GMH-53：灰度与清理** `sev-P2`
