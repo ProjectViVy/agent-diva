@@ -205,8 +205,18 @@ pub struct WipeSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaputaApplyPayload {
-    pub actor: Option<String>,
-    pub applied_at: Option<String>,
+    pub governance_request_id: String,
+    pub expected_version: u64,
+    pub idempotency_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaputaDecisionPayload {
+    pub decision: String,
+    pub grant: String,
+    pub expected_version: u64,
+    pub idempotency_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -533,7 +543,23 @@ pub async fn laputa_list_proposals(
     if let Some(since) = non_empty_query_value(since) {
         url.push_str(&format!("?since={}", urlencoding::encode(&since)));
     }
-    get_laputa_payload(&state, &url, "proposals").await
+    let mut response = get_laputa_full_response(&state, &url).await?;
+    let governance = response
+        .get("governance")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let proposals = response
+        .get_mut("proposals")
+        .and_then(serde_json::Value::as_array_mut)
+        .ok_or_else(|| laputa_string_error("Laputa response missing proposals".into()))?;
+    for proposal in proposals.iter_mut() {
+        if let Some(id) = proposal.get("id").and_then(serde_json::Value::as_str) {
+            if let Some(view) = governance.get(id) {
+                proposal["governance"] = view.clone();
+            }
+        }
+    }
+    Ok(serde_json::Value::Array(std::mem::take(proposals)))
 }
 
 #[tauri::command]
@@ -555,7 +581,15 @@ pub async fn laputa_get_proposal(
         state.api_base_url(),
         urlencoding::encode(id.trim())
     );
-    get_laputa_payload(&state, &url, "proposal").await
+    let response = get_laputa_full_response(&state, &url).await?;
+    let mut proposal = response
+        .get("proposal")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Laputa response missing proposal".into()))?;
+    if let Some(governance) = response.get("governance") {
+        proposal["governance"] = governance.clone();
+    }
+    Ok(proposal)
 }
 
 #[tauri::command]
@@ -570,8 +604,29 @@ pub async fn laputa_apply_proposal(
         urlencoding::encode(id.trim())
     );
     let payload = serde_json::json!({
-        "actor": payload.actor,
-        "applied_at": payload.applied_at,
+        "governance_request_id": payload.governance_request_id,
+        "expected_version": payload.expected_version,
+        "idempotency_key": payload.idempotency_key,
+    });
+    post_laputa_full_response(&state, &url, &payload).await
+}
+
+#[tauri::command]
+pub async fn laputa_decide_proposal(
+    id: String,
+    payload: LaputaDecisionPayload,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/laputa/proposals/{}/decision",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    let payload = serde_json::json!({
+        "decision": payload.decision,
+        "grant": payload.grant,
+        "expected_version": payload.expected_version,
+        "idempotency_key": payload.idempotency_key,
     });
     post_laputa_full_response(&state, &url, &payload).await
 }
@@ -593,7 +648,8 @@ pub async fn laputa_edit_proposal(
         "risk_level": payload.risk_level,
         "updated_at": payload.updated_at,
     });
-    put_laputa_payload(&state, &url, &payload, "proposal").await
+    let response = put_laputa_full_response(&state, &url, &payload).await?;
+    proposal_with_governance(&response)
 }
 
 #[tauri::command]
@@ -861,6 +917,19 @@ async fn get_laputa_payload(
     parse_laputa_response(response, field).await
 }
 
+async fn get_laputa_full_response(
+    state: &State<'_, AgentState>,
+    url: &str,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let response = state
+        .client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| laputa_transport_error(format!("Failed to fetch Laputa API: {e}")))?;
+    parse_laputa_response(response, "").await
+}
+
 async fn post_laputa_payload<T: Serialize + ?Sized>(
     state: &State<'_, AgentState>,
     url: &str,
@@ -877,11 +946,10 @@ async fn post_laputa_payload<T: Serialize + ?Sized>(
     parse_laputa_response(response, field).await
 }
 
-async fn put_laputa_payload<T: Serialize + ?Sized>(
+async fn put_laputa_full_response<T: Serialize + ?Sized>(
     state: &State<'_, AgentState>,
     url: &str,
     payload: &T,
-    field: &str,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let response = state
         .client
@@ -890,7 +958,20 @@ async fn put_laputa_payload<T: Serialize + ?Sized>(
         .send()
         .await
         .map_err(|e| laputa_transport_error(format!("Failed to call Laputa API: {e}")))?;
-    parse_laputa_response(response, field).await
+    parse_laputa_response(response, "").await
+}
+
+fn proposal_with_governance(
+    response: &serde_json::Value,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let mut proposal = response
+        .get("proposal")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Laputa response missing proposal".into()))?;
+    if let Some(governance) = response.get("governance") {
+        proposal["governance"] = governance.clone();
+    }
+    Ok(proposal)
 }
 
 async fn post_laputa_full_response<T: Serialize + ?Sized>(

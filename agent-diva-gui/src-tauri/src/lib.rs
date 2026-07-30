@@ -389,6 +389,7 @@ pub fn run() {
             commands::laputa_edit_proposal,
             commands::laputa_transition_proposal,
             commands::laputa_apply_proposal,
+            commands::laputa_decide_proposal,
             commands::laputa_list_changelog,
             commands::laputa_get_changelog,
             commands::laputa_rollback_changelog,

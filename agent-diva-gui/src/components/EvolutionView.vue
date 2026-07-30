@@ -12,6 +12,7 @@ import {
 } from '@lucide/vue';
 import {
   applyLaputaProposal,
+  decideLaputaProposal,
   editLaputaProposal,
   getLaputaSection,
   getSelfEvolutionConfig,
@@ -232,6 +233,23 @@ function normalizeError(error: unknown) {
     return String((error as { message: unknown }).message);
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+function idempotencyKey(action: string, proposal: EvolutionProposal) {
+  return `${action}:${proposal.id}:${proposal.governance?.request_version ?? 0}`;
+}
+
+async function decideProposal(proposal: EvolutionProposal, decision: 'allow' | 'deny') {
+  const governance = proposal.governance;
+  if (!governance) throw new Error('Governance request is unavailable; refresh and retry.');
+  const result = await decideLaputaProposal(proposal.id, {
+    decision,
+    grant: 'once',
+    expected_version: governance.request_version,
+    idempotency_key: idempotencyKey(`decision-${decision}`, proposal),
+  });
+  result.proposal.governance = result.governance;
+  return result.proposal;
 }
 
 function loadMarkerList(key: string) {
@@ -505,7 +523,9 @@ async function transitionProposalIds(ids: string[], state: 'approved' | 'rejecte
       ids.map(async (id) => {
         const proposal = proposals.value.find((item) => item.id === id);
         if (!proposal) return null;
-        return transitionLaputaProposal(id, { state });
+        return state === 'deferred'
+          ? transitionLaputaProposal(id, { state })
+          : decideProposal(proposal, state === 'approved' ? 'allow' : 'deny');
       }),
     );
     const updated = results
@@ -560,9 +580,7 @@ async function handleApproveOnly() {
     return;
   }
   await withAction('approve-only', async () => {
-    const next = await transitionLaputaProposal(selectedProposal.value!.id, {
-      state: 'approved',
-    });
+    const next = await decideProposal(selectedProposal.value!, 'allow');
     updateLocalProposal(next);
     showAppToast(t('evolution.actions.approveOnlySuccess'), 'success');
     await loadDetail(next.id);
@@ -586,12 +604,16 @@ async function handleApproveAndApply() {
 
   await withAction('approve-apply', async () => {
     if (selectedProposal.value!.state !== 'approved') {
-      const approved = await transitionLaputaProposal(selectedProposal.value!.id, {
-        state: 'approved',
-      });
+      const approved = await decideProposal(selectedProposal.value!, 'allow');
       updateLocalProposal(approved);
     }
-    const result = await applyLaputaProposal(selectedProposal.value!.id, {});
+    const governance = selectedProposal.value!.governance;
+    if (!governance) throw new Error('Governance receipt is unavailable; refresh and retry.');
+    const result = await applyLaputaProposal(selectedProposal.value!.id, {
+      governance_request_id: governance.request_id,
+      expected_version: governance.request_version,
+      idempotency_key: idempotencyKey('apply', selectedProposal.value!),
+    });
     updateLocalProposal(result.proposal);
     selectedChangelog.value = result.changelog;
     showAppToast(t('evolution.actions.approveApplySuccess'), 'success');
@@ -609,9 +631,7 @@ async function handleReject() {
   if (!confirmed) return;
 
   await withAction('reject', async () => {
-    const next = await transitionLaputaProposal(selectedProposal.value!.id, {
-      state: 'rejected',
-    });
+    const next = await decideProposal(selectedProposal.value!, 'deny');
     updateLocalProposal(next);
     showAppToast(t('evolution.actions.rejectSuccess'), 'success');
     await loadDetail(next.id);

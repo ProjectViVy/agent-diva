@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EvolutionView from './EvolutionView.vue';
 import {
   applyLaputaProposal,
+  decideLaputaProposal,
   editLaputaProposal,
   getLaputaSection,
   getSelfEvolutionConfig,
@@ -68,6 +69,7 @@ vi.mock('../api/desktop', () => ({
   getLaputaSection: vi.fn(),
   listLaputaChangelog: vi.fn(),
   transitionLaputaProposal: vi.fn(),
+  decideLaputaProposal: vi.fn(),
   applyLaputaProposal: vi.fn(),
   editLaputaProposal: vi.fn(),
   rollbackLaputaChangelog: vi.fn(),
@@ -85,6 +87,14 @@ const baseProposal = {
   risk_level: 'high',
   state: 'pending_review',
   source_run_id: null,
+  governance: {
+    proposal_id: 'proposal-1',
+    request_id: 'request-1',
+    request_version: 1,
+    status: 'pending',
+    policy: 'require_human',
+    receipt: null,
+  },
 };
 
 const section = {
@@ -148,6 +158,19 @@ describe('EvolutionView governance detail', () => {
       ...baseProposal,
       state: 'approved',
     });
+    vi.mocked(decideLaputaProposal).mockImplementation(async (id, payload) => ({
+      proposal: {
+        ...baseProposal,
+        id,
+        state: payload.decision === 'allow' ? 'approved' : 'rejected',
+      },
+      governance: {
+        ...baseProposal.governance,
+        proposal_id: id,
+        status: payload.decision === 'allow' ? 'allowed' : 'denied',
+        request_version: 2,
+      },
+    }));
     vi.mocked(applyLaputaProposal).mockResolvedValue({
       proposal: { ...baseProposal, state: 'applied' },
       changelog: changelogPage.items[0],
@@ -204,7 +227,10 @@ describe('EvolutionView governance detail', () => {
     );
     await rejectButton?.trigger('click');
 
-    expect(transitionLaputaProposal).toHaveBeenCalledWith('proposal-1', { state: 'rejected' });
+    expect(decideLaputaProposal).toHaveBeenCalledWith(
+      'proposal-1',
+      expect.objectContaining({ decision: 'deny', grant: 'once', expected_version: 1 }),
+    );
   });
 
   it('defers proposal through the durable backend transition', async () => {
@@ -331,8 +357,11 @@ describe('EvolutionView governance detail', () => {
       { ...baseProposal, id: 'proposal-1', state: 'pending_review', risk_level: 'medium' },
       { ...baseProposal, id: 'proposal-2', state: 'pending_review', risk_level: 'medium' },
     ]);
-    vi.mocked(transitionLaputaProposal)
-      .mockResolvedValueOnce({ ...baseProposal, id: 'proposal-1', state: 'rejected' })
+    vi.mocked(decideLaputaProposal)
+      .mockResolvedValueOnce({
+        proposal: { ...baseProposal, id: 'proposal-1', state: 'rejected' },
+        governance: { ...baseProposal.governance, status: 'denied', request_version: 2 },
+      })
       .mockRejectedValueOnce(new Error('reject failed'));
     const wrapper = mountView();
     await flushPromises();
@@ -345,7 +374,7 @@ describe('EvolutionView governance detail', () => {
       'evolution.confirm.batchReject:{"count":2,"target":"proposal-1 (memory_md), proposal-2 (memory_md)"}',
       { title: 'evolution.confirm.title' },
     );
-    expect(transitionLaputaProposal).toHaveBeenCalledTimes(2);
+    expect(decideLaputaProposal).toHaveBeenCalledTimes(2);
     expect(showAppToast).toHaveBeenCalledWith(
       'evolution.actions.batchPartialFailure:{"total":2,"success":1,"failed":1}',
       'error',

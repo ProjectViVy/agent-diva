@@ -302,6 +302,19 @@ export interface EvolutionProposal {
   risk_level: RiskLevel;
   state: ProposalState;
   source_run_id?: string | null;
+  governance?: MemoryGovernanceView | null;
+}
+
+export interface MemoryGovernanceView {
+  proposal_id: string;
+  request_id: string;
+  request_version: number;
+  status: string;
+  policy: string;
+  receipt?: {
+    grant: 'once' | 'session' | 'rule';
+    expires_at?: string | null;
+  } | null;
 }
 
 export interface LaputaSection {
@@ -392,8 +405,21 @@ export interface ProposalTransitionPayload {
 }
 
 export interface ApplyProposalPayload {
-  actor?: string | null;
-  applied_at?: string | null;
+  governance_request_id: string;
+  expected_version: number;
+  idempotency_key: string;
+}
+
+export interface GovernedProposalResult {
+  proposal: EvolutionProposal;
+  governance: MemoryGovernanceView;
+}
+
+export interface ProposalDecisionPayload {
+  decision: 'allow' | 'deny';
+  grant: 'once' | 'session' | 'rule';
+  expected_version: number;
+  idempotency_key: string;
 }
 
 export interface RollbackChangelogPayload {
@@ -467,7 +493,10 @@ export const editLaputaProposal = (id: string, payload: ProposalEditPayload) =>
 export const transitionLaputaProposal = (id: string, payload: ProposalTransitionPayload) =>
   invoke<EvolutionProposal>("laputa_transition_proposal", { id, payload });
 
-export const applyLaputaProposal = (id: string, payload: ApplyProposalPayload = {}) =>
+export const decideLaputaProposal = (id: string, payload: ProposalDecisionPayload) =>
+  invoke<GovernedProposalResult>("laputa_decide_proposal", { id, payload });
+
+export const applyLaputaProposal = (id: string, payload: ApplyProposalPayload) =>
   invoke<ProposalApplyResult>("laputa_apply_proposal", { id, payload });
 
 export interface WriteLaputaSectionResult {
