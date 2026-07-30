@@ -71,10 +71,11 @@ pub struct ChatRequest {
 
 fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
     match mode.map(str::trim) {
+        None => None,
         Some("agent") => Some("agent"),
         Some("plan") => Some("plan"),
         Some("ask") => Some("ask"),
-        _ => None,
+        Some(_) => Some("ask"),
     }
 }
 
@@ -1172,7 +1173,7 @@ mod tests {
         assert_eq!(normalized_exec_mode(Some("plan")), Some("plan"));
         assert_eq!(normalized_exec_mode(Some(" ask ")), Some("ask"));
         assert_eq!(normalized_exec_mode(Some("agent")), Some("agent"));
-        assert_eq!(normalized_exec_mode(Some("execute")), None);
+        assert_eq!(normalized_exec_mode(Some("execute")), Some("ask"));
         assert_eq!(normalized_exec_mode(None), None);
     }
 

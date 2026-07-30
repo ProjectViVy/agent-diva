@@ -29,6 +29,19 @@ use tracing::{debug, error, info, trace, warn};
 /// Max size for text attachments to inline (100KB)
 const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
 
+fn read_only_tool_definitions(definitions: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    definitions
+        .into_iter()
+        .filter(|definition| {
+            definition
+                .get("function")
+                .and_then(|function| function.get("name"))
+                .and_then(|name| name.as_str())
+                .is_some_and(crate::mask::ToolPolicy::is_read_only_tool)
+        })
+        .collect()
+}
+
 #[derive(Debug, Default, Clone)]
 pub(super) struct ProcessedInboundMedia {
     pub(super) prompt_text: String,
@@ -306,7 +319,7 @@ impl AgentLoop {
             active_mask,
             model: model_to_use,
             scheduled: is_cron_trigger,
-            plan_mode,
+            mode,
             execution_start,
             session_key,
             mut active_execution,
@@ -316,6 +329,8 @@ impl AgentLoop {
             approved_plan_markdown,
             background_task_context,
         } = self.admit_turn(&msg, &trace_id).await?;
+        let plan_mode = mode.is_plan();
+        let read_only = mode.is_read_only();
 
         let runtime_context = self
             .prepare_runtime_context(
@@ -335,6 +350,9 @@ impl AgentLoop {
         let current_turn_message = runtime_context.current_turn_message;
         let turn_messages_start = runtime_context.turn_messages_start;
         let mut messages = runtime_context.messages;
+        if read_only {
+            messages.insert(1, super::turn::prompt::ask_mode().system());
+        }
 
         // Agent loop
         let mut iteration_budget = IterationBudget::default();
@@ -389,6 +407,8 @@ impl AgentLoop {
                     messages.push(agent_diva_providers::Message::system(SUMMARY_ONLY_NUDGE));
                 }
                 Vec::new()
+            } else if read_only {
+                read_only_tool_definitions(self.tools.get_definitions())
             } else if msg.channel == "cron" || is_cron_trigger {
                 self.tools
                     .get_definitions()
@@ -413,6 +433,7 @@ impl AgentLoop {
                     &msg,
                     &message_content,
                     approved_plan_markdown.as_deref(),
+                    read_only,
                     is_cron_trigger,
                     &current_turn_message,
                 )
@@ -537,6 +558,7 @@ impl AgentLoop {
                     trace_id: &trace_id,
                     iteration,
                     plan_mode,
+                    read_only,
                     plan_guard_active,
                     active_mask: active_mask.as_ref(),
                     active_execution_id: active_execution_id.clone(),
@@ -1049,6 +1071,42 @@ fn resolve_empty_final_content(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ask_mode_exposes_only_the_read_only_tool_allowlist() {
+        let names = [
+            "read_file",
+            "list_dir",
+            "read_attachment",
+            "web_search",
+            "web_fetch",
+            "exec",
+            "write_file",
+            "edit_file",
+            "cron",
+            "spawn",
+        ];
+        let definitions = names
+            .into_iter()
+            .map(|name| serde_json::json!({"function": {"name": name}}))
+            .collect();
+
+        let filtered = read_only_tool_definitions(definitions);
+        let actual = filtered
+            .iter()
+            .filter_map(|definition| definition["function"]["name"].as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual,
+            vec![
+                "read_file",
+                "list_dir",
+                "read_attachment",
+                "web_search",
+                "web_fetch"
+            ]
+        );
+    }
 
     #[test]
     fn synthesize_tool_turn_summary_lists_recent_tools() {

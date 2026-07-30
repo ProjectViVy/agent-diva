@@ -10,10 +10,54 @@ use super::policy::TurnSnapshot;
 use crate::mask::MaskFile;
 
 /// Side-effect-free result of inbound turn classification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TurnMode {
+    Agent,
+    Plan,
+    Ask,
+}
+
+impl TurnMode {
+    fn from_message(message: &InboundMessage) -> Self {
+        match message
+            .metadata
+            .get("exec_mode")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+        {
+            None => Self::Agent,
+            Some(mode) if mode.eq_ignore_ascii_case("agent") => Self::Agent,
+            Some(mode) if mode.eq_ignore_ascii_case("plan") => Self::Plan,
+            Some(mode) if mode.eq_ignore_ascii_case("ask") => Self::Ask,
+            Some(_) => Self::Ask,
+        }
+    }
+
+    pub(crate) fn is_plan(self) -> bool {
+        self == Self::Plan
+    }
+
+    pub(crate) fn is_read_only(self) -> bool {
+        self == Self::Ask
+    }
+
+    fn allows_execution(self) -> bool {
+        self == Self::Agent
+    }
+}
+
+fn validate_execution_start(mode: TurnMode, requested: bool) -> anyhow::Result<()> {
+    if requested && !mode.allows_execution() {
+        anyhow::bail!("execution_start is denied outside agent mode");
+    }
+    Ok(())
+}
+
+/// Side-effect-free result of inbound turn classification.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TurnAdmission {
     pub session_key: String,
-    pub plan_mode: bool,
+    pub mode: TurnMode,
     pub scheduled: bool,
 }
 
@@ -21,11 +65,7 @@ impl TurnAdmission {
     pub(crate) fn classify(message: &InboundMessage) -> Self {
         Self {
             session_key: format!("{}:{}", message.channel, message.chat_id),
-            plan_mode: message
-                .metadata
-                .get("exec_mode")
-                .and_then(|value| value.as_str())
-                .is_some_and(|mode| mode.eq_ignore_ascii_case("plan")),
+            mode: TurnMode::from_message(message),
             scheduled: message.sender_id == "cron" || message.metadata.contains_key("cron_job_id"),
         }
     }
@@ -35,7 +75,7 @@ pub(crate) struct AdmittedTurn {
     pub active_mask: Option<MaskFile>,
     pub model: String,
     pub scheduled: bool,
-    pub plan_mode: bool,
+    pub mode: TurnMode,
     pub execution_start: bool,
     pub session_key: String,
     pub active_execution: Option<ExecutionSession>,
@@ -72,6 +112,7 @@ impl AgentLoop {
         );
 
         let admission = TurnAdmission::classify(message);
+        let plan_mode = admission.mode.is_plan();
         let mut execution_start = message
             .metadata
             .get("execution_start")
@@ -127,7 +168,7 @@ impl AgentLoop {
         }
 
         let active_execution = match &self.tool_config.planning {
-            Some(planning) if !admission.plan_mode => {
+            Some(planning) if admission.mode.allows_execution() => {
                 planning
                     .registry
                     .active_execution_for_session(&admission.session_key)
@@ -136,6 +177,7 @@ impl AgentLoop {
             _ => None,
         };
         if execution_start {
+            validate_execution_start(admission.mode, execution_start)?;
             let execution = active_execution
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("no unique active execution for continuation"))?;
@@ -164,7 +206,7 @@ impl AgentLoop {
             .and_then(|value| value.as_bool())
             .unwrap_or(false)
             && active_execution.is_some()
-            && !admission.plan_mode
+            && admission.mode.allows_execution()
         {
             execution_start = execution_start
                 || message
@@ -182,21 +224,25 @@ impl AgentLoop {
         let snapshot = TurnSnapshot::capture(
             admission.session_key.clone(),
             model.clone(),
-            admission.plan_mode,
+            plan_mode,
             active_plan.as_ref(),
             trace_id.to_string(),
         );
         let plan_guard_active = snapshot.plan_guard_active();
-        let approved_plan_markdown = if let Some(markdown) = message
-            .metadata
-            .get("approved_plan_markdown")
-            .and_then(|value| value.as_str())
-        {
-            Some(markdown.to_string())
-        } else if let (Some(planning), Some(execution)) =
-            (&self.tool_config.planning, active_execution.as_ref())
-        {
-            planning.registry.execution_markdown(&execution.id).await
+        let approved_plan_markdown = if admission.mode.allows_execution() {
+            if let Some(markdown) = message
+                .metadata
+                .get("approved_plan_markdown")
+                .and_then(|value| value.as_str())
+            {
+                Some(markdown.to_string())
+            } else if let (Some(planning), Some(execution)) =
+                (&self.tool_config.planning, active_execution.as_ref())
+            {
+                planning.registry.execution_markdown(&execution.id).await
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -224,7 +270,7 @@ impl AgentLoop {
             active_mask,
             model,
             scheduled: admission.scheduled,
-            plan_mode: admission.plan_mode,
+            mode: admission.mode,
             execution_start,
             session_key: admission.session_key,
             active_execution,
@@ -249,11 +295,21 @@ mod tests {
             TurnAdmission::classify(&plan),
             TurnAdmission {
                 session_key: "gui:chat".into(),
-                plan_mode: true,
+                mode: TurnMode::Plan,
                 scheduled: false,
             }
         );
 
+        let ask =
+            InboundMessage::new("gui", "user", "chat", "ask").with_metadata("exec_mode", "AsK");
+        assert_eq!(TurnAdmission::classify(&ask).mode, TurnMode::Ask);
+        let unknown = InboundMessage::new("gui", "user", "chat", "unknown")
+            .with_metadata("exec_mode", "future-mode");
+        assert_eq!(TurnAdmission::classify(&unknown).mode, TurnMode::Ask);
+        assert!(!TurnMode::Ask.allows_execution());
+        assert!(validate_execution_start(TurnMode::Ask, true).is_err());
+        assert!(validate_execution_start(TurnMode::Plan, true).is_err());
+        assert!(validate_execution_start(TurnMode::Agent, true).is_ok());
         let scheduled = InboundMessage::new("gui", "cron", "chat", "tick");
         assert!(TurnAdmission::classify(&scheduled).scheduled);
     }

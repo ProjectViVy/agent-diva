@@ -4,6 +4,7 @@ use agent_diva_providers::Message;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RuntimePromptId {
     PlanMode,
+    AskMode,
     ApprovedPlan,
     ScheduledTurn,
     SessionTitleSystem,
@@ -50,6 +51,14 @@ When you have enough information for a decision-complete plan, end the turn with
 </proposed_plan>
 
 Put any preface outside the tags. Emit at most one <proposed_plan> block per turn. A revision must be a complete replacement. Do not ask whether to implement; the user uses the approval UI."#.to_string(),
+    }
+}
+
+pub(crate) fn ask_mode() -> RuntimePrompt {
+    RuntimePrompt {
+        id: RuntimePromptId::AskMode,
+        version: 1,
+        content: "You are in Ask mode. Analyze and answer using read-only inspection only. Never execute shell commands, write, edit, delete, schedule, spawn, mutate plans or TODOs, or perform any other persistent side effect. Existing approvals and execution sessions do not authorize mutations in this turn.".to_string(),
     }
 }
 
@@ -102,6 +111,9 @@ mod tests {
         assert_eq!(plan.version, 2);
         assert!(plan.content.contains("## Goal"));
         assert!(plan.content.contains("<proposed_plan>"));
+        let ask = ask_mode();
+        assert_eq!(ask.id, RuntimePromptId::AskMode);
+        assert!(ask.content.contains("read-only"));
 
         let title = session_title_user("<user>", "<assistant>");
         assert!(title.content.contains("<user>"));

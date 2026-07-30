@@ -140,6 +140,7 @@ pub(crate) struct ToolOrchestrationContext<'a> {
     pub trace_id: &'a str,
     pub iteration: usize,
     pub plan_mode: bool,
+    pub read_only: bool,
     pub plan_guard_active: bool,
     pub active_mask: Option<&'a MaskFile>,
     pub active_execution_id: Option<String>,
@@ -203,9 +204,10 @@ impl AgentLoop {
             cancelled: self.is_session_cancelled(context.session_key),
             plan_guard_active: context.plan_guard_active,
             persisted_plan_present: planning_before.is_some(),
-            reviewer_read_only: context
-                .active_mask
-                .is_some_and(ToolPolicy::is_read_only_mode),
+            reviewer_read_only: context.read_only
+                || context
+                    .active_mask
+                    .is_some_and(ToolPolicy::is_read_only_mode),
         };
         if !policy.may_enter_executor() {
             self.emit_error_event(
@@ -394,5 +396,43 @@ mod tests {
         };
         assert!(policy.denial_reason("exec").is_some());
         assert!(policy.denial_reason("read_file").is_none());
+    }
+
+    #[test]
+    fn ask_read_only_policy_denies_every_mutating_tool_family() {
+        let policy = ToolStepPolicy {
+            phase: None,
+            cancelled: false,
+            plan_guard_active: false,
+            persisted_plan_present: true,
+            reviewer_read_only: true,
+        };
+        for tool in [
+            "exec",
+            "write_file",
+            "edit_file",
+            "delete_file",
+            "plan_submit",
+            "todo_update",
+            "cron",
+            "spawn",
+        ] {
+            assert!(
+                policy.denial_reason(tool).is_some(),
+                "{tool} must be denied"
+            );
+        }
+        for tool in [
+            "read_file",
+            "list_dir",
+            "read_attachment",
+            "web_search",
+            "web_fetch",
+        ] {
+            assert!(
+                policy.denial_reason(tool).is_none(),
+                "{tool} must remain available"
+            );
+        }
     }
 }

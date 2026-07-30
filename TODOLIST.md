@@ -12,6 +12,14 @@ Mentle clean-break.
 The previously completed Mentle prompt-rebuild work is only historical baseline
 evidence for deletion and does not define the target architecture.
 
+- [x] **Ask mode must be an enforced read-only authority boundary** Fixed in
+  AgentLoop admission and the unique tool-execution seam. GUI/Manager
+  `exec_mode=ask` now selects a stable read-only turn mode, hides every tool
+  outside the five-tool inspection allowlist, rejects forged mutating calls,
+  does not restore approved execution sessions, and treats unknown explicit
+  modes as Ask. Evidence:
+  `docs/logs/2026-07-ask-mode-read-only/v0.0.1-authority-boundary/`.
+
 ## Skill / SOP Unification
 
 - [ ] **Represent Agent Diva SOPs as backward-compatible Skills** Do not build

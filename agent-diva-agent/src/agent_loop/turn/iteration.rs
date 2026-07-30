@@ -91,6 +91,7 @@ impl AgentLoop {
         message: &InboundMessage,
         message_content: &str,
         approved_plan_markdown: Option<&str>,
+        read_only: bool,
         scheduled: bool,
         current_turn_message: &Message,
     ) -> Result<ProviderEventStream, Box<dyn std::error::Error>> {
@@ -166,6 +167,9 @@ impl AgentLoop {
                     );
                     if let Some(markdown) = approved_plan_markdown {
                         messages.insert(1, prompt::approved_plan(markdown).system());
+                    }
+                    if read_only {
+                        messages.insert(1, prompt::ask_mode().system());
                     }
                     if scheduled {
                         let current_message = messages.pop();
