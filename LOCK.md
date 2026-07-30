@@ -30,6 +30,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-07-31T00:08:00+08:00`: Released documentation-only GenericAgent-informed
+  AutoDream–Laputa product closure plan. G2D is now the final G2D+ acceptance
+  gate after E0–E7 automated vertical closure, not an implementation prerequisite.
+  Added 13 planning documents and synchronized TODOLIST/master blueprint. No
+  runtime, configuration, secret, or user-data changes.
+
 - `2026-07-30T23:25:00+08:00`: Released documentation-only Skill product
   boundary update. SOP is no longer a distinct type or planned product; future
   work is a deferred visual CRUD lifecycle for all Skills and is removed from

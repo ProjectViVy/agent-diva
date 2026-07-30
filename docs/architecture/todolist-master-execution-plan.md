@@ -17,7 +17,8 @@
 4. AgentLoop 的所有副作用都经过单一治理 seam，Ask、Mask、子代理、cron
    不可提升权限；
 5. GUI、CLI、Manager/Tauri 的契约和失败表现一致；
-6. Evolution 在重新盘点后有明确可用范围，不以旧文档或不可达入口宣称可用；
+6. Evolution 的 AutoDream–Laputa 纵向链路达到开箱可用，不以旧文档、占位候选或
+   不可达入口宣称可用；
 7. Rust 1.80、完整测试、真实桌面 smoke、恢复演练和发布清理全部通过；
 8. 每个完成切片都有四件套日志、聚焦提交和可回滚证据，且未擅自 push。
 
@@ -41,58 +42,51 @@
 ## 3. 工作流与硬依赖
 
 ```text
-B0 G2D 真桌面验收
-  ├─失败─> B0F 单缺陷修复─> 从新提案重验
-  └─通过─> B1 Evolution/产品基线重盘点
-              |
-              +--> B2 数据身份与可靠性基础
-              |
-              +--> B3 统一 HITL（GMH-30..33）
-                        |
-                        v
-                 B4 单一副作用 seam（GMH-40..42）
-                        |
-              +---------+---------+
-              v                   v
-       B5 产品能力切片       B6 结构治理切片
-              +---------+---------+
-                        v
-                 B7 发布工程与恢复
-                        |
-                        v
-                 B8 全量验收与清理
+B0 AutoDream–Laputa 产品真实基线
+  → B1 Experience Journal
+  → B2 可恢复 AutoDream Orchestrator
+  → B3 Reflection / Candidate Gate
+  → B4 Proposal / 统一 HITL（GMH-30..33）
+  → B5 typed apply / Recall feedback / 单一副作用 seam（GMH-40..42）
+  → B6 一体化 Evolution GUI 与结构治理
+  → B7 数据身份、恢复、发布与全自动纵向 E2E
+  → B8 G2D+ 真实桌面最终验收与清理
 ```
 
-B0 是唯一当前产品硬门。B1 完成前不得直接开发 Evolution。B3 必须先冻结领域
-契约，再允许 B4 接入；B5/B6 可以在文件范围不重叠时并行，但目标模式默认串行，
-避免共享工作树冲突。
+人工 G2D 不再是实现前置门：当前提案底座虽可验，但 AutoDream 到 Recall 的产品链
+尚未完成，提前反复人工点击不能证明“拿到手就能用”。B0–B7 的自动化安全、数据
+完整性和恢复门不得降低；只有全部通过后才进入 B8 最终人工验收。
 
 ## 4. 批次设计
 
-### B0：G2D typed authority 收口
+### B0–B8：AutoDream–Laputa 开箱可用闭环
 
-输入：GMH-24C 新构建、typed 健康状态、可验证备份。
+本蓝图的产品主线由
+[`docs/dev/autodream-laputa-product-closure/`](../dev/autodream-laputa-product-closure/)
+替代原“先 G2D、再重新盘点”的顺序。以该目录的 13 部分计划为实施契约：
 
-执行六个独立场景：批准、拒绝、编辑后批准、双窗口重复点击、授权后重启、
-应用后回滚。每项保存脱敏 ID、revision、GUI 结果和 Manager/Tauri 错误。
+- B0：characterization 和不可用/degraded 真状态；
+- B1：脱敏 Experience Journal；
+- B2：持久化队列、阶段状态机和生产 worker；
+- B3：provider-neutral Reflection 与 Candidate Gate；
+- B4：确定性 ProposalPublisher 和统一审批；
+- B5：canonical typed apply、Recall 与效果反馈；
+- B6：一体化 Evolution Workspace，清理假入口；
+- B7：workspace identity、恢复演练、发布门和全自动纵向 E2E；
+- B8：原 G2D 六场景加完整“任务到 Recall”第七场景。
 
-退出条件：六项全部通过；任一失败立即停止，冻结现场并建立 B0F 缺陷切片。
+退出条件：真实任务产生可解释候选，经人工治理唯一写入 typed authority，后续会话
+可 Recall，回滚后不可 Recall；并发、重启、损坏和拒绝均有确定行为。
 
-人工暂停点：每个真实 GUI 操作前必须由用户执行或明确授权桌面控制。
+人工暂停点：只在 B8 最终桌面验收、真实 provider smoke、密钥、发布或不可逆迁移时
+暂停。B0–B7 不再要求用户逐场景点击。
 
-### B1：Evolution 与产品承诺重新盘点
+### 原 B1 状态
 
-G2D 通过只把状态改为“允许盘点”，不等于功能可用。盘点必须：
+“重新盘点”已被 B0 characterization 吸收；不再把盘点作为长期停留阶段。发现
+`HIDDEN / REMOVE / REDESIGN` 的入口必须在相应纵向切片内完成处置，不能只写报告。
 
-- 从真实 GUI 入口逐一列出 AutoDream、Evolution、Persona/Memory、报告能力；
-- 对每项标记 `WORKING / DEGRADED / HIDDEN / REMOVE / REDESIGN`；
-- 让当前代码、PRD、架构文档和界面文案一致；
-- 形成新的 Evolution MVP、威胁模型、用户旅程和验收矩阵；
-- 用户批准基线后才创建实现 story。
-
-退出条件：没有“界面可见但架构未定义”的功能，未实现能力明确隐藏或降级。
-
-### B2：数据身份与可靠性基础
+### 横切基础：数据身份与可靠性
 
 优先处理会污染后续验收可信度的基础债：
 
@@ -105,7 +99,7 @@ G2D 通过只把状态改为“允许盘点”，不等于功能可用。盘点�
 退出条件：同一 profile 在 CLI、Manager、GUI、Migration 中解析为同一 identity；
 完整 gate 不依赖“隔离重跑才算通过”。
 
-### B3：统一 HITL（GMH-30..33）
+### 横切治理：统一 HITL（GMH-30..33）
 
 推荐拆分：
 
@@ -119,7 +113,7 @@ G2D 通过只把状态改为“允许盘点”，不等于功能可用。盘点�
 必须覆盖 approve/edit/reject/cancel/stale/revoked/expired/concurrent/restart。
 执行器不得接受布尔型“已批准”捷径。
 
-### B4：AgentLoop 单一副作用 seam（GMH-40..42）
+### 横切治理：AgentLoop 单一副作用 seam（GMH-40..42）
 
 先修复现有 Plan residual，再接统一治理：
 
@@ -134,16 +128,15 @@ G2D 通过只把状态改为“允许盘点”，不等于功能可用。盘点�
 退出条件：任何调用路径，包括 Ask、Mask、cron、background task 和 subagent，
 均无法绕过 seam 或继承更高权限。
 
-### B5：产品能力切片
+### 闭环后的其他产品能力
 
-顺序由 B1 基线决定，默认建议：
+只有 AutoDream–Laputa E0–E7 和 G2D+ 完成后才进入，默认建议：
 
 1. Mask 独立验收；
 2. background task / supervised subagent 四个 Wave 3 E2E；
 3. workspace CLI managed-path 契约；
-4. Evolution MVP；
-5. UX-DR-3/4/7；
-6. StepFun 真实 endpoint E2E（仅在用户提供环境并授权时）。
+4. UX-DR-3/4/7；
+5. StepFun 真实 endpoint E2E（仅在用户提供环境并授权时）。
 
 每一项都必须先有可观察的用户旅程，再实现内部能力。真实 API 不得作为无人值守
 目标的默认步骤。
@@ -151,7 +144,7 @@ G2D 通过只把状态改为“允许盘点”，不等于功能可用。盘点�
 Skill 可视化全生命周期编辑器不属于默认 B5 路线。只有用户明确恢复该延期项后，
 才允许先做产品设计，再把它加入新的产品批次。
 
-### B6：结构治理
+### 横切结构治理
 
 RG-CODE-GOV 只在对应模块已有行为 characterization 后实施：
 
@@ -163,7 +156,7 @@ RG-CODE-GOV 只在对应模块已有行为 characterization 后实施：
 GMH seam 与 RG-CODE-GOV 重叠时，先完成 GMH 行为契约，再做纯结构重构；
 行为修复与结构变更不得混在同一提交。
 
-### B7：发布工程与恢复
+### 横切发布工程与恢复
 
 - 独立解决 Rust 1.80 ICU/Darling/Pest/CRC/Tauri 依赖；
 - 完成 GMH-50 feature flag/迁移清理，不恢复 Mentle 或长期双写；
@@ -171,7 +164,7 @@ GMH seam 与 RG-CODE-GOV 重叠时，先完成 GMH 行为契约，再做纯结�
 - 校验安装、升级、降级拒绝、Windows service、CLI、GUI/Tauri；
 - 建立发布候选版本、变更说明、已知限制和可逆回滚步骤。
 
-### B8：全量验收与清理
+### 最终全量验收与清理
 
 - GMH-52 全量 gate：fmt、clippy、test、deletion-proof、GUI tests/build、
   Tauri check、真实桌面 smoke；
@@ -245,8 +238,8 @@ Done：
 | 风险 | 后果 | 控制 |
 |---|---|---|
 | workspace identity 跨平台不一致 | 误判 store 不匹配或写入另一 authority | B2 canonical identity + identity-only migration |
-| 把 G2D 自动化当真机 | 关键 GUI/重启缺陷漏检 | B0 强制用户观察证据 |
-| Evolution 直接按旧设计恢复 | 在已变更 Memory 架构上重建无效功能 | B1 重新盘点和用户批准 |
+| 把 G2D 自动化当真机 | 关键 GUI/重启缺陷漏检 | B8 保留 G2D+ 用户观察证据 |
+| Evolution 直接按旧设计恢复 | 在已变更 Memory 架构上重建无效功能 | E0–E7 纵向闭环计划与 quality gate |
 | GMH 与结构治理双轨修改 | 重复抽象、冲突、超大提交 | 行为契约先于结构重构 |
 | flaky test 被当作环境噪声 | 发布门控失真 | B2 消除或隔离并给出根因 |
 | 目标模式越权使用密钥/外部系统 | 数据或费用风险 | 明确人工暂停点 |
@@ -254,9 +247,10 @@ Done：
 
 ## 9. 推荐的目标文本
 
-> 按 `docs/architecture/todolist-master-execution-plan.md` 持续完成根
-> `TODOLIST.md` 的全部活跃事项。严格遵守批次依赖、P0 门控、LOCK、单切片提交、
-> 四件套日志和不推送规则；不得降低测试门、恢复 Mentle、静默 fallback 或扩张
-> 未批准产品范围。遇到真实桌面、密钥、外部写入、不可逆操作或产品决策时暂停并
-> 请求用户，其余仓库内工作自主推进。每轮只领取一个可提交切片，完成后更新
-> TODO/archive 并继续下一个 Ready 项，直到满足项目级完成定义。
+> 按 `docs/dev/autodream-laputa-product-closure/` 和
+> `docs/architecture/todolist-master-execution-plan.md` 持续完成根
+> `TODOLIST.md` 的全部活跃事项。先完成 AutoDream evidence 到 typed Memory/Recall
+> 的 E0–E7 产品纵向闭环与自动化门，再执行 G2D+ 最终真实桌面验收。严格遵守
+> LOCK、单切片提交、四件套日志和不推送规则；不得降低测试门、恢复 Mentle、静默
+> fallback、让 AutoDream 自批准或直接写 authority。只有真实桌面、密钥、外部写入、
+> 不可逆操作或新产品决策才暂停，其余仓库内工作自主推进。

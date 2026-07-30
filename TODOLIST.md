@@ -9,28 +9,33 @@
 
 ## Active Plan
 
-当前主线：在 **typed Laputa clean-break（GMH-24）之后**，完成 **G2D 真实桌面验收**，
-然后才能解冻 Evolution / 进入发布验收。GMH-00..24 架构工作已完成并归档。
+当前主线：在 **typed Laputa clean-break（GMH-24）之后**，先完成
+**AutoDream → 候选 → Laputa 提案 → typed Memory → Recall 反馈**的产品纵向闭环，
+再执行最终真实桌面验收。GMH-00..24 架构底座已完成并归档，但 Evolution 当前仍是
+占位/不可用产品，不能以已有页面或提案底座宣称可用。
 
 全量执行顺序、依赖、人工暂停点和项目级完成定义见
 [`docs/architecture/todolist-master-execution-plan.md`](docs/architecture/todolist-master-execution-plan.md)。
-Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。
+Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。完整产品闭环计划见
+[`docs/dev/autodream-laputa-product-closure/`](docs/dev/autodream-laputa-product-closure/)。
 
-- [ ] **G2D：typed authority 真实桌面六场景验收** `sev-P0`
-  必须在**重启并加载新二进制**后的真实桌面环境执行，不得以自动化测试冒充。
-  场景：批准、拒绝、编辑后批准、重复点击、重启恢复、回滚。
-  保留 request/proposal/audit/rollback ID、界面结果、Manager/Tauri 日志。
-  相关：`docs/logs/2026-07-gmh-24c/`、GMH-23D HITL 路径。
+- [ ] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
+  按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、
+  Laputa proposal/统一治理、typed apply、Recall feedback、一体化 GUI、恢复与发布门
+  逐切片完成。普通 AutoDream trigger 必须启动真实 worker；禁止固定模板候选、
+  直接写 Memory、自批准或静默降级。每切片四件套、独立提交、不 push。
+  相关：`docs/dev/autodream-laputa-product-closure/09-project-management.md`。
 
-- [ ] **Evolution 功能开发冻结（直至 G2D）** `sev-P0`
-  在六场景通过前，不修复/扩展 AutoDream/Evolution 产品功能；仅允许安全与
-  数据完整性修复，以及明确的不可用/降级 UX。通过后基于 typed Laputa 再定基线。
+- [ ] **Evolution 当前状态必须明确为不可用/建设中** `sev-P0`
+  在 E0 characterization 前不得将现有页面标记为可用。允许且要求实施本闭环；
+  不在闭环内的旧 AutoDream/Evolution 承诺继续冻结，完全无后端的入口必须隐藏、
+  删除或明确 degraded。
 
-- [ ] **G2D 后 Evolution/产品基线重新盘点** `sev-P1`
-  G2D 通过仅把 Evolution 改为“允许盘点”，不直接宣告功能可用。逐一验证真实 GUI
-  入口，将能力标记为 `WORKING / DEGRADED / HIDDEN / REMOVE / REDESIGN`，同步
-  PRD、架构、界面承诺、威胁模型和 MVP；用户批准新基线后才创建实现 story。
-  相关：执行蓝图 B1、`docs/dev/evo-diva/README.md`。
+- [ ] **G2D+：全流程完成后的真实桌面最终验收** `sev-P0`
+  自动化纵向 E2E 与发布门通过后再由用户执行。保留原批准、拒绝、编辑后批准、
+  重复点击、重启恢复、回滚六场景，并新增“真实任务 evidence → AutoDream →
+  proposal → apply → 新会话 Recall → rollback 后消失”。不得以自动化冒充真机。
+  保留脱敏 ID、revision、桌面版本、界面结果和 Manager/Tauri 日志。
 
 完成索引（已归档）：Ask 只读边界、GMH-24A/B/C、G2D migration revision 修复等见
 [`docs/archive/todolist/completed-through-2026-07-30.md`](docs/archive/todolist/completed-through-2026-07-30.md)。
