@@ -28,12 +28,12 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   - [x] **E0：运行时表征与诚实产品状态**：普通手动触发会执行受限 worker 并返回
     终态；失败具有稳定的无载荷原因码；Evolution 页面明确提示当前仍是规则式候选、
     尚未形成可用闭环。
-  - [ ] **E1：Experience Journal**：把真实任务执行结果、工具结果与错误转成有界、
+  - [x] **E1：Experience Journal**：把真实任务执行结果、工具结果与错误转成有界、
     可追溯、可脱敏的反思输入。
     - [x] **E1A 在线执行证据**：AgentLoop 唯一工具 seam 记录 payload-free 结果，
       具备确定性 ID、幂等、workspace 隔离、物理 retention 和损坏行拒绝；AutoDream
       优先收集该证据。
-    - [ ] **E1B 离线回填与回滚**：从已有 session tool-result 生成 dry-run manifest，
+    - [x] **E1B 离线回填与回滚**：从已有 session tool-result 生成 dry-run manifest，
       显式 apply，按 manifest 回滚；不得读取或复制完整工具输出。
   - [ ] **E2–E7**：可恢复调度、Reflection/Candidate Gate、统一提案治理、typed
     apply/Recall feedback、一体化 GUI、恢复与发布门。

@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 
-- Lock State: `HELD`
-- Scope: `Cargo.toml`, `agent-diva-core/Cargo.toml`, `agent-diva-core/src/{lib,experience}.rs`, `agent-diva-core/src/evolution/types.rs`, `agent-diva-agent/src/agent_loop/turn/tool_step.rs`, `agent-diva-autodream/src/{inputs,layout,lib}.rs`, `agent-diva-autodream/tests/`, `TODOLIST.md`, `docs/logs/2026-07-autodream-laputa-e1/`, `LOCK.md`
-- Owner: `Codex / root`
-- Session/Task: `E1 Experience Journal`
+- Lock State: `RELEASED`
+- Scope: `NONE`
+- Owner: `NONE`
+- Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-07-31T00:36:00+08:00`
-- Last Heartbeat: `2026-07-31T00:36:00+08:00`
-- Expires At: `2026-07-31T01:36:00+08:00`
+- Started At: `N/A`
+- Last Heartbeat: `2026-07-31T00:52:00+08:00`
+- Expires At: `N/A`
 
 ## Lock Rules
 
@@ -26,9 +26,15 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- E1 Experience Journal domain, append seam, collection, tests, and iteration records.
+- No active lock.
 
 ## Handoff Notes
+
+- `2026-07-31T00:52:00+08:00`: Released E1B reversible session evidence
+  backfill. Migration CLI now exposes explicit experience dry-run/apply/rollback
+  operations with prepared/applied manifests, deterministic replay, capacity
+  fail-closed behavior, payload-free output, and rollback that preserves
+  preexisting evidence. Migration tests, CLI smoke, fmt, and full clippy passed.
 
 - `2026-07-31T00:33:34+08:00`: Released E0 AutoDream runtime
   characterization. Manual triggers now execute the restricted worker to a

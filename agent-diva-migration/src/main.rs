@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
+mod experience;
 mod typed_memory;
 
 #[derive(Parser)]
@@ -22,6 +23,36 @@ enum Command {
         #[command(subcommand)]
         operation: MemoryOperation,
     },
+    /// Backfill payload-free AutoDream evidence from existing sessions.
+    Experience {
+        #[command(subcommand)]
+        operation: ExperienceOperation,
+    },
+}
+
+#[derive(Subcommand)]
+enum ExperienceOperation {
+    /// Inspect eligible tool-result records without writing.
+    DryRun(ExperienceArgs),
+    /// Persist a manifest and append eligible evidence.
+    Apply(ExperienceArgs),
+    /// Remove only evidence listed by the migration manifest.
+    Rollback(ExperienceRollbackArgs),
+}
+
+#[derive(Debug, Args)]
+struct ExperienceArgs {
+    /// Target Agent Diva workspace containing sessions/.
+    #[arg(long)]
+    workspace: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct ExperienceRollbackArgs {
+    #[arg(long)]
+    workspace: PathBuf,
+    #[arg(long)]
+    migration_id: String,
 }
 
 #[derive(Subcommand)]
@@ -68,14 +99,21 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
     let report = match cli.command {
-        Command::Memory { operation } => match operation {
+        Command::Memory { operation } => serde_json::to_value(match operation {
             MemoryOperation::DryRun(args) => typed_memory::dry_run(&request(args)).await?,
             MemoryOperation::Apply(args) => typed_memory::apply(&request(args)).await?,
             MemoryOperation::Rollback(args) => {
                 typed_memory::rollback(&args.workspace, &args.workspace_id, &args.migration_id)
                     .await?
             }
-        },
+        })?,
+        Command::Experience { operation } => serde_json::to_value(match operation {
+            ExperienceOperation::DryRun(args) => experience::dry_run(&args.workspace)?,
+            ExperienceOperation::Apply(args) => experience::apply(&args.workspace)?,
+            ExperienceOperation::Rollback(args) => {
+                experience::rollback(&args.workspace, &args.migration_id)?
+            }
+        })?,
     };
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())

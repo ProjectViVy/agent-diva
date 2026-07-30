@@ -90,6 +90,10 @@ impl ExperienceJournal {
         &self.journal_path
     }
 
+    pub fn capacity(&self) -> usize {
+        self.retention
+    }
+
     pub fn tool_evidence(
         &self,
         session_id: &str,
@@ -129,6 +133,49 @@ impl ExperienceJournal {
             verification,
             summary,
             occurred_at: Utc::now(),
+        }
+    }
+
+    pub fn session_backfill_evidence(
+        &self,
+        session_id: &str,
+        action_id: &str,
+        tool_name: &str,
+        is_error: bool,
+        occurred_at: DateTime<Utc>,
+    ) -> ExperienceEvidence {
+        let workspace_id = self.workspace_id();
+        let trace_id = format!("backfill:{session_id}");
+        let tool_category = classify_tool(tool_name).to_string();
+        let outcome = if is_error {
+            OutcomeKind::Failed
+        } else {
+            OutcomeKind::Succeeded
+        };
+        let verification = VerificationState::SessionBackfill;
+        let summary = format!(
+            "{} action {}",
+            tool_category,
+            if is_error { "failed" } else { "succeeded" }
+        );
+        let material = format!(
+            "{workspace_id}\0{session_id}\0{trace_id}\0{action_id}\0{tool_category}\0{:?}\0{:?}",
+            outcome, verification
+        );
+        let digest = sha256(material.as_bytes());
+        ExperienceEvidence {
+            schema_version: SCHEMA_VERSION,
+            id: format!("exp-{}", &digest[..32]),
+            digest,
+            workspace_id,
+            session_id: session_id.to_string(),
+            trace_id,
+            action_id: action_id.to_string(),
+            tool_category,
+            outcome,
+            verification,
+            summary,
+            occurred_at,
         }
     }
 
@@ -197,6 +244,38 @@ impl ExperienceJournal {
         let result = read_locked(&file, &workspace_id, limit.min(self.retention));
         FileExt::unlock(&file)?;
         result
+    }
+
+    /// Remove only the listed evidence ids. Used by manifest-scoped offline rollback.
+    pub fn remove_ids(&self, ids: &HashSet<String>) -> std::io::Result<usize> {
+        if ids.is_empty() || !self.journal_path.exists() {
+            return Ok(0);
+        }
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&self.journal_path)?;
+        file.lock_exclusive()?;
+        let workspace_id = self.workspace_id();
+        let existing = read_locked(&file, &workspace_id, usize::MAX)?;
+        let existing_len = existing.items.len();
+        let retained = existing
+            .items
+            .into_iter()
+            .filter(|item| !ids.contains(&item.id))
+            .collect::<Vec<_>>();
+        let removed = existing_len.saturating_sub(retained.len());
+        file.set_len(0)?;
+        file.seek(SeekFrom::Start(0))?;
+        for item in retained {
+            serde_json::to_writer(&mut file, &item)?;
+            file.write_all(b"\n")?;
+        }
+        file.flush()?;
+        file.sync_data()?;
+        FileExt::unlock(&file)?;
+        Ok(removed)
     }
 }
 
