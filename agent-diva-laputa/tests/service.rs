@@ -233,6 +233,7 @@ fn recovery_apply_failure_emits_error_diagnostic_event() {
             ts(4),
             ApplyOptions {
                 failure_point: Some(ApplyFailurePoint::AfterSectionWriteBeforeChangelog),
+                write_authority: true,
             },
         )
         .unwrap_err();

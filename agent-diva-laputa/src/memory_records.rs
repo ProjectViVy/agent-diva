@@ -7,7 +7,7 @@ use std::{
 };
 
 use agent_diva_core::{
-    evolution::LaputaSectionName,
+    evolution::{EvolutionProposal, LaputaSectionName},
     governance::{AuditCorrelation, ContentDigest},
     memory::{
         memory_content_digest, MemoryIntegrityFinding, MemoryIntegrityReport,
@@ -15,6 +15,36 @@ use agent_diva_core::{
         MemoryRecordKind, MemoryScope, MemorySensitivity, MemoryTrust,
     },
 };
+
+/// Normalize one governed proposal for typed authority apply.
+pub fn adapt_governed_proposal(
+    proposal: &EvolutionProposal,
+    context: &MemoryAdapterContext,
+) -> MemoryRecord {
+    let digest = memory_content_digest(proposal.proposed_patch.as_bytes());
+    MemoryRecord {
+        id: deterministic_record_id("proposal", &proposal.id, &digest),
+        kind: record_kind_for_section(&proposal.target_section),
+        content: proposal.proposed_patch.clone(),
+        provenance: MemoryProvenance {
+            source: MemoryProvenanceSource::LaputaAppliedSection,
+            source_id: proposal.id.clone(),
+            content_digest: digest,
+            captured_at: context.captured_at,
+            correlation: context.correlation.clone(),
+        },
+        evidence_refs: proposal.evidence_refs.clone(),
+        confidence_bps: 10_000,
+        sensitivity: MemorySensitivity::Private,
+        trust: MemoryTrust::AppliedAuthority,
+        scope: scope(context),
+        created_at: proposal.created_at,
+        effective_at: context.captured_at,
+        expires_at: None,
+        supersedes: Vec::new(),
+        tombstone: None,
+    }
+}
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 

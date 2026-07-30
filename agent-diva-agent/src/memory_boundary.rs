@@ -58,20 +58,24 @@ pub async fn memory_provider_for_mode(
         }
     }
     let typed = Arc::new(agent_diva_laputa::LaputaRecallService::new(existing_store));
-    let typed_authority = match agent_diva_laputa::LaputaMemoryProvider::open(workspace) {
-        Ok(provider) => Arc::new(provider) as Arc<dyn MemoryProvider>,
-        Err(error) => {
-            return Arc::new(DegradedMemoryProvider::new(
+    if mode == MemoryAuthorityMode::Typed {
+        return match agent_diva_laputa::TypedLaputaMemoryProvider::open(
+            workspace,
+            workspace.to_string_lossy().to_string(),
+        )
+        .await
+        {
+            Ok(provider) => Arc::new(provider),
+            Err(error) => Arc::new(DegradedMemoryProvider::new(
                 workspace.to_path_buf(),
-                format!("laputa_authority_unavailable:{error}"),
-            ));
-        }
-    };
+                format!("typed_provider_unavailable:{error}"),
+            )),
+        };
+    }
     Arc::new(CutoverMemoryProvider {
         mode,
         workspace: workspace.to_path_buf(),
         legacy: Arc::new(MemoryManager::new(workspace)),
-        typed_authority,
         recall: typed,
     })
 }
@@ -80,7 +84,6 @@ struct CutoverMemoryProvider {
     mode: MemoryAuthorityMode,
     workspace: std::path::PathBuf,
     legacy: Arc<dyn MemoryProvider>,
-    typed_authority: Arc<dyn MemoryProvider>,
     recall: Arc<agent_diva_laputa::LaputaRecallService>,
 }
 
@@ -122,7 +125,7 @@ impl MemoryProvider for CutoverMemoryProvider {
     ) -> agent_diva_core::Result<SystemPromptResponse> {
         match self.mode {
             MemoryAuthorityMode::Shadow => self.legacy.system_prompt_block(request),
-            MemoryAuthorityMode::Typed => self.typed_authority.system_prompt_block(request),
+            MemoryAuthorityMode::Typed => unreachable!("typed mode uses TypedLaputaMemoryProvider"),
             MemoryAuthorityMode::Legacy => self.legacy.system_prompt_block(request),
         }
     }
@@ -186,7 +189,8 @@ impl MemoryProvider for CutoverMemoryProvider {
     ) -> agent_diva_core::Result<SyncTurnResponse> {
         match self.mode {
             MemoryAuthorityMode::Shadow => self.legacy.sync_turn(request).await,
-            _ => self.typed_authority.sync_turn(request).await,
+            MemoryAuthorityMode::Typed => unreachable!("typed mode uses TypedLaputaMemoryProvider"),
+            MemoryAuthorityMode::Legacy => self.legacy.sync_turn(request).await,
         }
     }
 
@@ -196,7 +200,8 @@ impl MemoryProvider for CutoverMemoryProvider {
     ) -> agent_diva_core::Result<SessionEndResponse> {
         match self.mode {
             MemoryAuthorityMode::Shadow => self.legacy.on_session_end(request).await,
-            _ => self.typed_authority.on_session_end(request).await,
+            MemoryAuthorityMode::Typed => unreachable!("typed mode uses TypedLaputaMemoryProvider"),
+            MemoryAuthorityMode::Legacy => self.legacy.on_session_end(request).await,
         }
     }
 }

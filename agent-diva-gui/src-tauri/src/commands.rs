@@ -2859,11 +2859,6 @@ pub async fn get_tools_config(state: State<'_, AgentState>) -> Result<serde_json
 }
 
 #[tauri::command]
-pub async fn list_mentle_tools(state: State<'_, AgentState>) -> Result<serde_json::Value, String> {
-    state.list_mentle_tools().await
-}
-
-#[tauri::command]
 pub async fn get_provider_models(
     provider: String,
     api_base: Option<String>,

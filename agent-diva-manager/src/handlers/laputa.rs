@@ -6,6 +6,7 @@ use std::{
     sync::OnceLock,
 };
 
+use agent_diva_core::config::schema::MemoryAuthorityMode;
 use agent_diva_core::evolution::{
     ChangelogAction, EvolutionProposal, LaputaSectionName, ProposalState, ProposalType,
 };
@@ -13,8 +14,9 @@ use agent_diva_core::governance::{
     ApprovalGrant, ApprovalLedgerError, Decision, GovernanceSubject, GovernanceSubjectKind,
 };
 use agent_diva_laputa::{
-    ChangelogFilter, LaputaError, LaputaEventKind, MemoryGovernanceDecision, MemoryGovernanceError,
-    ProposalEdit, ProposalFilter, RollbackChangelogRequest,
+    adapt_governed_proposal, ChangelogFilter, GovernedMemoryApply, LaputaError, LaputaEventKind,
+    MemoryAdapterContext, MemoryGovernanceDecision, MemoryGovernanceError, ProposalEdit,
+    ProposalFilter, RollbackChangelogRequest, TypedMemoryStore,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -406,10 +408,61 @@ pub async fn apply_laputa_proposal_handler(
                 .map_err(laputa_error_response)?
             {
                 Some(recovered) => recovered,
-                None => state
-                    .laputa
-                    .apply_proposal(&id, receipt.decided_by.id.clone(), journal.applied_at)
-                    .map_err(laputa_error_response)?,
+                None => {
+                    if state.memory_authority_mode == MemoryAuthorityMode::Typed {
+                        let store = TypedMemoryStore::open_existing(
+                            &state.workspace_root,
+                            state.workspace_root.to_string_lossy().to_string(),
+                        )
+                        .await
+                        .map_err(typed_store_error_response)?;
+                        let metadata =
+                            store.metadata().await.map_err(typed_store_error_response)?;
+                        let record = adapt_governed_proposal(
+                            &proposal,
+                            &MemoryAdapterContext {
+                                tenant_id: "local".into(),
+                                workspace_id: state.workspace_root.to_string_lossy().to_string(),
+                                session_id: None,
+                                correlation: approval.request.correlation.clone(),
+                                captured_at: journal.applied_at,
+                            },
+                        );
+                        let expected_record_revision = store
+                            .get(&record.id)
+                            .await
+                            .map_err(typed_store_error_response)?
+                            .map(|stored| stored.revision);
+                        store
+                            .put_governed(
+                                record,
+                                metadata.store_revision,
+                                expected_record_revision,
+                                GovernedMemoryApply {
+                                    proposal_id: &proposal.id,
+                                    idempotency_key: &payload.idempotency_key,
+                                    request: &approval.request,
+                                    receipt: &receipt,
+                                    applied_at: journal.applied_at,
+                                },
+                            )
+                            .await
+                            .map_err(typed_store_error_response)?;
+                        state
+                            .laputa
+                            .finalize_typed_proposal(
+                                &id,
+                                receipt.decided_by.id.clone(),
+                                journal.applied_at,
+                            )
+                            .map_err(laputa_error_response)?
+                    } else {
+                        state
+                            .laputa
+                            .apply_proposal(&id, receipt.decided_by.id.clone(), journal.applied_at)
+                            .map_err(laputa_error_response)?
+                    }
+                }
             };
             journal.state = LegacyApplyState::AuthorityCommitted;
             journal.outcome = Some(outcome.clone());
@@ -610,10 +663,50 @@ pub async fn rollback_laputa_changelog_handler(
     Path(id): Path<String>,
     Json(payload): Json<RollbackChangelogRequest>,
 ) -> JsonResult {
-    let outcome = state
-        .laputa
-        .rollback_changelog(&id, payload, "api", Utc::now())
-        .map_err(laputa_error_response)?;
+    let outcome = if state.memory_authority_mode == MemoryAuthorityMode::Typed {
+        let changelog = state
+            .laputa
+            .get_changelog(&id)
+            .map_err(laputa_error_response)?;
+        let proposal_id = changelog.proposal_id.ok_or_else(|| {
+            error_response(
+                StatusCode::CONFLICT,
+                "typed_rollback_ineligible",
+                "typed changelog is not bound to a proposal",
+            )
+        })?;
+        let store = TypedMemoryStore::open_existing(
+            &state.workspace_root,
+            state.workspace_root.to_string_lossy().to_string(),
+        )
+        .await
+        .map_err(typed_store_error_response)?;
+        let revision = store
+            .metadata()
+            .await
+            .map_err(typed_store_error_response)?
+            .store_revision;
+        if !store
+            .rollback_governed(&proposal_id, revision)
+            .await
+            .map_err(typed_store_error_response)?
+        {
+            return Err(error_response(
+                StatusCode::CONFLICT,
+                "typed_rollback_missing_record",
+                "typed proposal record is not available for rollback",
+            ));
+        }
+        state
+            .laputa
+            .finalize_typed_rollback(&id, "api", Utc::now())
+            .map_err(laputa_error_response)?
+    } else {
+        state
+            .laputa
+            .rollback_changelog(&id, payload, "api", Utc::now())
+            .map_err(laputa_error_response)?
+    };
     ok(serde_json::json!({ "status": "ok", "outcome": outcome }))
 }
 
@@ -739,6 +832,30 @@ fn memory_governance_error_response(
             ApprovalLedgerError::Expired | ApprovalLedgerError::InvalidTransition,
         ) => (StatusCode::UNPROCESSABLE_ENTITY, "governance_invalid_state"),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "governance_failure"),
+    };
+    error_response(status, code, error.to_string())
+}
+
+fn typed_store_error_response(
+    error: agent_diva_laputa::TypedMemoryStoreError,
+) -> (StatusCode, Json<serde_json::Value>) {
+    use agent_diva_laputa::TypedMemoryStoreError;
+    let (status, code) = match &error {
+        TypedMemoryStoreError::StoreRevisionConflict { .. }
+        | TypedMemoryStoreError::RecordRevisionConflict { .. }
+        | TypedMemoryStoreError::ApplyIdempotencyConflict
+        | TypedMemoryStoreError::ImportConflict { .. } => {
+            (StatusCode::CONFLICT, "typed_memory_conflict")
+        }
+        TypedMemoryStoreError::WorkspaceMismatch { .. }
+        | TypedMemoryStoreError::DatabaseWorkspaceMismatch { .. }
+        | TypedMemoryStoreError::InvalidReceipt(_) => {
+            (StatusCode::UNPROCESSABLE_ENTITY, "typed_memory_invalid")
+        }
+        TypedMemoryStoreError::CapacityExceeded { .. } => {
+            (StatusCode::INSUFFICIENT_STORAGE, "typed_memory_capacity")
+        }
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, "typed_memory_failure"),
     };
     error_response(status, code, error.to_string())
 }

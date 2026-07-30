@@ -11,7 +11,6 @@ readme = "README.md"
 
 [features]
 default = []
-mentle = ["agent-diva-core/mentle", "dep:memtle"]
 
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
@@ -50,10 +49,6 @@ which = { workspace = true }
 dirs = { workspace = true }
 sqlx = { workspace = true }
 base64 = { workspace = true }
-
-[dependencies.memtle]
-workspace = true
-optional = true
 
 [dev-dependencies]
 tokio-test = { workspace = true }

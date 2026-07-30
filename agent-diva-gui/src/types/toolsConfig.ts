@@ -1,5 +1,3 @@
-import type { MentleToolConfigShape } from '../api/desktop';
-
 export interface BudgetConfigShape {
   max_tokens: number;
   system_budget_ratio: number;
@@ -19,6 +17,5 @@ export interface ToolsConfigShape {
       enabled: boolean;
     };
   };
-  mentle: MentleToolConfigShape;
   budget: BudgetConfigShape;
 }

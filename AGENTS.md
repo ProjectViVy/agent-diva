@@ -29,11 +29,8 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
 - Root workspace package version is `0.5.0` and Rust MSRV is `1.80.0`.
 - Root workspace members include `agent-diva-autodream`, `agent-diva-files`, `agent-diva-laputa`, `agent-diva-sandbox`, and `agent-diva-tooling` in addition to the older core/agent/provider/channel/tool/CLI/service/GUI crates.
 - `.workspace/` holds sibling reference projects and research sources, including `agent-diva-nano`, `openfang`, `zeroclaw`, `nanobot`, `codex`, `memtle`, and related references.
-- The current branch still contains the published `memtle = 0.1.2` dependency,
-  but it is legacy removal scope, not a target architecture. Do not expand,
-  upgrade, replace, or add new call sites. The approved target is Embedded
-  Laputa (profile-local typed SQLite + FTS5) followed by Mentle/LLVM
-  clean-break under GMH-23A..24.
+- Embedded Laputa (profile-local typed SQLite + FTS5) is the sole production
+  Memory authority. Legacy Memory files are offline import sources only.
 - The current branch is `agent-diva-pro`; as of initialization on 2026-06-15 it is ahead of `origin/agent-diva-pro` and has active dirty-work changes from multiple stories. Preserve unrelated user/story changes.
 
 **Common workspace conventions:**
@@ -49,14 +46,6 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
 - Install `just` and run commands from the workspace root.
 - Copy and configure local environment files if required by a crate or channel.
 - Verify toolchain and project health with `just fmt-check && just check && just test`.
-- For Mentle feature-lane work on Windows, ensure `clang-cl.exe` is discoverable.
-  If LLVM is installed at `C:\Program Files\LLVM\bin` but the current shell PATH
-  does not include it, prefix the session with
-  `$env:PATH = 'C:\Program Files\LLVM\bin;' + $env:PATH` before running
-  `cargo check -p agent-diva-agent --features mentle`.
-  This applies only while validating the pre-deletion baseline. New work must
-  not introduce an LLVM requirement, and the lane is removed at GMH-24.
-
 ## Development Guide
 If users request references to projects such as openclaw, nanobot, or shannon, prioritize reviewing the contents under the .workspace directory. Analyze the architectures of these sibling projects and propose a development approach suitable for the agent-diva architecture.
 
@@ -69,12 +58,9 @@ Prefer `just` recipes from the workspace root:
 - `just check`: run clippy with warnings denied.
 - `just fmt` and `just fmt-check`: format or verify formatting.
 - `just ci`: run formatting, lint, and tests (CI-equivalent gate).
-- `just mentle-package-policy`: legacy pre-deletion check; remove with GMH-24.
-- `just sprint5-default-check`: run default-lane Mentle assembly and failure regressions.
-- `just mentle-check`: legacy pre-deletion lane; do not use as a target
-  acceptance gate and remove with GMH-24.
-- `just sprint5-check`: legacy composite check containing the Mentle lane;
-  replace with Embedded Laputa and deletion-proof gates at GMH-24.
+- `just memory-provider-check`: run focused provider assembly and failure regressions.
+- `just laputa-clean-break-check`: prove removed legacy runtime dependencies have
+  not re-entered active product code, manifests, GUI, CI, or build recipes.
 - `just run -- <args>`: run `agent-diva-cli`.
 - `just migrate -- <args>`: run migration CLI.
 

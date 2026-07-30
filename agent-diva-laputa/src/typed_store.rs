@@ -11,7 +11,7 @@ use std::{
 };
 
 use agent_diva_core::{
-    governance::{ApprovalReceipt, ApprovalRequest, GovernanceValidationError},
+    governance::{ApprovalReceipt, ApprovalRecord, GovernanceValidationError},
     memory::{MemoryRecord, MemoryRecordValidationError, MemoryScope},
 };
 use chrono::Utc;
@@ -120,7 +120,7 @@ pub struct MemoryStoreIntegrity {
 pub struct GovernedMemoryApply<'a> {
     pub proposal_id: &'a str,
     pub idempotency_key: &'a str,
-    pub request: &'a ApprovalRequest<()>,
+    pub request: &'a ApprovalRecord,
     pub receipt: &'a ApprovalReceipt,
     pub applied_at: chrono::DateTime<Utc>,
 }
@@ -539,7 +539,7 @@ impl TypedMemoryStore {
         expected_record_revision: Option<i64>,
         governed: GovernedMemoryApply<'_>,
     ) -> Result<StoredMemoryRecord, TypedMemoryStoreError> {
-        governed.receipt.validate_approve_once(governed.request)?;
+        governed.request.validate_approve_once(governed.receipt)?;
         self.put_inner(
             record,
             expected_store_revision,
@@ -547,6 +547,56 @@ impl TypedMemoryStore {
             Some(governed),
         )
         .await
+    }
+
+    /// Remove the record produced by a governed proposal during rollback.
+    pub async fn rollback_governed(
+        &self,
+        proposal_id: &str,
+        expected_store_revision: i64,
+    ) -> Result<bool, TypedMemoryStoreError> {
+        let _write_guard = self.write_lock.lock().await;
+        let mut tx = self.pool.begin().await?;
+        let actual_store: i64 =
+            sqlx::query_scalar("SELECT store_revision FROM schema_meta WHERE component = ?")
+                .bind(COMPONENT)
+                .fetch_one(&mut *tx)
+                .await?;
+        if actual_store != expected_store_revision {
+            return Err(TypedMemoryStoreError::StoreRevisionConflict {
+                expected: expected_store_revision,
+                actual: actual_store,
+            });
+        }
+        let record_id: Option<String> =
+            sqlx::query_scalar("SELECT record_id FROM memory_apply_journal WHERE proposal_id = ?")
+                .bind(proposal_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let Some(record_id) = record_id else {
+            tx.rollback().await?;
+            return Ok(false);
+        };
+        sqlx::query("DELETE FROM memory_fts WHERE memory_id = ?")
+            .bind(&record_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM memory_records WHERE memory_id = ?")
+            .bind(&record_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM memory_apply_journal WHERE proposal_id = ?")
+            .bind(proposal_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "UPDATE schema_meta SET store_revision = store_revision + 1 WHERE component = ?",
+        )
+        .bind(COMPONENT)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(true)
     }
 
     async fn put_inner(

@@ -246,11 +246,6 @@ const toolsConfig = ref<ToolsConfigShape>({
       enabled: true
     }
   },
-  mentle: {
-    enabled: false,
-    mode: 'off',
-    allowed_tools: [],
-  },
   budget: {
     max_tokens: 180000,
     system_budget_ratio: 0.15,

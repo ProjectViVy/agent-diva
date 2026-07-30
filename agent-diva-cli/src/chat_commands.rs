@@ -7,7 +7,6 @@ use agent_diva_agent::{
     context::SoulContextSettings,
     mask::{MaskFile, MaskRegistry},
     runtime_control::RuntimeControlCommand,
-    tool_config::mentle::MentleToolRuntimeConfig,
     tool_config::network::{
         NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
     },
@@ -63,7 +62,6 @@ pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         cron: config.tools.builtin.cron,
         mcp: config.tools.builtin.mcp,
         attachment: config.tools.builtin.attachment,
-        mentle: config.tools.builtin.mentle,
         enqueue_background_task: config.tools.builtin.enqueue_background_task,
         update_plan: config.tools.builtin.update_plan,
     }
@@ -90,7 +88,6 @@ async fn build_local_cli_agent(
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
-        mentle: MentleToolRuntimeConfig::from_config(&config),
         planning,
         exec_timeout: config.tools.exec.timeout,
         global_timeout_secs: 120,

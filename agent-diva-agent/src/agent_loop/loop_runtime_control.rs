@@ -15,13 +15,6 @@ impl AgentLoop {
                 self.apply_network_config(network).await;
                 self.rebuild_tools_for_active_phase().await;
             }
-            RuntimeControlCommand::UpdateMentle {
-                mentle,
-                builtin_mentle,
-            } => {
-                self.apply_mentle_config(mentle, builtin_mentle).await;
-                self.rebuild_tools_for_active_phase().await;
-            }
             RuntimeControlCommand::UpdateMcp { servers } => {
                 self.apply_mcp_config(servers).await;
                 self.rebuild_tools_for_active_phase().await;

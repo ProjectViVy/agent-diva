@@ -21,8 +21,8 @@ use crate::handlers::{
     get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
     get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
     health_handler, heartbeat_handler, list_autodream_runs_handler, list_cron_jobs_handler,
-    list_laputa_changelog_handler, list_laputa_proposals_handler, list_mentle_tools_handler,
-    logs_routes, poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
+    list_laputa_changelog_handler, list_laputa_proposals_handler, logs_routes,
+    poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
     resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, todo_routes, token_stats_routes,
@@ -195,10 +195,6 @@ fn runtime_routes() -> Router<AppState> {
         .route(
             "/api/tools",
             get(get_tools_handler).post(update_tools_handler),
-        )
-        .route(
-            "/api/tools/mentle/available",
-            get(list_mentle_tools_handler),
         )
         .route(
             "/api/skills",

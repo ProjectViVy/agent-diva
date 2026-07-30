@@ -6,12 +6,10 @@
 
 The active Memory delivery plan is the Embedded Laputa correction under
 GMH-23A..24. GMH-23D implementation and automated recovery hardening are
-complete; its six-scenario real-desktop G2D acceptance is explicitly deferred
-and no longer blocks architecture work. The next implementation gate is GMH-24
-cutover and Mentle clean-break. G2D must still pass after that closure and
-before Evolution development or release acceptance resumes.
-The previously completed Mentle prompt-rebuild work is only historical baseline
-evidence for deletion and does not define the target architecture.
+complete; its six-scenario real-desktop G2D acceptance is explicitly deferred.
+GMH-24A/B/C have now closed the Embedded Laputa architecture and removed the
+legacy runtime. G2D must still pass on a restarted real desktop before
+Evolution development or release acceptance resumes.
 
 - [x] **Ask mode must be an enforced read-only authority boundary** Fixed in
   AgentLoop admission and the unique tool-execution seam. GUI/Manager
@@ -21,13 +19,13 @@ evidence for deletion and does not define the target architecture.
   modes as Ask. Evidence:
   `docs/logs/2026-07-ask-mode-read-only/v0.0.1-authority-boundary/`.
 
-- [ ] **Evolution feature development is frozen until Laputa architecture
-  closure** Do not repair or extend AutoDream/Evolution product functions while
-  GMH-24 cutover and Mentle clean-break remain open. During the freeze, only
+- [ ] **Evolution feature development remains frozen pending deferred G2D**
+  Do not repair or extend AutoDream/Evolution product functions until the six
+  real-desktop proposal scenarios pass. During the freeze, only
   security/data-integrity fixes and an explicit unavailable/degraded UX are
-  allowed. After GMH-24 completes, rebaseline Evolution against typed Laputa,
-  execute the deferred G2D desktop scenarios, and only then resume feature
-  development.
+  allowed. Rebaseline Evolution against typed Laputa only after G2D evidence
+  confirms approve, reject, edit-approve, duplicate click, restart recovery,
+  and rollback.
 
 ## Skill / SOP Unification
 
@@ -73,14 +71,18 @@ evidence for deletion and does not define the target architecture.
   GMH-23D crash recovery).
   Expected: identify and synchronize the load-sensitive Manager test so the
   complete workspace gate is deterministic. Related: `agent-diva-manager`.
-- [ ] **Workspace Rust 1.80 lockfile gate is blocked by legacy Mentle**
+- [ ] **Workspace Rust 1.80 lockfile still has unrelated newer-MSRV dependencies**
   `cargo +1.80.0 check -p agent-diva-laputa` cannot parse the locked
   Edition-2024 manifests in the legacy dependency closure (currently first
   observed at `base64ct 1.8.3`; the same closure also includes the previously
   observed `time-core 0.1.8` path through
   `memtle -> ureq -> cookie_store -> time ^0.3.47`). GMH-23B/23C use the
-  existing Rust-1.80-compatible `sqlx 0.7` API; the workspace gate becomes
-  enforceable after GMH-24 removes Mentle and refreshes the lockfile.
+  GMH-24 removed that dependency closure and refreshed the lockfile, so the
+  original Memory backend blocker is gone. A dedicated-target probe now
+  exposes broader unrelated dependencies (including current ICU, Darling,
+  Pest, CRC and Tauri transitive releases) whose declared MSRV exceeds 1.80.
+  Pin or upgrade those product dependencies in a separate workspace-wide MSRV
+  slice; do not weaken the Embedded Laputa clean-break gate.
 - [ ] **MSRV probing can contaminate the shared default target cache**
   After the failed `cargo +1.80.0 check`, one immediate `just test` run emitted
   widespread Tauri macro/type-resolution errors. An isolated default-toolchain
@@ -617,7 +619,7 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - 后续加固：legacy 文件 apply 的“事务已提交但 receipt 消费前崩溃”
     已增加持久化幂等恢复结果与自动化覆盖；低风险自动 apply 仍保持关闭，待明确配置和
     session/rule authorization 接口完成后才可启用。
-- [ ] **GMH-24：Embedded Laputa cutover 与 Mentle clean-break Gate**
+- [x] **GMH-24：Embedded Laputa cutover 与 clean-break Gate**
   - 当前最高优先级；G2D 桌面验收不再作为进入本 Gate 的前置条件。
   - 对 legacy Markdown/Laputa JSON 做一次性、显式、可回滚离线导入；
     禁止读取旧 Mentle 数据库，禁止长期双读/双写。
@@ -628,6 +630,8 @@ Baseline: `a0e80ba`. Related implementation (working tree at review time): `agen
   - Gate G2：default workspace 全门禁通过；deletion-proof 扫描证明
     产品源码、manifest、lockfile、CI、GUI 与活跃文档无 Mentle/LLVM
     运行依赖。历史资料仅允许位于明确的 archive/past 区域。
+  - GMH-24A、24B、24C 分别由提交 `e0760897`、`36009ede` 和本切片提交
+    关闭；G2D 真实桌面六项仍是发布及 Evolution 解冻前置验收。
 
 ### Phase 3 — Human-in-the-loop 端到端闭环（第 5–7 周，可与 GMH-22 前半并行）
 

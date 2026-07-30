@@ -55,7 +55,7 @@ fn worker_executes_four_stages_in_order_and_completes_run() {
 }
 
 #[test]
-fn restricted_profile_denies_shell_mentle_and_direct_authority_writes() {
+fn restricted_profile_denies_shell_and_direct_authority_writes() {
     let profile = AutoDreamRestrictedProfile::default();
 
     assert!(profile.is_allowed(AutoDreamRestrictedAction::ReadSessions));
@@ -63,7 +63,7 @@ fn restricted_profile_denies_shell_mentle_and_direct_authority_writes() {
     assert!(profile.is_allowed(AutoDreamRestrictedAction::WriteAutoDreamOutput));
     assert!(profile.is_allowed(AutoDreamRestrictedAction::CreateLaputaProposalApi));
     assert!(!profile.is_allowed(AutoDreamRestrictedAction::ArbitraryShell));
-    assert!(!profile.is_allowed(AutoDreamRestrictedAction::WriteMentle));
+    assert!(!profile.is_allowed(AutoDreamRestrictedAction::WriteExternalAuthority));
     assert!(!profile.is_allowed(AutoDreamRestrictedAction::DirectLaputaAuthorityWrite));
     assert!(!profile.is_allowed(AutoDreamRestrictedAction::WriteMonthlyReport));
 }
@@ -191,7 +191,6 @@ fn worker_creates_proposals_through_laputa_api_without_direct_authority_writes()
     assert_eq!(report.proposal_ids.len(), 1);
     assert_eq!(fs::read_to_string(&authority_path).unwrap(), before);
     assert!(temp.path().join(".laputa/proposals").exists());
-    assert!(!temp.path().join(".mentle").exists());
 }
 
 fn read_run(workspace: &std::path::Path, run_id: &str) -> AutoDreamRunRecord {

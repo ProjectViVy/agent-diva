@@ -4,9 +4,9 @@ use agent_diva_core::{
         ProposalType, RiskLevel,
     },
     governance::{
-        ApprovalGrant, ApprovalReceipt, ApprovalRequest, ApprovalStatus, AuditCorrelation,
-        Capability, Decision, GovernanceSubject, GovernanceSubjectKind, ResourceKind,
-        ResourceScope, RiskClass,
+        ApprovalGrant, ApprovalReceipt, ApprovalRecord, ApprovalRequest, ApprovalStatus,
+        AuditCorrelation, Capability, Decision, GovernanceSubject, GovernanceSubjectKind,
+        ResourceKind, ResourceScope, RiskClass,
     },
     memory::{
         memory_content_digest, MemoryProvenance, MemoryProvenanceSource, MemoryRecord,
@@ -203,6 +203,7 @@ async fn governed_typed_apply_is_atomic_idempotent_and_receipt_bound() {
         supersedes: Vec::new(),
         tombstone: None,
     };
+    let request_record = ApprovalRecord::from_request(&request).unwrap();
     let applied = store
         .put_governed(
             record.clone(),
@@ -211,7 +212,7 @@ async fn governed_typed_apply_is_atomic_idempotent_and_receipt_bound() {
             GovernedMemoryApply {
                 proposal_id: "proposal-1",
                 idempotency_key: "apply-1",
-                request: &request,
+                request: &request_record,
                 receipt: &receipt,
                 applied_at: now() + Duration::minutes(2),
             },
@@ -226,7 +227,7 @@ async fn governed_typed_apply_is_atomic_idempotent_and_receipt_bound() {
             GovernedMemoryApply {
                 proposal_id: "proposal-1",
                 idempotency_key: "apply-1",
-                request: &request,
+                request: &request_record,
                 receipt: &receipt,
                 applied_at: now() + Duration::minutes(2),
             },
@@ -236,7 +237,8 @@ async fn governed_typed_apply_is_atomic_idempotent_and_receipt_bound() {
     assert_eq!(applied, replay);
     assert_eq!(store.metadata().await.unwrap().store_revision, 1);
 
-    let mut wrong = request.clone();
+    let applied_record_id = applied.record.id.clone();
+    let mut wrong = request_record.clone();
     wrong.correlation.request_id = "wrong".into();
     let error = store
         .put_governed(
@@ -254,4 +256,9 @@ async fn governed_typed_apply_is_atomic_idempotent_and_receipt_bound() {
         .await
         .unwrap_err();
     assert!(matches!(error, TypedMemoryStoreError::InvalidReceipt(_)));
+
+    assert!(store.rollback_governed("proposal-1", 1).await.unwrap());
+    assert!(store.get(&applied_record_id).await.unwrap().is_none());
+    assert_eq!(store.metadata().await.unwrap().store_revision, 2);
+    assert!(!store.rollback_governed("proposal-1", 2).await.unwrap());
 }

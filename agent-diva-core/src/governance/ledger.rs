@@ -83,6 +83,37 @@ impl ApprovalRecord {
         };
         request.validate()
     }
+
+    /// Verify that an approve-once receipt authorizes this persisted request.
+    pub fn validate_approve_once(
+        &self,
+        receipt: &ApprovalReceipt,
+    ) -> Result<(), GovernanceValidationError> {
+        self.validate()?;
+        receipt.validate()?;
+        if receipt.decision != Decision::Allow {
+            return Err(GovernanceValidationError::DecisionDoesNotAllow);
+        }
+        if receipt.grant != ApprovalGrant::Once {
+            return Err(GovernanceValidationError::GrantIsNotOnce);
+        }
+        if receipt.request_id != self.correlation.request_id {
+            return Err(GovernanceValidationError::RequestIdMismatch);
+        }
+        if receipt.content_digest != self.content_digest {
+            return Err(GovernanceValidationError::ContentDigestMismatch);
+        }
+        if receipt.policy_version != self.policy_version {
+            return Err(GovernanceValidationError::PolicyVersionMismatch);
+        }
+        if receipt.capability != self.capability {
+            return Err(GovernanceValidationError::CapabilityMismatch);
+        }
+        if receipt.resource != self.resource {
+            return Err(GovernanceValidationError::ResourceScopeMismatch);
+        }
+        Ok(())
+    }
 }
 
 /// Append-only event category.

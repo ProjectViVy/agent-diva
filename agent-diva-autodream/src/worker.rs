@@ -70,7 +70,7 @@ pub enum AutoDreamRestrictedAction {
     WriteAutoDreamOutput,
     CreateLaputaProposalApi,
     ArbitraryShell,
-    WriteMentle,
+    WriteExternalAuthority,
     DirectLaputaAuthorityWrite,
     WriteMonthlyReport,
 }

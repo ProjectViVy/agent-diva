@@ -54,13 +54,8 @@ sqlx = { workspace = true }
 fs2 = "0.4.3"
 
 
-[dependencies.memtle]
-workspace = true
-optional = true
-
 [features]
 default = []
-mentle = ["dep:memtle"]
 
 [dev-dependencies]
 tokio-test = { workspace = true }

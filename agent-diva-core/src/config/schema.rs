@@ -289,11 +289,8 @@ pub struct Config {
     /// Tools configuration
     pub tools: ToolsConfig,
     /// Memory authority and cutover configuration.
-    #[serde(default)]
+    #[serde(default = "legacy_memory_config")]
     pub memory: MemoryConfig,
-    /// Mentle memory tool selection configuration
-    #[serde(default)]
-    pub mentle: MentleToolConfig,
     /// Self-evolution and AutoDream governance policy.
     #[serde(default)]
     pub self_evolution: SelfEvolutionConfig,
@@ -312,11 +309,25 @@ pub struct Config {
 }
 
 /// Memory authority configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MemoryConfig {
     /// Runtime authority selection. Missing values preserve the legacy boundary.
     #[serde(default)]
     pub authority_mode: MemoryAuthorityMode,
+}
+
+impl Default for MemoryConfig {
+    fn default() -> Self {
+        Self {
+            authority_mode: MemoryAuthorityMode::Typed,
+        }
+    }
+}
+
+fn legacy_memory_config() -> MemoryConfig {
+    MemoryConfig {
+        authority_mode: MemoryAuthorityMode::Legacy,
+    }
 }
 
 /// Explicit Memory authority state.
@@ -482,38 +493,6 @@ impl Default for SelfEvolutionConfig {
             trigger_threshold_messages: default_trigger_threshold_messages(),
             auto_merge_confidence: default_auto_merge_confidence(),
             require_confirmation_for: Vec::new(),
-        }
-    }
-}
-
-/// Mentle tool selection configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MentleToolConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub mode: MentleToolMode,
-    #[serde(default)]
-    pub allowed_tools: Vec<String>,
-}
-
-/// Mentle tool exposure mode.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum MentleToolMode {
-    #[default]
-    Off,
-    ReadOnly,
-    Full,
-    Custom,
-}
-
-impl Default for MentleToolConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            mode: MentleToolMode::Full,
-            allowed_tools: Vec::new(),
         }
     }
 }
@@ -1514,7 +1493,6 @@ pub struct BuiltInToolsConfig {
     pub attachment: bool,
     #[serde(default)]
     pub planning: bool,
-    pub mentle: bool,
     #[serde(default = "default_enabled")]
     pub enqueue_background_task: bool,
     #[serde(default = "default_enabled")]
@@ -1533,7 +1511,6 @@ impl Default for BuiltInToolsConfig {
             mcp: true,
             attachment: true,
             planning: false,
-            mentle: true,
             enqueue_background_task: true,
             update_plan: true,
         }
@@ -1915,33 +1892,6 @@ mod tests {
     }
 
     // ── Legacy tests (kept from original) ──────────────────────────────────
-
-    #[test]
-    fn mentle_config_defaults_to_full() {
-        let config = Config::default();
-
-        assert!(config.mentle.enabled);
-        assert_eq!(config.mentle.mode, MentleToolMode::Full);
-        assert!(config.mentle.allowed_tools.is_empty());
-        assert!(config.tools.builtin.mentle);
-    }
-
-    #[test]
-    fn mentle_config_round_trips_json() {
-        let mentle: MentleToolConfig = serde_json::from_value(serde_json::json!({
-            "enabled": true,
-            "mode": "custom",
-            "allowed_tools": ["memtle_status", "memtle_search"]
-        }))
-        .expect("valid mentle config should deserialize");
-
-        assert!(mentle.enabled);
-        assert_eq!(mentle.mode, MentleToolMode::Custom);
-        assert_eq!(mentle.allowed_tools, ["memtle_status", "memtle_search"]);
-
-        let value = serde_json::to_value(mentle).expect("config should serialize");
-        assert_eq!(value["mode"], "custom");
-    }
 
     // ── MaskConfig tests ───────────────────────────────────────────────────
 

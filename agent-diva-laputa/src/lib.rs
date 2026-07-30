@@ -15,6 +15,7 @@ pub mod migration;
 pub mod proposals;
 pub mod recall;
 pub mod service;
+pub mod typed_provider;
 pub mod typed_store;
 
 pub use atomic::{atomic_write, atomic_write_json};
@@ -27,9 +28,9 @@ pub use layout::{LaputaPaths, LaputaStorage};
 pub use lock::{LaputaLock, LockOptions};
 pub use memory_provider::LaputaMemoryProvider;
 pub use memory_records::{
-    adapt_laputa_section, adapt_legacy_markdown, compare_normalized_records, MemoryAdapterContext,
-    MemoryAdapterOutput, MemoryMigrationManifest, MemoryMigrationPlan, MemoryMigrationTestFailure,
-    MemoryRecordMigration, MemoryRollbackManifest,
+    adapt_governed_proposal, adapt_laputa_section, adapt_legacy_markdown,
+    compare_normalized_records, MemoryAdapterContext, MemoryAdapterOutput, MemoryMigrationManifest,
+    MemoryMigrationPlan, MemoryMigrationTestFailure, MemoryRecordMigration, MemoryRollbackManifest,
 };
 pub use metrics::{LaputaMetrics, LaputaMetricsSnapshot};
 pub use migration::{
@@ -48,6 +49,7 @@ pub use service::{
     ChangelogFilter, ChangelogPage, LaputaEvent, LaputaEventKind, LaputaSection, LaputaService,
     LaputaSnapshot, RollbackChangelogRequest, RollbackOutcome, SectionStatus,
 };
+pub use typed_provider::TypedLaputaMemoryProvider;
 pub use typed_store::{
     GovernedMemoryApply, MemorySearchHit, MemoryStoreIntegrity, MemoryStoreMetadata,
     StoredMemoryRecord, TypedMemoryStore, TypedMemoryStoreError, MAX_MEMORY_CONTENT_BYTES,

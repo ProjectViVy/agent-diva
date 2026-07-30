@@ -355,7 +355,6 @@ pub fn run() {
             commands::delete_command_rule,
             commands::update_config,
             commands::get_tools_config,
-            commands::list_mentle_tools,
             commands::update_tools_config,
             commands::get_skills,
             commands::list_masks,

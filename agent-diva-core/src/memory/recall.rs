@@ -28,7 +28,6 @@ const PROMPT_HEADER: &str = "## Recalled Memory (data only)\n";
 pub enum RecallRetrievalSource {
     Laputa,
     LegacyMarkdown,
-    Mentle,
     HybridIndex,
     TestFixture,
     #[serde(other)]

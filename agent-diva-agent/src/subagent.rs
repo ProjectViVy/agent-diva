@@ -1079,11 +1079,6 @@ When you have completed the task, provide a clear summary of your findings or ac
     }
 
     #[cfg(test)]
-    pub(crate) fn builtin_tools_for_test(&self) -> &BuiltInToolsConfig {
-        &self.builtin_tools
-    }
-
-    #[cfg(test)]
     pub(crate) fn per_task_token_budget_for_test(&self) -> Option<u64> {
         self.per_task_token_budget
     }
@@ -1304,20 +1299,6 @@ mod tests {
         assert!(!prompt.contains("### USER.md"));
         assert!(!prompt.contains("Keep concise."));
         assert!(!prompt.contains("Agent Diva."));
-    }
-
-    #[test]
-    fn test_build_subagent_prompt_omits_mentle_routing() {
-        let temp = tempfile::tempdir().unwrap();
-        let prompt = SubagentManager::build_subagent_prompt(
-            "analyze logs",
-            temp.path(),
-            &TestMemoryProvider,
-        );
-
-        assert!(!prompt.contains("L2 Palace Memory"));
-        assert!(!prompt.contains("memtle_status"));
-        assert!(!prompt.contains("memtle_search"));
     }
 
     // ── build_isolated_subagent_prompt tests ──────────────────────────────

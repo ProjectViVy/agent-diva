@@ -486,25 +486,6 @@ mod tests {
         assert!(!registry.has("read_attachment"));
     }
 
-    #[test]
-    fn test_tool_assembly_subagent_mode_excludes_mentle_custom_tools() {
-        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
-            .builtin(BuiltInToolsConfig {
-                filesystem: true,
-                mentle: true,
-                ..BuiltInToolsConfig::all()
-            })
-            .with_tool(Arc::new(NamedTool {
-                name: "memtle_status",
-            }))
-            .build_subagent_registry();
-
-        assert!(registry.has("read_file"));
-        assert!(!registry.has("memtle_status"));
-        assert!(!registry.has("spawn"));
-        assert!(!registry.has("cron"));
-    }
-
     #[tokio::test]
     async fn test_tool_assembly_plan_mode_is_read_only_without_legacy_planning_tools() {
         let temp_dir = tempfile::tempdir().unwrap();
@@ -515,7 +496,7 @@ mod tests {
             .builtin(BuiltInToolsConfig::all())
             .with_planning_config(Some(planning))
             .with_tool(Arc::new(NamedTool {
-                name: "memtle_status",
+                name: "custom_status",
             }))
             .with_plan_phase(Some(PlanPhase::Plan))
             .build();
@@ -534,7 +515,7 @@ mod tests {
         assert!(!registry.has("cron"));
         assert!(!registry.has("web_search"));
         assert!(!registry.has("web_fetch"));
-        assert!(!registry.has("memtle_status"));
+        assert!(!registry.has("custom_status"));
     }
 
     #[tokio::test]

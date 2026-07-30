@@ -41,8 +41,8 @@ Additional repository facts:
 - Root workspace package version: `0.5.0`
 - Rust MSRV: `1.80.0`
 - Main branch in this checkout: `agent-diva-pro`
-- `.workspace/` contains sibling reference projects such as `openfang`, `zeroclaw`, `nanobot`, `codex`, and `memtle`
-- Mentle integration is intentionally pinned to published `memtle = 0.1.2`; do not replace it with path/git overrides in the main workspace
+- `.workspace/` contains sibling reference projects such as `openfang`, `zeroclaw`, `nanobot`, and `codex`
+- Embedded Laputa typed SQLite is the sole production Memory authority; legacy backends are offline import sources only
 
 ## Development Guidance
 
@@ -66,10 +66,8 @@ just check
 just fmt
 just fmt-check
 just ci
-just mentle-package-policy
-just sprint5-default-check
-just mentle-check
-just sprint5-check
+just memory-provider-check
+just laputa-clean-break-check
 just run -- <args>
 just migrate -- <args>
 ```
@@ -81,10 +79,6 @@ cargo test -p <crate>
 cargo test <test_name>
 cargo run -p agent-diva-cli -- <args>
 ```
-
-Windows Mentle note:
-
-- If `clang-cl.exe` exists under `C:\Program Files\LLVM\bin` but is not on `PATH`, prepend that directory before running `cargo check -p agent-diva-agent --features mentle`.
 
 ## Validation Rules
 

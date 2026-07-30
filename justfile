@@ -33,27 +33,17 @@ test:
 e2e-test:
     cargo test -p agent-diva-e2e -- --nocapture
 
-# Verify the frozen Mentle package source policy
-mentle-package-policy:
-    python scripts/ci/verify_mentle_package_policy.py
-
-# Run default-lane Mentle assembly and failure regressions
-sprint5-default-check:
+# Run focused Memory-provider assembly and failure regressions
+memory-provider-check:
     cargo check -p agent-diva-agent --no-default-features
-    cargo test -p agent-diva-agent test_with_toolset
-    cargo test -p agent-diva-agent test_tool_assembly_subagent_mode_excludes_mentle_custom_tools
-    cargo test -p agent-diva-agent subagent_does_not_receive_mentle_by_default
     cargo test -p agent-diva-agent test_build_agent_tools_reuses_custom_tools_with_cron
     cargo test -p agent-diva-agent test_register_default_tools_preserves_custom_tools_with_cron
-    cargo test -p agent-diva-agent test_build_subagent_prompt_omits_mentle_routing
     cargo test -p agent-diva-agent test_agent_loop_prefetch_failure_continues_without_recall_injection
     cargo test -p agent-diva-agent test_agent_loop_consolidation_sync_failure_keeps_main_response
 
-# Run the Mentle feature lane. Windows shells need clang-cl.exe on PATH.
-mentle-check: mentle-package-policy
-    cargo check -p agent-diva-agent --features mentle
-    cargo test -p agent-diva-core --features mentle memory
-    cargo test -p agent-diva-agent --features mentle mentle
+# Prove that Embedded Laputa is the sole production Memory runtime.
+laputa-clean-break-check:
+    python scripts/ci/check_laputa_clean_break.py
 
 # Run clippy check
 check:
@@ -96,12 +86,8 @@ feature-gate-check:
     python scripts/feature-gate-check.py
 
 # Run all checks (CI pipeline)
-ci: fmt-check check test health-benchmark-check feature-gate-check
+ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check
     @echo "All checks passed!"
-
-# Run Sprint 5 local hardening checks
-sprint5-check: fmt-check sprint5-default-check mentle-check
-    @echo "Sprint 5 checks passed!"
 
 # Epic 6 targeted governance proof checks without starting the GUI
 epic6-proof-check:
@@ -116,10 +102,7 @@ epic6-release-gate:
     cargo test -p agent-diva-laputa --test direct_write_guard
     cargo test -p agent-diva-laputa --test governance_proof_loop
     cargo test -p agent-diva-laputa --test service
-    cargo test -p agent-diva-laputa --test mentle_governance
     cargo test -p agent-diva-autodream --test service
-    cargo test -p agent-diva-autodream --test mentle_governance
-    cargo test -p agent-diva-agent --test mentle_governance_boundaries
     cargo check -p agent-diva-gui
 
 # Install locally

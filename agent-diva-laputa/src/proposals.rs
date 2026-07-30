@@ -47,9 +47,20 @@ pub struct ProposalEdit {
 }
 
 /// Optional apply behavior used by tests and failure-injection validation.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ApplyOptions {
     pub failure_point: Option<ApplyFailurePoint>,
+    /// Whether the legacy section projection is the authority write target.
+    pub write_authority: bool,
+}
+
+impl Default for ApplyOptions {
+    fn default() -> Self {
+        Self {
+            failure_point: None,
+            write_authority: true,
+        }
+    }
 }
 
 /// Deterministic failure points for apply transaction tests.
@@ -248,7 +259,8 @@ impl ProposalRepository {
 
         self.write_rollback_request(&rollback_request)?;
 
-        let wrote_section = proposal.proposal_type != ProposalType::Deprecation;
+        let wrote_section =
+            options.write_authority && proposal.proposal_type != ProposalType::Deprecation;
         if wrote_section {
             if is_raw_apply_target(&proposal.target_section) {
                 crate::atomic_write(&section_path, proposal.proposed_patch.as_bytes())?;

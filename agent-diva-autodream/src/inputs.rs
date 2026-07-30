@@ -540,7 +540,7 @@ mod tests {
     }
 
     #[test]
-    fn collector_never_writes_laputa_or_mentle_paths() {
+    fn collector_never_writes_authority_paths() {
         let temp = tempdir().unwrap();
         seed_session(temp.path(), "chat:1", "recent session one");
         seed_laputa(
@@ -560,7 +560,6 @@ mod tests {
         let after = fs::read_to_string(&laputa_path).unwrap();
         assert_eq!(before, after);
         assert!(!temp.path().join("MEMORY.md").exists());
-        assert!(!temp.path().join(".mentle").exists());
         assert!(!result.items.is_empty());
     }
 

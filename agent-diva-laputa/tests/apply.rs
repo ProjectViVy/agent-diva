@@ -278,6 +278,7 @@ fn apply_recovery_rolls_back_section_when_changelog_write_fails_after_section_wr
             ts(4),
             ApplyOptions {
                 failure_point: Some(ApplyFailurePoint::AfterSectionWriteBeforeChangelog),
+                write_authority: true,
             },
         )
         .unwrap_err();
@@ -338,6 +339,7 @@ fn apply_recovery_cleans_changelog_when_audit_fails_after_changelog_write() {
             ts(4),
             ApplyOptions {
                 failure_point: Some(ApplyFailurePoint::AfterChangelogBeforeAudit),
+                write_authority: true,
             },
         )
         .unwrap_err();

@@ -20,8 +20,6 @@ pub struct BuiltInToolsConfig {
     #[serde(default = "default_true")]
     pub attachment: bool,
     #[serde(default = "default_true")]
-    pub mentle: bool,
-    #[serde(default = "default_true")]
     pub enqueue_background_task: bool,
     #[serde(default = "default_true")]
     pub update_plan: bool,
@@ -42,7 +40,6 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: false,
             attachment: false,
-            mentle: false,
             enqueue_background_task: false,
             update_plan: false,
         }
@@ -58,7 +55,6 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: false,
             attachment: false,
-            mentle: false,
             enqueue_background_task: false,
             update_plan: false,
         }
@@ -74,7 +70,6 @@ impl BuiltInToolsConfig {
             cron: true,
             mcp: true,
             attachment: true,
-            mentle: true,
             enqueue_background_task: true,
             update_plan: true,
         }
@@ -90,7 +85,6 @@ impl BuiltInToolsConfig {
             cron: false,
             mcp: self.mcp,
             attachment: false,
-            mentle: false,
             enqueue_background_task: false,
             update_plan: false,
         }
@@ -108,34 +102,8 @@ impl Default for BuiltInToolsConfig {
             cron: false,
             mcp: true,
             attachment: true,
-            mentle: false,
             enqueue_background_task: false,
             update_plan: true,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::BuiltInToolsConfig;
-
-    #[test]
-    fn default_does_not_enable_mentle() {
-        assert!(!BuiltInToolsConfig::default().mentle);
-    }
-
-    #[test]
-    fn subagent_does_not_receive_mentle_by_default() {
-        let config = BuiltInToolsConfig {
-            mentle: true,
-            ..BuiltInToolsConfig::all()
-        };
-        let subagent = config.for_subagent();
-
-        assert!(!subagent.mentle);
-        assert!(!subagent.spawn);
-        assert!(!subagent.cron);
-        assert!(!subagent.attachment);
-        assert!(!subagent.enqueue_background_task);
     }
 }

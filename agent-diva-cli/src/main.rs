@@ -1,6 +1,5 @@
 //! CLI entry point for agent-diva
 
-use agent_diva_agent::tool_config::mentle::MentleToolRuntimeConfig;
 use agent_diva_agent::tool_config::PlanningConfig;
 use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
@@ -385,21 +384,8 @@ enum ConfigCommands {
     },
 }
 
-fn main() -> Result<()> {
-    // turso reads this process-wide setting while opening the database. It
-    // must be initialized before Tokio creates worker threads.
-    memtle::init_process_defaults();
-    // Windows turso/simsimd paths are stack-hungry; match the dedicated
-    // mentle-open thread so later palace tool calls stay safe.
-    const WORKER_STACK_BYTES: usize = 16 * 1024 * 1024;
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .thread_stack_size(WORKER_STACK_BYTES)
-        .build()?
-        .block_on(async_main())
-}
-
-async fn async_main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
     let structured_output = is_structured_output(&cli.command);
     let enable_terminal_logs = command_writes_logs_to_terminal(&cli.command);
@@ -1079,7 +1065,6 @@ async fn run_tui(
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
-        mentle: MentleToolRuntimeConfig::from_config(&config),
         planning,
         exec_timeout: config.tools.exec.timeout,
         global_timeout_secs: 120,

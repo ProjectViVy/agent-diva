@@ -137,11 +137,6 @@ function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
             enabled: false,
           },
         },
-        mentle: {
-          enabled: false,
-          mode: 'off',
-          allowed_tools: [],
-        },
       },
       savedModels: [],
       sessions: [],

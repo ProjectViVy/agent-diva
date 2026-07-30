@@ -2,8 +2,8 @@ use agent_diva_agent::AgentEvent;
 use agent_diva_autodream::AutoDreamService;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
-    ChannelsConfig, MCPServerConfig, MemoryAuthorityMode, MentleToolConfig, SelfEvolutionConfig,
-    WebFetchConfig, WebSearchConfig, WebToolsConfig,
+    ChannelsConfig, MCPServerConfig, MemoryAuthorityMode, SelfEvolutionConfig, WebFetchConfig,
+    WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator};
@@ -185,7 +185,6 @@ pub enum ManagerCommand {
     GetChannels(oneshot::Sender<ChannelsConfig>),
     GetTools(oneshot::Sender<ToolsConfigResponse>),
     UpdateTools(ToolsConfigUpdate),
-    ListMentleTools(oneshot::Sender<MentleToolsListResponse>),
     GetMcps(oneshot::Sender<Result<Vec<McpServerDto>, String>>),
     CreateMcp(
         McpServerUpsert,
@@ -361,7 +360,6 @@ pub struct FileUploadRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfigResponse {
     pub web: WebToolsConfigResponse,
-    pub mentle: MentleToolConfig,
     pub budget: agent_diva_core::config::CompactionBudgetConfig,
 }
 
@@ -374,8 +372,6 @@ pub struct WebToolsConfigResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfigUpdate {
     pub web: WebToolsConfigUpdate,
-    #[serde(default)]
-    pub mentle: MentleToolConfig,
     #[serde(default)]
     pub budget: agent_diva_core::config::CompactionBudgetConfig,
 }
@@ -395,12 +391,6 @@ pub struct McpRefreshRequest {
 pub struct WebToolsConfigUpdate {
     pub search: WebSearchConfig,
     pub fetch: WebFetchConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MentleToolsListResponse {
-    pub feature_available: bool,
-    pub tools: Vec<String>,
 }
 
 impl From<WebToolsConfig> for WebToolsConfigResponse {

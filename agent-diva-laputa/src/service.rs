@@ -108,6 +108,27 @@ impl LaputaService {
         self.apply_proposal_with_options(id, actor, applied_at, ApplyOptions::default())
     }
 
+    /// Finalize a proposal after the typed store has committed authority.
+    ///
+    /// This writes proposal/changelog/audit/rollback lifecycle artifacts but
+    /// never updates a legacy section projection.
+    pub fn finalize_typed_proposal(
+        &self,
+        id: &str,
+        actor: impl Into<String>,
+        applied_at: DateTime<Utc>,
+    ) -> Result<crate::ApplyOutcome> {
+        self.apply_proposal_with_options(
+            id,
+            actor,
+            applied_at,
+            ApplyOptions {
+                failure_point: None,
+                write_authority: false,
+            },
+        )
+    }
+
     pub fn apply_proposal_with_options(
         &self,
         id: &str,
@@ -373,6 +394,36 @@ impl LaputaService {
         actor: impl Into<String>,
         now: DateTime<Utc>,
     ) -> Result<RollbackOutcome> {
+        self.rollback_changelog_inner(id, request, actor, now, true)
+    }
+
+    /// Finalize rollback lifecycle records without mutating legacy authority.
+    pub fn finalize_typed_rollback(
+        &self,
+        id: &str,
+        actor: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> Result<RollbackOutcome> {
+        self.rollback_changelog_inner(
+            id,
+            RollbackChangelogRequest {
+                expected_current: None,
+                reason: "typed authority rollback".to_string(),
+            },
+            actor,
+            now,
+            false,
+        )
+    }
+
+    fn rollback_changelog_inner(
+        &self,
+        id: &str,
+        request: RollbackChangelogRequest,
+        actor: impl Into<String>,
+        now: DateTime<Utc>,
+        write_authority: bool,
+    ) -> Result<RollbackOutcome> {
         let _guard = self.proposals.acquire_write_lock()?;
         let actor = actor.into();
         let mut original = self.get_changelog(id)?;
@@ -390,7 +441,11 @@ impl LaputaService {
             .storage
             .paths()
             .section_file(original.target_section.clone());
-        let current = fs::read_to_string(&section_path).unwrap_or_default();
+        let current = if write_authority {
+            fs::read_to_string(&section_path).unwrap_or_default()
+        } else {
+            original.after.clone()
+        };
         let expected_current = request.expected_current.as_ref().unwrap_or(&original.after);
         if !content_matches_expected(&current, expected_current) {
             Self::metrics().record_governance_failure();
@@ -406,7 +461,9 @@ impl LaputaService {
             return Err(error);
         }
 
-        crate::atomic_write(&section_path, original.before.as_bytes())?;
+        if write_authority {
+            crate::atomic_write(&section_path, original.before.as_bytes())?;
+        }
 
         let rollback_id = format!("rollback-{}-{}", original.id, now.timestamp_millis());
         let audit_id = format!("audit-{}-{}", rollback_id, now.timestamp_millis());
@@ -466,7 +523,9 @@ impl LaputaService {
             Ok(None)
         })()
         .inspect_err(|_error| {
-            let _ = crate::atomic_write(&section_path, original_before_update.after.as_bytes());
+            if write_authority {
+                let _ = crate::atomic_write(&section_path, original_before_update.after.as_bytes());
+            }
             let _ = fs::remove_file(&rollback_changelog_path);
             let _ = fs::remove_file(&rollback_audit_path);
             let _ = atomic_write_json(&original_changelog_path, &original_before_update);

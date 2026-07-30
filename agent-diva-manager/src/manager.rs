@@ -360,9 +360,6 @@ impl Manager {
                         ManagerCommand::UpdateTools(update) => {
                             self.handle_update_tools(update);
                         }
-                        ManagerCommand::ListMentleTools(reply) => {
-                            self.handle_list_mentle_tools(reply).await;
-                        }
                         ManagerCommand::UpdateChannel(update) => {
                             self.handle_update_channel(update).await;
                         }

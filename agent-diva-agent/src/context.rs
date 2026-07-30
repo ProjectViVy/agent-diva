@@ -79,24 +79,6 @@ impl ContextBuilder {
         self
     }
 
-    /// Enable Mentle-specific prompt routing only after runtime tools are active.
-    pub fn with_mentle(self, enabled: bool) -> Self {
-        let _ = enabled;
-        self
-    }
-
-    /// Retained for compatibility with runtime refresh paths.
-    pub fn with_mentle_tools(self, tool_names: Vec<String>) -> Self {
-        let _ = tool_names;
-        self
-    }
-
-    /// Retained for compatibility with runtime refresh paths.
-    pub fn set_mentle_prompt_state(&mut self, enabled: bool, tool_names: Vec<String>) {
-        let _ = enabled;
-        let _ = tool_names;
-    }
-
     /// Override soul context settings.
     pub fn set_soul_settings(&mut self, settings: SoulContextSettings) {
         self.soul_settings = settings;
@@ -639,30 +621,6 @@ mod tests {
     }
 
     #[test]
-    fn test_build_system_prompt_omits_mentle_routing_by_default() {
-        let workspace = TempDir::new().unwrap();
-        let builder = ContextBuilder::new(workspace.path().to_path_buf());
-
-        let prompt = builder.build_system_prompt(None);
-
-        assert!(!prompt.contains("L2 Palace Memory"));
-        assert!(!prompt.contains("memtle_search"));
-    }
-
-    #[test]
-    fn governance_context_does_not_inject_mentle_recall_by_default() {
-        let workspace = TempDir::new().unwrap();
-        let builder = ContextBuilder::new(workspace.path().to_path_buf());
-
-        let prompt = builder.build_system_prompt(None);
-
-        assert!(!prompt.contains("Memory Routing"));
-        assert!(!prompt.contains("Palace Memory"));
-        assert!(!prompt.contains("memtle_"));
-        assert!(!prompt.to_lowercase().contains("mentle recall"));
-    }
-
-    #[test]
     fn session_search_hits_do_not_enter_default_prompt_authority() {
         let workspace = TempDir::new().unwrap();
         let mut manager = SessionManager::new(workspace.path());
@@ -680,38 +638,6 @@ mod tests {
         let prompt = builder.build_system_prompt(None);
         assert!(!prompt.contains("Secret launch evidence from old session"));
         assert!(!prompt.contains("session://telegram%3A123"));
-    }
-
-    #[test]
-    fn set_mentle_prompt_state_updates_prompt_exposure() {
-        let workspace = TempDir::new().unwrap();
-        let mut builder = ContextBuilder::new(workspace.path().to_path_buf())
-            .with_mentle(true)
-            .with_mentle_tools(vec![
-                "memtle_status".to_string(),
-                "memtle_search".to_string(),
-            ]);
-        builder.set_mentle_prompt_state(false, vec!["memtle_search".to_string()]);
-
-        let prompt = builder.build_system_prompt(None);
-        assert!(!prompt.contains("L2 Palace Memory"));
-    }
-
-    #[test]
-    fn test_build_system_prompt_includes_mentle_routing_when_active() {
-        let workspace = TempDir::new().unwrap();
-        let builder = ContextBuilder::new(workspace.path().to_path_buf())
-            .with_mentle(true)
-            .with_mentle_tools(vec![
-                "memtle_status".to_string(),
-                "memtle_search".to_string(),
-            ]);
-
-        let prompt = builder.build_system_prompt(None);
-
-        assert!(!prompt.contains("L2 Palace Memory"));
-        assert!(!prompt.contains("memtle_search"));
-        assert!(!prompt.contains("route it by granularity"));
     }
 
     #[test]

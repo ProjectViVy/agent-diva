@@ -33,14 +33,6 @@ def main() -> int:
 
     tests: list[tuple[str, list[str]]] = [
         (
-            "agent-diva-agent --features mentle",
-            ["check", "-p", "agent-diva-agent", "--features", "mentle"],
-        ),
-        (
-            "agent-diva-core --features mentle",
-            ["check", "-p", "agent-diva-core", "--features", "mentle"],
-        ),
-        (
             "agent-diva-sandbox --no-default-features",
             ["check", "-p", "agent-diva-sandbox", "--no-default-features"],
         ),
