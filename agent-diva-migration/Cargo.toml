@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core" }
+agent-diva-laputa = { path = "../agent-diva-laputa" }
 
 # Async runtime
 tokio = { workspace = true }
@@ -20,6 +21,7 @@ tokio = { workspace = true }
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+chrono = { workspace = true }
 
 # Error handling
 anyhow = { workspace = true }

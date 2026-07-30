@@ -13,4 +13,6 @@ Automated acceptance:
 - [ ] Restart after authorization.
 - [ ] Apply and rollback with retained request/proposal/audit/rollback IDs.
 
-Any duplicate execution or unrecoverable state blocks G2D and GMH-24A.
+Any duplicate execution or unrecoverable state still fails G2D. The six
+real-desktop scenarios are deferred until after the GMH-24 clean-break and no
+longer block architecture implementation.

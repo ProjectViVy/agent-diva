@@ -349,7 +349,9 @@ name = "agent-diva-migration"
 version = "0.5.0"
 dependencies = [
  "agent-diva-core",
+ "agent-diva-laputa",
  "anyhow",
+ "chrono",
  "clap",
  "console",
  "dialoguer",

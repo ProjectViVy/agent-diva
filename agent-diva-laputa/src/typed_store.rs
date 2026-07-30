@@ -75,6 +75,8 @@ pub enum TypedMemoryStoreError {
     InvalidReceipt(#[from] GovernanceValidationError),
     #[error("governed apply idempotency key conflicts with an existing operation")]
     ApplyIdempotencyConflict,
+    #[error("imported Memory record {record_id} conflicts with existing content")]
+    ImportConflict { record_id: String },
 }
 
 /// Current database identity and optimistic concurrency revision.
@@ -149,6 +151,45 @@ impl TypedMemoryStore {
             })?;
         }
         Self::open_path(path, workspace_id).await
+    }
+
+    /// Open an existing store without creating or migrating filesystem state.
+    pub async fn open_existing(
+        workspace_root: impl AsRef<Path>,
+        workspace_id: impl Into<String>,
+    ) -> Result<Self, TypedMemoryStoreError> {
+        let workspace_id = workspace_id.into();
+        let path = LaputaPaths::new(workspace_root.as_ref()).memory_database();
+        if !path.is_file() {
+            return Err(TypedMemoryStoreError::InvalidBackup);
+        }
+        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
+            .read_only(true)
+            .foreign_keys(true)
+            .busy_timeout(BUSY_TIMEOUT);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await?;
+        let store = Self {
+            pool,
+            path,
+            workspace_id,
+            write_lock: Arc::new(tokio::sync::Mutex::new(())),
+        };
+        let metadata = store.metadata().await?;
+        if metadata.schema_version != SCHEMA_VERSION {
+            return Err(TypedMemoryStoreError::UnsupportedSchema {
+                actual: metadata.schema_version,
+            });
+        }
+        if metadata.workspace_id != store.workspace_id {
+            return Err(TypedMemoryStoreError::DatabaseWorkspaceMismatch {
+                expected: store.workspace_id.clone(),
+                actual: metadata.workspace_id,
+            });
+        }
+        Ok(store)
     }
 
     async fn open_path(path: PathBuf, workspace_id: String) -> Result<Self, TypedMemoryStoreError> {
@@ -334,6 +375,142 @@ impl TypedMemoryStore {
         .fetch_all(&self.pool)
         .await?;
         rows.into_iter().map(|row| decode_stored(&row)).collect()
+    }
+
+    /// Import a deterministic record set in one transaction.
+    ///
+    /// Records already present with identical canonical JSON are treated as
+    /// idempotent replay. Any conflicting ID or validation failure aborts the
+    /// complete import without changing the store.
+    pub async fn import_records(
+        &self,
+        records: Vec<MemoryRecord>,
+        expected_store_revision: i64,
+    ) -> Result<MemoryStoreMetadata, TypedMemoryStoreError> {
+        let _write_guard = self.write_lock.lock().await;
+        let now = Utc::now();
+        for record in &records {
+            record.validate_at(now, chrono::Duration::minutes(5))?;
+            record.validate_workspace(&self.workspace_id).map_err(|_| {
+                TypedMemoryStoreError::WorkspaceMismatch {
+                    expected: self.workspace_id.clone(),
+                    actual: record.scope.workspace_id.clone(),
+                }
+            })?;
+        }
+
+        let mut tx = self.pool.begin().await?;
+        let actual_store: i64 =
+            sqlx::query_scalar("SELECT store_revision FROM schema_meta WHERE component = ?")
+                .bind(COMPONENT)
+                .fetch_one(&mut *tx)
+                .await?;
+        if actual_store != expected_store_revision {
+            return Err(TypedMemoryStoreError::StoreRevisionConflict {
+                expected: expected_store_revision,
+                actual: actual_store,
+            });
+        }
+
+        let mut inserts = Vec::new();
+        for record in records {
+            let canonical =
+                serde_json::to_string(&record).map_err(|_| TypedMemoryStoreError::CorruptRecord)?;
+            let existing: Option<String> =
+                sqlx::query_scalar("SELECT record_json FROM memory_records WHERE memory_id = ?")
+                    .bind(&record.id)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+            match existing {
+                Some(existing) if existing == canonical => continue,
+                Some(_) => {
+                    return Err(TypedMemoryStoreError::ImportConflict {
+                        record_id: record.id,
+                    });
+                }
+                None => inserts.push((record, canonical)),
+            }
+        }
+
+        let counters =
+            sqlx::query("SELECT record_count, content_bytes FROM schema_meta WHERE component = ?")
+                .bind(COMPONENT)
+                .fetch_one(&mut *tx)
+                .await?;
+        let next_count = counters.get::<i64, _>("record_count") + inserts.len() as i64;
+        let next_bytes = counters.get::<i64, _>("content_bytes")
+            + inserts
+                .iter()
+                .map(|(record, _)| record.content.len() as i64)
+                .sum::<i64>();
+        if next_count > MAX_MEMORY_RECORDS || next_bytes > MAX_MEMORY_CONTENT_BYTES {
+            return Err(TypedMemoryStoreError::CapacityExceeded {
+                records: next_count,
+                content_bytes: next_bytes,
+            });
+        }
+
+        for (record, canonical) in &inserts {
+            sqlx::query(
+                "INSERT INTO memory_records(
+                   memory_id, record_revision, kind, tenant_id, workspace_id, session_id,
+                   trust, sensitivity, created_at, effective_at, expires_at, tombstone,
+                   content_bytes, record_json
+                 ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&record.id)
+            .bind(json_atom(&record.kind)?)
+            .bind(&record.scope.tenant_id)
+            .bind(&record.scope.workspace_id)
+            .bind(&record.scope.session_id)
+            .bind(json_atom(&record.trust)?)
+            .bind(json_atom(&record.sensitivity)?)
+            .bind(record.created_at.to_rfc3339())
+            .bind(record.effective_at.to_rfc3339())
+            .bind(record.expires_at.map(|value| value.to_rfc3339()))
+            .bind(i64::from(record.tombstone.is_some()))
+            .bind(record.content.len() as i64)
+            .bind(canonical)
+            .execute(&mut *tx)
+            .await?;
+            for superseded_id in &record.supersedes {
+                sqlx::query(
+                    "INSERT INTO memory_supersedes(memory_id, superseded_id) VALUES (?, ?)",
+                )
+                .bind(&record.id)
+                .bind(superseded_id)
+                .execute(&mut *tx)
+                .await?;
+            }
+            if record.tombstone.is_none() {
+                sqlx::query(
+                    "INSERT INTO memory_fts(memory_id, tenant_id, workspace_id, session_id, content)
+                     VALUES (?, ?, ?, ?, ?)",
+                )
+                .bind(&record.id)
+                .bind(&record.scope.tenant_id)
+                .bind(&record.scope.workspace_id)
+                .bind(&record.scope.session_id)
+                .bind(&record.content)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+        if !inserts.is_empty() {
+            sqlx::query(
+                "UPDATE schema_meta
+                 SET store_revision = store_revision + ?, record_count = ?, content_bytes = ?
+                 WHERE component = ?",
+            )
+            .bind(inserts.len() as i64)
+            .bind(next_count)
+            .bind(next_bytes)
+            .bind(COMPONENT)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        self.metadata().await
     }
 
     /// Insert or replace one canonical record under store and row CAS.

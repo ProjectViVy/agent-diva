@@ -1,235 +1,92 @@
-﻿//! Migration tool for agent-diva
-//!
-//! This tool helps migrate configuration and sessions from the Python version.
+//! Explicit offline migration CLI.
 
-use anyhow::{Context, Result};
-use clap::Parser;
-use console::style;
 use std::path::PathBuf;
-// use tracing::{info, warn};
 
-mod config_migration;
-mod memory_migration;
-mod session_migration;
+use anyhow::Result;
+use clap::{Args, Parser, Subcommand};
 
-use config_migration::ConfigMigrator;
-use memory_migration::MemoryMigrator;
-use session_migration::SessionMigrator;
+mod typed_memory;
 
 #[derive(Parser)]
-#[command(name = "agent-diva-migrate")]
-#[command(about = "Migration tool for agent-diva - migrate from Python to Rust version")]
-#[command(version)]
+#[command(name = "agent-diva-migrate", version)]
+#[command(about = "Explicit offline migration utility for Agent Diva")]
 struct Cli {
-    /// Perform a dry run without making changes
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Import legacy Memory authority into Embedded Laputa.
+    Memory {
+        #[command(subcommand)]
+        operation: MemoryOperation,
+    },
+}
+
+#[derive(Subcommand)]
+enum MemoryOperation {
+    /// Validate and report without writing migration artifacts or records.
+    DryRun(ImportArgs),
+    /// Create a verified backup and atomically import records.
+    Apply(ImportArgs),
+    /// Restore the pre-import database recorded by a migration manifest.
+    Rollback(RollbackArgs),
+}
+
+#[derive(Debug, Args)]
+struct ImportArgs {
+    /// Root that must contain every explicitly selected source.
     #[arg(long)]
-    dry_run: bool,
-
-    /// Path to the old Python agent-diva config directory (default: ~/.agent-diva)
-    #[arg(short, long)]
-    source: Option<PathBuf>,
-
-    /// Path to the new Rust agent-diva config directory (default: ~/.agent-diva)
-    #[arg(short, long)]
-    target: Option<PathBuf>,
-
-    /// Skip config migration
+    source_root: PathBuf,
+    /// Explicit MEMORY.md, HISTORY.md, or supported Laputa section JSON.
+    #[arg(long = "source", required = true)]
+    sources: Vec<PathBuf>,
+    /// Target Agent Diva workspace.
     #[arg(long)]
-    skip_config: bool,
-
-    /// Skip sessions migration
+    workspace: PathBuf,
+    /// Tenant identifier assigned to imported records.
+    #[arg(long, default_value = "local")]
+    tenant_id: String,
+    /// Stable workspace identifier stored in Embedded Laputa.
     #[arg(long)]
-    skip_sessions: bool,
+    workspace_id: String,
+}
 
-    /// Skip memory migration
+#[derive(Debug, Args)]
+struct RollbackArgs {
     #[arg(long)]
-    skip_memory: bool,
-
-    /// Auto-confirm all prompts
-    #[arg(short, long)]
-    yes: bool,
+    workspace: PathBuf,
+    #[arg(long)]
+    workspace_id: String,
+    #[arg(long)]
+    migration_id: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
     tracing_subscriber::fmt::init();
-
     let cli = Cli::parse();
-
-    print_banner();
-
-    if cli.dry_run {
-        println!(
-            "{}",
-            style("Running in DRY-RUN mode (no changes will be made)").yellow()
-        );
-        println!();
-    }
-
-    // Determine source and target paths
-    let source_dir = cli.source.unwrap_or_else(get_default_agent_diva_dir);
-    let target_dir = cli.target.unwrap_or_else(get_default_agent_diva_dir);
-
-    println!("Source (Python): {}", style(source_dir.display()).cyan());
-    println!("Target (Rust):   {}", style(target_dir.display()).cyan());
-    println!();
-
-    // Confirm migration
-    if !cli.yes && !cli.dry_run && !confirm("Do you want to proceed with the migration?")? {
-        println!("Migration cancelled.");
-        return Ok(());
-    }
-
-    let mut migrated = false;
-
-    // Migrate configuration
-    if !cli.skip_config {
-        let config_migrator = ConfigMigrator::new(&source_dir, &target_dir);
-        match config_migrator.migrate(cli.dry_run).await {
-            Ok(result) => {
-                print_config_result(&result);
-                migrated = true;
+    let report = match cli.command {
+        Command::Memory { operation } => match operation {
+            MemoryOperation::DryRun(args) => typed_memory::dry_run(&request(args)).await?,
+            MemoryOperation::Apply(args) => typed_memory::apply(&request(args)).await?,
+            MemoryOperation::Rollback(args) => {
+                typed_memory::rollback(&args.workspace, &args.workspace_id, &args.migration_id)
+                    .await?
             }
-            Err(e) => {
-                eprintln!("{} Config migration failed: {}", style("✗").red(), e);
-            }
-        }
-    }
-
-    // Migrate sessions
-    if !cli.skip_sessions {
-        let session_migrator = SessionMigrator::new(&source_dir, &target_dir);
-        match session_migrator.migrate(cli.dry_run).await {
-            Ok(result) => {
-                print_session_result(&result);
-                migrated = true;
-            }
-            Err(e) => {
-                eprintln!("{} Sessions migration failed: {}", style("✗").red(), e);
-            }
-        }
-    }
-
-    // Migrate memory
-    if !cli.skip_memory {
-        let memory_migrator = MemoryMigrator::new(&source_dir, &target_dir);
-        match memory_migrator.migrate(cli.dry_run).await {
-            Ok(result) => {
-                print_memory_result(&result);
-                migrated = true;
-            }
-            Err(e) => {
-                eprintln!("{} Memory migration failed: {}", style("✗").red(), e);
-            }
-        }
-    }
-
-    println!();
-    if migrated {
-        println!("{}", style("Migration completed!").green().bold());
-        if cli.dry_run {
-            println!("Run without --dry-run to apply the changes.");
-        }
-    } else {
-        println!("{}", style("Nothing to migrate.").yellow());
-    }
-
+        },
+    };
+    println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())
 }
 
-fn print_banner() {
-    println!();
-    println!(
-        "{}",
-        style("╔═══════════════════════════════════════════╗").cyan()
-    );
-    println!(
-        "{}",
-        style("║      Agent Diva Migration Tool            ║").cyan()
-    );
-    println!(
-        "{}",
-        style("║      Python → Rust Version                ║").cyan()
-    );
-    println!(
-        "{}",
-        style("╚═══════════════════════════════════════════╝").cyan()
-    );
-    println!();
-}
-
-fn get_default_agent_diva_dir() -> PathBuf {
-    dirs::home_dir()
-        .map(|h: PathBuf| h.join(".agent-diva"))
-        .unwrap_or_else(|| PathBuf::from(".agent-diva"))
-}
-
-fn confirm(prompt: &str) -> Result<bool> {
-    use dialoguer::Confirm;
-
-    Confirm::new()
-        .with_prompt(prompt)
-        .default(false)
-        .interact()
-        .context("Failed to read user input")
-}
-
-fn print_config_result(result: &config_migration::MigrationResult) {
-    println!();
-    println!("{}", style("Configuration Migration").bold());
-    println!("{}", style("─────────────────────").dim());
-
-    if result.migrated {
-        println!("{} Config file migrated successfully", style("✓").green());
-        println!("  Source: {}", style(result.source_path.display()).dim());
-        println!("  Target: {}", style(result.target_path.display()).dim());
-    } else if result.already_exists {
-        println!(
-            "{} Config already exists at target, skipped",
-            style("○").yellow()
-        );
-    } else {
-        println!("{} No config found at source", style("○").dim());
-    }
-}
-
-fn print_session_result(result: &session_migration::MigrationResult) {
-    println!();
-    println!("{}", style("Sessions Migration").bold());
-    println!("{}", style("──────────────────").dim());
-
-    if result.total > 0 {
-        println!(
-            "{} Migrated {}/{} sessions",
-            style("✓").green(),
-            style(result.successful).green(),
-            style(result.total).cyan()
-        );
-        if result.failed > 0 {
-            println!("  {} {} failed", style("✗").red(), result.failed);
-        }
-    } else {
-        println!("{} No sessions found to migrate", style("○").dim());
-    }
-}
-
-fn print_memory_result(result: &memory_migration::MigrationResult) {
-    println!();
-    println!("{}", style("Memory Migration").bold());
-    println!("{}", style("────────────────").dim());
-
-    if result.total > 0 {
-        println!(
-            "{} Migrated {}/{} memory files",
-            style("✓").green(),
-            style(result.successful).green(),
-            style(result.total).cyan()
-        );
-        if result.failed > 0 {
-            println!("  {} {} failed", style("✗").red(), result.failed);
-        }
-    } else {
-        println!("{} No memory files found to migrate", style("○").dim());
+fn request(args: ImportArgs) -> typed_memory::MemoryImportRequest {
+    typed_memory::MemoryImportRequest {
+        source_root: args.source_root,
+        sources: args.sources,
+        workspace: args.workspace,
+        tenant_id: args.tenant_id,
+        workspace_id: args.workspace_id,
     }
 }

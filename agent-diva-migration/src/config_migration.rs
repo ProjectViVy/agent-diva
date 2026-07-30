@@ -680,6 +680,7 @@ impl ConfigMigrator {
                 mcp_manager: MCPManagerConfig::default(),
                 budget: Default::default(),
             },
+            memory: Default::default(),
             mentle: MentleToolConfig::default(),
             reports: ReportsConfig::default(),
             self_evolution: SelfEvolutionConfig::default(),

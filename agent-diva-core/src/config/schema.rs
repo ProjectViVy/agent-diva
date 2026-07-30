@@ -288,6 +288,9 @@ pub struct Config {
     pub gateway: GatewayConfig,
     /// Tools configuration
     pub tools: ToolsConfig,
+    /// Memory authority and cutover configuration.
+    #[serde(default)]
+    pub memory: MemoryConfig,
     /// Mentle memory tool selection configuration
     #[serde(default)]
     pub mentle: MentleToolConfig,
@@ -306,6 +309,48 @@ pub struct Config {
     /// Pet (desktop avatar) configuration
     #[serde(default)]
     pub pet: PetConfig,
+}
+
+/// Memory authority configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct MemoryConfig {
+    /// Runtime authority selection. Missing values preserve the legacy boundary.
+    #[serde(default)]
+    pub authority_mode: MemoryAuthorityMode,
+}
+
+/// Explicit Memory authority state.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryAuthorityMode {
+    #[default]
+    Legacy,
+    Shadow,
+    Typed,
+}
+
+#[cfg(test)]
+mod memory_authority_tests {
+    use super::*;
+
+    #[test]
+    fn missing_memory_config_defaults_to_legacy() {
+        let mut value = serde_json::to_value(Config::default()).unwrap();
+        value.as_object_mut().unwrap().remove("memory");
+        let config: Config = serde_json::from_value(value).unwrap();
+        assert_eq!(config.memory.authority_mode, MemoryAuthorityMode::Legacy);
+    }
+
+    #[test]
+    fn authority_mode_is_strict() {
+        let shadow: MemoryConfig =
+            serde_json::from_value(serde_json::json!({"authority_mode": "shadow"})).unwrap();
+        assert_eq!(shadow.authority_mode, MemoryAuthorityMode::Shadow);
+        assert!(serde_json::from_value::<MemoryConfig>(
+            serde_json::json!({"authority_mode": "unknown"})
+        )
+        .is_err());
+    }
 }
 
 /// Top-level report generation configuration.
