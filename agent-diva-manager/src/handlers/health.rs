@@ -262,6 +262,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "run via `just health-benchmark-check` outside the parallel workspace suite"]
     async fn health_benchmark_ci_gate_stays_within_budget() {
         let app = test_app(true);
         let iterations = 500usize;

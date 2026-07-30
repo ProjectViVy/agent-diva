@@ -82,7 +82,7 @@ fmt-check:
 
 # Targeted `/api/health` benchmark-style validation used by CI/review closure
 health-benchmark-check:
-    cargo test -p agent-diva-manager health_benchmark_ci_gate_stays_within_budget -- --nocapture
+    cargo test -p agent-diva-manager health_benchmark_ci_gate_stays_within_budget -- --ignored --nocapture
 
 # Generate documentation
 doc:
