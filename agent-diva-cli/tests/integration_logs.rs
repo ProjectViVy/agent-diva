@@ -2,23 +2,18 @@ use std::process::Command;
 
 #[test]
 fn test_integration_logs() {
-    // Compile first to ensure binary is up to date
-    // (Optional, usually cargo test builds it)
-
-    // Run the agent command with JSON logging
-    let output = Command::new("cargo")
-        .args(&[
-            "run",
-            "--bin",
-            "agent-diva",
-            "--",
+    // Cargo already builds the CLI and exposes its exact path to integration
+    // tests. Spawning `cargo run` here deadlocks under `cargo test --all`
+    // because the nested Cargo waits for the outer artifact lock.
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
             "agent",
             "--message",
             "test_log_message",
             "--session",
             "test_logs",
             "--model",
-            "test_model", // This might fail if no provider, but we just want to check logs until failure
+            "test_model", // This may fail without a provider; logging is the assertion target.
         ])
         .env("RUST_LOG", "agent_diva_agent=trace")
         .env("LOG_FORMAT", "json")

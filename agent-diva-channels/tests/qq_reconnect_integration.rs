@@ -180,6 +180,12 @@ impl MockQQGateway {
                             .to_string(),
                         ))
                         .await;
+                    // Keep the socket alive long enough for the client reader
+                    // to observe opcode 9 before the mock drops the split
+                    // stream. Immediate drop races the buffered frame under
+                    // full-workspace test load and incorrectly exercises a
+                    // generic stream-end resume.
+                    tokio::time::sleep(Duration::from_millis(50)).await;
                     continue;
                 }
 

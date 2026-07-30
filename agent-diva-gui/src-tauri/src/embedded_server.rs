@@ -2,6 +2,7 @@ use agent_diva_manager::{start_embedded_gateway_runtime, GatewayRuntimeConfig};
 use anyhow::Context;
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
@@ -18,11 +19,24 @@ pub struct EmbeddedGatewayHandle {
     shutdown_tx: watch::Sender<bool>,
     /// Join handle for the background server thread.
     server_thread: Option<std::thread::JoinHandle<()>>,
+    startup_rx: Option<mpsc::Receiver<Result<(), String>>>,
     /// Track whether shutdown has already been initiated.
     shutdown_initiated: Arc<AtomicBool>,
 }
 
 impl EmbeddedGatewayHandle {
+    #[cfg(test)]
+    fn wait_until_ready(&mut self, timeout: Duration) -> anyhow::Result<()> {
+        let receiver = self
+            .startup_rx
+            .take()
+            .context("embedded gateway startup result was already consumed")?;
+        receiver
+            .recv_timeout(timeout)
+            .context("embedded gateway did not report startup readiness")?
+            .map_err(anyhow::Error::msg)
+    }
+
     /// Signal the server to shut down and wait for the background thread.
     #[allow(dead_code)]
     pub fn shutdown(mut self) {
@@ -68,6 +82,7 @@ pub fn start_embedded_gateway(
     tracing::info!("Embedded gateway bound to http://127.0.0.1:{port}");
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let (startup_tx, startup_rx) = mpsc::sync_channel(1);
     let shutdown_initiated = Arc::new(AtomicBool::new(false));
 
     let server_thread = std::thread::Builder::new()
@@ -79,6 +94,9 @@ pub fn start_embedded_gateway(
             {
                 Ok(runtime) => runtime,
                 Err(error) => {
+                    let _ = startup_tx.send(Err(format!(
+                        "failed to create embedded gateway runtime: {error}"
+                    )));
                     tracing::error!("Failed to create embedded gateway runtime: {}", error);
                     return;
                 }
@@ -86,8 +104,10 @@ pub fn start_embedded_gateway(
 
             runtime.block_on(async move {
                 if let Err(error) =
-                    run_embedded_gateway_task(config, std_listener, shutdown_rx).await
+                    run_embedded_gateway_task(config, std_listener, shutdown_rx, startup_tx.clone())
+                        .await
                 {
+                    let _ = startup_tx.send(Err(error.to_string()));
                     tracing::error!("Embedded gateway task failed: {}", error);
                 }
             });
@@ -99,6 +119,7 @@ pub fn start_embedded_gateway(
         port,
         shutdown_tx,
         server_thread: Some(server_thread),
+        startup_rx: Some(startup_rx),
         shutdown_initiated,
     })
 }
@@ -107,6 +128,7 @@ async fn run_embedded_gateway_task(
     config: GatewayRuntimeConfig,
     std_listener: TcpListener,
     shutdown_rx: watch::Receiver<bool>,
+    startup_tx: mpsc::SyncSender<Result<(), String>>,
 ) -> anyhow::Result<()> {
     std_listener
         .set_nonblocking(true)
@@ -118,6 +140,7 @@ async fn run_embedded_gateway_task(
     let runtime = start_embedded_gateway_runtime(config, listener, shutdown_rx)
         .await
         .context("failed to bootstrap embedded manager runtime")?;
+    let _ = startup_tx.send(Ok(()));
 
     if !*lifecycle_rx.borrow() {
         lifecycle_rx
@@ -182,6 +205,7 @@ mod tests {
             port: 12345,
             shutdown_tx,
             server_thread: None,
+            startup_rx: None,
             shutdown_initiated: Arc::new(AtomicBool::new(false)),
         };
 
@@ -209,13 +233,23 @@ mod tests {
         let workspace_dir = TempDir::new().unwrap();
         let config = test_runtime_config(&config_dir, &workspace_dir);
 
-        let handle = start_embedded_gateway(config).unwrap();
+        let mut handle = start_embedded_gateway(config).unwrap();
+        handle
+            .wait_until_ready(Duration::from_secs(30))
+            .expect("embedded gateway failed during startup");
         let port = handle.port;
-        let client = reqwest::Client::new();
+        // The desktop process may inherit corporate proxy variables. The
+        // embedded gateway is always loopback-only and must never be probed
+        // through an external proxy.
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_millis(500))
+            .build()
+            .unwrap();
 
         let health_result = tokio::time::timeout(Duration::from_secs(10), async {
             let mut last_error = None;
-            for _ in 0..100 {
+            for _ in 0..20 {
                 match client
                     .get(format!("http://127.0.0.1:{port}/api/health"))
                     .send()
@@ -223,7 +257,7 @@ mod tests {
                 {
                     Ok(response)
                         if response.status() == StatusCode::OK
-                            || response.status() == StatusCode::BAD_GATEWAY =>
+                            || response.status() == StatusCode::SERVICE_UNAVAILABLE =>
                     {
                         return Ok(());
                     }
