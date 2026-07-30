@@ -19,7 +19,7 @@
 Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。完整产品闭环计划见
 [`docs/dev/autodream-laputa-product-closure/`](docs/dev/autodream-laputa-product-closure/)。
 
-- [ ] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
+- [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、
   Laputa proposal/统一治理、typed apply、Recall feedback、一体化 GUI、恢复与发布门
   逐切片完成。普通 AutoDream trigger 必须启动真实 worker；禁止固定模板候选、
@@ -58,7 +58,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     payload-free Recall feedback；支持立即反思、取消、查看 run 提案、可视化编辑后
     生成新 proposal revision、批准并应用、拒绝、暂缓与回滚；typed degraded 原因
     显式展示。
-  - [ ] **E7 恢复与发布门**：完成 canonical workspace identity、单一副作用 seam、
+  - [x] **E7 恢复与发布门**：完成 canonical workspace identity、单一副作用 seam、
     observability、恢复演练、全测试与发布候选自动化 E2E。
     E7 必须在关闭占用 debug 二进制的桌面进程后复跑 `just test`，并解决或规避当前
     Windows GUI lib test 的 MSVC `LNK1140` PDB 限制，不能以 `cargo check` 代替。
