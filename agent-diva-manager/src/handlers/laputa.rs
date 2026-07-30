@@ -4,6 +4,7 @@ use std::{
     path::{Path as FsPath, PathBuf},
     str::FromStr,
     sync::OnceLock,
+    time::Instant,
 };
 
 use agent_diva_core::config::schema::MemoryAuthorityMode;
@@ -16,8 +17,8 @@ use agent_diva_core::governance::{
 };
 use agent_diva_laputa::{
     adapt_governed_proposal, ChangelogFilter, GovernedMemoryApply, LaputaError, LaputaEventKind,
-    MemoryAdapterContext, MemoryGovernanceDecision, MemoryGovernanceError, ProposalEdit,
-    ProposalFilter, RollbackChangelogRequest, TypedMemoryStore,
+    LaputaService, MemoryAdapterContext, MemoryGovernanceDecision, MemoryGovernanceError,
+    ProposalEdit, ProposalFilter, RollbackChangelogRequest, TypedMemoryStore,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -262,6 +263,7 @@ pub async fn decide_laputa_proposal_handler(
     Path(id): Path<String>,
     Json(payload): Json<ProposalDecisionPayload>,
 ) -> JsonResult {
+    let decision_started = Instant::now();
     let proposal = state
         .laputa
         .get_proposal(&id)
@@ -271,10 +273,11 @@ pub async fn decide_laputa_proposal_handler(
         .submit(&proposal, None, Utc::now())
         .await
         .map_err(memory_governance_error_response)?;
-    let governance = if matches!(
+    let decision_was_new = !matches!(
         current.status,
         ApprovalStatus::Allowed | ApprovalStatus::Denied
-    ) {
+    );
+    let governance = if !decision_was_new {
         if current.receipt.as_ref().map(|receipt| &receipt.decision) != Some(&payload.decision) {
             return Err(error_response(
                 StatusCode::CONFLICT,
@@ -323,6 +326,20 @@ pub async fn decide_laputa_proposal_handler(
             .transition_proposal(&id, desired_state, Utc::now())
             .map_err(laputa_error_response)?
     };
+    if decision_was_new {
+        let human_wait_ms = Utc::now()
+            .signed_duration_since(proposal.created_at)
+            .num_milliseconds()
+            .max(0) as u64;
+        LaputaService::record_governance_decision_metrics(
+            decision_started
+                .elapsed()
+                .as_millis()
+                .min(u128::from(u64::MAX)) as u64,
+            human_wait_ms,
+            payload.decision == Decision::Deny,
+        );
+    }
     ok(serde_json::json!({
         "status": "ok",
         "proposal": proposal,
@@ -564,6 +581,15 @@ pub async fn apply_laputa_proposal_handler(
             governance
         }
     };
+    if state.memory_authority_mode == MemoryAuthorityMode::Typed {
+        let correlation_complete = !payload.governance_request_id.is_empty()
+            && !id.is_empty()
+            && !outcome.changelog.id.is_empty()
+            && !outcome.audit_event.id.is_empty()
+            && !outcome.rollback_request.changelog_id.is_empty()
+            && governance.request.correlation.request_id == payload.governance_request_id;
+        LaputaService::record_typed_apply_metrics(correlation_complete);
+    }
     ok(serde_json::json!({
         "status": "ok",
         "proposal": outcome.proposal,
@@ -761,6 +787,13 @@ pub async fn rollback_laputa_changelog_handler(
             .rollback_changelog(&id, payload, "api", Utc::now())
             .map_err(laputa_error_response)?
     };
+    if state.memory_authority_mode == MemoryAuthorityMode::Typed {
+        LaputaService::record_typed_rollback_metrics(
+            !outcome.changelog.id.is_empty()
+                && !outcome.audit_event.id.is_empty()
+                && outcome.changelog.proposal_id.is_some(),
+        );
+    }
     ok(serde_json::json!({ "status": "ok", "outcome": outcome }))
 }
 
@@ -868,6 +901,15 @@ fn error_response(
 fn memory_governance_error_response(
     error: MemoryGovernanceError,
 ) -> (StatusCode, Json<serde_json::Value>) {
+    if matches!(
+        &error,
+        MemoryGovernanceError::StaleProposal
+            | MemoryGovernanceError::Ledger(ApprovalLedgerError::VersionConflict)
+            | MemoryGovernanceError::Ledger(ApprovalLedgerError::AlreadyConsumed)
+            | MemoryGovernanceError::Ledger(ApprovalLedgerError::Expired)
+    ) {
+        LaputaService::record_stale_receipt_metric();
+    }
     let (status, code) = match &error {
         MemoryGovernanceError::ApprovalRequired => (StatusCode::CONFLICT, "approval_required"),
         MemoryGovernanceError::StaleProposal => (StatusCode::CONFLICT, "stale_proposal"),
@@ -938,6 +980,17 @@ mod recovery_tests {
         governance::{ApprovalGrant, GovernanceSubject, GovernanceSubjectKind},
     };
     use chrono::TimeZone;
+
+    #[test]
+    fn stale_governance_errors_increment_payload_free_metric() {
+        let before = LaputaService::metrics_snapshot().laputa_stale_receipts_total;
+        let response = memory_governance_error_response(MemoryGovernanceError::StaleProposal);
+        assert_eq!(response.0, StatusCode::CONFLICT);
+        assert!(
+            LaputaService::metrics_snapshot().laputa_stale_receipts_total > before,
+            "stale receipt metric must increment"
+        );
+    }
 
     fn proposal() -> EvolutionProposal {
         let now = Utc.with_ymd_and_hms(2026, 7, 30, 12, 0, 0).unwrap();

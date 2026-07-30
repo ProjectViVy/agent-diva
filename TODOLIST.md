@@ -120,7 +120,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   组装/pre-call/执行同一治理快照；turn 分段可取消可度量；子代理/cron 禁止提权。
 - [ ] **GMH-41：自治预算与熔断** `sev-P2`
   turn/session/day 限额；拒绝风暴熔断；离线高风险排队或拒绝。
-- [ ] **GMH-42：治理可观测性与审计** `sev-P2`
+- [x] **GMH-42：治理可观测性与审计** `sev-P2`
   decision latency、人工等待、deny/stale receipt、Memory apply/rollback 指标与
   correlation 证据链。
 - [ ] **GMH-50：兼容迁移与 feature flags** `sev-P2`

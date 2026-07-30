@@ -50,6 +50,28 @@ impl LaputaService {
         Self::metrics().snapshot()
     }
 
+    pub fn record_governance_decision_metrics(
+        decision_latency_ms: u64,
+        human_wait_ms: u64,
+        denied: bool,
+    ) {
+        Self::metrics().record_governance_decision(decision_latency_ms, human_wait_ms, denied);
+    }
+
+    pub fn record_stale_receipt_metric() {
+        Self::metrics().record_stale_receipt();
+    }
+
+    pub fn record_typed_apply_metrics(correlation_complete: bool) {
+        Self::metrics().record_typed_apply();
+        Self::metrics().record_correlation(correlation_complete);
+    }
+
+    pub fn record_typed_rollback_metrics(correlation_complete: bool) {
+        Self::metrics().record_typed_rollback();
+        Self::metrics().record_correlation(correlation_complete);
+    }
+
     #[doc(hidden)]
     pub fn reset_metrics_for_test() {
         Self::metrics().reset_for_test();

@@ -25,6 +25,7 @@ pub struct MemoryHealth {
     pub store_revision: Option<i64>,
     pub record_count: Option<i64>,
     pub tombstone_count: Option<i64>,
+    pub governance_metrics: agent_diva_laputa::LaputaMetricsSnapshot,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,6 +89,7 @@ async fn memory_health(state: &AppState) -> MemoryHealth {
             store_revision: None,
             record_count: None,
             tombstone_count: None,
+            governance_metrics: agent_diva_laputa::LaputaService::metrics_snapshot(),
         };
     }
     let store = match agent_diva_laputa::TypedMemoryStore::open_existing(
@@ -116,6 +118,7 @@ async fn memory_health(state: &AppState) -> MemoryHealth {
                 store_revision: Some(integrity.store_revision),
                 record_count: Some(integrity.record_count),
                 tombstone_count: Some(integrity.tombstone_count),
+                governance_metrics: agent_diva_laputa::LaputaService::metrics_snapshot(),
             }
         }
         Ok(_) => degraded_memory(state, "integrity_failed"),
@@ -131,6 +134,7 @@ fn degraded_memory(state: &AppState, reason: &'static str) -> MemoryHealth {
         store_revision: None,
         record_count: None,
         tombstone_count: None,
+        governance_metrics: agent_diva_laputa::LaputaService::metrics_snapshot(),
     }
 }
 
@@ -246,6 +250,14 @@ mod tests {
         assert!(value["uptime_secs"].is_number());
         assert!(value["components"]["audit_sink"]["ready"].is_boolean());
         assert_eq!(value["components"]["cron"]["status"], "unknown");
+        assert!(
+            value["memory"]["governance_metrics"]["laputa_governance_decisions_total"].is_number()
+        );
+        assert!(value["memory"]["governance_metrics"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .all(|key| key.ends_with("_total") || key.ends_with("_max")));
         assert!(value.get("database").is_none());
     }
 
