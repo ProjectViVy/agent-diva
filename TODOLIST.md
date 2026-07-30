@@ -155,7 +155,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   `.laputa/` 打开失败应选 `DegradedMemoryProvider`；
   `cargo test -p agent-diva-agent memory_boundary` 当前 0 测。
   `agent-diva-agent/src/memory_boundary.rs`。
-- [ ] **Manager library suite 在 workspace gate 下 load-sensitive** `sev-P2`
+- [x] **Manager library suite 在 workspace gate 下 load-sensitive** `sev-P2`
   隔离 `cargo test -p agent-diva-manager --lib` 可通过。
   需定位并同步不稳定用例。
 - [ ] **Workspace Rust 1.80 MSRV 与无关新依赖冲突** `sev-P2`

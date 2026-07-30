@@ -315,14 +315,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn logs_empty_when_no_audit_files() {
+    async fn logs_empty_when_no_events_match_filter() {
         let temp = tempfile::tempdir().unwrap();
         let app = test_app_with_dir(temp.path());
 
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/logs")
+                    .uri("/api/logs?event_type=e7_test_event_that_does_not_exist")
                     .body(axum::body::Body::empty())
                     .unwrap(),
             )
