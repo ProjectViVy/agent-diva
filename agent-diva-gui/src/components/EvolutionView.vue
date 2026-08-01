@@ -361,6 +361,14 @@ function runOutputSummary(run: AutoDreamRunRecord) {
   return run.summary || t('evolution.runs.outputsUnavailable');
 }
 
+function displayMonitorRawText(value: string) {
+  return value
+    .replace(/"excerpt"\s*:\s*"(?:\\.|[^"])*"/g, '"excerpt":"[redacted]"')
+    .replace(/"hash"\s*:\s*"(?:\\.|[^"])*"/g, '"hash":"[redacted]"')
+    .replace(/"uri"\s*:\s*"(?:\\.|[^"])*"/g, '"uri":"[redacted]"')
+    .replace(/"workspace_id"\s*:\s*"(?:\\.|[^"])*"/g, '"workspace_id":"[redacted]"');
+}
+
 async function loadAudit() {
   auditLoading.value = true;
   auditError.value = null;
@@ -1107,7 +1115,7 @@ onBeforeUnmount(stopRunMonitor);
             <p v-if="monitorError" class="evolution-monitor-error">{{ monitorError }}</p>
             <section class="evolution-monitor-raw" data-testid="autodream-monitor-raw">
               <h4>{{ t('evolution.runs.monitorRawTitle') }}</h4>
-              <pre v-if="monitorRawText">{{ monitorRawText }}</pre>
+              <pre v-if="monitorRawText">{{ displayMonitorRawText(monitorRawText) }}</pre>
               <p v-else>{{ t('evolution.runs.monitorRawEmpty') }}</p>
             </section>
             <ol v-if="!monitorError" class="evolution-monitor-events" data-testid="autodream-monitor-events">

@@ -6,9 +6,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `target\\release\\{agent-diva-gui.exe,bundle\\}`, `agent-diva-gui\\dist\\`, `LOCK.md`
+- Scope: `agent-diva-manager\\src\\runtime.rs`, `agent-diva-gui\\src\\components\\EvolutionView.vue`, `docs\\logs\\2026-08-autodream-live-text-safety\\`, `LOCK.md`
 - Owner: `Codex / root`
-- Session/Task: `AutoDream raw token stream desktop release build`
+- Session/Task: `AutoDream bounded raw monitor safety repair`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-01T22:45:00+08:00`
 - Last Heartbeat: `2026-08-02T06:40:00+08:00`
