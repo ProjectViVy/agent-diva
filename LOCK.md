@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `target\\release\\{agent-diva-gui.exe,bundle\\}`, `agent-diva-gui\\dist\\`, `LOCK.md`
+- Scope: `agent-diva-manager\\src\\{runtime.rs,handlers\\autodream.rs,handlers.rs,server.rs}`, `agent-diva-gui\\src-tauri\\src\\{commands.rs,lib.rs}`, `agent-diva-gui\\src\\{api\\desktop.ts,components\\EvolutionView.vue,components\\EvolutionView.test.ts,locales\\{zh,en}.ts}`, `docs\\logs\\2026-08-autodream-live-text\\`, `LOCK.md`
 - Owner: `Codex / root`
-- Session/Task: `AutoDream live monitor desktop release build`
+- Session/Task: `AutoDream ephemeral raw token stream`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-01T22:45:00+08:00`
-- Last Heartbeat: `2026-08-02T06:18:00+08:00`
-- Expires At: `2026-08-02T06:18:00+08:00`
+- Last Heartbeat: `2026-08-02T06:31:00+08:00`
+- Expires At: `2026-08-02T06:31:00+08:00`
 
 ## Lock Rules
 
@@ -33,6 +33,12 @@ Use this file to declare the current writer scope before mutating the workspace.
   copy it; never modify it.
 
 ## Handoff Notes
+
+- `2026-08-02T06:31:00+08:00`: Released the user-authorized ephemeral raw
+  AutoDream text stream. Provider text deltas are process-memory-only and
+  displayed in the run monitor; hidden reasoning and tool deltas are excluded.
+  Focused Rust/UI validation and Tauri compile check passed; live provider
+  acceptance remains operator-gated.
 
 - `2026-08-02T06:18:00+08:00`: Released after the complete live-monitor
   Tauri artifact rebuild. The isolated-profile GUI started (PID 20036) and the

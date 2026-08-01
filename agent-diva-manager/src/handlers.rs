@@ -18,8 +18,8 @@ pub use command_approvals::command_approval_routes;
 pub use health::health_handler;
 
 pub use autodream::{
-    cancel_autodream_run_handler, get_autodream_run_handler, list_autodream_run_events_handler,
-    list_autodream_runs_handler, trigger_autodream_run_handler,
+    cancel_autodream_run_handler, get_autodream_live_text_handler, get_autodream_run_handler,
+    list_autodream_run_events_handler, list_autodream_runs_handler, trigger_autodream_run_handler,
 };
 pub use laputa::{
     apply_laputa_proposal_handler, create_laputa_proposal_handler, decide_laputa_proposal_handler,

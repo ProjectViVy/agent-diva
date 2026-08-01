@@ -401,6 +401,7 @@ pub fn run() {
             commands::create_notebook_report_proposal,
             commands::get_autodream_run_status,
             commands::list_autodream_run_events,
+            commands::get_autodream_live_text,
             commands::cancel_autodream_run,
             commands::list_autodream_run_records,
             commands::list_recall_feedback,

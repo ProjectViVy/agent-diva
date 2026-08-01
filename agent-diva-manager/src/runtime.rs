@@ -32,8 +32,10 @@ use agent_diva_sandbox::CommandApprovalCoordinator;
 use anyhow::Result;
 use chrono::Local;
 use chrono::NaiveDate;
+use futures::StreamExt;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio::task::JoinHandle;
 use tracing::error;
@@ -42,6 +44,30 @@ pub const DEFAULT_GATEWAY_PORT: u16 = 3000;
 pub(crate) const NOTEBOOK_MONTHLY_CRON_KIND: &str = "notebook_monthly_report";
 const REFLECTION_PROVIDER_TIMEOUT_SECS: u64 = 90;
 const REFLECTION_MAX_TOKENS: i32 = 1_024;
+static REFLECTION_LIVE_TEXT: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+fn reflection_live_texts() -> &'static Mutex<HashMap<String, String>> {
+    REFLECTION_LIVE_TEXT.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub(crate) fn reflection_live_text(run_id: &str) -> Option<String> {
+    reflection_live_texts()
+        .lock()
+        .ok()
+        .and_then(|texts| texts.get(run_id).cloned())
+}
+
+fn reset_reflection_live_text(run_id: &str) {
+    if let Ok(mut texts) = reflection_live_texts().lock() {
+        texts.insert(run_id.to_string(), String::new());
+    }
+}
+
+fn append_reflection_live_text(run_id: &str, delta: &str) {
+    if let Ok(mut texts) = reflection_live_texts().lock() {
+        texts.entry(run_id.to_string()).or_default().push_str(delta);
+    }
+}
 
 trait RuntimeClock: Send + Sync {
     fn local_today(&self) -> NaiveDate;
@@ -99,9 +125,10 @@ impl ReflectionEngine for LlmReflectionEngine {
     ) -> std::result::Result<ReflectionOutput, ReflectionError> {
         let input_json =
             serde_json::to_string(&input).map_err(|_| ReflectionError::InvalidSchema)?;
-        let response = tokio::time::timeout(
-            std::time::Duration::from_secs(REFLECTION_PROVIDER_TIMEOUT_SECS),
-            self.provider.chat(
+        reset_reflection_live_text(&input.run_id);
+        let stream = self
+            .provider
+            .chat_stream(
                 vec![
                     Message::system(
                         "You are the bounded AutoDream reflection engine. Return only JSON matching \
@@ -125,19 +152,46 @@ impl ReflectionEngine for LlmReflectionEngine {
                 Some(self.model.clone()),
                 REFLECTION_MAX_TOKENS,
                 0.1,
-            ),
+            )
+            .await
+            .map_err(|_| {
+                tracing::warn!("AutoDream reflection provider stream request failed");
+                ReflectionError::ProviderFailed
+            })?;
+        let mut stream = stream;
+        let run_id = input.run_id.clone();
+        let content = tokio::time::timeout(
+            std::time::Duration::from_secs(REFLECTION_PROVIDER_TIMEOUT_SECS),
+            async move {
+                let mut content = String::new();
+                while let Some(event) = stream.next().await {
+                    match event.map_err(|_| ReflectionError::ProviderFailed)? {
+                        agent_diva_providers::LLMStreamEvent::TextDelta(delta) => {
+                            append_reflection_live_text(&run_id, &delta);
+                            content.push_str(&delta);
+                        }
+                        agent_diva_providers::LLMStreamEvent::Completed(response) => {
+                            if content.is_empty() {
+                                if let Some(text) = response.content {
+                                    append_reflection_live_text(&run_id, &text);
+                                    content = text;
+                                }
+                            }
+                            return Ok(content);
+                        }
+                        agent_diva_providers::LLMStreamEvent::ReasoningDelta(_)
+                        | agent_diva_providers::LLMStreamEvent::ToolCallDelta { .. } => {}
+                    }
+                }
+                Ok(content)
+            },
         )
         .await
-        .map_err(|_| ReflectionError::ProviderTimeout)?
-        .map_err(|_| {
-            tracing::warn!("AutoDream reflection provider request failed");
-            ReflectionError::ProviderFailed
-        })?;
-        let content = response
-            .content
-            .as_deref()
-            .ok_or(ReflectionError::InvalidSchema)?;
-        parse_reflection_output(content, &input)
+        .map_err(|_| ReflectionError::ProviderTimeout)??;
+        if content.is_empty() {
+            return Err(ReflectionError::InvalidSchema);
+        }
+        parse_reflection_output(&content, &input)
     }
 }
 

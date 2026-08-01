@@ -415,6 +415,8 @@ export default {
       monitoring: '正在刷新…',
       monitorReady: '实时（运行中每秒轮询）',
       monitorEmpty: '尚未记录可安全展示的进度事件。',
+      monitorRawTitle: '模型实时原文（不保存）',
+      monitorRawEmpty: '正在等待模型输出…',
       state: '状态',
       title: '运行诊断',
       desc: '查看 AutoDream 运行触发、耗时、状态、输入、输出、错误与提案数量。',

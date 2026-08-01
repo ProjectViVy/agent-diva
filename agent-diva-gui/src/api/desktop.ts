@@ -633,6 +633,9 @@ export const getAutoDreamRunStatus = (id: string) =>
 export const listAutoDreamRunEvents = (id: string) =>
   invoke<AutoDreamRunEvent[]>("list_autodream_run_events", { id });
 
+export const getAutoDreamLiveText = (id: string) =>
+  invoke<string>("get_autodream_live_text", { id });
+
 export const cancelAutoDreamRun = (id: string) =>
   invoke<AutoDreamRunRecord>("cancel_autodream_run", { id });
 

@@ -861,6 +861,19 @@ pub async fn list_autodream_run_events(
 }
 
 #[tauri::command]
+pub async fn get_autodream_live_text(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/autodream/runs/{}/live-text",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    get_laputa_payload(&state, &url, "text").await
+}
+
+#[tauri::command]
 pub async fn cancel_autodream_run(
     id: String,
     state: State<'_, AgentState>,

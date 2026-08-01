@@ -15,15 +15,15 @@ use crate::handlers::{
     delete_mcp_handler, delete_provider_handler, delete_provider_model_handler,
     delete_session_handler, delete_skill_handler, edit_laputa_proposal_handler, events_handler,
     generate_session_title_handler, get_audit_events_handler, get_audit_log_handler,
-    get_autodream_run_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
-    get_laputa_changelog_handler, get_laputa_proposal_handler, get_laputa_section_handler,
-    get_laputa_snapshot_handler, get_mcps_handler, get_provider_handler,
-    get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
-    get_session_history_handler, get_sessions_handler, get_skills_handler, get_tools_handler,
-    health_handler, heartbeat_handler, list_autodream_run_events_handler,
-    list_autodream_runs_handler, list_cron_jobs_handler, list_laputa_changelog_handler,
-    list_laputa_proposals_handler, list_recall_feedback_handler, logs_routes,
-    poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
+    get_autodream_live_text_handler, get_autodream_run_handler, get_channels_handler,
+    get_config_handler, get_cron_job_handler, get_laputa_changelog_handler,
+    get_laputa_proposal_handler, get_laputa_section_handler, get_laputa_snapshot_handler,
+    get_mcps_handler, get_provider_handler, get_provider_models_handler, get_providers_handler,
+    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
+    get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
+    list_autodream_run_events_handler, list_autodream_runs_handler, list_cron_jobs_handler,
+    list_laputa_changelog_handler, list_laputa_proposals_handler, list_recall_feedback_handler,
+    logs_routes, poll_laputa_events_handler, refresh_mcp_status_handler, reset_session_handler,
     resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, todo_routes, token_stats_routes,
@@ -107,6 +107,10 @@ fn autodream_routes() -> Router<AppState> {
             get(list_autodream_runs_handler).post(trigger_autodream_run_handler),
         )
         .route("/api/autodream/runs/:id", get(get_autodream_run_handler))
+        .route(
+            "/api/autodream/runs/:id/live-text",
+            get(get_autodream_live_text_handler),
+        )
         .route(
             "/api/autodream/runs/:id/events",
             get(list_autodream_run_events_handler),

@@ -415,6 +415,8 @@ export default {
       monitoring: 'Refreshing…',
       monitorReady: 'Live (1s polling while active)',
       monitorEmpty: 'No safe progress events have been recorded yet.',
+      monitorRawTitle: 'Live model output (not saved)',
+      monitorRawEmpty: 'Waiting for model output…',
       state: 'State',
       title: 'Run Diagnostics',
       desc: 'Inspect AutoDream trigger, timing, duration, status, inputs, outputs, errors, and proposal count.',

@@ -17,6 +17,7 @@ import {
   editLaputaProposal,
   getLaputaSection,
   getEvolutionHealth,
+  getAutoDreamLiveText,
   getAutoDreamRunStatus,
   getSelfEvolutionConfig,
   listAutoDreamRunRecords,
@@ -113,6 +114,7 @@ const monitorRun = ref<AutoDreamRunRecord | null>(null);
 const monitorEvents = ref<AutoDreamRunEvent[]>([]);
 const monitorError = ref<string | null>(null);
 const monitorLoading = ref(false);
+const monitorRawText = ref('');
 let monitorTimer: ReturnType<typeof setInterval> | null = null;
 const recallFeedback = ref<RecallFeedbackEvent[]>([]);
 const evolutionHealth = ref<EvolutionHealth | null>(null);
@@ -442,12 +444,14 @@ async function refreshRunMonitor() {
   if (!run) return;
   monitorLoading.value = true;
   try {
-    const [nextRun, events] = await Promise.all([
+    const [nextRun, events, rawText] = await Promise.all([
       getAutoDreamRunStatus(run.id),
       listAutoDreamRunEvents(run.id),
+      getAutoDreamLiveText(run.id),
     ]);
     monitorRun.value = nextRun;
     monitorEvents.value = events;
+    monitorRawText.value = rawText;
     monitorError.value = null;
     runs.value = runs.value.map((item) => (item.id === nextRun.id ? nextRun : item));
     if (!isActiveRun(nextRun)) stopRunMonitor();
@@ -462,6 +466,7 @@ function openRunMonitor(run: AutoDreamRunRecord) {
   stopRunMonitor();
   monitorRun.value = run;
   monitorEvents.value = [];
+  monitorRawText.value = '';
   monitorError.value = null;
   void refreshRunMonitor();
   if (isActiveRun(run)) monitorTimer = setInterval(() => void refreshRunMonitor(), 1000);
@@ -1100,7 +1105,12 @@ onBeforeUnmount(stopRunMonitor);
               <div><dt>{{ t('evolution.runs.monitorRefresh') }}</dt><dd>{{ monitorLoading ? t('evolution.runs.monitoring') : t('evolution.runs.monitorReady') }}</dd></div>
             </dl>
             <p v-if="monitorError" class="evolution-monitor-error">{{ monitorError }}</p>
-            <ol v-else class="evolution-monitor-events" data-testid="autodream-monitor-events">
+            <section class="evolution-monitor-raw" data-testid="autodream-monitor-raw">
+              <h4>{{ t('evolution.runs.monitorRawTitle') }}</h4>
+              <pre v-if="monitorRawText">{{ monitorRawText }}</pre>
+              <p v-else>{{ t('evolution.runs.monitorRawEmpty') }}</p>
+            </section>
+            <ol v-if="!monitorError" class="evolution-monitor-events" data-testid="autodream-monitor-events">
               <li v-for="event in monitorEvents" :key="event.id">
                 <time :title="event.created_at">{{ formatRunTimestamp(event.created_at) }}</time>
                 <strong>{{ event.kind }}</strong>
@@ -1278,6 +1288,27 @@ onBeforeUnmount(stopRunMonitor);
   margin: 16px 0 0;
   padding: 0;
   list-style: none;
+}
+
+.evolution-monitor-raw {
+  margin-top: 16px;
+}
+
+.evolution-monitor-raw h4,
+.evolution-monitor-raw p {
+  margin: 0 0 8px;
+}
+
+.evolution-monitor-raw pre {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .evolution-monitor-events li {

@@ -50,6 +50,18 @@ pub async fn list_autodream_run_events_handler(
     ok(serde_json::json!({ "status": "ok", "events": events }))
 }
 
+pub async fn get_autodream_live_text_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> JsonResult {
+    state
+        .autodream
+        .get_run_status(&id)
+        .map_err(autodream_error_response)?;
+    let text = crate::runtime::reflection_live_text(&id).unwrap_or_default();
+    ok(serde_json::json!({ "status": "ok", "text": text }))
+}
+
 pub async fn cancel_autodream_run_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,

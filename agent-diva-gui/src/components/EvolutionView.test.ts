@@ -8,6 +8,7 @@ import {
   editLaputaProposal,
   getLaputaSection,
   getEvolutionHealth,
+  getAutoDreamLiveText,
   getAutoDreamRunStatus,
   getSelfEvolutionConfig,
   listAutoDreamRunRecords,
@@ -72,6 +73,7 @@ vi.mock('../api/desktop', () => ({
   listAutoDreamRunRecords: vi.fn(),
   listAutoDreamRunEvents: vi.fn(),
   getAutoDreamRunStatus: vi.fn(),
+  getAutoDreamLiveText: vi.fn(),
   getSelfEvolutionConfig: vi.fn(),
   pollLaputaEvents: vi.fn(),
   getLaputaSection: vi.fn(),
@@ -191,6 +193,7 @@ describe('EvolutionView governance detail', () => {
       orchestration: { phase: 'reflecting', attempt: 1 },
     }));
     vi.mocked(listAutoDreamRunEvents).mockResolvedValue([]);
+    vi.mocked(getAutoDreamLiveText).mockResolvedValue('');
     vi.mocked(getSelfEvolutionConfig).mockResolvedValue({
       enabled: true,
       autodream_frequency: 'weekly',
@@ -339,6 +342,7 @@ describe('EvolutionView governance detail', () => {
         created_at: '2026-06-14T00:00:05Z',
       },
     ]);
+    vi.mocked(getAutoDreamLiveText).mockResolvedValue('{"schema_version":1}');
 
     const wrapper = mountView();
     await flushPromises();
@@ -348,6 +352,10 @@ describe('EvolutionView governance detail', () => {
 
     expect(getAutoDreamRunStatus).toHaveBeenCalledWith('run-monitor');
     expect(listAutoDreamRunEvents).toHaveBeenCalledWith('run-monitor');
+    expect(getAutoDreamLiveText).toHaveBeenCalledWith('run-monitor');
+    expect(wrapper.find('[data-testid="autodream-monitor-raw"]').text()).toContain(
+      '{"schema_version":1}',
+    );
     expect(wrapper.find('[data-testid="autodream-monitor-events"]').text()).toContain(
       'Bounded provider request started',
     );
