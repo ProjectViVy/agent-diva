@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `C:\\tmp\\g2d-plus-desktop-acceptance-20260801\\`, `agent-diva-gui\\src-tauri\\target\\release\\bundle\\`, `agent-diva-gui\\src-tauri\\src\\commands.rs`, `agent-diva-gui\\src\\components\\{EvolutionView.vue,EvolutionView.test.ts}`, `agent-diva-manager\\src\\{runtime.rs,handlers\\laputa.rs,server.rs}`, `docs\\logs\\2026-08-g2d-plus-desktop-release-build\\`, `LOCK.md`
+- Scope: `C:\\tmp\\g2d-plus-desktop-acceptance-20260801\\`, `agent-diva-gui\\src-tauri\\target\\release\\bundle\\`, `agent-diva-manager\\src\\runtime.rs`, `docs\\logs\\2026-08-g2d-plus-desktop-reflection-timeout\\`, `LOCK.md`
 - Owner: `Codex / root`
-- Session/Task: `G2D+ release-build, API contract, run-history, and reflection-schema repair`
+- Session/Task: `G2D+ reflection provider timeout repair`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-01T22:45:00+08:00`
-- Last Heartbeat: `2026-08-02T03:54:00+08:00`
-- Expires At: `2026-08-02T03:54:00+08:00`
+- Last Heartbeat: `2026-08-02T04:13:30+08:00`
+- Expires At: `2026-08-02T04:13:30+08:00`
 
 ## Lock Rules
 
@@ -33,6 +33,16 @@ Use this file to declare the current writer scope before mutating the workspace.
   copy it; never modify it.
 
 ## Handoff Notes
+
+- `2026-08-02T04:13:30+08:00`: Released after extending the bounded
+  reflection provider window to 90 seconds, lowering output budget to 1,024
+  tokens, focused validation, release build, and isolated-profile GUI start.
+  A real provider retry remains an operator acceptance action.
+
+- `2026-08-02T04:01:00+08:00`: User observed that the repaired reflection
+  request now reaches the provider but exceeds the fixed 45-second deadline.
+  This scoped repair raises the bounded reflection timeout and reduces its
+  output budget; no external provider call is authorized by the assistant.
 
 - `2026-08-02T03:54:00+08:00`: Released after the reflection parser repair,
   focused Rust/GUI validation, and isolated-profile desktop executable start.

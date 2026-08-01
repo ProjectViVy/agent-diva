@@ -40,6 +40,8 @@ use tracing::error;
 
 pub const DEFAULT_GATEWAY_PORT: u16 = 3000;
 pub(crate) const NOTEBOOK_MONTHLY_CRON_KIND: &str = "notebook_monthly_report";
+const REFLECTION_PROVIDER_TIMEOUT_SECS: u64 = 90;
+const REFLECTION_MAX_TOKENS: i32 = 1_024;
 
 trait RuntimeClock: Send + Sync {
     fn local_today(&self) -> NaiveDate;
@@ -98,7 +100,7 @@ impl ReflectionEngine for LlmReflectionEngine {
         let input_json =
             serde_json::to_string(&input).map_err(|_| ReflectionError::InvalidSchema)?;
         let response = tokio::time::timeout(
-            std::time::Duration::from_secs(45),
+            std::time::Duration::from_secs(REFLECTION_PROVIDER_TIMEOUT_SECS),
             self.provider.chat(
                 vec![
                     Message::system(
@@ -121,7 +123,7 @@ impl ReflectionEngine for LlmReflectionEngine {
                 None,
                 ToolChoiceMode::Disabled,
                 Some(self.model.clone()),
-                2_048,
+                REFLECTION_MAX_TOKENS,
                 0.1,
             ),
         )
@@ -658,6 +660,12 @@ mod tests {
         let expected = NaiveDate::from_ymd_opt(2026, 7, 31).unwrap();
         let clock = FixedRuntimeClock { date: expected };
         assert_eq!(clock.local_today(), expected);
+    }
+
+    #[test]
+    fn reflection_provider_limits_allow_slow_bounded_responses() {
+        assert_eq!(REFLECTION_PROVIDER_TIMEOUT_SECS, 90);
+        assert_eq!(REFLECTION_MAX_TOKENS, 1_024);
     }
 
     struct ReflectionFakeProvider {
