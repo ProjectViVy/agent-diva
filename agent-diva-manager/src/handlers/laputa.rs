@@ -172,7 +172,10 @@ pub async fn list_recall_feedback_handler(
     let events = agent_diva_laputa::RecallFeedbackStore::new(storage)
         .recent(query.limit.unwrap_or(50).min(200))
         .map_err(laputa_error_response)?;
-    ok(serde_json::json!({ "feedback": events }))
+    ok(serde_json::json!({
+        "status": "ok",
+        "feedback": events,
+    }))
 }
 
 pub async fn create_laputa_proposal_handler(

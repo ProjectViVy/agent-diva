@@ -6131,7 +6131,8 @@ pub fn open_desktop_pet(app: AppHandle) -> Result<(), String> {
         window
             .show()
             .map_err(|e| format!("Failed to show desktop-pet window: {}", e))?;
-        if cfg!(debug_assertions) {
+        #[cfg(debug_assertions)]
+        {
             window.open_devtools();
         }
     } else {
@@ -6174,7 +6175,8 @@ pub fn open_desktop_pet(app: AppHandle) -> Result<(), String> {
         window
             .show()
             .map_err(|e| format!("Failed to show desktop-pet window: {}", e))?;
-        if cfg!(debug_assertions) {
+        #[cfg(debug_assertions)]
+        {
             window.open_devtools();
         }
         let _ = app.emit_to("desktop-pet", "desktop-pet-render-resume", true);

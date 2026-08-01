@@ -380,6 +380,12 @@ async function loadRuns() {
   }
 }
 
+function formatRunTimestamp(value?: string | null) {
+  if (!value) return t('evolution.runs.inProgress');
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime()) ? value : timestamp.toLocaleString();
+}
+
 async function loadWorkspaceStatus() {
   workspaceError.value = null;
   try {
@@ -522,7 +528,7 @@ async function refresh() {
     emitCount();
   }
 
-  await loadWorkspaceStatus();
+  await Promise.all([loadWorkspaceStatus(), loadRuns()]);
   if (activeTab.value !== 'inbox') {
     await ensureActiveTabLoaded(activeTab.value);
   }
@@ -945,11 +951,11 @@ onMounted(async () => {
               </div>
               <div>
                 <dt>{{ t('evolution.runs.startedAt') }}</dt>
-                <dd>{{ run.started_at }}</dd>
+                <dd :title="run.started_at">{{ formatRunTimestamp(run.started_at) }}</dd>
               </div>
               <div>
                 <dt>{{ t('evolution.runs.completedAt') }}</dt>
-                <dd>{{ run.completed_at || t('evolution.runs.inProgress') }}</dd>
+                <dd :title="run.completed_at || undefined">{{ formatRunTimestamp(run.completed_at) }}</dd>
               </div>
               <div>
                 <dt>{{ t('evolution.runs.duration') }}</dt>

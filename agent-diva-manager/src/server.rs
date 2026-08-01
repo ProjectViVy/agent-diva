@@ -462,6 +462,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["status"], "ok");
         assert_eq!(value["feedback"], serde_json::json!([]));
     }
 

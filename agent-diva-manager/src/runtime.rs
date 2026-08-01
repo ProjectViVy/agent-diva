@@ -19,6 +19,8 @@ use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::evolution::{CandidateValue, EvidenceRef, MemoryCandidate, ProposalType};
+use agent_diva_core::memory::{MemoryScope, MemorySensitivity};
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
@@ -55,6 +57,36 @@ impl RuntimeClock for SystemRuntimeClock {
 struct LlmReflectionEngine {
     provider: Arc<dyn LLMProvider>,
     model: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ProviderReflectionOutput {
+    schema_version: u32,
+    candidates: Vec<ProviderReflectionCandidate>,
+    #[serde(default)]
+    diagnostic_codes: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct ProviderReflectionCandidate {
+    proposal_type: ProposalType,
+    content: String,
+    evidence_ids: Vec<String>,
+    confidence: u8,
+    #[serde(default = "default_reflection_sensitivity")]
+    sensitivity: MemorySensitivity,
+    #[serde(default = "default_reflection_value")]
+    expected_value: CandidateValue,
+    #[serde(default)]
+    invalidation_conditions: Vec<String>,
+}
+
+fn default_reflection_sensitivity() -> MemorySensitivity {
+    MemorySensitivity::Private
+}
+
+fn default_reflection_value() -> CandidateValue {
+    CandidateValue::Medium
 }
 
 #[async_trait::async_trait]
@@ -103,18 +135,89 @@ impl ReflectionEngine for LlmReflectionEngine {
             .content
             .as_deref()
             .ok_or(ReflectionError::InvalidSchema)?;
-        let mut output: ReflectionOutput = serde_json::from_str(strip_json_fence(content))
-            .map_err(|_| ReflectionError::InvalidSchema)?;
-        for candidate in &mut output.candidates {
-            candidate.candidate_id = format!(
-                "candidate-{}-{}",
-                input.run_id,
-                agent_diva_autodream::content_digest(&candidate.content)
-                    .trim_start_matches("sha256:")
-            );
-        }
-        Ok(output)
+        parse_reflection_output(content, &input)
     }
+}
+
+fn parse_reflection_output(
+    content: &str,
+    input: &BoundedReflectionInput,
+) -> std::result::Result<ReflectionOutput, ReflectionError> {
+    if let Some(mut output) = parse_json_object::<ReflectionOutput>(content) {
+        normalize_candidate_ids(&mut output, input);
+        return Ok(output);
+    }
+    let output = parse_json_object::<ProviderReflectionOutput>(content)
+        .ok_or(ReflectionError::InvalidSchema)?;
+    if output.schema_version != 1 {
+        return Err(ReflectionError::InvalidSchema);
+    }
+    let candidates = output
+        .candidates
+        .into_iter()
+        .map(|candidate| provider_candidate_into_memory(candidate, input))
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let mut output = ReflectionOutput {
+        schema_version: 1,
+        candidates,
+        diagnostic_codes: output.diagnostic_codes,
+    };
+    normalize_candidate_ids(&mut output, input);
+    Ok(output)
+}
+
+fn provider_candidate_into_memory(
+    candidate: ProviderReflectionCandidate,
+    input: &BoundedReflectionInput,
+) -> std::result::Result<MemoryCandidate, ReflectionError> {
+    let evidence_refs = candidate
+        .evidence_ids
+        .iter()
+        .map(|id| {
+            input
+                .evidence
+                .iter()
+                .find(|item| item.evidence.id == *id)
+                .map(|item| item.evidence.clone())
+                .ok_or(ReflectionError::InvalidSchema)
+        })
+        .collect::<std::result::Result<Vec<EvidenceRef>, _>>()?;
+    if evidence_refs.is_empty() {
+        return Err(ReflectionError::InvalidSchema);
+    }
+    Ok(MemoryCandidate {
+        candidate_id: String::new(),
+        proposal_type: candidate.proposal_type,
+        content: candidate.content,
+        evidence_refs,
+        confidence: candidate.confidence,
+        scope: MemoryScope {
+            tenant_id: "local".to_string(),
+            workspace_id: input.workspace_id.clone(),
+            session_id: None,
+        },
+        sensitivity: candidate.sensitivity,
+        expected_value: candidate.expected_value,
+        invalidation_conditions: candidate.invalidation_conditions,
+    })
+}
+
+fn normalize_candidate_ids(output: &mut ReflectionOutput, input: &BoundedReflectionInput) {
+    for candidate in &mut output.candidates {
+        candidate.candidate_id = format!(
+            "candidate-{}-{}",
+            input.run_id,
+            agent_diva_autodream::content_digest(&candidate.content).trim_start_matches("sha256:")
+        );
+    }
+}
+
+fn parse_json_object<T: serde::de::DeserializeOwned>(content: &str) -> Option<T> {
+    let content = strip_json_fence(content);
+    content.match_indices('{').find_map(|(index, _)| {
+        let mut deserializer = serde_json::Deserializer::from_str(&content[index..]);
+        T::deserialize(&mut deserializer).ok()
+    })
 }
 
 fn strip_json_fence(content: &str) -> &str {
@@ -651,6 +754,39 @@ mod tests {
         assert!(output.candidates[0]
             .candidate_id
             .starts_with("candidate-run-a-"));
+    }
+
+    #[test]
+    fn reflection_adapter_accepts_bounded_schema_embedded_in_provider_prose() {
+        let evidence = EvidenceRef {
+            id: "evidence-1".to_string(),
+            source: EvidenceSource::ExperienceJournal,
+            uri: "experience://evidence-1".to_string(),
+            excerpt: Some("bounded evidence".to_string()),
+            hash: Some("sha256:evidence".to_string()),
+            created_at: Utc::now(),
+        };
+        let input = BoundedReflectionInput {
+            schema_version: 1,
+            workspace_id: "workspace-a".to_string(),
+            run_id: "run-a".to_string(),
+            evidence: vec![agent_diva_autodream::ReflectionEvidence {
+                evidence,
+                summary: "bounded evidence".to_string(),
+            }],
+            existing_memory_digests: Vec::new(),
+            max_candidates: 8,
+        };
+        let output = parse_reflection_output(
+            "Here is the JSON:\n```json\n{\"schema_version\":1,\"candidates\":[{\"proposal_type\":\"learning_note\",\"content\":\"The user prefers concise release summaries.\",\"evidence_ids\":[\"evidence-1\"],\"confidence\":85,\"expected_value\":\"high\"}]}\n```",
+            &input,
+        )
+        .unwrap();
+
+        assert_eq!(output.candidates.len(), 1);
+        assert_eq!(output.candidates[0].evidence_refs[0].id, "evidence-1");
+        assert_eq!(output.candidates[0].scope.workspace_id, "workspace-a");
+        assert_eq!(output.candidates[0].sensitivity, MemorySensitivity::Private);
     }
 }
 

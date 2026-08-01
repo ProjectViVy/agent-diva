@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `none`
-- Owner: `none`
-- Session/Task: `none`
+- Scope: `C:\\tmp\\g2d-plus-desktop-acceptance-20260801\\`, `agent-diva-gui\\src-tauri\\target\\release\\bundle\\`, `agent-diva-gui\\src-tauri\\src\\commands.rs`, `agent-diva-gui\\src\\components\\{EvolutionView.vue,EvolutionView.test.ts}`, `agent-diva-manager\\src\\{runtime.rs,handlers\\laputa.rs,server.rs}`, `docs\\logs\\2026-08-g2d-plus-desktop-release-build\\`, `LOCK.md`
+- Owner: `Codex / root`
+- Session/Task: `G2D+ release-build, API contract, run-history, and reflection-schema repair`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-01T22:00:00+08:00`
-- Last Heartbeat: `2026-08-01T22:35:00+08:00`
-- Expires At: `released`
+- Started At: `2026-08-01T22:45:00+08:00`
+- Last Heartbeat: `2026-08-02T03:54:00+08:00`
+- Expires At: `2026-08-02T03:54:00+08:00`
 
 ## Lock Rules
 
@@ -26,9 +26,53 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- None.
+- Fix the release-only Tauri devtools compile blocker, Evolution Laputa
+  response-contract failure, and AutoDream run-history refresh gap; build the
+  GUI release candidate, and create fresh/upgrade isolated acceptance profiles
+  under the named `C:\\tmp` root. Read the original upgrade profile only to
+  copy it; never modify it.
 
 ## Handoff Notes
+
+- `2026-08-02T03:54:00+08:00`: Released after the reflection parser repair,
+  focused Rust/GUI validation, and isolated-profile desktop executable start.
+  The real-provider and upgrade-profile acceptance scenarios remain human-gated.
+
+- `2026-08-02T03:39:15+08:00`: User-observed provider completion reached the
+  AutoDream reflection parser but failed the overly strict full internal-type
+  JSON contract. Scope expands to use a bounded provider-facing schema,
+  deterministic local reconstruction, and focused regression coverage; no
+  external provider call or user-data mutation is authorized.
+
+- `2026-08-02T01:40:00+08:00`: Expanded scope after real fresh-profile use
+  showed a completed AutoDream run with no visible Evolution history refresh.
+  `refresh()` only loaded runs when the active tab was already `runs`; first
+  load on the inbox therefore left persisted run history stale. The repair will
+  make runs part of every Evolution refresh and cover it with a component test.
+
+- `2026-08-02T01:06:00+08:00`: Expanded scope for the confirmed Evolution
+  release blocker. `GET /api/laputa/recall-feedback` returned `feedback` but
+  omitted the common `status: ok` envelope required by the Tauri bridge, causing
+  the GUI to show `unknown Laputa API error` despite typed Memory readiness.
+
+- `2026-08-02T00:57:00+08:00`: Refreshed the active G2D+ lock before a
+  user-observed fresh-profile restart. Evolution displayed an initial
+  `unknown Laputa API error` even though every loopback Evolution API endpoint
+  later returned HTTP 200 with typed Memory ready. Restart is a diagnostic step;
+  no proposal, approval, Memory write, provider call, key read, or original
+  profile mutation is authorized.
+
+- `2026-08-01T23:10:00+08:00`: The G2D+ release build exposed a release-only
+  Tauri compilation error: `cfg!(debug_assertions)` leaves `open_devtools()`
+  type-checked even though release builds disable that method. Scope expanded
+  to make the minimal compile-time cfg repair and rerun the release build.
+
+- `2026-08-01T22:45:00+08:00`: Started user-authorized G2D+ real-desktop
+  acceptance preflight. A typed upgrade source exists at
+  `C:\\Users\\Administrator\\.agent-diva\\workspace\\.laputa`; no release
+  bundle exists yet. This scope may build a candidate and create isolated
+  profiles only, then pauses for human GUI observation and any real-provider
+  authorization.
 
 - `2026-08-01T22:35:00+08:00`: Released the cleanup lock. Removed the four
   large, explicitly verified temporary Cargo targets under `C:\\tmp`:

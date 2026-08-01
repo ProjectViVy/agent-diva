@@ -265,6 +265,34 @@ describe('EvolutionView governance detail', () => {
     expect(showAppToast).toHaveBeenCalledWith('evolution.runs.triggerSuccess', 'success');
   });
 
+  it('refreshes persisted AutoDream runs before the runs tab is opened', async () => {
+    vi.mocked(listAutoDreamRunRecords).mockResolvedValue([
+      {
+        id: 'run-history',
+        started_at: '2026-06-14T00:00:00Z',
+        completed_at: '2026-06-14T00:00:01Z',
+        state: 'completed',
+        trigger: 'manual',
+        summary: 'completed with no eligible candidates',
+        proposal_ids: [],
+      },
+    ]);
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(listAutoDreamRunRecords).toHaveBeenCalledTimes(1);
+    await wrapper.find('[data-testid="evolution-tab-runs"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.evolution-record-card').exists()).toBe(true);
+    expect(wrapper.text()).toContain('completed with no eligible candidates');
+    expect(wrapper.find('.evolution-record-card dd[title="2026-06-14T00:00:00Z"]').text()).not.toBe(
+      '2026-06-14T00:00:00Z',
+    );
+    expect(listAutoDreamRunRecords).toHaveBeenCalledTimes(1);
+  });
+
   it('edits proposal content and invalidates the prior revision through backend edit', async () => {
     const wrapper = mountView();
     await flushPromises();
