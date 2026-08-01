@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   AlertTriangle,
@@ -17,8 +17,10 @@ import {
   editLaputaProposal,
   getLaputaSection,
   getEvolutionHealth,
+  getAutoDreamRunStatus,
   getSelfEvolutionConfig,
   listAutoDreamRunRecords,
+  listAutoDreamRunEvents,
   listLaputaChangelog,
   listLaputaProposals,
   listRecallFeedback,
@@ -30,6 +32,7 @@ import {
 import type {
   ChangelogRecord,
   AutoDreamRunRecord,
+  AutoDreamRunEvent,
   EvolutionProposal,
   EvolutionHealth,
   LaputaEvent,
@@ -106,6 +109,11 @@ const runs = ref<AutoDreamRunRecord[]>([]);
 const runsLoading = ref(false);
 const runsError = ref<string | null>(null);
 const runsLoaded = ref(false);
+const monitorRun = ref<AutoDreamRunRecord | null>(null);
+const monitorEvents = ref<AutoDreamRunEvent[]>([]);
+const monitorError = ref<string | null>(null);
+const monitorLoading = ref(false);
+let monitorTimer: ReturnType<typeof setInterval> | null = null;
 const recallFeedback = ref<RecallFeedbackEvent[]>([]);
 const evolutionHealth = ref<EvolutionHealth | null>(null);
 const workspaceError = ref<string | null>(null);
@@ -418,6 +426,50 @@ async function handleCancelRun(run: AutoDreamRunRecord) {
     runs.value = runs.value.map((item) => (item.id === next.id ? next : item));
     showAppToast(t('evolution.runs.cancelSuccess'), 'success');
   });
+}
+
+function isActiveRun(run: AutoDreamRunRecord) {
+  return run.state === 'pending' || run.state === 'running';
+}
+
+function stopRunMonitor() {
+  if (monitorTimer) clearInterval(monitorTimer);
+  monitorTimer = null;
+}
+
+async function refreshRunMonitor() {
+  const run = monitorRun.value;
+  if (!run) return;
+  monitorLoading.value = true;
+  try {
+    const [nextRun, events] = await Promise.all([
+      getAutoDreamRunStatus(run.id),
+      listAutoDreamRunEvents(run.id),
+    ]);
+    monitorRun.value = nextRun;
+    monitorEvents.value = events;
+    monitorError.value = null;
+    runs.value = runs.value.map((item) => (item.id === nextRun.id ? nextRun : item));
+    if (!isActiveRun(nextRun)) stopRunMonitor();
+  } catch (error) {
+    monitorError.value = normalizeError(error);
+  } finally {
+    monitorLoading.value = false;
+  }
+}
+
+function openRunMonitor(run: AutoDreamRunRecord) {
+  stopRunMonitor();
+  monitorRun.value = run;
+  monitorEvents.value = [];
+  monitorError.value = null;
+  void refreshRunMonitor();
+  if (isActiveRun(run)) monitorTimer = setInterval(() => void refreshRunMonitor(), 1000);
+}
+
+function closeRunMonitor() {
+  stopRunMonitor();
+  monitorRun.value = null;
 }
 
 function openRunProposals(run: AutoDreamRunRecord) {
@@ -765,6 +817,8 @@ onMounted(async () => {
   applyDeepLink();
   await refresh();
 });
+
+onBeforeUnmount(stopRunMonitor);
 </script>
 
 <template>
@@ -990,6 +1044,13 @@ onMounted(async () => {
             </dl>
             <div class="evolution-run-actions">
               <button
+                type="button"
+                :data-testid="`monitor-autodream-${run.id}`"
+                @click="openRunMonitor(run)"
+              >
+                {{ t('evolution.runs.monitor') }}
+              </button>
+              <button
                 v-if="run.state === 'pending' || run.state === 'running'"
                 type="button"
                 :disabled="busyAction !== null"
@@ -1019,6 +1080,35 @@ onMounted(async () => {
               <span v-if="event.corrected">{{ t('evolution.feedback.corrected') }}</span>
             </li>
           </ul>
+        </div>
+
+        <div v-if="monitorRun" class="evolution-monitor-backdrop" role="presentation" @click.self="closeRunMonitor">
+          <section class="evolution-monitor-dialog" role="dialog" aria-modal="true" :aria-label="t('evolution.runs.monitorTitle')">
+            <header>
+              <div>
+                <h3>{{ t('evolution.runs.monitorTitle') }}</h3>
+                <p><code>{{ monitorRun.id }}</code></p>
+              </div>
+              <button type="button" data-testid="close-autodream-monitor" @click="closeRunMonitor">
+                {{ t('evolution.runs.monitorClose') }}
+              </button>
+            </header>
+            <dl class="evolution-record-grid">
+              <div><dt>{{ t('evolution.runs.phase') }}</dt><dd>{{ monitorRun.orchestration?.phase || monitorRun.state }}</dd></div>
+              <div><dt>{{ t('evolution.runs.state') }}</dt><dd>{{ monitorRun.state }}</dd></div>
+              <div><dt>{{ t('evolution.runs.attempt') }}</dt><dd>{{ monitorRun.orchestration?.attempt ?? 0 }}</dd></div>
+              <div><dt>{{ t('evolution.runs.monitorRefresh') }}</dt><dd>{{ monitorLoading ? t('evolution.runs.monitoring') : t('evolution.runs.monitorReady') }}</dd></div>
+            </dl>
+            <p v-if="monitorError" class="evolution-monitor-error">{{ monitorError }}</p>
+            <ol v-else class="evolution-monitor-events" data-testid="autodream-monitor-events">
+              <li v-for="event in monitorEvents" :key="event.id">
+                <time :title="event.created_at">{{ formatRunTimestamp(event.created_at) }}</time>
+                <strong>{{ event.kind }}</strong>
+                <span>{{ event.message }}</span>
+              </li>
+              <li v-if="monitorEvents.length === 0">{{ t('evolution.runs.monitorEmpty') }}</li>
+            </ol>
+          </section>
         </div>
       </section>
     </div>
@@ -1147,6 +1237,62 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+}
+
+.evolution-monitor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 55%);
+}
+
+.evolution-monitor-dialog {
+  width: min(720px, 100%);
+  max-height: min(760px, 90vh);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 35%);
+}
+
+.evolution-monitor-dialog header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.evolution-monitor-dialog h3,
+.evolution-monitor-dialog p {
+  margin: 0;
+}
+
+.evolution-monitor-events {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evolution-monitor-events li {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(110px, auto) 1fr;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  font-size: 13px;
+}
+
+.evolution-monitor-error {
+  margin-top: 14px !important;
+  color: var(--color-danger);
 }
 
 .evolution-feedback-summary {

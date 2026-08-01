@@ -486,6 +486,14 @@ export interface AutoDreamRunRecord {
   error?: string | null;
 }
 
+export interface AutoDreamRunEvent {
+  id: string;
+  run_id?: string | null;
+  kind: string;
+  message: string;
+  created_at: string;
+}
+
 export interface RecallFeedbackEvent {
   schema_version: number;
   event_id: string;
@@ -621,6 +629,9 @@ export const triggerAutoDream = (trigger = 'manual') =>
 
 export const getAutoDreamRunStatus = (id: string) =>
   invoke<AutoDreamRunRecord>("get_autodream_run_status", { id });
+
+export const listAutoDreamRunEvents = (id: string) =>
+  invoke<AutoDreamRunEvent[]>("list_autodream_run_events", { id });
 
 export const cancelAutoDreamRun = (id: string) =>
   invoke<AutoDreamRunRecord>("cancel_autodream_run", { id });

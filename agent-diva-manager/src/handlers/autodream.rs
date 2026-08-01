@@ -39,6 +39,17 @@ pub async fn get_autodream_run_handler(
     )
 }
 
+pub async fn list_autodream_run_events_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> JsonResult {
+    let events = state
+        .autodream
+        .list_run_events(&id, 200)
+        .map_err(autodream_error_response)?;
+    ok(serde_json::json!({ "status": "ok", "events": events }))
+}
+
 pub async fn cancel_autodream_run_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,

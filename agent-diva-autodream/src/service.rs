@@ -1,6 +1,6 @@
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{BufRead, BufReader, Write},
     path::Path,
     sync::{Arc, OnceLock},
     time::{Duration, SystemTime},
@@ -205,6 +205,26 @@ impl AutoDreamService {
         let run = self.read_run(run_id)?;
         let lock = self.read_lock()?.filter(|lock| lock.run_id == run.id);
         self.status_from_run(run, lock)
+    }
+
+    /// Return a bounded, payload-free event timeline for one persisted run.
+    pub fn list_run_events(&self, run_id: &str, limit: usize) -> Result<Vec<AutoDreamEvent>> {
+        self.read_run(run_id)?;
+        let path = self.storage.paths().events_jsonl();
+        let file = match fs::File::open(&path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(source) => return Err(AutoDreamError::io(path, source)),
+        };
+        let mut events = BufReader::new(file)
+            .lines()
+            .filter_map(|line| line.ok())
+            .filter_map(|line| serde_json::from_str::<AutoDreamEvent>(&line).ok())
+            .filter(|event| event.run_id.as_deref() == Some(run_id))
+            .collect::<Vec<_>>();
+        events.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+        let start = events.len().saturating_sub(limit.clamp(1, 200));
+        Ok(events.split_off(start))
     }
 
     pub fn cancel_run(&self, run_id: &str) -> Result<AutoDreamRunStatus> {

@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `C:\\tmp\\g2d-plus-desktop-acceptance-20260801\\`, `target\\release\\{agent-diva-gui.exe,bundle\\}`, `agent-diva-gui\\dist\\`, `LOCK.md`
+- Scope: `agent-diva-autodream\\src\\service.rs`, `agent-diva-manager\\src\\{handlers\\autodream.rs,handlers.rs,server.rs}`, `agent-diva-gui\\src-tauri\\src\\{commands.rs,lib.rs}`, `agent-diva-gui\\src\\{api\\desktop.ts,components\\EvolutionView.vue,components\\EvolutionView.test.ts,locales\\{zh,en}.ts}`, `docs\\logs\\2026-08-autodream-run-monitor\\`, `LOCK.md`
 - Owner: `Codex / root`
-- Session/Task: `G2D+ full Tauri desktop artifact restart repair`
+- Session/Task: `AutoDream live run monitor dialog`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-01T22:45:00+08:00`
-- Last Heartbeat: `2026-08-02T04:39:00+08:00`
-- Expires At: `2026-08-02T04:39:00+08:00`
+- Last Heartbeat: `2026-08-02T06:05:00+08:00`
+- Expires At: `2026-08-02T06:05:00+08:00`
 
 ## Lock Rules
 
@@ -33,6 +33,17 @@ Use this file to declare the current writer scope before mutating the workspace.
   copy it; never modify it.
 
 ## Handoff Notes
+
+- `2026-08-02T06:05:00+08:00`: Released the read-only AutoDream live-monitor
+  dialog. Focused Manager test, GUI component tests, frontend production build,
+  formatting, and Tauri compile check passed. A full release link/desktop smoke
+  is documented as pending due to the current acceptance session's long link
+  time.
+
+- `2026-08-02T04:42:00+08:00`: User requested a human-readable real-time
+  AutoDream monitor opened from each Evolution run. Add a read-only bounded
+  per-run event endpoint and a polling dialog; no proposal, approval, or
+  Memory write is in scope.
 
 - `2026-08-02T04:39:00+08:00`: Released after a complete Tauri rebuild and
   isolated-profile restart. The GUI process is running and its embedded

@@ -8,8 +8,10 @@ import {
   editLaputaProposal,
   getLaputaSection,
   getEvolutionHealth,
+  getAutoDreamRunStatus,
   getSelfEvolutionConfig,
   listAutoDreamRunRecords,
+  listAutoDreamRunEvents,
   listLaputaChangelog,
   listLaputaProposals,
   listRecallFeedback,
@@ -68,6 +70,8 @@ vi.mock('../utils/appToast', () => ({
 vi.mock('../api/desktop', () => ({
   listLaputaProposals: vi.fn(),
   listAutoDreamRunRecords: vi.fn(),
+  listAutoDreamRunEvents: vi.fn(),
+  getAutoDreamRunStatus: vi.fn(),
   getSelfEvolutionConfig: vi.fn(),
   pollLaputaEvents: vi.fn(),
   getLaputaSection: vi.fn(),
@@ -178,6 +182,15 @@ describe('EvolutionView governance detail', () => {
       trigger: 'manual',
       proposal_ids: [],
     }));
+    vi.mocked(getAutoDreamRunStatus).mockImplementation(async (id) => ({
+      id,
+      started_at: '2026-06-14T00:00:00Z',
+      state: 'running',
+      trigger: 'manual',
+      proposal_ids: [],
+      orchestration: { phase: 'reflecting', attempt: 1 },
+    }));
+    vi.mocked(listAutoDreamRunEvents).mockResolvedValue([]);
     vi.mocked(getSelfEvolutionConfig).mockResolvedValue({
       enabled: true,
       autodream_frequency: 'weekly',
@@ -291,6 +304,53 @@ describe('EvolutionView governance detail', () => {
       '2026-06-14T00:00:00Z',
     );
     expect(listAutoDreamRunRecords).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens a read-only live monitor for a run and renders its progress events', async () => {
+    vi.mocked(listAutoDreamRunRecords).mockResolvedValue([
+      {
+        id: 'run-monitor',
+        started_at: '2026-06-14T00:00:00Z',
+        state: 'running',
+        trigger: 'manual',
+        proposal_ids: [],
+      },
+    ]);
+    vi.mocked(getAutoDreamRunStatus).mockResolvedValue({
+      id: 'run-monitor',
+      started_at: '2026-06-14T00:00:00Z',
+      state: 'running',
+      trigger: 'manual',
+      proposal_ids: [],
+      orchestration: {
+        schema_version: 1,
+        phase: 'reflecting',
+        attempt: 1,
+        deadline_at: '2026-06-14T00:02:00Z',
+        updated_at: '2026-06-14T00:00:05Z',
+      },
+    });
+    vi.mocked(listAutoDreamRunEvents).mockResolvedValue([
+      {
+        id: 'evt-1',
+        run_id: 'run-monitor',
+        kind: 'reflection_started',
+        message: 'Bounded provider request started',
+        created_at: '2026-06-14T00:00:05Z',
+      },
+    ]);
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find('[data-testid="evolution-tab-runs"]').trigger('click');
+    await wrapper.find('[data-testid="monitor-autodream-run-monitor"]').trigger('click');
+    await flushPromises();
+
+    expect(getAutoDreamRunStatus).toHaveBeenCalledWith('run-monitor');
+    expect(listAutoDreamRunEvents).toHaveBeenCalledWith('run-monitor');
+    expect(wrapper.find('[data-testid="autodream-monitor-events"]').text()).toContain(
+      'Bounded provider request started',
+    );
   });
 
   it('edits proposal content and invalidates the prior revision through backend edit', async () => {
