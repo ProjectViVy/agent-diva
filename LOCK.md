@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `agent-diva-manager\\src\\runtime.rs`, `agent-diva-gui\\src\\components\\EvolutionView.vue`, `docs\\logs\\2026-08-autodream-live-text-safety\\`, `LOCK.md`
+- Scope: `agent-diva-manager\\src\\runtime.rs`, `docs\\logs\\2026-08-autodream-schema-retry\\`, `TODOLIST.md`, `LOCK.md`
 - Owner: `Codex / root`
-- Session/Task: `AutoDream bounded raw monitor safety repair`
+- Session/Task: `AutoDream schema repair retries`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-01T22:45:00+08:00`
-- Last Heartbeat: `2026-08-02T06:40:00+08:00`
-- Expires At: `2026-08-02T06:40:00+08:00`
+- Last Heartbeat: `2026-08-02T07:20:00+08:00`
+- Expires At: `2026-08-02T07:20:00+08:00`
 
 ## Lock Rules
 
@@ -33,6 +33,19 @@ Use this file to declare the current writer scope before mutating the workspace.
   copy it; never modify it.
 
 ## Handoff Notes
+
+- `2026-08-02T07:20:00+08:00`: Released the schema-repair update after focused
+  tests and artifact rebuild. The updated EXE/NSIS/MSI exist, but Windows
+  denied direct EXE launch with OS error 5; no GUI process is running. Workspace
+  Clippy and full-test blockers were recorded in `TODOLIST.md`.
+
+- `2026-08-02T07:10:00+08:00`: Resumed the same expired schema-repair session.
+  Scope remains limited to the Manager reflection adapter and this iteration's
+  documentation; unrelated working-tree changes remain untouched.
+
+- `2026-08-02T07:18:00+08:00`: Expanded scope only to record the unrelated
+  Clippy `lines_filter_map_ok` gate failure in `TODOLIST.md`; the owning
+  AutoDream service file will not be changed in this focused update.
 
 - `2026-08-02T06:31:00+08:00`: Released the user-authorized ephemeral raw
   AutoDream text stream. Provider text deltas are process-memory-only and

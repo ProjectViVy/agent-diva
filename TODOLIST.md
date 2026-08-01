@@ -142,6 +142,24 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
+- [ ] **CLIPPY-LINES-MAP-WHILE: update fallible line iteration** `sev-P2`
+  `just check` on Rust 1.94 rejects `lines().filter_map(Result::ok)` with
+  `clippy::lines_filter_map_ok` at `agent-diva-autodream/src/service.rs:221`.
+  Replace it with `map_while(Result::ok)` (or explicit error propagation), add
+  focused read-error coverage, and restore the workspace Clippy gate.
+
+- [ ] **LAPUTA-RECOVERY-RECEIPT-FIXTURE: restore prepared journal recovery test** `sev-P1`
+  `cargo test -p agent-diva-manager prepared_journal_recovers_commit_then_consumes_receipt --lib`
+  deterministically fails at `agent-diva-manager/src/handlers/laputa.rs:1089` with
+  `approval_required` because the proposal has no allowed approval receipt.
+  Repair the recovery fixture/receipt transition and restore the full `just test` gate.
+
+- [ ] **WINDOWS-RELEASE-EXEC-ACCESS: restore local release executable launch** `sev-P1`
+  The 2026-08-02 Tauri rebuild produced updated EXE/NSIS/MSI artifacts, but
+  Windows rejected `Start-Process target/release/agent-diva-gui.exe` with OS
+  error 5 (`Access denied`). Diagnose endpoint protection/file policy or the
+  post-link hard-link state, then repeat the desktop health smoke.
+
 - [x] **跨平台 canonical workspace identity 与 identity-only migration** `sev-P1`
   Windows 路径分隔符差异曾使 Migration 与 Manager 对同一 workspace 计算出不同
   identity，并由 typed fail-closed 检出。统一 CLI/Manager/GUI/Migration 的 canonical
