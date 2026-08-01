@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-07-31T02:50:00+08:00`
-- Last Heartbeat: `2026-07-31T03:15:00+08:00`
+- Started At: `2026-08-01T21:48:00+08:00`
+- Last Heartbeat: `2026-08-01T21:51:00+08:00`
 - Expires At: `released`
 
 ## Lock Rules
@@ -29,6 +29,18 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-08-01T21:51:00+08:00`: Released the documentation-only G2D+
+  preparation lock. Added the seven-scenario runbook, evidence template,
+  troubleshooting/recovery guidance, and iteration records. No desktop run,
+  external API, key read, runtime edit, user-data mutation, push, or deployment
+  occurred.
+
+- `2026-08-01T21:48:00+08:00`: Took over the expired E7 lock (last heartbeat
+  `2026-07-31T03:47:00+08:00`, expiry `2026-07-31T05:47:00+08:00`) for a
+  non-overlapping documentation-only G2D+ preparation slice. The E7 automated
+  release candidate is complete; no runtime files, desktop keys, external APIs,
+  user Memory payloads, push, or real-desktop acceptance are in scope.
 
 - `2026-07-31T03:15:00+08:00`: Released E6 integrated Evolution Workspace.
   The page now shows typed health/revision, AutoDream phase/input coverage,
