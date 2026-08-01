@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `C:\\tmp\\g2d-plus-desktop-acceptance-20260801\\`, `agent-diva-gui\\src-tauri\\target\\release\\bundle\\`, `agent-diva-manager\\src\\runtime.rs`, `docs\\logs\\2026-08-g2d-plus-desktop-reflection-timeout\\`, `LOCK.md`
+- Scope: `C:\\tmp\\g2d-plus-desktop-acceptance-20260801\\`, `target\\release\\{agent-diva-gui.exe,bundle\\}`, `agent-diva-gui\\dist\\`, `LOCK.md`
 - Owner: `Codex / root`
-- Session/Task: `G2D+ reflection provider timeout repair`
+- Session/Task: `G2D+ full Tauri desktop artifact restart repair`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-01T22:45:00+08:00`
-- Last Heartbeat: `2026-08-02T04:13:30+08:00`
-- Expires At: `2026-08-02T04:13:30+08:00`
+- Last Heartbeat: `2026-08-02T04:39:00+08:00`
+- Expires At: `2026-08-02T04:39:00+08:00`
 
 ## Lock Rules
 
@@ -33,6 +33,16 @@ Use this file to declare the current writer scope before mutating the workspace.
   copy it; never modify it.
 
 ## Handoff Notes
+
+- `2026-08-02T04:39:00+08:00`: Released after a complete Tauri rebuild and
+  isolated-profile restart. The GUI process is running and its embedded
+  gateway health endpoint returned HTTP 200 on its ephemeral loopback port.
+
+- `2026-08-02T04:31:00+08:00`: The direct Cargo release executable bound the
+  embedded gateway successfully on port 1300 and `/api/health` returned 200,
+  but its UI resources rendered as a localhost connection failure. Rebuild the
+  complete Tauri artifact rather than using the direct Cargo executable; no
+  source or user-data change is in scope.
 
 - `2026-08-02T04:13:30+08:00`: Released after extending the bounded
   reflection provider window to 90 seconds, lowering output budget to 1,024
