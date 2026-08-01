@@ -6,13 +6,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Status
 
 - Lock State: `RELEASED`
-- Scope: `agent-diva-autodream\\src\\service.rs`, `agent-diva-manager\\src\\{handlers\\autodream.rs,handlers.rs,server.rs}`, `agent-diva-gui\\src-tauri\\src\\{commands.rs,lib.rs}`, `agent-diva-gui\\src\\{api\\desktop.ts,components\\EvolutionView.vue,components\\EvolutionView.test.ts,locales\\{zh,en}.ts}`, `docs\\logs\\2026-08-autodream-run-monitor\\`, `LOCK.md`
+- Scope: `target\\release\\{agent-diva-gui.exe,bundle\\}`, `agent-diva-gui\\dist\\`, `LOCK.md`
 - Owner: `Codex / root`
-- Session/Task: `AutoDream live run monitor dialog`
+- Session/Task: `AutoDream live monitor desktop release build`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-01T22:45:00+08:00`
-- Last Heartbeat: `2026-08-02T06:05:00+08:00`
-- Expires At: `2026-08-02T06:05:00+08:00`
+- Last Heartbeat: `2026-08-02T06:18:00+08:00`
+- Expires At: `2026-08-02T06:18:00+08:00`
 
 ## Lock Rules
 
@@ -33,6 +33,10 @@ Use this file to declare the current writer scope before mutating the workspace.
   copy it; never modify it.
 
 ## Handoff Notes
+
+- `2026-08-02T06:18:00+08:00`: Released after the complete live-monitor
+  Tauri artifact rebuild. The isolated-profile GUI started (PID 20036) and the
+  embedded gateway health endpoint returned HTTP 200.
 
 - `2026-08-02T06:05:00+08:00`: Released the read-only AutoDream live-monitor
   dialog. Focused Manager test, GUI component tests, frontend production build,

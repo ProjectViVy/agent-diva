@@ -5,4 +5,4 @@
 - `npm test -- --run src/components/EvolutionView.test.ts` — 21 passed, including monitor opening and event rendering.
 - `npm run build` — passed. Vite reported pre-existing large-chunk warnings.
 
-Desktop release smoke remains pending rebuild because the Tauri release link is long-running; frontend production build and the in-app component test validate the new dialog surface.
+- `npm run tauri build` — complete release artifact rebuilt. The isolated-profile desktop GUI started successfully and its embedded gateway health endpoint returned HTTP 200.
