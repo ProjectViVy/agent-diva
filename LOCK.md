@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-01T21:48:00+08:00`
-- Last Heartbeat: `2026-08-01T21:51:00+08:00`
+- Started At: `2026-08-01T22:00:00+08:00`
+- Last Heartbeat: `2026-08-01T22:35:00+08:00`
 - Expires At: `released`
 
 ## Lock Rules
@@ -29,6 +29,21 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-08-01T22:35:00+08:00`: Released the cleanup lock. Removed the four
+  large, explicitly verified temporary Cargo targets under `C:\\tmp`:
+  `agent-diva-update-plan-checklist`, `agent-diva-audit-logs-target`,
+  `agent-diva-p0-2-target`, and `agent-diva-dsml-target` (about 88.9 GB before
+  deletion). C: subsequently reported 345.85 GB free. The remaining
+  `agent-diva-plan-compaction-check` (~3.09 GB) and `agent-diva` (~0.02 GB)
+  were intentionally left after the environment rejected their deletion; no
+  workspace target, profile, source, `.git`, key, or system file was touched.
+
+- `2026-08-01T22:00:00+08:00`: Claimed a narrowly scoped cleanup lock after
+  read-only measurement showed C: exhausted and the six listed Agent Diva
+  temporary Cargo target directories accounted for about 92 GB. User requested
+  space reclamation for desktop acceptance. These directories are build outputs
+  only and will be removed explicitly after target revalidation.
 
 - `2026-08-01T21:51:00+08:00`: Released the documentation-only G2D+
   preparation lock. Added the seven-scenario runbook, evidence template,
