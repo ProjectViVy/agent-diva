@@ -40,6 +40,10 @@ just test
 
 ## 桌面人工矩阵
 
+本矩阵只在 GMH-30B2、31、32、33 全部实现和自动化门禁完成后的最终 Epic/M3 验收
+集中执行。中间阶段不得要求用户进行人工 smoke，也不得因尚未执行本矩阵而阻塞后续
+GMH 实现；但自动化测试不能冒充最终人工观察。
+
 在隔离 profile、无真实 provider 下观察：
 
 1. debug 外部 gateway 与 release embedded gateway 均能启动/退出，无孤儿进程和端口；

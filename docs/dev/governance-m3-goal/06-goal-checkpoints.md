@@ -7,17 +7,19 @@
 - 阶段和完成/未完成 story；
 - 精确 commit SHA 与 staged/unstaged 状态；
 - 生产行为变化和保持的兼容契约；
-- 测试命令、结果、真实 smoke 观察；
+- 测试命令与结果；中间阶段注明人工 smoke 延至最终门禁，最终阶段记录真实观察；
 - 新增/关闭 TODO、剩余风险、回滚方式；
 - 是否使用 profile/key/provider/network/admin 权限（预期全部否，隔离 profile 除外）；
 - 下一阶段将修改的 scope。
 
-Goal 报告后进入等待。只有用户明确回复“继续”或给出修订方向才可续作；不得把沉默、
-测试通过或自动 continuation 当成人工批准。
+中间 Goal 报告是自动化质量门禁，不要求用户进行手工测试，也不进入等待；自动化证据
+满足后继续下一 GMH。所有手工冒烟统一在最终 Epic/M3 门禁执行。若报告暴露公开契约
+变更、真实 provider/key/profile、管理员权限、系统安全策略或不可逆数据风险，则必须暂停
+取得人工授权，不得把自动 continuation 当成该类授权。
 
 ## 门禁 A：GMH-30B2
 
-人工确认：
+自动化证据确认：
 
 - Plan/Memory 重启恢复 Pending；悬空 Allowed 撤销并建立新 Pending；
 - prepared+Consumed 仅幂等完成原 operation；
@@ -27,7 +29,7 @@ Goal 报告后进入等待。只有用户明确回复“继续”或给出修订
 
 ## 门禁 B：GMH-31
 
-人工确认：
+自动化证据确认：
 
 - `ApprovalView`、decision body、reason code 和 HTTP 映射；
 - SSE 事件名、cursor、顺序、reconnect 行为；
@@ -36,7 +38,7 @@ Goal 报告后进入等待。只有用户明确回复“继续”或给出修订
 
 ## 门禁 C：GMH-32
 
-先完成自动化，再由用户在隔离桌面观察并确认：
+中间阶段以 GUI 自动化、构建和测试 harness 证据确认；以下人工观察推迟到最终门禁：
 
 - badge/抽屉/三域就地卡一致；
 - risk/evidence/diff/grant/TTL/stale/expired 文案可理解；
@@ -45,7 +47,7 @@ Goal 报告后进入等待。只有用户明确回复“继续”或给出修订
 
 ## 门禁 D：GMH-33
 
-人工确认：
+自动化证据确认；以下 CLI/桌面人工观察推迟到最终门禁：
 
 - interactive CLI 无隐式 allow；
 - headless 默认 fail-closed，退出码/JSON 稳定；

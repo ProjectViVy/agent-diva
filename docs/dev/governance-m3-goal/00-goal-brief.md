@@ -11,7 +11,9 @@
 
 每个 GMH 阶段必须完成实现、成功与 failure-path 测试、`docs/logs` 四件套、
 `TODOLIST.md` 同步和聚焦 Conventional Commit，然后按 `06-goal-checkpoints.md`
-暂停。人工明确回复“继续”后才可进入下一阶段。
+报告自动化证据并继续下一阶段。中间阶段不要求人工 smoke；所有人工桌面/CLI smoke
+统一在最终 Epic/M3 验收执行。若需要真实 provider、真实 key、真实用户 profile、管理员
+权限或系统安全策略变更，仍必须暂停并取得明确授权。
 
 ## 纳入范围
 
@@ -46,5 +48,5 @@
 ## `/goal` 启动文本
 
 ```text
-/goal 完成 agent-diva 的 M3 HITL 闭环（GMH-30B2、GMH-31、GMH-32、GMH-33）及已纳入的 core/Manager all-target Clippy、Manager log-range flake、Windows release EXE access 债务。开始前完整读取并严格执行 docs/dev/governance-m3-goal/ 下全部文档、根 AGENTS.md、TODOLIST.md 和 LOCK.md。按基线→GMH-30B2→31→32→33→最终验收推进；每阶段完成实现、failure-path tests、docs/logs 四件套、TODOLIST 同步和聚焦 Conventional Commit 后暂停，报告提交 SHA、验证证据与剩余风险，等待人工明确“继续”。保持现有 API/Tauri wire compatibility，不新增第二套 authority/store/runtime，不保存命令、prompt、Memory patch 或 secret，不自动重放未知副作用。Plan/Memory 重启恢复 Pending，撤销无 prepared journal 的 Allowed；prepared+Consumed 仅幂等恢复。GUI 使用全局审批抽屉+就地卡片共享同一 server projection。CLI/headless 默认 fail-closed，仅显式 queue 且 Manager 可用时排队。使用隔离 profile，禁止真实 provider、真实 key、push 和自动修改系统安全策略。最终通过资料包规定的全部门禁与人工桌面验收，关闭所有 M3 条目和纳入债务后才可标记 Goal complete。
+/goal 完成 agent-diva 的 M3 HITL 闭环（GMH-30B2、GMH-31、GMH-32、GMH-33）及已纳入的 core/Manager all-target Clippy、Manager log-range flake、Windows release EXE access 债务。开始前完整读取并严格执行 docs/dev/governance-m3-goal/ 下全部文档、根 AGENTS.md、TODOLIST.md 和 LOCK.md。按基线→GMH-30B2→31→32→33→最终验收推进；每阶段完成实现、failure-path tests、docs/logs 四件套、TODOLIST 同步和聚焦 Conventional Commit，报告提交 SHA、自动化证据与剩余风险后继续下一阶段；中间阶段不要求人工 smoke，所有人工桌面/CLI smoke 统一推迟到最终 Epic/M3 验收。保持现有 API/Tauri wire compatibility，不新增第二套 authority/store/runtime，不保存命令、prompt、Memory patch 或 secret，不自动重放未知副作用。Plan/Memory 重启恢复 Pending，撤销无 prepared journal 的 Allowed；prepared+Consumed 仅幂等恢复。GUI 使用全局审批抽屉+就地卡片共享同一 server projection。CLI/headless 默认 fail-closed，仅显式 queue 且 Manager 可用时排队。使用隔离 profile，禁止真实 provider、真实 key、push 和自动修改系统安全策略；若需要真实 provider/key/profile、管理员权限或系统安全策略变更必须暂停授权。最终通过资料包规定的全部自动化门禁与集中人工冒烟，关闭所有 M3 条目和纳入债务后才可标记 Goal complete。
 ```

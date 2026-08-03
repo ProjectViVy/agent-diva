@@ -1,7 +1,8 @@
 # M3 HITL Goal 执行资料包
 
 本目录是使用 Codex `/goal` 完成 M3（GMH-30..33）的权威执行合同。目标必须按
-`00-goal-brief.md` 指定顺序推进，并在 `06-goal-checkpoints.md` 的人工门禁暂停。
+`00-goal-brief.md` 指定顺序推进；中间 GMH 以自动化门禁连续执行，人工 smoke 统一在
+`06-goal-checkpoints.md` 的最终 Epic/M3 门禁集中完成。
 
 阅读顺序：
 
