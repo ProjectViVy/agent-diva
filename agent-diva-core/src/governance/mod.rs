@@ -4,11 +4,13 @@
 //! and Memory decisions. Domain payloads remain owned by their respective
 //! modules and are carried through [`ApprovalRequest`] generically.
 
+mod coordinator;
 mod ledger;
 mod policy;
 mod types;
 
 pub use crate::evolution::{EvidenceRef, EvidenceSource};
+pub use coordinator::*;
 pub use ledger::*;
 pub use policy::*;
 pub use types::*;

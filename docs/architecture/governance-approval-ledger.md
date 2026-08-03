@@ -63,3 +63,17 @@ Once a deny or revoke is committed, later allow and consume transitions fail.
 
 Revocation cannot undo an already consumed side effect. Compensation and
 domain-specific rollback remain responsibilities of later runtime integration.
+
+## GMH-30A coordination boundary
+
+`agent_diva_core::governance::ApprovalCoordinator` is the shared domain-neutral
+entry point over the policy evaluator and ledger. It returns `Allowed` or
+`Denied` without manufacturing approval history, and appends a payload-free
+`Pending` record only when policy requires a human decision. Plan, Sandbox, and
+Memory keep ownership of their payloads and adapt them into the generic request
+envelope.
+
+The coordinator also exposes ledger-backed decision and state queries. Receipt
+consumption, restart recovery, cancellation, and timeout orchestration remain
+GMH-30B work; Manager transport contracts and GUI/CLI presentation remain
+GMH-31 through GMH-33.

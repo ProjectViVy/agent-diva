@@ -108,6 +108,11 @@ standing policy（非功能债，执行相关验证时遵守）：
 - [ ] **GMH-30：统一审批协调器** `sev-P1`
   Plan / Sandbox / Memory 经同一协调接口；执行器只消费有效 receipt。
   suspend/resume、重启恢复、取消、超时、重复响应、多客户端。
+  - [x] **GMH-30A：领域协调器与状态机**：core 协调器统一组合纯策略与 append-only
+    ledger；Plan/Sandbox/Memory envelope 共用 Pending 入口，安全允许和策略拒绝不制造
+    审批记录，decision/state 保持 version CAS、幂等和 payload-free 约束。
+  - [ ] **GMH-30B：receipt 消费与恢复控制**：执行器只消费有效 receipt，并补齐
+    suspend/resume、重启恢复、取消、超时、重复响应和多客户端协调。
 - [ ] **GMH-31：Manager API / SSE / Tauri 契约** `sev-P1`
   pending/详情/approve/edit/reject/cancel/审计；幂等键与版本前置条件；
   typed reason codes 与事件序列。
@@ -141,6 +146,18 @@ standing policy（非功能债，执行相关验证时遵守）：
 `docs/logs` 四件套；单 concern Conventional Commit；不擅自 push。
 
 ### Reliability / Test Debt
+
+- [ ] **CORE-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing test lints** `sev-P2`
+  `cargo clippy -p agent-diva-core --all-targets -- -D warnings` exposes 19
+  pre-existing test-target findings across supervised/config/session/audit and
+  related modules. The production library target and official `just check`
+  pass; repair these warnings in a separate compatibility slice.
+
+- [ ] **MANAGER-LOG-RANGE-FULL-SUITE-FLAKE: isolate shared log state** `sev-P2`
+  The first 2026-08-03 `just test` run failed
+  `handlers::logs::tests::logs_filter_by_range` because an unexpected event
+  entered the selected range; the focused rerun passed. Isolate its log source
+  or clock/range fixture so workspace parallelism cannot contaminate it.
 
 - [x] **CLIPPY-LINES-MAP-WHILE: update fallible line iteration** `sev-P2`
   The run-event reader now propagates line I/O failures explicitly while still
