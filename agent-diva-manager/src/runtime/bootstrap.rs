@@ -1,6 +1,8 @@
 use super::*;
 use agent_diva_core::bus::PokeEvent;
 use agent_diva_core::config::{Config, ConfigDiff};
+use agent_diva_core::governance::{ApprovalCoordinator, SqliteGovernanceLedger};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
@@ -88,7 +90,29 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     let command_rules = Arc::new(agent_diva_sandbox::CommandRuleStore::open(
         loader.config_dir().join("execpolicy.toml"),
     )?);
-    let command_approvals = CommandApprovalCoordinator::default().with_command_rules(command_rules);
+    let governance_dir = workspace.join(".laputa");
+    std::fs::create_dir_all(&governance_dir)?;
+    let governance_pool = SqlitePoolOptions::new()
+        .max_connections(4)
+        .connect_with(
+            SqliteConnectOptions::new()
+                .filename(governance_dir.join("governance.db"))
+                .create_if_missing(true),
+        )
+        .await?;
+    let governance = ApprovalCoordinator::new(Arc::new(
+        SqliteGovernanceLedger::new(governance_pool).await?,
+    ));
+    let command_approvals = CommandApprovalCoordinator::default()
+        .with_command_rules(command_rules)
+        .governed(governance, workspace.to_string_lossy().into_owned());
+    let recovered = command_approvals.recover_incomplete().await?;
+    if recovered > 0 {
+        tracing::warn!(
+            recovered,
+            "revoked incomplete command approvals during gateway restart"
+        );
+    }
 
     // Start config hot-reload background task.
     // The handle is intentionally dropped — the tokio runtime will clean up

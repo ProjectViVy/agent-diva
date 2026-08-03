@@ -151,6 +151,55 @@ impl CommandApprovalCoordinator {
         self
     }
 
+    /// Revoke command approvals that cannot safely be resumed after restart.
+    pub async fn recover_incomplete(
+        &self,
+    ) -> Result<usize, agent_diva_core::governance::ApprovalLedgerError> {
+        let Some(governance) = &self.governance else {
+            return Ok(0);
+        };
+        let evaluated_at = Utc::now();
+        let mut cursor = None;
+        let mut revoked = 0;
+        loop {
+            let page = governance
+                .states_page(cursor.as_deref(), 100, evaluated_at)
+                .await?;
+            for state in page.states {
+                if state.request.capability
+                    != agent_diva_core::governance::Capability::CommandExecute
+                    || state.request.resource.workspace_id != self.workspace_id
+                    || !matches!(
+                        state.status,
+                        agent_diva_core::governance::ApprovalStatus::Pending
+                            | agent_diva_core::governance::ApprovalStatus::Allowed
+                    )
+                {
+                    continue;
+                }
+                let request_id = &state.request.correlation.request_id;
+                governance
+                    .revoke(
+                        request_id,
+                        state.version,
+                        &format!("sandbox-restart-revoke-{request_id}-v{}", state.version),
+                        GovernanceSubject {
+                            kind: GovernanceSubjectKind::System,
+                            id: "manager-restart".into(),
+                        },
+                        evaluated_at,
+                    )
+                    .await?;
+                revoked += 1;
+            }
+            let Some(next) = page.next_cursor else {
+                break;
+            };
+            cursor = Some(next);
+        }
+        Ok(revoked)
+    }
+
     pub fn with_command_rules(mut self, command_rules: Arc<CommandRuleStore>) -> Self {
         self.command_rules = Some(command_rules);
         self
@@ -837,6 +886,73 @@ mod tests {
         assert_eq!(waiter.await.unwrap().1, CommandApprovalStatus::Cancelled);
         assert_eq!(
             governance.state(&id, Utc::now()).await.unwrap().status,
+            ApprovalStatus::Revoked
+        );
+    }
+
+    #[tokio::test]
+    async fn restart_recovery_revokes_pending_and_unconsumed_allowed() {
+        let (coordinator, governance) = governed_coordinator().await;
+        let pending_waiter = tokio::spawn({
+            let coordinator = coordinator.clone();
+            async move {
+                coordinator
+                    .request(
+                        "echo pending".into(),
+                        ".".into(),
+                        "denied".into(),
+                        scope("pending"),
+                    )
+                    .await
+            }
+        });
+        let pending_id = wait_for_pending(&coordinator).await.approval_id;
+        let recovery = CommandApprovalCoordinator::new(Duration::from_secs(2))
+            .governed(governance.clone(), "workspace-1");
+        assert_eq!(recovery.recover_incomplete().await.unwrap(), 1);
+        assert_eq!(
+            governance
+                .state(&pending_id, Utc::now())
+                .await
+                .unwrap()
+                .status,
+            ApprovalStatus::Revoked
+        );
+        coordinator.cancel_scope(&scope("pending")).await;
+        assert_eq!(
+            pending_waiter.await.unwrap().1,
+            CommandApprovalStatus::Cancelled
+        );
+
+        let allowed_waiter = tokio::spawn({
+            let coordinator = coordinator.clone();
+            async move {
+                coordinator
+                    .request(
+                        "echo allowed".into(),
+                        ".".into(),
+                        "denied".into(),
+                        scope("allowed"),
+                    )
+                    .await
+            }
+        });
+        let allowed_id = wait_for_pending(&coordinator).await.approval_id;
+        coordinator
+            .resolve(&allowed_id, ApprovalDecision::ApproveSession)
+            .await
+            .unwrap();
+        assert_eq!(
+            allowed_waiter.await.unwrap().1,
+            CommandApprovalStatus::Approved
+        );
+        assert_eq!(recovery.recover_incomplete().await.unwrap(), 1);
+        assert_eq!(
+            governance
+                .state(&allowed_id, Utc::now())
+                .await
+                .unwrap()
+                .status,
             ApprovalStatus::Revoked
         );
     }

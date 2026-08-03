@@ -112,6 +112,12 @@ standing policy（非功能债，执行相关验证时遵守）：
     ledger；Plan/Sandbox/Memory envelope 共用 Pending 入口，安全允许和策略拒绝不制造
     审批记录，decision/state 保持 version CAS、幂等和 payload-free 约束。
   - [ ] **GMH-30B：receipt 消费与恢复控制**：执行器只消费有效 receipt，并补齐
+    - [x] **GMH-30B1：Sandbox durable receipt 与重启撤销**：命令审批使用统一
+      `.laputa/governance.db`，Once 在执行前消费，session 五分钟到期，global rule
+      仅在 Rule receipt 后持久化；启动分页撤销当前 workspace 的 Pending/Allowed，
+      不保存或重放命令正文。
+    - [ ] **GMH-30B2：Plan/Memory receipt 最终统一**：收口 Plan 审批表与 Memory
+      apply 的执行消费和恢复语义。
     suspend/resume、重启恢复、取消、超时、重复响应和多客户端协调。
 - [ ] **GMH-31：Manager API / SSE / Tauri 契约** `sev-P1`
   pending/详情/approve/edit/reject/cancel/审计；幂等键与版本前置条件；
@@ -158,6 +164,13 @@ standing policy（非功能债，执行相关验证时遵守）：
   `handlers::logs::tests::logs_filter_by_range` because an unexpected event
   entered the selected range; the focused rerun passed. Isolate its log source
   or clock/range fixture so workspace parallelism cannot contaminate it.
+
+- [ ] **MANAGER-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing test lints** `sev-P2`
+  `cargo clippy -p agent-diva-manager --all-targets -- -D warnings` exposes six
+  pre-existing test-target findings (`items_after_test_module`, needless borrow,
+  `len_zero`, and two `single_match` cases). Production `cargo check` and the
+  official `just check` remain the delivery gate; repair these in a separate
+  compatibility slice without mixing them into GMH-30B1.
 
 - [x] **CLIPPY-LINES-MAP-WHILE: update fallible line iteration** `sev-P2`
   The run-event reader now propagates line I/O failures explicitly while still
